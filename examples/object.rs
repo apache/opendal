@@ -31,25 +31,22 @@ async fn main() -> Result<()> {
     let builder = services::Memory::default();
 
     // Init an operator
-    let op = Operator::create(builder)?
+    let op = Operator::new(builder)?
         // Init with logging layer enabled.
         .layer(LoggingLayer::default())
         .finish();
 
     debug!("operator: {op:?}");
 
-    // Create an object handler.
-    let o = op.object("test");
-
     // Write data into object test.
-    o.write("Hello, World!").await?;
+    op.write("test", "Hello, World!").await?;
 
     // Read data from object.
-    let bs = o.read().await?;
+    let bs = op.read("test").await?;
     info!("content: {}", String::from_utf8_lossy(&bs));
 
     // Get object metadata.
-    let meta = o.stat().await?;
+    let meta = op.stat("test").await?;
     info!("meta: {:?}", meta);
 
     // Have fun!

@@ -74,7 +74,7 @@
 //! builder.bucket("example");
 //! builder.root("/path/to/file");
 //!
-//! let op = Operator::create(builder)?.finish();
+//! let op = Operator::new(builder)?.finish();
 //! # Ok(())
 //! # }
 //! ```
@@ -119,7 +119,7 @@
 //! builder.bucket("example");
 //! builder.root("/path/to/file");
 //!
-//! let op = Operator::create(builder)?.finish();
+//! let op = Operator::new(builder)?.finish();
 //! let o = op.object("abc");
 //! let bs: Vec<u8> = o.read().await?;
 //! # Ok(())

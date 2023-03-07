@@ -77,7 +77,7 @@ use crate::*;
 ///         .username("xxx")
 ///         .password("xxx");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");
 ///     Ok(())
 /// }
@@ -259,8 +259,8 @@ impl Accessor for WebdavBackend {
     type Pager = WebdavPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut ma = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capabilities(

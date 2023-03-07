@@ -34,7 +34,7 @@
 //!     builder.bucket("test");
 //!
 //!     // Init an operator
-//!     let op = Operator::create(builder)?
+//!     let op = Operator::new(builder)?
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer::default())
 //!         .finish();
@@ -89,10 +89,9 @@ mod tests {
     /// unexpected struct/enum size change.
     #[test]
     fn assert_size() {
-        assert_eq!(88, size_of::<AccessorMetadata>());
+        assert_eq!(88, size_of::<AccessorInfo>());
         assert_eq!(16, size_of::<Operator>());
-        assert_eq!(112, size_of::<BatchOperator>());
-        assert_eq!(32, size_of::<Object>());
+        assert_eq!(32, size_of::<Entry>());
         assert_eq!(192, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());

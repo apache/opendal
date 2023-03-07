@@ -101,7 +101,7 @@ use crate::*;
 ///     builder.account_key("account_key");
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // Create an object handle to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -307,8 +307,8 @@ impl Accessor for AzdfsBackend {
     type Pager = AzdfsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azdfs)
             .set_root(&self.root)
             .set_name(&self.filesystem)

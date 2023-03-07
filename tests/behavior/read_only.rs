@@ -36,7 +36,7 @@ macro_rules! behavior_read_test {
                     async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service::<opendal::services::$service>(false);
                         match op {
-                            Some(op) if op.metadata().can_read() && !op.metadata().can_write() => $crate::read_only::$test(op).await,
+                            Some(op) if op.info().can_read() && !op.info().can_write() => $crate::read_only::$test(op).await,
                             Some(_) => {
                                 log::warn!("service {} doesn't support read, ignored", opendal::Scheme::$service);
                                 Ok(())
@@ -80,11 +80,11 @@ macro_rules! behavior_read_tests {
 
 /// Stat normal file and dir should return metadata
 pub async fn test_stat(op: Operator) -> Result<()> {
-    let meta = op.object("normal_file").stat().await?;
+    let meta = op.stat("normal_file").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
-    let meta = op.object("normal_dir/").stat().await?;
+    let meta = op.stat("normal_dir/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
@@ -92,11 +92,11 @@ pub async fn test_stat(op: Operator) -> Result<()> {
 
 /// Stat special file and dir should return metadata
 pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
-    let meta = op.object("special_file  !@#$%^&()_+-=;',").stat().await?;
+    let meta = op.stat("special_file  !@#$%^&()_+-=;',").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
-    let meta = op.object("special_dir  !@#$%^&()_+-=;',/").stat().await?;
+    let meta = op.stat("special_dir  !@#$%^&()_+-=;',/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
@@ -104,7 +104,7 @@ pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
 
 /// Stat not cleaned path should also succeed.
 pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
-    let meta = op.object("//normal_file").stat().await?;
+    let meta = op.stat("//normal_file").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
@@ -115,7 +115,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).stat().await;
+    let meta = op.stat(&path).await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
@@ -124,10 +124,10 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Root should be able to stat and returns DIR.
 pub async fn test_stat_root(op: Operator) -> Result<()> {
-    let meta = op.object("").stat().await?;
+    let meta = op.stat("").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
-    let meta = op.object("/").stat().await?;
+    let meta = op.stat("/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
@@ -135,7 +135,7 @@ pub async fn test_stat_root(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_full(op: Operator) -> Result<()> {
-    let bs = op.object("normal_file").read().await?;
+    let bs = op.read("normal_file").await?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -148,7 +148,7 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_full_with_special_chars(op: Operator) -> Result<()> {
-    let bs = op.object("special_file  !@#$%^&()_+-=;',").read().await?;
+    let bs = op.read("special_file  !@#$%^&()_+-=;',").await?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -161,7 +161,7 @@ pub async fn test_read_full_with_special_chars(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_range(op: Operator) -> Result<()> {
-    let bs = op.object("normal_file").range_read(1024..2048).await?;
+    let bs = op.range_read("normal_file", 1024..2048).await?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -174,7 +174,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
 
 /// Read range should match.
 pub async fn test_reader_range(op: Operator) -> Result<()> {
-    let mut r = op.object("normal_file").range_reader(1024..2048).await?;
+    let mut r = op.range_reader("normal_file", 1024..2048).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -191,7 +191,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
 
 /// Read from should match.
 pub async fn test_reader_from(op: Operator) -> Result<()> {
-    let mut r = op.object("normal_file").range_reader(261120..).await?;
+    let mut r = op.range_reader("normal_file", 261120..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -208,7 +208,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
 
 /// Read tail should match.
 pub async fn test_reader_tail(op: Operator) -> Result<()> {
-    let mut r = op.object("normal_file").range_reader(..1024).await?;
+    let mut r = op.range_reader("normal_file", ..1024).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -227,7 +227,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
 pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let bs = op.object(&path).read().await;
+    let bs = op.read(&path).await;
     assert!(bs.is_err());
     assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
@@ -238,7 +238,7 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
 pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let result = op.object(&path).read().await;
+    let result = op.read(&path).await;
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
 

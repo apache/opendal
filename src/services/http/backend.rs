@@ -70,7 +70,7 @@ use crate::*;
 ///
 ///     builder.endpoint("127.0.0.1");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");
 ///     Ok(())
 /// }
@@ -253,8 +253,8 @@ impl Accessor for HttpBackend {
     type Pager = ();
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut ma = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read)
@@ -373,9 +373,9 @@ mod tests {
         let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::create(builder)?.finish();
+        let op = Operator::new(builder)?.finish();
 
-        let bs = op.object("hello").read().await?;
+        let bs = op.read("hello").await?;
 
         assert_eq!(bs, b"Hello, World!");
         Ok(())
@@ -403,9 +403,9 @@ mod tests {
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.username(username).password(password);
-        let op = Operator::create(builder)?.finish();
+        let op = Operator::new(builder)?.finish();
 
-        let bs = op.object("hello").read().await?;
+        let bs = op.read("hello").await?;
 
         assert_eq!(bs, b"Hello, World!");
         Ok(())
@@ -433,9 +433,9 @@ mod tests {
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.token(token);
-        let op = Operator::create(builder)?.finish();
+        let op = Operator::new(builder)?.finish();
 
-        let bs = op.object("hello").read().await?;
+        let bs = op.read("hello").await?;
 
         assert_eq!(bs, b"Hello, World!");
         Ok(())
@@ -455,10 +455,8 @@ mod tests {
         let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::create(builder)?.finish();
-
-        let o = op.object("hello");
-        let bs = o.stat().await?;
+        let op = Operator::new(builder)?.finish();
+        let bs = op.stat("hello").await?;
 
         assert_eq!(bs.mode(), EntryMode::FILE);
         assert_eq!(bs.content_length(), 128);

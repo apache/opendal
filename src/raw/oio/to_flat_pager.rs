@@ -25,7 +25,7 @@ use crate::*;
 pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatPager<A, P> {
     #[cfg(debug_assertions)]
     {
-        let meta = acc.metadata();
+        let meta = acc.info();
         debug_assert!(
             !meta.capabilities().contains(AccessorCapability::Scan),
             "service already supports scan, call to_flat_pager must be a mistake"
@@ -245,8 +245,8 @@ mod tests {
         type Pager = ();
         type BlockingPager = MockPager;
 
-        fn metadata(&self) -> AccessorMetadata {
-            let mut am = AccessorMetadata::default();
+        fn info(&self) -> AccessorInfo {
+            let mut am = AccessorInfo::default();
             am.set_capabilities(AccessorCapability::List);
 
             am

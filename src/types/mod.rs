@@ -15,13 +15,12 @@
 mod mode;
 pub use mode::EntryMode;
 
+mod entry;
+pub use entry::Entry;
+
 mod metadata;
 pub use metadata::Metadata;
 pub use metadata::Metakey;
-
-#[allow(clippy::module_inception)]
-mod object;
-pub use object::Object;
 
 mod reader;
 pub use reader::BlockingReader;
@@ -36,10 +35,10 @@ pub use list::BlockingLister;
 pub use list::Lister;
 
 mod operator;
-pub use operator::BatchOperator;
+pub use operator::BlockingOperator;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;
-pub use operator::OperatorMetadata;
+pub use operator::OperatorInfo;
 
 mod builder;
 pub use builder::Builder;

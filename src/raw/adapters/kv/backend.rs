@@ -57,8 +57,8 @@ impl<S: Adapter> Accessor for Backend<S> {
     type Pager = KvPager;
     type BlockingPager = KvPager;
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am: AccessorMetadata = self.kv.metadata().into();
+    fn info(&self) -> AccessorInfo {
+        let mut am: AccessorInfo = self.kv.metadata().into();
         am.set_root(&self.root)
             .set_hints(AccessorHint::ReadStreamable | AccessorHint::ReadSeekable);
 

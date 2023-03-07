@@ -83,7 +83,7 @@ use crate::*;
 ///
 ///     builder.endpoint("127.0.0.1");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");
 ///     Ok(())
 /// }
@@ -318,8 +318,8 @@ impl Accessor for FtpBackend {
     type Pager = FtpPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
             .set_capabilities(

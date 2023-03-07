@@ -66,7 +66,7 @@ use crate::*;
 ///     let mut builder = Sled::default();
 ///     builder.datadir("/tmp/opendal/sled");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }

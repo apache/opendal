@@ -136,7 +136,7 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 ///     // NOTE: the root must be absolute path.
 ///     builder.root("/path/to/dir");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // Create an object handle to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -296,8 +296,8 @@ impl Accessor for GhacBackend {
     type Pager = ();
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ghac)
             .set_root(&self.root)
             .set_name(&self.version)

@@ -74,7 +74,7 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 ///     let mut builder = Redis::default();
 ///
 ///     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }

@@ -44,14 +44,14 @@ impl<A: Accessor> Layer<A> for ErrorContextLayer {
     type LayeredAccessor = ErrorContextAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let meta = inner.metadata();
+        let meta = inner.info();
         ErrorContextAccessor { meta, inner }
     }
 }
 
 /// Provide error context wrapper for backend.
 pub struct ErrorContextAccessor<A: Accessor> {
-    meta: AccessorMetadata,
+    meta: AccessorInfo,
     inner: A,
 }
 
@@ -75,7 +75,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn metadata(&self) -> AccessorInfo {
         self.meta.clone()
     }
 

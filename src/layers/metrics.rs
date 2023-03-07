@@ -90,7 +90,7 @@ static LABEL_ERROR: &str = "error";
 /// use opendal::services;
 /// use opendal::Operator;
 ///
-/// let _ = Operator::create(services::Memory::default())
+/// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(MetricsLayer)
 ///     .finish();
@@ -118,7 +118,7 @@ impl<A: Accessor> Layer<A> for MetricsLayer {
     type LayeredAccessor = MetricsAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let meta = inner.metadata();
+        let meta = inner.info();
 
         MetricsAccessor {
             inner,
@@ -200,12 +200,12 @@ impl MetricsHandler {
             requests_total_metadata: register_counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::Metadata.into_static(),
+                LABEL_OPERATION => Operation::Info.into_static(),
             ),
             requests_duration_seconds_metadata: register_histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::Metadata.into_static(),
+                LABEL_OPERATION => Operation::Info.into_static(),
             ),
 
             requests_total_create: register_counter!(
@@ -447,11 +447,11 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn metadata(&self) -> AccessorInfo {
         self.handle.requests_total_metadata.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.metadata();
+        let result = self.inner.info();
         let dur = start.elapsed().as_secs_f64();
 
         self.handle.requests_duration_seconds_metadata.record(dur);

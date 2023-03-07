@@ -27,15 +27,14 @@ pub async fn main(args: Option<ArgMatches>) -> Result<()> {
         .get_one::<String>("source")
         .ok_or_else(|| anyhow!("missing source"))?;
     let (src_op, src_path) = parse_location(src)?;
-    let src_o = src_op.object(src_path);
 
     let dst = args
         .get_one::<String>("destination")
         .ok_or_else(|| anyhow!("missing target"))?;
     let (dst_op, dst_path) = parse_location(dst)?;
-    let mut dst_w = dst_op.object(dst_path).writer().await?;
+    let mut dst_w = dst_op.writer(dst_path).await?;
 
-    let reader = src_o.reader().await?;
+    let reader = src_op.reader(src_path).await?;
     let buf_reader = futures::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
     futures::io::copy_buf(buf_reader, &mut dst_w).await?;
     Ok(())

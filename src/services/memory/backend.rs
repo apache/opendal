@@ -131,9 +131,9 @@ mod tests {
     #[test]
     fn test_accessor_metadata_name() {
         let b1 = MemoryBuilder::default().build().unwrap();
-        assert_eq!(b1.metadata().name(), b1.metadata().name());
+        assert_eq!(b1.info().name(), b1.info().name());
 
         let b2 = MemoryBuilder::default().build().unwrap();
-        assert_ne!(b1.metadata().name(), b2.metadata().name())
+        assert_ne!(b1.info().name(), b2.info().name())
     }
 }

@@ -187,7 +187,7 @@ impl BlockingReader {
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
-        let acc_meta = acc.metadata();
+        let acc_meta = acc.info();
 
         let r = if acc_meta.hints().contains(AccessorHint::ReadSeekable) {
             let (_, r) = acc.blocking_read(path, op)?;
@@ -274,17 +274,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_read() {
-        let op = Operator::create(services::Memory::default())
-            .unwrap()
-            .finish();
-        let obj = op.object("test_file");
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
 
         let content = gen_random_bytes();
-        obj.write(content.clone())
+        op.write(path, content.clone())
             .await
             .expect("writ to object must succeed");
 
-        let mut reader = obj.reader().await.unwrap();
+        let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
             .read_to_end(&mut buf)
@@ -296,17 +294,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_seek() {
-        let op = Operator::create(services::Memory::default())
-            .unwrap()
-            .finish();
-        let obj = op.object("test_file");
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
 
         let content = gen_random_bytes();
-        obj.write(content.clone())
+        op.write(path, content.clone())
             .await
             .expect("writ to object must succeed");
 
-        let mut reader = obj.reader().await.unwrap();
+        let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
         reader
             .read_to_end(&mut buf)

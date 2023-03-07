@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::raw::FusedAccessor;
-use crate::EntryMode;
-use crate::Metadata;
-use crate::Object;
+use crate::*;
 
-/// Entry is returned by `Page` or `BlockingPage`
-/// during list operations.
+/// Entry is returned by `Page` or `BlockingPage` during list operations.
+///
+/// # Notes
+///
+/// Differences between `crate::Entry` and `oio::Entry`:
+///
+/// - `crate::Entry` is the user's public API and have less public methods.
+/// - `oio::Entry` is the raw API and doesn't expose to users.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     path: String,
@@ -49,7 +52,7 @@ impl Entry {
         self
     }
 
-    /// Get the path of object entry.
+    /// Get the path of entry.
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -69,8 +72,10 @@ impl Entry {
         self.meta.mode()
     }
 
-    /// Consume to convert into an object.
-    pub(crate) fn into_object(self, acc: FusedAccessor) -> Object {
-        Object::with(acc, &self.path, Some(self.meta))
+    /// Consume self to convert into an Entry.
+    ///
+    /// NOTE: implement this by hand to avoid leadking raw entry to endusers.
+    pub(crate) fn into_entry(self) -> crate::Entry {
+        crate::Entry::new(self.path, self.meta)
     }
 }

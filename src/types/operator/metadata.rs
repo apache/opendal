@@ -17,11 +17,11 @@ use crate::*;
 
 /// Metadata for operator, users can use this metadata to get information of operator.
 #[derive(Clone, Debug, Default)]
-pub struct OperatorMetadata(AccessorMetadata);
+pub struct OperatorInfo(AccessorInfo);
 
-impl OperatorMetadata {
-    pub(super) fn new(acc: AccessorMetadata) -> Self {
-        OperatorMetadata(acc)
+impl OperatorInfo {
+    pub(super) fn new(acc: AccessorInfo) -> Self {
+        OperatorInfo(acc)
     }
 
     /// [`Scheme`] of operator.

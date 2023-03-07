@@ -12,8 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::RangeBounds;
+
+use bytes::Bytes;
+use flagset::FlagSet;
+use futures::stream;
+use futures::AsyncReadExt;
+use futures::Stream;
+use futures::StreamExt;
+use futures::TryStreamExt;
+
+use time::Duration;
+use tokio::io::ReadBuf;
+
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
+
+use super::BlockingOperator;
 
 /// Operator is the entry for all public async APIs.
 ///
@@ -37,7 +53,7 @@ use crate::*;
 ///     builder.root("/tmp");
 ///
 ///     // Build an `Operator` to start operating the storage.
-///     let _: Operator = Operator::create(builder)?.finish();
+///     let _: Operator = Operator::new(builder)?.finish();
 ///
 ///     Ok(())
 /// }
@@ -45,6 +61,8 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct Operator {
     accessor: FusedAccessor,
+
+    limit: usize,
 }
 
 /// # Operator basic API.
@@ -54,14 +72,31 @@ impl Operator {
     }
 
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
-        Self { accessor }
+        Self {
+            accessor,
+            limit: 1000,
+        }
     }
 
     pub(super) fn into_innter(self) -> FusedAccessor {
         self.accessor
     }
 
-    /// Get metadata of underlying accessor.
+    /// Get current operator's limit
+    pub fn limit(&self) -> usize {
+        self.limit
+    }
+
+    /// Specify the batch limit.
+    ///
+    /// Default: 1000
+    pub fn with_limit(&self, limit: usize) -> Self {
+        let mut op = self.clone();
+        op.limit = limit;
+        op
+    }
+
+    /// Get information of underlying accessor.
     ///
     /// # Examples
     ///
@@ -72,22 +107,931 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let meta = op.metadata();
+    /// let info = op.info();
     /// # Ok(())
     /// # }
     /// ```
-    pub fn metadata(&self) -> OperatorMetadata {
-        OperatorMetadata::new(self.accessor.metadata())
+    pub fn info(&self) -> OperatorInfo {
+        OperatorInfo::new(self.accessor.info())
     }
 
-    /// Create a new batch operator handle to take batch operations
-    /// like `walk` and `remove`.
-    pub fn batch(&self) -> BatchOperator {
-        BatchOperator::new(self.clone())
+    /// Create a new blocking operator.
+    ///
+    /// This operation is nearly no cost.
+    pub fn blocking(&self) -> BlockingOperator {
+        BlockingOperator::from_inner(self.accessor.clone()).with_limit(self.limit)
+    }
+}
+
+/// Operato async API.
+impl Operator {
+    /// Check if this operator can work correctly.
+    ///
+    /// We will send a `list` request to path and return any errors we met.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.check().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn check(&self) -> Result<()> {
+        let mut ds = self.list("/").await?;
+
+        match ds.next().await {
+            Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
+            _ => Ok(()),
+        }
     }
 
-    /// Create a new [`Object`][crate::Object] handle to take operations.
-    pub fn object(&self, path: &str) -> Object {
-        Object::new(self.accessor.clone(), path)
+    /// Get current object's metadata **without cache** directly.
+    ///
+    /// # Notes
+    ///
+    /// Use `stat` if you:
+    ///
+    /// - Want detect the outside changes of object.
+    /// - Don't want to read from cached object metadata.
+    ///
+    /// You may want to use `metadata` if you are working with objects
+    /// returned by [`Lister`]. It's highly possible that metadata
+    /// you want has already been cached.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// use opendal::ErrorKind;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// if let Err(e) = op.stat("test").await {
+    ///     if e.kind() == ErrorKind::ObjectNotFound {
+    ///         println!("object not exist")
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn stat(&self, path: &str) -> Result<Metadata> {
+        let path = normalize_path(path);
+
+        let rp = self.inner().stat(&path, OpStat::new()).await?;
+        let meta = rp.into_metadata();
+
+        Ok(meta)
+    }
+
+    /// Get current object's metadata with cache.
+    ///
+    /// `metadata` will check the given query with already cached metadata
+    ///  first. And query from storage if not found.
+    ///
+    /// # Notes
+    ///
+    /// Use `metadata` if you are working with objects returned by
+    /// [`Lister`]. It's highly possible that metadata you want
+    /// has already been cached.
+    ///
+    /// You may want to use `stat`, if you:
+    ///
+    /// - Want detect the outside changes of object.
+    /// - Don't want to read from cached object metadata.
+    ///
+    /// # Behavior
+    ///
+    /// Visiting not fetched metadata will lead to panic in debug build.
+    /// It must be a bug, please fix it instead.
+    ///
+    /// # Examples
+    ///
+    /// ## Query already cached metadata
+    ///
+    /// By query metadata with `None`, we can only query in-memory metadata
+    /// cache. In this way, we can make sure that no API call will send.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let meta = op.object("test").metadata(None).await?;
+    /// // content length COULD be correct.
+    /// let _ = meta.content_length();
+    /// // etag COULD be correct.
+    /// let _ = meta.etag();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Query content length and content type
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::Operator;
+    /// use opendal::Metakey;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let meta = op
+    ///     .object("test")
+    ///     .metadata({
+    ///         use Metakey::*;
+    ///         ContentLength | ContentType
+    ///     })
+    ///     .await?;
+    /// // content length MUST be correct.
+    /// let _ = meta.content_length();
+    /// // etag COULD be correct.
+    /// let _ = meta.etag();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Query all metadata
+    ///
+    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this object.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::Operator;
+    /// use opendal::Metakey;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let meta = op.object("test").metadata({ Metakey::Complete }).await?;
+    /// // content length MUST be correct.
+    /// let _ = meta.content_length();
+    /// // etag MUST be correct.
+    /// let _ = meta.etag();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn metadata(
+        &self,
+        entry: &Entry,
+        flags: impl Into<FlagSet<Metakey>>,
+    ) -> Result<Metadata> {
+        let meta = entry.metadata();
+        if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
+            return Ok(meta.clone());
+        }
+
+        let meta = self.stat(entry.path()).await?;
+        Ok(meta)
+    }
+
+    /// Check if this object exists or not.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let _ = op.is_exist("test").await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn is_exist(&self, path: &str) -> Result<bool> {
+        let r = self.stat(path).await;
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                ErrorKind::ObjectNotFound => Ok(false),
+                _ => Err(err),
+            },
+        }
+    }
+
+    /// Create an empty object, like using the following linux commands:
+    ///
+    /// - `touch path/to/file`
+    /// - `mkdir path/to/dir/`
+    ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create on existing file will overwrite and truncate it.
+    ///
+    /// # Examples
+    ///
+    /// ## Create an empty file
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut o = op.object("path/to/file");
+    /// let _ = o.create().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Create a dir
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut o = op.object("path/to/dir/");
+    /// let _ = o.create().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn create(&self, path: &str) -> Result<()> {
+        let path = normalize_path(path);
+
+        let _ = if path.ends_with('/') {
+            self.inner()
+                .create(&path, OpCreate::new(EntryMode::DIR))
+                .await?
+        } else {
+            self.inner()
+                .create(&path, OpCreate::new(EntryMode::FILE))
+                .await?
+        };
+
+        Ok(())
+    }
+
+    /// Read the whole object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut o = op.object("path/to/file");
+    /// # o.write(vec![0; 4096]).await?;
+    /// let bs = o.read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn read(&self, path: &str) -> Result<Vec<u8>> {
+        self.range_read(path, ..).await
+    }
+
+    /// Read the specified range of object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::range_reader`]
+    ///
+    /// # Notes
+    ///
+    /// - The returning content's length may be smaller than the range specified.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut o = op.object("path/to/file");
+    /// # o.write(vec![0; 4096]).await?;
+    /// let bs = o.range_read(1024..2048).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("range_read")
+                    .with_context("service", self.inner().info().scheme())
+                    .with_context("path", &path),
+            );
+        }
+
+        let br = BytesRange::from(range);
+
+        let op = OpRead::new().with_range(br);
+
+        let (rp, mut s) = self.inner().read(&path, op).await?;
+
+        let length = rp.into_metadata().content_length() as usize;
+        let mut buffer = Vec::with_capacity(length);
+
+        let dst = buffer.spare_capacity_mut();
+        let mut buf = ReadBuf::uninit(dst);
+
+        // Safety: the input buffer is created with_capacity(length).
+        unsafe { buf.assume_init(length) };
+
+        // TODO: use native read api
+        s.read_exact(buf.initialized_mut()).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "read from storage")
+                .with_operation("range_read")
+                .with_context("service", self.inner().info().scheme().into_static())
+                .with_context("path", &path)
+                .with_context("range", br.to_string())
+                .set_source(err)
+        })?;
+
+        // Safety: read_exact makes sure this buffer has been filled.
+        unsafe { buffer.set_len(length) }
+
+        Ok(buffer)
+    }
+
+    /// Create a new reader which can read the whole object.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// let r = o.reader().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn reader(&self, path: &str) -> Result<Reader> {
+        self.range_reader(path, ..).await
+    }
+
+    /// Create a new reader which can read the specified range.
+    ///
+    /// # Notes
+    ///
+    /// - The returning content's length may be smaller than the range specified.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// let r = o.range_reader(1024..2048).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn range_reader(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Reader> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("Object::range_reader")
+                    .with_context("service", self.info().scheme())
+                    .with_context("path", path),
+            );
+        }
+
+        let op = OpRead::new().with_range(range.into());
+
+        Reader::create(self.inner().clone(), &path, op).await
+    }
+
+    /// Write bytes into object.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut o = op.object("path/to/file");
+    /// let _ = o.write(vec![0; 4096]).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
+        self.write_with(path, OpWrite::new(), bs).await
+    }
+
+    /// Write multiple bytes into object.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.writer("path/to/file").await?;
+    /// w.append(vec![0; 4096]).await?;
+    /// w.append(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn writer(&self, path: &str) -> Result<Writer> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::write_with")
+                    .with_context("service", self.inner().info().scheme().into_static())
+                    .with_context("path", &path),
+            );
+        }
+
+        let op = OpWrite::default().with_append();
+        Writer::create(self.inner().clone(), &path, op).await
+    }
+
+    /// Write data with extra options.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    /// use opendal::ops::OpWrite;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut o = op.object("path/to/file");
+    /// let bs = b"hello, world!".to_vec();
+    /// let args = OpWrite::new().with_content_type("text/plain");
+    /// let _ = o.write_with(args, bs).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn write_with(&self, path: &str, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::write_with")
+                    .with_context("service", self.info().scheme().into_static())
+                    .with_context("path", &path),
+            );
+        }
+
+        let (_, mut w) = self.inner().write(&path, args).await?;
+        w.write(bs.into()).await?;
+        w.close().await?;
+
+        Ok(())
+    }
+
+    /// Delete object.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.delete("test").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn delete(&self, path: &str) -> Result<()> {
+        let path = normalize_path(path);
+
+        let _ = self.inner().delete(&path, OpDelete::new()).await?;
+
+        Ok(())
+    }
+
+    ///
+    /// # Notes
+    ///
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.batch()
+    ///     .remove(vec!["abc".to_string(), "def".to_string()])
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
+        self.remove_via(stream::iter(paths)).await
+    }
+
+    /// remove will given paths.
+
+    /// remove_via will remove objects via given stream.
+    ///
+    /// We will delete by chunks with given batch limit on the stream.
+    ///
+    /// # Notes
+    ///
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// use futures::stream;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let stream = stream::iter(vec!["abc".to_string(), "def".to_string()]);
+    /// op.batch().remove_via(stream).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove_via(&self, mut input: impl Stream<Item = String> + Unpin) -> Result<()> {
+        if self.info().can_batch() {
+            let mut input = input.map(|v| (v, OpDelete::default())).chunks(self.limit());
+
+            while let Some(batches) = input.next().await {
+                let results = self
+                    .inner()
+                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
+                    .await?;
+
+                let BatchedResults::Delete(results) = results.into_results();
+
+                // TODO: return error here directly seems not a good idea?
+                for (_, result) in results {
+                    let _ = result?;
+                }
+            }
+        } else {
+            while let Some(path) = input.next().await {
+                self.inner().delete(&path, OpDelete::default()).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Remove the path and all nested dirs and files recursively.
+    ///
+    /// # Notes
+    ///
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.batch().remove_all("path/to/dir").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove_all(&self, path: &str) -> Result<()> {
+        let meta = self.stat(path).await?;
+
+        if meta.mode() != EntryMode::DIR {
+            return self.delete(path).await;
+        }
+
+        let obs = self.scan(path).await?;
+
+        if self.info().can_batch() {
+            let mut obs = obs.try_chunks(self.limit());
+
+            while let Some(batches) = obs.next().await {
+                let batches = batches
+                    .map_err(|err| err.1)?
+                    .into_iter()
+                    .map(|v| (v.path().to_string(), OpDelete::default()))
+                    .collect();
+
+                let results = self
+                    .inner()
+                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
+                    .await?;
+
+                let BatchedResults::Delete(results) = results.into_results();
+
+                // TODO: return error here directly seems not a good idea?
+                for (_, result) in results {
+                    let _ = result?;
+                }
+            }
+        } else {
+            obs.try_for_each(|v| async move { self.delete(v.path()).await })
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    /// List given path.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::EntryMode;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.list().await?;
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = de
+    ///         .metadata({
+    ///             use opendal::Metakey::*;
+    ///             Mode
+    ///         })
+    ///         .await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list(&self, path: &str) -> Result<Lister> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::list")
+            .with_context("service", self.info().scheme().into_static())
+            .with_context("path", &path));
+        }
+
+        let (_, pager) = self.inner().list(&path, OpList::new()).await?;
+
+        Ok(Lister::new(pager))
+    }
+
+    /// List dir in flat way.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::EntryMode;
+    /// # use futures::TryStreamExt;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.scan().await?;
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = de
+    ///         .metadata({
+    ///             use opendal::Metakey::*;
+    ///             Mode
+    ///         })
+    ///         .await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn scan(&self, path: &str) -> Result<Lister> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::list")
+            .with_context("service", self.info().scheme().into_static())
+            .with_context("path", &path));
+        }
+
+        let (_, pager) = self.inner().scan(&path, OpScan::new()).await?;
+
+        Ok(Lister::new(pager))
+    }
+}
+
+/// Operato presign API.
+impl Operator {
+    /// Presign an operation for stat(head).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.object("test").presign_stat(Duration::hours(1))?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+
+        let op = OpPresign::new(OpStat::new(), expire);
+
+        let rp = self.inner().presign(&path, op)?;
+        Ok(rp.into_presigned_request())
+    }
+
+    /// Presign an operation for read.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.object("test.txt").presign_read(Duration::hours(1))?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    ///
+    /// - `signed_req.method()`: `GET`
+    /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
+    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    ///
+    /// We can download this object via `curl` or other tools without credentials:
+    ///
+    /// ```shell
+    /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -O /tmp/test.txt
+    /// ```
+    pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+
+        let op = OpPresign::new(OpRead::new(), expire);
+
+        let rp = self.inner().presign(&path, op)?;
+        Ok(rp.into_presigned_request())
+    }
+
+    /// Presign an operation for write.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.object("test.txt").presign_write(Duration::hours(1))?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    ///
+    /// - `signed_req.method()`: `PUT`
+    /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
+    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    ///
+    /// We can upload file as this object via `curl` or other tools without credential:
+    ///
+    /// ```shell
+    /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
+    /// ```
+    pub fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.presign_write_with(path, OpWrite::new(), expire)
+    }
+
+    /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
+    ///
+    /// You can pass `OpWrite` to this method to specify the content length and content type.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::ops::OpWrite;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let args = OpWrite::new().with_content_type("text/csv");
+    ///     let signed_req = op.object("test").presign_write_with(args, Duration::hours(1))?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn presign_write_with(
+        &self,
+        path: &str,
+        op: OpWrite,
+        expire: Duration,
+    ) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+
+        let op = OpPresign::new(op, expire);
+
+        let rp = self.inner().presign(&path, op)?;
+        Ok(rp.into_presigned_request())
     }
 }

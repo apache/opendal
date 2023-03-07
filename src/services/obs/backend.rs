@@ -81,7 +81,7 @@ use crate::*;
 ///     builder.access_key_id("access_key_id");
 ///     builder.secret_access_key("secret_access_key");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // Create an object handle to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -309,11 +309,11 @@ impl Accessor for ObsBackend {
     type Pager = ObsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         use AccessorCapability::*;
         use AccessorHint::*;
 
-        let mut am = AccessorMetadata::default();
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Obs)
             .set_root(&self.root)
             .set_name(&self.bucket)

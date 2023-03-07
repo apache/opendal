@@ -25,43 +25,28 @@ struct Operator(od::Operator);
 impl Operator {
     #[new]
     pub fn new() -> Self {
-        let op = od::Operator::create(od::services::Memory::default())
+        let op = od::Operator::new(od::services::Memory::default())
             .unwrap()
             .finish();
 
         Operator(op)
     }
 
-    pub fn object(&self, path: &str) -> Object {
-        let o = self.0.object(path);
-
-        Object(o)
-    }
-}
-
-#[pyclass]
-struct Object(od::Object);
-
-#[pymethods]
-impl Object {
-    pub fn path(&self) -> &str {
-        self.0.path()
+    pub fn blocking_read(&self, path: &str) -> PyResult<Vec<u8>> {
+        self.0.blocking().read(path).map_err(format_pyerr)
     }
 
-    pub fn blocking_read(&self) -> PyResult<Vec<u8>> {
-        self.0.blocking_read().map_err(format_pyerr)
-    }
-
-    pub fn read<'p>(&'p self, py: Python<'p>) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
+        let path = path.to_string();
         future_into_py(py, async move {
-            let res: Vec<u8> = this.read().await.map_err(format_pyerr)?;
+            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
             Ok(res)
         })
     }
 
-    pub fn blocking_write(&self, bs: Vec<u8>) -> PyResult<()> {
-        self.0.blocking_write(bs).map_err(format_pyerr)
+    pub fn blocking_write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
+        self.0.blocking().write(path, bs).map_err(format_pyerr)
     }
 }
 
@@ -76,6 +61,5 @@ fn format_pyerr(err: od::Error) -> PyErr {
 #[pymodule]
 fn opendal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
-    m.add_class::<Object>()?;
     Ok(())
 }

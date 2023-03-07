@@ -87,7 +87,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 ///     // set the credentials for GCS OAUTH2 authentication
 ///     builder.credential("authentication token");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }
@@ -351,11 +351,11 @@ impl Accessor for GcsBackend {
     type Pager = GcsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         use AccessorCapability::*;
         use AccessorHint::*;
 
-        let mut am = AccessorMetadata::default();
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.root)
             .set_name(&self.bucket)

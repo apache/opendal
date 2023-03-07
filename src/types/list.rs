@@ -33,7 +33,6 @@ use crate::*;
 /// User can use object lister as `Stream<Item = Result<Object>>` or
 /// call `next_page` directly.
 pub struct Lister {
-    acc: FusedAccessor,
     pager: Option<oio::Pager>,
 
     buf: VecDeque<oio::Entry>,
@@ -46,9 +45,8 @@ pub struct Lister {
 
 impl Lister {
     /// Create a new object lister.
-    pub(crate) fn new(acc: FusedAccessor, pager: oio::Pager) -> Self {
+    pub(crate) fn new(pager: oio::Pager) -> Self {
         Self {
-            acc,
             pager: Some(pager),
             buf: VecDeque::default(),
             fut: None,
@@ -61,7 +59,7 @@ impl Lister {
     ///
     /// Don't mix the usage of `next_page` and `Stream<Item = Result<Object>>`.
     /// Always using the same calling style.
-    pub async fn next_page(&mut self) -> Result<Option<Vec<Object>>> {
+    pub async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         debug_assert!(
             self.fut.is_none(),
             "there are ongoing futures for next page"
@@ -85,21 +83,16 @@ impl Lister {
             }
         };
 
-        Ok(Some(
-            entries
-                .into_iter()
-                .map(|v| v.into_object(self.acc.clone()))
-                .collect(),
-        ))
+        Ok(Some(entries.into_iter().map(|v| v.into_entry()).collect()))
     }
 }
 
 impl Stream for Lister {
-    type Item = Result<Object>;
+    type Item = Result<Entry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(oe) = self.buf.pop_front() {
-            return Poll::Ready(Some(Ok(oe.into_object(self.acc.clone()))));
+            return Poll::Ready(Some(Ok(oe.into_entry())));
         }
 
         if let Some(fut) = self.fut.as_mut() {
@@ -134,23 +127,21 @@ impl Stream for Lister {
 ///
 /// Users can construct Lister by `blocking_list` or `blocking_scan`.
 pub struct BlockingLister {
-    acc: FusedAccessor,
     pager: oio::BlockingPager,
     buf: VecDeque<oio::Entry>,
 }
 
 impl BlockingLister {
     /// Create a new object lister.
-    pub(crate) fn new(acc: FusedAccessor, pager: oio::BlockingPager) -> Self {
+    pub(crate) fn new(pager: oio::BlockingPager) -> Self {
         Self {
-            acc,
             pager,
             buf: VecDeque::default(),
         }
     }
 
     /// next_page can be used to fetch a new object page.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Object>>> {
+    pub fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         let entries = if !self.buf.is_empty() {
             mem::take(&mut self.buf)
         } else {
@@ -163,22 +154,17 @@ impl BlockingLister {
             }
         };
 
-        Ok(Some(
-            entries
-                .into_iter()
-                .map(|v| v.into_object(self.acc.clone()))
-                .collect(),
-        ))
+        Ok(Some(entries.into_iter().map(|v| v.into_entry()).collect()))
     }
 }
 
 /// TODO: we can implement next_chunk.
 impl Iterator for BlockingLister {
-    type Item = Result<Object>;
+    type Item = Result<Entry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(oe) = self.buf.pop_front() {
-            return Some(Ok(oe.into_object(self.acc.clone())));
+            return Some(Ok(oe.into_entry()));
         }
 
         self.buf = match self.pager.next() {

@@ -105,7 +105,7 @@ use crate::*;
 ///     builder.access_key_id("access_key_id");
 ///     builder.access_key_secret("access_key_secret");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // Create an object handle to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -411,11 +411,11 @@ impl Accessor for OssBackend {
     type Pager = OssPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         use AccessorCapability::*;
         use AccessorHint::*;
 
-        let mut am = AccessorMetadata::default();
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Oss)
             .set_root(&self.root)
             .set_name(&self.bucket)

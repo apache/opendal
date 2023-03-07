@@ -110,7 +110,7 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 ///     builder.account_key("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // Create an object handle to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -422,11 +422,11 @@ impl Accessor for AzblobBackend {
     type Pager = AzblobPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         use AccessorCapability::*;
         use AccessorHint::*;
 
-        let mut am = AccessorMetadata::default();
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
             .set_name(&self.container)

@@ -62,7 +62,7 @@ use crate::*;
 ///
 ///     builder.endpoint("tcp://127.0.0.1:11211");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }

@@ -56,8 +56,9 @@ impl std::fmt::Display for OpendalStore {
 #[async_trait]
 impl ObjectStore for OpendalStore {
     async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
-        let o = self.inner.object(location.as_ref());
-        Ok(o.write(bytes)
+        Ok(self
+            .inner
+            .write(location.as_ref(), bytes)
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?)
     }
@@ -84,9 +85,9 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn get(&self, location: &Path) -> Result<GetResult> {
-        let o = self.inner.object(location.as_ref());
-        let r = o
-            .reader()
+        let r = self
+            .inner
+            .reader(location.as_ref())
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
@@ -94,9 +95,9 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {
-        let o = self.inner.object(location.as_ref());
-        let bs = o
-            .range_read(range.start as u64..range.end as u64)
+        let bs = self
+            .inner
+            .range_read(location.as_ref(), range.start as u64..range.end as u64)
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
@@ -104,9 +105,9 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
-        let o = self.inner.object(location.as_ref());
-        let meta = o
-            .stat()
+        let meta = self
+            .inner
+            .stat(location.as_ref())
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
@@ -127,8 +128,8 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
-        let o = self.inner.object(location.as_ref());
-        o.delete()
+        self.inner
+            .delete(location.as_ref())
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
@@ -223,9 +224,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic() {
-        let op = Operator::create(services::Memory::default())
-            .unwrap()
-            .finish();
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
         // Retrieve a specific file

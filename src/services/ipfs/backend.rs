@@ -70,7 +70,7 @@ use crate::*;
 ///     // set the root for OpenDAL
 ///     builder.root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // Create an object handle to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -214,8 +214,8 @@ impl Accessor for IpfsBackend {
     type Pager = DirStream;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut ma = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read | AccessorCapability::List)

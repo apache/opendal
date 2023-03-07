@@ -144,8 +144,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     fn inner(&self) -> &Self::Inner;
 
-    fn metadata(&self) -> AccessorMetadata {
-        self.inner().metadata()
+    fn metadata(&self) -> AccessorInfo {
+        self.inner().info()
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -206,7 +206,7 @@ impl<L: LayeredAccessor> Accessor for L {
     type Pager = L::Pager;
     type BlockingPager = L::BlockingPager;
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         (self as &L).metadata()
     }
 
@@ -311,8 +311,8 @@ mod tests {
         type Pager = ();
         type BlockingPager = ();
 
-        fn metadata(&self) -> AccessorMetadata {
-            let mut am = AccessorMetadata::default();
+        fn info(&self) -> AccessorInfo {
+            let mut am = AccessorInfo::default();
             am.set_scheme(Scheme::Custom("test"));
             am
         }
@@ -335,12 +335,12 @@ mod tests {
             deleted: Arc::new(Mutex::new(false)),
         };
 
-        let op = Operator::create(Memory::default())
+        let op = Operator::new(Memory::default())
             .unwrap()
             .layer(&test)
             .finish();
 
-        op.object("xxxxx").delete().await.unwrap();
+        op.delete("xxxxx").await.unwrap();
 
         assert!(*test.deleted.clone().lock().await);
     }

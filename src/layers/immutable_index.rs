@@ -144,8 +144,8 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     }
 
     /// Add list capabilities for underlying storage services.
-    fn metadata(&self) -> AccessorMetadata {
-        let mut meta = self.inner.metadata();
+    fn metadata(&self) -> AccessorInfo {
+        let mut meta = self.inner.info();
         meta.set_capabilities(
             meta.capabilities() | AccessorCapability::List | AccessorCapability::Scan,
         );
@@ -288,7 +288,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(Http::from_iter(
+        let op = Operator::new(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -297,7 +297,7 @@ mod tests {
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
-        let mut ds = op.object("").list().await?;
+        let mut ds = op.list("").await?;
         while let Some(entry) = ds.try_next().await? {
             debug!("got entry: {}", entry.path());
             assert!(
@@ -307,7 +307,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(Metakey::Mode).await?.mode(),
+                op.metadata(&entry, Metakey::Mode).await?.mode(),
             );
         }
 
@@ -326,14 +326,14 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(Http::from_iter(
+        let op = Operator::new(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
 
-        let mut ds = op.object("/").scan().await?;
+        let mut ds = op.scan("/").await?;
         let mut set = HashSet::new();
         let mut map = HashMap::new();
         while let Some(entry) = ds.try_next().await? {
@@ -345,7 +345,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(Metakey::Mode).await?.mode(),
+                op.metadata(&entry, Metakey::Mode).await?.mode(),
             );
         }
 
@@ -370,7 +370,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(Http::from_iter(
+        let op = Operator::new(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -380,7 +380,7 @@ mod tests {
         //  List /
         let mut map = HashMap::new();
         let mut set = HashSet::new();
-        let mut ds = op.object("/").list().await?;
+        let mut ds = op.list("/").await?;
         while let Some(entry) = ds.try_next().await? {
             assert!(
                 set.insert(entry.path().to_string()),
@@ -389,7 +389,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(Metakey::Mode).await?.mode(),
+                op.metadata(&entry, Metakey::Mode).await?.mode(),
             );
         }
 
@@ -399,7 +399,7 @@ mod tests {
         //  List dataset/stateful/
         let mut map = HashMap::new();
         let mut set = HashSet::new();
-        let mut ds = op.object("dataset/stateful/").list().await?;
+        let mut ds = op.list("dataset/stateful/").await?;
         while let Some(entry) = ds.try_next().await? {
             assert!(
                 set.insert(entry.path().to_string()),
@@ -408,7 +408,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(Metakey::Mode).await?.mode(),
+                op.metadata(&entry, Metakey::Mode).await?.mode(),
             );
         }
 
@@ -431,14 +431,14 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(Http::from_iter(
+        let op = Operator::new(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
 
-        let mut ds = op.object("/").scan().await?;
+        let mut ds = op.scan("/").await?;
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
@@ -450,7 +450,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(Metakey::Mode).await?.mode(),
+                op.metadata(&entry, Metakey::Mode).await?.mode(),
             );
         }
 

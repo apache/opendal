@@ -98,7 +98,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///     // set the delegation_token for builder
 ///     builder.delegation("delegation_token");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // create an object handler to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -541,8 +541,8 @@ impl Accessor for WebhdfsBackend {
     type Pager = WebhdfsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
             .set_capabilities(

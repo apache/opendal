@@ -38,7 +38,7 @@ use crate::*;
 /// use opendal::services;
 /// use opendal::Operator;
 ///
-/// let _ = Operator::create(services::Memory::default())
+/// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(TracingLayer)
 ///     .finish();
@@ -84,8 +84,8 @@ use crate::*;
 ///             .write("0".repeat(16 * 1024 * 1024).into_bytes())
 ///             .await
 ///             .expect("must succeed");
-///         op.object("test").stat().await.expect("must succeed");
-///         op.object("test").read().await.expect("must succeed");
+///         op.stat("test").await.expect("must succeed");
+///         op.read("test").await.expect("must succeed");
 ///     });
 ///
 ///     // Shut down the current tracer provider. This will invoke the shutdown
@@ -144,8 +144,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug")]
-    fn metadata(&self) -> AccessorMetadata {
-        self.inner.metadata()
+    fn metadata(&self) -> AccessorInfo {
+        self.inner.info()
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

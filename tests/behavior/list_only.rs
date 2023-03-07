@@ -35,7 +35,7 @@ macro_rules! behavior_list_only_test {
                     async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service::<opendal::services::$service>(false);
                         match op {
-                            Some(op) if op.metadata().can_list() && !op.metadata().can_write() => $crate::list_only::$test(op).await,
+                            Some(op) if op.info().can_list() && !op.info().can_write() => $crate::list_only::$test(op).await,
                             Some(_) => {
                                 log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
                                 Ok(())
@@ -69,9 +69,9 @@ macro_rules! behavior_list_only_tests {
 pub async fn test_list(op: Operator) -> Result<()> {
     let mut entries = HashMap::new();
 
-    let mut ds = op.object("/").list().await?;
+    let mut ds = op.list("/").await?;
     while let Some(de) = ds.try_next().await? {
-        entries.insert(de.path().to_string(), de.stat().await?.mode());
+        entries.insert(de.path().to_string(), op.stat(de.path()).await?.mode());
     }
 
     assert_eq!(entries["normal_file"], EntryMode::FILE);

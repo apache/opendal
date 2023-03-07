@@ -13,8 +13,6 @@
 // limitations under the License.
 
 #[macro_use]
-mod base;
-#[macro_use]
 mod blocking_list;
 #[macro_use]
 mod blocking_read;
@@ -38,7 +36,6 @@ mod utils;
 macro_rules! behavior_tests {
     ($($service:ident),*) => {
         $(
-            behavior_base_tests!($service);
             // can_read && !can_write
             behavior_read_tests!($service);
             // can_read && !can_write && can_blocking

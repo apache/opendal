@@ -66,8 +66,8 @@ impl Accessor for IpmfsBackend {
     type Pager = IpmfsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
             .set_capabilities(

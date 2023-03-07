@@ -893,7 +893,7 @@ mod tests {
             self.attempt += 1;
             match self.attempt {
                 1 => Err(Error::new(
-                    ErrorKind::ObjectRateLimited,
+                    ErrorKind::RateLimited,
                     "retriable rate limited error from pager",
                 )
                 .set_temporary()),

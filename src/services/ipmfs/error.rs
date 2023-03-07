@@ -52,7 +52,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         StatusCode::INTERNAL_SERVER_ERROR => {
             if let Some(ie) = &ipfs_error {
                 match ie.message.as_str() {
-                    "file does not exist" => (ErrorKind::ObjectNotFound, false),
+                    "file does not exist" => (ErrorKind::NotFound, false),
                     _ => (ErrorKind::Unexpected, false),
                 }
             } else {

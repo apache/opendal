@@ -508,11 +508,8 @@ impl WebhdfsBackend {
                 match file_status.ty {
                     FileStatusType::File => {
                         error!("working directory is occupied!");
-                        return Err(Error::new(
-                            ErrorKind::BackendConfigInvalid,
-                            "root is occupied!",
-                        )
-                        .with_context("service", Scheme::Webhdfs));
+                        return Err(Error::new(ErrorKind::ConfigInvalid, "root is occupied!")
+                            .with_context("service", Scheme::Webhdfs));
                     }
                     FileStatusType::Directory => {
                         debug!("working directory exists, do nothing");
@@ -600,7 +597,7 @@ impl Accessor for WebhdfsBackend {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-            StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::ObjectNotFound, "object not found")
+            StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::NotFound, "object not found")
                 .with_context("service", Scheme::Webhdfs)),
             _ => Err(parse_error(resp).await?),
         }

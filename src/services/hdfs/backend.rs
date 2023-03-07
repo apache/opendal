@@ -179,10 +179,8 @@ impl Builder for HdfsBuilder {
         let name_node = match &self.name_node {
             Some(v) => v,
             None => {
-                return Err(
-                    Error::new(ErrorKind::BackendConfigInvalid, "name node is empty")
-                        .with_context("service", Scheme::Hdfs),
-                )
+                return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
+                    .with_context("service", Scheme::Hdfs))
             }
         };
 

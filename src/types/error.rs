@@ -24,7 +24,7 @@
 //! # #[tokio::main]
 //! # async fn test(op: Operator) -> Result<()> {
 //! if let Err(e) = op.stat("test_file").await {
-//!     if e.kind() == ErrorKind::ObjectNotFound {
+//!     if e.kind() == ErrorKind::NotFound {
 //!         println!("object not exist")
 //!     }
 //! }
@@ -52,20 +52,19 @@ pub enum ErrorKind {
     Unsupported,
 
     /// The config for backend is invalid.
-    BackendConfigInvalid,
-
-    /// Object is not found.
-    ObjectNotFound,
+    ConfigInvalid,
+    /// The given path is not found.
+    NotFound,
     /// Object doesn't have enough permission for this operation
-    ObjectPermissionDenied,
+    PermissionDenied,
     /// Object is a directory.
-    ObjectIsADirectory,
+    IsADirectory,
     /// Object is not a directory.
-    ObjectNotADirectory,
+    NotADirectory,
     /// Object already exists thus we failed to the specified operation on it.
-    ObjectAlreadyExists,
+    AlreadyExists,
     /// Requests that sent to this object is over the limit, please slow down.
-    ObjectRateLimited,
+    RateLimited,
 }
 
 impl ErrorKind {
@@ -86,13 +85,13 @@ impl From<ErrorKind> for &'static str {
         match v {
             ErrorKind::Unexpected => "Unexpected",
             ErrorKind::Unsupported => "Unsupported",
-            ErrorKind::BackendConfigInvalid => "BackendConfigInvalid",
-            ErrorKind::ObjectNotFound => "ObjectNotFound",
-            ErrorKind::ObjectPermissionDenied => "ObjectPermissionDenied",
-            ErrorKind::ObjectIsADirectory => "ObjectIsADirectory",
-            ErrorKind::ObjectNotADirectory => "ObjectNotADirectory",
-            ErrorKind::ObjectAlreadyExists => "ObjectAlreadyExists",
-            ErrorKind::ObjectRateLimited => "ObjectRateLimited",
+            ErrorKind::ConfigInvalid => "BackendConfigInvalid",
+            ErrorKind::NotFound => "NotFound",
+            ErrorKind::PermissionDenied => "ObjectPermissionDenied",
+            ErrorKind::IsADirectory => "ObjectIsADirectory",
+            ErrorKind::NotADirectory => "ObjectNotADirectory",
+            ErrorKind::AlreadyExists => "AlreadyExists",
+            ErrorKind::RateLimited => "ObjectRateLimited",
         }
     }
 }
@@ -303,8 +302,8 @@ impl Error {
 impl From<Error> for io::Error {
     fn from(err: Error) -> Self {
         let kind = match err.kind() {
-            ErrorKind::ObjectNotFound => io::ErrorKind::NotFound,
-            ErrorKind::ObjectPermissionDenied => io::ErrorKind::PermissionDenied,
+            ErrorKind::NotFound => io::ErrorKind::NotFound,
+            ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
             _ => io::ErrorKind::Other,
         };
 

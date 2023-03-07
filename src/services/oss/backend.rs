@@ -245,13 +245,13 @@ impl OssBuilder {
         let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
-                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+                    Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                         .set_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
-                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint host is empty")
+                    Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
@@ -261,7 +261,7 @@ impl OssBuilder {
                         "http" | "https" => format!("{scheme_str}://{full_host}"),
                         _ => {
                             return Err(Error::new(
-                                ErrorKind::BackendConfigInvalid,
+                                ErrorKind::ConfigInvalid,
                                 "endpoint protocol is invalid",
                             )
                             .with_context("service", Scheme::Oss));
@@ -272,10 +272,8 @@ impl OssBuilder {
                 (endpoint, full_host)
             }
             None => {
-                return Err(
-                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                        .with_context("service", Scheme::Oss),
-                );
+                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                    .with_context("service", Scheme::Oss));
             }
         };
         Ok((endpoint, host))
@@ -313,10 +311,8 @@ impl Builder for OssBuilder {
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
-                    .with_context("service", Scheme::Oss),
-            ),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
+                .with_context("service", Scheme::Oss)),
         }?;
 
         let client = if let Some(client) = self.http_client.take() {
@@ -354,7 +350,7 @@ impl Builder for OssBuilder {
         }
 
         let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::BackendConfigInvalid, "build AliyunOssSigner")
+            Error::new(ErrorKind::ConfigInvalid, "build AliyunOssSigner")
                 .with_context("service", Scheme::Oss)
                 .with_context("endpoint", &endpoint)
                 .with_context("bucket", bucket)

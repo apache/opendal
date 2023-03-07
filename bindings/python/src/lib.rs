@@ -53,7 +53,7 @@ impl Operator {
 fn format_pyerr(err: od::Error) -> PyErr {
     use od::ErrorKind::*;
     match err.kind() {
-        ObjectNotFound => PyFileNotFoundError::new_err(err.to_string()),
+        NotFound => PyFileNotFoundError::new_err(err.to_string()),
         _ => PyBaseException::new_err(err.to_string()),
     }
 }

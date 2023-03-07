@@ -251,11 +251,9 @@ impl Builder for GcsBuilder {
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Gcs),
-            ),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Gcs)),
         }?;
 
         // TODO: server side encryption
@@ -296,7 +294,7 @@ impl Builder for GcsBuilder {
                 signer_builder.credential_path(cred);
             }
             let signer = signer_builder.build().map_err(|e| {
-                Error::new(ErrorKind::BackendConfigInvalid, "build GoogleSigner")
+                Error::new(ErrorKind::ConfigInvalid, "build GoogleSigner")
                     .with_operation("Builder::build")
                     .with_context("service", Scheme::Gcs)
                     .with_context("bucket", bucket)

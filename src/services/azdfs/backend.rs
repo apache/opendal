@@ -221,21 +221,17 @@ impl Builder for AzdfsBuilder {
         // Handle endpoint, region and container name.
         let filesystem = match self.filesystem.is_empty() {
             false => Ok(&self.filesystem),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "filesystem is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azdfs),
-            ),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "filesystem is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azdfs)),
         }?;
         debug!("backend use filesystem {}", &filesystem);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azdfs),
-            ),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azdfs)),
         }?;
         debug!("backend use endpoint {}", &filesystem);
 
@@ -254,7 +250,7 @@ impl Builder for AzdfsBuilder {
         }
 
         let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::BackendConfigInvalid, "build AzureStorageSigner")
+            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azdfs)
                 .with_context("endpoint", &endpoint)

@@ -99,15 +99,12 @@ impl Builder for SledBuilder {
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let datadir_path = self.datadir.take().ok_or_else(|| {
-            Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "datadir is required but not set",
-            )
-            .with_context("service", Scheme::Sled)
+            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                .with_context("service", Scheme::Sled)
         })?;
 
         let db = sled::open(&datadir_path).map_err(|e| {
-            Error::new(ErrorKind::BackendConfigInvalid, "open db")
+            Error::new(ErrorKind::ConfigInvalid, "open db")
                 .with_context("service", Scheme::Sled)
                 .with_context("datadir", datadir_path.clone())
                 .set_source(e)

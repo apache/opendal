@@ -196,7 +196,7 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
     let result = op.write(&path, content).await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
 
     Ok(())
 }
@@ -280,7 +280,7 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 
     let meta = op.stat(&path).await;
     assert!(meta.is_err());
-    assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+    assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }
@@ -468,7 +468,7 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
 
     let bs = op.read(&path).await;
     assert!(bs.is_err());
-    assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+    assert_eq!(bs.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }
@@ -594,7 +594,7 @@ pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
 
     let result = op.read(&path).await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

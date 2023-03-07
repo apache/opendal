@@ -238,7 +238,7 @@ impl Builder for GhacBuilder {
 
             cache_url: env::var(ACTIONS_CACHE_URL).map_err(|err| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "ACTIONS_CACHE_URL not found, maybe not in github action environment?",
                 )
                 .with_operation("Builder::build")
@@ -246,7 +246,7 @@ impl Builder for GhacBuilder {
             })?,
             catch_token: env::var(ACTIONS_RUNTIME_TOKEN).map_err(|err| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "ACTIONS_RUNTIME_TOKEN not found, maybe not in github action environment?",
                 )
                 .with_operation("Builder::build")
@@ -460,7 +460,7 @@ impl Accessor for GhacBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         if self.api_token.is_empty() {
             return Err(Error::new(
-                ErrorKind::ObjectPermissionDenied,
+                ErrorKind::PermissionDenied,
                 "github token is not configured, delete is permission denied",
             ));
         }

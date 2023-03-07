@@ -127,7 +127,7 @@ impl BlockingOperator {
     /// #
     /// # fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.blocking_stat("test") {
-    ///     if e.kind() == ErrorKind::ObjectNotFound {
+    ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("object not exist")
     ///     }
     /// }
@@ -250,7 +250,7 @@ impl BlockingOperator {
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
-                ErrorKind::ObjectNotFound => Ok(false),
+                ErrorKind::NotFound => Ok(false),
                 _ => Err(err),
             },
         }
@@ -353,7 +353,7 @@ impl BlockingOperator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                Error::new(ErrorKind::IsADirectory, "read path is a directory")
                     .with_operation("Object::blocking_range_read")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
@@ -415,7 +415,7 @@ impl BlockingOperator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                Error::new(ErrorKind::IsADirectory, "read path is a directory")
                     .with_operation("Object::blocking_range_reader")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
@@ -479,7 +479,7 @@ impl BlockingOperator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Object::blocking_write_with")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
@@ -521,7 +521,7 @@ impl BlockingOperator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
@@ -596,7 +596,7 @@ impl BlockingOperator {
 
         if !validate_path(&path, EntryMode::DIR) {
             return Err(Error::new(
-                ErrorKind::ObjectNotADirectory,
+                ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
             .with_operation("Object::blocking_list")
@@ -647,7 +647,7 @@ impl BlockingOperator {
 
         if !validate_path(&path, EntryMode::DIR) {
             return Err(Error::new(
-                ErrorKind::ObjectNotADirectory,
+                ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
             .with_operation("Object::blocking_scan")

@@ -144,7 +144,7 @@ impl Operator {
         let mut ds = self.list("/").await?;
 
         match ds.next().await {
-            Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
+            Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
             _ => Ok(()),
         }
     }
@@ -173,7 +173,7 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.stat("test").await {
-    ///     if e.kind() == ErrorKind::ObjectNotFound {
+    ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("object not exist")
     ///     }
     /// }
@@ -288,7 +288,7 @@ impl Operator {
         Ok(meta)
     }
 
-    /// Check if this object exists or not.
+    /// Check if this path exists or not.
     ///
     /// # Example
     ///
@@ -309,7 +309,7 @@ impl Operator {
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
-                ErrorKind::ObjectNotFound => Ok(false),
+                ErrorKind::NotFound => Ok(false),
                 _ => Err(err),
             },
         }
@@ -335,8 +335,7 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let _ = o.create().await?;
+    /// o.create("path/to/file").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -349,8 +348,7 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/dir/");
-    /// let _ = o.create().await?;
+    ///  o.create("path/to/dir/").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -383,9 +381,7 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// # o.write(vec![0; 4096]).await?;
-    /// let bs = o.read().await?;
+    /// let bs = op.read("path/to/file").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -410,9 +406,7 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// # o.write(vec![0; 4096]).await?;
-    /// let bs = o.range_read(1024..2048).await?;
+    /// let bs = op.range_read("path/to/file", 1024..2048).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -421,7 +415,7 @@ impl Operator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                Error::new(ErrorKind::IsADirectory, "read path is a directory")
                     .with_operation("range_read")
                     .with_context("service", self.inner().info().scheme())
                     .with_context("path", &path),
@@ -459,7 +453,7 @@ impl Operator {
         Ok(buffer)
     }
 
-    /// Create a new reader which can read the whole object.
+    /// Create a new reader which can read the whole path.
     ///
     /// # Examples
     ///
@@ -503,7 +497,7 @@ impl Operator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                Error::new(ErrorKind::IsADirectory, "read path is a directory")
                     .with_operation("Object::range_reader")
                     .with_context("service", self.info().scheme())
                     .with_context("path", path),
@@ -532,8 +526,7 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let _ = o.write(vec![0; 4096]).await?;
+    /// o.write("path/to/file", vec![0; 4096]).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -570,7 +563,7 @@ impl Operator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
                     .with_context("service", self.inner().info().scheme().into_static())
                     .with_context("path", &path),
@@ -597,10 +590,9 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
     /// let bs = b"hello, world!".to_vec();
     /// let args = OpWrite::new().with_content_type("text/plain");
-    /// let _ = o.write_with(args, bs).await?;
+    /// let _ = op.write_with("path/to/file", args, bs).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -609,7 +601,7 @@ impl Operator {
 
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
@@ -828,7 +820,7 @@ impl Operator {
 
         if !validate_path(&path, EntryMode::DIR) {
             return Err(Error::new(
-                ErrorKind::ObjectNotADirectory,
+                ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
             .with_operation("Object::list")
@@ -885,7 +877,7 @@ impl Operator {
 
         if !validate_path(&path, EntryMode::DIR) {
             return Err(Error::new(
-                ErrorKind::ObjectNotADirectory,
+                ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
             .with_operation("Object::list")

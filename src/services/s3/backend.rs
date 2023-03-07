@@ -850,10 +850,7 @@ impl Builder for S3Builder {
         // Handle bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "bucket is empty",
-            )),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")),
         }?;
         debug!("backend use bucket {}", &bucket);
 
@@ -861,7 +858,7 @@ impl Builder for S3Builder {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "server_side_encryption value is invalid",
                 )
                 .with_context("value", v)
@@ -874,7 +871,7 @@ impl Builder for S3Builder {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
                     Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "server_side_encryption_aws_kms_key_id value is invalid",
                     )
                     .with_context("value", v)
@@ -887,7 +884,7 @@ impl Builder for S3Builder {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
                     Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "server_side_encryption_customer_algorithm value is invalid",
                     )
                     .with_context("value", v)
@@ -899,7 +896,7 @@ impl Builder for S3Builder {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "server_side_encryption_customer_key value is invalid",
                 )
                 .with_context("value", v)
@@ -911,7 +908,7 @@ impl Builder for S3Builder {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
                     Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "server_side_encryption_customer_key_md5 value is invalid",
                     )
                     .with_context("value", v)

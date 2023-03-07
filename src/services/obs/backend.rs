@@ -208,23 +208,19 @@ impl Builder for ObsBuilder {
 
         let bucket = match &self.bucket {
             Some(bucket) => Ok(bucket.to_string()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
-                    .with_context("service", Scheme::Obs),
-            ),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
+                .with_context("service", Scheme::Obs)),
         }?;
         debug!("backend use bucket {}", &bucket);
 
         let uri = match &self.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+                Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                     .with_context("service", Scheme::Obs)
                     .set_source(err)
             }),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Obs),
-            ),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_context("service", Scheme::Obs)),
         }?;
 
         let scheme = match uri.scheme_str() {

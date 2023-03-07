@@ -151,7 +151,7 @@ impl Builder for IpfsBuilder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
             return Err(Error::new(
-                ErrorKind::BackendConfigInvalid,
+                ErrorKind::ConfigInvalid,
                 "root must start with /ipfs/ or /ipns/",
             )
             .with_context("service", Scheme::Ipfs)
@@ -161,11 +161,9 @@ impl Builder for IpfsBuilder {
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Ipfs)
-                    .with_context("root", &root),
-            ),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_context("service", Scheme::Ipfs)
+                .with_context("root", &root)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 

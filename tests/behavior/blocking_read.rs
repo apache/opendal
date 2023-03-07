@@ -103,7 +103,7 @@ pub fn test_stat_not_exist(op: BlockingOperator) -> Result<()> {
 
     let meta = op.stat(&path);
     assert!(meta.is_err());
-    assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+    assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }
@@ -140,7 +140,7 @@ pub fn test_read_not_exist(op: BlockingOperator) -> Result<()> {
 
     let bs = op.read(&path);
     assert!(bs.is_err());
-    assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+    assert_eq!(bs.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }

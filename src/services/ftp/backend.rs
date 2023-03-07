@@ -158,22 +158,15 @@ impl Builder for FtpBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
-            None => {
-                return Err(Error::new(
-                    ErrorKind::BackendConfigInvalid,
-                    "endpoint is empty",
-                ))
-            }
+            None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
             Some(v) => v,
         };
 
         let endpoint_uri = match endpoint.parse::<Uri>() {
             Err(e) => {
-                return Err(
-                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
-                        .with_context("endpoint", endpoint)
-                        .set_source(e),
-                );
+                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
+                    .with_context("endpoint", endpoint)
+                    .set_source(e));
             }
             Ok(uri) => uri,
         };
@@ -191,7 +184,7 @@ impl Builder for FtpBuilder {
 
             Some(s) => {
                 return Err(Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "endpoint is unsupported or invalid",
                 )
                 .with_context("endpoint", s));
@@ -511,7 +504,7 @@ impl FtpBackend {
 
         if files.is_empty() {
             Err(Error::new(
-                ErrorKind::ObjectNotFound,
+                ErrorKind::NotFound,
                 "file is not found during list",
             ))
         } else {
@@ -551,6 +544,6 @@ mod build_test {
         let b = builder.build();
         assert!(b.is_err());
         let e = b.unwrap_err();
-        assert_eq!(e.kind(), ErrorKind::BackendConfigInvalid);
+        assert_eq!(e.kind(), ErrorKind::ConfigInvalid);
     }
 }

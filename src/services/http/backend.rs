@@ -184,10 +184,8 @@ impl Builder for HttpBuilder {
         let endpoint = match &self.endpoint {
             Some(v) => v,
             None => {
-                return Err(
-                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                        .with_context("service", Scheme::Http),
-                )
+                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                    .with_context("service", Scheme::Http))
             }
         };
 

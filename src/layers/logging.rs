@@ -95,7 +95,7 @@ impl Default for LoggingLayer {
 impl LoggingLayer {
     /// Setting the log level while expected error happened.
     ///
-    /// For example: accessor returns ObjectNotFound.
+    /// For example: accessor returns NotFound.
     ///
     /// `None` means disable the log for error.
     pub fn with_error_level(mut self, level: Option<Level>) -> Self {

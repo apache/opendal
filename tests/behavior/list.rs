@@ -265,7 +265,7 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 
     let obs = op.list(&parent).await.map(|_| ());
     assert!(obs.is_err());
-    assert_eq!(obs.unwrap_err().kind(), ErrorKind::ObjectNotADirectory);
+    assert_eq!(obs.unwrap_err().kind(), ErrorKind::NotADirectory);
 
     Ok(())
 }

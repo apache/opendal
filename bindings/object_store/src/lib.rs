@@ -175,14 +175,14 @@ impl ObjectStore for OpendalStore {
 fn format_object_store_error(err: opendal::Error, path: &str) -> object_store::Error {
     use opendal::ErrorKind;
     match err.kind() {
-        ErrorKind::ObjectNotFound => object_store::Error::NotFound {
+        ErrorKind::NotFound => object_store::Error::NotFound {
             path: path.to_string(),
             source: Box::new(err),
         },
         ErrorKind::Unsupported => object_store::Error::NotSupported {
             source: Box::new(err),
         },
-        ErrorKind::ObjectAlreadyExists => object_store::Error::AlreadyExists {
+        ErrorKind::AlreadyExists => object_store::Error::AlreadyExists {
             path: path.to_string(),
             source: Box::new(err),
         },

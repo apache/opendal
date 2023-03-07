@@ -90,8 +90,8 @@ mod tests {
     #[test]
     fn assert_size() {
         assert_eq!(88, size_of::<AccessorInfo>());
-        assert_eq!(16, size_of::<Operator>());
-        assert_eq!(32, size_of::<Entry>());
+        assert_eq!(24, size_of::<Operator>());
+        assert_eq!(216, size_of::<Entry>());
         assert_eq!(192, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());

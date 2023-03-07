@@ -21,6 +21,9 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - "bindings/python"
+      - ".github/workflows/bindings_python.yml"
   workflow_dispatch:
 
 jobs:

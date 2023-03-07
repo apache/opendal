@@ -25,6 +25,9 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - "bindings/nodejs"
+      - ".github/workflows/bindings_nodejs.yml"
   workflow_dispatch:
 
 jobs:

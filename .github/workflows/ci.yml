@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo build --workspace
+        run: cargo build -p opendal -p oli -p object_store_opendal
 
   build_all_features:
     runs-on: ${{ matrix.os }}
@@ -129,7 +129,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo build --all-features --workspace
+        run: cargo build --all-features
 
   unit:
     runs-on: ${{ matrix.os }}

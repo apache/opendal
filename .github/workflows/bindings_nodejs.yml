@@ -30,7 +30,6 @@ on:
       - ".github/workflows/bindings_nodejs.yml"
   workflow_dispatch:
 
-
 jobs:
   test:
     name: Test bindings on Linux-x64-gnu - node@${{ matrix.node }}

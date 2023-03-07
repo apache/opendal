@@ -22,9 +22,8 @@ on:
     branches:
       - main
     paths:
-      - "src/**"
-      - "!src/docs/**"
-      - "!src/services/**"
+      - "bindings/python"
+      - ".github/workflows/bindings_python.yml"
   workflow_dispatch:
 
 jobs:

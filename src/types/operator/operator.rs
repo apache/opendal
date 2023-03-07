@@ -677,7 +677,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn remove_via(&self, mut input: impl Stream<Item = String> + Unpin) -> Result<()> {
+    pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
         if self.info().can_batch() {
             let mut input = input.map(|v| (v, OpDelete::default())).chunks(self.limit());
 
@@ -695,9 +695,13 @@ impl Operator {
                 }
             }
         } else {
-            while let Some(path) = input.next().await {
-                self.inner().delete(&path, OpDelete::default()).await?;
-            }
+            input
+                .map(Ok)
+                .try_for_each_concurrent(self.limit, |path| async move {
+                    let _ = self.inner().delete(&path, OpDelete::default()).await?;
+                    Ok::<(), Error>(())
+                })
+                .await?;
         }
 
         Ok(())

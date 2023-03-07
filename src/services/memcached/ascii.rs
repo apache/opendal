@@ -87,9 +87,21 @@ where
 
     /// Delete a key and don't wait for response.
     pub async fn delete<K: Display>(&mut self, key: K) -> Result<(), Error> {
-        let header = format!("delete {} noreply\r\n", key);
+        let header = format!("delete {}\r\n", key);
         self.io.write_all(header.as_bytes()).await?;
         self.io.flush().await?;
+
+        // Read response header
+        let header = self.read_line().await?;
+        let header = std::str::from_utf8(header).map_err(|_| ErrorKind::InvalidData)?;
+        // Check response header and parse value length
+        if  header.contains("NOT_FOUND"){
+            return Ok(());
+        } else if header.starts_with("END") {
+            return Err(ErrorKind::NotFound.into());
+        } else if header.contains("ERROR") || !header.contains("DELETED") {
+            return Err(Error::new(ErrorKind::Other, header));
+        }
         Ok(())
     }
 

@@ -39,7 +39,7 @@ jobs:
     # Setup memcached server
     services:
       memcached:
-        image: bitnami/memcached
+        image: bitnami/memcached:1.6.14
         env:
           # memcache's max item size is 1MiB, But opendal's behavior tests
           # will produce larger file.

@@ -24,7 +24,7 @@ test('test memory write & read', async (t) => {
   let content = "hello world"
   let path = 'test'
 
-  await op.write(path, new TextEncoder().encode(content))
+  await op.write(path, Buffer.from(content))
 
   let meta = await op.stat(path)
   t.is(meta.mode, 0)
@@ -43,7 +43,7 @@ test('test memory write & read synchronously', (t) => {
   let content = "hello world"
   let path = 'test'
 
-  op.writeSync(path, new TextEncoder().encode(content))
+  op.writeSync(path, Buffer.from(content))
 
   let meta = op.statSync(path)
   t.is(meta.mode, 0)
@@ -61,8 +61,8 @@ test('test scan', async (t) => {
   let pathPrefix = 'test'
   let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)
 
-  let writeTasks = paths.map((path) => new Promise<void>(async (resolve, reject) => {
-    await op.write(path, new TextEncoder().encode(content))
+  let writeTasks = paths.map((path) => new Promise<void>(async (resolve) => {
+    await op.write(path, Buffer.from(content))
     resolve()
   }))
 
@@ -87,7 +87,7 @@ test('test scan', async (t) => {
 
 test('test writer', async (t) => {
   let op = new Operator(Scheme.Memory)
-  let o = op.object('test')
+  const path = 'test'
 
   let contents = [
     'hello',
@@ -95,7 +95,7 @@ test('test writer', async (t) => {
     '!'
   ]
 
-  let writer = await o.writer()
+  let writer = await op.writer(path)
 
   for (let part of contents) {
     await writer.append(Buffer.from(part))
@@ -103,7 +103,7 @@ test('test writer', async (t) => {
 
   writer.close()
 
-  let c = new TextDecoder().decode(await o.read())
+  let c = new TextDecoder().decode(await op.read(path))
 
   t.is(c, contents.join(''))
 })

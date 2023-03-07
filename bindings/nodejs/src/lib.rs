@@ -156,6 +156,17 @@ impl Operator {
     pub fn blocking_delete(&self, path: String) -> Result<()> {
         self.0.blocking().delete(&path).map_err(format_napi_error)
     }
+
+    #[napi]
+    pub async fn writer(&self, path: String) -> Result<Writer> {
+        Ok(Writer(
+            self.0
+                .writer(&path)
+                .await
+                .map_err(format_napi_error)
+                .unwrap(),
+        ))
+    }
 }
 
 #[napi]
@@ -261,13 +272,6 @@ impl Lister {
             .map_err(format_napi_error)
             .unwrap()
             .map(Entry))
-    }
-
-    #[napi]
-    pub async fn writer(&self) -> Result<Writer> {
-        Ok(Writer(
-            self.0.writer().await.map_err(format_napi_error).unwrap(),
-        ))
     }
 }
 

@@ -16,7 +16,7 @@
 //!
 //! OpenDAL has provides unified abstraction via two-level API sets:
 //!
-//! - Public API like [`Operator`], [`Object`] provides user level API.
+//! - Public API like [`Operator`] provides user level API.
 //! - Raw API like [`Accessor`], [`Layer`] provides developer level API.
 //!
 //! OpenDAL tries it's best to keep the public API stable. But raw APIs
@@ -52,7 +52,6 @@
 //!
 //! [`Builder`]: crate::Builder
 //! [`Operator`]: crate::Operator
-//! [`Object`]: crate::Object
 //! [`Accessor`]: crate::raw::Accessor
 //! [`Layer`]: crate::raw::Layer
 

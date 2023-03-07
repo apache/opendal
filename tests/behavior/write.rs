@@ -42,7 +42,7 @@ macro_rules! behavior_write_test {
                     async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service::<opendal::services::$service>(true);
                         match op {
-                            Some(op) if op.metadata().can_read() && op.metadata().can_write() => $crate::write::$test(op).await,
+                            Some(op) if op.info().can_read() && op.info().can_write() => $crate::write::$test(op).await,
                             Some(_) => {
                                 log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
                                 Ok(())
@@ -107,18 +107,13 @@ macro_rules! behavior_write_tests {
 pub async fn test_create_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let o = op.object(&path);
+    op.create(&path).await?;
 
-    o.create().await?;
-
-    let meta = o.stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -126,20 +121,15 @@ pub async fn test_create_file(op: Operator) -> Result<()> {
 pub async fn test_create_file_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let o = op.object(&path);
+    op.create(&path).await?;
 
-    o.create().await?;
+    op.create(&path).await?;
 
-    o.create().await?;
-
-    let meta = o.stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -147,18 +137,13 @@ pub async fn test_create_file_existing(op: Operator) -> Result<()> {
 pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
 
-    let o = op.object(&path);
+    op.create(&path).await?;
 
-    o.create().await?;
-
-    let meta = o.stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -166,17 +151,12 @@ pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
 pub async fn test_create_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let o = op.object(&path);
+    op.create(&path).await?;
 
-    o.create().await?;
-
-    let meta = o.stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -184,19 +164,14 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
 pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let o = op.object(&path);
+    op.create(&path).await?;
 
-    o.create().await?;
+    op.create(&path).await?;
 
-    o.create().await?;
-
-    let meta = o.stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -205,15 +180,12 @@ pub async fn test_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size) = gen_bytes();
 
-    op.object(&path).write(content).await?;
+    op.write(&path, content).await?;
 
-    let meta = op.object(&path).stat().await.expect("stat must succeed");
+    let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -222,9 +194,9 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes();
 
-    let result = op.object(&path).write(content).await;
+    let result = op.write(&path, content).await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
 
     Ok(())
 }
@@ -234,15 +206,12 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (content, size) = gen_bytes();
 
-    op.object(&path).write(content).await?;
+    op.write(&path, content).await?;
 
-    let meta = op.object(&path).stat().await.expect("stat must succeed");
+    let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -251,19 +220,13 @@ pub async fn test_stat(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size) = gen_bytes();
 
-    op.object(&path)
-        .write(content)
-        .await
-        .expect("write must succeed");
+    op.write(&path, content).await.expect("write must succeed");
 
-    let meta = op.object(&path).stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -271,15 +234,12 @@ pub async fn test_stat(op: Operator) -> Result<()> {
 pub async fn test_stat_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.object(&path).create().await.expect("write must succeed");
+    op.create(&path).await.expect("write must succeed");
 
-    let meta = op.object(&path).stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -288,19 +248,13 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (content, size) = gen_bytes();
 
-    op.object(&path)
-        .write(content)
-        .await
-        .expect("write must succeed");
+    op.write(&path, content).await.expect("write must succeed");
 
-    let meta = op.object(&path).stat().await?;
+    let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -310,19 +264,13 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op.object(&path)
-        .write(content)
-        .await
-        .expect("write must succeed");
+    op.write(&path, content).await.expect("write must succeed");
 
-    let meta = op.object(&format!("//{}", &path)).stat().await?;
+    let meta = op.stat(&format!("//{}", &path)).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -330,19 +278,19 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).stat().await;
+    let meta = op.stat(&path).await;
     assert!(meta.is_err());
-    assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+    assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }
 
 /// Root should be able to stat and returns DIR.
 pub async fn test_stat_root(op: Operator) -> Result<()> {
-    let meta = op.object("").stat().await?;
+    let meta = op.stat("").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
-    let meta = op.object("/").stat().await?;
+    let meta = op.stat("/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
@@ -354,12 +302,11 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let bs = op.object(&path).read().await?;
+    let bs = op.read(&path).await?;
     assert_eq!(size, bs.len(), "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -367,10 +314,7 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
         "read content"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -381,12 +325,11 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let bs = op.object(&path).range_read(offset..offset + length).await?;
+    let bs = op.range_read(&path, offset..offset + length).await?;
     assert_eq!(bs.len() as u64, length, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -397,10 +340,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
         "read content"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -411,12 +351,11 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (offset, _) = gen_offset_length(size);
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let bs = op.object(&path).range_read(offset..u32::MAX as u64).await?;
+    let bs = op.range_read(&path, offset..u32::MAX as u64).await?;
     assert_eq!(
         bs.len() as u64,
         size as u64 - offset,
@@ -428,10 +367,7 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
         "read content with large range"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -442,15 +378,11 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let mut r = op
-        .object(&path)
-        .range_reader(offset..offset + length)
-        .await?;
+    let mut r = op.range_reader(&path, offset..offset + length).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -464,10 +396,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
         "read content"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -478,12 +407,11 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (offset, _) = gen_offset_length(size);
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let mut r = op.object(&path).range_reader(offset..).await?;
+    let mut r = op.range_reader(&path, offset..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -495,10 +423,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
         "read content"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -509,12 +434,11 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (_, length) = gen_offset_length(size);
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let mut r = match op.object(&path).range_reader(..length).await {
+    let mut r = match op.range_reader(&path, ..length).await {
         Ok(r) => r,
         // Not all services support range with tail range, let's tolerate this.
         Err(err) if err.kind() == ErrorKind::Unsupported => {
@@ -534,10 +458,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         "read content"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -545,9 +466,9 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
 pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let bs = op.object(&path).read().await;
+    let bs = op.read(&path).await;
     assert!(bs.is_err());
-    assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+    assert_eq!(bs.unwrap_err().kind(), ErrorKind::NotFound);
 
     Ok(())
 }
@@ -557,16 +478,12 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
-    let mut o = op
-        .object(&path)
-        .range_reader(0..content.len() as u64)
-        .await?;
+    let mut o = op.range_reader(&path, 0..content.len() as u64).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -589,10 +506,7 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
         }
     }
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -601,13 +515,12 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
-    let mut o = op.object(&path).range_reader(0..).await?;
+    let mut o = op.range_reader(&path, 0..).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -630,10 +543,7 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
         }
     }
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -643,17 +553,13 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
     let mut fuzzer =
         ObjectReaderFuzzer::new(&path, content.clone(), offset as usize, length as usize);
-    let mut o = op
-        .object(&path)
-        .range_reader(offset..offset + length)
-        .await?;
+    let mut o = op.range_reader(&path, offset..offset + length).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -676,10 +582,7 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
         }
     }
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -687,16 +590,13 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
 pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.object(&path).create().await.expect("write must succeed");
+    op.create(&path).await.expect("write must succeed");
 
-    let result = op.object(&path).read().await;
+    let result = op.read(&path).await;
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -706,12 +606,11 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let bs = op.object(&path).read().await?;
+    let bs = op.read(&path).await?;
     assert_eq!(size, bs.len(), "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -719,10 +618,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
         "read content"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -731,15 +627,12 @@ pub async fn test_delete(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 
-    op.object(&path)
-        .write(content)
-        .await
-        .expect("write must succeed");
+    op.write(&path, content).await.expect("write must succeed");
 
-    op.object(&path).delete().await?;
+    op.delete(&path).await?;
 
     // Stat it again to check.
-    assert!(!op.object(&path).is_exist().await?);
+    assert!(!op.is_exist(&path).await?);
 
     Ok(())
 }
@@ -748,12 +641,9 @@ pub async fn test_delete(op: Operator) -> Result<()> {
 pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.object(&path)
-        .create()
-        .await
-        .expect("create must succeed");
+    op.create(&path).await.expect("create must succeed");
 
-    op.object(&path).delete().await?;
+    op.delete(&path).await?;
 
     Ok(())
 }
@@ -764,15 +654,12 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
-    op.object(&path)
-        .write(content)
-        .await
-        .expect("write must succeed");
+    op.write(&path, content).await.expect("write must succeed");
 
-    op.object(&path).delete().await?;
+    op.delete(&path).await?;
 
     // Stat it again to check.
-    assert!(!op.object(&path).is_exist().await?);
+    assert!(!op.is_exist(&path).await?);
 
     Ok(())
 }
@@ -781,7 +668,7 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
 pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    op.object(&path).delete().await?;
+    op.delete(&path).await?;
 
     Ok(())
 }
@@ -789,25 +676,23 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
 // Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
     let dir = uuid::Uuid::new_v4().to_string();
-    op.object(&format!("{dir}/"))
-        .create()
+    op.create(&format!("{dir}/"))
         .await
         .expect("creat must succeed");
 
     let expected: Vec<_> = (0..100).collect();
     for path in expected.iter() {
-        op.object(&format!("{dir}/{path}")).create().await?;
+        op.create(&format!("{dir}/{path}")).await?;
     }
 
-    op.batch()
-        .with_limit(30)
+    op.with_limit(30)
         .remove_via(futures::stream::iter(expected.clone()).map(|v| format!("{dir}/{v}")))
         .await?;
 
     // Stat it again to check.
     for path in expected.iter() {
         assert!(
-            !op.object(&format!("{dir}/{path}")).is_exist().await?,
+            !op.is_exist(&format!("{dir}/{path}")).await?,
             "{path} should be removed"
         )
     }
@@ -822,7 +707,7 @@ pub async fn test_append(op: Operator) -> Result<()> {
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
 
-    let mut w = match op.object(&path).writer().await {
+    let mut w = match op.writer(&path).await {
         Ok(w) => w,
         Err(err) if err.kind() == ErrorKind::Unsupported => {
             warn!("service doesn't support write with append");
@@ -834,10 +719,10 @@ pub async fn test_append(op: Operator) -> Result<()> {
     w.append(content_b.clone()).await?;
     w.close().await?;
 
-    let meta = op.object(&path).stat().await.expect("stat must succeed");
+    let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), (size * 2) as u64);
 
-    let bs = op.object(&path).read().await?;
+    let bs = op.read(&path).await?;
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs[..size])),
@@ -850,9 +735,6 @@ pub async fn test_append(op: Operator) -> Result<()> {
         "read content b"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }

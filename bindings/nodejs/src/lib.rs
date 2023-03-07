@@ -84,12 +84,12 @@ impl Operator {
         let ops = options.unwrap_or_default();
         match service_type {
             Scheme::Fs => Ok(Self(
-                opendal::Operator::create(opendal::services::Fs::from_map(ops))
+                opendal::Operator::new(opendal::services::Fs::from_map(ops))
                     .unwrap()
                     .finish(),
             )),
             Scheme::Memory => Ok(Self(
-                opendal::Operator::create(opendal::services::Memory::default())
+                opendal::Operator::new(opendal::services::Memory::default())
                     .unwrap()
                     .finish(),
             )),
@@ -98,13 +98,79 @@ impl Operator {
     }
 
     #[napi]
-    pub fn object(&self, path: String) -> DataObject {
-        DataObject(self.0.object(&path))
+    pub async fn stat(&self, path: String) -> Result<Metadata> {
+        let meta = self.0.stat(&path).await.map_err(format_napi_error).unwrap();
+
+        Ok(Metadata(meta))
+    }
+
+    #[napi(js_name = "statSync")]
+    pub fn blocking_stat(&self, path: String) -> Result<Metadata> {
+        let meta = self
+            .0
+            .blocking()
+            .stat(&path)
+            .map_err(format_napi_error)
+            .unwrap();
+
+        Ok(Metadata(meta))
+    }
+
+    #[napi]
+    pub async fn write(&self, path: String, content: Buffer) -> Result<()> {
+        let c = content.as_ref().to_owned();
+        self.0.write(&path, c).await.map_err(format_napi_error)
+    }
+
+    #[napi(js_name = "writeSync")]
+    pub fn blocking_write(&self, path: String, content: Buffer) -> Result<()> {
+        let c = content.as_ref().to_owned();
+        self.0.blocking().write(&path, c).map_err(format_napi_error)
+    }
+
+    #[napi]
+    pub async fn read(&self, path: String) -> Result<Buffer> {
+        let res = self.0.read(&path).await.map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
+    #[napi(js_name = "readSync")]
+    pub fn blocking_read(&self, path: String) -> Result<Buffer> {
+        let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
+    #[napi]
+    pub async fn scan(&self, path: String) -> Result<Lister> {
+        Ok(Lister(
+            self.0.scan(&path).await.map_err(format_napi_error).unwrap(),
+        ))
+    }
+
+    #[napi]
+    pub async fn delete(&self, path: String) -> Result<()> {
+        self.0.delete(&path).await.map_err(format_napi_error)
+    }
+
+    #[napi(js_name = "deleteSync")]
+    pub fn blocking_delete(&self, path: String) -> Result<()> {
+        self.0.blocking().delete(&path).map_err(format_napi_error)
     }
 }
 
 #[napi]
-pub enum ObjectMode {
+pub struct Entry(opendal::Entry);
+
+#[napi]
+impl Entry {
+    #[napi]
+    pub fn path(&self) -> String {
+        self.0.path().to_string()
+    }
+}
+
+#[napi]
+pub enum EntryMode {
     /// FILE means the object has data to read.
     FILE,
     /// DIR means the object can be listed.
@@ -115,17 +181,17 @@ pub enum ObjectMode {
 
 #[allow(dead_code)]
 #[napi]
-pub struct ObjectMetadata(opendal::Metadata);
+pub struct Metadata(opendal::Metadata);
 
 #[napi]
-impl ObjectMetadata {
+impl Metadata {
     /// Mode of this object.
     #[napi(getter)]
-    pub fn mode(&self) -> ObjectMode {
+    pub fn mode(&self) -> EntryMode {
         match self.0.mode() {
-            opendal::EntryMode::DIR => ObjectMode::DIR,
-            opendal::EntryMode::FILE => ObjectMode::FILE,
-            opendal::EntryMode::Unknown => ObjectMode::Unknown,
+            opendal::EntryMode::DIR => EntryMode::DIR,
+            opendal::EntryMode::FILE => EntryMode::FILE,
+            opendal::EntryMode::Unknown => EntryMode::Unknown,
         }
     }
 
@@ -176,10 +242,10 @@ impl ObjectMetadata {
 }
 
 #[napi]
-pub struct ObjectLister(opendal::Lister);
+pub struct Lister(opendal::Lister);
 
 #[napi]
-impl ObjectLister {
+impl Lister {
     /// # Safety
     ///
     /// > &mut self in async napi methods should be marked as unsafe
@@ -187,75 +253,14 @@ impl ObjectLister {
     /// napi will make sure the function is safe, and we didn't do unsafe
     /// thing internally.
     #[napi]
-    pub async unsafe fn next(&mut self) -> Result<Option<DataObject>> {
+    pub async unsafe fn next(&mut self) -> Result<Option<Entry>> {
         Ok(self
             .0
             .try_next()
             .await
             .map_err(format_napi_error)
             .unwrap()
-            .map(DataObject))
-    }
-}
-
-#[napi]
-pub struct DataObject(opendal::Object);
-
-#[napi]
-impl DataObject {
-    #[napi]
-    pub async fn stat(&self) -> Result<ObjectMetadata> {
-        let meta = self.0.stat().await.map_err(format_napi_error).unwrap();
-
-        Ok(ObjectMetadata(meta))
-    }
-
-    #[napi(js_name = "statSync")]
-    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
-        let meta = self.0.blocking_stat().map_err(format_napi_error).unwrap();
-
-        Ok(ObjectMetadata(meta))
-    }
-
-    #[napi]
-    pub async fn write(&self, content: Buffer) -> Result<()> {
-        let c = content.as_ref().to_owned();
-        self.0.write(c).await.map_err(format_napi_error)
-    }
-
-    #[napi(js_name = "writeSync")]
-    pub fn blocking_write(&self, content: Buffer) -> Result<()> {
-        let c = content.as_ref().to_owned();
-        self.0.blocking_write(c).map_err(format_napi_error)
-    }
-
-    #[napi]
-    pub async fn read(&self) -> Result<Buffer> {
-        let res = self.0.read().await.map_err(format_napi_error)?;
-        Ok(res.into())
-    }
-
-    #[napi(js_name = "readSync")]
-    pub fn blocking_read(&self) -> Result<Buffer> {
-        let res = self.0.blocking_read().map_err(format_napi_error)?;
-        Ok(res.into())
-    }
-
-    #[napi]
-    pub async fn scan(&self) -> Result<ObjectLister> {
-        Ok(ObjectLister(
-            self.0.scan().await.map_err(format_napi_error).unwrap(),
-        ))
-    }
-
-    #[napi]
-    pub async fn delete(&self) -> Result<()> {
-        self.0.delete().await.map_err(format_napi_error)
-    }
-
-    #[napi(js_name = "deleteSync")]
-    pub fn blocking_delete(&self) -> Result<()> {
-        self.0.blocking_delete().map_err(format_napi_error)
+            .map(Entry))
     }
 }
 

@@ -66,12 +66,7 @@ impl TempData {
     }
 
     pub fn generate(op: Operator, path: &str, content: Bytes) -> Self {
-        TOKIO.block_on(async {
-            op.object(path)
-                .write(content)
-                .await
-                .expect("create test data")
-        });
+        TOKIO.block_on(async { op.write(path, content).await.expect("create test data") });
 
         Self {
             op,
@@ -83,11 +78,7 @@ impl TempData {
 impl Drop for TempData {
     fn drop(&mut self) {
         TOKIO.block_on(async {
-            self.op
-                .object(&self.path)
-                .delete()
-                .await
-                .expect("cleanup test data");
+            self.op.delete(&self.path).await.expect("cleanup test data");
         })
     }
 }

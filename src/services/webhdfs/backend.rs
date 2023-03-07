@@ -78,7 +78,6 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// use anyhow::Result;
 /// use opendal::services::Webhdfs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -98,10 +97,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///     // set the delegation_token for builder
 ///     builder.delegation("delegation_token");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
-///
-///     // create an object handler to start operation on object.
-///     let _: Object = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     Ok(())
 /// }
@@ -508,11 +504,8 @@ impl WebhdfsBackend {
                 match file_status.ty {
                     FileStatusType::File => {
                         error!("working directory is occupied!");
-                        return Err(Error::new(
-                            ErrorKind::BackendConfigInvalid,
-                            "root is occupied!",
-                        )
-                        .with_context("service", Scheme::Webhdfs));
+                        return Err(Error::new(ErrorKind::ConfigInvalid, "root is occupied!")
+                            .with_context("service", Scheme::Webhdfs));
                     }
                     FileStatusType::Directory => {
                         debug!("working directory exists, do nothing");
@@ -541,8 +534,8 @@ impl Accessor for WebhdfsBackend {
     type Pager = WebhdfsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
             .set_capabilities(
@@ -600,7 +593,7 @@ impl Accessor for WebhdfsBackend {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-            StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::ObjectNotFound, "object not found")
+            StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::NotFound, "object not found")
                 .with_context("service", Scheme::Webhdfs)),
             _ => Err(parse_error(resp).await?),
         }

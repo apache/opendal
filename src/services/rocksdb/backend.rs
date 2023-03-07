@@ -66,7 +66,7 @@ use crate::*;
 ///     let mut builder = Rocksdb::default();
 ///     builder.datadir("/tmp/opendal/rocksdb");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }
@@ -113,20 +113,14 @@ impl Builder for RocksdbBuilder {
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let path = self.datadir.take().ok_or_else(|| {
-            Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "datadir is required but not set",
-            )
-            .with_context("service", Scheme::Rocksdb)
+            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                .with_context("service", Scheme::Rocksdb)
         })?;
         let db = TransactionDB::open_default(&path).map_err(|e| {
-            Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "open default transaction db",
-            )
-            .with_context("service", Scheme::Rocksdb)
-            .with_context("datadir", path)
-            .set_source(e)
+            Error::new(ErrorKind::ConfigInvalid, "open default transaction db")
+                .with_context("service", Scheme::Rocksdb)
+                .with_context("datadir", path)
+                .set_source(e)
         })?;
 
         Ok(RocksdbBackend::new(Adapter { db: Arc::new(db) }))

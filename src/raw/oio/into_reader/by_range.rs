@@ -318,8 +318,8 @@ mod tests {
         type Pager = ();
         type BlockingPager = ();
 
-        fn metadata(&self) -> AccessorMetadata {
-            let mut am = AccessorMetadata::default();
+        fn info(&self) -> AccessorInfo {
+            let mut am = AccessorInfo::default();
             am.set_capabilities(AccessorCapability::Read);
 
             am

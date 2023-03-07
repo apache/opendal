@@ -43,7 +43,7 @@ macro_rules! behavior_presign_test {
                     async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service::<opendal::services::$service>(true);
                         match op {
-                            Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_presign() => $crate::presign::$test(op).await,
+                            Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => $crate::presign::$test(op).await,
                             Some(_) => {
                                 log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
                                 Ok(())
@@ -81,7 +81,7 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let signed_req = op.object(&path).presign_write(Duration::hours(1))?;
+    let signed_req = op.presign_write(&path, Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
     let client = reqwest::Client::new();
@@ -101,13 +101,10 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
         resp.text().await.expect("read response must succeed")
     );
 
-    let meta = op.object(&path).stat().await.expect("stat must succeed");
+    let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -115,11 +112,10 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
-    let signed_req = op.object(&path).presign_stat(Duration::hours(1))?;
+    let signed_req = op.presign_stat(&path, Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
     let client = reqwest::Client::new();
     let mut req = client.request(
@@ -137,10 +133,7 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
         .expect("content length must be present");
     assert_eq!(content_length, size as u64);
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -150,12 +143,11 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op.object(&path)
-        .write(content.clone())
+    op.write(&path, content.clone())
         .await
         .expect("write must succeed");
 
-    let signed_req = op.object(&path).presign_read(Duration::hours(1))?;
+    let signed_req = op.presign_read(&path, Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
     let client = reqwest::Client::new();
@@ -177,9 +169,6 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
         "read content"
     );
 
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }

@@ -122,7 +122,7 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
     type LayeredAccessor = CompleteReaderAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let meta = inner.metadata();
+        let meta = inner.info();
         CompleteReaderAccessor {
             meta,
             inner: Arc::new(inner),
@@ -132,7 +132,7 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
 
 /// Provide reader wrapper for backend.
 pub struct CompleteReaderAccessor<A: Accessor> {
-    meta: AccessorMetadata,
+    meta: AccessorInfo,
     inner: Arc<A>,
 }
 

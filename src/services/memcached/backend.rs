@@ -62,7 +62,7 @@ use crate::*;
 ///
 ///     builder.endpoint("tcp://127.0.0.1:11211");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }
@@ -124,11 +124,11 @@ impl Builder for MemcachedBuilder {
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let endpoint = self.endpoint.clone().ok_or_else(|| {
-            Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
+            Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Memcached)
         })?;
         let uri = http::Uri::try_from(&endpoint).map_err(|err| {
-            Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                 .with_context("service", Scheme::Memcached)
                 .with_context("endpoint", &endpoint)
                 .set_source(err)
@@ -141,7 +141,7 @@ impl Builder for MemcachedBuilder {
                 // We only support tcp by now.
                 if scheme != "tcp" {
                     return Err(Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "endpoint is using invalid scheme",
                     )
                     .with_context("service", Scheme::Memcached)
@@ -154,22 +154,20 @@ impl Builder for MemcachedBuilder {
         let host = if let Some(host) = uri.host() {
             host.to_string()
         } else {
-            return Err(Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "endpoint doesn't have host",
-            )
-            .with_context("service", Scheme::Memcached)
-            .with_context("endpoint", &endpoint));
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have host")
+                    .with_context("service", Scheme::Memcached)
+                    .with_context("endpoint", &endpoint),
+            );
         };
         let port = if let Some(port) = uri.port_u16() {
             port
         } else {
-            return Err(Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "endpoint doesn't have port",
-            )
-            .with_context("service", Scheme::Memcached)
-            .with_context("endpoint", &endpoint));
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have port")
+                    .with_context("service", Scheme::Memcached)
+                    .with_context("endpoint", &endpoint),
+            );
         };
         let endpoint = format!("{host}:{port}",);
 
@@ -208,11 +206,8 @@ impl Adapter {
                 let mgr = MemcacheConnectionManager::new(&self.endpoint);
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
-                    Error::new(
-                        ErrorKind::BackendConfigInvalid,
-                        "connect to memecached failed",
-                    )
-                    .set_source(err)
+                    Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
+                        .set_source(err)
                 })
             })
             .await?;
@@ -278,9 +273,9 @@ fn parse_io_error(err: std::io::Error) -> Error {
     use std::io::ErrorKind::*;
 
     let (kind, retryable) = match err.kind() {
-        NotFound => (ErrorKind::ObjectNotFound, false),
-        AlreadyExists => (ErrorKind::ObjectNotFound, false),
-        PermissionDenied => (ErrorKind::ObjectPermissionDenied, false),
+        NotFound => (ErrorKind::NotFound, false),
+        AlreadyExists => (ErrorKind::NotFound, false),
+        PermissionDenied => (ErrorKind::PermissionDenied, false),
         Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, true),
     };

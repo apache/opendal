@@ -28,7 +28,7 @@ impl From<FtpError> for Error {
                 (ErrorKind::Unexpected, true)
             }
             FtpError::UnexpectedResponse(ref resp) if resp.status == Status::FileUnavailable => {
-                (ErrorKind::ObjectNotFound, false)
+                (ErrorKind::NotFound, false)
             }
             // Allow retry bad response.
             FtpError::BadResponse => (ErrorKind::Unexpected, true),

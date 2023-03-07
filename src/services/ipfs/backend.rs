@@ -70,7 +70,7 @@ use crate::*;
 ///     // set the root for OpenDAL
 ///     builder.root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     // Create an object handle to start operation on object.
 ///     let _: Object = op.object("test_file");
@@ -151,7 +151,7 @@ impl Builder for IpfsBuilder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
             return Err(Error::new(
-                ErrorKind::BackendConfigInvalid,
+                ErrorKind::ConfigInvalid,
                 "root must start with /ipfs/ or /ipns/",
             )
             .with_context("service", Scheme::Ipfs)
@@ -161,11 +161,9 @@ impl Builder for IpfsBuilder {
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Ipfs)
-                    .with_context("root", &root),
-            ),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_context("service", Scheme::Ipfs)
+                .with_context("root", &root)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
@@ -214,8 +212,8 @@ impl Accessor for IpfsBackend {
     type Pager = DirStream;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut ma = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read | AccessorCapability::List)

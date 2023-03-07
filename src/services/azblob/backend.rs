@@ -82,7 +82,6 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 ///
 /// use anyhow::Result;
 /// use opendal::services::Azblob;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -110,10 +109,7 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 ///     builder.account_key("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::create(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     Ok(())
 /// }
@@ -282,7 +278,7 @@ impl AzblobBuilder {
         } else {
             let account_name = conn_map.get("AccountName").ok_or_else(|| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "connection string must have AccountName",
                 )
                 .with_operation("Builder::from_connection_string")
@@ -290,7 +286,7 @@ impl AzblobBuilder {
             builder.account_name(account_name);
             let account_key = conn_map.get("AccountKey").ok_or_else(|| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "connection string must have AccountKey",
                 )
                 .with_operation("Builder::from_connection_string")
@@ -307,7 +303,7 @@ impl AzblobBuilder {
                 .as_ref()
                 .ok_or_else(|| {
                     Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "connection string must have AccountName",
                     )
                     .with_operation("Builder::from_connection_string")
@@ -346,21 +342,17 @@ impl Builder for AzblobBuilder {
         // Handle endpoint, region and container name.
         let container = match self.container.is_empty() {
             false => Ok(&self.container),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "container is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azblob),
-            ),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "container is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azblob)),
         }?;
         debug!("backend use container {}", &container);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azblob),
-            ),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azblob)),
         }?;
         debug!("backend use endpoint {}", &container);
 
@@ -381,7 +373,7 @@ impl Builder for AzblobBuilder {
         }
 
         let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::BackendConfigInvalid, "build AzureStorageSigner")
+            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azblob)
                 .with_context("endpoint", &endpoint)
@@ -422,11 +414,11 @@ impl Accessor for AzblobBackend {
     type Pager = AzblobPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         use AccessorCapability::*;
         use AccessorHint::*;
 
-        let mut am = AccessorMetadata::default();
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
             .set_name(&self.container)

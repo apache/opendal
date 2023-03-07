@@ -57,8 +57,8 @@ impl<S: Adapter> Accessor for Backend<S> {
     type Pager = KvPager;
     type BlockingPager = KvPager;
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am: AccessorMetadata = self.kv.metadata().into();
+    fn info(&self) -> AccessorInfo {
+        let mut am: AccessorInfo = self.kv.metadata().into();
         am.set_root(&self.root)
             .set_hints(AccessorHint::ReadStreamable | AccessorHint::ReadSeekable);
 
@@ -83,12 +83,7 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         let bs = match self.kv.get(&p).await? {
             Some(bs) => bs,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    "kv doesn't have this path",
-                ))
-            }
+            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
         let bs = self.apply_range(bs, args.range());
@@ -102,12 +97,7 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         let bs = match self.kv.blocking_get(&p)? {
             Some(bs) => bs,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    "kv doesn't have this path",
-                ))
-            }
+            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
         };
 
         let bs = self.apply_range(bs, args.range());
@@ -137,10 +127,7 @@ impl<S: Adapter> Accessor for Backend<S> {
                 Some(bs) => Ok(RpStat::new(
                     Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
                 )),
-                None => Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    "kv doesn't have this path",
-                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
             }
         }
     }
@@ -156,10 +143,7 @@ impl<S: Adapter> Accessor for Backend<S> {
                 Some(bs) => Ok(RpStat::new(
                     Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
                 )),
-                None => Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    "kv doesn't have this path",
-                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
             }
         }
     }

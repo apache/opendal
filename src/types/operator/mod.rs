@@ -18,13 +18,11 @@
 mod operator;
 pub use operator::Operator;
 
+mod blocking_operator;
+pub use blocking_operator::BlockingOperator;
+
 mod builder;
 pub use builder::OperatorBuilder;
 
 mod metadata;
-pub use metadata::OperatorMetadata;
-
-mod batch;
-pub use batch::BatchOperator;
-
-mod api_async;
+pub use metadata::OperatorInfo;

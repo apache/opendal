@@ -63,8 +63,8 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let bs = body.bytes().await?;
 
     let (kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

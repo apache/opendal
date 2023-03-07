@@ -61,19 +61,19 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// `blocking_list` or `scan` operation.
     type BlockingPager: oio::BlockingPage;
 
-    /// Invoke the `metadata` operation to get metadata of accessor.
+    /// Invoke the `info` operation to get metadata of accessor.
     ///
     /// # Notes
     ///
     /// This function is required to be implemented.
     ///
-    /// By returning AccessorMetadata, underlying services can declare
+    /// By returning AccessorInfo, underlying services can declare
     /// some useful information about it self.
     ///
     /// - scheme: declare the scheme of backend.
     /// - capabilities: declare the capabilities of current backend.
     /// - hints: declare the hints of current backend
-    fn metadata(&self) -> AccessorMetadata;
+    fn info(&self) -> AccessorInfo;
 
     /// Invoke the `create` operation on the specified path
     ///
@@ -330,8 +330,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type Pager = T::Pager;
     type BlockingPager = T::BlockingPager;
 
-    fn metadata(&self) -> AccessorMetadata {
-        self.as_ref().metadata()
+    fn info(&self) -> AccessorInfo {
+        self.as_ref().info()
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -403,7 +403,7 @@ pub type FusedAccessor = Arc<
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]
-pub struct AccessorMetadata {
+pub struct AccessorInfo {
     scheme: Scheme,
     root: String,
     name: String,
@@ -411,7 +411,7 @@ pub struct AccessorMetadata {
     hints: FlagSet<AccessorHint>,
 }
 
-impl AccessorMetadata {
+impl AccessorInfo {
     /// [`Scheme`] of backend.
     pub fn scheme(&self) -> Scheme {
         self.scheme

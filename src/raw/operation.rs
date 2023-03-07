@@ -19,8 +19,8 @@ use std::fmt::Formatter;
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Operation {
-    /// Operation for [`crate::raw::Accessor::metadata`]
-    Metadata,
+    /// Operation for [`crate::raw::Accessor::info`]
+    Info,
     /// Operation for [`crate::raw::Accessor::create`]
     Create,
     /// Operation for [`crate::raw::Accessor::read`]
@@ -64,7 +64,7 @@ impl Operation {
 
 impl Default for Operation {
     fn default() -> Self {
-        Operation::Metadata
+        Operation::Info
     }
 }
 
@@ -77,7 +77,7 @@ impl Display for Operation {
 impl From<Operation> for &'static str {
     fn from(v: Operation) -> &'static str {
         match v {
-            Operation::Metadata => "metadata",
+            Operation::Info => "metadata",
             Operation::Create => "create",
             Operation::Read => "read",
             Operation::Write => "write",

@@ -74,7 +74,7 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 ///     let mut builder = Redis::default();
 ///
 ///     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
-///     let op: Operator = Operator::create(builder)?.finish();
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }
@@ -208,7 +208,7 @@ impl Builder for RedisBuilder {
             .unwrap_or_else(|| DEFAULT_REDIS_ENDPOINT.to_string());
 
         let ep_url = endpoint.parse::<Uri>().map_err(|e| {
-            Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                 .with_context("service", Scheme::Redis)
                 .with_context("endpoint", endpoint)
                 .set_source(e)
@@ -229,12 +229,11 @@ impl Builder for RedisBuilder {
                 ConnectionAddr::Unix(path)
             }
             Some(s) => {
-                return Err(Error::new(
-                    ErrorKind::BackendConfigInvalid,
-                    "invalid or unsupported scheme",
+                return Err(
+                    Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
+                        .with_context("service", Scheme::Redis)
+                        .with_context("scheme", s),
                 )
-                .with_context("service", Scheme::Redis)
-                .with_context("scheme", s))
             }
         };
 
@@ -250,14 +249,11 @@ impl Builder for RedisBuilder {
         };
 
         let client = Client::open(con_info).map_err(|e| {
-            Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "invalid or unsupported scheme",
-            )
-            .with_context("service", Scheme::Redis)
-            .with_context("endpoint", self.endpoint.as_ref().unwrap())
-            .with_context("db", self.db.to_string())
-            .set_source(e)
+            Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
+                .with_context("service", Scheme::Redis)
+                .with_context("endpoint", self.endpoint.as_ref().unwrap())
+                .with_context("db", self.db.to_string())
+                .set_source(e)
         })?;
 
         let root = normalize_root(

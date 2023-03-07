@@ -26,8 +26,8 @@ pub fn parse_io_error(err: io::Error) -> Error {
     use io::ErrorKind::*;
 
     let (kind, retryable) = match err.kind() {
-        NotFound => (ErrorKind::ObjectNotFound, false),
-        PermissionDenied => (ErrorKind::ObjectPermissionDenied, false),
+        NotFound => (ErrorKind::NotFound, false),
+        PermissionDenied => (ErrorKind::PermissionDenied, false),
         Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, true),
     };

@@ -57,7 +57,7 @@ use crate::*;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::create(services::Memory::default())
+/// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(RetryLayer::new())
 ///     .finish();
@@ -76,7 +76,7 @@ impl RetryLayer {
     /// use opendal::Operator;
     /// use opendal::Scheme;
     ///
-    /// let _ = Operator::create(services::Memory::default())
+    /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
     ///     .layer(RetryLayer::new());
     /// ```
@@ -756,6 +756,7 @@ impl<P: oio::BlockingPage> oio::BlockingPage for RetryWrapper<P> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -768,6 +769,26 @@ mod tests {
     use futures::TryStreamExt;
 
     use super::*;
+
+    #[derive(Default, Clone)]
+    struct MockBuilder {
+        attempt: Arc<Mutex<usize>>,
+    }
+
+    impl Builder for MockBuilder {
+        const SCHEME: Scheme = Scheme::Custom("mock");
+        type Accessor = MockService;
+
+        fn from_map(_: HashMap<String, String>) -> Self {
+            Self::default()
+        }
+
+        fn build(&mut self) -> Result<Self::Accessor> {
+            Ok(MockService {
+                attempt: self.attempt.clone(),
+            })
+        }
+    }
 
     #[derive(Debug, Clone, Default)]
     struct MockService {
@@ -783,8 +804,8 @@ mod tests {
         type Pager = MockPager;
         type BlockingPager = ();
 
-        fn metadata(&self) -> AccessorMetadata {
-            let mut am = AccessorMetadata::default();
+        fn info(&self) -> AccessorInfo {
+            let mut am = AccessorInfo::default();
             am.set_capabilities(AccessorCapability::List);
             am.set_hints(AccessorHint::ReadStreamable);
 
@@ -872,7 +893,7 @@ mod tests {
             self.attempt += 1;
             match self.attempt {
                 1 => Err(Error::new(
-                    ErrorKind::ObjectRateLimited,
+                    ErrorKind::RateLimited,
                     "retriable rate limited error from pager",
                 )
                 .set_temporary()),
@@ -906,10 +927,13 @@ mod tests {
     async fn test_retry_read() {
         let _ = env_logger::try_init();
 
-        let srv = Arc::new(MockService::default());
-        let op = Operator::new(srv.clone()).layer(RetryLayer::new()).finish();
+        let builder = MockBuilder::default();
+        let op = Operator::new(builder.clone())
+            .unwrap()
+            .layer(RetryLayer::new())
+            .finish();
 
-        let mut r = op.object("retryable_error").reader().await.unwrap();
+        let mut r = op.reader("retryable_error").await.unwrap();
         let mut content = Vec::new();
         let size = r
             .read_to_end(&mut content)
@@ -918,21 +942,23 @@ mod tests {
         assert_eq!(size, 13);
         assert_eq!(content, "Hello, World!".as_bytes());
         // The error is retryable, we should request it 1 + 10 times.
-        assert_eq!(*srv.attempt.lock().unwrap(), 5);
+        assert_eq!(*builder.attempt.lock().unwrap(), 5);
     }
 
     #[tokio::test]
     async fn test_retry_list() {
         let _ = env_logger::try_init();
 
-        let srv = Arc::new(MockService::default());
-        let op = Operator::new(srv.clone()).layer(RetryLayer::new()).finish();
+        let builder = MockBuilder::default();
+        let op = Operator::new(builder.clone())
+            .unwrap()
+            .layer(RetryLayer::new())
+            .finish();
 
         let expected = vec!["hello", "world", "2023/", "0208/"];
 
         let mut lister = op
-            .object("retryable_error/")
-            .list()
+            .list("retryable_error/")
             .await
             .expect("service must support list");
         let mut actual = Vec::new();

@@ -52,7 +52,7 @@ use crate::*;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::create(services::Memory::default())
+/// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(ChaosLayer::new(0.1))
 ///     .finish();

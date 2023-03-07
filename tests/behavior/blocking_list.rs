@@ -17,8 +17,8 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 use log::debug;
+use opendal::BlockingOperator;
 use opendal::EntryMode;
-use opendal::Operator;
 
 use super::utils::*;
 
@@ -40,9 +40,9 @@ macro_rules! behavior_blocking_list_test {
                     fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service::<opendal::services::$service>(true);
                         match op {
-                            Some(op) if op.metadata().can_read()
-                                && op.metadata().can_write()
-                                && op.metadata().can_blocking() && (op.metadata().can_list()||op.metadata().can_scan()) => $crate::blocking_list::$test(op),
+                            Some(op) if op.info().can_read()
+                                && op.info().can_write()
+                                && op.info().can_blocking() && (op.info().can_list()||op.info().can_scan()) => $crate::blocking_list::$test(op.blocking()),
                             Some(_) => {
                                 log::warn!("service {} doesn't support read, ignored", opendal::Scheme::$service);
                                 Ok(())
@@ -75,20 +75,18 @@ macro_rules! behavior_blocking_list_tests {
 }
 
 /// List dir should return newly created file.
-pub fn test_list_dir(op: Operator) -> Result<()> {
+pub fn test_list_dir(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op.object(&path)
-        .blocking_write(content)
-        .expect("write must succeed");
+    op.write(&path, content).expect("write must succeed");
 
-    let obs = op.object("/").blocking_list()?;
+    let obs = op.list("/")?;
     let mut found = false;
     for de in obs {
         let de = de?;
-        let meta = de.blocking_stat()?;
+        let meta = op.stat(de.path())?;
         if de.path() == path {
             assert_eq!(meta.mode(), EntryMode::FILE);
             assert_eq!(meta.content_length(), size as u64);
@@ -98,17 +96,15 @@ pub fn test_list_dir(op: Operator) -> Result<()> {
     }
     assert!(found, "file should be found in list");
 
-    op.object(&path)
-        .blocking_delete()
-        .expect("delete must succeed");
+    op.delete(&path).expect("delete must succeed");
     Ok(())
 }
 
 /// List non exist dir should return nothing.
-pub fn test_list_non_exist_dir(op: Operator) -> Result<()> {
+pub fn test_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
-    let obs = op.object(&dir).blocking_list()?;
+    let obs = op.list(&dir)?;
     let mut objects = HashMap::new();
     for de in obs {
         let de = de?;
@@ -121,15 +117,15 @@ pub fn test_list_non_exist_dir(op: Operator) -> Result<()> {
 }
 
 // Walk top down should output as expected
-pub fn test_scan(op: Operator) -> Result<()> {
+pub fn test_scan(op: BlockingOperator) -> Result<()> {
     let expected = vec![
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
-        op.object(path).blocking_create()?;
+        op.create(path)?;
     }
 
-    let w = op.object("x/").blocking_scan()?;
+    let w = op.scan("x/")?;
     let actual = w
         .collect::<Vec<_>>()
         .into_iter()

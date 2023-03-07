@@ -111,7 +111,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    /// Create a new KeyValueAccessorMetadata.
+    /// Create a new KeyValueAccessorInfo.
     pub fn new(
         scheme: Scheme,
         name: &str,
@@ -140,9 +140,9 @@ impl Metadata {
     }
 }
 
-impl From<Metadata> for AccessorMetadata {
-    fn from(m: Metadata) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+impl From<Metadata> for AccessorInfo {
+    fn from(m: Metadata) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_name(m.name());
         am.set_scheme(m.scheme());
         am.set_capabilities(m.capabilities());

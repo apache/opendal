@@ -64,7 +64,6 @@ use crate::*;
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Webdav;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -77,8 +76,7 @@ use crate::*;
 ///         .username("xxx")
 ///         .password("xxx");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     Ok(())
 /// }
 /// ```
@@ -191,10 +189,8 @@ impl Builder for WebdavBuilder {
         let endpoint = match &self.endpoint {
             Some(v) => v,
             None => {
-                return Err(
-                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                        .with_context("service", Scheme::Webdav),
-                )
+                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                    .with_context("service", Scheme::Webdav))
             }
         };
 
@@ -259,8 +255,8 @@ impl Accessor for WebdavBackend {
     type Pager = WebdavPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut ma = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capabilities(

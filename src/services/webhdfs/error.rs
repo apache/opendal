@@ -45,10 +45,8 @@ pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Err
 
 fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
     let (kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            (ErrorKind::ObjectPermissionDenied, false)
-        }
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         // passing invalid arguments will return BAD_REQUEST
         // should be unretriable
         StatusCode::BAD_REQUEST => (ErrorKind::Unexpected, false),

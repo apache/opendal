@@ -71,7 +71,6 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Gcs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -87,8 +86,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 ///     // set the credentials for GCS OAUTH2 authentication
 ///     builder.credential("authentication token");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
-///     let _: Object = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///     Ok(())
 /// }
 /// ```
@@ -251,11 +249,9 @@ impl Builder for GcsBuilder {
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Gcs),
-            ),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Gcs)),
         }?;
 
         // TODO: server side encryption
@@ -296,7 +292,7 @@ impl Builder for GcsBuilder {
                 signer_builder.credential_path(cred);
             }
             let signer = signer_builder.build().map_err(|e| {
-                Error::new(ErrorKind::BackendConfigInvalid, "build GoogleSigner")
+                Error::new(ErrorKind::ConfigInvalid, "build GoogleSigner")
                     .with_operation("Builder::build")
                     .with_context("service", Scheme::Gcs)
                     .with_context("bucket", bucket)
@@ -351,11 +347,11 @@ impl Accessor for GcsBackend {
     type Pager = GcsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         use AccessorCapability::*;
         use AccessorHint::*;
 
-        let mut am = AccessorMetadata::default();
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.root)
             .set_name(&self.bucket)

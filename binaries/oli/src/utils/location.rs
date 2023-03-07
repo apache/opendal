@@ -35,7 +35,7 @@ pub fn parse_location(s: &str) -> Result<(Operator, &str)> {
             None => s,
         };
 
-        return Ok((Operator::create(fs)?.finish(), filename));
+        return Ok((Operator::new(fs)?.finish(), filename));
     }
 
     let s = s.splitn(2, "://").collect::<Vec<_>>();
@@ -48,7 +48,7 @@ pub fn parse_location(s: &str) -> Result<(Operator, &str)> {
                 let (bucket, location) = parse_s3_uri(s[1]);
                 let mut builder = services::S3::default();
                 builder.bucket(bucket);
-                Ok((Operator::create(builder)?.finish(), location))
+                Ok((Operator::new(builder)?.finish(), location))
             }
             _ => todo!(),
         }

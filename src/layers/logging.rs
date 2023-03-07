@@ -56,7 +56,7 @@ use crate::*;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::create(services::Memory::default())
+/// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(LoggingLayer::default())
 ///     .finish();
@@ -95,7 +95,7 @@ impl Default for LoggingLayer {
 impl LoggingLayer {
     /// Setting the log level while expected error happened.
     ///
-    /// For example: accessor returns ObjectNotFound.
+    /// For example: accessor returns NotFound.
     ///
     /// `None` means disable the log for error.
     pub fn with_error_level(mut self, level: Option<Level>) -> Self {
@@ -118,7 +118,7 @@ impl<A: Accessor> Layer<A> for LoggingLayer {
     type LayeredAccessor = LoggingAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let meta = inner.metadata();
+        let meta = inner.info();
         LoggingAccessor {
             scheme: meta.scheme(),
             inner,
@@ -175,19 +175,19 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn metadata(&self) -> AccessorInfo {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} -> started",
             self.scheme,
-            Operation::Metadata
+            Operation::Info
         );
-        let result = self.inner.metadata();
+        let result = self.inner.info();
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} -> finished: {:?}",
             self.scheme,
-            Operation::Metadata,
+            Operation::Info,
             result
         );
 

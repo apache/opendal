@@ -74,7 +74,6 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use opendal::services::Azdfs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -101,10 +100,7 @@ use crate::*;
 ///     builder.account_key("account_key");
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::create(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     Ok(())
 /// }
@@ -221,21 +217,17 @@ impl Builder for AzdfsBuilder {
         // Handle endpoint, region and container name.
         let filesystem = match self.filesystem.is_empty() {
             false => Ok(&self.filesystem),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "filesystem is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azdfs),
-            ),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "filesystem is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azdfs)),
         }?;
         debug!("backend use filesystem {}", &filesystem);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azdfs),
-            ),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azdfs)),
         }?;
         debug!("backend use endpoint {}", &filesystem);
 
@@ -254,7 +246,7 @@ impl Builder for AzdfsBuilder {
         }
 
         let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::BackendConfigInvalid, "build AzureStorageSigner")
+            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azdfs)
                 .with_context("endpoint", &endpoint)
@@ -307,8 +299,8 @@ impl Accessor for AzdfsBackend {
     type Pager = AzdfsPager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azdfs)
             .set_root(&self.root)
             .set_name(&self.filesystem)

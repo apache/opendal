@@ -37,49 +37,12 @@ use crate::*;
 ///     builder.root("/tmp");
 ///
 ///     // Build an `Operator` to start operating the storage.
-///     let op: Operator = Operator::create(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _ = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     Ok(())
 /// }
 /// ```
 impl Operator {
-    /// Create a new operator.
-    ///
-    /// # Examples
-    ///
-    /// Read more backend init examples in [examples](https://github.com/datafuselabs/opendal/tree/main/examples).
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// use opendal::services::Fs;
-    /// use opendal::Builder;
-    /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     // Create fs backend builder.
-    ///     let mut builder = Fs::default();
-    ///     // Set the root for fs, all operations will happen under this root.
-    ///     //
-    ///     // NOTE: the root must be absolute path.
-    ///     builder.root("/tmp");
-    ///
-    ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::new(builder.build()?).finish();
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<impl Accessor> {
-        OperatorBuilder::new(acc)
-    }
-
     /// Create a new operator with input builder.
     ///
     /// OpenDAL will call `builder.build()` internally, so we don't need
@@ -103,15 +66,13 @@ impl Operator {
     ///     builder.root("/tmp");
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::create(builder)?.finish();
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
+    ///     let op: Operator = Operator::new(builder)?.finish();
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub fn create<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Accessor>> {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Accessor>> {
         let acc = ab.build()?;
         Ok(OperatorBuilder::new(acc))
     }
@@ -135,9 +96,6 @@ impl Operator {
     ///
     ///     // Build an `Operator` to start operating the storage.
     ///     let op: Operator = Operator::from_map::<Fs>(map)?.finish();
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
     ///
     ///     Ok(())
     /// }
@@ -196,10 +154,10 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// let op = Operator::create(Fs::default())?.finish();
+    /// let op = Operator::new(Fs::default())?.finish();
     /// let op = op.layer(LoggingLayer::default());
     /// // All operations will go through the new_layer
-    /// let _ = op.object("test_file").read().await?;
+    /// let _ = op.read("test_file").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -291,11 +249,11 @@ impl<A: Accessor> OperatorBuilder<A> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// let op = Operator::create(Fs::default())?
+    /// let op = Operator::new(Fs::default())?
     ///     .layer(LoggingLayer::default())
     ///     .finish();
     /// // All operations will go through the new_layer
-    /// let _ = op.object("test_file").read().await?;
+    /// let _ = op.read("test_file").await?;
     /// # Ok(())
     /// # }
     /// ```

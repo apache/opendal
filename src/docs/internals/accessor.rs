@@ -116,14 +116,14 @@
 //! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
-//! [`Accessor`] can declare their capabilities via [`AccessorMetadata`]'s `set_capabilities`:
+//! [`Accessor`] can declare their capabilities via [`AccessorInfo`]'s `set_capabilities`:
 //!
 //! ```ignore
 //! impl Accessor for MyBackend {
-//!     fn metadata(&self) -> AccessorMetadata {
+//!     fn metadata(&self) -> AccessorInfo {
 //!        use AccessorCapability::*;
 //!
-//!        let mut am = AccessorMetadata::default();
+//!        let mut am = AccessorInfo::default();
 //!        am.set_capabilities(Read | Write | List | Scan | Presign | Batch);
 //!
 //!         am
@@ -205,7 +205,7 @@
 //! ///     // NOTE: the root must be absolute path.
 //! ///     builder.root("/path/to/dir");
 //! ///
-//! ///     let op: Operator = Operator::create(builder)?.finish();
+//! ///     let op: Operator = Operator::new(builder)?.finish();
 //! ///
 //! ///     // Create an object handle to start operation on object.
 //! ///     let _: Object = op.object("test_file");
@@ -291,11 +291,11 @@
 //!     type Pager = ();
 //!     type BlockingPager = ();
 //!
-//!     fn metadata(&self) -> AccessorMetadata {
+//!     fn metadata(&self) -> AccessorInfo {
 //!         use AccessorCapability::*;
 //!         use AccessorHint::*;
 //!
-//!         let mut am = AccessorMetadata::default();
+//!         let mut am = AccessorInfo::default();
 //!         am.set_scheme(Scheme::Duck)
 //!             .set_root(&self.root)
 //!             .set_capabilities(Read);
@@ -319,6 +319,6 @@
 //! [`Accessor`]: crate::raw::Accessor
 //! [`Operation`]: crate::raw::Operation
 //! [`AccessorCapability`]: crate::raw::AccessorCapability
-//! [`AccessorMetadata`]: crate::raw::AccessorMetadata
+//! [`AccessorInfo`]: crate::raw::AccessorInfo
 //! [`Scheme`]: crate::Scheme
 //! [`Builder`]: crate::Builder

@@ -25,10 +25,10 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
 
     let (kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::ObjectNotFound, false),
-        StatusCode::CONFLICT => (ErrorKind::ObjectAlreadyExists, false),
-        StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
-        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::ObjectRateLimited, true),
+        StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
+        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

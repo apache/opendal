@@ -61,7 +61,6 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use opendal::services::Fs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -74,10 +73,7 @@ use crate::*;
 ///     builder.root("/tmp");
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::create(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     Ok(())
 /// }
@@ -145,7 +141,7 @@ impl Builder for FsBuilder {
         let root = match self.root.take() {
             Some(root) => Ok(root),
             None => Err(Error::new(
-                ErrorKind::BackendConfigInvalid,
+                ErrorKind::ConfigInvalid,
                 "root is not specified",
             )),
         }?;
@@ -295,8 +291,8 @@ impl Accessor for FsBackend {
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
     type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
 
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+    fn info(&self) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root.to_string_lossy())
             .set_capabilities(
@@ -372,13 +368,13 @@ impl Accessor for FsBackend {
             let meta = f.metadata().await.map_err(parse_io_error)?;
             if meta.is_dir() != path.ends_with('/') {
                 return Err(Error::new(
-                    ErrorKind::ObjectNotFound,
+                    ErrorKind::NotFound,
                     "file mode is not match with its path",
                 ));
             }
             if meta.is_dir() {
                 return Err(Error::new(
-                    ErrorKind::ObjectIsADirectory,
+                    ErrorKind::IsADirectory,
                     "given path is a directory",
                 ));
             }
@@ -449,7 +445,7 @@ impl Accessor for FsBackend {
 
         if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
             return Err(Error::new(
-                ErrorKind::ObjectNotFound,
+                ErrorKind::NotFound,
                 "file mode is not match with its path",
             ));
         }
@@ -561,13 +557,13 @@ impl Accessor for FsBackend {
             let meta = f.metadata().map_err(parse_io_error)?;
             if meta.is_dir() != path.ends_with('/') {
                 return Err(Error::new(
-                    ErrorKind::ObjectNotFound,
+                    ErrorKind::NotFound,
                     "file mode is not match with its path",
                 ));
             }
             if meta.is_dir() {
                 return Err(Error::new(
-                    ErrorKind::ObjectIsADirectory,
+                    ErrorKind::IsADirectory,
                     "given path is a directory",
                 ));
             }
@@ -635,7 +631,7 @@ impl Accessor for FsBackend {
 
         if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
             return Err(Error::new(
-                ErrorKind::ObjectNotFound,
+                ErrorKind::NotFound,
                 "file mode is not match with its path",
             ));
         }

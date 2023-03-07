@@ -153,7 +153,6 @@ mod constants {
 ///
 /// use anyhow::Result;
 /// use opendal::services::S3;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -184,10 +183,7 @@ mod constants {
 ///     builder.access_key_id("access_key_id");
 ///     builder.secret_access_key("secret_access_key");
 ///
-///     let op: Operator = Operator::create(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
+///     let op: Operator = Operator::new(builder)?.finish();
 ///
 ///     Ok(())
 /// }
@@ -210,7 +206,7 @@ mod constants {
 ///     // Enable SSE-C
 ///     builder.server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
 ///
-///     let op = Operator::create(builder)?.finish();
+///     let op = Operator::new(builder)?.finish();
 ///     info!("operator: {:?}", op);
 ///
 ///     // Writing your testing code here.
@@ -236,7 +232,7 @@ mod constants {
 ///     // Enable SSE-KMS with aws managed kms key
 ///     builder.server_side_encryption_with_aws_managed_kms_key();
 ///
-///     let op = Operator::create(builder)?.finish();
+///     let op = Operator::new(builder)?.finish();
 ///     info!("operator: {:?}", op);
 ///
 ///     // Writing your testing code here.
@@ -262,7 +258,7 @@ mod constants {
 ///     // Enable SSE-KMS with customer managed kms key
 ///     builder.server_side_encryption_with_customer_managed_kms_key("aws_kms_key_id");
 ///
-///     let op = Operator::create(builder)?.finish();
+///     let op = Operator::new(builder)?.finish();
 ///     info!("operator: {:?}", op);
 ///
 ///     // Writing your testing code here.
@@ -288,7 +284,7 @@ mod constants {
 ///     // Enable SSE-S3
 ///     builder.server_side_encryption_with_s3_key();
 ///
-///     let op = Operator::create(builder)?.finish();
+///     let op = Operator::new(builder)?.finish();
 ///     info!("operator: {:?}", op);
 ///
 ///     // Writing your testing code here.
@@ -850,10 +846,7 @@ impl Builder for S3Builder {
         // Handle bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "bucket is empty",
-            )),
+            true => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")),
         }?;
         debug!("backend use bucket {}", &bucket);
 
@@ -861,7 +854,7 @@ impl Builder for S3Builder {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "server_side_encryption value is invalid",
                 )
                 .with_context("value", v)
@@ -874,7 +867,7 @@ impl Builder for S3Builder {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
                     Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "server_side_encryption_aws_kms_key_id value is invalid",
                     )
                     .with_context("value", v)
@@ -887,7 +880,7 @@ impl Builder for S3Builder {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
                     Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "server_side_encryption_customer_algorithm value is invalid",
                     )
                     .with_context("value", v)
@@ -899,7 +892,7 @@ impl Builder for S3Builder {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
                 Error::new(
-                    ErrorKind::BackendConfigInvalid,
+                    ErrorKind::ConfigInvalid,
                     "server_side_encryption_customer_key value is invalid",
                 )
                 .with_context("value", v)
@@ -911,7 +904,7 @@ impl Builder for S3Builder {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
                     Error::new(
-                        ErrorKind::BackendConfigInvalid,
+                        ErrorKind::ConfigInvalid,
                         "server_side_encryption_customer_key_md5 value is invalid",
                     )
                     .with_context("value", v)
@@ -1113,11 +1106,11 @@ impl Accessor for S3Backend {
     type Pager = S3Pager;
     type BlockingPager = ();
 
-    fn metadata(&self) -> AccessorMetadata {
+    fn info(&self) -> AccessorInfo {
         use AccessorCapability::*;
         use AccessorHint::*;
 
-        let mut am = AccessorMetadata::default();
+        let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
             .set_name(&self.bucket)

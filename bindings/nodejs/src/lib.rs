@@ -104,8 +104,8 @@ impl Operator {
         Ok(Metadata(meta))
     }
 
-    #[napi(js_name = "statSync")]
-    pub fn blocking_stat(&self, path: String) -> Result<Metadata> {
+    #[napi]
+    pub fn stat_sync(&self, path: String) -> Result<Metadata> {
         let meta = self
             .0
             .blocking()
@@ -122,8 +122,8 @@ impl Operator {
         self.0.write(&path, c).await.map_err(format_napi_error)
     }
 
-    #[napi(js_name = "writeSync")]
-    pub fn blocking_write(&self, path: String, content: Buffer) -> Result<()> {
+    #[napi]
+    pub fn write_sync(&self, path: String, content: Buffer) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
@@ -134,8 +134,8 @@ impl Operator {
         Ok(res.into())
     }
 
-    #[napi(js_name = "readSync")]
-    pub fn blocking_read(&self, path: String) -> Result<Buffer> {
+    #[napi]
+    pub fn read_sync(&self, path: String) -> Result<Buffer> {
         let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
         Ok(res.into())
     }
@@ -152,8 +152,8 @@ impl Operator {
         self.0.delete(&path).await.map_err(format_napi_error)
     }
 
-    #[napi(js_name = "deleteSync")]
-    pub fn blocking_delete(&self, path: String) -> Result<()> {
+    #[napi]
+    pub fn delete_sync(&self, path: String) -> Result<()> {
         self.0.blocking().delete(&path).map_err(format_napi_error)
     }
 

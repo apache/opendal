@@ -99,17 +99,17 @@ impl Stream for Lister {
             let (op, res) = ready!(fut.poll_unpin(cx));
             self.pager = Some(op);
 
-            match res? {
+            return match res? {
                 Some(oes) => {
                     self.fut = None;
                     self.buf = oes.into();
-                    return self.poll_next(cx);
+                    self.poll_next(cx)
                 }
                 None => {
                     self.fut = None;
-                    return Poll::Ready(None);
+                    Poll::Ready(None)
                 }
-            }
+            };
         }
 
         let mut pager = self.pager.take().expect("pager must be valid");

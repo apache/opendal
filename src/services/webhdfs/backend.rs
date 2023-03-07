@@ -480,10 +480,10 @@ impl WebhdfsBackend {
         if mkdir_rsp.boolean {
             Ok(RpCreate::default())
         } else {
-            return Err(Error::new(
+            Err(Error::new(
                 ErrorKind::Unexpected,
                 &format!("mkdir failed: {path}"),
-            ));
+            ))
         }
     }
 

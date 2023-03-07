@@ -280,7 +280,7 @@ mod tests {
         let content = gen_random_bytes();
         op.write(path, content.clone())
             .await
-            .expect("writ to object must succeed");
+            .expect("write to object must succeed");
 
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
@@ -300,7 +300,7 @@ mod tests {
         let content = gen_random_bytes();
         op.write(path, content.clone())
             .await
-            .expect("writ to object must succeed");
+            .expect("write to object must succeed");
 
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();

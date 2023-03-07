@@ -31,7 +31,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [ ] ~~list~~
-/// - [ ] ~~scan~~
+/// - [x] scan
 /// - [ ] ~~presign~~
 /// - [x] blocking
 #[derive(Default)]
@@ -66,7 +66,7 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Dashmap,
             &format!("{:?}", &self.inner as *const _),
-            AccessorCapability::Read | AccessorCapability::Write,
+            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::Scan,
         )
     }
 
@@ -99,6 +99,19 @@ impl kv::Adapter for Adapter {
         self.inner.remove(path);
 
         Ok(())
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        self.blocking_scan(path)
+    }
+
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let keys = self.inner.iter().map(|kv| kv.key().to_string());
+        if path.is_empty() {
+            Ok(keys.collect())
+        } else {
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
+        }
     }
 }
 

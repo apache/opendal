@@ -21,15 +21,13 @@ use futures::AsyncReadExt;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
-
 use time::Duration;
 use tokio::io::ReadBuf;
 
+use super::BlockingOperator;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
-
-use super::BlockingOperator;
 
 /// Operator is the entry for all public async APIs.
 ///
@@ -237,8 +235,8 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::Metakey;
     /// use opendal::Entry;
+    /// use opendal::Metakey;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
@@ -260,12 +258,12 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::Metakey;
     /// use opendal::Entry;
+    /// use opendal::Metakey;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
-    /// let meta = op.metadata(&entry,  Metakey::Complete ).await?;
+    /// let meta = op.metadata(&entry, Metakey::Complete).await?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.
@@ -653,8 +651,7 @@ impl Operator {
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op
-    ///     .remove(vec!["abc".to_string(), "def".to_string()])
+    /// op.remove(vec!["abc".to_string(), "def".to_string()])
     ///     .await?;
     /// # Ok(())
     /// # }
@@ -793,10 +790,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.list("path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op
-    ///         .metadata(&de, Metakey::Mode
-    ///         )
-    ///         .await?;
+    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
@@ -848,11 +842,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.scan("/path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op
-    ///         .metadata(&de,
-    ///             Metakey::Mode
-    ///         )
-    ///         .await?;
+    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")

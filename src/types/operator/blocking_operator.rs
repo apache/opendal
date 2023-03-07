@@ -33,8 +33,8 @@ use crate::*;
 /// ```
 /// # use anyhow::Result;
 /// use opendal::services::Fs;
-/// use opendal::Operator;
 /// use opendal::BlockingOperator;
+/// use opendal::Operator;
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
@@ -192,13 +192,11 @@ impl BlockingOperator {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::BlockingOperator;
-    /// use opendal::Metakey;
     /// use opendal::Entry;
+    /// use opendal::Metakey;
     ///
     /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
-    /// let meta = op.metadata(&entry, {
-    ///     Metakey::ContentLength | Metakey::ContentType
-    /// })?;
+    /// let meta = op.metadata(&entry, { Metakey::ContentLength | Metakey::ContentType })?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag COULD be correct.
@@ -214,8 +212,8 @@ impl BlockingOperator {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::BlockingOperator;
-    /// use opendal::Metakey;
     /// use opendal::Entry;
+    /// use opendal::Metakey;
     ///
     /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
     /// let meta = op.metadata(&entry, { Metakey::Complete })?;
@@ -439,7 +437,7 @@ impl BlockingOperator {
     /// use bytes::Bytes;
     ///
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// op.write("path/to/file",vec![0; 4096])?;
+    /// op.write("path/to/file", vec![0; 4096])?;
     /// # Ok(())
     /// # }
     /// ```
@@ -464,7 +462,7 @@ impl BlockingOperator {
     /// # async fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let ow = OpWrite::new().with_content_type("text/plain");
-    /// let _ = op.write_with("hello.txt",ow, bs)?;
+    /// let _ = op.write_with("hello.txt", ow, bs)?;
     /// # Ok(())
     /// # }
     /// ```

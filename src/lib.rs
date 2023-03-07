@@ -40,7 +40,7 @@
 //!         .finish();
 //!
 //!     // Write data
-//!     op.write("path/to/file","Hello, World!").await?;
+//!     op.write("path/to/file", "Hello, World!").await?;
 //!
 //!     // Read data
 //!     let bs = op.read("path/to/file").await?;

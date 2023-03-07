@@ -310,7 +310,7 @@ impl BlockingOperator {
     /// Read the whole object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::blocking_reader`]
+    /// reading data lazily, please use [`BlockingOperator::reader`]
     ///
     /// # Examples
     ///
@@ -330,7 +330,7 @@ impl BlockingOperator {
     /// Read the specified range of object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::blocking_range_reader`]
+    /// reading data lazily, please use [`BlockingOperator::range_reader`]
     ///
     /// # Examples
     ///

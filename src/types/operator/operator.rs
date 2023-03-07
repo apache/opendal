@@ -365,10 +365,10 @@ impl Operator {
         Ok(())
     }
 
-    /// Read the whole object into a bytes.
+    /// Read the whole path into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::reader`]
+    /// reading data lazily, please use [`Operator::reader`]
     ///
     /// # Examples
     ///
@@ -389,7 +389,7 @@ impl Operator {
     /// Read the specified range of object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::range_reader`]
+    /// reading data lazily, please use [`Operator::range_reader`]
     ///
     /// # Notes
     ///

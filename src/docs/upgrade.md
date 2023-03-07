@@ -27,7 +27,7 @@ In v0.28, we introduced [Query Based Metadata][crate::docs::rfcs::rfc_1398_query
 +    ) -> Result<Arc<ObjectMetadata>>;
 ```
 
-Please visit [`Object::metadata()`][crate::Object::metadata()]'s example for more details.
+Please visit `Object::metadata()`'s example for more details.
 
 # Upgrade to v0.27
 

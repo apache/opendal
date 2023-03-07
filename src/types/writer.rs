@@ -34,13 +34,13 @@ use crate::*;
 ///
 /// Writer is designed for appending multiple blocks which could
 /// lead to much requests. If only want to send all data in single chunk,
-/// please use [`Object::write`] instead.
+/// please use [`Operator::write`] instead.
 pub struct Writer {
     state: State,
 }
 
 impl Writer {
-    /// Create a new object writer.
+    /// Create a new writer.
     ///
     /// Create will use internal information to decide the most suitable
     /// implementation for users.

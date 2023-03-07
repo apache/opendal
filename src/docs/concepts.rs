@@ -20,7 +20,6 @@
 //!
 //! - [`Builder`]: Build an instance of underlying services.
 //! - [`Operator`]: A bridge between underlying implementation detail and unified abstraction.
-//! - [`Object`]: The smallest unit representing a file/dir/... with path in specified services.
 //!
 //! If you are interested in internal implementation details, please have a look at [`internals`][super::internals].
 //!
@@ -83,31 +82,24 @@
 //! - `Operator` doesn't have generic parameters or lifetimes, so it's **easy** to use it everywhere.
 //! - `Operator` implements `Send` and `Sync`, so it's **safe** to send it between threads.
 //!
-//! # Object
-//!
-//! [`Object`] is the smallest unit representing a file/dir/... with path in specified services. All actual operations will happen on `Object`:
+//! After get an `Operator`, we can do operations on differnt paths.
 //!
 //!
 //! ```text
-//!                            ┌────────────┐
-//!                     abc    │   Object   ├───► read()
-//!                  ┌────────►│ path: abc  │
-//!                  │         └────────────┘
+//!                            ┌──────────────┐
+//!                  ┌────────►│ read("abc")  │
+//!                  │         └──────────────┘
 //! ┌───────────┐    │
-//! │ Operator  │    │   def   ┌────────────┐
-//! │ ┌───────┐ ├────┼────────►│   Object   ├───► write()
-//! │ │Service│ │    │         │ path: def  │
-//! └─┴───────┴─┘    │         └────────────┘
-//!                  │
-//!                  │   ghi/  ┌────────────┐
-//!                  └────────►│   Object   ├───► list()
-//!                            │ path: ghi/ │
-//!                            └────────────┘
+//! │ Operator  │    │         ┌──────────────┐
+//! │ ┌───────┐ ├────┼────────►│ write("def") │
+//! │ │Service│ │    │         └──────────────┘
+//! └─┴───────┴─┘    │
+//!                  │         ┌──────────────┐
+//!                  └────────►│ list("ghi/") │
+//!                            └──────────────┘
 //! ```
 //!
-//! Every `Object` is coresbonding to a `path` which is related to `Operator`'s root. `Object` is the same as `Operator` which is **cheap**, **easy** and **safe** to use everywhere.
-//!
-//! We can read data from an object in this way:
+//! We can read data with given path in this way:
 //!
 //! ```no_run
 //! # use opendal::Result;
@@ -120,12 +112,10 @@
 //! builder.root("/path/to/file");
 //!
 //! let op = Operator::new(builder)?.finish();
-//! let o = op.object("abc");
-//! let bs: Vec<u8> = o.read().await?;
+//! let bs: Vec<u8> = o.read("abc").await?;
 //! # Ok(())
 //! # }
 //! ```
 //!
 //! [`Builder`]: crate::Builder
 //! [`Operator`]: crate::Operator
-//! [`Object`]: crate::Object

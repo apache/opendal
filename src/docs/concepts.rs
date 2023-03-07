@@ -82,7 +82,7 @@
 //! - `Operator` doesn't have generic parameters or lifetimes, so it's **easy** to use it everywhere.
 //! - `Operator` implements `Send` and `Sync`, so it's **safe** to send it between threads.
 //!
-//! After get an `Operator`, we can do operations on differnt paths.
+//! After get an `Operator`, we can do operations on different paths.
 //!
 //!
 //! ```text

@@ -52,7 +52,7 @@ impl oio::Write for WebdavWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
+            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
                 Ok(())
             }

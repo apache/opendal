@@ -122,7 +122,11 @@ pub fn test_scan(op: BlockingOperator) -> Result<()> {
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
-        op.create(path)?;
+        if path.ends_with('/') {
+            op.create_dir(path)?;
+        } else {
+            op.write(path, "")?;
+        }
     }
 
     let w = op.scan("x/")?;

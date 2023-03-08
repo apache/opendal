@@ -97,7 +97,7 @@ macro_rules! behavior_blocking_write_tests {
 pub fn test_create_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    op.create(&path)?;
+    op.write(&path, "")?;
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -111,9 +111,9 @@ pub fn test_create_file(op: BlockingOperator) -> Result<()> {
 pub fn test_create_file_existing(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    op.create(&path)?;
+    op.write(&path, "")?;
 
-    op.create(&path)?;
+    op.write(&path, "")?;
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -127,7 +127,7 @@ pub fn test_create_file_existing(op: BlockingOperator) -> Result<()> {
 pub fn test_create_file_with_special_chars(op: BlockingOperator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
 
-    op.create(&path)?;
+    op.write(&path, "")?;
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -141,7 +141,7 @@ pub fn test_create_file_with_special_chars(op: BlockingOperator) -> Result<()> {
 pub fn test_create_dir(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path)?;
+    op.create_dir(&path)?;
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -154,9 +154,9 @@ pub fn test_create_dir(op: BlockingOperator) -> Result<()> {
 pub fn test_create_dir_existing(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path)?;
+    op.create_dir(&path)?;
 
-    op.create(&path)?;
+    op.create_dir(&path)?;
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -227,7 +227,7 @@ pub fn test_stat(op: BlockingOperator) -> Result<()> {
 pub fn test_stat_dir(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path).expect("write must succeed");
+    op.create_dir(&path).expect("write must succeed");
 
     let meta = op.stat(&path)?;
     assert_eq!(meta.mode(), EntryMode::DIR);

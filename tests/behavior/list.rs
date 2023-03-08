@@ -119,7 +119,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
-    op.create("test_list_rich_dir/").await?;
+    op.create_dir("test_list_rich_dir/").await?;
 
     let mut expected: Vec<String> = (0..=1000)
         .map(|num| format!("test_list_rich_dir/file-{num}"))
@@ -128,7 +128,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     expected
         .iter()
         .map(|v| async {
-            op.create(v).await.expect("create must succeed");
+            op.write(v, "").await.expect("create must succeed");
         })
         // Collect into a FuturesUnordered.
         .collect::<FuturesUnordered<_>>()
@@ -155,7 +155,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&dir).await.expect("write must succeed");
+    op.create_dir(&dir).await.expect("write must succeed");
 
     let mut obs = op.list(&dir).await?;
     let mut objects = HashMap::new();
@@ -189,7 +189,7 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
 pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path).await.expect("creat must succeed");
+    op.create_dir(&path).await.expect("creat must succeed");
 
     let mut obs = op.list("/").await?;
     let mut found = false;
@@ -216,9 +216,9 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let dir_name = format!("{}/", uuid::Uuid::new_v4());
     let dir_path = format!("{dir}{dir_name}");
 
-    op.create(&dir).await.expect("creat must succeed");
-    op.create(&file_path).await.expect("creat must succeed");
-    op.create(&dir_path).await.expect("creat must succeed");
+    op.create_dir(&dir).await.expect("creat must succeed");
+    op.write(&file_path, "").await.expect("creat must succeed");
+    op.create_dir(&dir_path).await.expect("creat must succeed");
 
     let mut obs = op.list(&dir).await?;
     let mut objects = HashMap::new();
@@ -276,7 +276,11 @@ pub async fn test_scan(op: Operator) -> Result<()> {
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
-        op.create(path).await?;
+        if path.ends_with('/') {
+            op.create_dir(path).await?;
+        } else {
+            op.write(path, "").await?;
+        }
     }
 
     let w = op.scan("x/").await?;
@@ -301,7 +305,11 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
-        op.create(path).await?;
+        if path.ends_with('/') {
+            op.create_dir(path).await?;
+        } else {
+            op.write(path, "").await?;
+        }
     }
 
     op.remove_all("x/").await?;

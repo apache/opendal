@@ -590,7 +590,7 @@ impl Accessor for WebhdfsBackend {
         let resp = self.webhdfs_get_object(path, range).await?;
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
+                let meta = parse_into_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::NotFound, "object not found")
@@ -624,7 +624,7 @@ impl Accessor for WebhdfsBackend {
         match status {
             StatusCode::OK => {
                 debug!("stat object: {} ok", path);
-                let mut meta = parse_into_object_metadata(path, resp.headers())?;
+                let mut meta = parse_into_metadata(path, resp.headers())?;
                 let body_bs = resp.into_body().bytes().await?;
 
                 let file_status = serde_json::from_reader::<_, FileStatusWrapper>(body_bs.reader())

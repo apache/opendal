@@ -193,7 +193,6 @@
 //! ///
 //! /// use anyhow::Result;
 //! /// use opendal::services::Duck;
-//! /// use opendal::Object;
 //! /// use opendal::Operator;
 //! ///
 //! /// #[tokio::main]
@@ -206,9 +205,6 @@
 //! ///     builder.root("/path/to/dir");
 //! ///
 //! ///     let op: Operator = Operator::new(builder)?.finish();
-//! ///
-//! ///     // Create an object handle to start operation on object.
-//! ///     let _: Object = op.object("test_file");
 //! ///
 //! ///     Ok(())
 //! /// }

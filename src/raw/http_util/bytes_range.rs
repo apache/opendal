@@ -79,7 +79,7 @@ impl BytesRange {
         self.1
     }
 
-    /// Check if this range is full of this object content.
+    /// Check if this range is full of this content.
     ///
     /// If this range is full, we don't need to specify it in http request.
     pub fn is_full(&self) -> bool {

@@ -439,7 +439,7 @@ impl Accessor for OssBackend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
+                let meta = parse_into_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
@@ -471,7 +471,7 @@ impl Accessor for OssBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 let m = Metadata::new(EntryMode::DIR);
                 Ok(RpStat::new(m))

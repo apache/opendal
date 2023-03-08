@@ -380,7 +380,7 @@ impl Accessor for GhacBackend {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
+                let meta = parse_into_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
@@ -440,7 +440,7 @@ impl Accessor for GhacBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_object_metadata(path, resp.headers())?;
+                let mut meta = parse_into_metadata(path, resp.headers())?;
 
                 // Hack for enable_create_simulation.
                 if self.enable_create_simulation && meta.content_length_raw() == Some(1) {

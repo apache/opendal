@@ -81,7 +81,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// # Behavior
     ///
-    /// - Input path MUST match with EntryMode, DON'T NEED to check object mode.
+    /// - Input path MUST match with EntryMode, DON'T NEED to check mode.
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -100,7 +100,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// # Behavior
     ///
-    /// - Input path MUST be file path, DON'T NEED to check object mode.
+    /// - Input path MUST be file path, DON'T NEED to check mode.
     /// - The returning content length may be smaller than the range specified.
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let (_, _) = (path, args);
@@ -118,7 +118,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// # Behavior
     ///
-    /// - Input path MUST be file path, DON'T NEED to check object mode.
+    /// - Input path MUST be file path, DON'T NEED to check mode.
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let (_, _) = (path, args);
 
@@ -169,7 +169,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// # Behavior
     ///
-    /// - Input path MUST be dir path, DON'T NEED to check object mode.
+    /// - Input path MUST be dir path, DON'T NEED to check mode.
     /// - List non-exist dir should return Empty.
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let (_, _) = (path, args);

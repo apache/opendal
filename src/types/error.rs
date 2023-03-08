@@ -25,7 +25,7 @@
 //! # async fn test(op: Operator) -> Result<()> {
 //! if let Err(e) = op.stat("test_file").await {
 //!     if e.kind() == ErrorKind::NotFound {
-//!         println!("object not exist")
+//!         println!("entry not exist")
 //!     }
 //! }
 //! # Ok(())
@@ -55,15 +55,15 @@ pub enum ErrorKind {
     ConfigInvalid,
     /// The given path is not found.
     NotFound,
-    /// Object doesn't have enough permission for this operation
+    /// The given path doesn't have enough permission for this operation
     PermissionDenied,
-    /// Object is a directory.
+    /// The given path is a directory.
     IsADirectory,
-    /// Object is not a directory.
+    /// The given path is not a directory.
     NotADirectory,
-    /// Object already exists thus we failed to the specified operation on it.
+    /// The given path already exists thus we failed to the specified operation on it.
     AlreadyExists,
-    /// Requests that sent to this object is over the limit, please slow down.
+    /// Requests that sent to this path is over the limit, please slow down.
     RateLimited,
 }
 
@@ -85,13 +85,13 @@ impl From<ErrorKind> for &'static str {
         match v {
             ErrorKind::Unexpected => "Unexpected",
             ErrorKind::Unsupported => "Unsupported",
-            ErrorKind::ConfigInvalid => "BackendConfigInvalid",
+            ErrorKind::ConfigInvalid => "ConfigInvalid",
             ErrorKind::NotFound => "NotFound",
-            ErrorKind::PermissionDenied => "ObjectPermissionDenied",
-            ErrorKind::IsADirectory => "ObjectIsADirectory",
-            ErrorKind::NotADirectory => "ObjectNotADirectory",
+            ErrorKind::PermissionDenied => "PermissionDenied",
+            ErrorKind::IsADirectory => "IsADirectory",
+            ErrorKind::NotADirectory => "NotADirectory",
             ErrorKind::AlreadyExists => "AlreadyExists",
-            ErrorKind::RateLimited => "ObjectRateLimited",
+            ErrorKind::RateLimited => "RateLimited",
         }
     }
 }

@@ -147,16 +147,16 @@ impl Operator {
         }
     }
 
-    /// Get current object's metadata **without cache** directly.
+    /// Get current path's metadata **without cache** directly.
     ///
     /// # Notes
     ///
     /// Use `stat` if you:
     ///
-    /// - Want detect the outside changes of object.
-    /// - Don't want to read from cached object metadata.
+    /// - Want detect the outside changes of path.
+    /// - Don't want to read from cached metadata.
     ///
-    /// You may want to use `metadata` if you are working with objects
+    /// You may want to use `metadata` if you are working with entries
     /// returned by [`Lister`]. It's highly possible that metadata
     /// you want has already been cached.
     ///
@@ -187,21 +187,21 @@ impl Operator {
         Ok(meta)
     }
 
-    /// Get current object's metadata with cache.
+    /// Get current metadata with cache.
     ///
     /// `metadata` will check the given query with already cached metadata
     ///  first. And query from storage if not found.
     ///
     /// # Notes
     ///
-    /// Use `metadata` if you are working with objects returned by
+    /// Use `metadata` if you are working with entries returned by
     /// [`Lister`]. It's highly possible that metadata you want
     /// has already been cached.
     ///
     /// You may want to use `stat`, if you:
     ///
-    /// - Want detect the outside changes of object.
-    /// - Don't want to read from cached object metadata.
+    /// - Want detect the outside changes of path.
+    /// - Don't want to read from cached metadata.
     ///
     /// # Behavior
     ///
@@ -253,7 +253,7 @@ impl Operator {
     ///
     /// ## Query all metadata
     ///
-    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this object.
+    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this entry.
     ///
     /// ```
     /// # use anyhow::Result;
@@ -312,7 +312,7 @@ impl Operator {
         }
     }
 
-    /// Create an empty object, like using the following linux commands:
+    /// Create an empty file or dir, like using the following linux commands:
     ///
     /// - `touch path/to/file`
     /// - `mkdir path/to/dir/`
@@ -386,7 +386,7 @@ impl Operator {
         self.range_read(path, ..).await
     }
 
-    /// Read the specified range of object into a bytes.
+    /// Read the specified range of path into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`Operator::range_reader`]
@@ -493,7 +493,7 @@ impl Operator {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("Object::range_reader")
+                    .with_operation("Operator::range_reader")
                     .with_context("service", self.info().scheme())
                     .with_context("path", path),
             );
@@ -504,7 +504,7 @@ impl Operator {
         Reader::create(self.inner().clone(), &path, op).await
     }
 
-    /// Write bytes into object.
+    /// Write bytes into path.
     ///
     /// # Notes
     ///
@@ -529,7 +529,7 @@ impl Operator {
         self.write_with(path, OpWrite::new(), bs).await
     }
 
-    /// Write multiple bytes into object.
+    /// Write multiple bytes into path.
     ///
     /// # Notes
     ///
@@ -559,7 +559,7 @@ impl Operator {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Object::write_with")
+                    .with_operation("Operator::writer")
                     .with_context("service", self.inner().info().scheme().into_static())
                     .with_context("path", &path),
             );
@@ -597,7 +597,7 @@ impl Operator {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Object::write_with")
+                    .with_operation("Operator::write_with")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
             );
@@ -610,7 +610,7 @@ impl Operator {
         Ok(())
     }
 
-    /// Delete object.
+    /// Delete the given path.
     ///
     /// # Notes
     ///
@@ -662,7 +662,7 @@ impl Operator {
 
     /// remove will given paths.
 
-    /// remove_via will remove objects via given stream.
+    /// remove_via will remove files via given stream.
     ///
     /// We will delete by chunks with given batch limit on the stream.
     ///
@@ -773,9 +773,9 @@ impl Operator {
 
     /// List given path.
     ///
-    /// This function will create a new handle to list objects.
+    /// This function will create a new handle to list entries.
     ///
-    /// An error will be returned if object path doesn't end with `/`.
+    /// An error will be returned if given path doesn't end with `/`.
     ///
     /// # Examples
     ///
@@ -812,7 +812,7 @@ impl Operator {
                 ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
-            .with_operation("Object::list")
+            .with_operation("Operator::list")
             .with_context("service", self.info().scheme().into_static())
             .with_context("path", &path));
         }
@@ -824,9 +824,9 @@ impl Operator {
 
     /// List dir in flat way.
     ///
-    /// This function will create a new handle to list objects.
+    /// This function will create a new handle to list entries.
     ///
-    /// An error will be returned if object path doesn't end with `/`.
+    /// An error will be returned if given path doesn't end with `/`.
     ///
     /// # Examples
     ///
@@ -928,7 +928,7 @@ impl Operator {
     /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
     /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
     ///
-    /// We can download this object via `curl` or other tools without credentials:
+    /// We can download this file via `curl` or other tools without credentials:
     ///
     /// ```shell
     /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -O /tmp/test.txt
@@ -963,7 +963,7 @@ impl Operator {
     /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
     /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
     ///
-    /// We can upload file as this object via `curl` or other tools without credential:
+    /// We can upload file as this file via `curl` or other tools without credential:
     ///
     /// ```shell
     /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"

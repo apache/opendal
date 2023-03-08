@@ -343,7 +343,7 @@ impl Accessor for AzdfsBackend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
+                let meta = parse_into_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
@@ -375,7 +375,7 @@ impl Accessor for AzdfsBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }

@@ -31,31 +31,23 @@ pub struct Metadata {
     /// bit stores current key store.
     bit: FlagSet<Metakey>,
 
-    /// Mode of this object.
     mode: EntryMode,
 
-    /// Content-Disposition of this object
     content_disposition: Option<String>,
-    /// Content Length of this object
     content_length: Option<u64>,
-    /// Content MD5 of this object.
     content_md5: Option<String>,
-    /// Content Range of this object.
     content_range: Option<BytesContentRange>,
-    /// Content Type of this object.
     content_type: Option<String>,
-    /// ETag of this object.
     etag: Option<String>,
-    /// Last Modified of this object.
     last_modified: Option<OffsetDateTime>,
 }
 
 impl Metadata {
-    /// Create a new object metadata
+    /// Create a new metadata
     pub fn new(mode: EntryMode) -> Self {
-        // Mode is required to be set for object metadata.
+        // Mode is required to be set for metadata.
         let mut bit = Metakey::Mode.into();
-        // If object mode is dir, we should always mark it as complete.
+        // If mode is dir, we should always mark it as complete.
         if mode.is_dir() {
             bit |= Metakey::Complete
         }
@@ -74,7 +66,7 @@ impl Metadata {
         }
     }
 
-    /// Get the bit from object metadata.
+    /// Get the bit from metadata.
     pub(crate) fn bit(&self) -> FlagSet<Metakey> {
         self.bit
     }
@@ -85,7 +77,7 @@ impl Metadata {
         self
     }
 
-    /// Object mode represent this object's mode.
+    /// mode represent this entry's mode.
     pub fn mode(&self) -> EntryMode {
         debug_assert!(
             self.bit.contains(Metakey::Mode) || self.bit.contains(Metakey::Complete),
@@ -105,21 +97,21 @@ impl Metadata {
         matches!(self.mode, EntryMode::DIR)
     }
 
-    /// Set mode for object.
+    /// Set mode for entry.
     pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
         self.mode = mode;
         self.bit |= Metakey::Mode;
         self
     }
 
-    /// Set mode for object.
+    /// Set mode for entry.
     pub fn with_mode(mut self, mode: EntryMode) -> Self {
         self.mode = mode;
         self.bit |= Metakey::Mode;
         self
     }
 
-    /// Content length of this object.
+    /// Content length of this entry.
     ///
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
@@ -137,21 +129,21 @@ impl Metadata {
         self.content_length
     }
 
-    /// Set content length of this object.
+    /// Set content length of this entry.
     pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = Some(content_length);
         self.bit |= Metakey::ContentLength;
         self
     }
 
-    /// Set content length of this object.
+    /// Set content length of this entry.
     pub fn with_content_length(mut self, content_length: u64) -> Self {
         self.content_length = Some(content_length);
         self.bit |= Metakey::ContentLength;
         self
     }
 
-    /// Content MD5 of this object.
+    /// Content MD5 of this entry.
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
@@ -166,7 +158,7 @@ impl Metadata {
         self.content_md5.as_deref()
     }
 
-    /// Set content MD5 of this object.
+    /// Set content MD5 of this entry.
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
@@ -176,7 +168,7 @@ impl Metadata {
         self
     }
 
-    /// Set content MD5 of this object.
+    /// Set content MD5 of this entry.
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
@@ -186,7 +178,7 @@ impl Metadata {
         self
     }
 
-    /// Content Type of this object.
+    /// Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn content_type(&self) -> Option<&str> {
@@ -198,7 +190,7 @@ impl Metadata {
         self.content_type.as_deref()
     }
 
-    /// Set Content Type of this object.
+    /// Set Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn set_content_type(&mut self, v: &str) -> &mut Self {
@@ -207,7 +199,7 @@ impl Metadata {
         self
     }
 
-    /// Set Content Type of this object.
+    /// Set Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn with_content_type(mut self, v: String) -> Self {
@@ -216,7 +208,7 @@ impl Metadata {
         self
     }
 
-    /// Content Range of this object.
+    /// Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn content_range(&self) -> Option<BytesContentRange> {
@@ -228,7 +220,7 @@ impl Metadata {
         self.content_range
     }
 
-    /// Set Content Range of this object.
+    /// Set Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
@@ -237,7 +229,7 @@ impl Metadata {
         self
     }
 
-    /// Set Content Range of this object.
+    /// Set Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
@@ -246,7 +238,7 @@ impl Metadata {
         self
     }
 
-    /// Last modified of this object.
+    /// Last modified of this entry.
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
@@ -261,7 +253,7 @@ impl Metadata {
         self.last_modified
     }
 
-    /// Set Last modified of this object.
+    /// Set Last modified of this entry.
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
@@ -271,7 +263,7 @@ impl Metadata {
         self
     }
 
-    /// Set Last modified of this object.
+    /// Set Last modified of this entry.
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
@@ -281,7 +273,7 @@ impl Metadata {
         self
     }
 
-    /// ETag of this object.
+    /// ETag of this entry.
     ///
     /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
     /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
@@ -301,7 +293,7 @@ impl Metadata {
         self.etag.as_deref()
     }
 
-    /// Set ETag of this object.
+    /// Set ETag of this entry.
     ///
     /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
     /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
@@ -318,7 +310,7 @@ impl Metadata {
         self
     }
 
-    /// Set ETag of this object.
+    /// Set ETag of this entry.
     ///
     /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
     /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
@@ -335,7 +327,7 @@ impl Metadata {
         self
     }
 
-    /// Content-Disposition of this object
+    /// Content-Disposition of this entry
     ///
     /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
     /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
@@ -355,7 +347,7 @@ impl Metadata {
         self.content_disposition.as_deref()
     }
 
-    /// Set Content-Disposition of this object
+    /// Set Content-Disposition of this entry
     ///
     /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
     /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
@@ -372,7 +364,7 @@ impl Metadata {
         self
     }
 
-    /// Set Content-Disposition of this object
+    /// Set Content-Disposition of this entry
     ///
     /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
     /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
@@ -401,11 +393,11 @@ flags! {
     ///
     /// ## For query
     ///
-    /// At user side, we will allow user to query the object metadata. If
+    /// At user side, we will allow user to query the metadata. If
     /// the meta has been stored, we will return directly. If no, we will
     /// call `stat` internally to fetch the metadata.
     pub enum Metakey: u64 {
-        /// The special object metadata key that used to mark this object
+        /// The special metadata key that used to mark this entry
         /// already contains all metadata.
         Complete,
 

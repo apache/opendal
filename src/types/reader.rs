@@ -27,7 +27,8 @@ use crate::ops::OpRead;
 use crate::raw::*;
 use crate::*;
 
-/// Reader is designed to read data from objects in an asynchronous manner.
+/// Reader is designed to read data from given path in an asynchronous
+/// manner.
 ///
 /// # Usage
 ///
@@ -56,7 +57,7 @@ pub struct Reader {
 }
 
 impl Reader {
-    /// Create a new object reader.
+    /// Create a new reader.
     ///
     /// Create will use internal information to decide the most suitable
     /// implementation for users.
@@ -173,13 +174,14 @@ impl Stream for Reader {
     }
 }
 
-/// BlockingReader is designed to read data from objects in an blocking manner.
+/// BlockingReader is designed to read data from given path in an blocking
+/// manner.
 pub struct BlockingReader {
     pub(crate) inner: oio::BlockingReader,
 }
 
 impl BlockingReader {
-    /// Create a new blocking object reader.
+    /// Create a new blocking reader.
     ///
     /// Create will use internal information to decide the most suitable
     /// implementation for users.
@@ -280,7 +282,7 @@ mod tests {
         let content = gen_random_bytes();
         op.write(path, content.clone())
             .await
-            .expect("write to object must succeed");
+            .expect("write must succeed");
 
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();
@@ -300,7 +302,7 @@ mod tests {
         let content = gen_random_bytes();
         op.write(path, content.clone())
             .await
-            .expect("write to object must succeed");
+            .expect("write must succeed");
 
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();

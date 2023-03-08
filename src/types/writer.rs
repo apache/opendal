@@ -28,7 +28,8 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
-/// Writer is designed to write data into objects in an asynchronous manner.
+/// Writer is designed to write data into given path in an asynchronous
+/// manner.
 ///
 /// # Notes
 ///
@@ -167,13 +168,14 @@ impl AsyncWrite for Writer {
     }
 }
 
-/// BlockingWriter is designed to write data into objects in an blocking manner.
+/// BlockingWriter is designed to write data into given path in an blocking
+/// manner.
 pub struct BlockingWriter {
     pub(crate) inner: oio::BlockingWriter,
 }
 
 impl BlockingWriter {
-    /// Create a new object writer.
+    /// Create a new writer.
     ///
     /// Create will use internal information to decide the most suitable
     /// implementation for users.

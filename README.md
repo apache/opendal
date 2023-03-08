@@ -85,22 +85,19 @@ async fn main() -> Result<()> {
         .layer(LoggingLayer::default())
         .finish();
 
-    // Create object handler.
-    let o = op.object("test_file");
-
     // Write data
-    o.write("Hello, World!").await?;
+    op.write("hello.txt", "Hello, World!").await?;
 
     // Read data
-    let bs = o.read().await?;
+    let bs = op.read("hello.txt").await?;
 
     // Fetch metadata
-    let meta = o.stat().await?;
+    let meta = op.stat("hello.txt").await?;
     let mode = meta.mode();
     let length = meta.content_length();
 
     // Delete
-    o.delete().await?;
+    op.delete("hello.txt").await?;
 
     Ok(())
 }
@@ -115,6 +112,7 @@ More examples could be found at [Documentation](https://opendal.databend.rs).
 - [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
 - [mozilla/sccache](https://github.com/mozilla/sccache/): sccache is ccache with cloud storage
 - [risingwave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
+- [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 
 ## Contributing
 
@@ -123,6 +121,8 @@ Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) guide for more details on get
 ## Getting help
 
 Submit [issues](https://github.com/datafuselabs/opendal/issues/new/choose) for bug report or asking questions in [discussion](https://github.com/datafuselabs/opendal/discussions/new?category=q-a).
+
+Talk to develops at [discord].
 
 #### License
 

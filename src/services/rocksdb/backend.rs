@@ -47,6 +47,10 @@ use crate::*;
 /// - `ROCKSDB_LIB_DIR` to the dir that contains `librocksdb.so`
 /// - `ROCKSDB_STATIC` to the dir that contains `librocksdb.a`
 ///
+/// It is advisable to follow the steps provided in the [`INSTALL`](https://github.com/facebook/rocksdb/blob/main/INSTALL.md)
+/// file to build rocksdb, rather than relying on system libraries that
+/// may be outdated and incompatible.
+///
 /// # Configuration
 ///
 /// - `root`: Set the working directory of `OpenDAL`

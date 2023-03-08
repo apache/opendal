@@ -19,21 +19,17 @@ use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;
 
 #[pyclass]
-struct Operator(od::Operator);
+struct AsyncOperator(od::Operator);
 
 #[pymethods]
-impl Operator {
+impl AsyncOperator {
     #[new]
     pub fn new() -> Self {
         let op = od::Operator::new(od::services::Memory::default())
             .unwrap()
             .finish();
 
-        Operator(op)
-    }
-
-    pub fn blocking_read(&self, path: &str) -> PyResult<Vec<u8>> {
-        self.0.blocking().read(path).map_err(format_pyerr)
+        AsyncOperator(op)
     }
 
     pub fn read<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
@@ -44,9 +40,28 @@ impl Operator {
             Ok(res)
         })
     }
+}
 
-    pub fn blocking_write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
-        self.0.blocking().write(path, bs).map_err(format_pyerr)
+#[pyclass]
+struct Operator(od::BlockingOperator);
+
+#[pymethods]
+impl Operator {
+    #[new]
+    pub fn new() -> Self {
+        let op = od::Operator::new(od::services::Memory::default())
+            .unwrap()
+            .finish();
+
+        Operator(op.blocking())
+    }
+
+    pub fn read(&self, path: &str) -> PyResult<Vec<u8>> {
+        self.0.read(path).map_err(format_pyerr)
+    }
+
+    pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
+        self.0.write(path, bs).map_err(format_pyerr)
     }
 }
 
@@ -61,5 +76,6 @@ fn format_pyerr(err: od::Error) -> PyErr {
 #[pymodule]
 fn opendal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
+    m.add_class::<AsyncOperator>()?;
     Ok(())
 }

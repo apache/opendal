@@ -17,9 +17,8 @@ import opendal;
 
 async def main():
     op = opendal.Operator();
-    o = op.object("path/to/file");
-    o.blocking_write(b"Hello, World!");
-    x = await o.read();
+    op.write("test", b"Hello, World!");
+    x = op.read("test");
     print(bytes(x).decode('utf-8'));
 
 asyncio.run(main())

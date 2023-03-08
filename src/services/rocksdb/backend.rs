@@ -40,9 +40,12 @@ use crate::*;
 ///
 /// # Note
 ///
-/// The storage format for this service is not **stable** yet.
+/// OpenDAL will build rocksdb from source by default.
 ///
-/// PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
+/// To link with existing rocksdb lib, please set one of the following:
+///
+/// - `ROCKSDB_LIB_DIR` to the dir that contains `librocksdb.so`
+/// - `ROCKSDB_STATIC` to the dir that contians `librocksdb.a`
 ///
 /// # Configuration
 ///

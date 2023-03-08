@@ -39,12 +39,6 @@ use crate::*;
 /// - [ ] ~~presign~~
 /// - [x] blocking
 ///
-/// # Note
-///
-/// The storage format for this service is not **stable** yet.
-///
-/// PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
-///
 /// # Configuration
 ///
 /// - `datadir`: Set the path to the sled data directory

@@ -21,7 +21,7 @@ def test_blocking():
     op = opendal.Operator("memory")
     op.write("test", b"Hello, World!")
     bs = op.read("test")
-    print(bytes(bs).decode("utf-8"))
+    print(bs.decode("utf-8"))
     meta = op.stat("test")
     print(f"content_length: {meta.content_length()}")
 
@@ -31,7 +31,7 @@ async def test_async():
     op = opendal.AsyncOperator("memory")
     await op.write("test", b"Hello, World!")
     bs = await op.read("test")
-    print(bytes(bs).decode("utf-8"))
+    print(bs.decode("utf-8"))
     meta = await op.stat("test")
     print(f"content_length: {meta.content_length()}")
 

@@ -18,7 +18,7 @@ use std::str::FromStr;
 use ::opendal as od;
 use pyo3::exceptions::{PyFileNotFoundError, PyRuntimeError};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyBytes, PyDict};
 use pyo3_asyncio::tokio::future_into_py;
 
 fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<od::Operator> {
@@ -64,8 +64,9 @@ impl AsyncOperator {
         let this = self.0.clone();
         let path = path.to_string();
         future_into_py(py, async move {
-            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
-            Ok(res)
+            let res = this.read(&path).await.map_err(format_pyerr)?;
+            let bytes = Python::with_gil(|py| PyBytes::new(py, &res).to_object(py));
+            Ok(bytes)
         })
     }
 
@@ -111,8 +112,10 @@ impl Operator {
         Ok(Operator(build_operator(scheme, map)?.blocking()))
     }
 
-    pub fn read(&self, path: &str) -> PyResult<Vec<u8>> {
-        self.0.read(path).map_err(format_pyerr)
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyBytes> {
+        let res = self.0.read(path).map_err(format_pyerr)?;
+        let bytes = PyBytes::new(py, &res);
+        Ok(bytes)
     }
 
     pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {

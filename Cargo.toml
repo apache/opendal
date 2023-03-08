@@ -72,10 +72,10 @@ layers-tracing = ["dep:tracing"]
 
 # Enable services dashmap support
 services-dashmap = ["dep:dashmap"]
-# Enable services hdfs support
-services-hdfs = ["dep:hdrs"]
 # Enable services ftp support
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
+# Enable services hdfs support
+services-hdfs = ["dep:hdrs"]
 # Enable services ipfs support
 services-ipfs = ["dep:prost"]
 # Enable services memcached support

@@ -24,7 +24,7 @@ test('test memory write & read', async (t) => {
   let content = "hello world"
   let path = 'test'
 
-  await op.write(path, Buffer.from(content))
+  await op.write(path, content)
 
   let meta = await op.stat(path)
   t.is(meta.mode, 0)
@@ -43,7 +43,7 @@ test('test memory write & read synchronously', (t) => {
   let content = "hello world"
   let path = 'test'
 
-  op.writeSync(path, Buffer.from(content))
+  op.writeSync(path, content)
 
   let meta = op.statSync(path)
   t.is(meta.mode, 0)

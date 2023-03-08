@@ -244,7 +244,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         )
         .await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 0);
+    assert_eq!(meta.content_length(), 20);
 
     // Check dir
     let meta = op

@@ -14,6 +14,7 @@
 
 use std::str;
 use std::str::FromStr;
+use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use suppaftp::list::File;
@@ -22,51 +23,18 @@ use time::OffsetDateTime;
 use crate::raw::*;
 use crate::*;
 
-/// TODO: refactor me, we don't need an extra ReadDir here.
-///
-/// ref: <https://github.com/datafuselabs/opendal/issues/1438>
-pub struct ReadDir {
-    files: Vec<String>,
-    index: usize,
-}
-
-impl Iterator for ReadDir {
-    type Item = Result<File>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.files.len() {
-            return None;
-        }
-        self.index += 1;
-        let result = match File::from_str(self.files[self.index - 1].as_str()) {
-            Ok(f) => Ok(f),
-            Err(e) => {
-                Err(Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e))
-            }
-        };
-
-        Some(result)
-    }
-}
-
-impl ReadDir {
-    pub fn new(files: Vec<String>) -> ReadDir {
-        ReadDir { files, index: 0 }
-    }
-}
-
 pub struct FtpPager {
     path: String,
     size: usize,
-    rd: ReadDir,
+    file_iter: IntoIter<String>,
 }
 
 impl FtpPager {
-    pub fn new(path: &str, rd: ReadDir, limit: Option<usize>) -> Self {
+    pub fn new(path: &str, files: Vec<String>, limit: Option<usize>) -> Self {
         Self {
             path: path.to_string(),
             size: limit.unwrap_or(1000),
-            rd,
+            file_iter: files.into_iter(),
         }
     }
 }
@@ -77,8 +45,10 @@ impl oio::Page for FtpPager {
         let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
-            let de = match self.rd.next() {
-                Some(de) => de?,
+            let de = match self.file_iter.next() {
+                Some(file_str) => File::from_str(file_str.as_str()).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e)
+                })?,
                 None => break,
             };
 

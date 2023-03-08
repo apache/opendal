@@ -37,7 +37,6 @@ use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 
 use super::pager::FtpPager;
-use super::pager::ReadDir;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
 use crate::ops::*;
@@ -451,11 +450,9 @@ impl Accessor for FtpBackend {
         let pathname = if path == "/" { None } else { Some(path) };
         let files = ftp_stream.list(pathname).await?;
 
-        let rd = ReadDir::new(files);
-
         Ok((
             RpList::default(),
-            FtpPager::new(if path == "/" { "" } else { path }, rd, args.limit()),
+            FtpPager::new(if path == "/" { "" } else { path }, files, args.limit()),
         ))
     }
 }

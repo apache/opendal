@@ -16,8 +16,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use ::opendal as od;
-use pyo3::exceptions::PyBaseException;
-use pyo3::exceptions::PyFileNotFoundError;
+use pyo3::exceptions::{PyFileNotFoundError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3_asyncio::tokio::future_into_py;
@@ -139,7 +138,7 @@ fn format_pyerr(err: od::Error) -> PyErr {
     use od::ErrorKind::*;
     match err.kind() {
         NotFound => PyFileNotFoundError::new_err(err.to_string()),
-        _ => PyBaseException::new_err(err.to_string()),
+        _ => PyRuntimeError::new_err(err.to_string()),
     }
 }
 

@@ -33,12 +33,18 @@ jobs:
           distribution: temurin
           java-version: '11'
 
+      - name: Install rocksdb
+        run: sudo apt install librocksdb-dev
+
+      - uses: Swatinem/rust-cache@v2
+
       - uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --lib --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          ROCKSDB_LIB_DIR: /usr/lib
 
       - name: Copy vercel.json
         run: cp ./vercel.json ./target/doc

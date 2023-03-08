@@ -12,14 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio;
-import opendal;
+import opendal
+import asyncio
 
-async def main():
-    op = opendal.Operator();
-    o = op.object("path/to/file");
-    o.blocking_write(b"Hello, World!");
-    x = await o.read();
-    print(bytes(x).decode('utf-8'));
 
-asyncio.run(main())
+def test_blocking():
+    print("start blocking test")
+    op = opendal.Operator("memory")
+    op.write("test", b"Hello, World!")
+    bs = op.read("test")
+    print(bytes(bs).decode("utf-8"))
+    meta = op.stat("test")
+    print(f"content_length: {meta.content_length()}")
+
+
+async def test_async():
+    print("start async test")
+    op = opendal.AsyncOperator("memory")
+    await op.write("test", b"Hello, World!")
+    bs = await op.read("test")
+    print(bytes(bs).decode("utf-8"))
+    meta = await op.stat("test")
+    print(f"content_length: {meta.content_length()}")
+
+
+if __name__ == "__main__":
+    test_blocking()
+    asyncio.run(test_async())

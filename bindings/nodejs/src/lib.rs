@@ -157,13 +157,13 @@ impl Operator {
     }
 
     #[napi]
-    pub async fn write(&self, path: String, content: Buffer) -> Result<()> {
+    pub async fn write(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.write(&path, c).await.map_err(format_napi_error)
     }
 
     #[napi]
-    pub fn write_sync(&self, path: String, content: Buffer) -> Result<()> {
+    pub fn write_sync(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
@@ -325,7 +325,7 @@ impl Writer {
     /// napi will make sure the function is safe, and we didn't do unsafe
     /// thing internally.
     #[napi]
-    pub async unsafe fn append(&mut self, content: Buffer) -> Result<()> {
+    pub async unsafe fn append(&mut self, content: Either<Buffer, String>) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.append(c).await.map_err(format_napi_error)
     }

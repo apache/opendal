@@ -5,7 +5,7 @@
 
 # Summary
 
-Allow initing opendal operators from an iterator.
+Allow initializing opendal operators from an iterator.
 
 # Motivation
 

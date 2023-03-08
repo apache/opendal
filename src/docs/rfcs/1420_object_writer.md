@@ -12,7 +12,7 @@ Adding `ObjectWriter` to improve support for multipart uploads, as well as enabl
 OpenDAL works well for `read` operations:
 
 - OpenDAL can seek over content even on services like S3.
-- OpenDAL can retry read from the failing porint without extra read cost.
+- OpenDAL can retry read from the failing point without extra read cost.
 
 However, OpenDAL is not good at `write`:
 
@@ -34,7 +34,7 @@ To exacerbate the situation, the multipart API is not standardized and only some
 
 ## Lack of retry support
 
-OpenDAL can't retry `write` operations becuase we accept an `Box<dyn AsyncRead>`. Once we pass this read into other functions, we consumed it.
+OpenDAL can't retry `write` operations because we accept an `Box<dyn AsyncRead>`. Once we pass this read into other functions, we consumed it.
 
 ```rust
 async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {

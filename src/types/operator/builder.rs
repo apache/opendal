@@ -164,7 +164,7 @@ impl Operator {
     #[must_use]
     pub fn layer<L: Layer<FusedAccessor>>(self, layer: L) -> Self {
         Self::from_inner(Arc::new(
-            TypeEraseLayer.layer(layer.layer(self.into_innter())),
+            TypeEraseLayer.layer(layer.layer(self.into_inner())),
         ))
     }
 }

@@ -74,7 +74,7 @@ impl Entry {
 
     /// Consume self to convert into an Entry.
     ///
-    /// NOTE: implement this by hand to avoid leadking raw entry to endusers.
+    /// NOTE: implement this by hand to avoid leaking raw entry to end-users.
     pub(crate) fn into_entry(self) -> crate::Entry {
         crate::Entry::new(self.path, self.meta)
     }

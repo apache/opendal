@@ -894,7 +894,7 @@ mod tests {
             match self.attempt {
                 1 => Err(Error::new(
                     ErrorKind::RateLimited,
-                    "retriable rate limited error from pager",
+                    "retryable rate limited error from pager",
                 )
                 .set_temporary()),
                 2 => {
@@ -905,7 +905,7 @@ mod tests {
                     Ok(Some(entries))
                 }
                 3 => Err(
-                    Error::new(ErrorKind::Unexpected, "retriable internal server error")
+                    Error::new(ErrorKind::Unexpected, "retryable internal server error")
                         .set_temporary(),
                 ),
                 4 => {

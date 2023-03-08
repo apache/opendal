@@ -106,7 +106,7 @@ pub async fn metadata(
 
 ## Breaking changes
 
-After this RFC, `Object::metadata()` will accept a query. And all exisintg users need to adapt their code for that.
+After this RFC, `Object::metadata()` will accept a query. And all existing users need to adapt their code for that.
 
 # Rationale and alternatives
 

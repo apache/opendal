@@ -324,19 +324,6 @@ impl Operator {
     ///
     /// # Examples
     ///
-    /// ## Create an empty file
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// op.create("path/to/file").await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
     /// ## Create a dir
     ///
     /// ```
@@ -345,22 +332,25 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.create("path/to/dir/").await?;
+    /// op.create_dir("path/to/dir/").await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn create(&self, path: &str) -> Result<()> {
+    pub async fn create_dir(&self, path: &str) -> Result<()> {
         let path = normalize_path(path);
 
-        let _ = if path.ends_with('/') {
-            self.inner()
-                .create(&path, OpCreate::new(EntryMode::DIR))
-                .await?
-        } else {
-            self.inner()
-                .create(&path, OpCreate::new(EntryMode::FILE))
-                .await?
-        };
+        if !validate_path(&path, EntryMode::DIR) {
+            return Err(
+                Error::new(ErrorKind::NotADirectory, "read path is not a directory")
+                    .with_operation("create_dir")
+                    .with_context("service", self.inner().info().scheme())
+                    .with_context("path", &path),
+            );
+        }
+
+        self.inner()
+            .create(&path, OpCreate::new(EntryMode::DIR))
+            .await?;
 
         Ok(())
     }

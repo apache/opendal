@@ -107,7 +107,7 @@ macro_rules! behavior_write_tests {
 pub async fn test_create_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    op.create(&path).await?;
+    op.write(&path, "").await?;
 
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -121,9 +121,9 @@ pub async fn test_create_file(op: Operator) -> Result<()> {
 pub async fn test_create_file_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    op.create(&path).await?;
+    op.write(&path, "").await?;
 
-    op.create(&path).await?;
+    op.write(&path, "").await?;
 
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -137,7 +137,7 @@ pub async fn test_create_file_existing(op: Operator) -> Result<()> {
 pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
 
-    op.create(&path).await?;
+    op.write(&path, "").await?;
 
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -151,7 +151,7 @@ pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
 pub async fn test_create_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path).await?;
+    op.create_dir(&path).await?;
 
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -164,9 +164,9 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
 pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path).await?;
+    op.create_dir(&path).await?;
 
-    op.create(&path).await?;
+    op.create_dir(&path).await?;
 
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -234,7 +234,7 @@ pub async fn test_stat(op: Operator) -> Result<()> {
 pub async fn test_stat_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path).await.expect("write must succeed");
+    op.create_dir(&path).await.expect("write must succeed");
 
     let meta = op.stat(&path).await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -590,7 +590,7 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
 pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path).await.expect("write must succeed");
+    op.create_dir(&path).await.expect("write must succeed");
 
     let result = op.read(&path).await;
     assert!(result.is_err());
@@ -641,7 +641,7 @@ pub async fn test_delete(op: Operator) -> Result<()> {
 pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create(&path).await.expect("create must succeed");
+    op.create_dir(&path).await.expect("create must succeed");
 
     op.delete(&path).await?;
 
@@ -676,13 +676,13 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
 // Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
     let dir = uuid::Uuid::new_v4().to_string();
-    op.create(&format!("{dir}/"))
+    op.create_dir(&format!("{dir}/"))
         .await
         .expect("creat must succeed");
 
     let expected: Vec<_> = (0..100).collect();
     for path in expected.iter() {
-        op.create(&format!("{dir}/{path}")).await?;
+        op.write(&format!("{dir}/{path}"), "").await?;
     }
 
     op.with_limit(30)

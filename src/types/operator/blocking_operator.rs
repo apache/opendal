@@ -270,18 +270,6 @@ impl BlockingOperator {
     ///
     /// # Examples
     ///
-    /// ## Create an empty file
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::BlockingOperator;
-    /// # use futures::TryStreamExt;
-    /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// op.create("path/to/file")?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
     /// ## Create a dir
     ///
     /// ```no_run
@@ -289,20 +277,24 @@ impl BlockingOperator {
     /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
     /// # async fn test(op: BlockingOperator) -> Result<()> {
-    /// op.create("path/to/dir/")?;
+    /// op.create_dir("path/to/dir/")?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn create(&self, path: &str) -> Result<()> {
+    pub fn create_dir(&self, path: &str) -> Result<()> {
         let path = normalize_path(path);
 
-        if path.ends_with('/') {
-            self.inner()
-                .blocking_create(&path, OpCreate::new(EntryMode::DIR))?;
-        } else {
-            self.inner()
-                .blocking_create(&path, OpCreate::new(EntryMode::FILE))?;
-        };
+        if !validate_path(&path, EntryMode::DIR) {
+            return Err(
+                Error::new(ErrorKind::NotADirectory, "read path is not a directory")
+                    .with_operation("create_dir")
+                    .with_context("service", self.inner().info().scheme())
+                    .with_context("path", &path),
+            );
+        }
+
+        self.inner()
+            .blocking_create(&path, OpCreate::new(EntryMode::DIR))?;
 
         Ok(())
     }

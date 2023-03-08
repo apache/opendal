@@ -51,6 +51,9 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
+      - name: Install rocksdb
+        run: sudo apt install librocksdb-dev
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Check license headers
@@ -58,8 +61,12 @@ jobs:
       - name: Cargo format
         run: cargo fmt --all -- --check
       - name: Cargo clippy
+        env:
+          ROCKSDB_LIB_DIR: /usr/lib
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
       - name: Cargo doc
+        env:
+          ROCKSDB_LIB_DIR: /usr/lib
         run: cargo doc --lib --no-deps --all-features
 
   msrv_check:
@@ -126,9 +133,13 @@ jobs:
         uses: beyondstorage/setup-hdfs@master
         with:
           hdfs-version: "3.3.2"
+      - name: Install rocksdb
+        run: sudo apt install librocksdb-dev
 
       - uses: Swatinem/rust-cache@v2
       - name: Build
+        env:
+          ROCKSDB_LIB_DIR: /usr/lib
         run: cargo build --all-features
 
   unit:

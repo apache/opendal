@@ -18,7 +18,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use rocksdb::TransactionDB;
+use rocksdb::DB;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -40,9 +40,17 @@ use crate::*;
 ///
 /// # Note
 ///
-/// The storage format for this service is not **stable** yet.
+/// OpenDAL will build rocksdb from source by default.
 ///
-/// PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
+/// To link with existing rocksdb lib, please set one of the following:
+///
+/// - `ROCKSDB_LIB_DIR` to the dir that contains `librocksdb.so`
+/// - `ROCKSDB_STATIC` to the dir that contains `librocksdb.a`
+///
+/// If the version of RocksDB is below 6.0, you may encounter compatibility
+/// issues. It is advisable to follow the steps provided in the [`INSTALL`](https://github.com/facebook/rocksdb/blob/main/INSTALL.md)
+/// file to build rocksdb, rather than relying on system libraries that
+/// may be outdated and incompatible.
 ///
 /// # Configuration
 ///
@@ -116,7 +124,7 @@ impl Builder for RocksdbBuilder {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
                 .with_context("service", Scheme::Rocksdb)
         })?;
-        let db = TransactionDB::open_default(&path).map_err(|e| {
+        let db = DB::open_default(&path).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open default transaction db")
                 .with_context("service", Scheme::Rocksdb)
                 .with_context("datadir", path)
@@ -132,7 +140,7 @@ pub type RocksdbBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    db: Arc<TransactionDB>,
+    db: Arc<DB>,
 }
 
 impl Debug for Adapter {

@@ -23,6 +23,7 @@ on:
       - main
     paths:
       - "src/**"
+      - "tests/**"
       - "!src/docs/**"
       - "!src/services/**"
       - "src/services/moka/**"

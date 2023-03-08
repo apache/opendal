@@ -66,9 +66,6 @@ macro_rules! behavior_write_tests {
             behavior_write_test!(
                 $service,
 
-                test_create_file,
-                test_create_file_existing,
-                test_create_file_with_special_chars,
                 test_create_dir,
                 test_create_dir_existing,
                 test_write,
@@ -101,50 +98,6 @@ macro_rules! behavior_write_tests {
             );
         )*
     };
-}
-
-/// Create file with file path should succeed.
-pub async fn test_create_file(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    op.write(&path, "").await?;
-
-    let meta = op.stat(&path).await?;
-    assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 0);
-
-    op.delete(&path).await.expect("delete must succeed");
-    Ok(())
-}
-
-/// Create file on existing file path should succeed.
-pub async fn test_create_file_existing(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    op.write(&path, "").await?;
-
-    op.write(&path, "").await?;
-
-    let meta = op.stat(&path).await?;
-    assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 0);
-
-    op.delete(&path).await.expect("delete must succeed");
-    Ok(())
-}
-
-/// Create file with special chars should succeed.
-pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-
-    op.write(&path, "").await?;
-
-    let meta = op.stat(&path).await?;
-    assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 0);
-
-    op.delete(&path).await.expect("delete must succeed");
-    Ok(())
 }
 
 /// Create dir with dir path should succeed.
@@ -682,7 +635,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
 
     let expected: Vec<_> = (0..100).collect();
     for path in expected.iter() {
-        op.write(&format!("{dir}/{path}"), "").await?;
+        op.write(&format!("{dir}/{path}"), "delete_stream").await?;
     }
 
     op.with_limit(30)

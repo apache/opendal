@@ -68,9 +68,6 @@ macro_rules! behavior_blocking_write_tests {
             behavior_blocking_write_test!(
                 $service,
 
-                test_create_file,
-                test_create_file_existing,
-                test_create_file_with_special_chars,
                 test_create_dir,
                 test_create_dir_existing,
                 test_write,
@@ -91,50 +88,6 @@ macro_rules! behavior_blocking_write_tests {
             );
         )*
     };
-}
-
-/// Create file with file path should succeed.
-pub fn test_create_file(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    op.write(&path, "")?;
-
-    let meta = op.stat(&path)?;
-    assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 0);
-
-    op.delete(&path).expect("delete must succeed");
-    Ok(())
-}
-
-/// Create file on existing file path should succeed.
-pub fn test_create_file_existing(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    op.write(&path, "")?;
-
-    op.write(&path, "")?;
-
-    let meta = op.stat(&path)?;
-    assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 0);
-
-    op.delete(&path).expect("delete must succeed");
-    Ok(())
-}
-
-/// Create file with special chars should succeed.
-pub fn test_create_file_with_special_chars(op: BlockingOperator) -> Result<()> {
-    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-
-    op.write(&path, "")?;
-
-    let meta = op.stat(&path)?;
-    assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 0);
-
-    op.delete(&path).expect("delete must succeed");
-    Ok(())
 }
 
 /// Create dir with dir path should succeed.

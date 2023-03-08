@@ -27,7 +27,7 @@ struct PermanentError {
 
 `std::io::ErrorKind` is used to represent errors returned from system io, which is unsuitable for mistakes that have business semantics. For example, users can't distinguish `ObjectNotFound` or `BucketNotFound` from `ErrorKind::NotFound`.
 
-## ErrorKind is incompelete
+## ErrorKind is incomplete
 
 OpenDAL has been waiting for features [`io_error_more`](https://github.com/rust-lang/rust/issues/86442) to be stabilized for a long time. But there is no progress so far, which makes it impossible to return `ErrorKind::IsADirectory` or `ErrorKind::NotADirectory` on stable rust.
 

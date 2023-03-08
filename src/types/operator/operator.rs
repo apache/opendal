@@ -76,7 +76,7 @@ impl Operator {
         }
     }
 
-    pub(super) fn into_innter(self) -> FusedAccessor {
+    pub(super) fn into_inner(self) -> FusedAccessor {
         self.accessor
     }
 
@@ -121,7 +121,7 @@ impl Operator {
     }
 }
 
-/// Operato async API.
+/// Operator async API.
 impl Operator {
     /// Check if this operator can work correctly.
     ///
@@ -875,7 +875,7 @@ impl Operator {
     }
 }
 
-/// Operato presign API.
+/// Operator presign API.
 impl Operator {
     /// Presign an operation for stat(head).
     ///

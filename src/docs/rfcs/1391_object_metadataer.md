@@ -5,7 +5,7 @@
 
 # Summary
 
-Add object metadataer to avoid unneed extra metadata call.
+Add object metadataer to avoid unneeded extra metadata call.
 
 # Motivation
 

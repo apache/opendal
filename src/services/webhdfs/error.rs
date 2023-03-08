@@ -48,7 +48,7 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         // passing invalid arguments will return BAD_REQUEST
-        // should be unretriable
+        // should be unretryable
         StatusCode::BAD_REQUEST => (ErrorKind::Unexpected, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

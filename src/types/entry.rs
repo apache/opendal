@@ -52,7 +52,7 @@ impl Entry {
     ///
     /// # Notes
     ///
-    /// This function is crate internal only. Becuase the returning
+    /// This function is crate internal only. Because the returning
     /// metadata could be incomplete. Users must use `Operator::metadata`
     /// to query the cached metadata instead.
     pub(crate) fn metadata(&self) -> &Metadata {

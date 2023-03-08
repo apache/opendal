@@ -83,14 +83,59 @@ impl Operator {
     pub fn new(service_type: Scheme, options: Option<HashMap<String, String>>) -> Result<Self> {
         let ops = options.unwrap_or_default();
         match service_type {
+            Scheme::Azblob => Ok(Self(
+                opendal::Operator::new(opendal::services::Azblob::from_map(ops))
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::Azdfs => Ok(Self(
+                opendal::Operator::new(opendal::services::Azdfs::from_map(ops))
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::Gcs => Ok(Self(
+                opendal::Operator::new(opendal::services::Gcs::from_map(ops))
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
             Scheme::Fs => Ok(Self(
                 opendal::Operator::new(opendal::services::Fs::from_map(ops))
-                    .unwrap()
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::Ghac => Ok(Self(
+                opendal::Operator::new(opendal::services::Ghac::from_map(ops))
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::Http => Ok(Self(
+                opendal::Operator::new(opendal::services::Http::from_map(ops))
+                    .map_err(format_napi_error)?
                     .finish(),
             )),
             Scheme::Memory => Ok(Self(
                 opendal::Operator::new(opendal::services::Memory::default())
-                    .unwrap()
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::Obs => Ok(Self(
+                opendal::Operator::new(opendal::services::Obs::from_map(ops))
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::S3 => Ok(Self(
+                opendal::Operator::new(opendal::services::S3::from_map(ops))
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::Webdav => Ok(Self(
+                opendal::Operator::new(opendal::services::Webdav::from_map(ops))
+                    .map_err(format_napi_error)?
+                    .finish(),
+            )),
+            Scheme::Webhdfs => Ok(Self(
+                opendal::Operator::new(opendal::services::Webhdfs::from_map(ops))
+                    .map_err(format_napi_error)?
                     .finish(),
             )),
             _ => Err(Error::from_reason("wrong operator type")),
@@ -99,19 +144,14 @@ impl Operator {
 
     #[napi]
     pub async fn stat(&self, path: String) -> Result<Metadata> {
-        let meta = self.0.stat(&path).await.map_err(format_napi_error).unwrap();
+        let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
 
         Ok(Metadata(meta))
     }
 
     #[napi]
     pub fn stat_sync(&self, path: String) -> Result<Metadata> {
-        let meta = self
-            .0
-            .blocking()
-            .stat(&path)
-            .map_err(format_napi_error)
-            .unwrap();
+        let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
 
         Ok(Metadata(meta))
     }
@@ -142,9 +182,7 @@ impl Operator {
 
     #[napi]
     pub async fn scan(&self, path: String) -> Result<Lister> {
-        Ok(Lister(
-            self.0.scan(&path).await.map_err(format_napi_error).unwrap(),
-        ))
+        Ok(Lister(self.0.scan(&path).await.map_err(format_napi_error)?))
     }
 
     #[napi]
@@ -158,13 +196,14 @@ impl Operator {
     }
 
     #[napi]
+    pub async fn list(&self, path: String) -> Result<Lister> {
+        Ok(Lister(self.0.list(&path).await.map_err(format_napi_error)?))
+    }
+
+    #[napi]
     pub async fn writer(&self, path: String) -> Result<Writer> {
         Ok(Writer(
-            self.0
-                .writer(&path)
-                .await
-                .map_err(format_napi_error)
-                .unwrap(),
+            self.0.writer(&path).await.map_err(format_napi_error)?,
         ))
     }
 }
@@ -269,8 +308,7 @@ impl Lister {
             .0
             .try_next()
             .await
-            .map_err(format_napi_error)
-            .unwrap()
+            .map_err(format_napi_error)?
             .map(Entry))
     }
 }

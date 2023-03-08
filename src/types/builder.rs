@@ -58,3 +58,16 @@ pub trait Builder: Default {
     /// Consume the accessor builder to build a service.
     fn build(&mut self) -> Result<Self::Accessor>;
 }
+
+/// Dummy implementation of builder
+impl Builder for () {
+    const SCHEME: Scheme = Scheme::Custom("dummy");
+
+    type Accessor = ();
+
+    fn from_map(_: HashMap<String, String>) -> Self {}
+
+    fn build(&mut self) -> Result<Self::Accessor> {
+        Ok(())
+    }
+}

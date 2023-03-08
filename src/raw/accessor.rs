@@ -319,6 +319,27 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 }
 
+/// Dummy implementation of accessor.
+#[async_trait]
+impl Accessor for () {
+    type Reader = ();
+    type BlockingReader = ();
+    type Writer = ();
+    type BlockingWriter = ();
+    type Pager = ();
+    type BlockingPager = ();
+
+    fn info(&self) -> AccessorInfo {
+        AccessorInfo {
+            scheme: Scheme::Custom("dummy"),
+            root: "".to_string(),
+            name: "dummy".to_string(),
+            capabilities: None.into(),
+            hints: None.into(),
+        }
+    }
+}
+
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]

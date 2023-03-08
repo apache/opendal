@@ -125,7 +125,7 @@ pub fn test_scan(op: BlockingOperator) -> Result<()> {
         if path.ends_with('/') {
             op.create_dir(path)?;
         } else {
-            op.write(path, "")?;
+            op.write(path, "test_scan")?;
         }
     }
 

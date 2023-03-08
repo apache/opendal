@@ -128,7 +128,9 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     expected
         .iter()
         .map(|v| async {
-            op.write(v, "").await.expect("create must succeed");
+            op.write(v, "test_list_rich_dir")
+                .await
+                .expect("create must succeed");
         })
         // Collect into a FuturesUnordered.
         .collect::<FuturesUnordered<_>>()
@@ -217,7 +219,9 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let dir_path = format!("{dir}{dir_name}");
 
     op.create_dir(&dir).await.expect("creat must succeed");
-    op.write(&file_path, "").await.expect("creat must succeed");
+    op.write(&file_path, "test_list_nested_dir")
+        .await
+        .expect("creat must succeed");
     op.create_dir(&dir_path).await.expect("creat must succeed");
 
     let mut obs = op.list(&dir).await?;
@@ -279,7 +283,7 @@ pub async fn test_scan(op: Operator) -> Result<()> {
         if path.ends_with('/') {
             op.create_dir(path).await?;
         } else {
-            op.write(path, "").await?;
+            op.write(path, "test_scan").await?;
         }
     }
 
@@ -308,7 +312,7 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
         if path.ends_with('/') {
             op.create_dir(path).await?;
         } else {
-            op.write(path, "").await?;
+            op.write(path, "test_remove_all").await?;
         }
     }
 

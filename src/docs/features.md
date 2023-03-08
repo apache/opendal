@@ -10,6 +10,7 @@
 - `services-dashmap`: Enable dashmap service support.
 - `services-ftp`: Enable ftp service support.
 - `services-hdfs`: Enable hdfs service support.
+- `services-memcached`: Enable memcached service support.
 - `services-moka`: Enable moka service support.
 - `services-ipfs`: Enable ipfs service support.
 - `services-redis`: Enable redis service support.

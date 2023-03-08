@@ -54,11 +54,10 @@ Users need to build a `dyn ObjectStore` and operate on it directly:
 
 ```Rust
 let object_store: Arc<dyn ObjectStore> = Arc::new(get_object_store());
-let path: Path = "data/file01.parquet".try_into().unwrap();
+let path: Path = "data/file01.parquet".try_into()?;
 let stream = object_store
     .get(&path)
-    .await
-    .unwrap()
+    .await?
     .into_stream();
 ```
 
@@ -68,7 +67,7 @@ But `opendal` don't expose this trait to end users directly. Instead, `opendal` 
 
 ```Rust
 let op: Operator = Operator::from_env(Scheme::S3)?;
-let r = op.object("data/file01.parquet").reader().await.unwrap();
+let r = op.reader("data/file01.parquet").await?;
 ```
 
 ### Interception
@@ -162,7 +161,7 @@ builder.access_key_id("access_key_id");
 builder.secret_access_key("secret_access_key");
 
 let store = Operator::create(builder)?.finish();
-let r = store.object("data.parquet").reader().await?;
+let r = store.reader("data.parquet").await?;
 ```
 
 `object_store`

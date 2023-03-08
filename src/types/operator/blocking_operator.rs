@@ -105,16 +105,16 @@ impl BlockingOperator {
 
 /// # Operator blocking API.
 impl BlockingOperator {
-    /// Get current object's metadata **without cache** directly.
+    /// Get current path's metadata **without cache** directly.
     ///
     /// # Notes
     ///
     /// Use `stat` if you:
     ///
-    /// - Want detect the outside changes of object.
-    /// - Don't want to read from cached object metadata.
+    /// - Want detect the outside changes of path.
+    /// - Don't want to read from cached metadata.
     ///
-    /// You may want to use `metadata` if you are working with objects
+    /// You may want to use `metadata` if you are working with entries
     /// returned by [`Lister`]. It's highly possible that metadata
     /// you want has already been cached.
     ///
@@ -129,7 +129,7 @@ impl BlockingOperator {
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// if let Err(e) = op.stat("test") {
     ///     if e.kind() == ErrorKind::NotFound {
-    ///         println!("object not exist")
+    ///         println!("file not exist")
     ///     }
     /// }
     /// # Ok(())
@@ -144,21 +144,21 @@ impl BlockingOperator {
         Ok(meta)
     }
 
-    /// Get current object's metadata with cache in blocking way.
+    /// Get current metadata with cache in blocking way.
     ///
     /// `metadata` will check the given query with already cached metadata
     ///  first. And query from storage if not found.
     ///
     /// # Notes
     ///
-    /// Use `metadata` if you are working with objects returned by
+    /// Use `metadata` if you are working with entries returned by
     /// [`Lister`]. It's highly possible that metadata you want
     /// has already been cached.
     ///
     /// You may want to use `stat`, if you:
     ///
-    /// - Want detect the outside changes of object.
-    /// - Don't want to read from cached object metadata.
+    /// - Want detect the outside changes of file.
+    /// - Don't want to read from cached file metadata.
     ///
     /// # Behavior
     ///
@@ -207,7 +207,7 @@ impl BlockingOperator {
     ///
     /// ## Query all metadata
     ///
-    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this object.
+    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this entry.
     ///
     /// ```
     /// # use anyhow::Result;
@@ -234,7 +234,7 @@ impl BlockingOperator {
         Ok(meta)
     }
 
-    /// Check if this object exists or not.
+    /// Check if this path exists or not.
     ///
     /// # Example
     ///
@@ -258,7 +258,7 @@ impl BlockingOperator {
         }
     }
 
-    /// Create an empty object, like using the following linux commands:
+    /// Create an empty file or dir, like using the following linux commands:
     ///
     /// - `touch path/to/file`
     /// - `mkdir path/to/dir/`
@@ -307,7 +307,7 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// Read the whole object into a bytes.
+    /// Read the whole path into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`BlockingOperator::reader`]
@@ -327,7 +327,7 @@ impl BlockingOperator {
         self.range_read(path, ..)
     }
 
-    /// Read the specified range of object into a bytes.
+    /// Read the specified range of path into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`BlockingOperator::range_reader`]
@@ -350,7 +350,7 @@ impl BlockingOperator {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("Object::blocking_range_read")
+                    .with_operation("BlockingOperator::range_read")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
             );
@@ -364,7 +364,7 @@ impl BlockingOperator {
         let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
         s.read_to_end(&mut buffer).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "blocking range read failed")
-                .with_operation("Object::blocking_range_read")
+                .with_operation("BlockingOperator::range_read")
                 .with_context("service", self.info().scheme().into_static())
                 .with_context("path", path)
                 .with_context("range", br.to_string())
@@ -374,7 +374,7 @@ impl BlockingOperator {
         Ok(buffer)
     }
 
-    /// Create a new reader which can read the whole object.
+    /// Create a new reader which can read the whole path.
     ///
     /// # Examples
     ///
@@ -410,7 +410,7 @@ impl BlockingOperator {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("Object::blocking_range_reader")
+                    .with_operation("BlockingOperator::range_reader")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
             );
@@ -421,7 +421,7 @@ impl BlockingOperator {
         BlockingReader::create(self.inner().clone(), &path, op)
     }
 
-    /// Write bytes into object.
+    /// Write bytes into given path.
     ///
     /// # Notes
     ///
@@ -472,7 +472,7 @@ impl BlockingOperator {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Object::blocking_write_with")
+                    .with_operation("BlockingOperator::write_with")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
             );
@@ -485,7 +485,7 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// Write multiple bytes into object.
+    /// Write multiple bytes into given path.
     ///
     /// # Notes
     ///
@@ -514,7 +514,7 @@ impl BlockingOperator {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Object::write_with")
+                    .with_operation("BlockingOperator::writer")
                     .with_context("service", self.info().scheme().into_static())
                     .with_context("path", &path),
             );
@@ -524,7 +524,7 @@ impl BlockingOperator {
         BlockingWriter::create(self.inner().clone(), &path, op)
     }
 
-    /// Delete object.
+    /// Delete given path.
     ///
     /// # Notes
     ///
@@ -549,11 +549,11 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// List current dir object.
+    /// List current dir path.
     ///
-    /// This function will create a new handle to list objects.
+    /// This function will create a new handle to list entries.
     ///
-    /// An error will be returned if object path doesn't end with `/`.
+    /// An error will be returned if path doesn't end with `/`.
     ///
     /// # Examples
     ///
@@ -590,7 +590,7 @@ impl BlockingOperator {
                 ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
-            .with_operation("Object::blocking_list")
+            .with_operation("BlockingOperator::list")
             .with_context("service", self.info().scheme().into_static())
             .with_context("path", &path));
         }
@@ -601,9 +601,9 @@ impl BlockingOperator {
 
     /// List dir in flat way.
     ///
-    /// This function will create a new handle to list objects.
+    /// This function will create a new handle to list entries.
     ///
-    /// An error will be returned if object path doesn't end with `/`.
+    /// An error will be returned if given path doesn't end with `/`.
     ///
     /// # Examples
     ///
@@ -640,7 +640,7 @@ impl BlockingOperator {
                 ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
-            .with_operation("Object::blocking_scan")
+            .with_operation("BlockingOperator::scan")
             .with_context("service", self.info().scheme().into_static())
             .with_context("path", path));
         }

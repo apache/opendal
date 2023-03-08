@@ -266,7 +266,7 @@ impl Accessor for HttpBackend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
+                let meta = parse_into_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
@@ -284,7 +284,7 @@ impl Accessor for HttpBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {

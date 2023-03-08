@@ -40,18 +40,18 @@
 //!         .finish();
 //!
 //!     // Write data
-//!     op.write("path/to/file", "Hello, World!").await?;
+//!     op.write("hello.txt", "Hello, World!").await?;
 //!
 //!     // Read data
-//!     let bs = op.read("path/to/file").await?;
+//!     let bs = op.read("hello.txt").await?;
 //!
 //!     // Fetch metadata
-//!     let meta = op.stat("path/to/file").await?;
+//!     let meta = op.stat("hello.txt").await?;
 //!     let mode = meta.mode();
 //!     let length = meta.content_length();
 //!
 //!     // Delete
-//!     op.delete("path/to/file").await?;
+//!     op.delete("hello.txt").await?;
 //!
 //!     Ok(())
 //! }

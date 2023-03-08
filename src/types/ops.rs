@@ -35,7 +35,7 @@ impl OpCreate {
         Self { mode }
     }
 
-    /// Get object mode from option.
+    /// Get mode from option.
     pub fn mode(&self) -> EntryMode {
         self.mode
     }
@@ -230,7 +230,7 @@ pub struct OpRead {
 }
 
 impl OpRead {
-    /// Create a default `OpRead` which will read whole content of object.
+    /// Create a default `OpRead` which will read whole content of path.
     pub fn new() -> Self {
         Self::default()
     }

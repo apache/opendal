@@ -26,11 +26,12 @@ use futures::Stream;
 use crate::raw::*;
 use crate::*;
 
-/// Lister is designed to list entries inside object in an asynchronous manner.
+/// Lister is designed to list entries at given path in an asynchronous
+/// manner.
 ///
 /// Users can construct Lister by `list` or `scan`.
 ///
-/// User can use object lister as `Stream<Item = Result<Object>>` or
+/// User can use lister as `Stream<Item = Result<Entry>>` or
 /// call `next_page` directly.
 pub struct Lister {
     pager: Option<oio::Pager>,
@@ -44,7 +45,7 @@ pub struct Lister {
 }
 
 impl Lister {
-    /// Create a new object lister.
+    /// Create a new lister.
     pub(crate) fn new(pager: oio::Pager) -> Self {
         Self {
             pager: Some(pager),
@@ -53,11 +54,11 @@ impl Lister {
         }
     }
 
-    /// next_page can be used to fetch a new object page.
+    /// next_page can be used to fetch a new page.
     ///
     /// # Notes
     ///
-    /// Don't mix the usage of `next_page` and `Stream<Item = Result<Object>>`.
+    /// Don't mix the usage of `next_page` and `Stream<Item = Result<Entry>>`.
     /// Always using the same calling style.
     pub async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         debug_assert!(
@@ -123,7 +124,8 @@ impl Stream for Lister {
     }
 }
 
-/// BlockingLister is designed to list entries inside object in a blocking manner.
+/// BlockingLister is designed to list entries at given path in a blocking
+/// manner.
 ///
 /// Users can construct Lister by `blocking_list` or `blocking_scan`.
 pub struct BlockingLister {
@@ -132,7 +134,7 @@ pub struct BlockingLister {
 }
 
 impl BlockingLister {
-    /// Create a new object lister.
+    /// Create a new lister.
     pub(crate) fn new(pager: oio::BlockingPager) -> Self {
         Self {
             pager,
@@ -140,7 +142,7 @@ impl BlockingLister {
         }
     }
 
-    /// next_page can be used to fetch a new object page.
+    /// next_page can be used to fetch a new page.
     pub fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         let entries = if !self.buf.is_empty() {
             mem::take(&mut self.buf)

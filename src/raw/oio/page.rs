@@ -60,7 +60,7 @@ impl From<PageOperation> for &'static str {
 pub trait Page: Send + Sync + 'static {
     /// Fetch a new page of [`Entry`]
     ///
-    /// `Ok(None)` means all object pages have been returned. Any following call
+    /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
     async fn next(&mut self) -> Result<Option<Vec<Entry>>>;
 }
@@ -96,7 +96,7 @@ impl<P: Page> Page for Option<P> {
 pub trait BlockingPage: 'static {
     /// Fetch a new page of [`Entry`]
     ///
-    /// `Ok(None)` means all object pages have been returned. Any following call
+    /// `Ok(None)` means all pages have been returned. Any following call
     /// to `next` will always get the same result.
     fn next(&mut self) -> Result<Option<Vec<Entry>>>;
 }

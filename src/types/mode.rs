@@ -15,23 +15,23 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-/// EntryMode represents the object's mode.
+/// EntryMode represents the mode.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum EntryMode {
-    /// FILE means the object has data to read.
+    /// FILE means the path has data to read.
     FILE,
-    /// DIR means the object can be listed.
+    /// DIR means the path can be listed.
     DIR,
-    /// Unknown means we don't know what we can do on this object.
+    /// Unknown means we don't know what we can do on this path.
     Unknown,
 }
 
 impl EntryMode {
-    /// Check if this object mode is FILE.
+    /// Check if this mode is FILE.
     pub fn is_file(self) -> bool {
         self == EntryMode::FILE
     }
-    /// Check if this object mode is DIR.
+    /// Check if this mode is DIR.
     pub fn is_dir(self) -> bool {
         self == EntryMode::DIR
     }

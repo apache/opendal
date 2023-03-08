@@ -42,7 +42,7 @@ impl Entry {
 
     /// Name of entry. Name is the last segment of path.
     ///
-    /// If this object is a dir, `Name` MUST endswith `/`
+    /// If this entry is a dir, `Name` MUST endswith `/`
     /// Otherwise, `Name` MUST NOT endswith `/`.
     pub fn name(&self) -> &str {
         get_basename(&self.path)

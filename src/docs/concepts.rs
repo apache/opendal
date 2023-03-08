@@ -112,7 +112,7 @@
 //! builder.root("/path/to/file");
 //!
 //! let op = Operator::new(builder)?.finish();
-//! let bs: Vec<u8> = o.read("abc").await?;
+//! let bs: Vec<u8> = op.read("abc").await?;
 //! # Ok(())
 //! # }
 //! ```

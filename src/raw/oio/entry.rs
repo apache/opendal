@@ -29,12 +29,12 @@ pub struct Entry {
 }
 
 impl Entry {
-    /// Create a new object entry by its corresponding underlying storage.
+    /// Create a new entry by its corresponding underlying storage.
     pub fn new(path: &str, meta: Metadata) -> Entry {
         Self::with(path.to_string(), meta)
     }
 
-    /// Create a new object entry with given value.
+    /// Create a new entry with given value.
     pub fn with(path: String, meta: Metadata) -> Entry {
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
@@ -46,7 +46,7 @@ impl Entry {
         Entry { path, meta }
     }
 
-    /// Set path for object entry.
+    /// Set path for entry.
     pub fn set_path(&mut self, path: &str) -> &mut Self {
         self.path = path.to_string();
         self
@@ -57,7 +57,7 @@ impl Entry {
         &self.path
     }
 
-    /// Set mode for object entry.
+    /// Set mode for entry.
     ///
     /// # Note
     ///
@@ -67,7 +67,7 @@ impl Entry {
         self
     }
 
-    /// Get entry's object mode.
+    /// Get entry's mode.
     pub fn mode(&self) -> EntryMode {
         self.meta.mode()
     }

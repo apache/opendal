@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+/// <reference types="node" />
+
 const { Operator, Scheme } = require('./generated.js')
 
 module.exports.Operator = Operator

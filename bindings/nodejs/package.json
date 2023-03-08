@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "main": "index.js",
   "types": "index.d.ts",
-  "description": "",
+  "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
+  "repository": "git@github.com/datafuselabs/opendal.git",
   "napi": {
     "name": "opendal",
     "triples": {
@@ -17,14 +18,32 @@
       ]
     }
   },
+  "files": [
+    "index.d.ts",
+    "index.js",
+    "generated.js"
+  ],
   "license": "Apache-2.0",
   "devDependencies": {
     "@napi-rs/cli": "^2.14.8",
+    "@swc-node/register": "^1.6.2",
+    "@swc/core": "^1.3.38",
     "@types/node": "^18.14.5",
-    "ava": "^5.1.1"
+    "ava": "^5.2.0",
+    "typescript": "^4.9.5"
   },
   "ava": {
-    "timeout": "3m"
+    "require": [
+      "@swc-node/register"
+    ],
+    "extensions": [
+      "ts"
+    ],
+    "timeout": "3m",
+    "environmentVariables": {
+      "TS_NODE_PROJECT": "./tsconfig.json"
+    },
+    "verbose": true
   },
   "engines": {
     "node": ">= 10"

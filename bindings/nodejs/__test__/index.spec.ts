@@ -1,17 +1,18 @@
-// Copyright 2022 Datafuse Labs
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+/*
+ * Copyright 2022 Datafuse Labs
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 import test from 'ava'
 
@@ -23,7 +24,7 @@ test('test memory write & read', async (t) => {
   let content = "hello world"
   let path = 'test'
 
-  await op.write(path, new TextEncoder().encode(content))
+  await op.write(path, Buffer.from(content))
 
   let meta = await op.stat(path)
   t.is(meta.mode, 0)
@@ -42,7 +43,7 @@ test('test memory write & read synchronously', (t) => {
   let content = "hello world"
   let path = 'test'
 
-  op.writeSync(path, new TextEncoder().encode(content))
+  op.writeSync(path, Buffer.from(content))
 
   let meta = op.statSync(path)
   t.is(meta.mode, 0)
@@ -60,8 +61,8 @@ test('test scan', async (t) => {
   let pathPrefix = 'test'
   let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)
 
-  let writeTasks = paths.map((path) => new Promise(async (resolve, reject) => {
-    await op.write(path, new TextEncoder().encode(content))
+  let writeTasks = paths.map((path) => new Promise<void>(async (resolve) => {
+    await op.write(path, Buffer.from(content))
     resolve()
   }))
 
@@ -82,3 +83,28 @@ test('test scan', async (t) => {
     await op.delete(path)
   })
 })
+
+
+test('test writer', async (t) => {
+  let op = new Operator(Scheme.Memory)
+  const path = 'test'
+
+  let contents = [
+    'hello',
+    'world',
+    '!'
+  ]
+
+  let writer = await op.writer(path)
+
+  for (let part of contents) {
+    await writer.append(Buffer.from(part))
+  }
+
+  writer.close()
+
+  let c = new TextDecoder().decode(await op.read(path))
+
+  t.is(c, contents.join(''))
+})
+

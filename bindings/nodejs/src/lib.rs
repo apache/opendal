@@ -26,9 +26,6 @@ use opendal::Builder;
 use time::format_description::well_known::Rfc3339;
 
 #[napi]
-pub struct Operator(opendal::Operator);
-
-#[napi]
 #[derive(Debug, Eq, PartialEq)]
 pub enum Scheme {
     /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
@@ -78,6 +75,9 @@ pub enum Scheme {
 }
 
 #[napi]
+pub struct Operator(opendal::Operator);
+
+#[napi]
 impl Operator {
     #[napi(constructor)]
     pub fn new(service_type: Scheme, options: Option<HashMap<String, String>>) -> Result<Self> {
@@ -104,8 +104,8 @@ impl Operator {
         Ok(Metadata(meta))
     }
 
-    #[napi(js_name = "statSync")]
-    pub fn blocking_stat(&self, path: String) -> Result<Metadata> {
+    #[napi]
+    pub fn stat_sync(&self, path: String) -> Result<Metadata> {
         let meta = self
             .0
             .blocking()
@@ -122,8 +122,8 @@ impl Operator {
         self.0.write(&path, c).await.map_err(format_napi_error)
     }
 
-    #[napi(js_name = "writeSync")]
-    pub fn blocking_write(&self, path: String, content: Buffer) -> Result<()> {
+    #[napi]
+    pub fn write_sync(&self, path: String, content: Buffer) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
@@ -134,8 +134,8 @@ impl Operator {
         Ok(res.into())
     }
 
-    #[napi(js_name = "readSync")]
-    pub fn blocking_read(&self, path: String) -> Result<Buffer> {
+    #[napi]
+    pub fn read_sync(&self, path: String) -> Result<Buffer> {
         let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
         Ok(res.into())
     }
@@ -152,9 +152,20 @@ impl Operator {
         self.0.delete(&path).await.map_err(format_napi_error)
     }
 
-    #[napi(js_name = "deleteSync")]
-    pub fn blocking_delete(&self, path: String) -> Result<()> {
+    #[napi]
+    pub fn delete_sync(&self, path: String) -> Result<()> {
         self.0.blocking().delete(&path).map_err(format_napi_error)
+    }
+
+    #[napi]
+    pub async fn writer(&self, path: String) -> Result<Writer> {
+        Ok(Writer(
+            self.0
+                .writer(&path)
+                .await
+                .map_err(format_napi_error)
+                .unwrap(),
+        ))
     }
 }
 
@@ -261,6 +272,35 @@ impl Lister {
             .map_err(format_napi_error)
             .unwrap()
             .map(Entry))
+    }
+}
+
+#[napi]
+pub struct Writer(opendal::Writer);
+
+#[napi]
+impl Writer {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    #[napi]
+    pub async unsafe fn append(&mut self, content: Buffer) -> Result<()> {
+        let c = content.as_ref().to_owned();
+        self.0.append(c).await.map_err(format_napi_error)
+    }
+
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    #[napi]
+    pub async unsafe fn close(&mut self) -> Result<()> {
+        self.0.close().await.map_err(format_napi_error)
     }
 }
 

@@ -45,7 +45,7 @@ use crate::*;
 /// To link with existing rocksdb lib, please set one of the following:
 ///
 /// - `ROCKSDB_LIB_DIR` to the dir that contains `librocksdb.so`
-/// - `ROCKSDB_STATIC` to the dir that contians `librocksdb.a`
+/// - `ROCKSDB_STATIC` to the dir that contains `librocksdb.a`
 ///
 /// # Configuration
 ///

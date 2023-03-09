@@ -17,9 +17,12 @@ use std::str::FromStr;
 
 use ::opendal as od;
 use pyo3::create_exception;
-use pyo3::exceptions::{PyException, PyFileNotFoundError, PyNotImplementedError};
+use pyo3::exceptions::PyException;
+use pyo3::exceptions::PyFileNotFoundError;
+use pyo3::exceptions::PyNotImplementedError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::PyBytes;
+use pyo3::types::PyDict;
 use pyo3_asyncio::tokio::future_into_py;
 
 create_exception!(opendal, Error, PyException);

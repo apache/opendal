@@ -21,6 +21,7 @@ use bb8::RunError;
 use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
+use super::ascii;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
@@ -36,7 +37,7 @@ use crate::*;
 /// - [ ] ~~list~~
 /// - [ ] scan
 /// - [ ] ~~presign~~
-/// - [x] blocking
+/// - [ ] blocking
 ///
 /// # Configuration
 ///
@@ -307,13 +308,13 @@ impl MemcacheConnectionManager {
 
 #[async_trait]
 impl bb8::ManageConnection for MemcacheConnectionManager {
-    type Connection = memcache_async::ascii::Protocol<Compat<TcpStream>>;
+    type Connection = ascii::Protocol<Compat<TcpStream>>;
     type Error = std::io::Error;
 
     /// TODO: Implement unix stream support.
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
         let sock = TcpStream::connect(&self.address).await?;
-        Ok(memcache_async::ascii::Protocol::new(Compat::new(sock)))
+        Ok(ascii::Protocol::new(Compat::new(sock)))
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {

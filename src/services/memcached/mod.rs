@@ -14,3 +14,5 @@
 
 mod backend;
 pub use backend::MemcachedBuilder as Memcached;
+
+mod ascii;

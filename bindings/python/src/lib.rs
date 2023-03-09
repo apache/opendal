@@ -125,6 +125,14 @@ impl AsyncOperator {
             Ok(res)
         })
     }
+
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        let path = path.to_string();
+        future_into_py(py, async move {
+            this.create_dir(&path).await.map_err(format_pyerr)
+        })
+    }
 }
 
 #[pyclass]
@@ -163,6 +171,10 @@ impl Operator {
 
     pub fn stat(&self, path: &str) -> PyResult<Metadata> {
         self.0.stat(path).map_err(format_pyerr).map(Metadata)
+    }
+
+    pub fn create_dir(&self, path: &str) -> PyResult<()> {
+        self.0.create_dir(path).map_err(format_pyerr)
     }
 }
 

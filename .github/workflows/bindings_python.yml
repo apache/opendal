@@ -26,6 +26,10 @@ on:
       - ".github/workflows/bindings_python.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ubuntu-latest
@@ -42,6 +46,16 @@ jobs:
         with:
           name: wheels
           path: bindings/python/dist
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run pytest
+        working-directory: "bindings/python"
+        run: |
+          set -e
+          python -m pip install opendal --find-links dist
+          python -m pip install -r test_requirements.txt
+          python -m pytest
 
   # Disable windows until we have test case migrated.
   #
@@ -74,6 +88,16 @@ jobs:
         with:
           name: wheels
           path: bindings/python/dist
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run pytest
+        working-directory: "bindings/python"
+        run: |
+          set -e
+          python -m pip install opendal --find-links dist
+          python -m pip install -r test_requirements.txt
+          python -m pytest
 
   release:
     name: Release

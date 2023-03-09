@@ -24,6 +24,8 @@ def test_blocking():
     assert bs == b"Hello, World!", bs
     meta = op.stat("test")
     assert meta.content_length == 13, meta.content_length
+    assert meta.mode.is_file()
+    op.delete("test")
 
     op.create_dir("test/")
 
@@ -36,6 +38,8 @@ async def test_async():
     assert bs == b"Hello, World!", bs
     meta = await op.stat("test")
     assert meta.content_length == 13, meta.content_length
+    assert meta.mode.is_file()
+    await op.delete("test")
 
     await op.create_dir("test/")
 

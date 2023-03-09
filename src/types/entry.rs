@@ -18,20 +18,36 @@ use crate::*;
 /// Entry is the file/dir entry returned by `Lister`.
 #[derive(Clone, Debug)]
 pub struct Entry {
+    /// Path of the entry.
     path: String,
-    meta: Metadata,
+
+    /// Optional cached metadata
+    metadata: Option<Metadata>,
 }
 
 impl Entry {
-    /// Create an entry.
+    /// Create an entry with .
     ///
     /// # Notes
     ///
     /// This function is crate internal only. Users don't have public
-    /// methods to construct an entry. The only way to get an entry
+    /// methods to construct an entry with arbitrary cached metadata.
+    ///
+    /// The only way to get an entry with associated cached metadata
     /// is `Operator::list` or `Operator::scan`.
-    pub(crate) fn new(path: String, meta: Metadata) -> Self {
-        Self { path, meta }
+    pub(crate) fn new_with(path: String, metadata: Metadata) -> Self {
+        Self {
+            path,
+            metadata: Some(metadata),
+        }
+    }
+
+    /// Create an [`Entry`] with empty cached metadata.
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: normalize_path(path),
+            metadata: None,
+        }
     }
 
     /// Path of entry. Path is relative to operator's root.
@@ -48,29 +64,14 @@ impl Entry {
         get_basename(&self.path)
     }
 
-    /// Mode of this entry.
-    pub fn mode(&self) -> EntryMode {
-        self.meta.mode()
-    }
-
-    /// Returns `true` if this entry is for a directory.
-    pub fn is_dir(&self) -> bool {
-        self.meta.is_dir()
-    }
-
-    /// Returns `true` if this entry is for a file.
-    pub fn is_file(&self) -> bool {
-        self.meta.is_file()
-    }
-
-    /// Get the metadata of entry.
+    /// Get the cached metadata of entry.
     ///
     /// # Notes
     ///
     /// This function is crate internal only. Because the returning
     /// metadata could be incomplete. Users must use `Operator::metadata`
     /// to query the cached metadata instead.
-    pub(crate) fn metadata(&self) -> &Metadata {
-        &self.meta
+    pub(crate) fn metadata(&self) -> &Option<Metadata> {
+        &self.metadata
     }
 }

@@ -20,6 +20,7 @@ excludes = [
   "!**/licenserc.toml",
   "!**/pyproject.toml",
 
+  # Generated files
   "**/Cargo.lock",
   "**/fixtures/**",
   "tests/data/**",
@@ -27,8 +28,13 @@ excludes = [
   "bindings/nodejs/generated.js",
   "bindings/nodejs/index.d.ts",
   "bindings/python/test_requirements.txt",
-  "src/services/memcached/MIT-ascii.txt",
+
+  # Env example that doesn't need license.
   ".env.example",
+
+  # ascii is licensed under MIT from memcache-async
+  "src/services/memcached/MIT-ascii.txt",
+  "src/services/memcached/ascii.rs",
 ]
 
 [properties]

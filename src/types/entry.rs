@@ -22,7 +22,7 @@ pub struct Entry {
     path: String,
 
     /// Optional cached metadata
-    cached_metadata: Option<Metadata>,
+    metadata: Option<Metadata>,
 }
 
 impl Entry {
@@ -35,18 +35,18 @@ impl Entry {
     ///
     /// The only way to get an entry with associated cached metadata
     /// is `Operator::list` or `Operator::scan`.
-    pub(crate) fn with(path: String, metadata: Metadata) -> Self {
+    pub(crate) fn new_with(path: String, metadata: Metadata) -> Self {
         Self {
             path,
-            cached_metadata: Some(metadata),
+            metadata: Some(metadata),
         }
     }
 
     /// Create an [`Entry`] with empty cached metadata.
-    pub fn new(path: String) -> Self {
+    pub fn new(path: &str) -> Self {
         Self {
-            path,
-            cached_metadata: None,
+            path: normalize_path(path),
+            metadata: None,
         }
     }
 
@@ -71,7 +71,7 @@ impl Entry {
     /// This function is crate internal only. Because the returning
     /// metadata could be incomplete. Users must use `Operator::metadata`
     /// to query the cached metadata instead.
-    pub(crate) fn cached_metadata(&self) -> &Option<Metadata> {
-        &self.cached_metadata
+    pub(crate) fn metadata(&self) -> &Option<Metadata> {
+        &self.metadata
     }
 }

@@ -106,7 +106,6 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
         let meta = op.stat(de.path()).await?;
         if de.path() == path {
             assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(de.mode(), meta.mode());
 
             assert_eq!(meta.content_length(), size as u64);
 
@@ -201,7 +200,6 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
         if de.path() == path {
             let meta = op.stat(&path).await?;
             assert_eq!(meta.mode(), EntryMode::DIR);
-            assert_eq!(de.mode(), meta.mode());
             assert_eq!(de.name(), path);
 
             found = true

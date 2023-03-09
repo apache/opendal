@@ -157,6 +157,16 @@ impl Operator {
     }
 
     #[napi]
+    pub async fn create_dir(&self, path: String) -> Result<()> {
+        Ok(self.0.create_dir(&path).await.map_err(format_napi_error)?)
+    }
+
+    #[napi]
+    pub fn create_dir_sync(&self, path: String) -> Result<()> {
+        Ok(self.0.blocking().create_dir(&path).map_err(format_napi_error)?)
+    }
+
+    #[napi]
     pub async fn write(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.write(&path, c).await.map_err(format_napi_error)

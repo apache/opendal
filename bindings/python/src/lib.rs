@@ -16,10 +16,13 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use ::opendal as od;
-use pyo3::exceptions::{PyFileNotFoundError, PyRuntimeError};
+use pyo3::create_exception;
+use pyo3::exceptions::{PyException, PyFileNotFoundError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use pyo3_asyncio::tokio::future_into_py;
+
+create_exception!(opendal, Error, PyException);
 
 fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<od::Operator> {
     use od::services::*;
@@ -64,9 +67,9 @@ impl AsyncOperator {
         let this = self.0.clone();
         let path = path.to_string();
         future_into_py(py, async move {
-            let res = this.read(&path).await.map_err(format_pyerr)?;
-            let bytes = Python::with_gil(|py| PyBytes::new(py, &res).to_object(py));
-            Ok(bytes)
+            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
+            let pybytes: PyObject = Python::with_gil(|py| PyBytes::new(py, &res).into());
+            Ok(pybytes)
         })
     }
 
@@ -112,10 +115,11 @@ impl Operator {
         Ok(Operator(build_operator(scheme, map)?.blocking()))
     }
 
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyBytes> {
-        let res = self.0.read(path).map_err(format_pyerr)?;
-        let bytes = PyBytes::new(py, &res);
-        Ok(bytes)
+    pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
+        self.0
+            .read(path)
+            .map_err(format_pyerr)
+            .map(|res| PyBytes::new(py, &res).into())
     }
 
     pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
@@ -132,6 +136,7 @@ struct Metadata(od::Metadata);
 
 #[pymethods]
 impl Metadata {
+    #[getter]
     pub fn content_length(&self) -> u64 {
         self.0.content_length()
     }
@@ -141,13 +146,14 @@ fn format_pyerr(err: od::Error) -> PyErr {
     use od::ErrorKind::*;
     match err.kind() {
         NotFound => PyFileNotFoundError::new_err(err.to_string()),
-        _ => PyRuntimeError::new_err(err.to_string()),
+        _ => Error::new_err(err.to_string()),
     }
 }
 
 #[pymodule]
-fn opendal(_py: Python, m: &PyModule) -> PyResult<()> {
+fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<AsyncOperator>()?;
+    m.add("Error", py.get_type::<Error>())?;
     Ok(())
 }

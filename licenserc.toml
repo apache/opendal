@@ -26,6 +26,7 @@ excludes = [
   "bindings/nodejs/.npmignore",
   "bindings/nodejs/generated.js",
   "bindings/nodejs/index.d.ts",
+  "bindings/python/test_requirements.txt",
   ".env.example",
 ]
 

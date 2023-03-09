@@ -225,11 +225,15 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn metadata(&self, entry: &Entry, flags: impl Into<FlagSet<Metakey>>) -> Result<Metadata> {
-        let meta = entry.metadata();
-        if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
-            return Ok(meta.clone());
+        let meta = entry.cached_metadata();
+        // Check if cached metadata saticifies the query.
+        if let Some(meta) = entry.cached_metadata() {
+            if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
+                return Ok(meta.clone());
+            }
         }
 
+        // Else request from backend..
         let meta = self.stat(entry.path())?;
         Ok(meta)
     }

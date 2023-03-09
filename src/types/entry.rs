@@ -48,6 +48,21 @@ impl Entry {
         get_basename(&self.path)
     }
 
+    /// Mode of this entry.
+    pub fn mode(&self) -> EntryMode {
+        self.meta.mode()
+    }
+
+    /// Returns `true` if this entry is for a directory.
+    pub fn is_dir(&self) -> bool {
+        self.meta.is_dir()
+    }
+
+    /// Returns `true` if this entry is for a file.
+    pub fn is_file(&self) -> bool {
+        self.meta.is_file()
+    }
+
     /// Get the metadata of entry.
     ///
     /// # Notes

@@ -59,3 +59,6 @@ def test_error():
     op = opendal.Operator("memory")
     with pytest.raises(FileNotFoundError):
         op.read("test")
+
+    with pytest.raises(NotImplementedError):
+        opendal.Operator("foobar")

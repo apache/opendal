@@ -158,16 +158,15 @@ impl Operator {
 
     #[napi]
     pub async fn create_dir(&self, path: String) -> Result<()> {
-        Ok(self.0.create_dir(&path).await.map_err(format_napi_error)?)
+        self.0.create_dir(&path).await.map_err(format_napi_error)
     }
 
     #[napi]
     pub fn create_dir_sync(&self, path: String) -> Result<()> {
-        Ok(self
-            .0
+        self.0
             .blocking()
             .create_dir(&path)
-            .map_err(format_napi_error)?)
+            .map_err(format_napi_error)
     }
 
     #[napi]
@@ -235,19 +234,13 @@ impl Metadata {
     /// Returns true if the <op.stat> object describes a file system directory.
     #[napi]
     pub fn is_directory(&self) -> bool {
-        match self.0.mode() {
-            opendal::EntryMode::FILE => true,
-            _ => false,
-        }
+        self.0.is_dir()
     }
 
     /// Returns true if the <op.stat> object describes a regular file.
     #[napi]
     pub fn is_file(&self) -> bool {
-        match self.0.mode() {
-            opendal::EntryMode::DIR => true,
-            _ => false,
-        }
+        self.0.is_file()
     }
 
     /// Content-Disposition of this object

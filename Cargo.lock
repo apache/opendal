@@ -1799,15 +1799,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "memcache-async"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60a114106a13014b37b174cd14ae13c3ac229f2cecc7174fe2f2c6c999ea4ee7"
-dependencies = [
- "futures",
-]
-
-[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2153,7 +2144,6 @@ dependencies = [
  "librocksdb-sys",
  "log",
  "md-5",
- "memcache-async",
  "metrics",
  "moka",
  "once_cell",

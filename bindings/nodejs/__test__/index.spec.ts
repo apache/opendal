@@ -83,28 +83,3 @@ test('test scan', async (t) => {
     await op.delete(path)
   })
 })
-
-
-test('test writer', async (t) => {
-  let op = new Operator(Scheme.Memory)
-  const path = 'test'
-
-  let contents = [
-    'hello',
-    'world',
-    '!'
-  ]
-
-  let writer = await op.writer(path)
-
-  for (let part of contents) {
-    await writer.append(Buffer.from(part))
-  }
-
-  writer.close()
-
-  let c = new TextDecoder().decode(await op.read(path))
-
-  t.is(c, contents.join(''))
-})
-

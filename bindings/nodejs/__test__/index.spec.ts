@@ -73,6 +73,7 @@ test('test scan', async (t) => {
   while (true) {
     let entry = await objList.next()
     if (entry === null) break
+
     entryCount++
     t.is(new TextDecoder().decode(await op.read(entry.path())), content)
   }
@@ -83,3 +84,36 @@ test('test scan', async (t) => {
     await op.delete(path)
   })
 })
+
+
+test('test scan sync',async (t) => {
+  let op = new Operator(Scheme.Memory)
+  let content = "hello world"
+  let pathPrefix = 'test'
+  let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)
+
+  let writeTasks = paths.map((path) => new Promise<void>(async (resolve) => {
+    await op.write(path, Buffer.from(content))
+    resolve()
+  }))
+
+  await Promise.all(writeTasks)
+
+  let objList = op.scanSync("")
+  let entryCount = 0
+  while (true) {
+    let entry = objList.next()
+    if (entry === null) break
+
+    entryCount++
+    t.is(new TextDecoder().decode(await op.read(entry.path())), content)
+  }
+
+  t.is(entryCount, paths.length)
+
+  paths.forEach(async (path) => {
+    await op.delete(path)
+  })
+})
+
+

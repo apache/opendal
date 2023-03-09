@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![deny(clippy::all)]
-
 #[macro_use]
 extern crate napi_derive;
 
 use std::collections::HashMap;
+
 use std::str;
 
 use futures::TryStreamExt;
@@ -199,6 +198,13 @@ impl Operator {
     }
 
     #[napi]
+    pub fn scan_sync(&self, path: String) -> Result<BlockingLister> {
+        Ok(BlockingLister(
+            self.0.blocking().scan(&path).map_err(format_napi_error)?,
+        ))
+    }
+
+    #[napi]
     pub async fn delete(&self, path: String) -> Result<()> {
         self.0.delete(&path).await.map_err(format_napi_error)
     }
@@ -211,6 +217,13 @@ impl Operator {
     #[napi]
     pub async fn list(&self, path: String) -> Result<Lister> {
         Ok(Lister(self.0.list(&path).await.map_err(format_napi_error)?))
+    }
+
+    #[napi]
+    pub fn list_sync(&self, path: String) -> Result<BlockingLister> {
+        Ok(BlockingLister(
+            self.0.blocking().scan(&path).map_err(format_napi_error)?,
+        ))
     }
 }
 
@@ -308,6 +321,26 @@ impl Lister {
             .await
             .map_err(format_napi_error)?
             .map(Entry))
+    }
+}
+
+#[napi]
+pub struct BlockingLister(opendal::BlockingLister);
+
+/// Method `next` can be confused for the standard trait method `std::iter::Iterator::next`.
+/// But in JavaScript, it is also customary to use the next method directly to obtain the next element.
+/// Therefore, disable this clippy. It can be removed after a complete implementation of Generator.
+/// FYI: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Generator
+#[napi]
+#[allow(clippy::should_implement_trait)]
+impl BlockingLister {
+    #[napi]
+    pub fn next(&mut self) -> Result<Option<Entry>> {
+        match self.0.next() {
+            Some(Ok(entry)) => Ok(Some(Entry(entry))),
+            Some(Err(e)) => Err(format_napi_error(e)),
+            None => Ok(None),
+        }
     }
 }
 

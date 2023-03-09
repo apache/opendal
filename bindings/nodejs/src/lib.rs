@@ -157,6 +157,19 @@ impl Operator {
     }
 
     #[napi]
+    pub async fn create_dir(&self, path: String) -> Result<()> {
+        self.0.create_dir(&path).await.map_err(format_napi_error)
+    }
+
+    #[napi]
+    pub fn create_dir_sync(&self, path: String) -> Result<()> {
+        self.0
+            .blocking()
+            .create_dir(&path)
+            .map_err(format_napi_error)
+    }
+
+    #[napi]
     pub async fn write(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.write(&path, c).await.map_err(format_napi_error)
@@ -212,30 +225,22 @@ impl Entry {
     }
 }
 
-#[napi]
-pub enum EntryMode {
-    /// FILE means the object has data to read.
-    FILE,
-    /// DIR means the object can be listed.
-    DIR,
-    /// Unknown means we don't know what we can do on this object.
-    Unknown,
-}
-
 #[allow(dead_code)]
 #[napi]
 pub struct Metadata(opendal::Metadata);
 
 #[napi]
 impl Metadata {
-    /// Mode of this object.
-    #[napi(getter)]
-    pub fn mode(&self) -> EntryMode {
-        match self.0.mode() {
-            opendal::EntryMode::DIR => EntryMode::DIR,
-            opendal::EntryMode::FILE => EntryMode::FILE,
-            opendal::EntryMode::Unknown => EntryMode::Unknown,
-        }
+    /// Returns true if the <op.stat> object describes a file system directory.
+    #[napi]
+    pub fn is_directory(&self) -> bool {
+        self.0.is_dir()
+    }
+
+    /// Returns true if the <op.stat> object describes a regular file.
+    #[napi]
+    pub fn is_file(&self) -> bool {
+        self.0.is_file()
     }
 
     /// Content-Disposition of this object

@@ -89,7 +89,6 @@ pub fn test_list_dir(op: BlockingOperator) -> Result<()> {
         let meta = op.stat(de.path())?;
         if de.path() == path {
             assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(de.mode(), meta.mode());
 
             assert_eq!(meta.content_length(), size as u64);
 

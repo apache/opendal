@@ -116,7 +116,8 @@ impl Operator {
     }
 
     pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
-        self.0.read(path)
+        self.0
+            .read(path)
             .map_err(format_pyerr)
             .map(|res| PyBytes::new(py, &res).into())
     }

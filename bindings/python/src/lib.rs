@@ -133,6 +133,15 @@ impl AsyncOperator {
             this.create_dir(&path).await.map_err(format_pyerr)
         })
     }
+
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        let path = path.to_string();
+        future_into_py(
+            py,
+            async move { this.delete(&path).await.map_err(format_pyerr) },
+        )
+    }
 }
 
 #[pyclass]
@@ -175,6 +184,10 @@ impl Operator {
 
     pub fn create_dir(&self, path: &str) -> PyResult<()> {
         self.0.create_dir(path).map_err(format_pyerr)
+    }
+
+    pub fn delete(&self, path: &str) -> PyResult<()> {
+        self.0.delete(path).map_err(format_pyerr)
     }
 }
 

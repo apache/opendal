@@ -25,6 +25,8 @@ def test_blocking():
     meta = op.stat("test")
     assert meta.content_length == 13, meta.content_length
     assert meta.mode.is_file()
+    assert [str(entry) for entry in op.list("/")] == ["test"]
+    assert [str(entry) for entry in op.scan("/")] == ["test"]
     op.delete("test")
 
     op.create_dir("test/")
@@ -51,6 +53,8 @@ def test_blocking_fs(tmp_path):
     assert bs == b"Hello, World!", bs
     meta = op.stat("test.txt")
     assert meta.content_length == 13, meta.content_length
+    assert [str(entry) for entry in op.list("/")] == ["test.txt"]
+    assert [str(entry) for entry in op.scan("/")] == ["test.txt", "/"]
 
     op.create_dir("test/")
 

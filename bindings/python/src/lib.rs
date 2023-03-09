@@ -75,7 +75,7 @@ fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<
     Ok(op)
 }
 
-#[pyclass]
+#[pyclass(module = "opendal")]
 struct AsyncOperator(od::Operator);
 
 #[pymethods]
@@ -144,7 +144,7 @@ impl AsyncOperator {
     }
 }
 
-#[pyclass]
+#[pyclass(module = "opendal")]
 struct Operator(od::BlockingOperator);
 
 #[pymethods]
@@ -189,9 +189,57 @@ impl Operator {
     pub fn delete(&self, path: &str) -> PyResult<()> {
         self.0.delete(path).map_err(format_pyerr)
     }
+
+    pub fn list(&self, path: &str) -> PyResult<BlockingLister> {
+        Ok(BlockingLister(self.0.list(path).map_err(format_pyerr)?))
+    }
+
+    pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
+        Ok(BlockingLister(self.0.scan(path).map_err(format_pyerr)?))
+    }
 }
 
-#[pyclass]
+#[pyclass(unsendable, module = "opendal")]
+struct BlockingLister(od::BlockingLister);
+
+#[pymethods]
+impl BlockingLister {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<PyObject> {
+        match slf.0.next() {
+            Some(Ok(entry)) => Some(Entry(entry).into_py(slf.py())),
+            Some(Err(err)) => {
+                let pyerr = format_pyerr(err);
+                pyerr.restore(slf.py());
+                None
+            }
+            None => None,
+        }
+    }
+}
+
+#[pyclass(module = "opendal")]
+struct Entry(od::Entry);
+
+#[pymethods]
+impl Entry {
+    #[getter]
+    pub fn path(&self) -> &str {
+        self.0.path()
+    }
+
+    fn __str__(&self) -> &str {
+        self.0.path()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Entry({:?})", self.0.path())
+    }
+}
+
+#[pyclass(module = "opendal")]
 struct Metadata(od::Metadata);
 
 #[pymethods]
@@ -227,7 +275,7 @@ impl Metadata {
     }
 }
 
-#[pyclass]
+#[pyclass(module = "opendal")]
 struct EntryMode(od::EntryMode);
 
 #[pymethods]
@@ -261,6 +309,9 @@ fn format_pyerr(err: od::Error) -> PyErr {
 fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<AsyncOperator>()?;
+    m.add_class::<Entry>()?;
+    m.add_class::<EntryMode>()?;
+    m.add_class::<Metadata>()?;
     m.add("Error", py.get_type::<Error>())?;
     Ok(())
 }

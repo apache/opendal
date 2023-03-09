@@ -163,7 +163,11 @@ impl Operator {
 
     #[napi]
     pub fn create_dir_sync(&self, path: String) -> Result<()> {
-        Ok(self.0.blocking().create_dir(&path).map_err(format_napi_error)?)
+        Ok(self
+            .0
+            .blocking()
+            .create_dir(&path)
+            .map_err(format_napi_error)?)
     }
 
     #[napi]
@@ -222,29 +226,27 @@ impl Entry {
     }
 }
 
-#[napi]
-pub enum EntryMode {
-    /// FILE means the object has data to read.
-    FILE,
-    /// DIR means the object can be listed.
-    DIR,
-    /// Unknown means we don't know what we can do on this object.
-    Unknown,
-}
-
 #[allow(dead_code)]
 #[napi]
 pub struct Metadata(opendal::Metadata);
 
 #[napi]
 impl Metadata {
-    /// Mode of this object.
-    #[napi(getter)]
-    pub fn mode(&self) -> EntryMode {
+    /// Returns true if the <op.stat> object describes a file system directory.
+    #[napi]
+    pub fn is_directory(&self) -> bool {
         match self.0.mode() {
-            opendal::EntryMode::DIR => EntryMode::DIR,
-            opendal::EntryMode::FILE => EntryMode::FILE,
-            opendal::EntryMode::Unknown => EntryMode::Unknown,
+            opendal::EntryMode::FILE => true,
+            _ => false,
+        }
+    }
+
+    /// Returns true if the <op.stat> object describes a regular file.
+    #[napi]
+    pub fn is_file(&self) -> bool {
+        match self.0.mode() {
+            opendal::EntryMode::DIR => true,
+            _ => false,
         }
     }
 

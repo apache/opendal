@@ -27,7 +27,7 @@ test('test memory write & read', async (t) => {
   await op.write(path, content)
 
   let meta = await op.stat(path)
-  t.is(meta.mode, 0)
+  t.is(meta.isFile(), false)
   t.is(meta.contentLength, BigInt(content.length))
 
   let res = await op.read(path)
@@ -46,7 +46,7 @@ test('test memory write & read synchronously', (t) => {
   op.writeSync(path, content)
 
   let meta = op.statSync(path)
-  t.is(meta.mode, 0)
+  t.is(meta.isFile(), false)
   t.is(meta.contentLength, BigInt(content.length))
 
   let res = op.readSync(path)

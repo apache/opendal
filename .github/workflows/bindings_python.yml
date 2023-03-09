@@ -22,7 +22,7 @@ on:
     branches:
       - main
     paths:
-      - "bindings/python"
+      - "bindings/python/**"
       - ".github/workflows/bindings_python.yml"
   workflow_dispatch:
 

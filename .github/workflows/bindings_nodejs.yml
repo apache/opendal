@@ -26,7 +26,7 @@ on:
     branches:
       - main
     paths:
-      - "bindings/nodejs"
+      - "bindings/nodejs/**"
       - ".github/workflows/bindings_nodejs.yml"
   workflow_dispatch:
 

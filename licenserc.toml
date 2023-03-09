@@ -27,6 +27,7 @@ excludes = [
   "bindings/nodejs/generated.js",
   "bindings/nodejs/index.d.ts",
   "bindings/python/test_requirements.txt",
+  "src/services/memcached/MIT-ascii.txt",
   ".env.example",
 ]
 

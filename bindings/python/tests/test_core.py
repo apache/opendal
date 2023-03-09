@@ -25,6 +25,8 @@ def test_blocking():
     meta = op.stat("test")
     assert meta.content_length == 13, meta.content_length
 
+    op.create_dir("test/")
+
 
 @pytest.mark.asyncio
 async def test_async():
@@ -35,6 +37,8 @@ async def test_async():
     meta = await op.stat("test")
     assert meta.content_length == 13, meta.content_length
 
+    await op.create_dir("test/")
+
 
 def test_blocking_fs(tmp_path):
     op = opendal.Operator("fs", root=str(tmp_path))
@@ -43,6 +47,8 @@ def test_blocking_fs(tmp_path):
     assert bs == b"Hello, World!", bs
     meta = op.stat("test.txt")
     assert meta.content_length == 13, meta.content_length
+
+    op.create_dir("test/")
 
 
 @pytest.mark.asyncio
@@ -53,6 +59,8 @@ async def test_async_fs(tmp_path):
     assert bs == b"Hello, World!", bs
     meta = await op.stat("test.txt")
     assert meta.content_length == 13, meta.content_length
+
+    await op.create_dir("test/")
 
 
 def test_error():

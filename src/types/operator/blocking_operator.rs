@@ -258,19 +258,20 @@ impl BlockingOperator {
         }
     }
 
-    /// Create an empty file or dir, like using the following linux commands:
+    /// Create a dir at given path.
     ///
-    /// - `touch path/to/file`
-    /// - `mkdir path/to/dir/`
+    /// # Notes
+    ///
+    /// To indicate that a path is a directory, it is compulsory to include
+    /// a trailing / in the path. Failure to do so may result in
+    /// `NotADirectory` error being returned by OpenDAL.
     ///
     /// # Behavior
     ///
     /// - Create on existing dir will succeed.
-    /// - Create on existing file will overwrite and truncate it.
+    /// - Create dir is always recursive, works like `mkdir -p`
     ///
     /// # Examples
-    ///
-    /// ## Create a dir
     ///
     /// ```no_run
     /// # use std::io::Result;

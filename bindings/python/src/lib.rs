@@ -197,8 +197,55 @@ struct Metadata(od::Metadata);
 #[pymethods]
 impl Metadata {
     #[getter]
+    pub fn content_disposition(&self) -> Option<&str> {
+        self.0.content_disposition()
+    }
+
+    #[getter]
     pub fn content_length(&self) -> u64 {
         self.0.content_length()
+    }
+
+    #[getter]
+    pub fn content_md5(&self) -> Option<&str> {
+        self.0.content_md5()
+    }
+
+    #[getter]
+    pub fn content_type(&self) -> Option<&str> {
+        self.0.content_type()
+    }
+
+    #[getter]
+    pub fn etag(&self) -> Option<&str> {
+        self.0.etag()
+    }
+
+    #[getter]
+    pub fn mode(&self) -> EntryMode {
+        EntryMode(self.0.mode())
+    }
+}
+
+#[pyclass]
+struct EntryMode(od::EntryMode);
+
+#[pymethods]
+impl EntryMode {
+    pub fn is_file(&self) -> bool {
+        self.0.is_file()
+    }
+
+    pub fn is_dir(&self) -> bool {
+        self.0.is_dir()
+    }
+
+    pub fn __repr__(&self) -> &'static str {
+        match self.0 {
+            od::EntryMode::FILE => "EntryMode.FILE",
+            od::EntryMode::DIR => "EntryMode.DIR",
+            od::EntryMode::Unknown => "EntryMode.UNKNOWN",
+        }
     }
 }
 

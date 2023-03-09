@@ -86,6 +86,15 @@ pub trait Write: Unpin + Send + Sync {
 
     /// Close the writer and make sure all data has been flushed.
     async fn close(&mut self) -> Result<()>;
+
+    /// Flush the writer
+    ///
+    /// OpenDAL will maintain a 4MiB buffer so that it can use some high performanced
+    /// API of underlying storage service.
+    /// Calling this will make sure all data in the buffer has been flushed.
+    async fn flush(&mut self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[async_trait]

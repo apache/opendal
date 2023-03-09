@@ -38,7 +38,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
-    let (kind, retryable) = match parts.status {
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -48,10 +48,21 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match de::from_reader::<_, S3Error>(bs.clone().reader()) {
-        Ok(s3_err) => format!("{s3_err:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-    };
+    let (message, s3_err) = de::from_reader::<_, S3Error>(bs.clone().reader())
+        .map(|s3_err| (format!("{s3_err:?}"), Some(s3_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+    // All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
+    if let Some(s3_err) = s3_err {
+        (kind, retryable) = match s3_err.code.as_str() {
+            // > Your socket connection to the server was not read from
+            // > or written to within the timeout period."
+            //
+            // It's Ok for us to retry it again.
+            "RequestTimeout" => (ErrorKind::Unexpected, true),
+            _ => (kind, retryable),
+        }
+    }
 
     let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
 

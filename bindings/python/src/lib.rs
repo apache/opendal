@@ -22,7 +22,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use pyo3_asyncio::tokio::future_into_py;
 
-create_exception!(opendal, OpenDalError, PyException);
+create_exception!(opendal, Error, PyException);
 
 fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<od::Operator> {
     use od::services::*;
@@ -145,7 +145,7 @@ fn format_pyerr(err: od::Error) -> PyErr {
     use od::ErrorKind::*;
     match err.kind() {
         NotFound => PyFileNotFoundError::new_err(err.to_string()),
-        _ => OpenDalError::new_err(err.to_string()),
+        _ => Error::new_err(err.to_string()),
     }
 }
 
@@ -153,6 +153,6 @@ fn format_pyerr(err: od::Error) -> PyErr {
 fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<AsyncOperator>()?;
-    m.add("OpenDalError", py.get_type::<OpenDalError>())?;
+    m.add("Error", py.get_type::<Error>())?;
     Ok(())
 }

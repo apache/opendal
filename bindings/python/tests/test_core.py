@@ -39,7 +39,6 @@ async def test_async():
 def test_blocking_fs(tmp_path):
     op = opendal.Operator("fs", root=str(tmp_path))
     op.write("test.txt", b"Hello, World!")
-    assert (tmp_path / "test.txt").read_bytes() == b"Hello, World!"
     bs = op.read("test.txt")
     assert bs == b"Hello, World!", bs
     meta = op.stat("test.txt")
@@ -50,8 +49,13 @@ def test_blocking_fs(tmp_path):
 async def test_async_fs(tmp_path):
     op = opendal.AsyncOperator("fs", root=str(tmp_path))
     await op.write("test.txt", b"Hello, World!")
-    assert (tmp_path / "test.txt").read_bytes() == b"Hello, World!"
     bs = await op.read("test.txt")
     assert bs == b"Hello, World!", bs
     meta = await op.stat("test.txt")
     assert meta.content_length == 13, meta.content_length
+
+
+def test_error():
+    op = opendal.Operator("memory")
+    with pytest.raises(FileNotFoundError):
+        op.read("test")

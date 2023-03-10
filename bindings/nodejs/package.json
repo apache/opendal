@@ -7,16 +7,7 @@
   "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
   "repository": "git@github.com/datafuselabs/opendal.git",
   "napi": {
-    "name": "opendal",
-    "triples": {
-      "additional": [
-        "aarch64-apple-darwin",
-        "aarch64-unknown-linux-gnu",
-        "aarch64-pc-windows-msvc",
-        "armv7-unknown-linux-gnueabihf",
-        "universal-apple-darwin"
-      ]
-    }
+    "name": "opendal"
   },
   "files": [
     "index.d.ts",
@@ -54,7 +45,6 @@
     "build:debug": "napi build --platform --js generated.js",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
-    "universal": "napi universal",
     "version": "napi version"
   },
   "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f"

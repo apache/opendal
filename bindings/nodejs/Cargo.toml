@@ -16,7 +16,7 @@
 [package]
 edition = "2021"
 name = "opendal-nodejs"
-version = "0.30.0"
+version = "0.30.1"
 
 [lib]
 crate-type = ["cdylib"]

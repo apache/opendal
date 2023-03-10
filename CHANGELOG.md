@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.30.1] - 2023-03-10
+
+### Docs
+
+- docs: Fix Operator::create() has been removed (#1560)
+
+### CI
+
+- ci: Fix python & nodejs not released correctly (#1559)
+
+### Chore
+
+- chore(bindings/nodejs): update license in package.json (#1556)
+
 ## [v0.30.0] - 2023-03-10
 
 ### Added
@@ -1543,6 +1557,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.30.1]: https://github.com/datafuselabs/opendal/compare/v0.30.0...v0.30.1
 [v0.30.0]: https://github.com/datafuselabs/opendal/compare/v0.29.1...v0.30.0
 [v0.29.1]: https://github.com/datafuselabs/opendal/compare/v0.29.0...v0.29.1
 [v0.29.0]: https://github.com/datafuselabs/opendal/compare/v0.28.0...v0.29.0

@@ -1,5 +1,5 @@
 {
-  "name": "opendal-darwin-x64",
+  "name": "@opendal/lib-darwin-x64",
   "version": "0.30.0",
   "os": [
     "darwin"

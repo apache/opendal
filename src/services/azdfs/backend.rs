@@ -38,6 +38,9 @@ use crate::raw::*;
 use crate::*;
 
 /// Known regex pattern Azure Data Lake Storage Gen2 URI syntax.
+/// Azure public cloud: https://accountname.dfs.core.windows.net
+/// Azure US Government: https://accountname.dfs.core.usgovcloudapi.net
+/// Azure China: https://accountname.dfs.core.chinacloudapi.cn
 #[ctor]
 static KNOWN_AZDFS_RESOURCE_URI_SYNTAX_REGEX: Regex =
     Regex::new(r"(?i)^https?://([a-z0-9]{3,24})\.dfs\.core\.(?:usgovcloudapi\.net|chinacloudapi\.cn|windows\.net)/?$")

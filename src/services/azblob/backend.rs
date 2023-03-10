@@ -40,6 +40,15 @@ use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
+/// Known regex pattern Azure Storage Blob services resource URI syntax.
+/// Azure public cloud: https://accountname.blob.core.windows.net
+/// Azure US Government: https://accountname.blob.core.usgovcloudapi.net
+/// Azure China: https://accountname.blob.core.chinacloudapi.cn
+#[ctor]
+static KNOWN_AZBLOB_RESOURCE_URI_SYNTAX_REGEX: Regex =
+    Regex::new(r"(?i)^https?://([a-z0-9]{3,24})\.blob\.core\.(?:usgovcloudapi\.net|chinacloudapi\.cn|windows\.net)/?$")
+    .unwrap();
+
 /// Azure Storage Blob services support.
 ///
 /// # Capabilities
@@ -125,11 +134,6 @@ pub struct AzblobBuilder {
     sas_token: Option<String>,
     http_client: Option<HttpClient>,
 }
-
-#[ctor]
-static KNOWN_AZBLOB_RESOURCE_URI_SYNTAX_REGEX: Regex =
-    Regex::new(r"(?i)^https?://([a-z0-9]{3,24})\.blob\.core\.(?:usgovcloudapi\.net|chinacloudapi\.cn|windows\.net)/?$")
-    .unwrap();
 
 impl Debug for AzblobBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

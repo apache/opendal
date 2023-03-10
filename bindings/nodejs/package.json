@@ -47,5 +47,10 @@
     "test": "ava",
     "version": "napi version"
   },
-  "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f"
+  "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f",
+  "optionalDependencies": {
+    "opendal-win32-x64-msvc": "0.0.1",
+    "opendal-darwin-x64": "0.0.1",
+    "opendal-linux-x64-gnu": "0.0.1"
+  }
 }

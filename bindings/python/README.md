@@ -14,7 +14,7 @@ pip install opendal
 import opendal
 
 op = opendal.Operator("fs", root="/tmp")
-op.write("test.txt", "Hello World")
+op.write("test.txt", b"Hello World")
 print(op.read("test.txt"))
 print(op.stat("test.txt").content_length)
 ```
@@ -24,9 +24,9 @@ Or using the async API:
 ```python
 import asyncio
 
-async main():
+async def main():
     op = opendal.AsyncOperator("fs", root="/tmp")
-    await op.write("test.txt", "Hello World")
+    await op.write("test.txt", b"Hello World")
     print(await op.read("test.txt"))
 
 asyncio.run(main())

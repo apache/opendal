@@ -394,6 +394,14 @@ impl Builder for AzblobBuilder {
                 .account_key(key);
         }
 
+        if account_name.is_none() {
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "account name is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::Azdfs),
+            );
+        }
+
         let signer = signer_builder.build().map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
                 .with_operation("Builder::build")
@@ -775,24 +783,23 @@ mod tests {
     }
 
     #[test]
-    fn test_no_key_wont_infer_account_name() {
+    fn test_no_key_and_sas_wont_infer_account_name() {
         let mut azblob_builder = AzblobBuilder::default();
         azblob_builder.endpoint("https://storagesample.blob.core.windows.net");
         azblob_builder.container("container");
-        let azblob = azblob_builder
-            .build()
-            .expect("build azblob should be succeeded.");
 
         assert_eq!(
-            azblob.endpoint,
-            "https://storagesample.blob.core.windows.net"
+            azblob_builder.endpoint.as_ref().unwrap(),
+            "https://storagesample.blob.core.windows.net",
         );
 
-        assert_eq!(azblob._account_name, "".to_string());
+        assert_eq!(azblob_builder.account_name, None);
 
-        assert_eq!(azblob.container, "container".to_string());
+        assert_eq!(azblob_builder.container, "container".to_string());
 
         assert_eq!(azblob_builder.account_key, None);
+
+        azblob_builder.build().expect_err("account name is empty");
     }
 
     #[test]

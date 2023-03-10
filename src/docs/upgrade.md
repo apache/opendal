@@ -1,4 +1,4 @@
-# Upgarde to v0.30
+# Upgrade to v0.30
 
 In version 0.30, we made significant breaking changes by removing objects. Our goal in doing so was to provide our users with APIs that are easier to understand and maintain.
 

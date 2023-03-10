@@ -13,13 +13,18 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::str::FromStr;
 
 use ::opendal as od;
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::exceptions::PyFileNotFoundError;
+use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
@@ -177,6 +182,13 @@ impl Operator {
             .map(|res| PyBytes::new(py, &res).into())
     }
 
+    pub fn open_reader(&self, path: &str) -> PyResult<Reader> {
+        self.0
+            .reader(path)
+            .map(|reader| Reader(Some(reader)))
+            .map_err(format_pyerr)
+    }
+
     pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
         self.0.write(path, bs).map_err(format_pyerr)
     }
@@ -199,6 +211,79 @@ impl Operator {
 
     pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
         Ok(BlockingLister(self.0.scan(path).map_err(format_pyerr)?))
+    }
+}
+
+#[pyclass(module = "opendal")]
+struct Reader(Option<od::BlockingReader>);
+
+impl Reader {
+    fn as_mut(&mut self) -> PyResult<&mut od::BlockingReader> {
+        let reader = self
+            .0
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("I/O operation on closed file."))?;
+        Ok(reader)
+    }
+}
+
+#[pymethods]
+impl Reader {
+    #[pyo3(signature = (size=None,))]
+    pub fn read<'p>(&'p mut self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
+        let reader = self.as_mut()?;
+        let buffer = match size {
+            Some(size) => {
+                let mut buffer = vec![0; size];
+                reader
+                    .read_exact(&mut buffer)
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+                buffer
+            }
+            None => {
+                let mut buffer = Vec::new();
+                reader
+                    .read_to_end(&mut buffer)
+                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+                buffer
+            }
+        };
+        Ok(PyBytes::new(py, &buffer).into())
+    }
+
+    pub fn write(&mut self, _bs: &[u8]) -> PyResult<()> {
+        Err(PyNotImplementedError::new_err(
+            "BlockingReader does not support write",
+        ))
+    }
+
+    #[pyo3(signature = (pos, whence = 0))]
+    pub fn seek(&mut self, pos: i64, whence: u8) -> PyResult<u64> {
+        let whence = match whence {
+            0 => SeekFrom::Start(pos as u64),
+            1 => SeekFrom::Current(pos),
+            2 => SeekFrom::End(pos),
+            _ => return Err(PyValueError::new_err("invalid whence")),
+        };
+        let reader = self.as_mut()?;
+        reader
+            .seek(whence)
+            .map_err(|err| PyIOError::new_err(err.to_string()))
+    }
+
+    pub fn tell(&mut self) -> PyResult<u64> {
+        let reader = self.as_mut()?;
+        reader
+            .stream_position()
+            .map_err(|err| PyIOError::new_err(err.to_string()))
+    }
+
+    pub fn __enter__(slf: Py<Self>) -> Py<Self> {
+        slf
+    }
+
+    pub fn __exit__(&mut self, _exc_type: PyObject, _exc_value: PyObject, _traceback: PyObject) {
+        drop(self.0.take());
     }
 }
 
@@ -310,6 +395,7 @@ fn format_pyerr(err: od::Error) -> PyErr {
 #[pymodule]
 fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
+    m.add_class::<Reader>()?;
     m.add_class::<AsyncOperator>()?;
     m.add_class::<Entry>()?;
     m.add_class::<EntryMode>()?;

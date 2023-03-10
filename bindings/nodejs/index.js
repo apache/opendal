@@ -16,7 +16,6 @@
 
 /// <reference types="node" />
 
-const { Operator, Scheme } = require('./generated.js')
+const { Operator } = require('./generated.js')
 
 module.exports.Operator = Operator
-module.exports.Scheme = Scheme

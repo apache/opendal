@@ -10,6 +10,22 @@
   "napi": {
     "name": "opendal"
   },
+  "keywords": [
+    "api",
+    "fs",
+    "file system",
+    "gcs",
+    "ghac",
+    "http",
+    "ipmfs",
+    "memory",
+    "obs",
+    "oss",
+    "s3",
+    "storage",
+    "webdav",
+    "webhdfs"
+  ],
   "files": [
     "index.d.ts",
     "index.js",

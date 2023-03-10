@@ -15,14 +15,14 @@
 [package]
 edition = "2021"
 name = "opendal-python"
-version = "0.0.1"
+version = "0.30.0"
 
 [lib]
 crate-type = ["cdylib"]
 name = "opendal"
 
 [dependencies]
-opendal = { version = "0.29", path = "../../" }
+opendal = { version = "0.30", path = "../../" }
 pyo3 = { version = "0.18", features = ["extension-module"] }
 pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }
 tokio = "1"

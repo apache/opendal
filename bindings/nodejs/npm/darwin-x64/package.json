@@ -1,6 +1,6 @@
 {
   "name": "opendal-darwin-x64",
-  "version": "0.0.1",
+  "version": "0.30.0",
   "os": [
     "darwin"
   ],

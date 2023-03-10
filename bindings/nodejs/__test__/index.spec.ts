@@ -32,8 +32,6 @@ test('test memory write & read', async (t) => {
 
   let res = await op.read(path)
   t.is(content, new TextDecoder().decode(res))
-
-  await op.delete(path)
 })
 
 
@@ -79,10 +77,6 @@ test('test scan', async (t) => {
   }
 
   t.is(entryCount, paths.length)
-
-  paths.forEach(async (path) => {
-    await op.delete(path)
-  })
 })
 
 
@@ -110,8 +104,4 @@ test('test scan sync', async (t) => {
   }
 
   t.is(entryCount, paths.length)
-
-  paths.forEach(async (path) => {
-    await op.delete(path)
-  })
 })

@@ -82,7 +82,6 @@ jobs:
       - name: Run pytest
         working-directory: "bindings/python"
         run: |
-          set -e
           python -m pip install opendal --find-links dist
           python -m pip install -r test_requirements.txt
           python -m pytest

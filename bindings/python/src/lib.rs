@@ -210,15 +210,14 @@ impl BlockingLister {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<PyObject> {
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
         match slf.0.next() {
-            Some(Ok(entry)) => Some(Entry(entry).into_py(slf.py())),
+            Some(Ok(entry)) => Ok(Some(Entry(entry).into_py(slf.py()))),
             Some(Err(err)) => {
                 let pyerr = format_pyerr(err);
-                pyerr.restore(slf.py());
-                None
+                Err(pyerr)
             }
-            None => None,
+            None => Ok(None),
         }
     }
 }

@@ -23,7 +23,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.30.0"
+version = "0.30.1"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 

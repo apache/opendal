@@ -37,6 +37,8 @@ jobs:
         uses: beyondstorage/setup-hdfs@master
         with:
           hdfs-version: "3.3.2"
+      - name: Install rocksdb
+        run: sudo apt install librocksdb-dev
 
       - uses: Swatinem/rust-cache@v2
 
@@ -45,6 +47,7 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          ROCKSDB_LIB_DIR: /usr/lib
 
       - name: Publish object_store_opendal
         run: cargo publish
@@ -52,3 +55,4 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          ROCKSDB_LIB_DIR: /usr/lib

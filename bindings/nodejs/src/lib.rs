@@ -16,8 +16,7 @@
 extern crate napi_derive;
 
 use std::collections::HashMap;
-
-use std::str::{self, FromStr};
+use std::str::FromStr;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;

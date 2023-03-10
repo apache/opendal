@@ -23,4 +23,12 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 name = "opendal"
+description = "OpenDAL Python Binding"
 requires-python = ">=3.7"
+license = {text = "Apache-2.0"}
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://opendal.databend.rs/"
+Repository = "https://github.com/datafuselabs/opendal"
+Documentation = "https://docs.rs/opendal/"

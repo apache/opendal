@@ -659,7 +659,7 @@ mod tests {
         azdfs_builder.filesystem("filesystem");
         let azdfs = azdfs_builder
             .build()
-            .expect("build azblob should be succeeded.");
+            .expect("build azdfs should be succeeded.");
 
         assert_eq!(
             azdfs.endpoint,
@@ -680,18 +680,19 @@ mod tests {
     fn test_no_key_wont_infer_account_name() {
         let mut azdfs_builder = AzdfsBuilder::default();
         azdfs_builder.endpoint("https://storagesample.dfs.core.windows.net");
+        azdfs_builder.filesystem("filesystem");
         let azdfs = azdfs_builder
             .build()
-            .expect("build azblob should be succeeded.");
+            .expect("build azdfs should be succeeded.");
 
         assert_eq!(
             azdfs.endpoint,
-            "https://storagesample.blob.core.windows.net"
+            "https://storagesample.dfs.core.windows.net"
         );
 
         assert_eq!(azdfs._account_name, "".to_string());
 
-        assert_eq!(azdfs.filesystem, "".to_string());
+        assert_eq!(azdfs.filesystem, "filesystem".to_string());
 
         assert_eq!(azdfs_builder.account_key, None);
     }

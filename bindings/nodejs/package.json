@@ -8,7 +8,7 @@
   "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
   "repository": "git@github.com/datafuselabs/opendal.git",
   "napi": {
-    "name": "@opendal/opendal"
+    "name": "opendal"
   },
   "files": [
     "index.d.ts",
@@ -41,8 +41,8 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
-    "build": "napi build --platform --release --js generated.js --js-package-name @opendal/opendal",
-    "build:debug": "napi build --platform --js generated.js --js-package-name @opendal/opendal",
+    "build": "napi build --platform --release --js generated.js --js-package-name @opendal/lib",
+    "build:debug": "napi build --platform --js generated.js --js-package-name @opendal/lib",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
     "version": "napi version"

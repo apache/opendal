@@ -1,5 +1,5 @@
 {
-  "name": "opendal-win32-x64-msvc",
+  "name": "@opendal/lib-win32-x64-msvc",
   "version": "0.30.0",
   "os": [
     "win32"

@@ -1,5 +1,5 @@
 {
-  "name": "opendal-linux-x64-gnu",
+  "name": "@opendal/lib-linux-x64-gnu",
   "version": "0.30.0",
   "os": [
     "linux"

@@ -94,7 +94,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-linux
-          path: bindings/nodejs/@opendal/*.node
+          path: bindings/nodejs/*.node
       - name: Test bindings
         run: yarn test
 
@@ -129,7 +129,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-windows
-          path: bindings/nodejs/@opendal/*.node
+          path: bindings/nodejs/*.node
       - name: Test bindings
         run: yarn test
 
@@ -164,7 +164,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-macos
-          path: bindings/nodejs/@opendal/*.node
+          path: bindings/nodejs/*.node
       - name: Test bindings
         run: yarn test
 

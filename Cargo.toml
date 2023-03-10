@@ -105,6 +105,7 @@ backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bytes = "1.2"
+ctor = "0.1.3"
 dashmap = { version = "5.4", optional = true }
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
@@ -131,6 +132,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
+regex = "1.7.1"
 reqsign = "0.8.3"
 reqwest = { version = "0.11.13", features = [
   "multipart",

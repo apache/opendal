@@ -20,7 +20,7 @@ use crate::*;
 
 /// Builder is used to build a storage accessor used by [`Operator`].
 ///
-/// It's recommended to use [`Operator::create`] instead of [`Operator::new`] to avoid use `Builder` trait directly.
+/// It's recommended to use [`Operator::new`] to avoid use `Builder` trait directly.
 pub trait Builder: Default {
     /// Associated scheme for this builder.
     const SCHEME: Scheme;

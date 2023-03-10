@@ -21,7 +21,7 @@ use crate::*;
 
 /// # Operator build API
 ///
-/// Operator should be built via [`OperatorBuilder`]. We recommend to use [`Operator::create`] to get started:
+/// Operator should be built via [`OperatorBuilder`]. We recommend to use [`Operator::new`] to get started:
 ///
 /// ```
 /// # use anyhow::Result;

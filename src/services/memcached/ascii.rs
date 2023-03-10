@@ -77,11 +77,21 @@ where
         val: &[u8],
         expiration: u32,
     ) -> Result<(), Error> {
-        let header = format!("set {} 0 {} {} noreply\r\n", key, expiration, val.len());
+        let header = format!("set {} 0 {} {}\r\n", key, expiration, val.len());
         self.io.write_all(header.as_bytes()).await?;
         self.io.write_all(val).await?;
         self.io.write_all(b"\r\n").await?;
         self.io.flush().await?;
+
+        // Read response header
+        let header = self.read_line().await?;
+        let header = std::str::from_utf8(header).map_err(|_| ErrorKind::InvalidData)?;
+        // Check response header and make sure we got a `STORED`
+        if header.contains("STORED") {
+            return Ok(());
+        } else if header.contains("ERROR") {
+            return Err(Error::new(ErrorKind::Other, header));
+        }
         Ok(())
     }
 
@@ -95,7 +105,7 @@ where
         let header = self.read_line().await?;
         let header = std::str::from_utf8(header).map_err(|_| ErrorKind::InvalidData)?;
         // Check response header and parse value length
-        if  header.contains("NOT_FOUND"){
+        if header.contains("NOT_FOUND") {
             return Ok(());
         } else if header.starts_with("END") {
             return Err(ErrorKind::NotFound.into());

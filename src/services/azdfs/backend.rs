@@ -261,14 +261,6 @@ impl Builder for AzdfsBuilder {
                 .account_key(key);
         }
 
-        if account_name.is_none() {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "account name is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azdfs),
-            );
-        }
-
         let signer = signer_builder.build().map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
                 .with_operation("Builder::build")
@@ -696,18 +688,16 @@ mod tests {
         let mut azdfs_builder = AzdfsBuilder::default();
         azdfs_builder.endpoint("https://storagesample.dfs.core.windows.net");
         azdfs_builder.filesystem("filesystem");
+        let azdfs = azdfs_builder
+            .build()
+            .expect("build azdfs should be succeeded.");
 
-        assert_eq!(
-            azdfs_builder.endpoint.as_ref().unwrap(),
-            "https://storagesample.dfs.core.windows.net"
-        );
+        assert_eq!(azdfs.endpoint, "https://storagesample.dfs.core.windows.net");
 
-        assert_eq!(azdfs_builder.account_name, None);
+        assert_eq!(azdfs._account_name, "".to_string());
 
-        assert_eq!(azdfs_builder.filesystem, "filesystem".to_string());
+        assert_eq!(azdfs.filesystem, "filesystem".to_string());
 
         assert_eq!(azdfs_builder.account_key, None);
-
-        azdfs_builder.build().expect_err("account name is empty");
     }
 }

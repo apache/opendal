@@ -17,60 +17,67 @@ extern crate napi_derive;
 
 use std::collections::HashMap;
 
-use std::str;
+use std::str::{self, FromStr};
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use opendal::Builder;
 use time::format_description::well_known::Rfc3339;
 
-#[napi]
-#[derive(Debug, Eq, PartialEq)]
-pub enum Scheme {
-    /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
-    Azblob,
-    /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
-    Azdfs,
-    /// [dashmap][crate::services::Dashmap]: dashmap backend support.
-    Dashmap,
-    /// [fs][crate::services::Fs]: POSIX alike file system.
-    Fs,
-    /// [gcs][crate::services::Gcs]: Google Cloud Storage backend.
-    Gcs,
-    /// [ghac][crate::services::Ghac]: Github Action Cache services.
-    Ghac,
-    /// [hdfs][crate::services::Hdfs]: Hadoop Distributed File System.
-    Hdfs,
-    /// [http][crate::services::Http]: HTTP backend.
-    Http,
-    /// [ftp][crate::services::Ftp]: FTP backend.
-    Ftp,
-    /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
-    Ipfs,
-    /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
-    Ipmfs,
-    /// [memcached][crate::services::Memcached]: Memcached service support.
-    Memcached,
-    /// [memory][crate::services::Memory]: In memory backend support.
-    Memory,
-    /// [moka][crate::services::Moka]: moka backend support.
-    Moka,
-    /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
-    Obs,
-    /// [oss][crate::services::Oss]: Aliyun Object Storage Services
-    Oss,
-    /// [redis][crate::services::Redis]: Redis services
-    Redis,
-    /// [rocksdb][crate::services::Rocksdb]: RocksDB services
-    Rocksdb,
-    /// [s3][crate::services::S3]: AWS S3 alike services.
-    S3,
-    /// [sled][crate::services::Sled]: Sled services
-    Sled,
-    /// [webdav][crate::services::Webdav]: WebDAV support.
-    Webdav,
-    /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
-    Webhdfs,
+fn build_operator(
+    scheme: opendal::Scheme,
+    map: HashMap<String, String>,
+) -> Result<opendal::Operator> {
+    use opendal::services::*;
+
+    let op = match scheme {
+        opendal::Scheme::Azblob => opendal::Operator::from_map::<Azblob>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Azdfs => opendal::Operator::from_map::<Azdfs>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Fs => opendal::Operator::from_map::<Fs>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Gcs => opendal::Operator::from_map::<Gcs>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Ghac => opendal::Operator::from_map::<Ghac>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Http => opendal::Operator::from_map::<Http>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Ipmfs => opendal::Operator::from_map::<Ipmfs>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Memory => opendal::Operator::from_map::<Memory>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Obs => opendal::Operator::from_map::<Obs>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Oss => opendal::Operator::from_map::<Oss>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::S3 => opendal::Operator::from_map::<S3>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Webdav => opendal::Operator::from_map::<Webdav>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        opendal::Scheme::Webhdfs => opendal::Operator::from_map::<Webhdfs>(map)
+            .map_err(format_napi_error)?
+            .finish(),
+        _ => {
+            return Err(format_napi_error(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                "not supported scheme",
+            )))
+        }
+    };
+
+    Ok(op)
 }
 
 #[napi]
@@ -79,66 +86,16 @@ pub struct Operator(opendal::Operator);
 #[napi]
 impl Operator {
     #[napi(constructor)]
-    pub fn new(service_type: Scheme, options: Option<HashMap<String, String>>) -> Result<Self> {
-        let ops = options.unwrap_or_default();
-        match service_type {
-            Scheme::Azblob => Ok(Self(
-                opendal::Operator::new(opendal::services::Azblob::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Azdfs => Ok(Self(
-                opendal::Operator::new(opendal::services::Azdfs::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Gcs => Ok(Self(
-                opendal::Operator::new(opendal::services::Gcs::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Fs => Ok(Self(
-                opendal::Operator::new(opendal::services::Fs::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Ghac => Ok(Self(
-                opendal::Operator::new(opendal::services::Ghac::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Http => Ok(Self(
-                opendal::Operator::new(opendal::services::Http::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Memory => Ok(Self(
-                opendal::Operator::new(opendal::services::Memory::default())
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Obs => Ok(Self(
-                opendal::Operator::new(opendal::services::Obs::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::S3 => Ok(Self(
-                opendal::Operator::new(opendal::services::S3::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Webdav => Ok(Self(
-                opendal::Operator::new(opendal::services::Webdav::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            Scheme::Webhdfs => Ok(Self(
-                opendal::Operator::new(opendal::services::Webhdfs::from_map(ops))
-                    .map_err(format_napi_error)?
-                    .finish(),
-            )),
-            _ => Err(Error::from_reason("wrong operator type")),
-        }
+    pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
+        let scheme = opendal::Scheme::from_str(&scheme)
+            .map_err(|err| {
+                opendal::Error::new(opendal::ErrorKind::Unexpected, "not supported scheme")
+                    .set_source(err)
+            })
+            .map_err(format_napi_error)?;
+        let options = options.unwrap_or_default();
+
+        build_operator(scheme, options).map(Operator)
     }
 
     #[napi]
@@ -238,7 +195,6 @@ impl Entry {
     }
 }
 
-#[allow(dead_code)]
 #[napi]
 pub struct Metadata(opendal::Metadata);
 
@@ -273,13 +229,6 @@ impl Metadata {
     pub fn content_md5(&self) -> Option<String> {
         self.0.content_md5().map(|s| s.to_string())
     }
-
-    // /// Content Range of this object.
-    // /// API undecided.
-    // #[napi(getter)]
-    // pub fn content_range(&self) -> Option<Vec<u32>> {
-    //     todo!()
-    // }
 
     /// Content Type of this object.
     #[napi(getter)]

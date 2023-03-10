@@ -127,8 +127,8 @@ pub struct AzblobBuilder {
 }
 
 #[ctor]
-static KNOW_AZBLOB_RESOURCE_URI_SYNTAX_REGEX: Regex =
-    Regex::new(r"(?i)^https?://([a-z0-9]{3,24})\.blob\.core\.(?:usgovcloudapi\.net|chinacloudapi\.cn|windows\.net)$")
+static KNOWN_AZBLOB_RESOURCE_URI_SYNTAX_REGEX: Regex =
+    Regex::new(r"(?i)^https?://([a-z0-9]{3,24})\.blob\.core\.(?:usgovcloudapi\.net|chinacloudapi\.cn|windows\.net)/?$")
     .unwrap();
 
 impl Debug for AzblobBuilder {
@@ -413,7 +413,7 @@ impl Builder for AzblobBuilder {
 }
 
 fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let candidate_names = KNOW_AZBLOB_RESOURCE_URI_SYNTAX_REGEX.captures(endpoint);
+    let candidate_names = KNOWN_AZBLOB_RESOURCE_URI_SYNTAX_REGEX.captures(endpoint);
     if candidate_names.is_none() || candidate_names.as_ref().unwrap().len() != 2 {
         return None;
     }
@@ -720,9 +720,23 @@ impl AzblobBackend {
 
 #[cfg(test)]
 mod tests {
-    use crate::Builder;
+    use crate::{Builder, services::azblob::backend::infer_storage_name_from_endpoint};
 
     use super::AzblobBuilder;
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint() {
+        let endpoint = "https://account.blob.core.windows.net";
+        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
+        let endpoint = "https://account.blob.core.windows.net/";
+        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
 
     #[test]
     fn test_builder_from_endpoint_and_key_infer_account_name() {

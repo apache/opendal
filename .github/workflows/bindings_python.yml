@@ -18,6 +18,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '*'
   pull_request:
     branches:
       - main
@@ -29,6 +31,9 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   linux:
@@ -57,22 +62,30 @@ jobs:
           python -m pip install -r test_requirements.txt
           python -m pytest
 
-  # Disable windows until we have test case migrated.
-  #
-  # windows:
-  #   runs-on: windows-latest
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - uses: PyO3/maturin-action@v1
-  #       with:
-  #         working-directory: "bindings/python"
-  #         command: build
-  #         args: --release -o dist --find-interpreter
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v3
-  #       with:
-  #         name: wheels
-  #         path: bindings/python/dist
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: "bindings/python"
+          command: build
+          args: --release -o dist --find-interpreter
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels
+          path: bindings/python/dist
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run pytest
+        working-directory: "bindings/python"
+        run: |
+          set -e
+          python -m pip install opendal --find-links dist
+          python -m pip install -r test_requirements.txt
+          python -m pytest
 
   macos:
     runs-on: macos-latest
@@ -103,7 +116,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
-    needs: [macos, linux]
+    needs: [macos, linux, windows]
     steps:
       - uses: actions/download-artifact@v3
         with:

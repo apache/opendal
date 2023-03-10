@@ -1,7 +1,7 @@
 {
   "name": "opendal",
   "author": "Databend Authors <opensource@datafuselabs.com>",
-  "version": "0.30.0",
+  "version": "0.30.2",
   "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",

@@ -685,10 +685,7 @@ mod tests {
             .build()
             .expect("build azdfs should be succeeded.");
 
-        assert_eq!(
-            azdfs.endpoint,
-            "https://storagesample.dfs.core.windows.net"
-        );
+        assert_eq!(azdfs.endpoint, "https://storagesample.dfs.core.windows.net");
 
         assert_eq!(azdfs._account_name, "".to_string());
 

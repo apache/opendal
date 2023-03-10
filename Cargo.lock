@@ -2080,7 +2080,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_opendal"
-version = "0.0.1"
+version = "0.30.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2180,7 +2180,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-nodejs"
-version = "0.0.0"
+version = "0.30.0"
 dependencies = [
  "futures",
  "napi",
@@ -2192,7 +2192,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-python"
-version = "0.0.1"
+version = "0.30.0"
 dependencies = [
  "opendal",
  "pyo3",

@@ -1,6 +1,6 @@
 {
   "name": "opendal-win32-x64-msvc",
-  "version": "0.0.1",
+  "version": "0.30.0",
   "os": [
     "win32"
   ],

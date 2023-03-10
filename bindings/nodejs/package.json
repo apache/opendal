@@ -1,7 +1,7 @@
 {
   "name": "opendal",
   "author": "Databend Authors <opensource@datafuselabs.com>",
-  "version": "0.0.1",
+  "version": "0.30.0",
   "main": "index.js",
   "types": "index.d.ts",
   "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",

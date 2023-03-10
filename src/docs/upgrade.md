@@ -1,3 +1,20 @@
+# Upgarde to v0.30
+
+In version 0.30, we made significant breaking changes by removing objects. Our goal in doing so was to provide our users with APIs that are easier to understand and maintain.
+
+More detailes could be found at [RFC: Remove Object Concept][crate::docs::rfcs::rfc_1477_remove_object_concept].
+
+To upgrade to OpenDAL v0.30, users need to make the following changes:
+
+- regex replace `object\((.*)\).reader\(\)` to `reader($1)`
+	- replace the function on your case, it's recomanded to do it one by one
+- rename `ObjectMetakey` => `Metakey`
+- rename `ObjectMode` => `EntryMode`
+- replace `ErrorKind::ObjectXxx` to `ErrorKind::Xxx`
+- rename `AccessorMetadata` => `AccessorInfo`
+- rename `ObjectMetadata` => `Metadata`
+- replace `operator.metadata()` => `operator.info()`
+
 # Upgrade to v0.29
 
 In v0.29, we introduced [Object Writer][crate::docs::rfcs::rfc_1420_object_writer] to replace existing Multipart related APIs.

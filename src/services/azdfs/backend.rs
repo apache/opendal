@@ -278,7 +278,7 @@ impl Builder for AzdfsBuilder {
             signer: Arc::new(signer),
             filesystem: self.filesystem.clone(),
             client,
-            _account_name: account_name.unwrap_or(String::new()),
+            _account_name: account_name.unwrap_or_else(String::new),
         })
     }
 

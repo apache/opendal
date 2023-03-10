@@ -411,7 +411,7 @@ impl Builder for AzblobBuilder {
             signer: Arc::new(signer),
             container: self.container.clone(),
             client,
-            _account_name: account_name.unwrap_or(String::new()),
+            _account_name: account_name.unwrap_or_else(String::new),
         })
     }
 }

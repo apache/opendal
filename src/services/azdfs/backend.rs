@@ -19,7 +19,6 @@ use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ctor::ctor;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -27,7 +26,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use regex::Regex;
 use reqsign::AzureStorageSigner;
 
 use super::error::parse_error;
@@ -37,14 +35,15 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Known regex pattern Azure Data Lake Storage Gen2 URI syntax.
+/// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
 /// Azure public cloud: https://accountname.dfs.core.windows.net
 /// Azure US Government: https://accountname.dfs.core.usgovcloudapi.net
 /// Azure China: https://accountname.dfs.core.chinacloudapi.cn
-#[ctor]
-static KNOWN_AZDFS_RESOURCE_URI_SYNTAX_REGEX: Regex =
-    Regex::new(r"(?i)^https?://([a-z0-9]{3,24})\.dfs\.core\.(?:usgovcloudapi\.net|chinacloudapi\.cn|windows\.net)/?$")
-    .unwrap();
+const KNOWN_AZDFS_ENDPOINT_SUFFIX: &[&str] = &[
+    "dfs.core.windows.net",
+    "dfs.core.usgovcloudapi.net",
+    "dfs.core.chinacloudapi.cn",
+];
 
 /// Azure Data Lake Storage Gen2 Support.
 ///
@@ -278,7 +277,7 @@ impl Builder for AzdfsBuilder {
             signer: Arc::new(signer),
             filesystem: self.filesystem.clone(),
             client,
-            _account_name: account_name.unwrap_or_else(String::new),
+            _account_name: account_name.unwrap_or_default(),
         })
     }
 
@@ -616,19 +615,27 @@ impl AzdfsBackend {
 }
 
 fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let candidate_names = KNOWN_AZDFS_RESOURCE_URI_SYNTAX_REGEX.captures(endpoint);
-    if candidate_names.is_none() || candidate_names.as_ref().unwrap().len() != 2 {
-        return None;
+    let _endpoint: &str = endpoint
+        .strip_prefix("http://")
+        .or_else(|| endpoint.strip_prefix("https://"))
+        .unwrap_or(endpoint);
+
+    let mut parts = _endpoint.splitn(2, '.');
+    let storage_name = parts.next();
+    let endpoint_suffix = parts
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('/')
+        .to_lowercase();
+
+    if KNOWN_AZDFS_ENDPOINT_SUFFIX
+        .iter()
+        .any(|s| *s == endpoint_suffix.as_str())
+    {
+        storage_name.map(|s| s.to_string())
+    } else {
+        None
     }
-    Some(
-        candidate_names
-            .unwrap()
-            .get(1)
-            .unwrap()
-            .clone()
-            .as_str()
-            .to_string(),
-    )
 }
 
 #[cfg(test)]

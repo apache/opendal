@@ -16,10 +16,14 @@
 extern crate napi_derive;
 
 use std::collections::HashMap;
+use std::io::{Read, SeekFrom};
 use std::str::FromStr;
+use std::usize;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
+use napi::tokio::io::AsyncReadExt;
+use opendal::raw::oio::{BlockingRead, ReadExt};
 use time::format_description::well_known::Rfc3339;
 
 fn build_operator(
@@ -181,6 +185,20 @@ impl Operator {
             self.0.blocking().scan(&path).map_err(format_napi_error)?,
         ))
     }
+
+    #[napi]
+    pub async fn reader(&self, path: String) -> Result<Reader> {
+        Ok(Reader(
+            self.0.reader(&path).await.map_err(format_napi_error)?,
+        ))
+    }
+
+    #[napi]
+    pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
+        Ok(BlockingReader(
+            self.0.blocking().reader(&path).map_err(format_napi_error)?,
+        ))
+    }
 }
 
 #[napi]
@@ -289,6 +307,102 @@ impl BlockingLister {
             Some(Err(e)) => Err(format_napi_error(e)),
             None => Ok(None),
         }
+    }
+}
+
+#[napi]
+pub struct Reader(opendal::Reader);
+
+#[napi]
+impl Reader {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    #[napi]
+    pub async unsafe fn read(&mut self, length: Option<i64>) -> Result<Buffer> {
+        let buffer: Vec<u8> = match length {
+            Some(len) => {
+                let mut b = vec![0; len as usize];
+                self.0
+                    .read_exact(&mut b)
+                    .await
+                    .map_err(|e| Error::from_reason(e.to_string()))?;
+                b
+            }
+            _ => {
+                let mut b = Vec::new();
+                self.0
+                    .read_to_end(&mut b)
+                    .await
+                    .map_err(|e| Error::from_reason(e.to_string()))?;
+                b
+            }
+        };
+
+        Ok(Buffer::from(buffer))
+    }
+
+    #[napi]
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    pub async unsafe fn seek(&mut self, pos: i64, whence: Option<u8>) -> Result<u128> {
+        self.0
+            .seek(format_whence(pos, whence)?)
+            .await
+            .map(u128::from)
+            .map_err(format_napi_error)
+    }
+}
+
+#[napi]
+pub struct BlockingReader(opendal::BlockingReader);
+
+#[napi]
+impl BlockingReader {
+    #[napi]
+    pub fn read(&mut self, length: Option<i64>) -> Result<Buffer> {
+        let buffer: Vec<u8> = match length {
+            Some(len) => {
+                let mut b = vec![0; len as usize];
+                self.0
+                    .read_exact(&mut b)
+                    .map_err(|e| Error::from_reason(e.to_string()))?;
+                b
+            }
+            _ => {
+                let mut b = Vec::new();
+                self.0
+                    .read_to_end(&mut b)
+                    .map_err(|e| Error::from_reason(e.to_string()))?;
+                b
+            }
+        };
+
+        Ok(Buffer::from(buffer))
+    }
+
+    #[napi]
+    pub fn seek(&mut self, pos: i64, whence: Option<u8>) -> Result<u128> {
+        self.0
+            .seek(format_whence(pos, whence)?)
+            .map(u128::from)
+            .map_err(format_napi_error)
+    }
+}
+
+fn format_whence(pos: i64, whence: Option<u8>) -> Result<SeekFrom> {
+    match whence {
+        Some(0) | None => Ok(SeekFrom::Start(pos as u64)),
+        Some(1) => Ok(SeekFrom::Current(pos)),
+        Some(2) => Ok(SeekFrom::End(pos)),
+        _ => Err(Error::from_reason("invalid whence")),
     }
 }
 

@@ -105,3 +105,31 @@ test('test scan sync', async (t) => {
 
   t.is(entryCount, paths.length)
 })
+
+test('reader sync', (t) => {
+  let op = new Operator("memory")
+
+  let content = "hello world"
+  let path = 'test'
+  let decoder = new TextDecoder()
+
+  op.writeSync(path, content)
+
+  let reader = op.readerSync(path)
+
+  let bs = reader.read()
+  t.is(content, decoder.decode(bs))
+
+  reader.seek(6, 0)
+  bs = reader.read()
+  t.is(content.slice(6), decoder.decode(bs))
+
+  reader.seek(-content.length, 2)
+  bs = reader.read(5)
+  t.is(content.slice(0, 5), decoder.decode(bs))
+
+  let res = op.readSync(path)
+  t.is(content, new TextDecoder().decode(res))
+
+  op.deleteSync(path)
+})

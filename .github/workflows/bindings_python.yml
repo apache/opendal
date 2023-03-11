@@ -40,25 +40,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: PyO3/maturin-action@v1
-        with:
-          manylinux: auto
-          working-directory: "bindings/python"
-          command: build
-          args: --release --sdist -o dist --find-interpreter
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: bindings/python/dist
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+      - uses: Swatinem/rust-cache@v2
+      - uses: PyO3/maturin-action@v1
+        with:
+          manylinux: off
+          working-directory: "bindings/python"
+          command: build
+          args: --release --sdist -o dist
       - name: Run pytest
         working-directory: "bindings/python"
         run: |
           set -e
-          python -m pip install opendal --no-index --find-links dist
+          python -m pip install dist/opendal-*.whl
           python -m pip install -r test_requirements.txt
           python -m pytest
 

@@ -55,6 +55,16 @@ async def test_async():
     meta = await op.stat("test")
     assert meta.content_length == 13, meta.content_length
     assert meta.mode.is_file()
+
+    reader = await op.open_reader("test")
+    bs = await reader.read(5)
+    assert bs == b"Hello", bs
+    bs = await reader.read()
+    assert bs == b", World!", bs
+    await reader.seek(0, os.SEEK_SET)
+    bs = await reader.read()
+    assert bs == b"Hello, World!", bs
+
     await op.delete("test")
 
     await op.create_dir("test/")

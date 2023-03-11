@@ -110,9 +110,8 @@ impl AsyncOperator {
         Ok(AsyncOperator(build_operator(scheme, map)?))
     }
 
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
+    pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
-        let path = path.to_string();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
             let pybytes: PyObject = Python::with_gil(|py| PyBytes::new(py, &res).into());
@@ -120,9 +119,8 @@ impl AsyncOperator {
         })
     }
 
-    pub fn open_reader<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
+    pub fn open_reader<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
-        let path = path.to_string();
         future_into_py(py, async move {
             let reader = this.reader(&path).await.map_err(format_pyerr)?;
             let pyreader: PyObject = Python::with_gil(|py| AsyncReader::new(reader).into_py(py));
@@ -130,17 +128,15 @@ impl AsyncOperator {
         })
     }
 
-    pub fn write<'p>(&'p self, py: Python<'p>, path: &'p str, bs: Vec<u8>) -> PyResult<&'p PyAny> {
+    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: Vec<u8>) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
-        let path = path.to_string();
         future_into_py(py, async move {
             this.write(&path, bs).await.map_err(format_pyerr)
         })
     }
 
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
+    pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
-        let path = path.to_string();
         future_into_py(py, async move {
             let res: Metadata = this.stat(&path).await.map_err(format_pyerr).map(Metadata)?;
 
@@ -148,17 +144,15 @@ impl AsyncOperator {
         })
     }
 
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
+    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
-        let path = path.to_string();
         future_into_py(py, async move {
             this.create_dir(&path).await.map_err(format_pyerr)
         })
     }
 
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
+    pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
-        let path = path.to_string();
         future_into_py(
             py,
             async move { this.delete(&path).await.map_err(format_pyerr) },

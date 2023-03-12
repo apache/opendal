@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::mem;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -35,6 +34,16 @@ use super::writer::AzdfsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
+
+/// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
+/// Azure public cloud: https://accountname.dfs.core.windows.net
+/// Azure US Government: https://accountname.dfs.core.usgovcloudapi.net
+/// Azure China: https://accountname.dfs.core.chinacloudapi.cn
+const KNOWN_AZDFS_ENDPOINT_SUFFIX: &[&str] = &[
+    "dfs.core.windows.net",
+    "dfs.core.usgovcloudapi.net",
+    "dfs.core.chinacloudapi.cn",
+];
 
 /// Azure Data Lake Storage Gen2 Support.
 ///
@@ -241,8 +250,15 @@ impl Builder for AzdfsBuilder {
         };
 
         let mut signer_builder = AzureStorageSigner::builder();
+        let mut account_name = None;
         if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
+            account_name = Some(name.clone());
             signer_builder.account_name(name).account_key(key);
+        } else if let Some(key) = &self.account_key {
+            account_name = infer_storage_name_from_endpoint(endpoint.as_str());
+            signer_builder
+                .account_name(account_name.as_ref().unwrap_or(&String::new()))
+                .account_key(key);
         }
 
         let signer = signer_builder.build().map_err(|e| {
@@ -261,7 +277,7 @@ impl Builder for AzdfsBuilder {
             signer: Arc::new(signer),
             filesystem: self.filesystem.clone(),
             client,
-            _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
+            _account_name: account_name.unwrap_or_default(),
         })
     }
 
@@ -595,5 +611,93 @@ impl AzdfsBackend {
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
         self.client.send_async(req).await
+    }
+}
+
+fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
+    let _endpoint: &str = endpoint
+        .strip_prefix("http://")
+        .or_else(|| endpoint.strip_prefix("https://"))
+        .unwrap_or(endpoint);
+
+    let mut parts = _endpoint.splitn(2, '.');
+    let storage_name = parts.next();
+    let endpoint_suffix = parts
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('/')
+        .to_lowercase();
+
+    if KNOWN_AZDFS_ENDPOINT_SUFFIX
+        .iter()
+        .any(|s| *s == endpoint_suffix.as_str())
+    {
+        storage_name.map(|s| s.to_string())
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{services::azdfs::backend::infer_storage_name_from_endpoint, Builder};
+
+    use super::AzdfsBuilder;
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint() {
+        let endpoint = "https://account.dfs.core.windows.net";
+        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
+        let endpoint = "https://account.dfs.core.windows.net/";
+        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
+
+    #[test]
+    fn test_builder_from_endpoint_and_key_infer_account_name() {
+        let mut azdfs_builder = AzdfsBuilder::default();
+        azdfs_builder.endpoint("https://storagesample.dfs.core.chinacloudapi.cn");
+        azdfs_builder.account_key("account-key");
+        azdfs_builder.filesystem("filesystem");
+        let azdfs = azdfs_builder
+            .build()
+            .expect("build azdfs should be succeeded.");
+
+        assert_eq!(
+            azdfs.endpoint,
+            "https://storagesample.dfs.core.chinacloudapi.cn"
+        );
+
+        assert_eq!(azdfs._account_name, "storagesample".to_string());
+
+        assert_eq!(azdfs.filesystem, "filesystem".to_string());
+
+        assert_eq!(
+            azdfs_builder.account_key.unwrap(),
+            "account-key".to_string()
+        );
+    }
+
+    #[test]
+    fn test_no_key_wont_infer_account_name() {
+        let mut azdfs_builder = AzdfsBuilder::default();
+        azdfs_builder.endpoint("https://storagesample.dfs.core.windows.net");
+        azdfs_builder.filesystem("filesystem");
+        let azdfs = azdfs_builder
+            .build()
+            .expect("build azdfs should be succeeded.");
+
+        assert_eq!(azdfs.endpoint, "https://storagesample.dfs.core.windows.net");
+
+        assert_eq!(azdfs._account_name, "".to_string());
+
+        assert_eq!(azdfs.filesystem, "filesystem".to_string());
+
+        assert_eq!(azdfs_builder.account_key, None);
     }
 }

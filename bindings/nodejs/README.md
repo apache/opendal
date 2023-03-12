@@ -8,15 +8,16 @@ npm install opendal
 ```
 
 ## Docs
-- see [index.d.ts](./index.d.ts)
+
+see [index.d.ts](./index.d.ts)
 
 ## Usage
 
 ```javascript
-import { Operator, Scheme } from 'opendal'
+import { Operator } from "opendal";
 
 async function main() {
-  const op = new Operator(Scheme.Fs, { root: '/tmp' });
+  const op = new Operator("fs", { root: "/tmp" });
   await op.write("test", "Hello, World!");
   const bs = await op.read("test");
   console.log(new TextDecoder().decode(bs));
@@ -24,7 +25,7 @@ async function main() {
   console.log(`contentLength: ${meta.contentLength}`);
 }
 
-main()
+main();
 ```
 
 

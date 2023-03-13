@@ -331,6 +331,7 @@ fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<Reader>()?;
     m.add_class::<AsyncOperator>()?;
+    m.add_class::<AsyncReader>()?;
     m.add_class::<Entry>()?;
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;

@@ -63,13 +63,11 @@ impl AsyncOperator {
         })
     }
 
-    pub fn open_reader<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
-        future_into_py(py, async move {
-            let reader = this.reader(&path).await.map_err(format_pyerr)?;
-            let pyreader: PyObject = Python::with_gil(|py| AsyncReader::new(reader).into_py(py));
-            Ok(pyreader)
-        })
+    pub fn open_reader(&self, path: String) -> PyResult<AsyncReader> {
+        Ok(AsyncReader::new(ReaderState::Init {
+            operator: self.0.clone(),
+            path,
+        }))
     }
 
     pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: Vec<u8>) -> PyResult<&'p PyAny> {
@@ -104,11 +102,45 @@ impl AsyncOperator {
     }
 }
 
+enum ReaderState {
+    Init {
+        operator: od::Operator,
+        path: String,
+    },
+    Open(od::Reader),
+    Closed,
+}
+
+impl ReaderState {
+    async fn reader(&mut self) -> PyResult<&mut od::Reader> {
+        let reader = match self {
+            ReaderState::Init { operator, path } => {
+                let reader = operator.reader(path).await.map_err(format_pyerr)?;
+                *self = ReaderState::Open(reader);
+                if let ReaderState::Open(ref mut reader) = self {
+                    reader
+                } else {
+                    unreachable!()
+                }
+            }
+            ReaderState::Open(ref mut reader) => reader,
+            ReaderState::Closed => {
+                return Err(PyValueError::new_err("I/O operation on closed file."));
+            }
+        };
+        Ok(reader)
+    }
+
+    fn close(&mut self) {
+        *self = ReaderState::Closed;
+    }
+}
+
 #[pyclass(module = "opendal")]
-pub struct AsyncReader(Arc<Mutex<od::Reader>>);
+pub struct AsyncReader(Arc<Mutex<ReaderState>>);
 
 impl AsyncReader {
-    fn new(reader: od::Reader) -> Self {
+    fn new(reader: ReaderState) -> Self {
         Self(Arc::new(Mutex::new(reader)))
     }
 }
@@ -118,7 +150,8 @@ impl AsyncReader {
     pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
         let reader = self.0.clone();
         future_into_py(py, async move {
-            let mut reader = reader.lock().await;
+            let mut state = reader.lock().await;
+            let reader = state.reader().await?;
             let buffer = match size {
                 Some(size) => {
                     let mut buffer = vec![0; size];
@@ -160,7 +193,8 @@ impl AsyncReader {
         };
         let reader = self.0.clone();
         future_into_py(py, async move {
-            let mut reader = reader.lock().await;
+            let mut state = reader.lock().await;
+            let reader = state.reader().await?;
             let ret = reader
                 .seek(whence)
                 .await
@@ -172,12 +206,33 @@ impl AsyncReader {
     pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
         let reader = self.0.clone();
         future_into_py(py, async move {
-            let mut reader = reader.lock().await;
+            let mut state = reader.lock().await;
+            let reader = state.reader().await?;
             let pos = reader
                 .stream_position()
                 .await
                 .map_err(|err| PyIOError::new_err(err.to_string()))?;
             Ok(Python::with_gil(|py| pos.into_py(py)))
+        })
+    }
+
+    fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<&'a PyAny> {
+        let slf = slf.into_py(py);
+        future_into_py(py, async move { Ok(slf) })
+    }
+
+    fn __aexit__<'a>(
+        &self,
+        py: Python<'a>,
+        _exc_type: &'a PyAny,
+        _exc_value: &'a PyAny,
+        _traceback: &'a PyAny,
+    ) -> PyResult<&'a PyAny> {
+        let reader = self.0.clone();
+        future_into_py(py, async move {
+            let mut state = reader.lock().await;
+            state.close();
+            Ok(())
         })
     }
 }

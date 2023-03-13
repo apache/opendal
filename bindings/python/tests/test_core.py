@@ -56,7 +56,7 @@ async def test_async():
     assert meta.content_length == 13, meta.content_length
     assert meta.mode.is_file()
 
-    reader = await op.open_reader("test")
+    reader = op.open_reader("test")
     bs = await reader.read(5)
     assert bs == b"Hello", bs
     bs = await reader.read()
@@ -64,6 +64,9 @@ async def test_async():
     await reader.seek(0, os.SEEK_SET)
     bs = await reader.read()
     assert bs == b"Hello, World!", bs
+    async with op.open_reader("test") as f:
+        bs = await f.read()
+        assert bs == b"Hello, World!", bs
 
     await op.delete("test")
 

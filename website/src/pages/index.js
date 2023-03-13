@@ -35,7 +35,7 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <Link
             className="button button--secondary button--lg"
-            href="/docs/rust/opendal/">
+            to="/docs/rust/opendal/index.html">
             Get Start
           </Link>
         </div>

@@ -25,7 +25,7 @@ rust-version = "1.60"
 [dependencies]
 async-trait = "0.1"
 bytes = "1"
-chrono = "0.4.23"
+chrono = "0.4.24"
 futures = "0.3"
 object_store = "0.5"
 opendal = { version = "0.30", path = "../../" }

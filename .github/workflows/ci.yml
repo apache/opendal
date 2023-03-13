@@ -23,6 +23,7 @@ on:
       - main
     paths-ignore:
       - "docs/**"
+      - "website/**"
       - "*.md"
 
 concurrency:

@@ -22,7 +22,7 @@ import Link from "@docusaurus/Link";
 const FeatureList = [
   {
     title: 'Access data freely',
-    Svg: require('@site/static/img/undraw_the_world_is_mine.svg').default,
+    Svg: require('@site/static/img/undraw_adventure.svg').default,
     description: (
       <>
         <div>Access different storage services in the same way</div>

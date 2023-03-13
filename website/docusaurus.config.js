@@ -88,11 +88,6 @@ const config = {
     ({
       // Replace with your project's social card
       // image: 'img/docusaurus-social-card.jpg',
-      algolia: {
-        appId: '8VZWFGRPDW',
-        apiKey: '32b0a14b69785e8e6fa5bc387dcd51e2',
-        indexName: 'opendal'
-      },
       colorMode: {
         defaultMode: 'light',
         disableSwitch: true

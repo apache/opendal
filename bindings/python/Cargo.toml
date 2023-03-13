@@ -22,6 +22,7 @@ crate-type = ["cdylib"]
 name = "opendal"
 
 [dependencies]
+futures = "0.3.27"
 opendal = { version = "0.30", path = "../../" }
 pyo3 = { version = "0.18", features = ["extension-module"] }
 pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }

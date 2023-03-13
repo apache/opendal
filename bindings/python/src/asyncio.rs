@@ -18,8 +18,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use ::opendal as od;
+use futures::TryStreamExt;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
+use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -29,7 +31,7 @@ use tokio::io::AsyncReadExt;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::Mutex;
 
-use crate::{build_operator, format_pyerr, Metadata};
+use crate::{build_operator, format_pyerr, Entry, Metadata};
 
 #[pyclass(module = "opendal")]
 pub struct AsyncOperator(od::Operator);
@@ -99,6 +101,24 @@ impl AsyncOperator {
             py,
             async move { this.delete(&path).await.map_err(format_pyerr) },
         )
+    }
+
+    pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            let lister = this.list(&path).await.map_err(format_pyerr)?;
+            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+            Ok(pylister)
+        })
+    }
+
+    pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            let lister = this.scan(&path).await.map_err(format_pyerr)?;
+            let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
+            Ok(pylister)
+        })
     }
 }
 
@@ -234,5 +254,33 @@ impl AsyncReader {
             state.close();
             Ok(())
         })
+    }
+}
+
+#[pyclass(module = "opendal")]
+struct AsyncLister(Arc<Mutex<od::Lister>>);
+
+impl AsyncLister {
+    fn new(lister: od::Lister) -> Self {
+        Self(Arc::new(Mutex::new(lister)))
+    }
+}
+
+#[pymethods]
+impl AsyncLister {
+    fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<Self> {
+        slf
+    }
+    fn __anext__(slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
+        let lister = slf.0.clone();
+        let fut = future_into_py(slf.py(), async move {
+            let mut lister = lister.lock().await;
+            let entry = lister.try_next().await.map_err(format_pyerr)?;
+            match entry {
+                Some(entry) => Ok(Python::with_gil(|py| Entry(entry).into_py(py))),
+                None => Err(PyStopAsyncIteration::new_err("stream exhausted")),
+            }
+        })?;
+        Ok(Some(fut.into()))
     }
 }

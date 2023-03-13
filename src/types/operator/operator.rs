@@ -276,11 +276,14 @@ impl Operator {
         entry: &Entry,
         flags: impl Into<FlagSet<Metakey>>,
     ) -> Result<Metadata> {
-        let meta = entry.metadata();
-        if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
-            return Ok(meta.clone());
+        // Check if cached metadata saticifies the query.
+        if let Some(meta) = entry.metadata() {
+            if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
+                return Ok(meta.clone());
+            }
         }
 
+        // Else request from backend..
         let meta = self.stat(entry.path()).await?;
         Ok(meta)
     }
@@ -312,19 +315,20 @@ impl Operator {
         }
     }
 
-    /// Create an empty file or dir, like using the following linux commands:
+    /// Create a dir at given path.
     ///
-    /// - `touch path/to/file`
-    /// - `mkdir path/to/dir/`
+    /// # Notes
+    ///
+    /// To indicate that a path is a directory, it is compulsory to include
+    /// a trailing / in the path. Failure to do so may result in
+    /// `NotADirectory` error being returned by OpenDAL.
     ///
     /// # Behavior
     ///
     /// - Create on existing dir will succeed.
-    /// - Create on existing file will overwrite and truncate it.
+    /// - Create dir is always recursive, works like `mkdir -p`
     ///
     /// # Examples
-    ///
-    /// ## Create a dir
     ///
     /// ```
     /// # use std::io::Result;
@@ -676,7 +680,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn remove_via(&self, mut input: impl Stream<Item = String> + Unpin) -> Result<()> {
+    pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
         if self.info().can_batch() {
             let mut input = input.map(|v| (v, OpDelete::default())).chunks(self.limit());
 
@@ -694,9 +698,13 @@ impl Operator {
                 }
             }
         } else {
-            while let Some(path) = input.next().await {
-                self.inner().delete(&path, OpDelete::default()).await?;
-            }
+            input
+                .map(Ok)
+                .try_for_each_concurrent(self.limit, |path| async move {
+                    let _ = self.inner().delete(&path, OpDelete::default()).await?;
+                    Ok::<(), Error>(())
+                })
+                .await?;
         }
 
         Ok(())

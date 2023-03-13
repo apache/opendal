@@ -106,6 +106,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
         let meta = op.stat(de.path()).await?;
         if de.path() == path {
             assert_eq!(meta.mode(), EntryMode::FILE);
+
             assert_eq!(meta.content_length(), size as u64);
 
             found = true
@@ -197,7 +198,8 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
         if de.path() == path {
-            assert_eq!(op.stat(&path).await?.mode(), EntryMode::DIR);
+            let meta = op.stat(&path).await?;
+            assert_eq!(meta.mode(), EntryMode::DIR);
             assert_eq!(de.name(), path);
 
             found = true

@@ -16,10 +16,10 @@
 
 import test from 'ava'
 
-import { Operator, Scheme } from '../index.js'
+import { Operator } from '../index.js'
 
 test('test memory write & read', async (t) => {
-  let op = new Operator(Scheme.Memory)
+  let op = new Operator("memory")
 
   let content = "hello world"
   let path = 'test'
@@ -27,18 +27,16 @@ test('test memory write & read', async (t) => {
   await op.write(path, content)
 
   let meta = await op.stat(path)
-  t.is(meta.mode, 0)
+  t.is(meta.isFile(), true)
   t.is(meta.contentLength, BigInt(content.length))
 
   let res = await op.read(path)
   t.is(content, new TextDecoder().decode(res))
-
-  await op.delete(path)
 })
 
 
 test('test memory write & read synchronously', (t) => {
-  let op = new Operator(Scheme.Memory)
+  let op = new Operator("memory")
 
   let content = "hello world"
   let path = 'test'
@@ -46,7 +44,7 @@ test('test memory write & read synchronously', (t) => {
   op.writeSync(path, content)
 
   let meta = op.statSync(path)
-  t.is(meta.mode, 0)
+  t.is(meta.isFile(), true)
   t.is(meta.contentLength, BigInt(content.length))
 
   let res = op.readSync(path)
@@ -56,7 +54,7 @@ test('test memory write & read synchronously', (t) => {
 })
 
 test('test scan', async (t) => {
-  let op = new Operator(Scheme.Memory)
+  let op = new Operator("memory")
   let content = "hello world"
   let pathPrefix = 'test'
   let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)
@@ -73,38 +71,37 @@ test('test scan', async (t) => {
   while (true) {
     let entry = await objList.next()
     if (entry === null) break
+
     entryCount++
     t.is(new TextDecoder().decode(await op.read(entry.path())), content)
   }
 
   t.is(entryCount, paths.length)
-
-  paths.forEach(async (path) => {
-    await op.delete(path)
-  })
 })
 
 
-test('test writer', async (t) => {
-  let op = new Operator(Scheme.Memory)
-  const path = 'test'
+test('test scan sync', async (t) => {
+  let op = new Operator("memory")
+  let content = "hello world"
+  let pathPrefix = 'test'
+  let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)
 
-  let contents = [
-    'hello',
-    'world',
-    '!'
-  ]
+  let writeTasks = paths.map((path) => new Promise<void>(async (resolve) => {
+    await op.write(path, Buffer.from(content))
+    resolve()
+  }))
 
-  let writer = await op.writer(path)
+  await Promise.all(writeTasks)
 
-  for (let part of contents) {
-    await writer.append(Buffer.from(part))
+  let objList = op.scanSync("")
+  let entryCount = 0
+  while (true) {
+    let entry = objList.next()
+    if (entry === null) break
+
+    entryCount++
+    t.is(new TextDecoder().decode(await op.read(entry.path())), content)
   }
 
-  writer.close()
-
-  let c = new TextDecoder().decode(await op.read(path))
-
-  t.is(c, contents.join(''))
+  t.is(entryCount, paths.length)
 })
-

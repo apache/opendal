@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import os
 import opendal
 import pytest
 
@@ -24,6 +25,25 @@ def test_blocking():
     assert bs == b"Hello, World!", bs
     meta = op.stat("test")
     assert meta.content_length == 13, meta.content_length
+    assert meta.mode.is_file()
+    assert [str(entry) for entry in op.list("/")] == ["test"]
+    assert [str(entry) for entry in op.scan("/")] == ["test"]
+
+    reader = op.open_reader("test")
+    bs = reader.read(5)
+    assert bs == b"Hello", bs
+    bs = reader.read()
+    assert bs == b", World!", bs
+    reader.seek(0, os.SEEK_SET)
+    bs = reader.read()
+    assert bs == b"Hello, World!", bs
+    with op.open_reader("test") as f:
+        bs = f.read()
+        assert bs == b"Hello, World!", bs
+
+    op.delete("test")
+
+    op.create_dir("test/")
 
 
 @pytest.mark.asyncio
@@ -34,6 +54,10 @@ async def test_async():
     assert bs == b"Hello, World!", bs
     meta = await op.stat("test")
     assert meta.content_length == 13, meta.content_length
+    assert meta.mode.is_file()
+    await op.delete("test")
+
+    await op.create_dir("test/")
 
 
 def test_blocking_fs(tmp_path):
@@ -43,6 +67,10 @@ def test_blocking_fs(tmp_path):
     assert bs == b"Hello, World!", bs
     meta = op.stat("test.txt")
     assert meta.content_length == 13, meta.content_length
+    assert [str(entry) for entry in op.list("/")] == ["test.txt"]
+    assert [str(entry) for entry in op.scan("/")] == ["test.txt", "/"]
+
+    op.create_dir("test/")
 
 
 @pytest.mark.asyncio
@@ -53,6 +81,8 @@ async def test_async_fs(tmp_path):
     assert bs == b"Hello, World!", bs
     meta = await op.stat("test.txt")
     assert meta.content_length == 13, meta.content_length
+
+    await op.create_dir("test/")
 
 
 def test_error():

@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::mem;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -38,6 +37,16 @@ use crate::types::Metadata;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
+
+/// Known endpoint suffix Azure Storage Blob services resource URI syntax.
+/// Azure public cloud: https://accountname.blob.core.windows.net
+/// Azure US Government: https://accountname.blob.core.usgovcloudapi.net
+/// Azure China: https://accountname.blob.core.chinacloudapi.cn
+const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
+    "blob.core.windows.net",
+    "blob.core.usgovcloudapi.net",
+    "blob.core.chinacloudapi.cn",
+];
 
 /// Azure Storage Blob services support.
 ///
@@ -366,10 +375,23 @@ impl Builder for AzblobBuilder {
         };
 
         let mut signer_builder = AzureStorageSigner::builder();
+        let mut account_name: Option<String> = None;
         if let Some(sas_token) = &self.sas_token {
             signer_builder.security_token(sas_token);
+            match &self.account_name {
+                Some(name) => account_name = Some(name.clone()),
+                None => {
+                    account_name = infer_storage_name_from_endpoint(endpoint.as_str());
+                }
+            }
         } else if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
+            account_name = Some(name.clone());
             signer_builder.account_name(name).account_key(key);
+        } else if let Some(key) = &self.account_key {
+            account_name = infer_storage_name_from_endpoint(endpoint.as_str());
+            signer_builder
+                .account_name(account_name.as_ref().unwrap_or(&String::new()))
+                .account_key(key);
         }
 
         let signer = signer_builder.build().map_err(|e| {
@@ -388,8 +410,32 @@ impl Builder for AzblobBuilder {
             signer: Arc::new(signer),
             container: self.container.clone(),
             client,
-            _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
+            _account_name: account_name.unwrap_or_default(),
         })
+    }
+}
+
+fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
+    let _endpoint: &str = endpoint
+        .strip_prefix("http://")
+        .or_else(|| endpoint.strip_prefix("https://"))
+        .unwrap_or(endpoint);
+
+    let mut parts = _endpoint.splitn(2, '.');
+    let storage_name = parts.next();
+    let endpoint_suffix = parts
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches('/')
+        .to_lowercase();
+
+    if KNOWN_AZBLOB_ENDPOINT_SUFFIX
+        .iter()
+        .any(|s| *s == endpoint_suffix.as_str())
+    {
+        storage_name.map(|s| s.to_string())
+    } else {
+        None
     }
 }
 
@@ -710,7 +756,98 @@ impl AzblobBackend {
 
 #[cfg(test)]
 mod tests {
+    use crate::{services::azblob::backend::infer_storage_name_from_endpoint, Builder};
+
     use super::AzblobBuilder;
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint() {
+        let endpoint = "https://account.blob.core.windows.net";
+        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
+        let endpoint = "https://account.blob.core.windows.net/";
+        let storage_name = infer_storage_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
+
+    #[test]
+    fn test_builder_from_endpoint_and_key_infer_account_name() {
+        let mut azblob_builder = AzblobBuilder::default();
+        azblob_builder.endpoint("https://storagesample.blob.core.chinacloudapi.cn");
+        azblob_builder.container("container");
+        azblob_builder.account_key("account-key");
+        let azblob = azblob_builder
+            .build()
+            .expect("build azblob should be succeeded.");
+
+        assert_eq!(
+            azblob.endpoint,
+            "https://storagesample.blob.core.chinacloudapi.cn"
+        );
+
+        assert_eq!(azblob._account_name, "storagesample".to_string());
+
+        assert_eq!(azblob.container, "container".to_string());
+
+        assert_eq!(
+            azblob_builder.account_key.unwrap(),
+            "account-key".to_string()
+        );
+    }
+
+    #[test]
+    fn test_no_key_wont_infer_account_name() {
+        let mut azblob_builder = AzblobBuilder::default();
+        azblob_builder.endpoint("https://storagesample.blob.core.windows.net");
+        azblob_builder.container("container");
+        let azblob = azblob_builder
+            .build()
+            .expect("build azblob should be succeeded.");
+
+        assert_eq!(
+            azblob.endpoint,
+            "https://storagesample.blob.core.windows.net"
+        );
+
+        assert_eq!(azblob._account_name, "".to_string());
+
+        assert_eq!(azblob.container, "container".to_string());
+
+        assert_eq!(azblob_builder.account_key, None);
+    }
+
+    #[test]
+    fn test_builder_from_endpoint_and_sas() {
+        let mut azblob_builder = AzblobBuilder::default();
+        azblob_builder.endpoint("https://storagesample.blob.core.usgovcloudapi.net");
+        azblob_builder.container("container");
+        azblob_builder.account_name("storagesample");
+        azblob_builder.account_key("account-key");
+        azblob_builder.sas_token("sas");
+        let azblob = azblob_builder
+            .build()
+            .expect("build azblob should be succeeded.");
+
+        assert_eq!(
+            azblob.endpoint,
+            "https://storagesample.blob.core.usgovcloudapi.net"
+        );
+
+        assert_eq!(azblob._account_name, "storagesample".to_string());
+
+        assert_eq!(azblob.container, "container".to_string());
+
+        assert_eq!(
+            azblob_builder.account_key.unwrap(),
+            "account-key".to_string()
+        );
+
+        assert_eq!(azblob_builder.sas_token.unwrap(), "sas".to_string());
+    }
 
     #[test]
     fn test_builder_from_connection_string() {

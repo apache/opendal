@@ -5,6 +5,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.30.2] - 2023-03-10
+
+### CI
+
+- ci(bindings/nodejs): Fix nodejs package can't uploaded (#1564)
+
+## [v0.30.1] - 2023-03-10
+
+### Docs
+
+- docs: Fix Operator::create() has been removed (#1560)
+
+### CI
+
+- ci: Fix python & nodejs not released correctly (#1559)
+
+### Chore
+
+- chore(bindings/nodejs): update license in package.json (#1556)
+
+## [v0.30.0] - 2023-03-10
+
+### Added
+
+- RFC-1477: Remove Object Concept (#1477)
+- feat(bindings/nodejs): fs Operator (#1485)
+- feat(service/dashmap): Add scan support (#1492)
+- feat(bindings/nodejs): Add Writer Support (#1490)
+- feat: Add dummy implementation for accessor and builder (#1503)
+- feat(bindings/nodejs): Support List & append all default services (#1505)
+- feat(bindings/python): Setup operator init logic (#1513)
+- feat(bindings/nodejs): write support string (#1520)
+- feat(bindings/python): add support for services that opendal enables by default (#1522)
+- feat(bindings/nodejs): Remove Operator.writer until we are ready (#1528)
+- feat(bindings/nodejs): Support Operator.create_dir (#1529)
+- feat(bindings/python): implement create_dir (#1534)
+- feat(bindings/python): implement delete and export more metadata fields (#1539)
+- feat(bindings/python): implement blocking list and scan (#1541)
+- feat: Append EntryMode to Entry (#1543)
+- feat: Entry refactoring to allow external creation (#1547)
+- feat(bindings/nodejs): Support Operator.scanSync & Operator.listSync (#1546)
+- feat: remove_via can delete files concurrently (#1495)
+
+### Changed
+
+- refactor: Split operator APIs into different part (#1483)
+- refactor: Remove Object prefix for public API (#1488)
+- refactor: Remove the concept of Object (#1496)
+- refactor: remove ReadDir in FTP service (#1504)
+- refactor: rename public api create to create_dir (#1512)
+- refactor(bindings/python): return bytes directly and add type stub file (#1514)
+- tests: Remove not needed create file test (#1516)
+- refactor: improve the python binding implementation (#1517)
+- refactor(bindings/nodejs): Remove scheme from bindings (#1552)
+
+### Fixed
+
+- fix(services/s3): Make sure the ureq's body has been consumed (#1497)
+- fix(services/s3): Allow retry error RequestTimeout (#1532)
+
+### Docs
+
+- docs: Remove all references to object (#1500)
+- docs(bindings/python): Add building docs (#1526)
+- docs(bindings/nodejs): update readme (#1527)
+- docs: Add detailed docs for create_dir (#1537)
+
+### CI
+
+- ci: Don't run binding tests if only services changes (#1498)
+- ci: Improve rocksdb build speed by link dynamic libs (#1502)
+- ci: Fix bindings CI not running on PR (#1530)
+- ci: Polish scripts and prepare for releasing (#1553)
+
+### Chore
+
+- chore: Re-organize the project layout (#1489)
+- chore: typo & clippy (#1499)
+- chore: typo (#1501)
+- chore: Move memcache-async into opendal (#1544)
+
 ## [v0.29.1] - 2023-03-05
 
 ### Added
@@ -1482,6 +1563,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.30.2]: https://github.com/datafuselabs/opendal/compare/v0.30.1...v0.30.2
+[v0.30.1]: https://github.com/datafuselabs/opendal/compare/v0.30.0...v0.30.1
+[v0.30.0]: https://github.com/datafuselabs/opendal/compare/v0.29.1...v0.30.0
 [v0.29.1]: https://github.com/datafuselabs/opendal/compare/v0.29.0...v0.29.1
 [v0.29.0]: https://github.com/datafuselabs/opendal/compare/v0.28.0...v0.29.0
 [v0.28.0]: https://github.com/datafuselabs/opendal/compare/v0.27.2...v0.28.0

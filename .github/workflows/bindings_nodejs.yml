@@ -13,26 +13,27 @@
 # limitations under the License.
 
 name: Binding NodeJS CI
+
 env:
   DEBUG: napi:*
-  APP_NAME: opendal
   MACOSX_DEPLOYMENT_TARGET: '10.13'
 
 on:
   push:
     branches:
       - main
+    tags:
+      - '*'
   pull_request:
     branches:
       - main
     paths:
-      - "bindings/nodejs"
+      - "bindings/nodejs/**"
       - ".github/workflows/bindings_nodejs.yml"
   workflow_dispatch:
 
 jobs:
   test:
-    name: Test bindings on Linux-x64-gnu - node@${{ matrix.node }}
     strategy:
       fail-fast: false
       matrix:
@@ -61,3 +62,153 @@ jobs:
         run: yarn build
       - name: Test bindings
         run: yarn test
+
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - '18'
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+
+    # Notes: this defaults only apply on run tasks.
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node }}
+          cache: yarn
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
+      - name: Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: yarn install
+      - name: Build
+        run: yarn build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: bindings-linux
+          path: bindings/nodejs/*.node
+      - name: Test bindings
+        run: yarn test
+
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - '18'
+    runs-on: windows-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+
+    # Notes: this defaults only apply on run tasks.
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node }}
+          cache: yarn
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
+      - name: Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: yarn install
+      - name: Build
+        run: yarn build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: bindings-windows
+          path: |
+            bindings/nodejs/*.node
+            bindings/nodejs/index.d.ts
+            bindings/nodejs/generated*.*
+      - name: Test bindings
+        run: yarn test
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - '18'
+    runs-on: macos-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+
+    # Notes: this defaults only apply on run tasks.
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node }}
+          cache: yarn
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
+      - name: Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: yarn install
+      - name: Build
+        run: yarn build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: bindings-macos
+          path: bindings/nodejs/*.node
+      - name: Test bindings
+        run: yarn test
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
+    needs: [macos, linux, windows]
+
+    # Notes: this defaults only apply on run tasks.
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node }}
+          cache: yarn
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
+      - name: Corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: bindings/nodejs/artifacts
+      - name: Move artifacts
+        run: yarn artifacts
+
+      - name: List packages
+        run: ls -R ./npm
+        shell: bash
+      - name: Publish
+        run: |
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
+          npm publish --access public
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -55,6 +55,8 @@ async def test_async():
     meta = await op.stat("test")
     assert meta.content_length == 13, meta.content_length
     assert meta.mode.is_file()
+    assert [str(entry) async for entry in await op.list("/")] == ["test"]
+    assert [str(entry) async for entry in await op.scan("/")] == ["test"]
 
     reader = op.open_reader("test")
     bs = await reader.read(5)

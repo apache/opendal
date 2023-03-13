@@ -111,7 +111,7 @@ futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }
 http = "0.2.5"
 hyper = "0.14"
-lazy-regex = { version = "2.4.1", optional = true }
+lazy-regex = { version = "2.5.0", optional = true }
 # Notes:
 # pin to 6.11 to allow we can use rocksdb 6.11 which is more widely used.
 librocksdb-sys = { version = "=6.11", optional = true }

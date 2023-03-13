@@ -74,7 +74,7 @@ jobs:
 
       - name: Copy docs into build
         run: |
-          cp -r ./target/doc ./website/build
+          cp -r ./target/doc ./website/build/docs/rust
 
       # Start deploy --------------------------------------------------
       - name: Deploy to gh-pages

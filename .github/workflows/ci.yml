@@ -25,6 +25,8 @@ on:
       - "docs/**"
       - "website/**"
       - "*.md"
+      - ".github/**"
+      - "!.github/workflows/ci.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

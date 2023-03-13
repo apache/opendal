@@ -27,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # Build opendal docs ----------------------------------------------
       - name: Checkout java env
         uses: actions/setup-java@v3
         with:
@@ -46,20 +47,43 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           ROCKSDB_LIB_DIR: /usr/lib
 
-      - name: Copy vercel.json
-        run: cp ./vercel.json ./target/doc
+      - name: Copy docs into build
+        run: |
+          cp -r ./target/doc ./website/static/docs/rust
 
-      - name: Deploy to vercel
-        if: github.repository_owner == 'datafuselabs' && github.ref_name == 'main'
-        uses: amondnet/vercel-action@v25.1.1
+      # Build website ---------------------------------------------------
+      - uses: actions/setup-node@v3
         with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
-          scope: databend
-          working-directory: ./target/doc
+          node-version: '16'
+
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+
+      - uses: actions/cache@v3
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+
+      - name: Install Dependencies
+        working-directory: website
+        run: |
+          yarn install
+
+      - name: Build
+        working-directory: website
+        run: |
+          yarn build
+
+      # Start deploy --------------------------------------------------
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3.9.0
+        if: github.event_name == 'push' && github.ref == 'main'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: website/build
+          publish_branch: gh-pages
 
       - name: Deploy to vercel (preview)
         if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
@@ -72,4 +96,4 @@ jobs:
           alias-domains: |
             opendal-git-{{BRANCH}}.vercel.app
           scope: databend
-          working-directory: ./target/doc
+          working-directory: ./website/build

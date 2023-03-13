@@ -27,11 +27,12 @@ const config = {
   tagline: 'Open Data Access Layer: Access data freely, painlessly, and efficiently',
   favicon: 'img/favicon.ico',
 
-  url: 'https://opendal.apache.org',
+  // TODO: Move to opendal.apache.org after migration.
+  url: 'https://opendal.databend.rs',
   baseUrl: '/',
 
   organizationName: 'Apache',
-  projectName: 'OpenDal',
+  projectName: 'OpenDAL',
 
   onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
@@ -82,40 +83,14 @@ const config = {
       },
       navbar: {
         title: 'OpenDAL (incubating)',
-        // logo: {
-        //   alt: 'My Site Logo',
-        //   src: 'img/logo.svg',
-        // },
         items: [
           {
-            docId: 'Overview',
             position: 'right',
-            label: 'Doc',
+            label: 'Documentation',
             items: [
               {
-                type: 'doc',
-                label: 'Project Docs',
-                docId: 'Overview'
-              },
-              {
-                label: 'RFCs',
-                to: 'https://opendal.databend.rs/opendal/docs/rfcs/index.html'
-              },
-              {
-                type: 'html',
-                value: '<hr class="dropdown-separator">'
-              },
-              {
-                label: 'Node.js',
-                to: 'https://www.npmjs.com/package/opendal'
-              },
-              {
-                label: 'Python',
-                to: 'https://pypi.org/project/opendal/'
-              },
-              {
                 label: 'Rust',
-                to: 'https://crates.io/crates/opendal'
+                to: 'https://opendal.databend.rs/docs/rust/opendal/'
               },
             ]
           },
@@ -130,33 +105,16 @@ const config = {
             position: 'right',
             items: [
               {
-                label: 'Node.js',
-                to: 'https://www.npmjs.com/package/opendal'
-              },
-              {
-                label: 'Python',
-                to: 'https://pypi.org/project/opendal/'
-              },
-              {
-                label: 'Rust',
-                to: 'https://crates.io/crates/opendal'
-              },
-              {
-                type: 'html',
-                value: '<hr class="dropdown-separator">'
-              },
-              {
-                type: 'doc',
-                docId: 'CONTRIBUTING',
-                label: 'How to contribute'
-              },
-              {
                 label: 'Source Code',
                 to: repoAddress
               },
               {
                 label: 'Issues Tracker',
                 to: `${repoAddress}/issues/`
+              },
+              {
+                label: 'Code of Conduct',
+                to: 'https://www.apache.org/foundation/policies/conduct.html'
               }
             ]
           },
@@ -164,12 +122,6 @@ const config = {
             to: `${repoAddress}/releases`,
             label: 'Releases',
             position: 'right'
-          },
-          {
-            href: repoAddress,
-            position: 'right',
-            className: 'header-github-link',
-            'aria-label': 'GitHub repository',
           },
         ],
       },
@@ -206,32 +158,11 @@ const config = {
             ]
           },
           {
-            title: 'Docs',
-            items: [
-              {
-                label: 'Stable',
-                to: '/docs/intro',
-              },
-              {
-                label: 'Main',
-                to: '/docs/intro',
-              },
-            ],
-          },
-          {
             title: 'Community',
             items: [
               {
-                label: 'Stack Overflow',
-                to: 'https://stackoverflow.com/questions/tagged/opendal',
-              },
-              {
                 label: 'Discord',
                 to: 'https://discord.gg/XQy8yGR2dg',
-              },
-              {
-                label: 'Twitter',
-                to: 'https://twitter.com/OnlyXuanwo',
               },
             ],
           },

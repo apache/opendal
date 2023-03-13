@@ -24,7 +24,7 @@ import HomepageFeatures from '@site/src/components/HomepageFeatures';
 import styles from './index.module.css';
 
 function HomepageHeader() {
-  const {siteConfig} = useDocusaurusContext();
+  const { siteConfig } = useDocusaurusContext();
   return (
     <header className={clsx('hero', styles.heroBanner)}>
       <div className="container">
@@ -33,11 +33,11 @@ function HomepageHeader() {
           <b>Open</b> <b>D</b>ata <b>A</b>ccess <b>L</b>ayer: Access data <b>freely</b>, <b>painlessly</b>, and <b>efficiently</b>
         </p>
         <div className={styles.buttons}>
-          <Link
+          <a
             className="button button--secondary button--lg"
-            to="/docs/Overview">
+            href="/docs/rust/opendal/index.html">
             Get Start
-          </Link>
+          </a>
         </div>
       </div>
     </header>
@@ -45,7 +45,7 @@ function HomepageHeader() {
 }
 
 export default function Home() {
-  const {siteConfig} = useDocusaurusContext();
+  const { siteConfig } = useDocusaurusContext();
   return (
     <Layout
       description="OpenDAL is the Open Data Access Layer to freely, painlessly, and efficiently access data.">

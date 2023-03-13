@@ -422,7 +422,7 @@ impl Accessor for AzblobBackend {
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
             .set_name(&self.container)
-            .set_capabilities(Read | Write | List | Scan)
+            .set_capabilities(Read | Write | List | Scan | Batch)
             .set_hints(ReadStreamable);
 
         am
@@ -527,6 +527,31 @@ impl Accessor for AzblobBackend {
         );
 
         Ok((RpScan::default(), op))
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let ops = args.into_operation();
+        match ops {
+            BatchOperations::Delete(ops) => {
+                // even the Azure CLI implements batch delete by deleting files
+                // sequentially. So we use a sequential delete here.
+                let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+                let mut reps = Vec::with_capacity(paths.len());
+
+                for path in paths {
+                    let ret_pair = match self.delete(&path, OpDelete::default()).await {
+                        Ok(rp) => (path, Ok(rp)),
+                        Err(e) => (
+                            path,
+                            Err(Error::new(ErrorKind::Unexpected, &format!("{:?}", e))),
+                        ),
+                    };
+                    reps.push(ret_pair);
+                }
+
+                Ok(RpBatch::new(BatchedResults::Delete(reps)))
+            }
+        }
     }
 }
 

@@ -26,7 +26,6 @@ excludes = [
   "tests/data/**",
   "bindings/nodejs/.npmignore",
   "bindings/python/test_requirements.txt",
-  "website/pnpm-lock.yaml",
 
   # Env example that doesn't need license.
   ".env.example",

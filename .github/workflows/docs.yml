@@ -47,6 +47,10 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           ROCKSDB_LIB_DIR: /usr/lib
 
+      - name: Copy docs into build
+        run: |
+          cp -r ./target/doc ./website/static/docs/rust
+
       # Build website ---------------------------------------------------
       - uses: actions/setup-node@v3
         with:
@@ -71,10 +75,6 @@ jobs:
         working-directory: website
         run: |
           yarn build
-
-      - name: Copy docs into build
-        run: |
-          cp -r ./target/doc ./website/build/docs/rust
 
       # Start deploy --------------------------------------------------
       - name: Deploy to gh-pages

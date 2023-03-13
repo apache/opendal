@@ -33,11 +33,11 @@ function HomepageHeader() {
           <b>Open</b> <b>D</b>ata <b>A</b>ccess <b>L</b>ayer: Access data <b>freely</b>, <b>painlessly</b>, and <b>efficiently</b>
         </p>
         <div className={styles.buttons}>
-          <Link
+          <a
             className="button button--secondary button--lg"
-            to="/docs/rust/opendal/index.html">
+            href="/docs/rust/opendal/index.html">
             Get Start
-          </Link>
+          </a>
         </div>
       </div>
     </header>

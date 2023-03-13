@@ -19,6 +19,8 @@ use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::BufMut;
+use bytes::BytesMut;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -27,8 +29,10 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageSigner;
+use uuid::Uuid;
 
 use super::error::parse_error;
+use super::error::parse_http_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
 use crate::ops::*;
@@ -579,22 +583,40 @@ impl Accessor for AzblobBackend {
         let ops = args.into_operation();
         match ops {
             BatchOperations::Delete(ops) => {
-                // even the Azure CLI implements batch delete by deleting files
-                // sequentially. So we use a sequential delete here.
                 let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-                let mut reps = Vec::with_capacity(paths.len());
+                let resp = self.azblob_batch_del(paths.iter()).await?;
 
-                for path in paths {
-                    let ret_pair = match self.delete(&path, OpDelete::default()).await {
-                        Ok(rp) => (path, Ok(rp)),
-                        Err(e) => (
-                            path,
-                            Err(Error::new(ErrorKind::Unexpected, &format!("{:?}", e))),
-                        ),
-                    };
-                    reps.push(ret_pair);
+                if resp.status() != StatusCode::ACCEPTED {
+                    return Err(parse_error(resp).await?);
                 }
 
+                let content_type = resp.headers().get(CONTENT_TYPE).ok_or(Error::new(
+                    ErrorKind::Unexpected,
+                    "return data should have CONTENT_TYPE header",
+                ))?;
+                let content_type = content_type
+                    .to_str()
+                    .map(|ty| ty.to_string())
+                    .map_err(|e| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("get invalid CONTENT_TYPE header: {:?}", e),
+                        )
+                    })?;
+                let splits = content_type.split("boundary=").collect::<Vec<&str>>();
+                let boundary = splits.get(1).to_owned().ok_or(Error::new(
+                    ErrorKind::Unexpected,
+                    "No boundary message provided in CONTENT_TYPE",
+                ))?;
+
+                let body = resp.into_body().bytes().await?;
+                let body = String::from_utf8(body.to_vec()).map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("get invalid batch response {e:?}"),
+                    )
+                })?;
+                let reps = batch_del_resp_parse(boundary, body, paths)?;
                 Ok(RpBatch::new(BatchedResults::Delete(reps)))
             }
         }
@@ -752,11 +774,145 @@ impl AzblobBackend {
 
         self.client.send_async(req).await
     }
+
+    async fn azblob_batch_del(
+        &self,
+        paths: impl Iterator<Item = &String>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let boundary = format!("opendal-{}", Uuid::new_v4());
+        // init batch request
+        let url = format!("{}/{}?comp=batch", self.endpoint, self.container);
+        let req_builder = Request::post(&url).header(
+            CONTENT_TYPE,
+            format!("multipart/mixed; boundary={}", boundary),
+        );
+
+        let mut body = BytesMut::new();
+        for (idx, path) in paths.into_iter().enumerate() {
+            let endpoint = &self.endpoint;
+            let container = &self.container;
+            let mut block = format!(
+                r#"--{boundary}
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: {idx}
+
+DELETE /{container}/{path} HTTP/1.1
+"#
+            )
+            // replace LF with CRLF, required by Azure Storage Blobs service.
+            //
+            // The Rust compiler converts all CRLF sequences to LF when reading source files
+            // since 2019, so it is safe to convert here
+            .replace('\n', "\r\n");
+
+            let mut req = Request::delete(format!("{endpoint}/{container}/{path}"))
+                .header(CONTENT_LENGTH, 0)
+                .body(AsyncBody::Empty)
+                .map_err(new_request_build_error)?;
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+            for (k, v) in req.headers() {
+                let line = format!(
+                    "{}: {}\r\n",
+                    k,
+                    v.to_str()
+                        .expect("should be able to present as string, must be buggy")
+                );
+                block.push_str(&line);
+            }
+
+            body.put(block.as_bytes());
+        }
+        body.put(format!("--{}--", boundary).as_bytes());
+
+        let content_length = body.len();
+        let body = AsyncBody::Bytes(body.freeze());
+
+        let mut req = req_builder
+            .header(CONTENT_LENGTH, content_length)
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+}
+
+fn batch_del_resp_parse(
+    boundary: &str,
+    body: String,
+    expect: Vec<String>,
+) -> Result<Vec<(String, Result<RpDelete>)>> {
+    let mut reps = Vec::with_capacity(expect.len());
+
+    let mut resp_packs: Vec<&str> = body.split(&format!("--{boundary}")).collect();
+    if resp_packs.len() != (expect.len() + 2) {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "invalid batch delete response",
+        ));
+    }
+    // drop the tail
+    resp_packs.pop();
+    for (resp_pack, name) in resp_packs[1..].iter().zip(expect.into_iter()) {
+        // the http body use CRLF (\r\n) instead of LF (\n)
+        // split the body at double CRLF
+        let split: Vec<&str> = resp_pack.split("\r\n\r\n").collect();
+
+        let header: Vec<&str> = split
+            .get(1)
+            .ok_or(Error::new(
+                ErrorKind::Unexpected,
+                "Empty item in batch response",
+            ))?
+            .trim()
+            .split_ascii_whitespace()
+            .collect();
+
+        let status_code = header
+            .get(1)
+            .ok_or(Error::new(
+                ErrorKind::Unexpected,
+                "cannot find status code of HTTP response item!",
+            ))?
+            .parse::<u16>()
+            .map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("invalid status code: {:?}", e),
+                )
+            })?
+            .try_into()
+            .map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("invalid status code: {:?}", e),
+                )
+            })?;
+
+        let rep = match status_code {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => (name, Ok(RpDelete::default())),
+            s => {
+                let body = split.get(1).ok_or(Error::new(
+                    ErrorKind::Unexpected,
+                    "Empty HTTP error response",
+                ))?;
+                let err = parse_http_error(s, body)?;
+                (name, Err(err))
+            }
+        };
+        reps.push(rep)
+    }
+    Ok(reps)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{services::azblob::backend::infer_storage_name_from_endpoint, Builder};
+    use crate::{
+        services::azblob::backend::{batch_del_resp_parse, infer_storage_name_from_endpoint},
+        Builder,
+    };
 
     use super::AzblobBuilder;
 
@@ -925,5 +1081,81 @@ SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:0
         assert_eq!(builder.sas_token.unwrap(), "sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D");
         assert_eq!(builder.account_name, None);
         assert_eq!(builder.account_key, None);
+    }
+
+    #[test]
+    fn test_break_down_batch() {
+        // the last item in batch is a mocked response.
+        // if stronger validation is implemented for Azblob,
+        // feel free to replace or remove it.
+        let body = r#"409
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
+Content-Type: application/http 
+Content-ID: 0 
+
+HTTP/1.1 202 Accepted 
+x-ms-delete-type-permanent: true
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e284f 
+x-ms-version: 2018-11-09 
+
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
+Content-Type: application/http 
+Content-ID: 1 
+
+HTTP/1.1 202 Accepted 
+x-ms-delete-type-permanent: true
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2851 
+x-ms-version: 2018-11-09 
+
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
+Content-Type: application/http 
+Content-ID: 2 
+
+HTTP/1.1 404 The specified blob does not exist. 
+x-ms-error-code: BlobNotFound 
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2852 
+x-ms-version: 2018-11-09 
+Content-Length: 216 
+Content-Type: application/xml 
+
+<?xml version="1.0" encoding="utf-8"?> 
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist. 
+RequestId:778fdc83-801e-0000-62ff-0334671e2852 
+Time:2018-06-14T16:46:54.6040685Z</Message></Error> 
+
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
+Content-Type: application/http 
+Content-ID: 3 
+
+HTTP/1.1 403 Request to blob forbidden
+x-ms-error-code: BlobForbidden
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2852 
+x-ms-version: 2018-11-09 
+Content-Length: 216 
+Content-Type: application/xml 
+
+<?xml version="1.0" encoding="utf-8"?> 
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist. 
+RequestId:778fdc83-801e-0000-62ff-0334671e2852 
+Time:2018-06-14T16:46:54.6040685Z</Message></Error> 
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed-- 
+0
+            "#
+        .replace('\n', "\r\n")
+        .to_string();
+
+        let expected: Vec<_> = (0..=3).map(|n| format!("/to-del/{n}")).collect();
+        let boundary = "batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed";
+        let p = batch_del_resp_parse(boundary, body, expected.clone()).expect("must_success");
+        assert_eq!(p.len(), expected.len());
+        for (idx, ((del, rep), to_del)) in p.into_iter().zip(expected.into_iter()).enumerate() {
+            assert_eq!(del, to_del);
+
+            if idx != 3 {
+                assert!(rep.is_ok());
+            } else {
+                assert!(rep.is_err());
+            }
+        }
     }
 }

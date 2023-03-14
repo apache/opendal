@@ -82,6 +82,7 @@ jobs:
         if: github.event_name == 'push' && github.ref_name == 'main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          cname: opendal.databend.rs
           publish_dir: website/build
           publish_branch: gh-pages
 

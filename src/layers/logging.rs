@@ -27,6 +27,8 @@ use log::trace;
 use log::Level;
 
 use crate::ops::*;
+use crate::raw::oio::ReadOperation;
+use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -165,9 +167,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;
-    // TODO: we should add logging for writer.
-    type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
+    type Writer = LoggingWriter<A::Writer>;
+    type BlockingWriter = LoggingWriter<A::BlockingWriter>;
     type Pager = LoggingPager<A::Pager>;
     type BlockingPager = LoggingPager<A::BlockingPager>;
 
@@ -258,14 +259,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 );
                 (
                     rp,
-                    LoggingReader::new(
-                        self.scheme,
-                        Operation::Read,
-                        path,
-                        range.size(),
-                        r,
-                        self.failure_level,
-                    ),
+                    LoggingReader::new(self.scheme, Operation::Read, path, r, self.failure_level),
                 )
             })
             .map_err(|err| {
@@ -297,7 +291,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         self.inner
             .write(path, args)
             .await
-            .map(|v| {
+            .map(|(rp, w)| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> start writing",
@@ -305,7 +299,9 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     Operation::Write,
                     path,
                 );
-                v
+                let w =
+                    LoggingWriter::new(self.scheme, Operation::Write, path, w, self.failure_level);
+                (rp, w)
             })
             .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
@@ -634,7 +630,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     self.scheme,
                     Operation::BlockingRead,
                     path,
-                    args.range().size(),
                     r,
                     self.failure_level,
                 );
@@ -668,7 +663,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         self.inner
             .blocking_write(path, args)
-            .map(|v| {
+            .map(|(rp, w)| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> written",
@@ -676,7 +671,14 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     Operation::BlockingWrite,
                     path,
                 );
-                v
+                let w = LoggingWriter::new(
+                    self.scheme,
+                    Operation::BlockingWrite,
+                    path,
+                    w,
+                    self.failure_level,
+                );
+                (rp, w)
             })
             .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
@@ -865,8 +867,7 @@ pub struct LoggingReader<R> {
     path: String,
     op: Operation,
 
-    size: Option<u64>,
-    has_read: u64,
+    read: u64,
     failure_level: Option<Level>,
 
     inner: R,
@@ -877,7 +878,6 @@ impl<R> LoggingReader<R> {
         scheme: Scheme,
         op: Operation,
         path: &str,
-        size: Option<u64>,
         reader: R,
         failure_level: Option<Level>,
     ) -> Self {
@@ -886,8 +886,7 @@ impl<R> LoggingReader<R> {
             op,
             path: path.to_string(),
 
-            size,
-            has_read: 0,
+            read: 0,
 
             inner: reader,
             failure_level,
@@ -897,28 +896,13 @@ impl<R> LoggingReader<R> {
 
 impl<R> Drop for LoggingReader<R> {
     fn drop(&mut self) {
-        if let Some(size) = self.size {
-            if size == self.has_read {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> all data read finished",
-                    self.scheme,
-                    self.op,
-                    self.path,
-                    self.has_read
-                );
-
-                return;
-            }
-        }
-
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} has_read={} -> partial data read finished",
+            "service={} operation={} path={} read={} -> data read finished",
             self.scheme,
             self.op,
             self.path,
-            self.has_read
+            self.read
         );
     }
 }
@@ -928,14 +912,14 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
         match self.inner.poll_read(cx, buf) {
             Poll::Ready(res) => match res {
                 Ok(n) => {
-                    self.has_read += n as u64;
+                    self.read += n as u64;
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} has_read={} -> read {}B data",
+                        "service={} operation={} path={} read={} -> data read {}B ",
                         self.scheme,
-                        self.op,
+                        ReadOperation::Read,
                         self.path,
-                        self.has_read,
+                        self.read,
                         n
                     );
                     Poll::Ready(Ok(n))
@@ -945,11 +929,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                            "service={} operation={} path={} read={} -> data read failed: {err:?}",
                             self.scheme,
-                            self.op,
+                            ReadOperation::Read,
                             self.path,
-                            self.has_read,
+                            self.read,
                         )
                     }
                     Poll::Ready(Err(err))
@@ -958,11 +942,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
             Poll::Pending => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> pending",
+                    "service={} operation={} path={} read={} -> data read pending",
                     self.scheme,
-                    self.op,
+                    ReadOperation::Read,
                     self.path,
-                    self.has_read
+                    self.read
                 );
                 Poll::Pending
             }
@@ -970,21 +954,60 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        self.inner.poll_seek(cx, pos)
+        match self.inner.poll_seek(cx, pos) {
+            Poll::Ready(res) => match res {
+                Ok(n) => {
+                    trace!(
+                        target: LOGGING_TARGET,
+                        "service={} operation={} path={} read={} -> data seek to offset {n}",
+                        self.scheme,
+                        ReadOperation::Seek,
+                        self.path,
+                        self.read,
+                    );
+                    Poll::Ready(Ok(n))
+                }
+                Err(err) => {
+                    if let Some(lvl) = self.failure_level {
+                        log!(
+                            target: LOGGING_TARGET,
+                            lvl,
+                            "service={} operation={} path={} read={} -> data read failed: {err:?}",
+                            self.scheme,
+                            ReadOperation::Seek,
+                            self.path,
+                            self.read,
+                        )
+                    }
+                    Poll::Ready(Err(err))
+                }
+            },
+            Poll::Pending => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} read={} -> data seek pending",
+                    self.scheme,
+                    ReadOperation::Seek,
+                    self.path,
+                    self.read
+                );
+                Poll::Pending
+            }
+        }
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         match self.inner.poll_next(cx) {
             Poll::Ready(res) => match res {
                 Some(Ok(bs)) => {
-                    self.has_read += bs.len() as u64;
+                    self.read += bs.len() as u64;
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} has_read={} -> read {}B data",
+                        "service={} operation={} path={} read={} -> data read {}B",
                         self.scheme,
-                        self.op,
+                        ReadOperation::Next,
                         self.path,
-                        self.has_read,
+                        self.read,
                         bs.len()
                     );
                     Poll::Ready(Some(Ok(bs)))
@@ -994,11 +1017,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                            "service={} operation={} path={} read={} -> data read failed: {err:?}",
                             self.scheme,
-                            self.op,
+                            ReadOperation::Next,
                             self.path,
-                            self.has_read,
+                            self.read,
                         )
                     }
                     Poll::Ready(Some(Err(err)))
@@ -1008,11 +1031,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
             Poll::Pending => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> pending",
+                    "service={} operation={} path={} read={} -> data read pending",
                     self.scheme,
-                    self.op,
+                    ReadOperation::Next,
                     self.path,
-                    self.has_read
+                    self.read
                 );
                 Poll::Pending
             }
@@ -1024,14 +1047,14 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.inner.read(buf) {
             Ok(n) => {
-                self.has_read += n as u64;
+                self.read += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> read {}B data",
+                    "service={} operation={} path={} read={} -> data read {}B",
                     self.scheme,
-                    self.op,
+                    ReadOperation::BlockingRead,
                     self.path,
-                    self.has_read,
+                    self.read,
                     n
                 );
                 Ok(n)
@@ -1041,11 +1064,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                        "service={} operation={} path={} read={} -> data read failed: {err:?}",
                         self.scheme,
-                        self.op,
+                        ReadOperation::BlockingRead,
                         self.path,
-                        self.has_read,
+                        self.read,
                     );
                 }
                 Err(err)
@@ -1055,20 +1078,46 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
 
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+        match self.inner.seek(pos) {
+            Ok(n) => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} read={} -> data seek to offset {n}",
+                    self.scheme,
+                    ReadOperation::BlockingSeek,
+                    self.path,
+                    self.read,
+                );
+                Ok(n)
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} read={} -> data read failed: {err:?}",
+                        self.scheme,
+                        ReadOperation::BlockingSeek,
+                        self.path,
+                        self.read,
+                    );
+                }
+                Err(err)
+            }
+        }
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
         match self.inner.next() {
             Some(Ok(bs)) => {
-                self.has_read += bs.len() as u64;
+                self.read += bs.len() as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> read {}B data",
+                    "service={} operation={} path={} read={} -> data read {}B",
                     self.scheme,
-                    self.op,
+                    ReadOperation::BlockingNext,
                     self.path,
-                    self.has_read,
+                    self.read,
                     bs.len()
                 );
                 Some(Ok(bs))
@@ -1078,16 +1127,237 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                        "service={} operation={} path={} read={} -> data read failed: {err:?}",
                         self.scheme,
-                        self.op,
+                        ReadOperation::BlockingNext,
                         self.path,
-                        self.has_read,
+                        self.read,
                     )
                 }
                 Some(Err(err))
             }
             None => None,
+        }
+    }
+}
+
+pub struct LoggingWriter<W> {
+    scheme: Scheme,
+    op: Operation,
+    path: String,
+
+    written: u64,
+    failure_level: Option<Level>,
+
+    inner: W,
+}
+
+impl<W> LoggingWriter<W> {
+    fn new(
+        scheme: Scheme,
+        op: Operation,
+        path: &str,
+        writter: W,
+        failure_level: Option<Level>,
+    ) -> Self {
+        Self {
+            scheme,
+            op,
+            path: path.to_string(),
+
+            written: 0,
+            inner: writter,
+            failure_level,
+        }
+    }
+}
+
+impl<W> Drop for LoggingWriter<W> {
+    fn drop(&mut self) {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} path={} written={} -> data written finished",
+            self.scheme,
+            self.op,
+            self.path,
+            self.written
+        );
+    }
+}
+
+#[async_trait]
+impl<W: oio::Write> oio::Write for LoggingWriter<W> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        match self.inner.write(bs).await {
+            Ok(_) => {
+                self.written += size as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data write {}B",
+                    self.scheme,
+                    WriteOperation::Write,
+                    self.path,
+                    self.written,
+                    size
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::Write,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        match self.inner.append(bs).await {
+            Ok(_) => {
+                self.written += size as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data write {}B",
+                    self.scheme,
+                    WriteOperation::Append,
+                    self.path,
+                    self.written,
+                    size
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::Append,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        match self.inner.close().await {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> data close failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::Close,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+}
+
+impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        match self.inner.write(bs) {
+            Ok(_) => {
+                self.written += size as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data write {}B",
+                    self.scheme,
+                    WriteOperation::BlockingWrite,
+                    self.path,
+                    self.written,
+                    size
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::BlockingWrite,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        match self.inner.append(bs) {
+            Ok(_) => {
+                self.written += size as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data write {}B",
+                    self.scheme,
+                    WriteOperation::BlockingAppend,
+                    self.path,
+                    self.written,
+                    size
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::BlockingAppend,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
+    fn close(&mut self) -> Result<()> {
+        match self.inner.close() {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> data close failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::BlockingClose,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
         }
     }
 }

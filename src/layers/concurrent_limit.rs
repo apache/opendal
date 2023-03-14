@@ -51,6 +51,7 @@ use crate::*;
 ///     .layer(ConcurrentLimitLayer::new(1024))
 ///     .finish();
 /// ```
+#[derive(Clone)]
 pub struct ConcurrentLimitLayer {
     permits: usize,
 }

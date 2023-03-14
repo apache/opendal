@@ -18,10 +18,11 @@
 import os
 import opendal
 import pytest
+from opendal import layers
 
 
 def test_blocking():
-    op = opendal.Operator("memory")
+    op = opendal.Operator("memory", layers=[layers.RetryLayer()])
     op.write("test", b"Hello, World!")
     bs = op.read("test")
     assert bs == b"Hello, World!", bs
@@ -50,7 +51,9 @@ def test_blocking():
 
 @pytest.mark.asyncio
 async def test_async():
-    op = opendal.AsyncOperator("memory")
+    op = opendal.AsyncOperator(
+        "memory", layers=[layers.RetryLayer(), layers.ConcurrentLimitLayer(10)]
+    )
     await op.write("test", b"Hello, World!")
     bs = await op.read("test")
     assert bs == b"Hello, World!", bs

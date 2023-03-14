@@ -25,8 +25,9 @@ crate-type = ["cdylib"]
 name = "opendal"
 
 [dependencies]
+chrono = { version = "0.4.24", default-features = false, features = ["std"] }
 futures = "0.3.27"
 opendal = { version = "0.30", path = "../../" }
-pyo3 = { version = "0.18", features = ["extension-module"] }
+pyo3 = { version = "0.18", features = ["extension-module", "chrono"] }
 pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }
 tokio = "1"

@@ -65,7 +65,7 @@ use crate::*;
 ///     .layer(RetryLayer::new())
 ///     .finish();
 /// ```
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RetryLayer(ExponentialBuilder);
 
 impl RetryLayer {

@@ -33,12 +33,32 @@ use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 
 mod asyncio;
+mod layers;
 
 use crate::asyncio::*;
 
 create_exception!(opendal, Error, PyException);
 
-fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<od::Operator> {
+fn add_layers(mut op: od::Operator, layers: Vec<layers::Layer>) -> PyResult<od::Operator> {
+    for layer in layers {
+        match layer {
+            layers::Layer::Retry(layers::RetryLayer(inner)) => op = op.layer(inner),
+            layers::Layer::ImmutableIndex(layers::ImmutableIndexLayer(inner)) => {
+                op = op.layer(inner)
+            }
+            layers::Layer::ConcurrentLimit(layers::ConcurrentLimitLayer(inner)) => {
+                op = op.layer(inner)
+            }
+        }
+    }
+    Ok(op)
+}
+
+fn build_operator(
+    scheme: od::Scheme,
+    map: HashMap<String, String>,
+    layers: Vec<layers::Layer>,
+) -> PyResult<od::Operator> {
     use od::services::*;
 
     let op = match scheme {
@@ -86,7 +106,7 @@ fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<
         )))?,
     };
 
-    Ok(op)
+    add_layers(op, layers)
 }
 
 #[pyclass(module = "opendal")]
@@ -95,8 +115,8 @@ struct Operator(od::BlockingOperator);
 #[pymethods]
 impl Operator {
     #[new]
-    #[pyo3(signature = (scheme="", **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, *, layers=Vec::new(), **map))]
+    pub fn new(scheme: &str, layers: Vec<layers::Layer>, map: Option<&PyDict>) -> PyResult<Self> {
         let scheme = od::Scheme::from_str(scheme)
             .map_err(|err| {
                 od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
@@ -109,7 +129,7 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(build_operator(scheme, map)?.blocking()))
+        Ok(Operator(build_operator(scheme, map, layers)?.blocking()))
     }
 
     pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
@@ -339,5 +359,7 @@ fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;
     m.add("Error", py.get_type::<Error>())?;
+
+    m.add_submodule(layers::create_submodule(py)?)?;
     Ok(())
 }

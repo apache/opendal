@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Install rocksdb
-        run: sudo apt install librocksdb-dev
+        run: sudo apt install http://ftp.us.debian.org/debian/pool/main/r/rocksdb/librocksdb-dev_7.8.3-2_amd64.deb
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash

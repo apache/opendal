@@ -731,7 +731,16 @@ impl Operator {
     /// # }
     /// ```
     pub async fn remove_all(&self, path: &str) -> Result<()> {
-        let meta = self.stat(path).await?;
+        let meta = match self.stat(path).await {
+            // If object exists.
+            Ok(metadata) => metadata,
+
+            // If object not found, return success.
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+
+            // Pass on any other error.
+            Err(e) => return Err(e),
+        };
 
         if meta.mode() != EntryMode::DIR {
             return self.delete(path).await;

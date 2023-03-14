@@ -43,8 +43,10 @@ jobs:
       # we just use RocksDB for testing purposes and it is a simple enough.
       - name: Install rocksdb
         run: |
-          curl -o /tmp/librocksdb.deb "http://ftp.us.debian.org/debian/pool/main/r/rocksdb/librocksdb-dev_7.8.3-2_amd64.deb"
-          sudo apt install /tmp/librocksdb.deb
+          curl -o /tmp/librocksdb7.8.deb "http://ftp.us.debian.org/debian/pool/main/r/rocksdb/librocksdb7.8_7.8.3-2_amd64.deb"
+          curl -o /tmp/librocksdb-dev.deb "http://ftp.us.debian.org/debian/pool/main/r/rocksdb/librocksdb-dev_7.8.3-2_amd64.deb"
+          sudo apt install /tmp/librocksdb7.8.deb
+          sudo apt install /tmp/librocksdb-dev.deb
 
       - uses: Swatinem/rust-cache@v2
       - name: Test

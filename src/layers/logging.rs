@@ -422,6 +422,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     let streamer = LoggingPager::new(
                         self.scheme,
                         path,
+                        Operation::List,
                         v,
                         self.error_level,
                         self.failure_level,
@@ -469,6 +470,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     let streamer = LoggingPager::new(
                         self.scheme,
                         path,
+                        Operation::Scan,
                         v,
                         self.error_level,
                         self.failure_level,
@@ -785,8 +787,14 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     Operation::BlockingList,
                     path
                 );
-                let li =
-                    LoggingPager::new(self.scheme, path, v, self.error_level, self.failure_level);
+                let li = LoggingPager::new(
+                    self.scheme,
+                    path,
+                    Operation::BlockingList,
+                    v,
+                    self.error_level,
+                    self.failure_level,
+                );
                 (rp, li)
             })
             .map_err(|err| {
@@ -824,8 +832,14 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     Operation::BlockingScan,
                     path
                 );
-                let li =
-                    LoggingPager::new(self.scheme, path, v, self.error_level, self.failure_level);
+                let li = LoggingPager::new(
+                    self.scheme,
+                    path,
+                    Operation::BlockingScan,
+                    v,
+                    self.error_level,
+                    self.failure_level,
+                );
                 (rp, li)
             })
             .map_err(|err| {
@@ -887,7 +901,7 @@ impl<R> Drop for LoggingReader<R> {
             if size == self.has_read {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> consumed reader fully",
+                    "service={} operation={} path={} has_read={} -> all data read finished",
                     self.scheme,
                     self.op,
                     self.path,
@@ -900,7 +914,7 @@ impl<R> Drop for LoggingReader<R> {
 
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} has_read={} -> dropped reader",
+            "service={} operation={} path={} has_read={} -> partial data read finished",
             self.scheme,
             self.op,
             self.path,
@@ -917,12 +931,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     self.has_read += n as u64;
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} has_read={} -> {}: {}B",
+                        "service={} operation={} path={} has_read={} -> read {}B data",
                         self.scheme,
                         self.op,
                         self.path,
                         self.has_read,
-                        self.op,
                         n
                     );
                     Poll::Ready(Ok(n))
@@ -967,12 +980,11 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     self.has_read += bs.len() as u64;
                     trace!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} has_read={} -> {}: {}B",
+                        "service={} operation={} path={} has_read={} -> read {}B data",
                         self.scheme,
                         self.op,
                         self.path,
                         self.has_read,
-                        self.op,
                         bs.len()
                     );
                     Poll::Ready(Some(Ok(bs)))
@@ -1015,12 +1027,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 self.has_read += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> {}: {}B",
+                    "service={} operation={} path={} has_read={} -> read {}B data",
                     self.scheme,
                     self.op,
                     self.path,
                     self.has_read,
-                    self.op,
                     n
                 );
                 Ok(n)
@@ -1053,12 +1064,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 self.has_read += bs.len() as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> {}: {}B",
+                    "service={} operation={} path={} has_read={} -> read {}B data",
                     self.scheme,
                     self.op,
                     self.path,
                     self.has_read,
-                    self.op,
                     bs.len()
                 );
                 Some(Ok(bs))
@@ -1085,6 +1095,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
 pub struct LoggingPager<P> {
     scheme: Scheme,
     path: String,
+    op: Operation,
+
     finished: bool,
     inner: P,
     error_level: Option<Level>,
@@ -1095,6 +1107,7 @@ impl<P> LoggingPager<P> {
     fn new(
         scheme: Scheme,
         path: &str,
+        op: Operation,
         inner: P,
         error_level: Option<Level>,
         failure_level: Option<Level>,
@@ -1102,6 +1115,7 @@ impl<P> LoggingPager<P> {
         Self {
             scheme,
             path: path.to_string(),
+            op,
             finished: false,
             inner,
             error_level,
@@ -1115,17 +1129,17 @@ impl<P> Drop for LoggingPager<P> {
         if self.finished {
             debug!(
                 target: LOGGING_TARGET,
-                "service={} operation={} path={} -> consumed dir fully",
+                "service={} operation={} path={} -> all entries read finished",
                 self.scheme,
-                Operation::List,
+                self.op,
                 self.path
             );
         } else {
             debug!(
                 target: LOGGING_TARGET,
-                "service={} operation={} path={} -> dropped dir",
+                "service={} operation={} path={} -> partial entries read finished",
                 self.scheme,
-                Operation::List,
+                self.op,
                 self.path
             );
         }
@@ -1163,7 +1177,7 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> listed {} entries",
                     self.scheme,
-                    Operation::List,
+                    self.op,
                     self.path,
                     des.len(),
                 );
@@ -1171,10 +1185,7 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
             Ok(None) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.scheme,
-                    Operation::List,
-                    self.path
+                    "service={} operation={} path={} -> finished", self.scheme, self.op, self.path
                 );
                 self.finished = true;
             }
@@ -1185,7 +1196,7 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
                         lvl,
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::List,
+                        self.op,
                         self.path,
                         self.err_status(err)
                     )
@@ -1207,7 +1218,7 @@ impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> got {} entries",
                     self.scheme,
-                    Operation::BlockingList,
+                    self.op,
                     self.path,
                     des.len(),
                 );
@@ -1215,10 +1226,7 @@ impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
             Ok(None) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.scheme,
-                    Operation::BlockingList,
-                    self.path
+                    "service={} operation={} path={} -> finished", self.scheme, self.op, self.path
                 );
                 self.finished = true;
             }
@@ -1229,7 +1237,7 @@ impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
                         lvl,
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::BlockingList,
+                        self.op,
                         self.path,
                         self.err_status(err)
                     )

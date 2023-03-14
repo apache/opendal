@@ -146,7 +146,6 @@ struct MetricsHandler {
 
     requests_total_write: Counter,
     requests_duration_seconds_write: Histogram,
-    #[allow(dead_code)]
     bytes_total_write: Counter,
 
     requests_total_stat: Counter,
@@ -435,11 +434,10 @@ impl<A: Accessor> Debug for MetricsAccessor<A> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type Inner = A;
-    type Reader = MetricReader<A::Reader>;
-    type BlockingReader = MetricReader<A::BlockingReader>;
-    // TODO: add metrics for writer
-    type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
+    type Reader = MetricWrapper<A::Reader>;
+    type BlockingReader = MetricWrapper<A::BlockingReader>;
+    type Writer = MetricWrapper<A::Writer>;
+    type BlockingWriter = MetricWrapper<A::BlockingWriter>;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -491,7 +489,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
                 v.map(|(rp, r)| {
                     (
                         rp,
-                        MetricReader::new(
+                        MetricWrapper::new(
                             r,
                             Operation::Read,
                             self.handle.clone(),
@@ -517,10 +515,18 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
 
         self.inner
             .write(path, args)
-            .inspect_ok(|_| {
-                let dur = start.elapsed().as_secs_f64();
-
-                self.handle.requests_duration_seconds_write.record(dur);
+            .map_ok(|(rp, w)| {
+                (
+                    rp,
+                    MetricWrapper::new(
+                        w,
+                        Operation::Write,
+                        self.handle.clone(),
+                        self.handle.bytes_total_write.clone(),
+                        self.handle.requests_duration_seconds_write.clone(),
+                        Some(start),
+                    ),
+                )
             })
             .inspect_err(|e| {
                 self.handle
@@ -662,7 +668,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                MetricReader::new(
+                MetricWrapper::new(
                     r,
                     Operation::BlockingRead,
                     self.handle.clone(),
@@ -691,11 +697,25 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .requests_duration_seconds_blocking_write
             .record(dur);
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::BlockingWrite, e.kind());
-            e
-        })
+        result
+            .map(|(rp, w)| {
+                (
+                    rp,
+                    MetricWrapper::new(
+                        w,
+                        Operation::BlockingWrite,
+                        self.handle.clone(),
+                        self.handle.bytes_total_write.clone(),
+                        self.handle.requests_duration_seconds_write.clone(),
+                        Some(start),
+                    ),
+                )
+            })
+            .map_err(|e| {
+                self.handle
+                    .increment_errors_total(Operation::BlockingWrite, e.kind());
+                e
+            })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -771,7 +791,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     }
 }
 
-pub struct MetricReader<R> {
+pub struct MetricWrapper<R> {
     inner: R,
 
     op: Operation,
@@ -783,7 +803,7 @@ pub struct MetricReader<R> {
     bytes: u64,
 }
 
-impl<R> MetricReader<R> {
+impl<R> MetricWrapper<R> {
     fn new(
         inner: R,
         op: Operation,
@@ -804,7 +824,17 @@ impl<R> MetricReader<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for MetricReader<R> {
+impl<R> Drop for MetricWrapper<R> {
+    fn drop(&mut self) {
+        self.bytes_counter.increment(self.bytes);
+        if let Some(instant) = self.start {
+            let dur = instant.elapsed().as_secs_f64();
+            self.requests_duration_seconds.record(dur);
+        }
+    }
+}
+
+impl<R: oio::Read> oio::Read for MetricWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
@@ -812,15 +842,20 @@ impl<R: oio::Read> oio::Read for MetricReader<R> {
                 Ok(bytes)
             }
             Err(e) => {
-                self.handle
-                    .increment_errors_total(self.op, ErrorKind::Unexpected);
+                self.handle.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
         })
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        self.inner.poll_seek(cx, pos)
+        self.inner.poll_seek(cx, pos).map(|res| match res {
+            Ok(n) => Ok(n),
+            Err(e) => {
+                self.handle.increment_errors_total(self.op, e.kind());
+                Err(e)
+            }
+        })
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
@@ -830,8 +865,7 @@ impl<R: oio::Read> oio::Read for MetricReader<R> {
                 Some(Ok(bytes))
             }
             Some(Err(e)) => {
-                self.handle
-                    .increment_errors_total(self.op, ErrorKind::Unexpected);
+                self.handle.increment_errors_total(self.op, e.kind());
                 Some(Err(e))
             }
             None => None,
@@ -839,7 +873,7 @@ impl<R: oio::Read> oio::Read for MetricReader<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for MetricReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner
             .read(buf)
@@ -848,15 +882,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricReader<R> {
                 n
             })
             .map_err(|e| {
-                self.handle
-                    .increment_errors_total(self.op, ErrorKind::Unexpected);
+                self.handle.increment_errors_total(self.op, e.kind());
                 e
             })
     }
 
-    #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        self.inner.seek(pos)
+        self.inner.seek(pos).map_err(|err| {
+            self.handle.increment_errors_total(self.op, err.kind());
+            err
+        })
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
@@ -866,20 +901,74 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricReader<R> {
                 Ok(bytes)
             }
             Err(e) => {
-                self.handle
-                    .increment_errors_total(self.op, ErrorKind::Unexpected);
+                self.handle.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
         })
     }
 }
 
-impl<R> Drop for MetricReader<R> {
-    fn drop(&mut self) {
-        self.bytes_counter.increment(self.bytes);
-        if let Some(instant) = self.start {
-            let dur = instant.elapsed().as_secs_f64();
-            self.requests_duration_seconds.record(dur);
-        }
+#[async_trait]
+impl<R: oio::Write> oio::Write for MetricWrapper<R> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        self.inner
+            .write(bs)
+            .await
+            .map(|_| self.bytes += size as u64)
+            .map_err(|err| {
+                self.handle.increment_errors_total(self.op, err.kind());
+                err
+            })
+    }
+
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        self.inner
+            .append(bs)
+            .await
+            .map(|_| self.bytes += size as u64)
+            .map_err(|err| {
+                self.handle.increment_errors_total(self.op, err.kind());
+                err
+            })
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await.map_err(|err| {
+            self.handle.increment_errors_total(self.op, err.kind());
+            err
+        })
+    }
+}
+
+impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        self.inner
+            .write(bs)
+            .map(|_| self.bytes += size as u64)
+            .map_err(|err| {
+                self.handle.increment_errors_total(self.op, err.kind());
+                err
+            })
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        self.inner
+            .append(bs)
+            .map(|_| self.bytes += size as u64)
+            .map_err(|err| {
+                self.handle.increment_errors_total(self.op, err.kind());
+                err
+            })
+    }
+
+    fn close(&mut self) -> Result<()> {
+        self.inner.close().map_err(|err| {
+            self.handle.increment_errors_total(self.op, err.kind());
+            err
+        })
     }
 }

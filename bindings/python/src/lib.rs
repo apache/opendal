@@ -28,7 +28,10 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
-use pyo3_asyncio::tokio::future_into_py;
+
+mod asyncio;
+
+use crate::asyncio::*;
 
 create_exception!(opendal, Error, PyException);
 
@@ -84,75 +87,6 @@ fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<
 }
 
 #[pyclass(module = "opendal")]
-struct AsyncOperator(od::Operator);
-
-#[pymethods]
-impl AsyncOperator {
-    #[new]
-    #[pyo3(signature = (scheme, **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
-        let scheme = od::Scheme::from_str(scheme)
-            .map_err(|err| {
-                od::Error::new(od::ErrorKind::Unexpected, "not supported scheme").set_source(err)
-            })
-            .map_err(format_pyerr)?;
-        let map = map
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
-
-        Ok(AsyncOperator(build_operator(scheme, map)?))
-    }
-
-    pub fn read<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
-        let path = path.to_string();
-        future_into_py(py, async move {
-            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
-            let pybytes: PyObject = Python::with_gil(|py| PyBytes::new(py, &res).into());
-            Ok(pybytes)
-        })
-    }
-
-    pub fn write<'p>(&'p self, py: Python<'p>, path: &'p str, bs: Vec<u8>) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
-        let path = path.to_string();
-        future_into_py(py, async move {
-            this.write(&path, bs).await.map_err(format_pyerr)
-        })
-    }
-
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
-        let path = path.to_string();
-        future_into_py(py, async move {
-            let res: Metadata = this.stat(&path).await.map_err(format_pyerr).map(Metadata)?;
-
-            Ok(res)
-        })
-    }
-
-    pub fn create_dir<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
-        let path = path.to_string();
-        future_into_py(py, async move {
-            this.create_dir(&path).await.map_err(format_pyerr)
-        })
-    }
-
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: &'p str) -> PyResult<&'p PyAny> {
-        let this = self.0.clone();
-        let path = path.to_string();
-        future_into_py(
-            py,
-            async move { this.delete(&path).await.map_err(format_pyerr) },
-        )
-    }
-}
-
-#[pyclass(module = "opendal")]
 struct Operator(od::BlockingOperator);
 
 #[pymethods]
@@ -162,7 +96,7 @@ impl Operator {
     pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
         let scheme = od::Scheme::from_str(scheme)
             .map_err(|err| {
-                od::Error::new(od::ErrorKind::Unexpected, "not supported scheme").set_source(err)
+                od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
             })
             .map_err(format_pyerr)?;
         let map = map
@@ -253,7 +187,7 @@ impl Reader {
 
     pub fn write(&mut self, _bs: &[u8]) -> PyResult<()> {
         Err(PyNotImplementedError::new_err(
-            "BlockingReader does not support write",
+            "Reader does not support write",
         ))
     }
 
@@ -397,6 +331,7 @@ fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<Reader>()?;
     m.add_class::<AsyncOperator>()?;
+    m.add_class::<AsyncReader>()?;
     m.add_class::<Entry>()?;
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;

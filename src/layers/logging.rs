@@ -1157,7 +1157,7 @@ impl<W> LoggingWriter<W> {
         scheme: Scheme,
         op: Operation,
         path: &str,
-        writter: W,
+        writer: W,
         failure_level: Option<Level>,
     ) -> Self {
         Self {
@@ -1166,7 +1166,7 @@ impl<W> LoggingWriter<W> {
             path: path.to_string(),
 
             written: 0,
-            inner: writter,
+            inner: writer,
             failure_level,
         }
     }

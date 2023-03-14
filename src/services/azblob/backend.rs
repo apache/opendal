@@ -590,10 +590,12 @@ impl Accessor for AzblobBackend {
                     return Err(parse_error(resp).await?);
                 }
 
-                let content_type = resp.headers().get(CONTENT_TYPE).ok_or(Error::new(
-                    ErrorKind::Unexpected,
-                    "return data should have CONTENT_TYPE header",
-                ))?;
+                let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "return data should have CONTENT_TYPE header",
+                    )
+                })?;
                 let content_type = content_type
                     .to_str()
                     .map(|ty| ty.to_string())
@@ -604,10 +606,12 @@ impl Accessor for AzblobBackend {
                         )
                     })?;
                 let splits = content_type.split("boundary=").collect::<Vec<&str>>();
-                let boundary = splits.get(1).to_owned().ok_or(Error::new(
-                    ErrorKind::Unexpected,
-                    "No boundary message provided in CONTENT_TYPE",
-                ))?;
+                let boundary = splits.get(1).to_owned().ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "No boundary message provided in CONTENT_TYPE",
+                    )
+                })?;
 
                 let body = resp.into_body().bytes().await?;
                 let body = String::from_utf8(body.to_vec()).map_err(|e| {
@@ -862,20 +866,19 @@ fn batch_del_resp_parse(
 
         let header: Vec<&str> = split
             .get(1)
-            .ok_or(Error::new(
-                ErrorKind::Unexpected,
-                "Empty item in batch response",
-            ))?
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Empty item in batch response"))?
             .trim()
             .split_ascii_whitespace()
             .collect();
 
         let status_code = header
             .get(1)
-            .ok_or(Error::new(
-                ErrorKind::Unexpected,
-                "cannot find status code of HTTP response item!",
-            ))?
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "cannot find status code of HTTP response item!",
+                )
+            })?
             .parse::<u16>()
             .map_err(|e| {
                 Error::new(
@@ -894,10 +897,9 @@ fn batch_del_resp_parse(
         let rep = match status_code {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => (name, Ok(RpDelete::default())),
             s => {
-                let body = split.get(1).ok_or(Error::new(
-                    ErrorKind::Unexpected,
-                    "Empty HTTP error response",
-                ))?;
+                let body = split.get(1).ok_or_else(|| {
+                    Error::new(ErrorKind::Unexpected, "Empty HTTP error response")
+                })?;
                 let err = parse_http_error(s, body)?;
                 (name, Err(err))
             }
@@ -1141,8 +1143,7 @@ Time:2018-06-14T16:46:54.6040685Z</Message></Error>
 --batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed-- 
 0
             "#
-        .replace('\n', "\r\n")
-        .to_string();
+        .replace('\n', "\r\n");
 
         let expected: Vec<_> = (0..=3).map(|n| format!("/to-del/{n}")).collect();
         let boundary = "batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed";

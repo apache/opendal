@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// Suppress clippy::redundant_closure warning from pyo3 generated code
+#![allow(clippy::redundant_closure)]
+
 use std::collections::HashMap;
 use std::io::Read;
 use std::io::Seek;

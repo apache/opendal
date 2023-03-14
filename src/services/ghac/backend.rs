@@ -61,7 +61,7 @@ const GITHUB_REPOSITORY: &str = "GITHUB_REPOSITORY";
 /// The github API version that used by OpenDAL.
 const GITHUB_API_VERSION: &str = "2022-11-28";
 
-/// Github Action Cache Services support.
+/// GitHub Action Cache Services support.
 ///
 /// # Capabilities
 ///

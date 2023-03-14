@@ -57,8 +57,8 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
-    "build": "napi build --platform --release --js generated.js --js-package-name @opendal/lib",
-    "build:debug": "napi build --platform --js generated.js --js-package-name @opendal/lib",
+    "build": "napi build --platform --release --js generated.js --dts generated.d.ts --js-package-name @opendal/lib",
+    "build:debug": "napi build --platform --js generated.js --dts generated.d.ts --js-package-name @opendal/lib",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
     "version": "napi version"

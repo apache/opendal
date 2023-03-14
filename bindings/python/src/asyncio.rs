@@ -34,7 +34,7 @@ use tokio::io::AsyncReadExt;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::Mutex;
 
-use crate::{build_operator, format_pyerr, Entry, Metadata};
+use crate::{build_operator, format_pyerr, layers, Entry, Metadata};
 
 #[pyclass(module = "opendal")]
 pub struct AsyncOperator(od::Operator);
@@ -42,8 +42,8 @@ pub struct AsyncOperator(od::Operator);
 #[pymethods]
 impl AsyncOperator {
     #[new]
-    #[pyo3(signature = (scheme, **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, *, layers=Vec::new(), **map))]
+    pub fn new(scheme: &str, layers: Vec<layers::Layer>, map: Option<&PyDict>) -> PyResult<Self> {
         let scheme = od::Scheme::from_str(scheme)
             .map_err(|err| {
                 od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
@@ -56,7 +56,7 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map)?))
+        Ok(AsyncOperator(build_operator(scheme, map, layers)?))
     }
 
     pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {

@@ -22,13 +22,23 @@ excludes = [
 
   # Generated files
   "**/Cargo.lock",
+  "**/yarn.lock",
   "**/fixtures/**",
   "tests/data/**",
   "bindings/nodejs/.npmignore",
+  "bindings/nodejs/index.d.ts",
+  "bindings/nodejs/generated.js",
+  "**/*.node",
   "bindings/python/test_requirements.txt",
+  "**/__pycache__",
+  "**/.pytest_cache",
+  "website/build/**",
+  "website/static/.nojekyll",
+  "website/.docusaurus",
 
-  # Env example that doesn't need license.
+  # Files that doesn't need license.
   ".env.example",
+  ".env",
 
   # ascii is licensed under MIT from memcache-async
   "src/services/memcached/MIT-ascii.txt",

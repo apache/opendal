@@ -2154,7 +2154,7 @@ dependencies = [
  "pin-project",
  "pretty_assertions",
  "prost",
- "quick-xml",
+ "quick-xml 0.28.0",
  "rand 0.8.5",
  "redis",
  "reqsign",
@@ -2741,6 +2741,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a306703b4ad75d304a1bbc17d91d4399993caa163ad5028ffb044e5152ffcdd"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2938,7 +2948,7 @@ dependencies = [
  "log",
  "once_cell",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.27.1",
  "rand 0.8.5",
  "rsa",
  "rust-ini",

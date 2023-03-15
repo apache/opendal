@@ -1,16 +1,22 @@
-// Copyright 2022 Datafuse Labs
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+//   http://www.apache.org/licenses/LICENSE-2.0
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+// Suppress clippy::redundant_closure warning from pyo3 generated code
+#![allow(clippy::redundant_closure)]
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -30,12 +36,32 @@ use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 
 mod asyncio;
+mod layers;
 
 use crate::asyncio::*;
 
 create_exception!(opendal, Error, PyException);
 
-fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<od::Operator> {
+fn add_layers(mut op: od::Operator, layers: Vec<layers::Layer>) -> PyResult<od::Operator> {
+    for layer in layers {
+        match layer {
+            layers::Layer::Retry(layers::RetryLayer(inner)) => op = op.layer(inner),
+            layers::Layer::ImmutableIndex(layers::ImmutableIndexLayer(inner)) => {
+                op = op.layer(inner)
+            }
+            layers::Layer::ConcurrentLimit(layers::ConcurrentLimitLayer(inner)) => {
+                op = op.layer(inner)
+            }
+        }
+    }
+    Ok(op)
+}
+
+fn build_operator(
+    scheme: od::Scheme,
+    map: HashMap<String, String>,
+    layers: Vec<layers::Layer>,
+) -> PyResult<od::Operator> {
     use od::services::*;
 
     let op = match scheme {
@@ -83,7 +109,7 @@ fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> PyResult<
         )))?,
     };
 
-    Ok(op)
+    add_layers(op, layers)
 }
 
 #[pyclass(module = "opendal")]
@@ -92,8 +118,8 @@ struct Operator(od::BlockingOperator);
 #[pymethods]
 impl Operator {
     #[new]
-    #[pyo3(signature = (scheme="", **map))]
-    pub fn new(scheme: &str, map: Option<&PyDict>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, *, layers=Vec::new(), **map))]
+    pub fn new(scheme: &str, layers: Vec<layers::Layer>, map: Option<&PyDict>) -> PyResult<Self> {
         let scheme = od::Scheme::from_str(scheme)
             .map_err(|err| {
                 od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
@@ -106,7 +132,7 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(build_operator(scheme, map)?.blocking()))
+        Ok(Operator(build_operator(scheme, map, layers)?.blocking()))
     }
 
     pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
@@ -336,5 +362,7 @@ fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;
     m.add("Error", py.get_type::<Error>())?;
+
+    m.add_submodule(layers::create_submodule(py)?)?;
     Ok(())
 }

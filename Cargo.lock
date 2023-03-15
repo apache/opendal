@@ -1890,9 +1890,9 @@ dependencies = [
 
 [[package]]
 name = "napi"
-version = "2.11.4"
+version = "2.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e46a2274a0b01c5d80576b193ae573ddd1c10bf9739c80cf50029d69438eed8"
+checksum = "ec985d7083bf18f005e554d2a369160146450c70f1a270a023d47b27e274d7be"
 dependencies = [
  "bitflags",
  "ctor",
@@ -2177,6 +2177,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-c"
+version = "0.1.0"
+dependencies = [
+ "opendal",
+]
+
+[[package]]
 name = "opendal-nodejs"
 version = "0.30.2"
 dependencies = [
@@ -2192,6 +2199,7 @@ dependencies = [
 name = "opendal-python"
 version = "0.30.2"
 dependencies = [
+ "chrono",
  "futures",
  "opendal",
  "pyo3",
@@ -2634,6 +2642,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06a3d8e8a46ab2738109347433cb7b96dffda2e4a218b03ef27090238886b147"
 dependencies = [
  "cfg-if 1.0.0",
+ "chrono",
  "indoc",
  "libc",
  "memoffset",

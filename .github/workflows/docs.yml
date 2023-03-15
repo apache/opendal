@@ -40,7 +40,8 @@ jobs:
       - name: Install rocksdb
         run: sudo apt install librocksdb-dev
 
-      - uses: Swatinem/rust-cache@v2
+      # Disable until we are allowed
+      # - uses: Swatinem/rust-cache@v2
 
       - uses: actions-rs/cargo@v1
         with:
@@ -80,24 +81,27 @@ jobs:
           yarn build
 
       # Start deploy --------------------------------------------------
+      - name: Copy asf file
+        run:  cp .asf.yaml ./website/build/.asf.yaml
+
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3.9.2
         if: github.event_name == 'push' && github.ref_name == 'main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          cname: opendal.apache.org
           publish_dir: website/build
           publish_branch: gh-pages
 
-      - name: Deploy to vercel (preview)
-        if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
-        uses: amondnet/vercel-action@v25.1.1
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          alias-domains: |
-            opendal-git-{{BRANCH}}.vercel.app
-          scope: databend
-          working-directory: ./website/build
+      # Disable until we are allowed
+      # - name: Deploy to vercel (preview)
+      #   if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
+      #   uses: amondnet/vercel-action@v25.1.1
+      #   with:
+      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+      #     alias-domains: |
+      #       opendal-git-{{BRANCH}}.vercel.app
+      #     scope: databend
+      #     working-directory: ./website/build

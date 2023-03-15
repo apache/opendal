@@ -13,6 +13,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-github:
-  ghp_branch:  gh-pages
-  ghp_path:    /
+publish:
+  whoami: gh-pages

@@ -28,6 +28,10 @@ github:
     squash: true
     merge: false
     rebase: false
+  protected_branches:
+    main:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
 
 notifications:
   commits:      commits@opendal.apache.org

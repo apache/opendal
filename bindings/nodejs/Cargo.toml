@@ -31,7 +31,7 @@ napi = { version = "2.11.3", default-features = false, features = [
 ] }
 napi-derive = "2.11.1"
 opendal = { version = "0.30", path = "../../" }
-time = { version = "0.3.17", features = ["formatting"] }
+time = { version = "0.3.20", features = ["formatting"] }
 
 [build-dependencies]
 napi-build = "2"

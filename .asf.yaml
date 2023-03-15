@@ -13,5 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# NOTE: All configurations could be found here: https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
+github:
+  description: Apache OpenDAL
+  homepage: https://opendal.apache.org/
+  labels:
+    - rust
+    - storage
+    - s3
+    - gcs
+    - azblob
+    - redis
+  enabled_merge_buttons:
+    squash: true
+    merge: false
+    rebase: false
+
 publish:
   whoami: gh-pages

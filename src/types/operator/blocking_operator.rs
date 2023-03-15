@@ -66,10 +66,8 @@ impl BlockingOperator {
     }
 
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
-        Self {
-            accessor,
-            limit: 1000,
-        }
+        let limit = accessor.info().batch_limit();
+        Self { accessor, limit }
     }
 
     /// Get current operator's limit

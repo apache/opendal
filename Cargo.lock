@@ -2178,6 +2178,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-c"
+version = "0.1.0"
+dependencies = [
+ "opendal",
+]
+
+[[package]]
 name = "opendal-nodejs"
 version = "0.30.2"
 dependencies = [

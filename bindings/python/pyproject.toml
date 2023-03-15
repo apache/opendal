@@ -36,5 +36,5 @@ test = ["pytest", "pytest-asyncio"]
 
 [project.urls]
 Documentation = "https://docs.rs/opendal/"
-Homepage = "https://opendal.databend.rs/"
+Homepage = "https://opendal.apache.org/"
 Repository = "https://github.com/datafuselabs/opendal"

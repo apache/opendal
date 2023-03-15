@@ -31,7 +31,7 @@ const config = {
   favicon: 'img/favicon.ico',
 
   // TODO: Move to opendal.apache.org after migration.
-  url: 'https://opendal.databend.rs',
+  url: 'https://opendal.apache.org',
   baseUrl: '/',
 
   organizationName: 'Apache',
@@ -93,7 +93,7 @@ const config = {
             items: [
               {
                 label: 'Rust',
-                to: 'https://opendal.databend.rs/docs/rust/opendal/'
+                to: '/docs/rust/opendal/'
               },
             ]
           },

@@ -1442,7 +1442,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - docs: Cover all public types and functions (#128)
 - docs: Update README (#129)
-- ci: Generate main docs to <opendal.databend.rs> (#132)
+- ci: Generate main docs to <opendal.apache.org> (#132)
 - docs: Enrich README (#133)
 - Add examples for object (#135)
 

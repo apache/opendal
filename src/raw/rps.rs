@@ -243,7 +243,7 @@ mod tests {
     fn test_presigned_request_convert() -> Result<()> {
         let pr = PresignedRequest {
             method: Method::PATCH,
-            uri: Uri::from_static("https://opendal.databend.rs/path/to/file"),
+            uri: Uri::from_static("https://opendal.apache.org/path/to/file"),
             headers: {
                 let mut headers = HeaderMap::new();
                 headers.insert(CONTENT_LENGTH, "123".parse()?);
@@ -256,7 +256,7 @@ mod tests {
         let req: Request<AsyncBody> = pr.clone().into();
         assert_eq!(Method::PATCH, req.method());
         assert_eq!(
-            "https://opendal.databend.rs/path/to/file",
+            "https://opendal.apache.org/path/to/file",
             req.uri().to_string()
         );
         assert_eq!("123", req.headers().get(CONTENT_LENGTH).unwrap());
@@ -265,7 +265,7 @@ mod tests {
         let req: Request<Body> = pr.into();
         assert_eq!(Method::PATCH, req.method());
         assert_eq!(
-            "https://opendal.databend.rs/path/to/file",
+            "https://opendal.apache.org/path/to/file",
             req.uri().to_string()
         );
         assert_eq!("123", req.headers().get(CONTENT_LENGTH).unwrap());

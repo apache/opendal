@@ -228,8 +228,8 @@ Let's start with our errors.
 
 ## Error Handling
 
-As described in [RFC-0977: Refactor Error](https://opendal.databend.rs/rfcs/0977-refactor-error.html), we refactor opendal error by a new error
-called [`opendal::Error`](https://opendal.databend.rs/opendal/struct.Error.html).
+As described in [RFC-0977: Refactor Error](https://opendal.apache.org/rfcs/0977-refactor-error.html), we refactor opendal error by a new error
+called [`opendal::Error`](https://opendal.apache.org/opendal/struct.Error.html).
 
 This change will affect all APIs that are used to return `io::Error`.
 
@@ -301,7 +301,7 @@ Sorry for introducing too much breaking change in a single version. This version
 
 v0.20 is a big release that we introduce a lot of performance related changes.
 
-To make the best of information from `read` operation, we propose and implemented [RFC-0926: Object Reader](https://opendal.databend.rs/rfcs/0926-object-reader.html). By this RFC, we can fetch content length from `ObjectReader` now!
+To make the best of information from `read` operation, we propose and implemented [RFC-0926: Object Reader](https://opendal.apache.org/rfcs/0926-object-reader.html). By this RFC, we can fetch content length from `ObjectReader` now!
 
 ```rust
 pub struct ObjectReader {
@@ -371,7 +371,7 @@ We move `path String` out of the `OpXxx` to function args so that we don't need 
 + async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader>
 ```
 
-For more information about this change, please refer to [RFC-0661: Path In Accessor](https://opendal.databend.rs/rfcs/0661-path-in-accessor.html).
+For more information about this change, please refer to [RFC-0661: Path In Accessor](https://opendal.apache.org/rfcs/0661-path-in-accessor.html).
 
 And since OpenDAL v0.17, we will use `rustls` as default tls engine for our underlying http client. Since this release, we will not depend on `openssl` anymore.
 
@@ -400,7 +400,7 @@ async fn main() {
 }
 ```
 
-For more information about this change, please refer to [RFC-0627: Split Capabilities](https://opendal.databend.rs/rfcs/0627-split-capabilities.html).
+For more information about this change, please refer to [RFC-0627: Split Capabilities](https://opendal.apache.org/rfcs/0627-split-capabilities.html).
 
 # Upgrade to v0.14
 
@@ -428,13 +428,13 @@ The following APIs have affected by this change:
 - `Object::write_from` has been added to support write from a reader.
 - All layers should be refactored to adapt new `Accessor` trait.
 
-For more information about this change, please refer to [RFC-0554: Write Refactor](https://opendal.databend.rs/rfcs/0554-write-refactor.html).
+For more information about this change, please refer to [RFC-0554: Write Refactor](https://opendal.apache.org/rfcs/0554-write-refactor.html).
 
 # Upgrade to v0.13
 
 OpenDAL deprecate `Operator::with_backoff` since v0.13.
 
-Please use [`RetryLayer`](https://opendal.databend.rs/opendal/layers/struct.RetryLayer.html) instead:
+Please use [`RetryLayer`](https://opendal.apache.org/opendal/layers/struct.RetryLayer.html) instead:
 
 ```rust
 use anyhow::Result;
@@ -469,7 +469,7 @@ let op: Operator = Operator::new(builder.build()?);
 
 Along with these changes, `Operator::from_iter` and `Operator::from_env` now is a blocking API too.
 
-For more information about this change, please refer to [RFC-0501: New Builder](https://opendal.databend.rs/rfcs/0501-new-builder.html).
+For more information about this change, please refer to [RFC-0501: New Builder](https://opendal.apache.org/rfcs/0501-new-builder.html).
 
 The following APIs have been deprecated:
 

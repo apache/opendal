@@ -10,7 +10,7 @@
 
 **Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
 
-- Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.databend.rs/opendal/)
+- Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.apache.org/docs/rust/opendal/)
 - [Release notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 
 ![](https://user-images.githubusercontent.com/5351546/222356748-14276998-501b-4d2a-9b09-b8cff3018204.png)
@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
 }
 ```
 
-More examples could be found at [Documentation](https://opendal.databend.rs).
+More examples could be found at [Documentation](https://opendal.apache.org).
 
 ## Projects
 

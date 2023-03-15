@@ -59,6 +59,7 @@ impl AsyncOperator {
         Ok(AsyncOperator(build_operator(scheme, map, layers)?))
     }
 
+    /// Read asynchronously.
     pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {

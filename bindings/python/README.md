@@ -58,9 +58,16 @@ Build bindings:
 maturin develop
 ```
 
-Running some tests:
+Run some tests:
 
 ```shell
 maturin develop -E test
 pytest
+```
+
+Browse the documents
+
+```shell
+maturin develop -E docs
+pdoc opendal
 ```

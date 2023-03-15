@@ -32,6 +32,7 @@ readme = "README.md"
 requires-python = ">=3.7"
 
 [project.optional-dependencies]
+docs = ["pdoc"]
 test = ["pytest", "pytest-asyncio"]
 
 [project.urls]

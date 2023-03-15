@@ -25,8 +25,8 @@ crate-type = ["cdylib"]
 name = "opendal"
 
 [dependencies]
-opendal = { version = "0.30", path = "../../" }
 libc = "0.2"
+opendal = { version = "0.30", path = "../../" }
 
 [build-dependencies]
 cbindgen = "0.24"

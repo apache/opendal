@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -27,6 +28,7 @@ use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::Uri;
 use log::debug;
 use reqsign::AzureStorageSigner;
 use uuid::Uuid;
@@ -51,6 +53,8 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
     "blob.core.usgovcloudapi.net",
     "blob.core.chinacloudapi.cn",
 ];
+
+const AZBLOB_BATCH_LIMIT: usize = 256;
 
 /// Azure Storage Blob services support.
 ///
@@ -398,7 +402,16 @@ impl Builder for AzblobBuilder {
                 .account_key(key);
         }
 
-        let signer = signer_builder.build().map_err(|e| {
+        let signer = signer_builder.clone().build().map_err(|e| {
+            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azblob)
+                .with_context("endpoint", &endpoint)
+                .with_context("container", container.as_str())
+                .set_source(e)
+        })?;
+        signer_builder.omit_service_version();
+        let sub_req_signer = signer_builder.build().map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azblob)
@@ -412,6 +425,7 @@ impl Builder for AzblobBuilder {
             root,
             endpoint,
             signer: Arc::new(signer),
+            batch_signer: Arc::new(sub_req_signer),
             container: self.container.clone(),
             client,
             _account_name: account_name.unwrap_or_default(),
@@ -452,6 +466,7 @@ pub struct AzblobBackend {
     root: String, // root will be "/" or /abc/
     endpoint: String,
     pub signer: Arc<AzureStorageSigner>,
+    pub batch_signer: Arc<AzureStorageSigner>,
     _account_name: String,
 }
 
@@ -584,44 +599,60 @@ impl Accessor for AzblobBackend {
         match ops {
             BatchOperations::Delete(ops) => {
                 let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-                let resp = self.azblob_batch_del(paths.iter()).await?;
+                // vector to store all the results
+                let mut results = Vec::with_capacity(paths.len());
 
-                if resp.status() != StatusCode::ACCEPTED {
-                    return Err(parse_error(resp).await?);
-                }
+                let batches = paths.chunks(AZBLOB_BATCH_LIMIT);
+                for batch in batches {
+                    let batch = batch.to_vec();
+                    // construct and complete batch request
+                    let resp = self.azblob_batch_del(batch.iter()).await?;
 
-                let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "return data should have CONTENT_TYPE header",
-                    )
-                })?;
-                let content_type = content_type
-                    .to_str()
-                    .map(|ty| ty.to_string())
-                    .map_err(|e| {
+                    // check response status
+                    if resp.status() != StatusCode::ACCEPTED {
+                        return Err(parse_error(resp).await?);
+                    }
+
+                    // get boundary from response header
+                    let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            &format!("get invalid CONTENT_TYPE header: {:?}", e),
+                            "response data should have CONTENT_TYPE header",
                         )
                     })?;
-                let splits = content_type.split("boundary=").collect::<Vec<&str>>();
-                let boundary = splits.get(1).to_owned().ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "No boundary message provided in CONTENT_TYPE",
-                    )
-                })?;
+                    let content_type =
+                        content_type
+                            .to_str()
+                            .map(|ty| ty.to_string())
+                            .map_err(|e| {
+                                Error::new(
+                                    ErrorKind::Unexpected,
+                                    &format!(
+                                        "get invalid CONTENT_TYPE header in response: {:?}",
+                                        e
+                                    ),
+                                )
+                            })?;
+                    let splits = content_type.split("boundary=").collect::<Vec<&str>>();
+                    let boundary = splits.get(1).to_owned().ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "No boundary message provided in CONTENT_TYPE",
+                        )
+                    })?;
 
-                let body = resp.into_body().bytes().await?;
-                let body = String::from_utf8(body.to_vec()).map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("get invalid batch response {e:?}"),
-                    )
-                })?;
-                let reps = batch_del_resp_parse(boundary, body, paths)?;
-                Ok(RpBatch::new(BatchedResults::Delete(reps)))
+                    let body = resp.into_body().bytes().await?;
+                    let body = String::from_utf8(body.to_vec()).map_err(|e| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("get invalid batch response {e:?}"),
+                        )
+                    })?;
+
+                    let batch_results = batch_del_resp_parse(boundary, body, batch)?;
+                    results.extend(batch_results);
+                }
+                Ok(RpBatch::new(BatchedResults::Delete(results)))
             }
         }
     }
@@ -785,46 +816,75 @@ impl AzblobBackend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let boundary = format!("opendal-{}", Uuid::new_v4());
         // init batch request
-        let url = format!("{}/{}?comp=batch", self.endpoint, self.container);
+        let url = format!(
+            "{}/{}?restype=container&comp=batch",
+            self.endpoint, self.container
+        );
         let req_builder = Request::post(&url).header(
             CONTENT_TYPE,
             format!("multipart/mixed; boundary={}", boundary),
         );
 
         let mut body = BytesMut::new();
+
         for (idx, path) in paths.into_iter().enumerate() {
-            let endpoint = &self.endpoint;
-            let container = &self.container;
-            let mut block = format!(
+            // build sub requests
+            let p = build_abs_path(&self.root, path);
+            let encoded_path = percent_encode_path(&p);
+
+            let url = Uri::from_str(&format!(
+                "{}/{}/{}",
+                self.endpoint, self.container, encoded_path
+            ))
+            .unwrap();
+            let path = url.path();
+
+            let block = format!(
                 r#"--{boundary}
 Content-Type: application/http
 Content-Transfer-Encoding: binary
 Content-ID: {idx}
 
-DELETE /{container}/{path} HTTP/1.1
+DELETE {path} HTTP/1.1
 "#
-            )
+            );
             // replace LF with CRLF, required by Azure Storage Blobs service.
             //
             // The Rust compiler converts all CRLF sequences to LF when reading source files
             // since 2019, so it is safe to convert here
-            .replace('\n', "\r\n");
+            let mut block = block.replace('\n', "\r\n");
 
-            let mut req = Request::delete(format!("{endpoint}/{container}/{path}"))
+            let mut sub_req = Request::delete(&url.to_string())
                 .header(CONTENT_LENGTH, 0)
                 .body(AsyncBody::Empty)
                 .map_err(new_request_build_error)?;
-            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+            self.batch_signer
+                .sign(&mut sub_req)
+                .map_err(new_request_sign_error)?;
 
-            for (k, v) in req.headers() {
-                let line = format!(
-                    "{}: {}\r\n",
-                    k,
-                    v.to_str()
-                        .expect("should be able to present as string, must be buggy")
-                );
-                block.push_str(&line);
-            }
+            let headers: Vec<(String, String)> = sub_req
+                .headers()
+                .iter()
+                .filter_map(|(k, v)| {
+                    let (k, v) = (
+                        k.as_str().to_string(),
+                        v.to_str().expect("must be valid header").to_string(),
+                    );
+                    if k.to_lowercase() == "x-ms-version" {
+                        None
+                    } else {
+                        Some((k, v))
+                    }
+                })
+                .collect();
+
+            let headers = headers
+                .into_iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<String>>()
+                .join("\r\n");
+            block.push_str(&headers);
+            block.push_str("\r\n");
 
             body.put(block.as_bytes());
         }
@@ -850,7 +910,7 @@ fn batch_del_resp_parse(
 ) -> Result<Vec<(String, Result<RpDelete>)>> {
     let mut reps = Vec::with_capacity(expect.len());
 
-    let mut resp_packs: Vec<&str> = body.split(&format!("--{boundary}")).collect();
+    let mut resp_packs: Vec<&str> = body.trim().split(&format!("--{boundary}")).collect();
     if resp_packs.len() != (expect.len() + 2) {
         return Err(Error::new(
             ErrorKind::Unexpected,
@@ -1090,60 +1150,57 @@ SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:0
         // the last item in batch is a mocked response.
         // if stronger validation is implemented for Azblob,
         // feel free to replace or remove it.
-        let body = r#"409
---batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
-Content-Type: application/http 
-Content-ID: 0 
+        let body = r#"--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed
+Content-Type: application/http
+Content-ID: 0
 
-HTTP/1.1 202 Accepted 
+HTTP/1.1 202 Accepted
 x-ms-delete-type-permanent: true
-x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e284f 
-x-ms-version: 2018-11-09 
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e284f
+x-ms-version: 2018-11-09
 
---batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
-Content-Type: application/http 
-Content-ID: 1 
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed
+Content-Type: application/http
+Content-ID: 1
 
-HTTP/1.1 202 Accepted 
+HTTP/1.1 202 Accepted
 x-ms-delete-type-permanent: true
-x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2851 
-x-ms-version: 2018-11-09 
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2851
+x-ms-version: 2018-11-09
 
---batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
-Content-Type: application/http 
-Content-ID: 2 
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed
+Content-Type: application/http
+Content-ID: 2
 
-HTTP/1.1 404 The specified blob does not exist. 
-x-ms-error-code: BlobNotFound 
-x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2852 
-x-ms-version: 2018-11-09 
-Content-Length: 216 
-Content-Type: application/xml 
+HTTP/1.1 404 The specified blob does not exist.
+x-ms-error-code: BlobNotFound
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2852
+x-ms-version: 2018-11-09
+Content-Length: 216
+Content-Type: application/xml
 
-<?xml version="1.0" encoding="utf-8"?> 
-<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist. 
-RequestId:778fdc83-801e-0000-62ff-0334671e2852 
-Time:2018-06-14T16:46:54.6040685Z</Message></Error> 
+<?xml version="1.0" encoding="utf-8"?>
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+RequestId:778fdc83-801e-0000-62ff-0334671e2852
+Time:2018-06-14T16:46:54.6040685Z</Message></Error>
 
---batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed 
-Content-Type: application/http 
-Content-ID: 3 
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed
+Content-Type: application/http
+Content-ID: 3
 
 HTTP/1.1 403 Request to blob forbidden
 x-ms-error-code: BlobForbidden
-x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2852 
-x-ms-version: 2018-11-09 
-Content-Length: 216 
-Content-Type: application/xml 
+x-ms-request-id: 778fdc83-801e-0000-62ff-0334671e2852
+x-ms-version: 2018-11-09
+Content-Length: 216
+Content-Type: application/xml
 
-<?xml version="1.0" encoding="utf-8"?> 
-<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist. 
-RequestId:778fdc83-801e-0000-62ff-0334671e2852 
-Time:2018-06-14T16:46:54.6040685Z</Message></Error> 
---batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed-- 
-0
-            "#
-        .replace('\n', "\r\n");
+<?xml version="1.0" encoding="utf-8"?>
+<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.
+RequestId:778fdc83-801e-0000-62ff-0334671e2852
+Time:2018-06-14T16:46:54.6040685Z</Message></Error>
+--batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed--"#
+            .replace('\n', "\r\n");
 
         let expected: Vec<_> = (0..=3).map(|n| format!("/to-del/{n}")).collect();
         let boundary = "batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed";

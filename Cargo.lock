@@ -211,6 +211,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-tls"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfeefd0ca297cbbb3bd34fd6b228401c2a5177038257afd751bc29f0a2da4795"
+dependencies = [
+ "futures-core",
+ "futures-io",
+ "rustls 0.20.8",
+ "rustls-pemfile",
+ "webpki 0.22.0",
+ "webpki-roots 0.22.6",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2123,7 +2137,7 @@ version = "0.30.2"
 dependencies = [
  "anyhow",
  "async-compat",
- "async-tls",
+ "async-tls 0.12.0",
  "async-trait",
  "backon",
  "base64 0.21.0",
@@ -3484,7 +3498,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d865bcb2d4bfea8c0ab4ca6c3f79d011ad04db5ef1fc693e720299bb60c58018"
 dependencies = [
  "async-std",
- "async-tls",
+ "async-tls 0.11.0",
  "chrono",
  "lazy-regex",
  "log",

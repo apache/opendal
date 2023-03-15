@@ -103,7 +103,7 @@ name = "ops"
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"
-async-tls = { version = "0.11", optional = true }
+async-tls = { version = "0.12", optional = true }
 async-trait = "0.1.66"
 backon = "0.4.0"
 base64 = "0.21"

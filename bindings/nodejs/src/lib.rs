@@ -100,6 +100,7 @@ impl Operator {
         build_operator(scheme, options).map(Operator)
     }
 
+    /// Get current path's metadata **without cache** directly.
     #[napi]
     pub async fn stat(&self, path: String) -> Result<Metadata> {
         let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
@@ -107,6 +108,7 @@ impl Operator {
         Ok(Metadata(meta))
     }
 
+    /// Get current path's metadata **without cache** directly and synchronously.
     #[napi]
     pub fn stat_sync(&self, path: String) -> Result<Metadata> {
         let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
@@ -114,11 +116,13 @@ impl Operator {
         Ok(Metadata(meta))
     }
 
+    /// Create dir with given path.
     #[napi]
     pub async fn create_dir(&self, path: String) -> Result<()> {
         self.0.create_dir(&path).await.map_err(format_napi_error)
     }
 
+    /// Create dir with given path synchronously.
     #[napi]
     pub fn create_dir_sync(&self, path: String) -> Result<()> {
         self.0
@@ -127,35 +131,41 @@ impl Operator {
             .map_err(format_napi_error)
     }
 
+    /// Write bytes into path.
     #[napi]
     pub async fn write(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.write(&path, c).await.map_err(format_napi_error)
     }
 
+    /// Write bytes into path synchronously.
     #[napi]
     pub fn write_sync(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
 
+    /// Read the whole path into a buffer.
     #[napi]
     pub async fn read(&self, path: String) -> Result<Buffer> {
         let res = self.0.read(&path).await.map_err(format_napi_error)?;
         Ok(res.into())
     }
 
+    /// Read the whole path into a buffer synchronously.
     #[napi]
     pub fn read_sync(&self, path: String) -> Result<Buffer> {
         let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
         Ok(res.into())
     }
 
+    /// List dir in flat way.
     #[napi]
     pub async fn scan(&self, path: String) -> Result<Lister> {
         Ok(Lister(self.0.scan(&path).await.map_err(format_napi_error)?))
     }
 
+    /// List dir in flat way synchronously.
     #[napi]
     pub fn scan_sync(&self, path: String) -> Result<BlockingLister> {
         Ok(BlockingLister(
@@ -163,21 +173,34 @@ impl Operator {
         ))
     }
 
+    /// Delete the given path.
     #[napi]
     pub async fn delete(&self, path: String) -> Result<()> {
         self.0.delete(&path).await.map_err(format_napi_error)
     }
 
+    /// Delete the given path synchronously.
     #[napi]
     pub fn delete_sync(&self, path: String) -> Result<()> {
         self.0.blocking().delete(&path).map_err(format_napi_error)
     }
 
+
+    /// List given path.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
     #[napi]
     pub async fn list(&self, path: String) -> Result<Lister> {
         Ok(Lister(self.0.list(&path).await.map_err(format_napi_error)?))
     }
 
+    /// List given path synchronously.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
     #[napi]
     pub fn list_sync(&self, path: String) -> Result<BlockingLister> {
         Ok(BlockingLister(
@@ -191,6 +214,7 @@ pub struct Entry(opendal::Entry);
 
 #[napi]
 impl Entry {
+    // Return the path of this entry.
     #[napi]
     pub fn path(&self) -> String {
         self.0.path().to_string()

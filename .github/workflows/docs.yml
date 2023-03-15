@@ -55,7 +55,7 @@ jobs:
         run: |
           cp -r ./target/doc ./website/static/docs/rust
 
-      # Build website ---------------------------------------------------
+      # Set node.js environment
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
@@ -70,6 +70,28 @@ jobs:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
+      # Build bindings/nodejs docs
+      - name: Corepack
+        working-directory: bindings/nodejs
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: bindings/nodejs
+        run: yarn install
+
+      - name: Build
+        working-directory: bindings/nodejs
+        run: yarn build
+
+      - name: Build bindings/nodejs Docs
+        working-directory: bindings/nodejs
+        run: yarn docs
+
+      - name: Copy docs into build
+        run: |
+          cp -r ./bindings/nodejs/docs ./website/static/docs/js
+
+      # Build website ---------------------------------------------------
       - name: Install Dependencies
         working-directory: website
         run: |

@@ -15,23 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-edition = "2021"
-name = "opendal-nodejs"
-version = "0.30.2"
-
-[lib]
-crate-type = ["cdylib"]
-
-[dependencies]
-futures = "0.3.26"
-napi = { version = "2.11.3", default-features = false, features = [
-  "napi6",
-  "async",
-] }
-napi-derive = "2.11.1"
-opendal = { version = "0.30", path = "../../" }
-time = { version = "0.3.17", features = ["formatting"] }
-
-[build-dependencies]
-napi-build = "2"
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-musl-gcc"
+rustflags = ["-C", "target-feature=-crt-static"]

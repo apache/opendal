@@ -38,6 +38,7 @@ debug = true
 
 [workspace]
 members = [
+  "bindings/c",
   "bindings/nodejs",
   "bindings/object_store",
   "bindings/python",

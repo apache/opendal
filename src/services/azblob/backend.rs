@@ -33,7 +33,7 @@ use http::Uri;
 use log::debug;
 use reqsign::AzureStorageSigner;
 
-use super::batch::batch_delete_response_parse;
+use super::batch::parse_batch_delete_response;
 use super::batch::BatchDeleteRequestBuilder;
 use super::error::parse_error;
 use super::pager::AzblobPager;
@@ -646,7 +646,7 @@ impl Accessor for AzblobBackend {
                     )
                 })?;
 
-                let results = batch_delete_response_parse(boundary, body, paths)?;
+                let results = parse_batch_delete_response(boundary, body, paths)?;
                 Ok(RpBatch::new(BatchedResults::Delete(results)))
             }
         }

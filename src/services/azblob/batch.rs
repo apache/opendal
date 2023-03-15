@@ -109,7 +109,7 @@ Content-ID: {idx}
     }
 }
 
-pub(super) fn batch_delete_response_parse(
+pub(super) fn parse_batch_delete_response(
     boundary: &str,
     body: String,
     expect: Vec<String>,
@@ -184,7 +184,7 @@ mod test {
 
     use super::BatchDeleteRequestBuilder;
     use crate::raw::AsyncBody;
-    use crate::services::azblob::batch::batch_delete_response_parse;
+    use crate::services::azblob::batch::parse_batch_delete_response;
 
     #[test]
     fn batch_delete_req_builder_test() -> Result<()> {
@@ -298,7 +298,7 @@ Time:2018-06-14T16:46:54.6040685Z</Message></Error>
         let expected: Vec<_> = (0..=3).map(|n| format!("/to-del/{n}")).collect();
         let boundary = "batchresponse_66925647-d0cb-4109-b6d3-28efe3e1e5ed";
         let p =
-            batch_delete_response_parse(boundary, body, expected.clone()).expect("must_success");
+            parse_batch_delete_response(boundary, body, expected.clone()).expect("must_success");
         assert_eq!(p.len(), expected.len());
         for (idx, ((del, rep), to_del)) in p.into_iter().zip(expected.into_iter()).enumerate() {
             assert_eq!(del, to_del);

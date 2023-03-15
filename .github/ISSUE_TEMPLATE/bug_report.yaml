@@ -1,0 +1,63 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Bug Report
+description: Create a bug report to help improve OpenDAL
+labels: ["bug"]
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      values: |
+        Before submitting an issue, please make sure there are no duplicate issues. You can search the [issue list](https://github.com/datafuselabs/opendal/issues) in this repository to confirm this. If there is a duplicate issue, please comment directly on that existing one.
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: Please including details regarding any error messages and the version which you are using.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: Steps to reproduce the bug.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Describe the results you expected to happen.
+      description: A clear and concise description of what you expected.
+      validations:
+        required: true
+  - type: dropdown
+    id: area
+    attributes:
+      multiple: true
+      label: Which area are you seeing the problem on?
+      options:
+        - rust
+        - documentation
+        - tests
+        - github_actions
+        - bindings/nodejs
+        - bindings/python
+        - bindings/c
+        - bindings/object-store
+        - website
+        - other
+    validations:
+      required: true

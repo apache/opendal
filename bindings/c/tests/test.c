@@ -29,11 +29,23 @@ static void test_hello_opendal(void **state)
 	hello_opendal();
 }
 
+static void test_blocking_op(void **state)
+{
+	(void)state; /* unused */
+
+	BlockingOperator *op = blocking_op_create();
+	DynArray wbs = {"hello, world!", 13};
+	blocking_write(op, "opendal", &wbs);
+	DynArray rbs = blocking_read(op, "opendal");
+	printf("%s\n", rbs);
+}
+
 int main(int argc, char **argv)
 {
 
 	const struct CMUnitTest tests[] = {
-		cmocka_unit_test(test_hello_opendal)};
+		cmocka_unit_test(test_hello_opendal),
+		cmocka_unit_test(test_blocking_op)};
 
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }

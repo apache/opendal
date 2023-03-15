@@ -19,7 +19,7 @@ RPATH=$(PWD)/../../target/debug
 CFLAGS = -I./include
 LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS = -lopendal
-OBJ_DIR=build/
+OBJ_DIR=c_target
 LDLIBS_CMOCKA = -lcmocka
 LDFLAGS_CMOCKA = -Wl,--wrap=write -Wl,--wrap=read
 

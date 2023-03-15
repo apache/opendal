@@ -26,3 +26,7 @@ name = "opendal"
 
 [dependencies]
 opendal = { version = "0.30", path = "../../" }
+libc = "0.2"
+
+[build-dependencies]
+cbindgen = "0.24"

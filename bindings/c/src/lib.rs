@@ -15,11 +15,60 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::{services::Memory, Operator};
+use core::slice;
+
+use std::ffi::CStr;
+
+use opendal as od;
+use opendal::services::Memory;
+
+pub struct BlockingOperator {
+    op: od::BlockingOperator,
+}
+
+#[repr(C)]
+pub struct DynArray {
+    array: *mut u8,
+    length: libc::size_t,
+}
 
 /// Hello, OpenDAL!
 #[no_mangle]
 pub extern "C" fn hello_opendal() {
-    let op = Operator::new(Memory::default()).unwrap().finish();
+    let op = od::Operator::new(Memory::default()).unwrap().finish();
     println!("{op:?}")
+}
+
+#[no_mangle]
+pub extern "C" fn blocking_op_create() -> *mut BlockingOperator {
+    let op = od::Operator::new(od::services::Memory::default())
+        .unwrap()
+        .finish()
+        .blocking();
+
+    Box::into_raw(Box::new(BlockingOperator { op }))
+}
+
+#[no_mangle]
+pub extern "C" fn blocking_read(op: &BlockingOperator, path: &libc::c_char) -> DynArray {
+    let path = unsafe { CStr::from_ptr(path) };
+    let path = path.to_str().unwrap();
+    let mut read_result = op.op.read(path).unwrap();
+    let result = DynArray {
+        array: read_result.as_mut_ptr(),
+        length: read_result.len() as _,
+    };
+
+    std::mem::forget(read_result);
+
+    result
+}
+
+#[no_mangle]
+pub extern "C" fn blocking_write(op: &BlockingOperator, path: &libc::c_char, bs: &DynArray) {
+    let path = unsafe { CStr::from_ptr(path) };
+    let path = path.to_str().unwrap();
+    let bs = unsafe { slice::from_raw_parts(bs.array, bs.length) };
+    let bs: Vec<u8> = Vec::from(bs);
+    op.op.write(path, bs).unwrap();
 }

@@ -60,7 +60,6 @@ use crate::*;
 /// }
 /// ```
 #[derive(Clone, Debug)]
-#[repr(C)]
 pub struct Operator {
     accessor: FusedAccessor,
 

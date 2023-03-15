@@ -36,9 +36,7 @@ Both `opendal` and `object_store` can be used to access data stored on object st
 
 `object_store` is a part of `Apache Arrow` which means it's hosted and maintained by [Apache Software Foundation](https://www.apache.org/).
 
-`opendal` is now hosted and maintained by [Datafuse Labs](https://github.com/datafuselabs), a new start-up focusing on building data cloud.
-
-> `opendal` has a plan to be donated to `ASF`. We are at the very early stage of preparing the donation. Welcome any suggestions and help!
+`opendal` is now hosted and maintained by [Apache Software Foundation](https://www.apache.org/).
 
 ### Vision
 

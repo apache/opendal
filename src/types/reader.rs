@@ -152,6 +152,7 @@ impl tokio::io::AsyncSeek for Reader {
             }
             SeekState::Start(pos) => {
                 let n = ready!(self.inner.poll_seek(cx, pos))?;
+                self.get_mut().seek_state = SeekState::Init;
                 Poll::Ready(Ok(n))
             }
         }

@@ -42,7 +42,7 @@ pub enum Scheme {
     Fs,
     /// [gcs][crate::services::Gcs]: Google Cloud Storage backend.
     Gcs,
-    /// [ghac][crate::services::Ghac]: Github Action Cache services.
+    /// [ghac][crate::services::Ghac]: GitHub Action Cache services.
     Ghac,
     /// [hdfs][crate::services::Hdfs]: Hadoop Distributed File System.
     #[cfg(feature = "services-hdfs")]

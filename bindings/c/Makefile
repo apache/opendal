@@ -20,6 +20,8 @@ CFLAGS = -I./include
 LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS = -lopendal
 OBJ_DIR=build/
+LDLIBS_CMOCKA = -lcmocka
+LDFLAGS_CMOCKA = -Wl,--wrap=write -Wl,--wrap=read
 
 all: $(OBJ_DIR) build test
 
@@ -30,7 +32,8 @@ build:
 	cargo build
 
 test:
-	$(CC) tests/hello.c -o $(OBJ_DIR)/hello $(CFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) tests/test.c -o $(OBJ_DIR)/test $(CFLAGS) $(LDFLAGS) $(LDFLAGS_CMOCKA) $(LIBS) $(LDLIBS_CMOCKA)
+	$(OBJ_DIR)/test
 
 clean:
 	cargo clean

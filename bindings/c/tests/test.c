@@ -18,7 +18,22 @@
  */
 #include "opendal.h"
 
-int main(int argc, char *argv[]) {
-    hello_opendal();
-    return 0;
+#include <stdio.h>
+#include <setjmp.h>
+#include <cmocka.h>
+
+static void test_hello_opendal(void **state)
+{
+	(void)state; /* unused */
+
+	hello_opendal();
+}
+
+int main(int argc, char **argv)
+{
+
+	const struct CMUnitTest tests[] = {
+		cmocka_unit_test(test_hello_opendal)};
+
+	return cmocka_run_group_tests(tests, NULL, NULL);
 }

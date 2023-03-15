@@ -29,5 +29,11 @@ github:
     merge: false
     rebase: false
 
+notifications:
+  commits:      commits@opendal.apache.org
+  issues:       commits@opendal.apache.org
+  pullrequests: commits@opendal.apache.org
+  discussions:  commits@opendal.apache.org
+
 publish:
   whoami: gh-pages

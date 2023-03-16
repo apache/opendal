@@ -40,7 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Test
         shell: bash
         run: cargo test sled --features services-sled -- --show-output --test-threads=1

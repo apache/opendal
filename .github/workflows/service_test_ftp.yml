@@ -74,7 +74,8 @@ jobs:
           swapon --show
           echo
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Test
         shell: bash
         run: cargo test ftp --features services-ftp -- --show-output

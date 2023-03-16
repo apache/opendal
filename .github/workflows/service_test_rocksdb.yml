@@ -40,9 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Install rocksdb
-        run: sudo apt install librocksdb-dev
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Test
         shell: bash
         run: cargo test rocksdb --features services-rocksdb -- --show-output --test-threads=1

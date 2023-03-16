@@ -52,6 +52,9 @@ jobs:
           cp -r tests/data/* /tmp/static
           nginx -c `pwd`/src/services/http/fixtures/nginx.conf
 
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
       - name: Test
         shell: bash
         run: cargo test http -- --show-output
@@ -84,7 +87,8 @@ jobs:
           cp -r tests/data/* /tmp/static
           ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 --access-log &
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Test
         shell: bash
         run: cargo test http -- --show-output

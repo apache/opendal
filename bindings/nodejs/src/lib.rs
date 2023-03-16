@@ -185,7 +185,6 @@ impl Operator {
         self.0.blocking().delete(&path).map_err(format_napi_error)
     }
 
-
     /// List given path.
     ///
     /// This function will create a new handle to list entries.

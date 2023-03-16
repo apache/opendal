@@ -30,6 +30,7 @@ runs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Install Build Dependencies
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         sudo apt-get update

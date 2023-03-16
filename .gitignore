@@ -3,6 +3,7 @@
 .idea
 
 **/target
+dist/
 
 # env files for backends
 .env

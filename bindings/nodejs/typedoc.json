@@ -10,6 +10,6 @@
   "githubPages": false,
   "navigationLinks": {
     "Homepage": "https://opendal.apache.org/",
-    "GitHub": "https://github.com/apache/incubator-opendal"
+    "GitHub": "https://github.com/apache/incubator-opendal/tree/main/bindings/nodejs"
   }
 }

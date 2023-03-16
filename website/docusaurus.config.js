@@ -92,12 +92,12 @@ const config = {
             label: 'Documentation',
             items: [
               {
-                label: 'Rust',
-                to: '/docs/rust/opendal/'
+                type: 'html',
+                value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust</a>'
               },
               {
-                label: 'Node.js',
-                to: 'https://opendal.databend.rs/docs/nodejs/'
+                type: 'html',
+                value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js</a>'
               },
             ]
           },

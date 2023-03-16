@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-authors = ["Databend Authors <opensource@datafuselabs.com>"]
+authors = ["Apache Software Foundation <dev@opendal.apache.org>"]
 categories = ["filesystem"]
 description = "OpenDAL: Access data freely, painlessly, and efficiently."
 edition = "2021"
@@ -25,8 +25,8 @@ homepage = "https://opendal.apache.org/"
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
-repository = "https://github.com/datafuselabs/opendal"
-version = "0.30.2"
+repository = "https://github.com/apache/incubator-opendal"
+version = "0.30.3"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 

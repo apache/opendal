@@ -44,6 +44,8 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
 
       - name: Install nginx full for dav_ext modules
         run: sudo apt install nginx-full
@@ -71,6 +73,8 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
 
       - name: Install nginx full for dav_ext modules
         run: sudo apt install nginx-full

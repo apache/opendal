@@ -73,3 +73,7 @@
   no-repeat;
 }
 
+/* set copyright font size */
+.footer__copyright {
+  font-size: .7em;
+}

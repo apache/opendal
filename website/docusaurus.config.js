@@ -130,6 +130,12 @@ const config = {
             label: 'Releases',
             position: 'right'
           },
+          {
+            href: repoAddress,
+            position: 'right',
+            className: 'header-github-link',
+            'aria-label': 'GitHub repository',
+          },
         ],
       },
       footer: {

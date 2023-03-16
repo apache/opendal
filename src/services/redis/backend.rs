@@ -340,6 +340,12 @@ impl kv::Adapter for Adapter {
         let _: () = conn.del(key).await?;
         Ok(())
     }
+
+    async fn append(&self, key: &str, value: &[u8]) -> Result<()> {
+        let mut conn = self.conn().await?;
+        conn.append(key, value).await?;
+        Ok(())
+    }
 }
 
 impl From<RedisError> for Error {

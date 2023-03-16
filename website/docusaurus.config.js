@@ -95,6 +95,10 @@ const config = {
                 label: 'Rust',
                 to: '/docs/rust/opendal/'
               },
+              {
+                label: 'Node.js',
+                to: 'https://opendal.databend.rs/docs/nodejs/'
+              },
             ]
           },
           {

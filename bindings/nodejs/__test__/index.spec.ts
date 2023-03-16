@@ -19,10 +19,17 @@
 
 import test from 'ava'
 
-import { Operator } from '../index.js'
+import {Layer, Operator} from '../index.js'
 
 test('test memory write & read', async (t) => {
-  let op = new Operator("memory")
+  let op = new Operator("memory", undefined, [{
+    layerType: Layer.ImmutableIndex,
+    options: {
+      keys: JSON.stringify([
+        "1", "2"
+      ])
+    }
+  }])
 
   let content = "hello world"
   let path = 'test'

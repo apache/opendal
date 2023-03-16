@@ -19,6 +19,7 @@
 
 /// <reference types="node" />
 
-const { Operator } = require('./generated.js')
+const { Operator, Layer } = require('./generated.js')
 
 module.exports.Operator = Operator
+module.exports.Layer = Layer

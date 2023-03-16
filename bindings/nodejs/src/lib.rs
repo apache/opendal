@@ -18,9 +18,12 @@
 #[macro_use]
 extern crate napi_derive;
 
+pub mod layers;
+
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use crate::layers::{Layer, LayerBuilder};
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 use time::format_description::well_known::Rfc3339;
@@ -28,10 +31,11 @@ use time::format_description::well_known::Rfc3339;
 fn build_operator(
     scheme: opendal::Scheme,
     map: HashMap<String, String>,
+    layers: Vec<LayerBuilder>,
 ) -> Result<opendal::Operator> {
     use opendal::services::*;
 
-    let op = match scheme {
+    let mut op = match scheme {
         opendal::Scheme::Azblob => opendal::Operator::from_map::<Azblob>(map)
             .map_err(format_napi_error)?
             .finish(),
@@ -79,6 +83,49 @@ fn build_operator(
         }
     };
 
+    op = add_layers(op, layers)?;
+
+    Ok(op)
+}
+
+fn add_layers(mut op: opendal::Operator, layers: Vec<LayerBuilder>) -> Result<opendal::Operator> {
+    for layer in layers {
+        match layer.layer_type {
+            Layer::ConcurrentLimit => match layer.options {
+                Some(ops) => {
+                    op = op.layer(layers::ConcurrentLimitLayer::new(ops)?.0);
+                }
+                None => {
+                    return Err(format_napi_error(opendal::Error::new(
+                        opendal::ErrorKind::Unexpected,
+                        "ConcurrentLimitLayer needs options",
+                    )))
+                }
+            },
+            Layer::ImmutableIndex => match layer.options {
+                Some(ops) => {
+                    op = op.layer(layers::ImmutableIndexLayer::new(ops)?.0);
+                }
+                None => {
+                    return Err(format_napi_error(opendal::Error::new(
+                        opendal::ErrorKind::Unexpected,
+                        "ImmutableIndexLayer needs options",
+                    )))
+                }
+            },
+            Layer::Retry => match layer.options {
+                Some(ops) => {
+                    op = op.layer(layers::RetryLayer::new(ops)?.0);
+                }
+                None => {
+                    return Err(format_napi_error(opendal::Error::new(
+                        opendal::ErrorKind::Unexpected,
+                        "RetryLayer needs options",
+                    )))
+                }
+            },
+        }
+    }
     Ok(op)
 }
 
@@ -88,7 +135,11 @@ pub struct Operator(opendal::Operator);
 #[napi]
 impl Operator {
     #[napi(constructor)]
-    pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
+    pub fn new(
+        scheme: String,
+        options: Option<HashMap<String, String>>,
+        layers: Option<Vec<LayerBuilder>>,
+    ) -> Result<Self> {
         let scheme = opendal::Scheme::from_str(&scheme)
             .map_err(|err| {
                 opendal::Error::new(opendal::ErrorKind::Unexpected, "not supported scheme")
@@ -96,8 +147,9 @@ impl Operator {
             })
             .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
+        let layers = layers.unwrap_or_default();
 
-        build_operator(scheme, options).map(Operator)
+        build_operator(scheme, options, layers).map(Operator)
     }
 
     /// Get current path's metadata **without cache** directly.

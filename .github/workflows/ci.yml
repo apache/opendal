@@ -52,10 +52,11 @@ jobs:
           distribution: temurin
           java-version: "11"
 
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: "3.3.2"
+      # Wait for https://github.com/apache/incubator-opendal/issues/1457
+      # - name: Setup-hdfs env
+      #   uses: beyondstorage/setup-hdfs@master
+      #   with:
+      #     hdfs-version: "3.3.2"
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -66,9 +67,11 @@ jobs:
       - name: Cargo format
         run: cargo fmt --all -- --check
       - name: Cargo clippy
-        run: cargo clippy --all-targets --all-features --workspace -- -D warnings
+        # run: cargo clippy --all-targets --all-features --workspace -- -D warnings
+        run: cargo clippy --all-targets --workspace -- -D warnings
       - name: Cargo doc
-        run: cargo doc --lib --no-deps --all-features
+        # run: cargo doc --lib --no-deps --all-features
+        run: cargo doc --lib --no-deps
 
   msrv_check:
     runs-on: ubuntu-latest
@@ -108,34 +111,32 @@ jobs:
       - name: Build
         run: cargo build -p opendal -p oli -p object_store_opendal
 
-  build_all_features:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: "3.3.2"
+  # build_all_features:
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     matrix:
+  #       os:
+  #         - ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Checkout python env
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: "3.8"
+  #     - name: Checkout java env
+  #       uses: actions/setup-java@v3
+  #       with:
+  #         distribution: temurin
+  #         java-version: "11"
+  #     - name: Setup-hdfs env
+  #       uses: beyondstorage/setup-hdfs@master
+  #       with:
+  #         hdfs-version: "3.3.2"
 
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - name: Build
-        env:
-          ROCKSDB_LIB_DIR: /usr/lib
-        run: cargo build --all-features
+  #     - name: Setup Rust toolchain
+  #       uses: ./.github/actions/setup
+  #     - name: Build
+  #       run: cargo build --all-features
 
   unit:
     runs-on: ubuntu-latest
@@ -150,10 +151,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: "3.3.2"
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

@@ -1,7 +1,7 @@
 - Proposal Name: `remove_credential`
 - Start Date: 2022-04-02
-- RFC PR: [datafuselabs/opendal#203](https://github.com/datafuselabs/opendal/pull/203)
-- Tracking Issue: [datafuselabs/opendal#203](https://github.com/datafuselabs/opendal/issues/203)
+- RFC PR: [apache/incubator-opendal#203](https://github.com/apache/incubator-opendal/pull/203)
+- Tracking Issue: [apache/incubator-opendal#203](https://github.com/apache/incubator-opendal/issues/203)
 
 # Summary
 

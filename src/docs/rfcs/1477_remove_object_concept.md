@@ -1,7 +1,7 @@
 - Proposal Name: `remove_object_concept`
 - Start Date: `2023-03-05`
-- RFC PR: [datafuselabs/opendal#1477](https://github.com/datafuselabs/opendal/pull/1477)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [apache/incubator-opendal#1477](https://github.com/apache/incubator-opendal/pull/1477)
+- Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary
 

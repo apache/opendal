@@ -1,7 +1,7 @@
 - Proposal Name: `query_based_metadata`
 - Start Date: 2022-02-22
-- RFC PR: [datafuselabs/opendal#1398](https://github.com/datafuselabs/opendal/pull/1398)
-- Tracking Issue: [datafuselabs/opendal#1398](https://github.com/datafuselabs/opendal/pull/1398)
+- RFC PR: [apache/incubator-opendal#1398](https://github.com/apache/incubator-opendal/pull/1398)
+- Tracking Issue: [apache/incubator-opendal#1398](https://github.com/apache/incubator-opendal/pull/1398)
 
 # Summary
 

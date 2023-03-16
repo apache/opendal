@@ -1,7 +1,7 @@
 - Proposal Name: `auto_region`
 - Start Date: 2022-02-24
-- RFC PR: [datafuselabs/opendal#57](https://github.com/datafuselabs/opendal/pull/57)
-- Tracking Issue: [datafuselabs/opendal#58](https://github.com/datafuselabs/opendal/issues/58)
+- RFC PR: [apache/incubator-opendal#57](https://github.com/apache/incubator-opendal/pull/57)
+- Tracking Issue: [apache/incubator-opendal#58](https://github.com/apache/incubator-opendal/issues/58)
 
 # Summary
 

@@ -1,7 +1,7 @@
 - Proposal Name: `refactor-error`
 - Start Date: 2022-11-21
-- RFC PR: [datafuselabs/opendal#977](https://github.com/datafuselabs/opendal/pull/977)
-- Tracking Issue: [datafuselabs/opendal#976](https://github.com/datafuselabs/opendal/pull/976)
+- RFC PR: [apache/incubator-opendal#977](https://github.com/apache/incubator-opendal/pull/977)
+- Tracking Issue: [apache/incubator-opendal#976](https://github.com/apache/incubator-opendal/pull/976)
 
 # Summary
 

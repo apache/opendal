@@ -26,7 +26,7 @@
 //!
 //! Some useful tips:
 //!
-//! - Start a pre-propose in [discussion](https://github.com/datafuselabs/opendal/discussions/categories/ideas) to communicate quickly.
+//! - Start a pre-propose in [discussion](https://github.com/apache/incubator-opendal/discussions/categories/ideas) to communicate quickly.
 //! - The proposer of RFC may not be the same person as the implementor. Try to include enough information in RFC itself.
 
 #[doc = include_str!("0000_example.md")]

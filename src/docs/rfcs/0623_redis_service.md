@@ -1,7 +1,7 @@
 - Proposal Name: `redis_service`
 - Start Date: 2022-08-31
-- RFC PR: [datafuselabs/opendal#0623](https://github.com/datafuselabs/opendal/pull/0623)
-- Tracking Issue: [datafuselabs/opendal#641](https://github.com/datafuselabs/opendal/issues/0641)
+- RFC PR: [apache/incubator-opendal#0623](https://github.com/apache/incubator-opendal/pull/0623)
+- Tracking Issue: [apache/incubator-opendal#641](https://github.com/apache/incubator-opendal/issues/0641)
 
 # Summary
 

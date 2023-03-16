@@ -1,7 +1,7 @@
 - Proposal Name: `write_refactor`
 - Start Date: 2022-08-22
-- RFC PR: [datafuselabs/opendal#554](https://github.com/datafuselabs/opendal/pull/554)
-- Tracking Issue: [datafuselabs/opendal#555](https://github.com/datafuselabs/opendal/issues/555)
+- RFC PR: [apache/incubator-opendal#554](https://github.com/apache/incubator-opendal/pull/554)
+- Tracking Issue: [apache/incubator-opendal#555](https://github.com/apache/incubator-opendal/issues/555)
 
 # Summary
 

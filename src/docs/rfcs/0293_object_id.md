@@ -1,7 +1,7 @@
 - Proposal Name: `object_id`
 - Start Date: 2022-05-27
-- RFC PR: [datafuselabs/opendal#293](https://github.com/datafuselabs/opendal/pull/293)
-- Tracking Issue: [datafuselabs/opendal#294](https://github.com/datafuselabs/opendal/issues/294)
+- RFC PR: [apache/incubator-opendal#293](https://github.com/apache/incubator-opendal/pull/293)
+- Tracking Issue: [apache/incubator-opendal#294](https://github.com/apache/incubator-opendal/issues/294)
 
 # Summary
 

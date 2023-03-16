@@ -301,7 +301,7 @@ impl Builder for AzdfsBuilder {
 #[derive(Debug, Clone)]
 pub struct AzdfsBackend {
     filesystem: String,
-    // TODO: remove pub after https://github.com/datafuselabs/opendal/issues/1427
+    // TODO: remove pub after https://github.com/apache/incubator-opendal/issues/1427
     pub client: HttpClient,
     root: String, // root will be "/" or /abc/
     endpoint: String,

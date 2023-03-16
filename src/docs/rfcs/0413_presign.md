@@ -1,7 +1,7 @@
 - Proposal Name: `presign`
 - Start Date: 2022-06-30
-- RFC PR: [datafuselabs/opendal#0413](https://github.com/datafuselabs/opendal/pull/413)
-- Tracking Issue: [datafuselabs/opendal#394](https://github.com/datafuselabs/opendal/issues/394)
+- RFC PR: [apache/incubator-opendal#0413](https://github.com/apache/incubator-opendal/pull/413)
+- Tracking Issue: [apache/incubator-opendal#394](https://github.com/apache/incubator-opendal/issues/394)
 
 # Summary
 

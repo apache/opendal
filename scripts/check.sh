@@ -33,22 +33,17 @@ rc_version=${OPENDAL_VERSION_RC:rc1}
 # Corresponding git repository branch
 git_branch=release-${release_version}-${rc_version}
 
-rm -rf dist
-mkdir -p dist/
+echo "> Checkout release"
+svn co https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version}-${rc_version}/ incubator-opendal-release-verify
+cd incubator-opendal-release-verify
 
-echo "> Checkout version branch"
-git checkout -B $git_branch
-
-echo "> Start package"
-git archive --format=tar.gz --output="dist/apache-incubator-opendal-$release_version-src.tar.gz" --prefix="apache-incubator-opendal-$release_version-src/"  $git_branch
-
-echo "> Generate signature"
-for i in dist/*.tar.gz; do echo $i; gpg --armor --output $i.asc --detach-sig $i ; done
 echo "> Check signature"
-for i in dist/*.tar.gz; do echo $i; gpg --verify $i.asc $i ; done
-echo "> Generate sha512sum"
-for i in dist/*.tar.gz; do echo $i; sha512sum $i > $i.sha512 ; done
+for i in *.tar.gz; do echo $i; gpg --verify $i.asc $i ; done
 echo "> Check sha512sum"
-for i in dist/*.tar.gz; do echo $i; sha512sum --check $i.sha512; done
+for i in *.tar.gz; do echo $i; sha512sum --check $i.sha512; done
+
+echo "> Check content"
+tar -xvf apache-incubator-opendal-${release_version}-src.tar.gz
 echo "> Check license"
+cd apache-incubator-opendal-${release_version}-src
 docker run -it --rm -v $(pwd):/github/workspace -u $(id -u):$(id -g) ghcr.io/korandoru/hawkeye-native check

@@ -1,6 +1,6 @@
 # OpenDAL Scripts
 
-This module provides scipts to make maintainers lives easier. OpenDAL users don't need to care about this folder.
+This module provides scripts to make maintainers lives easier. OpenDAL users don't need to care about this folder.
 
 ## Release
 

@@ -16,14 +16,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 set -e
 
-if [ -z ${OPENDAL_VERSION} ]; then
-    echo "OPENDAL_VERSION is unset";
-    exit 1
+if [ -z "${OPENDAL_VERSION}" ]; then
+	echo "OPENDAL_VERSION is unset"
+	exit 1
 else
-    echo "var is set to '$OPENDAL_VERSION'";
+	echo "var is set to '$OPENDAL_VERSION'"
 fi
 
 # tar source code
@@ -37,18 +36,32 @@ rm -rf dist
 mkdir -p dist/
 
 echo "> Checkout version branch"
-git checkout -B $git_branch
+git checkout -B "${git_branch}"
 
 echo "> Start package"
-git archive --format=tar.gz --output="dist/apache-incubator-opendal-$release_version-src.tar.gz" --prefix="apache-incubator-opendal-$release_version-src/"  $git_branch
+git archive --format=tar.gz --output="dist/apache-incubator-opendal-$release_version-src.tar.gz" --prefix="apache-incubator-opendal-$release_version-src/" "$git_branch"
+
+cd dist
 
 echo "> Generate signature"
-for i in dist/*.tar.gz; do echo $i; gpg --armor --output $i.asc --detach-sig $i ; done
+for i in *.tar.gz; do
+	echo "$i"
+	gpg --armor --output "$i.asc" --detach-sig "$i"
+done
 echo "> Check signature"
-for i in dist/*.tar.gz; do echo $i; gpg --verify $i.asc $i ; done
+for i in *.tar.gz; do
+	echo "$i"
+	gpg --verify "$i.asc" "$i"
+done
 echo "> Generate sha512sum"
-for i in dist/*.tar.gz; do echo $i; sha512sum $i > $i.sha512 ; done
+for i in *.tar.gz; do
+	echo "$i"
+	sha512sum "$i" >"$i.sha512"
+done
 echo "> Check sha512sum"
-for i in dist/*.tar.gz; do echo $i; sha512sum --check $i.sha512; done
+for i in *.tar.gz; do
+	echo "$i"
+	sha512sum --check "$i.sha512"
+done
 echo "> Check license"
-docker run -it --rm -v $(pwd):/github/workspace -u $(id -u):$(id -g) ghcr.io/korandoru/hawkeye-native check
+docker run -it --rm -v "$(pwd):/github/workspace" -u "$(id -u):$(id -g)" ghcr.io/korandoru/hawkeye-native check

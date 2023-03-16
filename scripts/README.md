@@ -1,6 +1,7 @@
 # OpenDAL Scripts
 
-This module provides scripts to make maintainers lives easier. OpenDAL users don't need to care about this folder.
+This module provides scripts to make maintainers lives easier.
+OpenDAL users don't need to care about this folder.
 
 ## Release
 
@@ -23,8 +24,8 @@ OPENDAL_VERSION=0.30.2 OPENDAL_VERSION_RC=rc1 ./scripts/check.sh
 Import gpg key
 
 ```shell
-$ curl https://downloads.apache.org/incubator/opendal/KEYS > KEYS # Download KEYS
-$ gpg --import KEYS # Import KEYS to local
+curl https://downloads.apache.org/incubator/opendal/KEYS > KEYS # Download KEYS
+gpg --import KEYS # Import KEYS to local
 ```
 
 Trust the public key

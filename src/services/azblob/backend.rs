@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -28,9 +29,12 @@ use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::Uri;
 use log::debug;
 use reqsign::AzureStorageSigner;
 
+use super::batch::parse_batch_delete_response;
+use super::batch::BatchDeleteRequestBuilder;
 use super::error::parse_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
@@ -50,6 +54,8 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
     "blob.core.usgovcloudapi.net",
     "blob.core.chinacloudapi.cn",
 ];
+
+const AZBLOB_BATCH_LIMIT: usize = 256;
 
 /// Azure Storage Blob services support.
 ///
@@ -397,7 +403,16 @@ impl Builder for AzblobBuilder {
                 .account_key(key);
         }
 
-        let signer = signer_builder.build().map_err(|e| {
+        let signer = signer_builder.clone().build().map_err(|e| {
+            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azblob)
+                .with_context("endpoint", &endpoint)
+                .with_context("container", container.as_str())
+                .set_source(e)
+        })?;
+        signer_builder.omit_service_version();
+        let sub_req_signer = signer_builder.build().map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azblob)
@@ -411,6 +426,7 @@ impl Builder for AzblobBuilder {
             root,
             endpoint,
             signer: Arc::new(signer),
+            batch_signer: Arc::new(sub_req_signer),
             container: self.container.clone(),
             client,
             _account_name: account_name.unwrap_or_default(),
@@ -451,6 +467,7 @@ pub struct AzblobBackend {
     root: String, // root will be "/" or /abc/
     endpoint: String,
     pub signer: Arc<AzureStorageSigner>,
+    pub batch_signer: Arc<AzureStorageSigner>,
     _account_name: String,
 }
 
@@ -471,7 +488,8 @@ impl Accessor for AzblobBackend {
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
             .set_name(&self.container)
-            .set_capabilities(Read | Write | List | Scan)
+            .set_max_batch_operations(AZBLOB_BATCH_LIMIT)
+            .set_capabilities(Read | Write | List | Scan | Batch)
             .set_hints(ReadStreamable);
 
         am
@@ -576,6 +594,63 @@ impl Accessor for AzblobBackend {
         );
 
         Ok((RpScan::default(), op))
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let ops = args.into_operation();
+        match ops {
+            BatchOperations::Delete(ops) => {
+                let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+                if paths.len() > AZBLOB_BATCH_LIMIT {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "batch delete limit exceeded",
+                    ));
+                }
+                // construct and complete batch request
+                let resp = self.azblob_batch_delete(&paths).await?;
+
+                // check response status
+                if resp.status() != StatusCode::ACCEPTED {
+                    return Err(parse_error(resp).await?);
+                }
+
+                // get boundary from response header
+                let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "response data should have CONTENT_TYPE header",
+                    )
+                })?;
+                let content_type = content_type
+                    .to_str()
+                    .map(|ty| ty.to_string())
+                    .map_err(|e| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("get invalid CONTENT_TYPE header in response: {:?}", e),
+                        )
+                    })?;
+                let splits = content_type.split("boundary=").collect::<Vec<&str>>();
+                let boundary = splits.get(1).to_owned().ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "No boundary message provided in CONTENT_TYPE",
+                    )
+                })?;
+
+                let body = resp.into_body().bytes().await?;
+                let body = String::from_utf8(body.to_vec()).map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("get invalid batch response {e:?}"),
+                    )
+                })?;
+
+                let results = parse_batch_delete_response(boundary, body, paths)?;
+                Ok(RpBatch::new(BatchedResults::Delete(results)))
+            }
+        }
     }
 }
 
@@ -726,6 +801,42 @@ impl AzblobBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<IncomingAsyncBody>> {
+        // init batch request
+        let url = format!(
+            "{}/{}?restype=container&comp=batch",
+            self.endpoint, self.container
+        );
+        let mut batch_delete_req_builder = BatchDeleteRequestBuilder::new(&url);
+
+        for path in paths.iter() {
+            // build sub requests
+            let p = build_abs_path(&self.root, path);
+            let encoded_path = percent_encode_path(&p);
+
+            let url = Uri::from_str(&format!(
+                "{}/{}/{}",
+                self.endpoint, self.container, encoded_path
+            ))
+            .unwrap();
+
+            let mut sub_req = Request::delete(&url.to_string())
+                .header(CONTENT_LENGTH, 0)
+                .body(AsyncBody::Empty)
+                .map_err(new_request_build_error)?;
+            self.batch_signer
+                .sign(&mut sub_req)
+                .map_err(new_request_sign_error)?;
+
+            batch_delete_req_builder.append(sub_req);
+        }
+
+        let mut req = batch_delete_req_builder.try_into_req()?;
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
         self.client.send_async(req).await

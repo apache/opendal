@@ -60,6 +60,28 @@ impl Debug for AzblobError {
     }
 }
 
+pub fn parse_http_error(status: StatusCode, body: &str) -> Result<Error> {
+    let (kind, retryable) = match status {
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+    let message = match de::from_str::<AzblobError>(body) {
+        Ok(err) => format!("{err:?}"),
+        Err(_) => body.to_string(),
+    };
+    let mut err = Error::new(kind, &message).with_context("response", body.to_string());
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    Ok(err)
+}
+
 /// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();

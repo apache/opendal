@@ -16,14 +16,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 set -e
 
-if [ -z ${OPENDAL_VERSION} ]; then
-    echo "OPENDAL_VERSION is unset";
-    exit 1
+if [ -z "${OPENDAL_VERSION}" ]; then
+	echo "OPENDAL_VERSION is unset"
+	exit 1
 else
-    echo "var is set to '$OPENDAL_VERSION'";
+	echo "var is set to '$OPENDAL_VERSION'"
 fi
 
 # tar source code
@@ -34,16 +33,22 @@ rc_version=${OPENDAL_VERSION_RC:rc1}
 git_branch=release-${release_version}-${rc_version}
 
 echo "> Checkout release"
-svn co https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version}-${rc_version}/ incubator-opendal-release-verify
+svn co "https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version}-${rc_version}/" incubator-opendal-release-verify
 cd incubator-opendal-release-verify
 
 echo "> Check signature"
-for i in *.tar.gz; do echo $i; gpg --verify $i.asc $i ; done
+for i in *.tar.gz; do
+	echo "$i"
+	gpg --verify "$i.asc" "$i"
+done
 echo "> Check sha512sum"
-for i in *.tar.gz; do echo $i; sha512sum --check $i.sha512; done
+for i in *.tar.gz; do
+	echo "$i"
+	sha512sum --check "$i.sha512"
+done
 
 echo "> Check content"
-tar -xvf apache-incubator-opendal-${release_version}-src.tar.gz
+tar -xvf "apache-incubator-opendal-${release_version}-src.tar.gz"
 echo "> Check license"
-cd apache-incubator-opendal-${release_version}-src
-docker run -it --rm -v $(pwd):/github/workspace -u $(id -u):$(id -g) ghcr.io/korandoru/hawkeye-native check
+cd "apache-incubator-opendal-${release_version}-src"
+docker run -it --rm -v "$(pwd):/github/workspace" -u "$(id -u):$(id -g)" ghcr.io/korandoru/hawkeye-native check

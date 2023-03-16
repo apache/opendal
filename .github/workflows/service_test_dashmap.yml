@@ -44,7 +44,8 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Test
         shell: bash
         run: cargo test dashmap --features services-dashmap -- --show-output

@@ -58,7 +58,8 @@ jobs:
         with:
           hdfs-version: ${{ matrix.hdfs-version }}
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Test
         shell: bash
         continue-on-error: true

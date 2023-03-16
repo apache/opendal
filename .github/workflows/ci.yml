@@ -57,22 +57,17 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - name: Install rocksdb
-        run: sudo apt install librocksdb-dev
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Check license headers
-        uses: korandoru/hawkeye@v1
+      # Wait for https://github.com/apache/incubator-opendal/issues/1457
+      # - name: Check license headers
+      #   uses: korandoru/hawkeye@v1
       - name: Cargo format
         run: cargo fmt --all -- --check
       - name: Cargo clippy
-        env:
-          ROCKSDB_LIB_DIR: /usr/lib
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
       - name: Cargo doc
-        env:
-          ROCKSDB_LIB_DIR: /usr/lib
         run: cargo doc --lib --no-deps --all-features
 
   msrv_check:
@@ -91,16 +86,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: "3.3.2"
       - name: Setup msrv of rust
         run: |
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
-
-      - uses: Swatinem/rust-cache@v2
       - name: Check
         run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets -- -D warnings
 
@@ -114,7 +103,8 @@ jobs:
           - windows-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Build
         run: cargo build -p opendal -p oli -p object_store_opendal
 
@@ -139,10 +129,9 @@ jobs:
         uses: beyondstorage/setup-hdfs@master
         with:
           hdfs-version: "3.3.2"
-      - name: Install rocksdb
-        run: sudo apt install librocksdb-dev
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Build
         env:
           ROCKSDB_LIB_DIR: /usr/lib
@@ -166,12 +155,11 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
+        run: cargo install cargo-nextest --locked
       - name: Test
         run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
         env:
-          RUST_LOG: DEBUG
-          RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

@@ -65,11 +65,13 @@ impl BlockingOperator {
         &self.accessor
     }
 
+    /// create a new blocking operator from inner accessor.
+    ///
+    /// # Note
+    /// default batch limit is 1000.
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
-        Self {
-            accessor,
-            limit: 1000,
-        }
+        let limit = accessor.info().max_batch_operations().unwrap_or(1000);
+        Self { accessor, limit }
     }
 
     /// Get current operator's limit

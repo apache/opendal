@@ -31,7 +31,7 @@ const config = {
   favicon: 'img/favicon.ico',
 
   // TODO: Move to opendal.apache.org after migration.
-  url: 'https://opendal.databend.rs',
+  url: 'https://opendal.apache.org',
   baseUrl: '/',
 
   organizationName: 'Apache',
@@ -92,8 +92,12 @@ const config = {
             label: 'Documentation',
             items: [
               {
-                label: 'Rust',
-                to: 'https://opendal.databend.rs/docs/rust/opendal/'
+                type: 'html',
+                value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust</a>'
+              },
+              {
+                type: 'html',
+                value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js</a>'
               },
             ]
           },
@@ -125,6 +129,12 @@ const config = {
             to: `${repoAddress}/releases`,
             label: 'Releases',
             position: 'right'
+          },
+          {
+            href: repoAddress,
+            position: 'right',
+            className: 'header-github-link',
+            'aria-label': 'GitHub repository',
           },
         ],
       },

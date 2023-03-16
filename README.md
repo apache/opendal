@@ -1,7 +1,7 @@
 # OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 
-[build status]: https://img.shields.io/github/actions/workflow/status/datafuselabs/opendal/ci.yml?branch=main
-[actions]: https://github.com/datafuselabs/opendal/actions?query=branch%3Amain
+[build status]: https://img.shields.io/github/actions/workflow/status/apache/incubator-opendal/ci.yml?branch=main
+[actions]: https://github.com/apache/incubator-opendal/actions?query=branch%3Amain
 [latest version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal
 [crate downloads]: https://img.shields.io/crates/d/opendal.svg
@@ -10,7 +10,7 @@
 
 **Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
 
-- Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.databend.rs/opendal/)
+- Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.apache.org/docs/rust/opendal/)
 - [Release notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 
 ![](https://user-images.githubusercontent.com/5351546/222356748-14276998-501b-4d2a-9b09-b8cff3018204.png)
@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
 }
 ```
 
-More examples could be found at [Documentation](https://opendal.databend.rs).
+More examples could be found at [Documentation](https://opendal.apache.org).
 
 ## Projects
 
@@ -120,7 +120,7 @@ Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) guide for more details on get
 
 ## Getting help
 
-Submit [issues](https://github.com/datafuselabs/opendal/issues/new/choose) for bug report or asking questions in [discussion](https://github.com/datafuselabs/opendal/discussions/new?category=q-a).
+Submit [issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or asking questions in [discussion](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
 
 Talk to develops at [discord].
 

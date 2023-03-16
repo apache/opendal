@@ -40,7 +40,8 @@ jobs:
       - name: Install rocksdb
         run: sudo apt install librocksdb-dev
 
-      - uses: Swatinem/rust-cache@v2
+      # Disable until we are allowed
+      # - uses: Swatinem/rust-cache@v2
 
       - uses: actions-rs/cargo@v1
         with:
@@ -54,7 +55,7 @@ jobs:
         run: |
           cp -r ./target/doc ./website/static/docs/rust
 
-      # Build website ---------------------------------------------------
+      # Set node.js environment -----------------------------------------
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
@@ -69,6 +70,28 @@ jobs:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
+      # Build bindings/nodejs docs --------------------------------------
+      - name: Corepack
+        working-directory: bindings/nodejs
+        run: corepack enable
+
+      - name: Install dependencies
+        working-directory: bindings/nodejs
+        run: yarn install
+
+      - name: Build
+        working-directory: bindings/nodejs
+        run: yarn build
+
+      - name: Build bindings/nodejs Docs
+        working-directory: bindings/nodejs
+        run: yarn docs
+
+      - name: Copy docs into build
+        run: |
+          cp -r ./bindings/nodejs/docs ./website/static/docs/nodejs
+
+      # Build website ---------------------------------------------------
       - name: Install Dependencies
         working-directory: website
         run: |
@@ -80,24 +103,27 @@ jobs:
           yarn build
 
       # Start deploy --------------------------------------------------
+      - name: Copy asf file
+        run:  cp .asf.yaml ./website/build/.asf.yaml
+
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3.9.2
         if: github.event_name == 'push' && github.ref_name == 'main'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          cname: opendal.databend.rs
           publish_dir: website/build
           publish_branch: gh-pages
 
-      - name: Deploy to vercel (preview)
-        if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
-        uses: amondnet/vercel-action@v25.1.1
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          alias-domains: |
-            opendal-git-{{BRANCH}}.vercel.app
-          scope: databend
-          working-directory: ./website/build
+      # Disable until we are allowed
+      # - name: Deploy to vercel (preview)
+      #   if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
+      #   uses: amondnet/vercel-action@v25.1.1
+      #   with:
+      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
+      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+      #     alias-domains: |
+      #       opendal-git-{{BRANCH}}.vercel.app
+      #     scope: databend
+      #     working-directory: ./website/build

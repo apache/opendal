@@ -95,7 +95,7 @@ impl IpfsBuilder {
     ///
     /// - `/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/` (IPFS with CID v0)
     /// - `/ipfs/bafybeibozpulxtpv5nhfa2ue3dcjx23ndh3gwr5vwllk7ptoyfwnfjjr4q/` (IPFS with  CID v1)
-    /// - `/ipns/opendal.databend.rs/` (IPNS)
+    /// - `/ipns/opendal.apache.org/` (IPNS)
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
             self.root = Some(root.to_string())

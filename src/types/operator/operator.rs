@@ -73,10 +73,8 @@ impl Operator {
     }
 
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
-        Self {
-            accessor,
-            limit: 1000,
-        }
+        let limit = accessor.info().max_batch_operations().unwrap_or(1000);
+        Self { accessor, limit }
     }
 
     pub(super) fn into_inner(self) -> FusedAccessor {

@@ -24,16 +24,16 @@ runs:
       uses: actions/cache@v3
       with:
         path: |
-          /usr/local/cargo/bin/
-          /usr/local/cargo/registry/cache/
-        key: cargo-cache-v3-${{ hashFiles('**/Cargo.toml') }}
-        restore-keys: cargo-cache-v3-
+          ~/.cargo/bin/
+          ~/.cargo/registry/cache/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Install Build Dependencies
       shell: bash
       run: |
-        apt-get update
-        apt-get install -y librocksdb-dev
+        sudo apt-get update
+        sudo apt-get install -y librocksdb-dev
         echo "ROCKSDB_LIB_DIR=/usr/lib" >> $GITHUB_ENV
 
     - name: Setup rust related environment variables

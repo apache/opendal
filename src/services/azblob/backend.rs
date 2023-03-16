@@ -488,6 +488,7 @@ impl Accessor for AzblobBackend {
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
             .set_name(&self.container)
+            .set_max_batch_operations(AZBLOB_BATCH_LIMIT)
             .set_capabilities(Read | Write | List | Scan | Batch)
             .set_hints(ReadStreamable);
 

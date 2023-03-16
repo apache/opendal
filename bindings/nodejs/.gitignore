@@ -189,6 +189,7 @@ Cargo.lock
 .pnp.*
 .yarn
 *.node
+docs/
 
 generated*.*
 index.d.ts

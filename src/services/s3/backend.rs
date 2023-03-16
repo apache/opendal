@@ -1121,7 +1121,7 @@ impl Accessor for S3Backend {
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_batch_limit(1000)
+            .set_max_batch_operations(1000)
             .set_capabilities(Read | Write | List | Scan | Presign | Batch)
             .set_hints(ReadStreamable);
 

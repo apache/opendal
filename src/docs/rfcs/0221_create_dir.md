@@ -1,7 +1,7 @@
 - Proposal Name: `create-dir`
 - Start Date: 2022-04-06
-- RFC PR: [datafuselabs/opendal#221](https://github.com/datafuselabs/opendal/pull/221)
-- Tracking Issue: [datafuselabs/opendal#222](https://github.com/datafuselabs/opendal/issues/222)
+- RFC PR: [apache/incubator-opendal#221](https://github.com/apache/incubator-opendal/pull/221)
+- Tracking Issue: [apache/incubator-opendal#222](https://github.com/apache/incubator-opendal/issues/222)
 
 # Summary
 

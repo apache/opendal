@@ -40,10 +40,8 @@ jobs:
         uses: beyondstorage/setup-hdfs@master
         with:
           hdfs-version: "3.3.2"
-      - name: Install rocksdb
-        run: sudo apt install librocksdb-dev
-
-      - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
 
       - name: Publish opendal
         run: cargo publish --all-features

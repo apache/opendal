@@ -37,11 +37,8 @@ jobs:
           distribution: temurin
           java-version: '11'
 
-      - name: Install rocksdb
-        run: sudo apt install librocksdb-dev
-
-      # Disable until we are allowed
-      # - uses: Swatinem/rust-cache@v2
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
 
       - uses: actions-rs/cargo@v1
         with:

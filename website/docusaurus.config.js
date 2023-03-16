@@ -22,7 +22,7 @@
 
 const lightCodeTheme = require('prism-react-renderer/themes/github');
 const darkCodeTheme = require('prism-react-renderer/themes/dracula');
-const repoAddress = 'https://github.com/datafuselabs/opendal';
+const repoAddress = 'https://github.com/apache/incubator-opendal';
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -30,8 +30,7 @@ const config = {
   tagline: 'Open Data Access Layer: Access data freely, painlessly, and efficiently',
   favicon: 'img/favicon.ico',
 
-  // TODO: Move to opendal.apache.org after migration.
-  url: 'https://opendal.apache.org',
+  url: 'https://opendal.apache.org/',
   baseUrl: '/',
 
   organizationName: 'Apache',
@@ -53,14 +52,14 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl:
-            'https://github.com/datafuselabs/opendal/website/',
+            'https://github.com/apache/incubator-opendal/website/',
           showLastUpdateAuthor: true,
           showLastUpdateTime: true
         },
         blog: {
           showReadingTime: true,
           editUrl:
-            'https://github.com/datafuselabs/opendal/website/',
+            'https://github.com/apache/incubator-opendal/website/',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),

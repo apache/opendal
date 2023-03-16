@@ -1,7 +1,7 @@
 - Proposal Name: `path_in_accessor`
 - Start Date: 2022-09-12
-- RFC PR: [datafuselabs/opendal#661](https://github.com/datafuselabs/opendal/pull/661)
-- Tracking Issue: [datafuselabs/opendal#662](https://github.com/datafuselabs/opendal/issues/662)
+- RFC PR: [apache/incubator-opendal#661](https://github.com/apache/incubator-opendal/pull/661)
+- Tracking Issue: [apache/incubator-opendal#662](https://github.com/apache/incubator-opendal/issues/662)
 
 # Summary
 

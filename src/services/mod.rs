@@ -17,7 +17,7 @@
 
 //! Services will provide builders to build underlying backends.
 //!
-//! More ongoing services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5). Please feel free to submit issues if there are services not covered.
+//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/incubator-opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
 mod azblob;
 pub use azblob::Azblob;

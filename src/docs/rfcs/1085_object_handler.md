@@ -1,7 +1,7 @@
 - Proposal Name: `object_handler`
 - Start Date: 2022-12-19
-- RFC PR: [datafuselabs/opendal#1085](https://github.com/datafuselabs/opendal/pull/1085)
-- Tracking Issue: [datafuselabs/opendal#1085](https://github.com/datafuselabs/opendal/issues/1085)
+- RFC PR: [apache/incubator-opendal#1085](https://github.com/apache/incubator-opendal/pull/1085)
+- Tracking Issue: [apache/incubator-opendal#1085](https://github.com/apache/incubator-opendal/issues/1085)
 
 # Summary
 

@@ -218,7 +218,7 @@ Thus, we removed the `seekable_reader` API. They can be replaced by `range_reade
 
 Most changes only happen inside. Users not using `opendal::raw::*` will not be affected.
 
-Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/datafuselabs/opendal/discussions).
+Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/apache/incubator-opendal/discussions).
 
 # Upgrade to v0.21
 

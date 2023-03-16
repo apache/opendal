@@ -462,7 +462,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
     container: String,
-    // TODO: remove pub after https://github.com/datafuselabs/opendal/issues/1427
+    // TODO: remove pub after https://github.com/apache/incubator-opendal/issues/1427
     pub client: HttpClient,
     root: String, // root will be "/" or /abc/
     endpoint: String,

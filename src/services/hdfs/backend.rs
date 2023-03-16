@@ -288,7 +288,7 @@ impl Accessor for HdfsBackend {
 
         let p = build_rooted_abs_path(&self.root, path);
 
-        // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
+        // This will be addressed by https://github.com/apache/incubator-opendal/issues/506
         let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
         let f = self
@@ -457,7 +457,7 @@ impl Accessor for HdfsBackend {
 
         let p = build_rooted_abs_path(&self.root, path);
 
-        // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
+        // This will be addressed by https://github.com/apache/incubator-opendal/issues/506
         let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
         let f = self

@@ -52,14 +52,14 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl:
-            'https://github.com/datafuselabs/opendal/website/',
+            'https://github.com/apache/incubator-opendal/website/',
           showLastUpdateAuthor: true,
           showLastUpdateTime: true
         },
         blog: {
           showReadingTime: true,
           editUrl:
-            'https://github.com/datafuselabs/opendal/website/',
+            'https://github.com/apache/incubator-opendal/website/',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),

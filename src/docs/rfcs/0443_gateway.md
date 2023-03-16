@@ -1,7 +1,7 @@
 - Proposal Name: `gateway`
 - Start Date: 2022-07-18
-- RFC PR: [datafuselabs/opendal#443](https://github.com/datafuselabs/opendal/pull/443)
-- Tracking Issue: [datafuselabs/opendal#444](https://github.com/datafuselabs/opendal/issues/444)
+- RFC PR: [apache/incubator-opendal#443](https://github.com/apache/incubator-opendal/pull/443)
+- Tracking Issue: [apache/incubator-opendal#444](https://github.com/apache/incubator-opendal/issues/444)
 
 # Summary
 

@@ -412,7 +412,7 @@ impl S3Builder {
     /// Region represent the signing region of this endpoint.
     ///
     /// - If region is set, we will take user's input first.
-    /// - If not, We will try to detect region via [RFC-0057: Auto Region](https://github.com/datafuselabs/opendal/blob/main/docs/rfcs/0057-auto-region.md).
+    /// - If not, We will try to detect region via [RFC-0057: Auto Region](https://github.com/apache/incubator-opendal/blob/main/docs/rfcs/0057-auto-region.md).
     ///
     /// Most of time, region is not need to be set, especially for AWS S3 and minio.
     pub fn region(&mut self, region: &str) -> &mut Self {

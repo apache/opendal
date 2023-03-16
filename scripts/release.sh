@@ -42,7 +42,6 @@ echo "> Start package"
 git archive --format=tar.gz --output="dist/apache-incubator-opendal-$release_version-src.tar.gz" --prefix="apache-incubator-opendal-$release_version-src/" "$git_branch"
 
 cd dist
-
 echo "> Generate signature"
 for i in *.tar.gz; do
 	echo "$i"
@@ -63,5 +62,7 @@ for i in *.tar.gz; do
 	echo "$i"
 	sha512sum --check "$i.sha512"
 done
+
+cd ..
 echo "> Check license"
 docker run -it --rm -v "$(pwd):/github/workspace" -u "$(id -u):$(id -g)" ghcr.io/korandoru/hawkeye-native check

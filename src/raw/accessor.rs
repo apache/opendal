@@ -337,6 +337,7 @@ impl Accessor for () {
             scheme: Scheme::Custom("dummy"),
             root: "".to_string(),
             name: "dummy".to_string(),
+            max_batch_operations: None,
             capabilities: None.into(),
             hints: None.into(),
         }
@@ -431,6 +432,9 @@ pub struct AccessorInfo {
     scheme: Scheme,
     root: String,
     name: String,
+    /// limit of batch operation
+    /// only meaningful when accessor supports batch operation
+    max_batch_operations: Option<usize>,
     capabilities: FlagSet<AccessorCapability>,
     hints: FlagSet<AccessorHint>,
 }
@@ -473,6 +477,21 @@ impl AccessorInfo {
     /// Set name of this backend.
     pub fn set_name(&mut self, name: &str) -> &mut Self {
         self.name = name.to_string();
+        self
+    }
+
+    /// backend's number limitation of operations in a single batch.
+    ///
+    /// # Note
+    /// - Got Some(x): limitation is x
+    /// - Got None: no limitation
+    pub(crate) fn max_batch_operations(&self) -> Option<usize> {
+        self.max_batch_operations
+    }
+
+    /// Set batch size limit for backend.
+    pub(crate) fn set_max_batch_operations(&mut self, limit: usize) -> &mut Self {
+        self.max_batch_operations = Some(limit);
         self
     }
 

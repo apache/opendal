@@ -36,6 +36,7 @@ excludes = [
   "bindings/python/opendal.pyi",
   "**/__pycache__",
   "**/.pytest_cache",
+  "**/venv/**",
   "website/build/**",
   "website/static/.nojekyll",
   "website/.docusaurus",

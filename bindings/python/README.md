@@ -62,5 +62,5 @@ Running some tests:
 
 ```shell
 maturin develop -E test
-pytest
+behave tests
 ```

@@ -130,18 +130,9 @@ const config = {
             position: 'right'
           },
           {
-            href: repoAddress,
+            type: 'dropdown',
+            label: 'ASF Links',
             position: 'right',
-            className: 'header-github-link',
-            'aria-label': 'GitHub repository',
-          },
-        ],
-      },
-      footer: {
-        style: 'light',
-        links: [
-          {
-            title: 'ASF',
             items: [
               {
                 label: 'Apache Software Foundation',
@@ -170,28 +161,21 @@ const config = {
             ]
           },
           {
-            title: 'Community',
-            items: [
-              {
-                label: 'Discord',
-                to: 'https://discord.gg/XQy8yGR2dg',
-              },
-            ],
+            href: repoAddress,
+            position: 'right',
+            className: 'header-github-link',
+            'aria-label': 'GitHub repository',
           },
           {
-            title: 'More',
-            items: [
-              {
-                label: 'Blog',
-                to: '/blog',
-              },
-              {
-                label: 'GitHub',
-                to: repoAddress,
-              },
-            ],
+            href: 'https://discord.gg/XQy8yGR2dg',
+            position: 'right',
+            className: 'header-discord-link',
+            'aria-label': 'Discord',
           },
         ],
+      },
+      footer: {
+        style: 'light',
         logo: {
           alt: 'Apache Software Foundation',
           src: 'https://www.apache.org/foundation/press/kit/asf_logo.png',

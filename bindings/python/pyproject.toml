@@ -32,7 +32,7 @@ readme = "README.md"
 requires-python = ">=3.7"
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-asyncio", "behave"]
+test = ["behave"]
 
 [project.urls]
 Documentation = "https://docs.rs/opendal/"

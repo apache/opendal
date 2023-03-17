@@ -17,7 +17,6 @@
 
 from behave import given, when, then
 from behave.api.async_step import async_run_until_complete
-import asyncio
 import opendal
 
 @given('A new OpenDAL Blocking Operator')

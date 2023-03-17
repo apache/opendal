@@ -23,11 +23,12 @@ description = "OpenDAL Command Line Interface"
 categories = ["filesystem"]
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 
-authors = { workspace = true }
-edition = { workspace = true }
-homepage = { workspace = true }
-license = { workspace = true }
-repository = { workspace = true }
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/incubator-opendal"
+
+edition = "2021"
 
 publish = false
 

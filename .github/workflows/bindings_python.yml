@@ -51,10 +51,10 @@ jobs:
         working-directory: "bindings/python"
         run: |
           python -m pip install -e .[test]
-      - name: Run pytest
+      - name: Run behave
         working-directory: "bindings/python"
         run: |
-          python -m pytest
+          python -m behave tests
 
   linux:
     runs-on: ubuntu-latest

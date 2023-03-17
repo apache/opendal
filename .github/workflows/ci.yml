@@ -41,6 +41,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Check License Header
+        uses: apache/skywalking-eyes/header@main
+
       - name: Checkout python env
         uses: actions/setup-python@v4
         with:

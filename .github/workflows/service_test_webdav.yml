@@ -52,6 +52,7 @@ jobs:
 
       - name: Start nginx
         shell: bash
+        working-directory: core
         run: |
           mkdir -p /tmp/static
           nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
@@ -82,6 +83,7 @@ jobs:
 
       - name: Start nginx
         shell: bash
+        working-directory: core
         run: |
           mkdir -p /tmp/static
           cp `pwd`/src/services/webdav/fixtures/htpasswd /tmp/htpasswd
@@ -89,6 +91,7 @@ jobs:
 
       - name: Test empty password
         shell: bash
+        working-directory: core
         run: cargo test webdav -- --show-output
         env:
           RUST_BACKTRACE: full
@@ -99,6 +102,7 @@ jobs:
 
       - name: Test with password
         shell: bash
+        working-directory: core
         run: cargo test webdav -- --show-output
         env:
           RUST_BACKTRACE: full

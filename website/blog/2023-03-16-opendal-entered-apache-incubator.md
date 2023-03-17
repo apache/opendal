@@ -2,7 +2,7 @@
 title: "Way to Go: OpenDAL successfully entered Apache Incubator"
 date: 2023-03-16
 slug: opendal-entered-apache-incubator
-tags: [opendal, announcement]
+tags: [announcement]
 description: "On February 27th, 2023, the OpenDAL project achieved a milestone by winning the approval to join the incubator of the Apache Software Foundation (ASF), the world's leading open source software organization. On March 15th, the OpenDAL project was officially transferred to the Apache Software Foundation."
 authors:
   - name: PsiACE

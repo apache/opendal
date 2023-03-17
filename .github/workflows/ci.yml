@@ -61,9 +61,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      # Wait for https://github.com/apache/incubator-opendal/issues/1457
-      # - name: Check license headers
-      #   uses: korandoru/hawkeye@v1
+      - name: Check license headers
+        run: docker run --rm -v $(pwd):/github/workspace -u $(id -u):$(id -g) ghcr.io/korandoru/hawkeye-native:v1 check
+
       - name: Cargo format
         run: cargo fmt --all -- --check
       - name: Cargo clippy

@@ -104,6 +104,31 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
         )
         .with_operation("kv::Adapter::blocking_scan"))
     }
+
+    /// Append a key into service
+    async fn append(&self, path: &str, value: &[u8]) -> Result<()> {
+        let _ = path;
+        let _ = value;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "kv adapter doesn't support this operation",
+        )
+        .with_operation("kv::Adapter::append"))
+    }
+
+    /// Append a key into service
+    /// in blocking way.
+    fn blocking_append(&self, path: &str, value: &[u8]) -> Result<()> {
+        let _ = path;
+        let _ = value;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "kv adapter doesn't support this operation",
+        )
+        .with_operation("kv::Adapter::blocking_append"))
+    }
 }
 
 /// Metadata for this key value accessor.

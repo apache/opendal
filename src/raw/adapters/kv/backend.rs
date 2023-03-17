@@ -285,13 +285,20 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.buf.extend(bs);
-
+        if let Err(e) = self.kv.append(&self.path, bs.to_vec().as_slice()).await {
+            if e.kind() == ErrorKind::Unsupported {
+                self.buf.extend(bs);
+            } else {
+                return Err(e);
+            }
+        }
         Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.kv.set(&self.path, &self.buf).await?;
+        if !self.buf.is_empty() {
+            self.kv.set(&self.path, &self.buf).await?;
+        }
 
         Ok(())
     }

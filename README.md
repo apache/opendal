@@ -116,16 +116,14 @@ More examples could be found at [Documentation](https://opendal.apache.org).
 
 ## Contributing
 
-Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
+Check out the [CONTRIBUTING](CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
 
 ## Getting help
 
-Submit [issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or asking questions in [discussion](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
+Submit [issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or asking questions in the [Discussions forum](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
 
 Talk to develops at [discord].
 
-#### License
+## License
 
-<sup>
-Licensed under <a href="./LICENSE">Apache License, Version 2.0</a>.
-</sup>
+Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0

@@ -16,16 +16,20 @@
 # under the License.
 
 [package]
-authors = ["Databend Authors <opensource@datafuselabs.com>"]
-categories = ["filesystem"]
-description = "OpenDAL Command Line Interface"
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-keywords = ["storage", "data", "s3", "fs", "azblob"]
-license = "Apache-2.0"
 name = "oli"
-repository = "https://github.com/apache/incubator-opendal"
 version = "0.19.6"
+
+description = "OpenDAL Command Line Interface"
+categories = ["filesystem"]
+keywords = ["storage", "data", "s3", "fs", "azblob"]
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+publish = false
 
 [dependencies]
 anyhow = "1"

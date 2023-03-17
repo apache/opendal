@@ -16,9 +16,16 @@
 # under the License.
 
 [package]
-edition = "2021"
 name = "opendal-python"
 version = "0.30.3"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+publish = false
 
 [lib]
 crate-type = ["cdylib"]

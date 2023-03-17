@@ -16,9 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "opendal.h"
+#include "gtest/gtest.h"
 
-int main(int argc, char *argv[]) {
+extern "C" {
+#include "opendal.h"
+}
+
+
+TEST(hello_world_case, hello_world) {
     hello_opendal();
-    return 0;
 }

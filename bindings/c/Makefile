@@ -30,7 +30,8 @@ build:
 	cargo build
 
 test:
-	$(CC) tests/hello.c -o $(OBJ_DIR)/hello $(CFLAGS) $(LDFLAGS) $(LIBS)
+	mkdir -p build-test && cd build-test && cmake ../ && make -j && make test ARGS="-V"
+	rm -rf build-test
 
 clean:
 	cargo clean

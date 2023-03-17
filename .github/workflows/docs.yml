@@ -106,3 +106,17 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
           publish_branch: gh-pages
+
+      - name: Deploy to vercel (preview)
+        if: github.repository_owner == 'apache' && github.ref_name != 'main'
+        uses: amondnet/vercel-action@v25.1.1
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          alias-domains: |
+            opendal-git-{{BRANCH}}.vercel.app
+          # Move out of databend after we are ready.
+          scope: databend
+          working-directory: ./website/build

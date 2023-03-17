@@ -53,6 +53,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        working-directory: core
         continue-on-error: true
         run: cargo test webhdfs -- --show-output
         env:

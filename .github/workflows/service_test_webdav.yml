@@ -58,6 +58,7 @@ jobs:
 
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test webdav -- --show-output
         env:
           RUST_BACKTRACE: full

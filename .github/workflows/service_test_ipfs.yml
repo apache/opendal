@@ -54,6 +54,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test ipfs --features services-ipfs -- --show-output
         env:
           RUST_BACKTRACE: full

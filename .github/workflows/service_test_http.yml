@@ -47,6 +47,7 @@ jobs:
 
       - name: Start nginx
         shell: bash
+        working-directory: core
         run: |
           mkdir /tmp/static
           cp -r tests/data/* /tmp/static
@@ -57,6 +58,7 @@ jobs:
 
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test http -- --show-output
         env:
           RUST_BACKTRACE: full
@@ -91,6 +93,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test http -- --show-output
         env:
           RUST_BACKTRACE: full

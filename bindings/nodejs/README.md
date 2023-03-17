@@ -3,6 +3,7 @@
 ## Installation
 
 ### Node.js
+
 ```shell
 npm install opendal
 ```
@@ -28,16 +29,17 @@ async function main() {
 main();
 ```
 
-
 ## Test or Contributing
 
 - Install latest `Rust`
 - Install `Node.js@10+` which fully supported `Node-API`
 
 We are using `corepack` to specific package manager:
+
 ```shell
 corepack enable
 ```
+
 `corepack` is distributed with Node.js, so you do not need to specifically look for a way to install it.
 
 # Build Node.js bindings
@@ -48,6 +50,6 @@ yarn build
 yarn test
 ```
 
-
 ## License
+
 [Apache v2.0](https://www.apache.org/licenses/LICENSE-2.0)

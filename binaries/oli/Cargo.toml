@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-authors = ["Databend Authors <opensource@datafuselabs.com>"]
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 categories = ["filesystem"]
 description = "OpenDAL Command Line Interface"
 edition = "2021"
@@ -24,6 +24,7 @@ homepage = "https://opendal.apache.org/"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oli"
+publish = false
 repository = "https://github.com/apache/incubator-opendal"
 version = "0.19.6"
 

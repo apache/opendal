@@ -16,8 +16,13 @@
 # under the License.
 
 [package]
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
 name = "opendal-python"
+publish = false
+repository = "https://github.com/apache/incubator-opendal"
 version = "0.30.3"
 
 [lib]

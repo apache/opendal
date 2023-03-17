@@ -16,19 +16,18 @@
 # under the License.
 
 [package]
-authors = ["Apache Software Foundation <dev@opendal.apache.org>"]
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 categories = ["filesystem"]
 description = "OpenDAL: Access data freely, painlessly, and efficiently."
 edition = "2021"
-exclude = [".github/", "bindings/", "profiles/", "oli/", "tests/"]
+exclude = [".github/", "binaries/", "bindings/", "profiles/", "tests/"]
 homepage = "https://opendal.apache.org/"
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/apache/incubator-opendal"
+rust-version = "1.60"                                                     # MSRV for this project - please update while bump versions
 version = "0.30.3"
-# MSRV of OpenDAL. Please update this field while bump.
-rust-version = "1.60"
 
 [package.metadata.docs.rs]
 all-features = true

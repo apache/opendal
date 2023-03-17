@@ -1,6 +1,6 @@
 {
   "name": "opendal",
-  "author": "Databend Authors <opensource@datafuselabs.com>",
+  "author": "OpenDAL Contributors <dev@opendal.apache.org>",
   "version": "0.30.3",
   "license": "Apache-2.0",
   "main": "index.js",

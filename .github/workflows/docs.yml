@@ -30,6 +30,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Check License Header
+        uses: apache/skywalking-eyes/header@main
+
       # Build opendal docs ----------------------------------------------
       - name: Checkout java env
         uses: actions/setup-java@v3

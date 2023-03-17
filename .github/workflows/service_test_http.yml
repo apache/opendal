@@ -79,6 +79,7 @@ jobs:
       # Use the latest beta version instead
       - name: Start caddy
         shell: bash
+        working-directory: core
         run: |
           VERSION="2.6.0-beta.3"
 

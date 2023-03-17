@@ -44,6 +44,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test rocksdb --features services-rocksdb -- --show-output --test-threads=1
         env:
           ROCKSDB_LIB_DIR: /usr/lib

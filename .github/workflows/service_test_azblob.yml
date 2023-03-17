@@ -59,6 +59,7 @@ jobs:
 
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test azblob -- --show-output
         env:
           RUST_BACKTRACE: full

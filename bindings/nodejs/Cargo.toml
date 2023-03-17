@@ -35,7 +35,7 @@ napi = { version = "2.11.3", default-features = false, features = [
   "async",
 ] }
 napi-derive = "2.11.1"
-opendal = { version = "0.30", path = "../../" }
+opendal = { version = "0.30", path = "../../core" }
 time = { version = "0.3.17", features = ["formatting"] }
 
 [build-dependencies]

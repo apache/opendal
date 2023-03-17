@@ -44,6 +44,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Publish opendal
+        working-directory: "core"
         run: cargo publish --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
@@ -51,8 +52,8 @@ jobs:
           ROCKSDB_LIB_DIR: /usr/lib
 
       - name: Publish object_store_opendal
-        run: cargo publish
         working-directory: "bindings/object_store"
+        run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

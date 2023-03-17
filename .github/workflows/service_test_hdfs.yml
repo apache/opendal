@@ -62,6 +62,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        working-directory: core
         continue-on-error: true
         run: cargo test hdfs --features services-hdfs -- --show-output
         env:

@@ -29,7 +29,6 @@ excludes = [
   "**/fixtures/**",
   "tests/data/**",
   "bindings/nodejs/.npmignore",
-  "bindings/nodejs/index.d.ts",
   "bindings/nodejs/generated*.*",
   "**/*.node",
   "bindings/python/test_requirements.txt",

@@ -188,8 +188,8 @@ Cargo.lock
 
 .pnp.*
 .yarn
+!.yarn/patches
 *.node
 docs/
 
 generated*.*
-index.d.ts

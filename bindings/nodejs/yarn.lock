@@ -184,12 +184,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@napi-rs/cli@npm:^2.14.8":
+"@napi-rs/cli@npm:2.14.8":
   version: 2.14.8
   resolution: "@napi-rs/cli@npm:2.14.8"
   bin:
     napi: scripts/index.js
   checksum: 59ccab188d0e40a0591d7402624fa882928a967ffc6b9a6dbfc00acbb828ca292cab85a8e965492367f6ca0d0fab600831a7f4b7f0495c47830e3c6895fc4a07
+  languageName: node
+  linkType: hard
+
+"@napi-rs/cli@patch:@napi-rs/cli@npm%3A2.14.8#./.yarn/patches/@napi-rs-cli-npm-2.14.8-71492d0ade.patch::locator=opendal%40workspace%3A.":
+  version: 2.14.8
+  resolution: "@napi-rs/cli@patch:@napi-rs/cli@npm%3A2.14.8#./.yarn/patches/@napi-rs-cli-npm-2.14.8-71492d0ade.patch::version=2.14.8&hash=0747d9&locator=opendal%40workspace%3A."
+  bin:
+    napi: scripts/index.js
+  checksum: 6860e2241d8c03efb3f55c3e111784e845ef271185665f8f6b3beb3685bba0bb6cab473d56ff30212d486df4fe142240f5181e5637ed4fd7b8c05dd1683e7196
   languageName: node
   linkType: hard
 

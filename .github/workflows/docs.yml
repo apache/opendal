@@ -76,10 +76,6 @@ jobs:
         working-directory: bindings/nodejs
         run: yarn install
 
-      - name: Build
-        working-directory: bindings/nodejs
-        run: yarn build
-
       - name: Build bindings/nodejs Docs
         working-directory: bindings/nodejs
         run: yarn docs

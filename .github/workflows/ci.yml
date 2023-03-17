@@ -62,7 +62,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Check license headers
-        run: docker run --rm -v $(pwd):/github/workspace -u $(id -u):$(id -g) ghcr.io/korandoru/hawkeye-native:v1 check
+        uses: korandoru/hawkeye@v1
 
       - name: Cargo format
         run: cargo fmt --all -- --check

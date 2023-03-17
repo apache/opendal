@@ -16,17 +16,14 @@
 # under the License.
 
 [package]
-name = "opendal-c"
-version = "0.1.0"
-
 authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-
-edition = "2021"
-
+name = "opendal-c"
 publish = false
+repository = "https://github.com/apache/incubator-opendal"
+version = "0.1.0"
 
 [lib]
 crate-type = ["cdylib"]

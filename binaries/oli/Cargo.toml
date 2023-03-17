@@ -16,21 +16,17 @@
 # under the License.
 
 [package]
-name = "oli"
-version = "0.19.6"
-
-description = "OpenDAL Command Line Interface"
-categories = ["filesystem"]
-keywords = ["storage", "data", "s3", "fs", "azblob"]
-
 authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-
+categories = ["filesystem"]
+description = "OpenDAL Command Line Interface"
 edition = "2021"
-
+homepage = "https://opendal.apache.org/"
+keywords = ["storage", "data", "s3", "fs", "azblob"]
+license = "Apache-2.0"
+name = "oli"
 publish = false
+repository = "https://github.com/apache/incubator-opendal"
+version = "0.19.6"
 
 [dependencies]
 anyhow = "1"

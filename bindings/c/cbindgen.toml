@@ -18,7 +18,8 @@
 # See https://github.com/eqrion/cbindgen/blob/master/docs.md#cbindgentoml
 # for detailed documentation of every option here.
 
-language = "C"
+cpp_compat = true
+documentation_style = "c"
 header = """
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -40,7 +41,6 @@ header = """
  */
 """
 include_guard = "_OPENDAL_H"
+language = "C"
 no_includes = true
 sys_includes = ["stdint.h", "stddef.h", "stdbool.h"]
-cpp_compat = true
-documentation_style = "c"

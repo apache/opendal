@@ -46,10 +46,10 @@ Access data **freely**
 
 - Access different storage services in the same way
 - Behavior tests for all services
-- Cross language/project bindings (working on)
-  - [Python](./bindings/python/)
-  - [Node.js](./bindings/nodejs/)
-  - [object_store](./bindings/object_store/)
+- Cross language/project bindings
+  - [Python](../bindings/python/)
+  - [Node.js](../bindings/nodejs/)
+  - [object_store](../bindings/object_store/)
 
 Access data **painlessly**
 
@@ -102,17 +102,6 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
-
-More examples could be found at [Documentation](https://opendal.apache.org).
-
-## Projects
-
-- [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
-- [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
-- [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
-- [mozilla/sccache](https://github.com/mozilla/sccache/): sccache is ccache with cloud storage
-- [risingwave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
-- [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 
 ## Contributing
 

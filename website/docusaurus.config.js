@@ -98,6 +98,10 @@ const config = {
                 type: 'html',
                 value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js</a>'
               },
+              {
+                type: 'html',
+                value: '<a class="dropdown__link" href="/docs/python/">Python</a>'
+              },
             ]
           },
           {

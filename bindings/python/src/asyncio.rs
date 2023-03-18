@@ -36,6 +36,9 @@ use tokio::sync::Mutex;
 
 use crate::{build_operator, format_pyerr, layers, Entry, Metadata};
 
+/// `AsyncOperator` is the entry for all public async APIs
+///
+/// Create a new `AsyncOperator` with the given `scheme` and options(`**kwargs`).
 #[pyclass(module = "opendal")]
 pub struct AsyncOperator(od::Operator);
 
@@ -59,6 +62,7 @@ impl AsyncOperator {
         Ok(AsyncOperator(build_operator(scheme, map, layers)?))
     }
 
+    /// Read the whole path into bytes.
     pub fn read<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
@@ -68,6 +72,7 @@ impl AsyncOperator {
         })
     }
 
+    /// Open a file-like reader for the given path.
     pub fn open_reader(&self, path: String) -> PyResult<AsyncReader> {
         Ok(AsyncReader::new(ReaderState::Init {
             operator: self.0.clone(),
@@ -75,6 +80,7 @@ impl AsyncOperator {
         }))
     }
 
+    /// Write bytes into given path.
     pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: Vec<u8>) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
@@ -82,6 +88,7 @@ impl AsyncOperator {
         })
     }
 
+    /// Get current path's metadata **without cache** directly.
     pub fn stat<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
@@ -91,6 +98,18 @@ impl AsyncOperator {
         })
     }
 
+    /// Create a dir at given path.
+    ///
+    /// # Notes
+    ///
+    /// To indicate that a path is a directory, it is compulsory to include
+    /// a trailing / in the path. Failure to do so may result in
+    /// `NotADirectory` error being returned by OpenDAL.
+    ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create dir is always recursive, works like `mkdir -p`
     pub fn create_dir<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
@@ -98,6 +117,11 @@ impl AsyncOperator {
         })
     }
 
+    /// Delete given path.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
     pub fn delete<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(
@@ -106,6 +130,7 @@ impl AsyncOperator {
         )
     }
 
+    /// List current dir path.
     pub fn list<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
@@ -115,6 +140,7 @@ impl AsyncOperator {
         })
     }
 
+    /// List dir in flat way.
     pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
@@ -159,6 +185,8 @@ impl ReaderState {
     }
 }
 
+/// A file-like async reader.
+/// Can be used as an async context manager.
 #[pyclass(module = "opendal")]
 pub struct AsyncReader(Arc<Mutex<ReaderState>>);
 
@@ -170,6 +198,7 @@ impl AsyncReader {
 
 #[pymethods]
 impl AsyncReader {
+    /// Read and return size bytes, or if size is not given, until EOF.
     pub fn read<'p>(&'p self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
         let reader = self.0.clone();
         future_into_py(py, async move {
@@ -198,6 +227,8 @@ impl AsyncReader {
         })
     }
 
+    /// `AsyncReader` doesn't support write.
+    /// Raises a `NotImplementedError` if called.
     pub fn write<'p>(&'p mut self, py: Python<'p>, _bs: &'p [u8]) -> PyResult<&'p PyAny> {
         future_into_py::<_, PyObject>(py, async move {
             Err(PyNotImplementedError::new_err(
@@ -206,6 +237,15 @@ impl AsyncReader {
         })
     }
 
+    /// Change the stream position to the given byte offset.
+    /// offset is interpreted relative to the position indicated by `whence`.
+    /// The default value for whence is `SEEK_SET`. Values for `whence` are:
+    ///
+    /// * `SEEK_SET` or `0` – start of the stream (the default); offset should be zero or positive
+    /// * `SEEK_CUR` or `1` – current stream position; offset may be negative
+    /// * `SEEK_END` or `2` – end of the stream; offset is usually negative
+    ///
+    /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
     pub fn seek<'p>(&'p mut self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<&'p PyAny> {
         let whence = match whence {
@@ -226,6 +266,7 @@ impl AsyncReader {
         })
     }
 
+    /// Return the current stream position.
     pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<&'p PyAny> {
         let reader = self.0.clone();
         future_into_py(py, async move {

@@ -40,7 +40,7 @@ mod layers;
 
 use crate::asyncio::*;
 
-create_exception!(opendal, Error, PyException);
+create_exception!(opendal, Error, PyException, "OpenDAL related errors");
 
 fn add_layers(mut op: od::Operator, layers: Vec<layers::Layer>) -> PyResult<od::Operator> {
     for layer in layers {
@@ -112,6 +112,9 @@ fn build_operator(
     add_layers(op, layers)
 }
 
+/// `Operator` is the entry for all public blocking APIs
+///
+/// Create a new blocking `Operator` with the given `scheme` and options(`**kwargs`).
 #[pyclass(module = "opendal")]
 struct Operator(od::BlockingOperator);
 
@@ -135,6 +138,7 @@ impl Operator {
         Ok(Operator(build_operator(scheme, map, layers)?.blocking()))
     }
 
+    /// Read the whole path into bytes.
     pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
         self.0
             .read(path)
@@ -142,6 +146,7 @@ impl Operator {
             .map(|res| PyBytes::new(py, &res).into())
     }
 
+    /// Open a file-like reader for the given path.
     pub fn open_reader(&self, path: &str) -> PyResult<Reader> {
         self.0
             .reader(path)
@@ -149,31 +154,54 @@ impl Operator {
             .map_err(format_pyerr)
     }
 
+    /// Write bytes into given path.
     pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
         self.0.write(path, bs).map_err(format_pyerr)
     }
 
+    /// Get current path's metadata **without cache** directly.
     pub fn stat(&self, path: &str) -> PyResult<Metadata> {
         self.0.stat(path).map_err(format_pyerr).map(Metadata)
     }
 
+    /// Create a dir at given path.
+    ///
+    /// # Notes
+    ///
+    /// To indicate that a path is a directory, it is compulsory to include
+    /// a trailing / in the path. Failure to do so may result in
+    /// `NotADirectory` error being returned by OpenDAL.
+    ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create dir is always recursive, works like `mkdir -p`
     pub fn create_dir(&self, path: &str) -> PyResult<()> {
         self.0.create_dir(path).map_err(format_pyerr)
     }
 
+    /// Delete given path.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
     pub fn delete(&self, path: &str) -> PyResult<()> {
         self.0.delete(path).map_err(format_pyerr)
     }
 
+    /// List current dir path.
     pub fn list(&self, path: &str) -> PyResult<BlockingLister> {
         Ok(BlockingLister(self.0.list(path).map_err(format_pyerr)?))
     }
 
+    /// List dir in flat way.
     pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
         Ok(BlockingLister(self.0.scan(path).map_err(format_pyerr)?))
     }
 }
 
+/// A file-like blocking reader.
+/// Can be used as a context manager.
 #[pyclass(module = "opendal")]
 struct Reader(Option<od::BlockingReader>);
 
@@ -189,6 +217,7 @@ impl Reader {
 
 #[pymethods]
 impl Reader {
+    /// Read and return size bytes, or if size is not given, until EOF.
     #[pyo3(signature = (size=None,))]
     pub fn read<'p>(&'p mut self, py: Python<'p>, size: Option<usize>) -> PyResult<&'p PyAny> {
         let reader = self.as_mut()?;
@@ -211,12 +240,23 @@ impl Reader {
         Ok(PyBytes::new(py, &buffer).into())
     }
 
+    /// `Reader` doesn't support write.
+    /// Raises a `NotImplementedError` if called.
     pub fn write(&mut self, _bs: &[u8]) -> PyResult<()> {
         Err(PyNotImplementedError::new_err(
             "Reader does not support write",
         ))
     }
 
+    /// Change the stream position to the given byte offset.
+    /// offset is interpreted relative to the position indicated by `whence`.
+    /// The default value for whence is `SEEK_SET`. Values for `whence` are:
+    ///
+    /// * `SEEK_SET` or `0` – start of the stream (the default); offset should be zero or positive
+    /// * `SEEK_CUR` or `1` – current stream position; offset may be negative
+    /// * `SEEK_END` or `2` – end of the stream; offset is usually negative
+    ///
+    /// Return the new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
     pub fn seek(&mut self, pos: i64, whence: u8) -> PyResult<u64> {
         let whence = match whence {
@@ -231,6 +271,7 @@ impl Reader {
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
 
+    /// Return the current stream position.
     pub fn tell(&mut self) -> PyResult<u64> {
         let reader = self.as_mut()?;
         reader
@@ -272,6 +313,7 @@ struct Entry(od::Entry);
 
 #[pymethods]
 impl Entry {
+    /// Path of entry. Path is relative to operator's root.
     #[getter]
     pub fn path(&self) -> &str {
         self.0.path()
@@ -296,26 +338,31 @@ impl Metadata {
         self.0.content_disposition()
     }
 
+    /// Content length of this entry.
     #[getter]
     pub fn content_length(&self) -> u64 {
         self.0.content_length()
     }
 
+    /// Content MD5 of this entry.
     #[getter]
     pub fn content_md5(&self) -> Option<&str> {
         self.0.content_md5()
     }
 
+    /// Content Type of this entry.
     #[getter]
     pub fn content_type(&self) -> Option<&str> {
         self.0.content_type()
     }
 
+    /// ETag of this entry.
     #[getter]
     pub fn etag(&self) -> Option<&str> {
         self.0.etag()
     }
 
+    /// mode represent this entry's mode.
     #[getter]
     pub fn mode(&self) -> EntryMode {
         EntryMode(self.0.mode())
@@ -327,10 +374,12 @@ struct EntryMode(od::EntryMode);
 
 #[pymethods]
 impl EntryMode {
+    /// Returns `True` if this is a file.
     pub fn is_file(&self) -> bool {
         self.0.is_file()
     }
 
+    /// Returns `True` if this is a directory.
     pub fn is_dir(&self) -> bool {
         self.0.is_dir()
     }
@@ -352,6 +401,37 @@ fn format_pyerr(err: od::Error) -> PyErr {
     }
 }
 
+/// OpenDAL Python binding
+///
+/// ## Installation
+///
+/// ```bash
+/// pip install opendal
+/// ```
+///
+/// ## Usage
+///
+/// ```python
+/// import opendal
+///
+/// op = opendal.Operator("fs", root="/tmp")
+/// op.write("test.txt", b"Hello World")
+/// print(op.read("test.txt"))
+/// print(op.stat("test.txt").content_length)
+/// ```
+///
+/// Or using the async API:
+///
+/// ```python
+/// import asyncio
+///
+/// async def main():
+/// op = opendal.AsyncOperator("fs", root="/tmp")
+/// await op.write("test.txt", b"Hello World")
+/// print(await op.read("test.txt"))
+///
+/// asyncio.run(main())
+/// ```
 #[pymodule]
 fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
@@ -363,6 +443,11 @@ fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Metadata>()?;
     m.add("Error", py.get_type::<Error>())?;
 
-    m.add_submodule(layers::create_submodule(py)?)?;
+    let layers = layers::create_submodule(py)?;
+    m.add_submodule(layers)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("opendal.layers", layers)?;
+
     Ok(())
 }

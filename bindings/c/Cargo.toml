@@ -27,7 +27,7 @@ version = "0.1.0"
 
 [lib]
 crate-type = ["cdylib"]
-name = "opendal"
+doc = false
 
 [dependencies]
 opendal = { version = "0.30", path = "../../core" }

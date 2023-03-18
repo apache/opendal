@@ -27,6 +27,7 @@ version = "0.30.3"
 
 [lib]
 crate-type = ["cdylib"]
+doc = false
 
 [dependencies]
 futures = "0.3.26"

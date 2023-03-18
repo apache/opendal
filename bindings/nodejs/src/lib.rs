@@ -304,7 +304,7 @@ pub struct BlockingLister(opendal::BlockingLister);
 /// Method `next` can be confused for the standard trait method `std::iter::Iterator::next`.
 /// But in JavaScript, it is also customary to use the next method directly to obtain the next element.
 /// Therefore, disable this clippy. It can be removed after a complete implementation of Generator.
-/// FYI: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Generator
+/// FYI: <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Generator>
 #[napi]
 #[allow(clippy::should_implement_trait)]
 impl BlockingLister {

@@ -46,8 +46,8 @@ excludes = [
   ".env",
 
   # ascii is licensed under MIT from memcache-async
-  "src/services/memcached/MIT-ascii.txt",
-  "src/services/memcached/ascii.rs",
+  "core/src/services/memcached/MIT-ascii.txt",
+  "core/src/services/memcached/ascii.rs",
 ]
 
 [properties]

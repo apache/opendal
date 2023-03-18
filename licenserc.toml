@@ -23,26 +23,18 @@ excludes = [
   "**/yarn.lock",
 
   # Python binding related files
-  "bindings/python/opendal.pyi",
   "**/venv/**",
 
   # Nodejs binding related files
-  "bindings/nodejs/.npmignore",
-  "bindings/nodejs/.prettierignore",
   "bindings/nodejs/generated*.*",
 
   # Website generated files
-  "website/build/**",
-  "website/static/.nojekyll",
+  "website/build",
   "website/.docusaurus",
 
   # ascii is licensed under MIT from memcache-async
   "core/src/services/memcached/MIT-ascii.txt",
   "core/src/services/memcached/ascii.rs",
-
-  # Files that doesn't need license.
-  ".env.example",
-  ".env",
 ]
 
 [properties]

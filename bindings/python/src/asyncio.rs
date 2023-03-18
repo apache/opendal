@@ -34,7 +34,11 @@ use tokio::io::AsyncReadExt;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::Mutex;
 
-use crate::{build_operator, format_pyerr, layers, Entry, Metadata};
+use crate::build_operator;
+use crate::format_pyerr;
+use crate::layers;
+use crate::Entry;
+use crate::Metadata;
 
 /// `AsyncOperator` is the entry for all public async APIs
 ///

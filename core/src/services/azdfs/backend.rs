@@ -643,9 +643,9 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{services::azdfs::backend::infer_storage_name_from_endpoint, Builder};
-
     use super::AzdfsBuilder;
+    use crate::services::azdfs::backend::infer_storage_name_from_endpoint;
+    use crate::Builder;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {

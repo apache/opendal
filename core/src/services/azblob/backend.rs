@@ -845,9 +845,9 @@ impl AzblobBackend {
 
 #[cfg(test)]
 mod tests {
-    use crate::{services::azblob::backend::infer_storage_name_from_endpoint, Builder};
-
     use super::AzblobBuilder;
+    use crate::services::azblob::backend::infer_storage_name_from_endpoint;
+    use crate::Builder;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {

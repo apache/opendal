@@ -15,17 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{BufMut, BytesMut};
+use bytes::BufMut;
+use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
 use http::StatusCode;
 use uuid::Uuid;
 
+use super::error::parse_http_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_http_error;
 
 const AZURE_BATCH_LIMIT: usize = 256;
 
@@ -180,7 +180,8 @@ mod test {
     use anyhow::anyhow;
     use anyhow::Result;
     use http::header::CONTENT_LENGTH;
-    use http::{header::CONTENT_TYPE, Request};
+    use http::header::CONTENT_TYPE;
+    use http::Request;
 
     use super::BatchDeleteRequestBuilder;
     use crate::raw::AsyncBody;

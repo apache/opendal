@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::{services::Memory, Operator};
+use opendal::services::Memory;
+use opendal::Operator;
 
 /// Hello, OpenDAL!
 #[no_mangle]

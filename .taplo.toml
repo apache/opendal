@@ -25,6 +25,6 @@ trailing_newline = true
 # Alphabetically reorder keys that are not separated by empty lines.
 reorder_keys = true
 # Maximum amount of allowed consecutive blank lines. This does not affect the whitespace at the end of the document, as it is always stripped.
-allowed_blank_lines = 2
+allowed_blank_lines = 1
 # Use CRLF for line endings.
 crlf = false

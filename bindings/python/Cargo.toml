@@ -27,7 +27,8 @@ version = "0.30.3"
 
 [lib]
 crate-type = ["cdylib"]
-name = "opendal"
+doc = false
+
 
 [dependencies]
 chrono = { version = "0.4.24", default-features = false, features = ["std"] }

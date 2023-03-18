@@ -72,21 +72,12 @@ jobs:
       OPENDAL_MSRV: "1.60"
     steps:
       - uses: actions/checkout@v3
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
       - name: Setup msrv of rust
         run: |
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
       - name: Check
-        run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets -- -D warnings
+        run: cargo +${OPENDAL_MSRV} clippy -p opendal --no-deps -- -D warnings
 
   build:
     runs-on: ${{ matrix.os }}

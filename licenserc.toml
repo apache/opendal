@@ -24,8 +24,6 @@ excludes = [
 
   # Python binding related files
   "bindings/python/opendal.pyi",
-  "**/__pycache__",
-  "**/.pytest_cache",
   "**/venv/**",
 
   # Nodejs binding related files

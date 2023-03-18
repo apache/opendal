@@ -363,6 +363,11 @@ fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Metadata>()?;
     m.add("Error", py.get_type::<Error>())?;
 
-    m.add_submodule(layers::create_submodule(py)?)?;
+    let layers = layers::create_submodule(py)?;
+    m.add_submodule(layers)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("opendal.layers", layers)?;
+
     Ok(())
 }

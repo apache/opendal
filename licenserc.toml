@@ -18,36 +18,33 @@
 headerPath = "Apache-2.0-ASF.txt"
 
 excludes = [
-  "**/*.toml",
-  "!**/Cargo.toml",
-  "!**/licenserc.toml",
-  "!**/pyproject.toml",
-
-  # Generated files
+  # Well known generated files
   "**/Cargo.lock",
   "**/yarn.lock",
-  "**/fixtures/**",
-  "tests/data/**",
-  "bindings/nodejs/.npmignore",
-  "bindings/nodejs/.prettierignore",
-  "bindings/nodejs/generated*.*",
-  "**/*.node",
-  "bindings/python/test_requirements.txt",
+
+  # Python binding related files
   "bindings/python/opendal.pyi",
   "**/__pycache__",
   "**/.pytest_cache",
   "**/venv/**",
+
+  # Nodejs binding related files
+  "bindings/nodejs/.npmignore",
+  "bindings/nodejs/.prettierignore",
+  "bindings/nodejs/generated*.*",
+
+  # Website generated files
   "website/build/**",
   "website/static/.nojekyll",
   "website/.docusaurus",
 
-  # Files that doesn't need license.
-  ".env.example",
-  ".env",
-
   # ascii is licensed under MIT from memcache-async
   "core/src/services/memcached/MIT-ascii.txt",
   "core/src/services/memcached/ascii.rs",
+
+  # Files that doesn't need license.
+  ".env.example",
+  ".env",
 ]
 
 [properties]

@@ -83,6 +83,27 @@ jobs:
       - name: Copy docs into build
         run: |
           cp -r ./bindings/nodejs/docs ./website/static/docs/nodejs
+      
+      # Setup python environment ----------------------------------------
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      # Build bindings/python docs --------------------------------------
+      - name: Install dependencies
+        working-directory: bindings/python
+        run: |
+          set -e
+          python -m pip install -e .
+          python -m pip install pdoc
+      
+      - name: Build bindings/python Docs
+        working-directory: bindings/python
+        run: pdoc --output-dir ./docs opendal
+      
+      - name: Copy docs into build
+        run: |
+          cp -r ./bindings/python/docs ./website/static/docs/python
 
       # Build website ---------------------------------------------------
       - name: Install Dependencies

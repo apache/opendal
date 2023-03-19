@@ -790,9 +790,9 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
-    /// # use opendal::EntryMode;
-    /// # use futures::TryStreamExt;
+    /// use opendal::Operator;
+    /// use opendal::EntryMode;
+    /// use futures::TryStreamExt;
     /// use opendal::Metakey;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -841,9 +841,9 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
-    /// # use opendal::EntryMode;
-    /// # use futures::TryStreamExt;
+    /// use opendal::Operator;
+    /// use opendal::EntryMode;
+    /// use futures::TryStreamExt;
     /// use opendal::Metakey;
     /// #
     /// # #[tokio::main]

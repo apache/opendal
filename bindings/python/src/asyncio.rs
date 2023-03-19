@@ -153,6 +153,24 @@ impl AsyncOperator {
             Ok(pylister)
         })
     }
+
+    fn __repr__(&self) -> String {
+        let info = self.0.info();
+        let name = info.name();
+        if name.is_empty() {
+            format!(
+                "AsyncOperator(\"{}\", root=\"{}\")",
+                info.scheme(),
+                info.root()
+            )
+        } else {
+            format!(
+                "AsyncOperator(\"{}\", root=\"{}\", name=\"{name}\")",
+                info.scheme(),
+                info.root()
+            )
+        }
+    }
 }
 
 enum ReaderState {

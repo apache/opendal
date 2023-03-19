@@ -853,7 +853,10 @@ impl Builder for S3Builder {
         // Handle bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")),
+            true => Err(
+                Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
+                    .with_context("service", Scheme::S3),
+            ),
         }?;
         debug!("backend use bucket {}", &bucket);
 

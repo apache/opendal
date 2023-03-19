@@ -1505,7 +1505,7 @@ impl S3Backend {
             self.endpoint,
             percent_encode_path(&p),
             part_number,
-            upload_id
+            percent_encode_path(upload_id)
         );
 
         let mut req = Request::put(&url);
@@ -1535,7 +1535,7 @@ impl S3Backend {
             "{}/{}?uploadId={}",
             self.endpoint,
             percent_encode_path(&p),
-            upload_id
+            percent_encode_path(upload_id)
         );
 
         let req = Request::post(&url);

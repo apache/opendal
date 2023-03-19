@@ -25,11 +25,11 @@ on:
     branches:
       - main
     paths:
-      - "src/**"
-      - "tests/**"
-      - "!src/docs/**"
-      - "!src/services/**"
-      - "src/services/sled/**"
+      - "core/src/**"
+      - "core/tests/**"
+      - "!core/src/docs/**"
+      - "!core/src/services/**"
+      - "core/src/services/sled/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

@@ -97,6 +97,10 @@ async function main() {
 - [risingwave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 
+## Contributing
+
+Install [just](https://github.com/casey/just) and just `just`!
+
 ## Getting help
 
 Submit [issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or asking questions in the [Discussions forum](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).

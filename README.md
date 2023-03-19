@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
     builder.bucket("test");
 
     // Init an operator
-    let op = Operator::create(builder)?
+    let op = Operator::new(builder)?
         // Init with logging layer enabled.
         .layer(LoggingLayer::default())
         .finish();

@@ -34,33 +34,14 @@ asyncio.run(main())
 
 ## Development
 
-Setup virtualenv:
-
-```shell
-python -m venv venv
-```
-
-Activate venv:
-
-```shell
-source venv/bin/activate
-````
-
-Install `maturin`:
-
-```shell
-pip install maturin[patchelf]
-```
-
 Build bindings:
 
 ```shell
-maturin develop
+just build_bindings_python
 ```
 
 Running some tests:
 
 ```shell
-maturin develop -E test
-behave tests
+just test_bindings_python
 ```

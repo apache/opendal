@@ -29,7 +29,7 @@ async function main() {
 main();
 ```
 
-## Test or Contributing
+## Contributing
 
 - Install latest `Rust`
 - Install `Node.js@10+` which fully supported `Node-API`
@@ -42,12 +42,16 @@ corepack enable
 
 `corepack` is distributed with Node.js, so you do not need to specifically look for a way to install it.
 
-# Build Node.js bindings
+### Build
 
 ```bash
-yarn
-yarn build
-yarn test
+just build_bindings_nodejs
+```
+
+### Test
+
+```bash
+just test_bindings_nodejs
 ```
 
 ## License

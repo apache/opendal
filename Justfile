@@ -48,7 +48,7 @@ build_core:
 
 # Test the core library
 test_core:
-    cargo nextest run --no-fail-fast --features layers-all && \
+    cargo nextest run --no-fail-fast && \
         cargo test --doc
 
 [private]

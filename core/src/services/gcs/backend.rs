@@ -252,9 +252,11 @@ impl Builder for GcsBuilder {
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Gcs)),
+            true => Err(
+                Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::Gcs),
+            ),
         }?;
 
         // TODO: server side encryption

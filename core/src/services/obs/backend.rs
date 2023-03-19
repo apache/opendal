@@ -207,8 +207,10 @@ impl Builder for ObsBuilder {
 
         let bucket = match &self.bucket {
             Some(bucket) => Ok(bucket.to_string()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
-                .with_context("service", Scheme::Obs)),
+            None => Err(
+                Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
+                    .with_context("service", Scheme::Obs),
+            ),
         }?;
         debug!("backend use bucket {}", &bucket);
 

@@ -198,6 +198,20 @@ impl Operator {
     pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
         Ok(BlockingLister(self.0.scan(path).map_err(format_pyerr)?))
     }
+
+    fn __repr__(&self) -> String {
+        let info = self.0.info();
+        let name = info.name();
+        if name.is_empty() {
+            format!("Operator(\"{}\", root=\"{}\")", info.scheme(), info.root())
+        } else {
+            format!(
+                "Operator(\"{}\", root=\"{}\", name=\"{name}\")",
+                info.scheme(),
+                info.root()
+            )
+        }
+    }
 }
 
 /// A file-like blocking reader.

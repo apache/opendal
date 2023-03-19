@@ -2,7 +2,7 @@
 	"name": "OpenDAL",
 	"image": "ghcr.io/apache/opendal-devtools:latest",
 	"mounts": [
-		"source=${localEnv:HOME}/.cargo/registry,target=/opt/rust/cargo/registry,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.cargo/registry,target=/opt/rust/cargo/registry,type=bind,consistency=cached"
 	],
 	"remoteUser": "builder",
 	"updateRemoteUserUID": true,

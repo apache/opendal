@@ -396,11 +396,6 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
 
     let mut r = match op.range_reader(&path, ..length).await {
         Ok(r) => r,
-        // Not all services support range with tail range, let's tolerate this.
-        Err(err) if err.kind() == ErrorKind::Unsupported => {
-            warn!("service doesn't support range with tail");
-            return Ok(());
-        }
         Err(err) => return Err(err.into()),
     };
 

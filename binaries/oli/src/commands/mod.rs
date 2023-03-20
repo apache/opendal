@@ -19,7 +19,8 @@
 //!
 //! Each submodule represents a single command, and should export 2 functions respectively.
 //! The signature of those should be like the following:
-//! ```no_run
+//!
+//! ```ignore
 //! pub async fn main(args: &ArgMatches) -> Result<()> {
 //!     // the main logic
 //! }

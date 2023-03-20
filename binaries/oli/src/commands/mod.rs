@@ -15,5 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Commands provides the implementation of each commands.
+//!
+//! Each submodule represents a single command, and should export 2 functions respectively.
+//! The signature of those should be like the following:
+//! ```no_run
+//! pub async fn main(args: &ArgMatches) -> Result<()> {
+//!     // the main logic
+//! }
+//!
+//! // cli is used to customize the command, like setting the arguments.
+//! // As each command can be invoked like a separate binary,
+//! // we will pass a command with different name to get the complete command.
+//! pub fn cli(cmd: Command) -> Command {
+//!    // set the arguments, help message, etc.
+//! }
+//! ```
+
 pub mod cli;
 pub mod cp;

@@ -46,6 +46,8 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let reader = src_op.reader(src_path).await?;
     let buf_reader = futures::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
     futures::io::copy_buf(buf_reader, &mut dst_w).await?;
+    // flush data
+    dst_w.close().await?;
     Ok(())
 }
 

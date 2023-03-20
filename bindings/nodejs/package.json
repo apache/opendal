@@ -8,7 +8,10 @@
   "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
   "repository": "git@github.com/apache/incubator-opendal.git",
   "napi": {
-    "name": "opendal"
+    "name": "opendal",
+    "package": {
+      "name": "@opendal/lib"
+    }
   },
   "keywords": [
     "api",
@@ -46,8 +49,8 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
-    "build": "napi build --platform --release --js generated.js --js-package-name @opendal/lib",
-    "build:debug": "napi build --platform --js generated.js --js-package-name @opendal/lib",
+    "build": "napi build --platform --release --js generated.js",
+    "build:debug": "napi build --platform --js generated.js",
     "docs": "typedoc",
     "format": "prettier --write .",
     "prepublishOnly": "napi prepublish -t npm",
@@ -68,6 +71,10 @@
         }
       }
     ]
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f",
   "resolutions": {

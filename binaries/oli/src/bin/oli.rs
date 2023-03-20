@@ -28,6 +28,23 @@ use std::path::PathBuf;
 
 use anyhow::anyhow;
 use anyhow::Result;
+use clap::{value_parser, Arg, Command};
+use home::home_dir;
+
+fn new_cmd(name: &'static str) -> Result<Command> {
+    let home = home_dir().ok_or_else(|| anyhow!("unknown home dir"))?;
+    let default_config_path = home.join(".oli/config.toml").as_os_str().to_owned();
+
+    Ok(Command::new(name).arg(
+        Arg::new("config")
+            .long("config")
+            .help("Path to the config file")
+            .global(true)
+            .default_value(default_config_path)
+            .value_parser(value_parser!(PathBuf))
+            .required(false),
+    ))
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {

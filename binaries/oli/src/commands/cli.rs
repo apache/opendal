@@ -17,20 +17,19 @@
 
 use anyhow::anyhow;
 use anyhow::Result;
-use clap::Command;
+use clap::{ArgMatches, Command};
 
-pub async fn main() -> Result<()> {
-    match cli().get_matches().subcommand() {
-        Some(("cp", args)) => super::cp::main(Some(args.clone())).await?,
+pub async fn main(args: &ArgMatches) -> Result<()> {
+    match args.subcommand() {
+        Some(("cp", sub_args)) => super::cp::main(sub_args).await?,
         _ => return Err(anyhow!("not handled")),
     }
 
     Ok(())
 }
 
-fn cli() -> Command {
-    Command::new("oli")
-        .version("0.10.0")
+pub fn cli(cmd: Command) -> Command {
+    cmd.version("0.10.0")
         .about("OpenDAL Command Line Interface")
-        .subcommand(super::cp::cli("cp"))
+        .subcommand(super::cp::cli(Command::new("cp")))
 }

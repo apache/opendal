@@ -60,10 +60,12 @@ async fn main() -> Result<()> {
         .and_then(OsStr::to_str)
     {
         Some("oli") => {
-            oli::commands::cli::main().await?;
+            let cmd = oli::commands::cli::cli(new_cmd("oli")?);
+            oli::commands::cli::main(&cmd.get_matches()).await?;
         }
         Some("ocp") => {
-            oli::commands::cp::main(None).await?;
+            let cmd = oli::commands::cp::cli(new_cmd("ocp")?);
+            oli::commands::cp::main(&cmd.get_matches()).await?;
         }
         Some(v) => {
             println!("{v} is not supported")

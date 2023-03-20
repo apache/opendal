@@ -15,26 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::path::PathBuf;
+
 use anyhow::anyhow;
 use anyhow::Result;
 use clap::Arg;
 use clap::ArgMatches;
 use clap::Command;
 
-use crate::utils::parse_location;
+use crate::config::Config;
 
-pub async fn main(args: Option<ArgMatches>) -> Result<()> {
-    let args = args.unwrap_or_else(|| cli("ocp").get_matches());
+pub async fn main(args: &ArgMatches) -> Result<()> {
+    let config_path = args
+        .get_one::<PathBuf>("config")
+        .ok_or_else(|| anyhow!("missing config path"))?;
+    let cfg = Config::load_from_file(config_path)?;
 
     let src = args
         .get_one::<String>("source")
         .ok_or_else(|| anyhow!("missing source"))?;
-    let (src_op, src_path) = parse_location(src)?;
+    let (src_op, src_path) = cfg.parse_location(src)?;
 
     let dst = args
         .get_one::<String>("destination")
         .ok_or_else(|| anyhow!("missing target"))?;
-    let (dst_op, dst_path) = parse_location(dst)?;
+    let (dst_op, dst_path) = cfg.parse_location(dst)?;
+
     let mut dst_w = dst_op.writer(dst_path).await?;
 
     let reader = src_op.reader(src_path).await?;
@@ -43,9 +49,8 @@ pub async fn main(args: Option<ArgMatches>) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn cli(name: &str) -> Command {
-    Command::new(name.to_string())
-        .version("0.10.0")
+pub fn cli(cmd: Command) -> Command {
+    cmd.version("0.10.0")
         .about("copy")
         .arg(Arg::new("source").required(true))
         .arg(Arg::new("destination").required(true))

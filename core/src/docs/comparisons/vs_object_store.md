@@ -21,22 +21,27 @@ Yes, of course. Both `opendal` and `object_store` are developed in [Rust](https:
 
 Both `opendal` and `object_store` are licensed under [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
+### Owner
+
+`object_store` is a part of `Apache Arrow` which means it's hosted and maintained by [Apache Software Foundation](https://www.apache.org/).
+
+`opendal` is now hosted by [Apache Incubator](https://incubator.apache.org/projects/opendal.html).
+
 ### Domain
 
 Both `opendal` and `object_store` can be used to access data stored on object storage services. The primary users of those projects are both cloud-native databases too:
 
-- `opendal` is mainly used by [databend](https://github.com/datafuselabs/databend): A modern Elasticity and Performance cloud data warehouse
+- `opendal` is mainly used by:
+  - [databend](https://github.com/datafuselabs/databend): A modern Elasticity and Performance cloud data warehouse
+  - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
+  - [mozilla/sccache](https://github.com/mozilla/sccache/): sccache is ccache with cloud storage
+  - [risingwave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
+  - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 - `object_store` is mainly used by:
   - [datafusion](https://github.com/apache/arrow-datafusion): Apache Arrow DataFusion SQL Query Engine
   - [Influxdb IOx](https://github.com/influxdata/influxdb_iox/): The new core of InfluxDB is written in Rust on top of Apache Arrow.
 
 ## Differences
-
-### Owner
-
-`object_store` is a part of `Apache Arrow` which means it's hosted and maintained by [Apache Software Foundation](https://www.apache.org/).
-
-`opendal` is now hosted and maintained by [Apache Software Foundation](https://www.apache.org/).
 
 ### Vision
 
@@ -158,7 +163,7 @@ builder.bucket("example");
 builder.access_key_id("access_key_id");
 builder.secret_access_key("secret_access_key");
 
-let store = Operator::create(builder)?.finish();
+let store = Operator::new(builder)?.finish();
 let r = store.reader("data.parquet").await?;
 ```
 

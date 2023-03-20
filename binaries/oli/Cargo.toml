@@ -24,7 +24,6 @@ homepage = "https://opendal.apache.org/"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oli"
-publish = false
 repository = "https://github.com/apache/incubator-opendal"
 version = "0.30.3"
 

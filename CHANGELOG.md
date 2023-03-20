@@ -18,16 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - feat(bindings/c): Setup the integrate with cbindgen (#1603)
 - feat(bindings/nodejs): Auto-generate docs (#1625)
 - feat: add max_batch_operations for AccessorInfo (#1615)
+- feat(azblob): Add support for batch operations (#1610)
+- services/redis: Implement Write::append with native support (#1651)
+- feat(tests): Introducing BDD tests for all bindings (#1654)
+- feat(bindings/nodejs): Migrate to BDD test (#1661)
+- feat(bindings/nodejs): Add generated `index.d.ts` (#1664)
+- feat(bindings/python): add auto-generated api docs (#1613)
+- feat(bindings/python): add `__repr__` to `Operator` and `AsyncOperator` (#1683)
 
 ### Changed
 
 - *: Change all files licenses to ASF (#1592)
+- refactor(bindings/python): only enable `pyo3/entension-module` feature when building with maturin (#1680)
 
 ### Fixed
 
 - fix(bindings/python): Fix the metadata for Python binding (#1568)
 - fix: Operator::remove_all behaviour on non-existing object fixed (#1587)
 - fix: reset Reader::SeekState when poll completed (#1609)
+- fix: Bucket config related error is misleadling (#1684)
+- fix(services/s3): UploadId should be percent encoded (#1690)
 
 ### CI
 
@@ -41,11 +51,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ci: set main branch to be protected (#1631)
 - ci: Add release scripts for OpenDAL (#1637)
 - ci: Add check scripts (#1638)
+- ci: Remove rust-cache to allow we can test rust code now (#1643)
+- ci: Enable license check back (#1663)
+- ci(bindings/nodejs): Enable formatter (#1665)
+- ci: Bring our actions back (#1668)
+- ci: Use korandoru/hawkeye@v1.5.4 instead (#1672)
+- ci: Fix license header check and doc check (#1674)
+- infra: Add odev to simplify contributor's setup (#1687)
 
 ### Docs
 
 - docs: Migrate links to o.a.o (#1630)
 - docs: update the old address and the LICENSE size. (#1633)
+- doc: update doc-link (#1642)
+- docs(blog): Way to Go: OpenDAL successfully entered Apache Incubator (#1652)
+- docs: Reorganize README of core and whole project (#1676)
+- doc: Update README.md for quickstart (#1650)
+- doc: uncomment the use expr for operator example (#1685)
 
 ### Website
 
@@ -53,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - website: Fix CNAME not set (#1590)
 - website: Fix website publish (#1626)
 - website: Add GitHub entry (#1636)
+- website: move some content of footer to navbar. (#1660)
 
 ### Chore
 
@@ -73,6 +96,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - chore: Rename files to yaml (#1624)
 - chore: remove PULL_REQUEST_TEMPLATE (#1634)
 - chore: add NOTICE and DISCLAIMER (#1635)
+- chore(operator): apply max_batch_limit for async operator (#1641)
+- chore: replace datafuselabs/opendal with apache/incubator-opendal (#1647)
+- chore: make check.sh be executable and update gitignore (#1648)
+- chore(automation): fix release.sh packaging sha512sum (#1649)
+- chore: Update metadata (#1666)
+- chore(website): Remove authors.yml (#1669)
+- chore: Move opendal related staffs to core (#1673)
+- chore: Remove not needed ignore from licenserc (#1677)
+- chore: Ignore generated docs from git (#1686)
 
 ## [v0.30.2] - 2023-03-10
 

@@ -26,7 +26,7 @@ license = "Apache-2.0"
 name = "oli"
 publish = false
 repository = "https://github.com/apache/incubator-opendal"
-version = "0.19.6"
+version = "0.30.3"
 
 [dependencies]
 anyhow = "1"

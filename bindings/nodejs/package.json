@@ -8,7 +8,10 @@
   "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
   "repository": "git@github.com/apache/incubator-opendal.git",
   "napi": {
-    "name": "opendal"
+    "name": "opendal",
+    "package": {
+      "name": "@opendal/lib"
+    }
   },
   "keywords": [
     "api",

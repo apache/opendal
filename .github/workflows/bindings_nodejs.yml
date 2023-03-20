@@ -132,10 +132,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-windows
-          path: |
-            bindings/nodejs/*.node
-            bindings/nodejs/index.d.ts
-            bindings/nodejs/generated*.*
+          path: bindings/nodejs/*.node
       - name: Test bindings
         run: yarn test
 

@@ -191,5 +191,3 @@ Cargo.lock
 !.yarn/patches
 *.node
 docs/
-
-generated*.*

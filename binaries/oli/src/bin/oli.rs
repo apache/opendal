@@ -29,11 +29,11 @@ use std::path::PathBuf;
 use anyhow::anyhow;
 use anyhow::Result;
 use clap::{value_parser, Arg, Command};
-use home::home_dir;
+use dirs::home_dir;
 
 fn new_cmd(name: &'static str) -> Result<Command> {
     let home = home_dir().ok_or_else(|| anyhow!("unknown home dir"))?;
-    let default_config_path = home.join(".oli/config.toml").as_os_str().to_owned();
+    let default_config_path = home.join(".config/oli/config.toml").as_os_str().to_owned();
 
     Ok(Command::new(name).arg(
         Arg::new("config")

@@ -172,11 +172,11 @@ impl Operator {
     }
 }
 
-/// OperatorBuilder is a typed builder to builder an Operator.
+/// OperatorBuilder is a typed builder to build an Operator.
 ///
 /// # Notes
 ///
-/// OpenDAL uses static dispatch internally and only perform dynamic
+/// OpenDAL uses static dispatch internally and only performs dynamic
 /// dispatch at the outmost type erase layer. OperatorBuilder is the only
 /// public API provided by OpenDAL come with generic parameters.
 ///

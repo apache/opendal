@@ -125,7 +125,7 @@ use crate::*;
 /// }
 /// ```
 pub trait Layer<A: Accessor> {
-    /// The layered accessor that return by this layer.
+    /// The layered accessor that returned by this layer.
     type LayeredAccessor: Accessor;
 
     /// Intercept the operations on the underlying storage.

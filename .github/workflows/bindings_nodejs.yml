@@ -51,6 +51,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Setup node
         uses: actions/setup-node@v3
         with:

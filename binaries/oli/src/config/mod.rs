@@ -18,17 +18,19 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::str::FromStr;
 
 use anyhow::{anyhow, Result};
-use opendal::{services, Operator};
+use opendal::{services, Operator, Scheme};
 use serde::Deserialize;
 use toml;
 
 type StringMap<T> = HashMap<String, T>;
 
-macro_rules! set_bucket {
+macro_rules! update_options {
     ($m: expr, $bucket: ident) => {{
-        let mut opts = $m.clone().unwrap();
+        let mut opts = $m.clone();
+        opts.remove("type");
         opts.insert("bucket".to_string(), $bucket.to_string());
         opts
     }};
@@ -36,14 +38,7 @@ macro_rules! set_bucket {
 
 #[derive(Deserialize, Default)]
 pub struct Config {
-    profiles: StringMap<Profile>,
-}
-
-#[derive(Deserialize, Default)]
-pub struct Profile {
-    // TODO: add more services
-    s3: Option<StringMap<String>>,
-    oss: Option<StringMap<String>>,
+    profiles: StringMap<StringMap<String>>,
 }
 
 impl Config {
@@ -95,14 +90,20 @@ impl Config {
             .get(profile_name)
             .ok_or_else(|| anyhow!("unknown profile: {}", profile_name))?;
 
-        if profile.s3.is_some() {
-            let opts = set_bucket!(profile.s3, bucket);
-            Ok((Operator::from_map::<services::S3>(opts)?.finish(), path))
-        } else if profile.oss.is_some() {
-            let opts = set_bucket!(profile.oss, bucket);
-            Ok((Operator::from_map::<services::Oss>(opts)?.finish(), path))
-        } else {
-            Err(anyhow!("invalid profile"))
+        let svc = profile
+            .get("type")
+            .ok_or_else(|| anyhow!("missing 'type' in profile"))?;
+        let scheme = Scheme::from_str(svc)?;
+        match scheme {
+            Scheme::S3 => {
+                let opts = update_options!(profile, bucket);
+                Ok((Operator::from_map::<services::S3>(opts)?.finish(), path))
+            }
+            Scheme::Oss => {
+                let opts = update_options!(profile, bucket);
+                Ok((Operator::from_map::<services::Oss>(opts)?.finish(), path))
+            }
+            _ => Err(anyhow!("invalid profile")),
         }
     }
 }
@@ -116,14 +117,15 @@ mod tests {
     fn test_load_toml() {
         let cfg = Config::load_from_str(
             r#"
-[profiles.mys3.s3]
+[profiles.mys3]
+type = "s3"
 region = "us-east-1"
 access_key_id = "foo"
 enable_virtual_host_style = "on"
 "#,
         )
         .expect("load config");
-        let profile = cfg.profiles["mys3"].s3.clone().unwrap();
+        let profile = cfg.profiles["mys3"].clone();
         assert_eq!(profile["region"], "us-east-1");
         assert_eq!(profile["access_key_id"], "foo");
         assert_eq!(profile["enable_virtual_host_style"], "on");
@@ -144,10 +146,10 @@ enable_virtual_host_style = "on"
         let cfg = Config {
             profiles: StringMap::from([(
                 "mys3".into(),
-                Profile {
-                    s3: Some(StringMap::from([("region".into(), "us-east-1".into())])),
-                    ..Default::default()
-                },
+                StringMap::from([
+                    ("type".into(), "s3".into()),
+                    ("region".into(), "us-east-1".into()),
+                ]),
             )]),
         };
         let (op, path) = cfg.parse_location("mys3://mybucket/foo/1.txt").unwrap();

@@ -132,10 +132,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-windows
-          path: |
-            bindings/nodejs/*.node
-            bindings/nodejs/index.d.ts
-            bindings/nodejs/generated*.*
+          path: bindings/nodejs/*.node
       - name: Test bindings
         run: yarn test
 
@@ -211,7 +208,7 @@ jobs:
       - name: Publish
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-          npm publish --access public
+          npm publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

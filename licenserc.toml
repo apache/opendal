@@ -25,9 +25,6 @@ excludes = [
   # Python binding related files
   "**/venv/**",
 
-  # Nodejs binding related files
-  "bindings/nodejs/generated*.*",
-
   # Website generated files
   "website/build",
   "website/.docusaurus",

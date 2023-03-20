@@ -414,7 +414,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
 }
 
-/// FusedAccessor is the type erased accessor with `Box<dyn Reader>`.
+/// FusedAccessor is the type erased accessor with `Box<dyn Read>`.
 pub type FusedAccessor = Arc<
     dyn Accessor<
         Reader = oio::Reader,

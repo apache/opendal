@@ -318,22 +318,6 @@ impl WebhdfsBackend {
             url += format!("&{auth}").as_str();
         }
 
-        // make a Webhdfs compatible bytes range
-        //
-        // Webhdfs does not support read from end
-        // have to solve manually
-        let range = match (range.offset(), range.size()) {
-            // avoiding reading the whole file
-            (None, Some(size)) => {
-                debug!("converting bytes range to webhdfs compatible");
-                let status = self.stat(path, OpStat::default()).await?;
-                let total_size = status.into_metadata().content_length();
-                let offset = total_size - size;
-                BytesRange::new(Some(offset), Some(size))
-            }
-            _ => *range,
-        };
-
         let (offset, size) = (range.offset(), range.size());
 
         match (offset, size) {

@@ -26,6 +26,7 @@ runs:
         path: |
           ~/.cargo/bin/
           ~/.cargo/registry/cache/
+          target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Setup rust related environment variables

@@ -85,12 +85,94 @@ impl Config {
             .ok_or_else(|| anyhow!("missing 'type' in profile"))?;
         let scheme = Scheme::from_str(svc)?;
         match scheme {
-            Scheme::S3 => Ok((
-                Operator::from_map::<services::S3>(profile.clone())?.finish(),
+            Scheme::Azblob => Ok((
+                Operator::from_map::<services::Azblob>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Azdfs => Ok((
+                Operator::from_map::<services::Azdfs>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-dashmap")]
+            Scheme::Dashmap => Ok((
+                Operator::from_map::<services::Dashmap>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Gcs => Ok((
+                Operator::from_map::<services::Gcs>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Ghac => Ok((
+                Operator::from_map::<services::Ghac>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs => Ok((
+                Operator::from_map::<services::Hdfs>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Http => Ok((
+                Operator::from_map::<services::Http>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => Ok((
+                Operator::from_map::<services::Ftp>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-ipfs")]
+            Scheme::Ipfs => Ok((
+                Operator::from_map::<services::Ipfs>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Ipmfs => Ok((
+                Operator::from_map::<services::Ipmfs>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached => Ok((
+                Operator::from_map::<services::Memcached>(profile.clone())?.finish(),
+                path,
+            )),
+            // ignore the memory backend
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka => Ok((
+                Operator::from_map::<services::Moka>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Obs => Ok((
+                Operator::from_map::<services::Obs>(profile.clone())?.finish(),
                 path,
             )),
             Scheme::Oss => Ok((
                 Operator::from_map::<services::Oss>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis => Ok((
+                Operator::from_map::<services::Redis>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-rocksdb")]
+            Scheme::Rocksdb => Ok((
+                Operator::from_map::<services::Rocksdb>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::S3 => Ok((
+                Operator::from_map::<services::S3>(profile.clone())?.finish(),
+                path,
+            )),
+            #[cfg(feature = "services-sled")]
+            Scheme::Sled => Ok((
+                Operator::from_map::<services::Sled>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Webdav => Ok((
+                Operator::from_map::<services::Webdav>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Webhdfs => Ok((
+                Operator::from_map::<services::Webhdfs>(profile.clone())?.finish(),
                 path,
             )),
             _ => Err(anyhow!("invalid profile")),

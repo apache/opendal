@@ -25,8 +25,6 @@ use opendal::{services, Operator, Scheme};
 use serde::Deserialize;
 use toml;
 
-type StringMap<T> = HashMap<String, T>;
-
 macro_rules! update_options {
     ($m: expr) => {{
         let mut opts = $m.clone();
@@ -37,7 +35,7 @@ macro_rules! update_options {
 
 #[derive(Deserialize, Default)]
 pub struct Config {
-    profiles: StringMap<StringMap<String>>,
+    profiles: HashMap<String, HashMap<String, String>>,
 }
 
 impl Config {
@@ -144,9 +142,9 @@ enable_virtual_host_style = "on"
     #[test]
     fn test_parse_s3_location() {
         let cfg = Config {
-            profiles: StringMap::from([(
+            profiles: HashMap::from([(
                 "mys3".into(),
-                StringMap::from([
+                HashMap::from([
                     ("type".into(), "s3".into()),
                     ("bucket".into(), "mybucket".into()),
                     ("region".into(), "us-east-1".into()),

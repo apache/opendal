@@ -27,5 +27,5 @@ members = [
   "bindings/object_store",
   "bindings/python",
 
-  "binaries/oli",
+  "bin/oli",
 ]

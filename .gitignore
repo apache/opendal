@@ -13,3 +13,5 @@ incubator-opendal-release-verify
 # profiling
 flamegraph.svg
 perf.*
+
+**/.DS_Store

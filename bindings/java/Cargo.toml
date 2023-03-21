@@ -15,19 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+[package]
+name = "opendal-java"
+version = "0.1.0"
+edition = "2021"
 
-[workspace]
-members = [
-  "core",
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
+[lib]
+crate-type = ["cdylib"]
+doc = false
 
-  "bin/oli",
-]
+
+[dependencies]
+jni = "0.21.1"
+opendal = { version = "0.30", path = "../../core" }

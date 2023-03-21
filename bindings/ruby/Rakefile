@@ -1,0 +1,15 @@
+# frozen_string_literal: true
+
+require "rake/testtask"
+require "bundler/gem_tasks"
+require "standard/rake"
+
+task default: ["lint", "test"]
+
+task lint: :standard
+
+task "test"
+
+Rake::TestTask.new do |task|
+  task.pattern = "test/*_test.rb"
+end

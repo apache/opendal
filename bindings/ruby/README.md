@@ -21,9 +21,3 @@ Run some tests:
 ```shell
 rake test
 ```
-
-Run cucumber tests:
-
-```shell
-rake features
-```

@@ -21,8 +21,10 @@ require "rake/testtask"
 require "rake/extensiontask"
 require "bundler/gem_tasks"
 require "standard/rake"
+require "cucumber"
+require "cucumber/rake/task"
 
-task default: ["lint", "test"]
+task default: ["lint", "test", "features"]
 
 Rake::ExtensionTask.new do |ext|
   ext.name = "opendal_ruby"
@@ -39,4 +41,8 @@ end
 Rake::TestTask.new do |t|
   t.deps << :dev << :compile
   t.test_files = FileList[File.expand_path("test/*_test.rb", __dir__)]
+end
+
+Cucumber::Rake::Task.new(:features) do |t|
+  t.cucumber_opts = ["--format pretty"] # Any valid command line option can go here.
 end

@@ -33,6 +33,7 @@ requires-python = ">=3.7"
 
 [project.optional-dependencies]
 test = ["behave"]
+docs = ["pdoc"]
 
 [project.urls]
 Documentation = "https://docs.rs/opendal/"

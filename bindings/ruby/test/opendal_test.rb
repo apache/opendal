@@ -15,18 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+require_relative "test_helper"
 
-[workspace]
-members = [
-  "core",
-
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-
-  "bin/oli",
-]
+class OpenDALTest < Minitest::Test
+  def test_hello_opendal
+    hello_opendal
+  end
+end

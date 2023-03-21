@@ -15,18 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+# frozen_string_literal: true
 
-[workspace]
-members = [
-  "core",
+require "rake/testtask"
+require "rake/extensiontask"
+require "bundler/gem_tasks"
+require "standard/rake"
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
+task default: ["lint", "test"]
 
-  "bin/oli",
-]
+Rake::ExtensionTask.new do |ext|
+  ext.name = "opendal_ruby"
+  ext.ext_dir = "."
+  ext.lib_dir = "lib/opendal_ruby"
+end
+
+task lint: :standard
+
+task :dev do
+  ENV["RB_SYS_CARGO_PROFILE"] = "dev"
+end
+
+Rake::TestTask.new do |t|
+  t.deps << :dev << :compile
+  t.test_files = FileList[File.expand_path("test/*_test.rb", __dir__)]
+end

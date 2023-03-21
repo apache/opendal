@@ -15,18 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+# frozen_string_literal: true
 
-[workspace]
-members = [
-  "core",
-
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-
-  "bin/oli",
-]
+module OpenDAL
+  VERSION = "0.1.0"
+end

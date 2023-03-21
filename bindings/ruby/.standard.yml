@@ -15,18 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
-
-[workspace]
-members = [
-  "core",
-
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-
-  "bin/oli",
-]
+# For available configuration options, see:
+#   https://github.com/testdouble/standard
+ruby_version: 2.6

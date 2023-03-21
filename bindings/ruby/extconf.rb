@@ -15,18 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+require "mkmf"
+require "rb_sys/mkmf"
 
-[workspace]
-members = [
-  "core",
-
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-
-  "bin/oli",
-]
+create_rust_makefile("opendal_ruby/opendal_ruby")

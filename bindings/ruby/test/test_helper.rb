@@ -15,18 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+$LOAD_PATH.unshift File.expand_path("../../lib", __FILE__)
+require_relative "../lib/opendal"
 
-[workspace]
-members = [
-  "core",
-
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-
-  "bin/oli",
-]
+require "minitest/autorun"
+require "color_pound_spec_reporter"
+Minitest::Reporters.use! [ColorPoundSpecReporter.new]

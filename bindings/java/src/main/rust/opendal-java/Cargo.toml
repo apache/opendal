@@ -1,0 +1,14 @@
+[package]
+name = "opendal-java"
+version = "0.1.0"
+edition = "2021"
+
+
+[lib]
+crate-type = ["cdylib"]
+doc = false
+
+
+[dependencies]
+jni = "0.21.1"
+opendal = { version = "0.30.2", path = "../../../../../.." }

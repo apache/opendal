@@ -26,6 +26,7 @@ members = [
   "bindings/nodejs",
   "bindings/object_store",
   "bindings/python",
+  "bindings/java/src/main/rust/opendal-java",
 
   "bin/oli",
 ]

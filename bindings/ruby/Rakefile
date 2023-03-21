@@ -1,15 +1,23 @@
 # frozen_string_literal: true
 
 require "rake/testtask"
+require "rake/extensiontask"
 require "bundler/gem_tasks"
 require "standard/rake"
 
 task default: ["lint", "test"]
 
+Rake::ExtensionTask.new("opendal") do |c|
+  c.lib_dir = "lib/opendal"
+end
+
 task lint: :standard
 
-task "test"
+task :dev do
+  ENV["RB_SYS_CARGO_PROFILE"] = "dev"
+end
 
-Rake::TestTask.new do |task|
-  task.pattern = "test/*_test.rb"
+Rake::TestTask.new do |t|
+  t.deps << :dev << :compile
+  t.test_files = FileList[File.expand_path("test/*_test.rb", __dir__)]
 end

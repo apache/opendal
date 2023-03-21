@@ -26,7 +26,7 @@ members = [
   "bindings/nodejs",
   "bindings/object_store",
   "bindings/python",
-  "bindings/ruby",
+  "bindings/ruby/ext/opendal",
 
   "bin/oli",
 ]

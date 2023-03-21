@@ -7,6 +7,8 @@ gemspec
 
 gem "rake", "~> 13.0"
 
-gem "minitest", "~> 5.18"
+gem "minitest", "~> 5.10"
+gem "minitest-reporters", "~> 1.1"
+gem "color_pound_spec_reporter", "~> 0.0.6"
 
 gem "standard", "~> 1.3"

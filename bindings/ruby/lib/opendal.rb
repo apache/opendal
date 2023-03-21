@@ -1,8 +1,4 @@
 # frozen_string_literal: true
 
-require_relative "opendal/version"
-
-module OpenDAL
-  class Error < StandardError; end
-  # Your code goes here...
-end
+require "opendal/version"
+require_relative "opendal/opendal_ruby"

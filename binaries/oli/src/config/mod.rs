@@ -25,14 +25,6 @@ use opendal::{services, Operator, Scheme};
 use serde::Deserialize;
 use toml;
 
-macro_rules! update_options {
-    ($m: expr) => {{
-        let mut opts = $m.clone();
-        opts.remove("type");
-        opts
-    }};
-}
-
 #[derive(Deserialize, Default)]
 pub struct Config {
     profiles: HashMap<String, HashMap<String, String>>,
@@ -93,14 +85,14 @@ impl Config {
             .ok_or_else(|| anyhow!("missing 'type' in profile"))?;
         let scheme = Scheme::from_str(svc)?;
         match scheme {
-            Scheme::S3 => {
-                let opts = update_options!(profile);
-                Ok((Operator::from_map::<services::S3>(opts)?.finish(), path))
-            }
-            Scheme::Oss => {
-                let opts = update_options!(profile);
-                Ok((Operator::from_map::<services::Oss>(opts)?.finish(), path))
-            }
+            Scheme::S3 => Ok((
+                Operator::from_map::<services::S3>(profile.clone())?.finish(),
+                path,
+            )),
+            Scheme::Oss => Ok((
+                Operator::from_map::<services::Oss>(profile.clone())?.finish(),
+                path,
+            )),
             _ => Err(anyhow!("invalid profile")),
         }
     }

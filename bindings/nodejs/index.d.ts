@@ -66,6 +66,7 @@ export class Operator {
   listSync(path: string): BlockingLister
 }
 export class Entry {
+  /** Return the path of this entry. */
   path(): string
 }
 export class Metadata {

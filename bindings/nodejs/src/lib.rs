@@ -213,7 +213,7 @@ pub struct Entry(opendal::Entry);
 
 #[napi]
 impl Entry {
-    // Return the path of this entry.
+    /// Return the path of this entry.
     #[napi]
     pub fn path(&self) -> String {
         self.0.path().to_string()

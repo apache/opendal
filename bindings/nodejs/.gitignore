@@ -188,6 +188,5 @@ Cargo.lock
 
 .pnp.*
 .yarn
-!.yarn/patches
 *.node
 docs/

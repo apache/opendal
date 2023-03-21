@@ -76,8 +76,5 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
-  "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f",
-  "resolutions": {
-    "@napi-rs/cli@^2.14.8": "patch:@napi-rs/cli@npm%3A2.14.8#./.yarn/patches/@napi-rs-cli-npm-2.14.8-71492d0ade.patch"
-  }
+  "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f"
 }

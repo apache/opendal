@@ -39,6 +39,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          cache-key: "-services-all"
 
       - uses: actions-rs/cargo@v1
         with:

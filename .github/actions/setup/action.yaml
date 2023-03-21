@@ -29,14 +29,6 @@ runs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Install Build Dependencies
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y librocksdb-dev
-        echo "ROCKSDB_LIB_DIR=/usr/lib" >> $GITHUB_ENV
-
     - name: Setup rust related environment variables
       shell: bash
       run: |

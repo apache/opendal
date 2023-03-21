@@ -75,7 +75,7 @@ services-moka = ["dep:moka"]
 # Enable services redis support
 services-redis = ["dep:redis"]
 # Enable services rocksdb support
-services-rocksdb = ["dep:rocksdb", "dep:librocksdb-sys"]
+services-rocksdb = ["dep:rocksdb"]
 # Enable services sled support
 services-sled = ["dep:sled"]
 
@@ -102,9 +102,6 @@ hdrs = { version = "0.2", optional = true, features = ["async_file"] }
 http = "0.2.5"
 hyper = "0.14"
 lazy-regex = { version = "2.5.0", optional = true }
-# Notes:
-# pin to 6.11 to allow we can use rocksdb 6.11 which is more widely used.
-librocksdb-sys = { version = "=6.11", optional = true }
 log = "0.4"
 md-5 = "0.10"
 metrics = { version = "0.20", optional = true }
@@ -125,9 +122,7 @@ reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",
 ], default-features = false }
-# Notes:
-# pin to 0.15 to allow we can use rocksdb 6.x which is more widely used.
-rocksdb = { version = "0.15", default-features = false, optional = true }
+rocksdb = { version = "0.20.1", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sled = { version = "0.34.7", optional = true }

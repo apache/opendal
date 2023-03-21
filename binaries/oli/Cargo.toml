@@ -30,11 +30,15 @@ version = "0.30.3"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["cargo", "string"] }
+dirs = "5.0.0"
 env_logger = "0.10"
 futures = "0.3"
 log = "0.4"
 opendal = { version = "0.30", path = "../../core" }
+serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.26", features = ["fs", "macros", "rt-multi-thread"] }
+toml = "0.7.3"
+url = "2.3.1"
 
 [dev-dependencies]
 assert_cmd = "2"

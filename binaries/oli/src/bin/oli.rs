@@ -26,8 +26,24 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use clap::{value_parser, Arg, Command};
+use dirs::config_dir;
+
+fn new_cmd(name: &'static str) -> Result<Command> {
+    let d = config_dir().ok_or_else(|| anyhow!("unknown config dir"))?;
+    let default_config_path = d.join("oli/config.toml").as_os_str().to_owned();
+
+    Ok(Command::new(name).arg(
+        Arg::new("config")
+            .long("config")
+            .help("Path to the config file")
+            .global(true)
+            .default_value(default_config_path)
+            .value_parser(value_parser!(PathBuf))
+            .required(false),
+    ))
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,10 +59,12 @@ async fn main() -> Result<()> {
         .and_then(OsStr::to_str)
     {
         Some("oli") => {
-            oli::commands::cli::main().await?;
+            let cmd = oli::commands::cli::cli(new_cmd("oli")?);
+            oli::commands::cli::main(&cmd.get_matches()).await?;
         }
         Some("ocp") => {
-            oli::commands::cp::main(None).await?;
+            let cmd = oli::commands::cp::cli(new_cmd("ocp")?);
+            oli::commands::cp::main(&cmd.get_matches()).await?;
         }
         Some(v) => {
             println!("{v} is not supported")

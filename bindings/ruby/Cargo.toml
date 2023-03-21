@@ -15,18 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+[package]
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+name = "opendal-ruby"
+publish = false
+repository = "https://github.com/apache/incubator-opendal"
+version = "0.1.0"
 
-[workspace]
-members = [
-  "core",
+[lib]
+crate-type = ["cdylib"]
+doc = false
+name = "opendal"
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-
-  "bin/oli",
-]
+[dependencies]
+opendal = { version = "0.30", path = "../../core" }

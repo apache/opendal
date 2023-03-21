@@ -2210,6 +2210,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-ruby"
+version = "0.1.0"
+dependencies = [
+ "opendal",
+]
+
+[[package]]
 name = "openssl"
 version = "0.10.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,11 +1,13 @@
 use magnus::{define_global_function, function, Error};
+use opendal::{services::Memory, Operator};
 
-fn distance(a: (f64, f64), b: (f64, f64)) -> f64 {
-    ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt()
+fn hello_opendal() {
+    let op = Operator::new(Memory::default()).unwrap().finish();
+    println!("{op:?}")
 }
 
 #[magnus::init]
 fn init() -> Result<(), Error> {
-    define_global_function("distance", function!(distance, 2));
+    define_global_function("hello_opendal", function!(hello_opendal, 0));
     Ok(())
 }

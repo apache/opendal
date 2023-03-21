@@ -30,6 +30,7 @@ on:
       - "!core/src/docs/**"
       - "!core/src/services/**"
       - "core/src/services/sled/**"
+      - ".github/workflows/service_test_sled.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

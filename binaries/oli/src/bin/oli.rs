@@ -26,14 +26,13 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::{value_parser, Arg, Command};
-use dirs::home_dir;
+use dirs::config_dir;
 
 fn new_cmd(name: &'static str) -> Result<Command> {
-    let home = home_dir().ok_or_else(|| anyhow!("unknown home dir"))?;
-    let default_config_path = home.join(".config/oli/config.toml").as_os_str().to_owned();
+    let d = config_dir().ok_or_else(|| anyhow!("unknown config dir"))?;
+    let default_config_path = d.join("oli/config.toml").as_os_str().to_owned();
 
     Ok(Command::new(name).arg(
         Arg::new("config")

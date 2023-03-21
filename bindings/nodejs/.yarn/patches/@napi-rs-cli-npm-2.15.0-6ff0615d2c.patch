@@ -16,10 +16,10 @@
 # under the License.
 
 diff --git a/scripts/index.js b/scripts/index.js
-index 8db6618cb0f730238369a92a54fa23ad7a7bf6b1..065decd83647df7f195f34f0c2815b253f3dc386 100755
+index 50724705ad5c53048b95aec0475fc5b7bf6f4eb4..47be7187734ef3b4e2edaba9b2ab05f8c3576314 100755
 --- a/scripts/index.js
 +++ b/scripts/index.js
-@@ -11683,7 +11683,26 @@ function processIntermediateTypeFile(source, target, noDtsHeader) {
+@@ -11701,7 +11701,26 @@ function processIntermediateTypeFile(source, target, noDtsHeader, tsConstEnum) {
          }, '');
          const dtsHeader = noDtsHeader
              ? ''

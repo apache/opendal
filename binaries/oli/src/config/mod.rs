@@ -28,10 +28,9 @@ use toml;
 type StringMap<T> = HashMap<String, T>;
 
 macro_rules! update_options {
-    ($m: expr, $bucket: ident) => {{
+    ($m: expr) => {{
         let mut opts = $m.clone();
         opts.remove("type");
-        opts.insert("bucket".to_string(), $bucket.to_string());
         opts
     }};
 }
@@ -55,7 +54,13 @@ impl Config {
     }
 
     pub(crate) fn load_from_str(s: &str) -> Result<Config> {
-        Ok(toml::from_str(s)?)
+        let cfg: Config = toml::from_str(s)?;
+        for (name, opts) in &cfg.profiles {
+            if opts.get("type").is_none() {
+                return Err(anyhow!("profile {}: missing 'type'", name));
+            }
+        }
+        Ok(cfg)
     }
 
     /// Parse `<profile>://abc/def` into `op` and `location`.
@@ -78,12 +83,7 @@ impl Config {
         debug_assert!(parts.len() == 2);
 
         let profile_name = parts[0];
-
-        let bucket_and_path = parts[1].splitn(2, '/').collect::<Vec<_>>();
-        debug_assert!(bucket_and_path.len() == 2);
-
-        let bucket = bucket_and_path[0];
-        let path = bucket_and_path[1];
+        let path = parts[1];
 
         let profile = self
             .profiles
@@ -96,11 +96,11 @@ impl Config {
         let scheme = Scheme::from_str(svc)?;
         match scheme {
             Scheme::S3 => {
-                let opts = update_options!(profile, bucket);
+                let opts = update_options!(profile);
                 Ok((Operator::from_map::<services::S3>(opts)?.finish(), path))
             }
             Scheme::Oss => {
-                let opts = update_options!(profile, bucket);
+                let opts = update_options!(profile);
                 Ok((Operator::from_map::<services::Oss>(opts)?.finish(), path))
             }
             _ => Err(anyhow!("invalid profile")),
@@ -148,11 +148,12 @@ enable_virtual_host_style = "on"
                 "mys3".into(),
                 StringMap::from([
                     ("type".into(), "s3".into()),
+                    ("bucket".into(), "mybucket".into()),
                     ("region".into(), "us-east-1".into()),
                 ]),
             )]),
         };
-        let (op, path) = cfg.parse_location("mys3://mybucket/foo/1.txt").unwrap();
+        let (op, path) = cfg.parse_location("mys3://foo/1.txt").unwrap();
         assert_eq!("foo/1.txt", path);
         let info = op.info();
         assert_eq!(Scheme::S3, info.scheme());

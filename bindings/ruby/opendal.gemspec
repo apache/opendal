@@ -48,7 +48,7 @@ Gem::Specification.new do |spec|
 
   # Uncomment to register a new dependency of your gem
   # spec.add_dependency "example-gem", "~> 1.0"
-  spec.extensions = ["ext/opendal/extconf.rb"]
+  spec.extensions = ["./extconf.rb"]
 
   # needed until rubygems supports Rust support is out of beta
   spec.add_dependency "rb_sys", "~> 0.9.39"

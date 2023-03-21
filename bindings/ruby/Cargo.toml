@@ -31,5 +31,5 @@ doc = false
 name = "opendal_ruby"
 
 [dependencies]
-opendal = { version = "0.30", path = "../../../../core" }
+opendal = { version = "0.30", path = "../../core" }
 magnus = "0.5"

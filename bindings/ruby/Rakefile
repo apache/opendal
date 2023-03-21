@@ -24,8 +24,10 @@ require "standard/rake"
 
 task default: ["lint", "test"]
 
-Rake::ExtensionTask.new("opendal_ruby") do |c|
-  c.lib_dir = "lib/opendal_ruby"
+Rake::ExtensionTask.new do |ext|
+  ext.name = "opendal_ruby"
+  ext.ext_dir = "."
+  ext.lib_dir = "lib/opendal_ruby"
 end
 
 task lint: :standard

@@ -1,5 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/opendal"
 
 class OpenDALTest < Minitest::Test
   def test_it_distance

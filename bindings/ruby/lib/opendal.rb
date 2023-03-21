@@ -1,4 +1,4 @@
 # frozen_string_literal: true
 
-require "opendal/version"
-require_relative "opendal/opendal_ruby"
+require "opendal_ruby/version"
+require_relative "opendal_ruby/opendal_ruby"

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "lib/opendal/version"
+require_relative "lib/opendal_ruby/version"
 
 Gem::Specification.new do |spec|
   spec.name = "opendal"

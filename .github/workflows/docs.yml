@@ -39,6 +39,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          cache-key: "-services-all"
 
       - uses: actions-rs/cargo@v1
         with:
@@ -46,7 +48,6 @@ jobs:
           args: --lib --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          ROCKSDB_LIB_DIR: /usr/lib
 
       - name: Copy docs into build
         run: |
@@ -83,12 +84,12 @@ jobs:
       - name: Copy docs into build
         run: |
           cp -r ./bindings/nodejs/docs ./website/static/docs/nodejs
-      
+
       # Setup python environment ----------------------------------------
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       # Build bindings/python docs --------------------------------------
       - name: Install dependencies
         working-directory: bindings/python
@@ -96,11 +97,11 @@ jobs:
           set -e
           python -m pip install -e .
           python -m pip install pdoc
-      
+
       - name: Build bindings/python Docs
         working-directory: bindings/python
         run: pdoc --output-dir ./docs opendal
-      
+
       - name: Copy docs into build
         run: |
           cp -r ./bindings/python/docs ./website/static/docs/python

@@ -55,7 +55,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          cache-key: "-services-all"
+          cache-key: "-check"
 
       - name: Check license headers
         uses: korandoru/hawkeye@v1.5.4
@@ -117,7 +117,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          cache-key: "-services-all"
+          cache-key: "-build-all-features"
       - name: Build
         run: cargo build --all-features
 

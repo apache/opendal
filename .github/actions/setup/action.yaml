@@ -35,8 +35,8 @@ runs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}${{ inputs.cache-key }}
         restore-keys: |
-          ${{ runner.os }}-cargo
           ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          ${{ runner.os }}-cargo
 
     - name: Setup rust related environment variables
       shell: bash

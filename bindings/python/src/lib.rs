@@ -447,7 +447,7 @@ fn format_pyerr(err: od::Error) -> PyErr {
 /// asyncio.run(main())
 /// ```
 #[pymodule]
-fn opendal(py: Python, m: &PyModule) -> PyResult<()> {
+fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Operator>()?;
     m.add_class::<Reader>()?;
     m.add_class::<AsyncOperator>()?;

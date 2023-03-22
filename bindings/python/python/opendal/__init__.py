@@ -15,31 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[build-system]
-build-backend = "maturin"
-requires = ["maturin>=0.14,<0.15"]
+from ._opendal import *
 
-[project]
-classifiers = [
-  "Programming Language :: Rust",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
-]
-description = "OpenDAL Python Binding"
-license = { text = "Apache-2.0" }
-name = "opendal"
-readme = "README.md"
-requires-python = ">=3.7"
 
-[project.optional-dependencies]
-test = ["behave"]
-docs = ["pdoc"]
+__doc__ = _opendal.__doc__
+__all__ = _opendal.__all__
 
-[project.urls]
-Documentation = "https://docs.rs/opendal/"
-Homepage = "https://opendal.apache.org/"
-Repository = "https://github.com/apache/incubator-opendal"
-
-[tool.maturin]
-features = ["pyo3/extension-module"]
-python-source = "python"

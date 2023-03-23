@@ -103,6 +103,54 @@ impl Operator {
             .write(&path, bs.to_bytes())
             .map_err(format_magnus_error)
     }
+
+    /// Get current path's metadata **without cache** directly.
+    pub fn stat(&self, path: String) -> Result<Metadata> {
+        self.0
+            .stat(&path)
+            .map_err(format_magnus_error)
+            .map(Metadata)
+    }
+}
+
+#[magnus::wrap(class = "Metadata", free_immediately, size)]
+pub struct Metadata(od::Metadata);
+
+impl Metadata {
+    /// Content-Disposition of this object
+    pub fn content_disposition(&self) -> Option<&str> {
+        self.0.content_disposition()
+    }
+
+    /// Content length of this entry.
+    pub fn content_length(&self) -> u64 {
+        self.0.content_length()
+    }
+
+    /// Content MD5 of this entry.
+    pub fn content_md5(&self) -> Option<&str> {
+        self.0.content_md5()
+    }
+
+    /// Content Type of this entry.
+    pub fn content_type(&self) -> Option<&str> {
+        self.0.content_type()
+    }
+
+    /// ETag of this entry.
+    pub fn etag(&self) -> Option<&str> {
+        self.0.etag()
+    }
+
+    /// Returns `True` if this is a file.
+    pub fn is_file(&self) -> bool {
+        self.0.is_file()
+    }
+
+    /// Returns `True` if this is a directory.
+    pub fn is_dir(&self) -> bool {
+        self.0.is_dir()
+    }
 }
 
 fn format_magnus_error(err: od::Error) -> Error {
@@ -111,9 +159,22 @@ fn format_magnus_error(err: od::Error) -> Error {
 
 #[magnus::init]
 fn init() -> Result<()> {
-    let class = define_class("Operator", class::object())?;
-    class.define_singleton_method("new", function!(Operator::new, 2))?;
-    class.define_method("read", method!(Operator::read, 1))?;
-    class.define_method("write", method!(Operator::write, 2))?;
+    let operator_class = define_class("Operator", class::object())?;
+    operator_class.define_singleton_method("new", function!(Operator::new, 2))?;
+    operator_class.define_method("read", method!(Operator::read, 1))?;
+    operator_class.define_method("write", method!(Operator::write, 2))?;
+    operator_class.define_method("stat", method!(Operator::stat, 1))?;
+
+    let metadata_class = define_class("Metadata", class::object())?;
+    metadata_class.define_method(
+        "content_disposition",
+        method!(Metadata::content_disposition, 0),
+    )?;
+    metadata_class.define_method("content_length", method!(Metadata::content_length, 0))?;
+    metadata_class.define_method("content_md5", method!(Metadata::content_md5, 0))?;
+    metadata_class.define_method("content_type", method!(Metadata::content_type, 0))?;
+    metadata_class.define_method("etag", method!(Metadata::etag, 0))?;
+    metadata_class.define_method("is_file", method!(Metadata::is_file, 0))?;
+    metadata_class.define_method("is_dir", method!(Metadata::is_dir, 0))?;
     Ok(())
 }

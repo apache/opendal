@@ -26,15 +26,15 @@ When("Blocking write path {string} with content {string}") do |path, content|
 end
 
 Then("The blocking file {string} should exist") do |path|
-  pending # Write code here that turns the phrase above into concrete actions
+  @op.stat(path)
 end
 
 Then("The blocking file {string} entry mode must be file") do |path|
-  pending # Write code here that turns the phrase above into concrete actions
+  @op.stat(path).is_file == true
 end
 
-Then("The blocking file {string} content length must be {string}") do |path, length|
-  pending # Write code here that turns the phrase above into concrete actions
+Then("The blocking file {string} content length must be {int}") do |path, length|
+  @op.stat(path).content_length == length
 end
 
 Then("The blocking file {string} must have content {string}") do |path, content|
@@ -57,7 +57,7 @@ Then("The async file {string} entry mode must be file") do |path|
   pending # Write code here that turns the phrase above into concrete actions
 end
 
-Then("The async file {string} content length must be {string}") do |path, length|
+Then("The async file {string} content length must be {int}") do |path, length|
   pending # Write code here that turns the phrase above into concrete actions
 end
 

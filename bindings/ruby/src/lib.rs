@@ -90,15 +90,12 @@ impl Operator {
     }
 
     /// Read the whole path into string.
-    pub fn read(&self, path: String) -> Result<String> {
-        Ok(format!(
-            "{:?}",
-            self.0.read(&path).map_err(format_magnus_error)
-        ))
+    pub fn read(&self, path: String) -> Result<Vec<u8>> {
+        self.0.read(&path).map_err(format_magnus_error)
     }
 
     /// Write string into given path.
-    pub fn write(&self, path: String, bs: String) -> Result<()> {
+    pub fn write(&self, path: String, bs: Vec<u8>) -> Result<()> {
         self.0.write(&path, bs).map_err(format_magnus_error)
     }
 }

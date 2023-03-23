@@ -22,7 +22,7 @@ Given("A new OpenDAL Blocking Operator") do
 end
 
 When("Blocking write path {string} with content {string}") do |path, content|
-  @op.write(path, content)
+  @op.write(path, content.bytes)
 end
 
 Then("The blocking file {string} should exist") do |path|
@@ -38,7 +38,7 @@ Then("The blocking file {string} content length must be {string}") do |path, len
 end
 
 Then("The blocking file {string} must have content {string}") do |path, content|
-  @op.read(path) == content
+  @op.read(path).pack("C*") == content
 end
 
 Given("A new OpenDAL Async Operator") do

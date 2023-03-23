@@ -33,7 +33,7 @@ let op = OpRead::default().
 let bs = o.read_with(op).await?;
 ```
 
-Also, we will support some non-standard but widely users features like `response-content-disposition`:
+Also, we will support some non-standard but widely used features like `response-content-disposition`:
 
 ```rust
 let op = OpRead::default().

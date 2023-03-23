@@ -17,7 +17,9 @@
 
 use std::{collections::HashMap, str::FromStr};
 
-use magnus::{class, define_class, error::Result, exception, function, method, prelude::*, Error};
+use magnus::{
+    class, define_class, error::Result, exception, function, method, prelude::*, Error, RString,
+};
 use opendal as od;
 
 fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> Result<od::Operator> {
@@ -90,13 +92,16 @@ impl Operator {
     }
 
     /// Read the whole path into string.
-    pub fn read(&self, path: String) -> Result<Vec<u8>> {
-        self.0.read(&path).map_err(format_magnus_error)
+    pub fn read(&self, path: String) -> Result<RString> {
+        let bytes = self.0.read(&path).map_err(format_magnus_error)?;
+        Ok(RString::from_slice(&bytes))
     }
 
     /// Write string into given path.
-    pub fn write(&self, path: String, bs: Vec<u8>) -> Result<()> {
-        self.0.write(&path, bs).map_err(format_magnus_error)
+    pub fn write(&self, path: String, bs: RString) -> Result<()> {
+        self.0
+            .write(&path, bs.to_bytes())
+            .map_err(format_magnus_error)
     }
 }
 

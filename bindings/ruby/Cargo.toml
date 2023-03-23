@@ -32,4 +32,4 @@ name = "opendal_ruby"
 
 [dependencies]
 opendal = { version = "0.30", path = "../../core" }
-magnus = "0.5"
+magnus = { version = "0.5" , features = ["bytes-crate"] }

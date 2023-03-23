@@ -965,9 +965,9 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let op = OpRead::new()
+    ///     let args = OpRead::new()
     ///         .with_override_content_disposition("attachment; filename=\"othertext.txt\"");
-    ///     let signed_req = op.presign_read("test.txt", op, Duration::hours(1))?;
+    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::hours(1))?;
     /// #    Ok(())
     /// # }
     /// ```

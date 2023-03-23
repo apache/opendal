@@ -7,7 +7,7 @@ This crate intends to build a native ruby binding.
 Install gems:
 
 ```shell
-bundle install
+bundle
 ```
 
 Build bindings:

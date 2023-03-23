@@ -17,66 +17,55 @@
 
 use std::{collections::HashMap, str::FromStr};
 
-use magnus::{
-    class, define_class, define_global_function, error::Result, exception, function, method,
-    prelude::*, Error,
-};
-use opendal::services::Memory;
+use magnus::{class, define_class, error::Result, exception, function, method, prelude::*, Error};
+use opendal as od;
 
-fn hello_opendal() {
-    let op = opendal::Operator::new(Memory::default()).unwrap().finish();
-    println!("{op:?}")
-}
-
-fn build_operator(
-    scheme: opendal::Scheme,
-    map: HashMap<String, String>,
-) -> Result<opendal::Operator> {
-    use opendal::services::*;
+fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> Result<od::Operator> {
+    use od::services::*;
 
     let op = match scheme {
-        opendal::Scheme::Azblob => opendal::Operator::from_map::<Azblob>(map)
+        od::Scheme::Azblob => od::Operator::from_map::<Azblob>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Azdfs => opendal::Operator::from_map::<Azdfs>(map)
+        od::Scheme::Azdfs => od::Operator::from_map::<Azdfs>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Fs => opendal::Operator::from_map::<Fs>(map)
+        od::Scheme::Fs => od::Operator::from_map::<Fs>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Gcs => opendal::Operator::from_map::<Gcs>(map)
+        od::Scheme::Gcs => od::Operator::from_map::<Gcs>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Ghac => opendal::Operator::from_map::<Ghac>(map)
+        od::Scheme::Ghac => od::Operator::from_map::<Ghac>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Http => opendal::Operator::from_map::<Http>(map)
+        od::Scheme::Http => od::Operator::from_map::<Http>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Ipmfs => opendal::Operator::from_map::<Ipmfs>(map)
+        od::Scheme::Ipmfs => od::Operator::from_map::<Ipmfs>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Memory => opendal::Operator::from_map::<Memory>(map)
+        od::Scheme::Memory => od::Operator::from_map::<Memory>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Obs => opendal::Operator::from_map::<Obs>(map)
+        od::Scheme::Obs => od::Operator::from_map::<Obs>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Oss => opendal::Operator::from_map::<Oss>(map)
+        od::Scheme::Oss => od::Operator::from_map::<Oss>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::S3 => opendal::Operator::from_map::<S3>(map)
+        od::Scheme::S3 => od::Operator::from_map::<S3>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Webdav => opendal::Operator::from_map::<Webdav>(map)
+        od::Scheme::Webdav => od::Operator::from_map::<Webdav>(map)
             .map_err(format_magnus_error)?
             .finish(),
-        opendal::Scheme::Webhdfs => opendal::Operator::from_map::<Webhdfs>(map)
+        od::Scheme::Webhdfs => od::Operator::from_map::<Webhdfs>(map)
             .map_err(format_magnus_error)?
             .finish(),
         _ => {
-            return Err(format_magnus_error(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
+            return Err(format_magnus_error(od::Error::new(
+                od::ErrorKind::Unexpected,
                 "not supported scheme",
             )))
         }
@@ -87,14 +76,13 @@ fn build_operator(
 
 #[magnus::wrap(class = "Operator", free_immediately, size)]
 #[derive(Clone, Debug)]
-pub struct Operator(opendal::BlockingOperator);
+pub struct Operator(od::BlockingOperator);
 
 impl Operator {
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
-        let scheme = opendal::Scheme::from_str(&scheme)
+        let scheme = od::Scheme::from_str(&scheme)
             .map_err(|err| {
-                opendal::Error::new(opendal::ErrorKind::Unexpected, "unsupported scheme")
-                    .set_source(err)
+                od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
             })
             .map_err(format_magnus_error)?;
         let options = options.unwrap_or_default();
@@ -115,7 +103,7 @@ impl Operator {
     }
 }
 
-fn format_magnus_error(err: opendal::Error) -> Error {
+fn format_magnus_error(err: od::Error) -> Error {
     Error::new(exception::runtime_error(), err.to_string())
 }
 
@@ -125,6 +113,5 @@ fn init() -> Result<()> {
     class.define_singleton_method("new", function!(Operator::new, 2))?;
     class.define_method("read", method!(Operator::read, 1))?;
     class.define_method("write", method!(Operator::write, 2))?;
-    define_global_function("hello_opendal", function!(hello_opendal, 0));
     Ok(())
 }

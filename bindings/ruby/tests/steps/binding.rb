@@ -15,12 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+require_relative "../../lib/opendal"
+
 Given("A new OpenDAL Blocking Operator") do
-  pending # Write code here that turns the phrase above into concrete actions
+  @op = Operator.new("memory", nil)
 end
 
 When("Blocking write path {string} with content {string}") do |string, string2|
-  pending # Write code here that turns the phrase above into concrete actions
+  @op.write(string, string2.bytes)
 end
 
 Then("The blocking file {string} should exist") do |string|
@@ -36,7 +38,7 @@ Then("The blocking file {string} content length must be {string}") do |string, s
 end
 
 Then("The blocking file {string} must have content {string}") do |string, string2|
-  pending # Write code here that turns the phrase above into concrete actions
+  @op.read(string).map { |num| num.chr }.join == string2
 end
 
 Given("A new OpenDAL Async Operator") do

@@ -91,7 +91,14 @@ None
 
 # Rationale and alternatives
 
-None
+## Why using `override_content_disposition` instead of `response_content_disposition`?
+
+`response_content_disposition` is not a part of HTTP standard, it's the private API provided by `s3`.
+
+- `azblob` will use `x-ms-blob-content-disposition` header
+- `ocios` will use `httpResponseContentDisposition` query
+
+OpenDAL does not accept the query as is. Instead, we have created a more readable name `override_content_disposition` to clarify its purpose.
 
 # Prior art
 

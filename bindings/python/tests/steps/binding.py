@@ -35,7 +35,7 @@ def step_impl(context, filename):
 def step_impl(context, filename):
     assert context.op.stat(filename).mode.is_file()
 
-@then('The blocking file "{filename}" content length must be "{size:d}"')
+@then('The blocking file "{filename}" content length must be {size:d}')
 def step_impl(context, filename, size):
     assert context.op.stat(filename).content_length == size
 
@@ -65,7 +65,7 @@ async def step_impl(context, filename):
     meta = await context.op.stat(filename)
     assert meta.mode.is_file()
 
-@then('The async file "{filename}" content length must be "{size:d}"')
+@then('The async file "{filename}" content length must be {size:d}')
 @async_run_until_complete
 async def step_impl(context, filename, size):
     meta = await context.op.stat(filename)

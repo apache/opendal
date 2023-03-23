@@ -38,7 +38,7 @@ Then('The blocking file {string} entry mode must be file', function (path) {
   assert(meta.isFile())
 })
 
-Then('The blocking file {string} content length must be "{int}"', function (path, size) {
+Then('The blocking file {string} content length must be {int}', function (path, size) {
   let meta = this.op.statSync(path)
   assert(meta.contentLength == size)
 })
@@ -65,7 +65,7 @@ Then('The async file {string} entry mode must be file', async function (path) {
   assert(meta.isFile())
 })
 
-Then('The async file {string} content length must be "{int}"', async function (path, size) {
+Then('The async file {string} content length must be {int}', async function (path, size) {
   let meta = await this.op.stat(path)
   assert(meta.contentLength == size)
 })

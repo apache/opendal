@@ -1,6 +1,6 @@
 - Proposal Name: `operation_extension`
 - Start Date: 2023-03-23
-- RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
+- RFC PR: [apache/incubator-opendal#1735](https://github.com/apache/incubator-opendal/pull/1735)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary

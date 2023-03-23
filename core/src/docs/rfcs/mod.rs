@@ -131,5 +131,5 @@ pub mod rfc_1420_object_writer {}
 #[doc = include_str!("1477_remove_object_concept.md")]
 pub mod rfc_1477_remove_object_concept {}
 
-#[doc = include_str!("0000_operation_extension.md")]
-pub mod rfc_0000_operation_extension {}
+#[doc = include_str!("1735_operation_extension.md")]
+pub mod rfc_1735_operation_extension {}

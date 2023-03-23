@@ -15,16 +15,105 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use magnus::{define_global_function, function, Error};
-use opendal::{services::Memory, Operator};
+use std::{collections::HashMap, str::FromStr};
 
-fn hello_opendal() {
-    let op = Operator::new(Memory::default()).unwrap().finish();
-    println!("{op:?}")
+use magnus::{
+    class, define_class, error::Result, exception, function, method, prelude::*, Error, RString,
+};
+use opendal as od;
+
+fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> Result<od::Operator> {
+    use od::services::*;
+
+    let op = match scheme {
+        od::Scheme::Azblob => od::Operator::from_map::<Azblob>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Azdfs => od::Operator::from_map::<Azdfs>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Fs => od::Operator::from_map::<Fs>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Gcs => od::Operator::from_map::<Gcs>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Ghac => od::Operator::from_map::<Ghac>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Http => od::Operator::from_map::<Http>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Ipmfs => od::Operator::from_map::<Ipmfs>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Memory => od::Operator::from_map::<Memory>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Obs => od::Operator::from_map::<Obs>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Oss => od::Operator::from_map::<Oss>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::S3 => od::Operator::from_map::<S3>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Webdav => od::Operator::from_map::<Webdav>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        od::Scheme::Webhdfs => od::Operator::from_map::<Webhdfs>(map)
+            .map_err(format_magnus_error)?
+            .finish(),
+        _ => {
+            return Err(format_magnus_error(od::Error::new(
+                od::ErrorKind::Unexpected,
+                "not supported scheme",
+            )))
+        }
+    };
+
+    Ok(op)
+}
+
+#[magnus::wrap(class = "Operator", free_immediately, size)]
+#[derive(Clone, Debug)]
+pub struct Operator(od::BlockingOperator);
+
+impl Operator {
+    pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
+        let scheme = od::Scheme::from_str(&scheme)
+            .map_err(|err| {
+                od::Error::new(od::ErrorKind::Unexpected, "unsupported scheme").set_source(err)
+            })
+            .map_err(format_magnus_error)?;
+        let options = options.unwrap_or_default();
+        Ok(Operator(build_operator(scheme, options)?.blocking()))
+    }
+
+    /// Read the whole path into string.
+    pub fn read(&self, path: String) -> Result<RString> {
+        let bytes = self.0.read(&path).map_err(format_magnus_error)?;
+        Ok(RString::from_slice(&bytes))
+    }
+
+    /// Write string into given path.
+    pub fn write(&self, path: String, bs: RString) -> Result<()> {
+        self.0
+            .write(&path, bs.to_bytes())
+            .map_err(format_magnus_error)
+    }
+}
+
+fn format_magnus_error(err: od::Error) -> Error {
+    Error::new(exception::runtime_error(), err.to_string())
 }
 
 #[magnus::init]
-fn init() -> Result<(), Error> {
-    define_global_function("hello_opendal", function!(hello_opendal, 0));
+fn init() -> Result<()> {
+    let class = define_class("Operator", class::object())?;
+    class.define_singleton_method("new", function!(Operator::new, 2))?;
+    class.define_method("read", method!(Operator::read, 1))?;
+    class.define_method("write", method!(Operator::write, 2))?;
     Ok(())
 }

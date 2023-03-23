@@ -1784,6 +1784,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3fda351681130b40996b3e40592565b5e44ef1a677c45ea3768ed223b5918a5"
 dependencies = [
+ "bytes",
  "magnus-macros",
  "rb-sys",
  "rb-sys-env",

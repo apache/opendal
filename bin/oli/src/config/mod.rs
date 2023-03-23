@@ -34,7 +34,7 @@ pub struct Config {
 impl Config {
     /// Load profiles from both environment variables and local config file,
     /// environment variables have higher precedence.
-    pub fn load<P: AsRef<Path>>(fp: P) -> Result<Config> {
+    pub fn load(fp: &Path) -> Result<Config> {
         let cfg = Config::load_from_file(fp)?;
         let profiles = Config::load_from_env().profiles.into_iter().fold(
             cfg.profiles,
@@ -48,8 +48,7 @@ impl Config {
     /// Parse a local config file.
     ///
     /// - If the config file is not present, a default Config is returned.
-    pub fn load_from_file<P: AsRef<Path>>(fp: P) -> Result<Config> {
-        let config_path = fp.as_ref();
+    pub fn load_from_file(config_path: &Path) -> Result<Config> {
         if !config_path.exists() {
             return Ok(Config::default());
         }
@@ -258,7 +257,7 @@ access_key_id = "foo"
 enable_virtual_host_style = "on"
 "#,
         )?;
-        let cfg = Config::load_from_file(tmpfile)?;
+        let cfg = Config::load_from_file(&tmpfile)?;
         let profile = cfg.profiles["mys3"].clone();
         assert_eq!(profile["region"], "us-east-1");
         assert_eq!(profile["access_key_id"], "foo");
@@ -286,7 +285,7 @@ enable_virtual_host_style = "on"
         for (k, v) in &env_vars {
             env::set_var(k, v);
         }
-        let cfg = Config::load(tmpfile)?;
+        let cfg = Config::load(&tmpfile)?;
         let profile = cfg.profiles["mys3"].clone();
         assert_eq!(profile["region"], "us-west-1");
         assert_eq!(profile["access_key_id"], "foo");

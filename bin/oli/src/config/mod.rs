@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::env;
 use std::fs;
 use std::path::Path;
 use std::str::FromStr;
@@ -31,26 +32,56 @@ pub struct Config {
 }
 
 impl Config {
+    /// Load profiles from both environment variables and local config file,
+    /// environment variables have higher precedence.
+    pub fn load(fp: &Path) -> Result<Config> {
+        let cfg = Config::load_from_file(fp)?;
+        let profiles = Config::load_from_env().profiles.into_iter().fold(
+            cfg.profiles,
+            |mut acc, (name, opts)| {
+                acc.entry(name).or_insert(HashMap::new()).extend(opts);
+                acc
+            },
+        );
+        Ok(Config { profiles })
+    }
     /// Parse a local config file.
     ///
     /// - If the config file is not present, a default Config is returned.
-    pub fn load_from_file<P: AsRef<Path>>(fp: P) -> Result<Config> {
-        let config_path = fp.as_ref();
+    pub fn load_from_file(config_path: &Path) -> Result<Config> {
         if !config_path.exists() {
             return Ok(Config::default());
         }
         let data = fs::read_to_string(config_path)?;
-        Config::load_from_str(&data)
+        Ok(toml::from_str(&data)?)
     }
 
-    pub(crate) fn load_from_str(s: &str) -> Result<Config> {
-        let cfg: Config = toml::from_str(s)?;
-        for (name, opts) in &cfg.profiles {
-            if opts.get("type").is_none() {
-                return Err(anyhow!("profile {}: missing 'type'", name));
-            }
-        }
-        Ok(cfg)
+    /// Load config from environment variables.
+    ///
+    /// The format of each environment variable should be `OLI_PROFILE_{PROFILE NAME}_{OPTION}`,
+    /// such as `OLI_PROFILE_PROFILE1_TYPE`, `OLI_PROFILE_MY-PROFILE_ACCESS_KEY_ID`.
+    ///
+    /// Please note that the profile name cannot contain underscores.
+    pub(crate) fn load_from_env() -> Config {
+        let prefix = "oli_profile_";
+        let profiles = env::vars()
+            .filter_map(|(k, v)| {
+                k.to_lowercase().strip_prefix(prefix).and_then(
+                    |k| -> Option<(String, String, String)> {
+                        if let Some((profile_name, param)) = k.split_once('_') {
+                            return Some((profile_name.to_string(), param.to_string(), v));
+                        }
+                        None
+                    },
+                )
+            })
+            .fold(HashMap::new(), |mut acc, (profile_name, key, val)| {
+                acc.entry(profile_name)
+                    .or_insert(HashMap::new())
+                    .insert(key, val);
+                acc
+            });
+        Config { profiles }
     }
 
     /// Parse `<profile>://abc/def` into `op` and `location`.
@@ -186,8 +217,38 @@ mod tests {
     use opendal::Scheme;
 
     #[test]
-    fn test_load_toml() {
-        let cfg = Config::load_from_str(
+    fn test_load_from_env() {
+        let env_vars = vec![
+            ("OLI_PROFILE_TEST1_TYPE", "s3"),
+            ("OLI_PROFILE_TEST1_ACCESS_KEY_ID", "foo"),
+            ("OLI_PROFILE_TEST2_TYPE", "oss"),
+            ("OLI_PROFILE_TEST2_ACCESS_KEY_ID", "bar"),
+        ];
+        for (k, v) in &env_vars {
+            env::set_var(k, v);
+        }
+
+        let profiles = Config::load_from_env().profiles;
+
+        let profile1 = profiles["test1"].clone();
+        assert_eq!(profile1["type"], "s3");
+        assert_eq!(profile1["access_key_id"], "foo");
+
+        let profile2 = profiles["test2"].clone();
+        assert_eq!(profile2["type"], "oss");
+        assert_eq!(profile2["access_key_id"], "bar");
+
+        for (k, _) in &env_vars {
+            env::remove_var(k);
+        }
+    }
+
+    #[test]
+    fn test_load_from_toml() -> Result<()> {
+        let dir = env::temp_dir();
+        let tmpfile = dir.join("oli1.toml");
+        fs::write(
+            &tmpfile,
             r#"
 [profiles.mys3]
 type = "s3"
@@ -195,12 +256,45 @@ region = "us-east-1"
 access_key_id = "foo"
 enable_virtual_host_style = "on"
 "#,
-        )
-        .expect("load config");
+        )?;
+        let cfg = Config::load_from_file(&tmpfile)?;
         let profile = cfg.profiles["mys3"].clone();
         assert_eq!(profile["region"], "us-east-1");
         assert_eq!(profile["access_key_id"], "foo");
         assert_eq!(profile["enable_virtual_host_style"], "on");
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_config_from_file_and_env() -> Result<()> {
+        let dir = env::temp_dir();
+        let tmpfile = dir.join("oli2.toml");
+        fs::write(
+            &tmpfile,
+            r#"
+    [profiles.mys3]
+    type = "s3"
+    region = "us-east-1"
+    access_key_id = "foo"
+    "#,
+        )?;
+        let env_vars = vec![
+            ("OLI_PROFILE_MYS3_REGION", "us-west-1"),
+            ("OLI_PROFILE_MYS3_ENABLE_VIRTUAL_HOST_STYLE", "on"),
+        ];
+        for (k, v) in &env_vars {
+            env::set_var(k, v);
+        }
+        let cfg = Config::load(&tmpfile)?;
+        let profile = cfg.profiles["mys3"].clone();
+        assert_eq!(profile["region"], "us-west-1");
+        assert_eq!(profile["access_key_id"], "foo");
+        assert_eq!(profile["enable_virtual_host_style"], "on");
+
+        for (k, _) in &env_vars {
+            env::remove_var(k);
+        }
+        Ok(())
     }
 
     #[test]

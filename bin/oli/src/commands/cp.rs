@@ -29,7 +29,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let config_path = args
         .get_one::<PathBuf>("config")
         .ok_or_else(|| anyhow!("missing config path"))?;
-    let cfg = Config::load_from_file(config_path)?;
+    let cfg = Config::load(config_path)?;
 
     let src = args
         .get_one::<String>("source")

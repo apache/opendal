@@ -108,7 +108,7 @@ None
 
 None
 
-#
+# Future possibilities
 
 ## Strict Mode
 

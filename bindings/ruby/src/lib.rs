@@ -18,7 +18,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use magnus::{
-    class, define_class, error::Result, exception, function, method, prelude::*, Error, RString,
+    class, define_module, error::Result, exception, function, method, prelude::*, Error, RString,
 };
 use opendal as od;
 
@@ -76,7 +76,7 @@ fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> Result<od
     Ok(op)
 }
 
-#[magnus::wrap(class = "Operator", free_immediately, size)]
+#[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
 #[derive(Clone, Debug)]
 pub struct Operator(od::BlockingOperator);
 
@@ -113,7 +113,7 @@ impl Operator {
     }
 }
 
-#[magnus::wrap(class = "Metadata", free_immediately, size)]
+#[magnus::wrap(class = "OpenDAL::Metadata", free_immediately, size)]
 pub struct Metadata(od::Metadata);
 
 impl Metadata {
@@ -159,13 +159,14 @@ fn format_magnus_error(err: od::Error) -> Error {
 
 #[magnus::init]
 fn init() -> Result<()> {
-    let operator_class = define_class("Operator", class::object())?;
+    let namespace = define_module("OpenDAL")?;
+    let operator_class = namespace.define_class("Operator", class::object())?;
     operator_class.define_singleton_method("new", function!(Operator::new, 2))?;
     operator_class.define_method("read", method!(Operator::read, 1))?;
     operator_class.define_method("write", method!(Operator::write, 2))?;
     operator_class.define_method("stat", method!(Operator::stat, 1))?;
 
-    let metadata_class = define_class("Metadata", class::object())?;
+    let metadata_class = namespace.define_class("Metadata", class::object())?;
     metadata_class.define_method(
         "content_disposition",
         method!(Metadata::content_disposition, 0),

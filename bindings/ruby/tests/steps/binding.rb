@@ -18,7 +18,7 @@
 require_relative "../../lib/opendal"
 
 Given("A new OpenDAL Blocking Operator") do
-  @op = Operator.new("memory", nil)
+  @op = OpenDAL::Operator.new("memory", nil)
 end
 
 When("Blocking write path {string} with content {string}") do |path, content|

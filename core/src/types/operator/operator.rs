@@ -345,12 +345,13 @@ impl Operator {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::DIR) {
-            return Err(
-                Error::new(ErrorKind::NotADirectory, "read path is not a directory")
-                    .with_operation("create_dir")
-                    .with_context("service", self.inner().info().scheme())
-                    .with_context("path", &path),
-            );
+            return Err(Error::new(
+                ErrorKind::NotADirectory,
+                "the path trying to create should end with `/`",
+            )
+            .with_operation("create_dir")
+            .with_context("service", self.inner().info().scheme())
+            .with_context("path", &path));
         }
 
         self.inner()
@@ -818,7 +819,7 @@ impl Operator {
         if !validate_path(&path, EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::NotADirectory,
-                "the path trying to list is not a directory",
+                "the path trying to list should end with `/`",
             )
             .with_operation("Operator::list")
             .with_context("service", self.info().scheme().into_static())
@@ -870,7 +871,7 @@ impl Operator {
         if !validate_path(&path, EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::NotADirectory,
-                "the path trying to list is not a directory",
+                "the path trying to scan should end with `/`",
             )
             .with_operation("scan")
             .with_context("service", self.info().scheme().into_static())

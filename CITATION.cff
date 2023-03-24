@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: OpenDAL
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: OpenDAL Contributors
+    email: dev@opendal.apache.org
+identifiers:
+  - type: url
+    value: 'https://github.com/apache/incubator-opendal'
+repository-code: 'https://github.com/apache/incubator-opendal'
+url: 'https://opendal.apache.org/'
+license: Apache-2.0

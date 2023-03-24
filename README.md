@@ -11,13 +11,16 @@
 
 ## Components
 
-- [core](core): OpenDAL Rust Core
+- [core](core/README.md): OpenDAL Rust Core
   - Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.apache.org/docs/rust/opendal/)
-- [binding-python](bindings/python): OpenDAL Python Binding
-  - Documentation: [main](https://opendal.apache.org/docs/python/)
-- [binding-nodejs](bindings/nodejs): OpenDAL Node.js Binding
+- [binding-c](bindings/c): OpenDAL C Binding (working on)
+- [binding-java](bindings/java): OpenDAL Java Binding (working on)
+- [binding-nodejs](bindings/nodejs/README.md): OpenDAL Node.js Binding
   - Documentation: [main](https://opendal.apache.org/docs/nodejs/)
-- binaries
+- [binding-python](bindings/python/README.md): OpenDAL Python Binding
+  - Documentation: [main](https://opendal.apache.org/docs/python/)
+- [binding-ruby](bindings/ruby): OpenDAL Ruby Binding (working on)
+- bin
   - [oli](bin/oli): OpenDAL Command Line Interface
 
 ## Quickstart

@@ -2288,7 +2288,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "opendal_ruby"
+name = "opendal-ruby"
 version = "0.1.0"
 dependencies = [
  "magnus",

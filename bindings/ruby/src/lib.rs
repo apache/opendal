@@ -15,11 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
+use std::str::FromStr;
 
-use magnus::{
-    class, define_module, error::Result, exception, function, method, prelude::*, Error, RString,
-};
+use magnus::class;
+use magnus::define_module;
+use magnus::error::Result;
+use magnus::exception;
+use magnus::function;
+use magnus::method;
+use magnus::prelude::*;
+use magnus::Error;
+use magnus::RString;
 use opendal as od;
 
 fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> Result<od::Operator> {

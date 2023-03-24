@@ -26,8 +26,11 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
-use clap::{value_parser, Arg, Command};
+use anyhow::anyhow;
+use anyhow::Result;
+use clap::value_parser;
+use clap::Arg;
+use clap::Command;
 use dirs::config_dir;
 
 fn new_cmd(name: &'static str) -> Result<Command> {

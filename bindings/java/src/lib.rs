@@ -18,11 +18,14 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use jni::objects::{JClass, JMap, JObject, JString};
+use jni::objects::JClass;
+use jni::objects::JMap;
+use jni::objects::JObject;
+use jni::objects::JString;
 use jni::JNIEnv;
-
+use opendal::BlockingOperator;
+use opendal::Operator;
 use opendal::Scheme;
-use opendal::{BlockingOperator, Operator};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(

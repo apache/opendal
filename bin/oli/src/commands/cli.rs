@@ -17,7 +17,8 @@
 
 use anyhow::anyhow;
 use anyhow::Result;
-use clap::{ArgMatches, Command};
+use clap::ArgMatches;
+use clap::Command;
 
 pub async fn main(args: &ArgMatches) -> Result<()> {
     match args.subcommand() {

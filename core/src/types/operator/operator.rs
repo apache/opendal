@@ -790,10 +790,10 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::Operator;
-    /// use opendal::EntryMode;
     /// use futures::TryStreamExt;
+    /// use opendal::EntryMode;
     /// use opendal::Metakey;
+    /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.list("path/to/dir/").await?;
@@ -841,10 +841,10 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::Operator;
-    /// use opendal::EntryMode;
     /// use futures::TryStreamExt;
+    /// use opendal::EntryMode;
     /// use opendal::Metakey;
+    /// use opendal::Operator;
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {

@@ -21,8 +21,11 @@ use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
-use anyhow::{anyhow, Result};
-use opendal::{services, Operator, Scheme};
+use anyhow::anyhow;
+use anyhow::Result;
+use opendal::services;
+use opendal::Operator;
+use opendal::Scheme;
 use serde::Deserialize;
 use toml;
 
@@ -213,8 +216,9 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use opendal::Scheme;
+
+    use super::*;
 
     #[test]
     fn test_load_from_env() {

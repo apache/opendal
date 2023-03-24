@@ -76,6 +76,8 @@ mod constants {
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
     pub const X_AMZ_BUCKET_REGION: &str = "x-amz-bucket-region";
+
+    pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 }
 
 /// Aws S3 and compatible services (including minio, digitalocean space and so on) support
@@ -1239,7 +1241,9 @@ impl Accessor for S3Backend {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Stat(_) => self.s3_head_object_request(path)?,
-            PresignOperation::Read(v) => self.s3_get_object_request(path, v.range())?,
+            PresignOperation::Read(v) => {
+                self.s3_get_object_request(path, v.range(), v.override_content_disposition())?
+            }
             PresignOperation::Write(_) => {
                 self.s3_put_object_request(path, None, None, None, AsyncBody::Empty)?
             }
@@ -1325,10 +1329,24 @@ impl S3Backend {
         Ok(req)
     }
 
-    fn s3_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
+    fn s3_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        override_content_disposition: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        // Construct headers to add to the request
+        let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        if let Some(override_content_disposition) = override_content_disposition {
+            url.push_str(&format!(
+                "?{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ));
+        }
 
         let mut req = Request::get(&url);
 
@@ -1352,7 +1370,7 @@ impl S3Backend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, range)?;
+        let mut req = self.s3_get_object_request(path, range, None)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 

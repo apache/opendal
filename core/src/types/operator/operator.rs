@@ -950,6 +950,41 @@ impl Operator {
         Ok(rp.into_presigned_request())
     }
 
+    /// Presign an operation for read option described in OpenDAL [rfc-1735](../../docs/rfcs/1735_operation_extension.md).
+    ///
+    /// You can pass `OpRead` to this method to specify the content disposition.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    /// use opendal::ops::OpRead;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let args = OpRead::new()
+    ///         .with_override_content_disposition("attachment; filename=\"othertext.txt\"");
+    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::hours(1))?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn presign_read_with(
+        &self,
+        path: &str,
+        op: OpRead,
+        expire: Duration,
+    ) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+
+        let op = OpPresign::new(op, expire);
+
+        let rp = self.inner().presign(&path, op)?;
+        Ok(rp.into_presigned_request())
+    }
+
     /// Presign an operation for write.
     ///
     /// # Example

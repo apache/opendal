@@ -230,6 +230,7 @@ impl BatchOperations {
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     br: BytesRange,
+    override_content_disposition: Option<String>,
 }
 
 impl OpRead {
@@ -247,6 +248,21 @@ impl OpRead {
     /// Get range from OpRead.
     pub fn range(&self) -> BytesRange {
         self.br
+    }
+
+    /// Sets the content-disposition header that should be send back by the remote read operation.
+    pub fn with_override_content_disposition(
+        mut self,
+        content_disposition: impl Into<String>,
+    ) -> Self {
+        self.override_content_disposition = Some(content_disposition.into());
+        self
+    }
+
+    /// Returns the content-disposition header that should be send back by the remote read
+    /// operation.
+    pub fn override_content_disposition(&self) -> Option<&str> {
+        self.override_content_disposition.as_deref()
     }
 }
 

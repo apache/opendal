@@ -23,6 +23,7 @@ use clap::Command;
 pub async fn main(args: &ArgMatches) -> Result<()> {
     match args.subcommand() {
         Some(("cp", sub_args)) => super::cp::main(sub_args).await?,
+        Some(("ls", sub_args)) => super::ls::main(sub_args).await?,
         _ => return Err(anyhow!("not handled")),
     }
 
@@ -33,4 +34,5 @@ pub fn cli(cmd: Command) -> Command {
     cmd.version("0.10.0")
         .about("OpenDAL Command Line Interface")
         .subcommand(super::cp::cli(Command::new("cp")))
+        .subcommand(super::ls::cli(Command::new("ls")))
 }

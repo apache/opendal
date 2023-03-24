@@ -35,3 +35,4 @@
 
 pub mod cli;
 pub mod cp;
+pub mod ls;

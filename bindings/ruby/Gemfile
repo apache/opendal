@@ -24,6 +24,9 @@ gemspec
 
 gem "rake", "~> 13.0"
 
+gem "rb_sys", "~> 0.9.39"
+gem "rake-compiler", "~> 1.2.0"
+
 gem "cucumber", "~> 8.0"
 
 gem "standard", "~> 1.3"

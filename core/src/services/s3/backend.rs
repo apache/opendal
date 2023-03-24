@@ -1338,20 +1338,14 @@ impl S3Backend {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
-        let mut query_args = Vec::new();
-        if let Some(override_content_disposition) = override_content_disposition {
-            query_args.push(format!(
-                "{}={}",
-                constants::RESPONSE_CONTENT_DISPOSITION,
-                percent_encode_path(override_content_disposition)
-            ))
-        }
-
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        // Add the query arguments to the uri
-        if !query_args.is_empty() {
-            url = format!("{url}?{}", query_args.join("&"))
+        if let Some(override_content_disposition) = override_content_disposition {
+            url.push_str(&format!(
+                "?{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ));
         }
 
         let mut req = Request::get(&url);

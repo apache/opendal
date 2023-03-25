@@ -15,26 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::anyhow;
-use anyhow::Result;
-use clap::ArgMatches;
-use clap::Command;
+use std::path::PathBuf;
+
+use anyhow::{anyhow, Result};
+use clap::{Arg, ArgMatches, Command};
+use tokio::io;
+
+use crate::config::Config;
 
 pub async fn main(args: &ArgMatches) -> Result<()> {
-    match args.subcommand() {
-        Some(("cat", sub_args)) => super::cat::main(sub_args).await?,
-        Some(("cp", sub_args)) => super::cp::main(sub_args).await?,
-        Some(("ls", sub_args)) => super::ls::main(sub_args).await?,
-        _ => return Err(anyhow!("not handled")),
-    }
+    let config_path = args
+        .get_one::<PathBuf>("config")
+        .ok_or_else(|| anyhow!("missing config path"))?;
+    let cfg = Config::load(config_path)?;
 
+    let target = args
+        .get_one::<String>("target")
+        .ok_or_else(|| anyhow!("missing target"))?;
+    let (op, path) = cfg.parse_location(target)?;
+
+    let mut reader = op.reader(path).await?;
+    let mut stdout = io::stdout();
+    io::copy(&mut reader, &mut stdout).await?;
     Ok(())
 }
 
 pub fn cli(cmd: Command) -> Command {
     cmd.version("0.10.0")
-        .about("OpenDAL Command Line Interface")
-        .subcommand(super::cat::cli(Command::new("cat")))
-        .subcommand(super::cp::cli(Command::new("cp")))
-        .subcommand(super::ls::cli(Command::new("ls")))
+        .about("display object content")
+        .arg(Arg::new("target").required(true))
 }

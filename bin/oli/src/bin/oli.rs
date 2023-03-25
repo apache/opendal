@@ -65,6 +65,10 @@ async fn main() -> Result<()> {
             let cmd = oli::commands::cli::cli(new_cmd("oli")?);
             oli::commands::cli::main(&cmd.get_matches()).await?;
         }
+        Some("ocat") => {
+            let cmd = oli::commands::cat::cli(new_cmd("ocat")?);
+            oli::commands::cat::main(&cmd.get_matches()).await?;
+        }
         Some("ocp") => {
             let cmd = oli::commands::cp::cli(new_cmd("ocp")?);
             oli::commands::cp::main(&cmd.get_matches()).await?;

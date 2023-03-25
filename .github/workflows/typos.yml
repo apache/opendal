@@ -45,6 +45,8 @@ jobs:
           clean: "true"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          cache-key: "-tools-typos"
 
       - run: curl -LsSf https://github.com/crate-ci/typos/releases/download/v1.13.24/typos-v1.13.24-x86_64-unknown-linux-musl.tar.gz | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 

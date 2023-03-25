@@ -2147,7 +2147,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_opendal"
-version = "0.30.3"
+version = "0.30.4"
 dependencies = [
  "async-trait",
  "bytes",
@@ -2160,7 +2160,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.30.3"
+version = "0.30.4"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2191,7 +2191,7 @@ checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
 name = "opendal"
-version = "0.30.3"
+version = "0.30.4"
 dependencies = [
  "anyhow",
  "async-compat",
@@ -2265,7 +2265,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-nodejs"
-version = "0.30.3"
+version = "0.30.4"
 dependencies = [
  "futures",
  "napi",
@@ -2277,7 +2277,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-python"
-version = "0.30.3"
+version = "0.30.4"
 dependencies = [
  "chrono",
  "futures",

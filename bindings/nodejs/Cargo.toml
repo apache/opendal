@@ -23,7 +23,7 @@ license = "Apache-2.0"
 name = "opendal-nodejs"
 publish = false
 repository = "https://github.com/apache/incubator-opendal"
-version = "0.30.3"
+version = "0.30.4"
 
 [lib]
 crate-type = ["cdylib"]

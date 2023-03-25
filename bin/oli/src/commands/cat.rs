@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::stdout;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use clap::{Arg, ArgMatches, Command};
-use futures::io::{self, AllowStdIo};
+use tokio::io;
 
 use crate::config::Config;
 
@@ -35,9 +34,9 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         .ok_or_else(|| anyhow!("missing target"))?;
     let (op, path) = cfg.parse_location(target)?;
 
-    let reader = op.reader(path).await?;
-    let mut out = AllowStdIo::new(stdout());
-    io::copy(reader, &mut out).await?;
+    let mut reader = op.reader(path).await?;
+    let mut stdout = io::stdout();
+    io::copy(&mut reader, &mut stdout).await?;
     Ok(())
 }
 

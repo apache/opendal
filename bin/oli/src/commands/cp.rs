@@ -41,9 +41,9 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         .ok_or_else(|| anyhow!("missing target"))?;
     let (dst_op, dst_path) = cfg.parse_location(dst)?;
 
-    let mut dst_w = dst_op.writer(dst_path).await?;
+    let mut dst_w = dst_op.writer(&dst_path).await?;
 
-    let reader = src_op.reader(src_path).await?;
+    let reader = src_op.reader(&src_path).await?;
     let buf_reader = futures::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
     futures::io::copy_buf(buf_reader, &mut dst_w).await?;
     // flush data

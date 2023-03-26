@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -32,6 +33,39 @@ use toml;
 #[derive(Deserialize, Default)]
 pub struct Config {
     profiles: HashMap<String, HashMap<String, String>>,
+}
+
+/// resolve_relative_path turns a relative path to a absolute path.
+///
+/// The reason why we don't use `fs::canonicalize` here is `fs::canonicalize`
+/// will return an error if the path does not exist, which is unwanted.
+pub fn resolve_relative_path(path: &Path) -> Cow<Path> {
+    // NOTE: `path.is_absolute()` cannot handle cases like "/tmp/../a"
+    if path
+        .components()
+        .all(|e| e != Component::ParentDir && e != Component::CurDir)
+    {
+        // it is an absolute path
+        return path.into();
+    }
+
+    let root = Component::RootDir.as_os_str();
+    let mut result = env::current_dir().unwrap_or_else(|_| PathBuf::from(root));
+    for comp in path.components() {
+        match comp {
+            Component::ParentDir => {
+                if result.parent().is_none() {
+                    continue;
+                }
+                result.pop();
+            }
+            Component::CurDir => (),
+            Component::RootDir | Component::Normal(_) | Component::Prefix(_) => {
+                result.push(comp.as_os_str());
+            }
+        }
+    }
+    result.into()
 }
 
 impl Config {
@@ -88,26 +122,28 @@ impl Config {
     }
 
     /// Parse `<profile>://abc/def` into `op` and `location`.
-    pub fn parse_location<'a>(&self, s: &'a str) -> Result<(Operator, &'a str)> {
+    pub fn parse_location(&self, s: &str) -> Result<(Operator, String)> {
         if !s.contains("://") {
-            let mut fs = services::Fs::default();
+            let mut fs_builder = services::Fs::default();
+            let fp = resolve_relative_path(Path::new(s));
+            let fp_str = fp.as_os_str().to_string_lossy();
 
-            let filename = match s.rsplit_once(['/', '\\']) {
+            let filename = match fp_str.split_once(['/', '\\']) {
                 Some((base, filename)) => {
-                    fs.root(base);
+                    fs_builder.root(if base.is_empty() { "/" } else { base });
                     filename
                 }
-                None => s,
+                _ => s,
             };
 
-            return Ok((Operator::new(fs)?.finish(), filename));
+            return Ok((Operator::new(fs_builder)?.finish(), filename.into()));
         }
 
         let parts = s.splitn(2, "://").collect::<Vec<_>>();
         debug_assert!(parts.len() == 2);
 
         let profile_name = parts[0];
-        let path = parts[1];
+        let path = parts[1].into();
 
         let profile = self
             .profiles
@@ -209,7 +245,11 @@ impl Config {
                 Operator::from_map::<services::Webhdfs>(profile.clone())?.finish(),
                 path,
             )),
-            _ => Err(anyhow!("invalid profile")),
+            _ => Err(anyhow!(
+                "unknown type '{}' in profile '{}'",
+                scheme,
+                profile_name
+            )),
         }
     }
 }
@@ -303,12 +343,33 @@ enable_virtual_host_style = "on"
 
     #[test]
     fn test_parse_fs_location() {
+        struct TestCase {
+            input: &'static str,
+            suffix: &'static str,
+        }
+        let test_cases = vec![
+            TestCase {
+                input: "./foo/1.txt",
+                suffix: "/foo/1.txt",
+            },
+            TestCase {
+                input: "/tmp/../1.txt",
+                suffix: "1.txt",
+            },
+            TestCase {
+                input: "/tmp/../../1.txt",
+                suffix: "1.txt",
+            },
+        ];
         let cfg = Config::default();
-        let (op, path) = cfg.parse_location("./foo/bar/1.txt").unwrap();
-        assert_eq!("1.txt", path);
-        let info = op.info();
-        assert!(info.root().ends_with("foo/bar"));
-        assert_eq!(Scheme::Fs, info.scheme());
+        for case in test_cases {
+            let (op, path) = cfg.parse_location(case.input).unwrap();
+            let info = op.info();
+            assert_eq!(Scheme::Fs, info.scheme());
+            assert_eq!("/", info.root());
+            assert!(!path.starts_with('.'));
+            assert!(path.ends_with(case.suffix));
+        }
     }
 
     #[test]

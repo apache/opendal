@@ -34,7 +34,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         .ok_or_else(|| anyhow!("missing target"))?;
     let (op, path) = cfg.parse_location(target)?;
 
-    let mut reader = op.reader(path).await?;
+    let mut reader = op.reader(&path).await?;
     let mut stdout = io::stdout();
     io::copy(&mut reader, &mut stdout).await?;
     Ok(())

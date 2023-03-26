@@ -15,13 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use clap::{Arg, ArgAction, ArgMatches, Command};
-use futures::TryStreamExt;
-use opendal::Metakey;
 
 use crate::config::Config;
 
@@ -44,22 +41,8 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         return Ok(());
     }
 
-    let mut queue = VecDeque::from([path.to_string()]);
-    while !queue.is_empty() {
-        let path = queue.pop_front().unwrap();
-        let mut ds = op.list(&path).await?;
-        while let Some(de) = ds.try_next().await? {
-            let meta = op.metadata(&de, Metakey::Mode).await?;
-            if meta.mode().is_dir() {
-                let d = de.path().to_owned();
-                queue.push_back(d);
-            } else {
-                let path = de.path();
-                println!("Delete: {path}");
-                op.delete(path).await?;
-            }
-        }
-    }
+    println!("Delete all: {path}");
+    op.remove_all(&path).await?;
     Ok(())
 }
 

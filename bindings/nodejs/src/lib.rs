@@ -24,6 +24,7 @@ use std::str::FromStr;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 use time::format_description::well_known::Rfc3339;
+use time::Duration;
 
 fn build_operator(
     scheme: opendal::Scheme,
@@ -206,6 +207,42 @@ impl Operator {
             self.0.blocking().scan(&path).map_err(format_napi_error)?,
         ))
     }
+
+    /// Get a presigned request for read.
+    ///
+    /// Unit of expires is seconds.
+    #[napi]
+    pub fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .0
+            .presign_read(&path, Duration::seconds(expires as i64))
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest(res))
+    }
+
+    /// Get a presigned request for write.
+    ///
+    /// Unit of expires is seconds.
+    #[napi]
+    pub fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .0
+            .presign_write(&path, Duration::seconds(expires as i64))
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest(res))
+    }
+
+    /// Get a presigned request for stat.
+    ///
+    /// Unit of expires is seconds.
+    #[napi]
+    pub fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .0
+            .presign_stat(&path, Duration::seconds(expires as i64))
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest(res))
+    }
 }
 
 #[napi]
@@ -315,6 +352,43 @@ impl BlockingLister {
             Some(Err(e)) => Err(format_napi_error(e)),
             None => Ok(None),
         }
+    }
+}
+
+#[napi]
+pub struct PresignedRequest(opendal::raw::PresignedRequest);
+
+#[napi]
+impl PresignedRequest {
+    /// Returns the HTTP method of this request.
+    #[napi(getter)]
+    pub fn method(&self) -> String {
+        self.0.method().to_string()
+    }
+
+    /// Returns the URI of this request.
+    #[napi(getter)]
+    pub fn uri(&self) -> String {
+        self.0.uri().to_string()
+    }
+
+    /// Returns the headers of this request.
+    ///
+    /// The key of the map is the header name, and the value is the header value.
+    #[napi]
+    pub fn headers(&self) -> HashMap<String, String> {
+        self.0
+            .header()
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.as_str().to_string(),
+                    v.to_str()
+                        .expect("header value contains non visible ascii characters")
+                        .to_string(),
+                )
+            })
+            .collect()
     }
 }
 

@@ -64,6 +64,24 @@ export class Operator {
    * An error will be returned if given path doesn't end with `/`.
    */
   listSync(path: string): BlockingLister
+  /**
+   * Get a presigned request for read.
+   *
+   * Unit of expires is seconds.
+   */
+  presignRead(path: string, expires: number): PresignedRequest
+  /**
+   * Get a presigned request for write.
+   *
+   * Unit of expires is seconds.
+   */
+  presignWrite(path: string, expires: number): PresignedRequest
+  /**
+   * Get a presigned request for stat.
+   *
+   * Unit of expires is seconds.
+   */
+  presignStat(path: string, expires: number): PresignedRequest
 }
 export class Entry {
   /** Return the path of this entry. */
@@ -100,4 +118,16 @@ export class Lister {
 }
 export class BlockingLister {
   next(): Entry | null
+}
+export class PresignedRequest {
+  /** Returns the HTTP method of this request. */
+  get method(): string
+  /** Returns the URI of this request. */
+  get uri(): string
+  /**
+   * Returns the headers of this request.
+   *
+   * The key of the map is the header name, and the value is the header value AS bytes.
+   */
+  headers(): Record<string, string>
 }

@@ -45,8 +45,8 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     if let Some(content_type) = meta.content_type() {
         println!("Content-Type: {content_type}");
     }
-    if let Some(last_modifed) = meta.last_modified() {
-        println!("LastModified: {last_modifed}");
+    if let Some(last_modified) = meta.last_modified() {
+        println!("LastModified: {last_modified}");
     }
 
     Ok(())

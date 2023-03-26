@@ -77,6 +77,10 @@ async fn main() -> Result<()> {
             let cmd = oli::commands::ls::cli(new_cmd("ols")?);
             oli::commands::ls::main(&cmd.get_matches()).await?;
         }
+        Some("orm") => {
+            let cmd = oli::commands::rm::cli(new_cmd("orm")?);
+            oli::commands::rm::main(&cmd.get_matches()).await?;
+        }
         Some(v) => {
             println!("{v} is not supported")
         }

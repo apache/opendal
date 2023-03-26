@@ -37,3 +37,4 @@ pub mod cat;
 pub mod cli;
 pub mod cp;
 pub mod ls;
+pub mod rm;

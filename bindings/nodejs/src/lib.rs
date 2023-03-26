@@ -374,13 +374,20 @@ impl PresignedRequest {
 
     /// Returns the headers of this request.
     ///
-    /// The key of the map is the header name, and the value is the header value AS bytes.
+    /// The key of the map is the header name, and the value is the header value.
     #[napi]
-    pub fn headers(&self) -> HashMap<String, Vec<u8>> {
+    pub fn headers(&self) -> HashMap<String, String> {
         self.0
             .header()
             .iter()
-            .map(|(k, v)| (k.as_str().to_string(), v.as_bytes().to_owned()))
+            .map(|(k, v)| {
+                (
+                    k.as_str().to_string(),
+                    v.to_str()
+                        .expect("header value contains non visible ascii characters")
+                        .to_string(),
+                )
+            })
             .collect()
     }
 }

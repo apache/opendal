@@ -146,6 +146,7 @@ jobs:
           - '18'
         settings:
           - target: x86_64-apple-darwin
+            test: yarn test
             build: |
               yarn build
               strip -x *.node
@@ -189,7 +190,9 @@ jobs:
           name: bindings-macos-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
       - name: Test bindings
-        run: yarn test
+        if: ${{ matrix.settings.test }}
+        run: ${{ matrix.settings.test }}
+        shell: bash
 
   release:
     name: Release

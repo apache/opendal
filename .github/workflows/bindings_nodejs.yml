@@ -161,7 +161,7 @@ jobs:
               yarn build --target aarch64-apple-darwin
               strip -x *.node
     runs-on: macos-latest
-#    if: "startsWith(github.ref, 'refs/tags/')"
+    if: "startsWith(github.ref, 'refs/tags/')"
 
     # Notes: this defaults only apply on run tasks.
     defaults:

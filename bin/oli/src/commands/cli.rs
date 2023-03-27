@@ -26,6 +26,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         Some(("cp", sub_args)) => super::cp::main(sub_args).await?,
         Some(("ls", sub_args)) => super::ls::main(sub_args).await?,
         Some(("rm", sub_args)) => super::rm::main(sub_args).await?,
+        Some(("stat", sub_args)) => super::stat::main(sub_args).await?,
         _ => return Err(anyhow!("not handled")),
     }
 
@@ -39,4 +40,5 @@ pub fn cli(cmd: Command) -> Command {
         .subcommand(super::cp::cli(Command::new("cp")))
         .subcommand(super::ls::cli(Command::new("ls")))
         .subcommand(super::rm::cli(Command::new("rm")))
+        .subcommand(super::stat::cli(Command::new("stat")))
 }

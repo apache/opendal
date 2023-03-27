@@ -144,13 +144,30 @@ jobs:
       matrix:
         node:
           - '18'
+        settings:
+          - target: x86_64-apple-darwin
+            build: |
+              yarn build
+              strip -x *.node
+          - target: aarch64-apple-darwin
+            build: |
+              sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
+              export CC=$(xcrun -f clang);
+              export CXX=$(xcrun -f clang++);
+              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+              rustup target add aarch64-apple-darwin;
+              yarn build --target aarch64-apple-darwin
+              strip -x *.node
     runs-on: macos-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+#    if: "startsWith(github.ref, 'refs/tags/')"
 
     # Notes: this defaults only apply on run tasks.
     defaults:
       run:
         working-directory: "bindings/nodejs"
+
+    name: macos - ${{ matrix.settings.target }}
 
     steps:
       - uses: actions/checkout@v3
@@ -165,10 +182,11 @@ jobs:
       - name: Install dependencies
         run: yarn install
       - name: Build
-        run: yarn build
+        run: ${{ matrix.settings.build }}
+        shell: bash
       - uses: actions/upload-artifact@v3
         with:
-          name: bindings-macos
+          name: bindings-macos-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
       - name: Test bindings
         run: yarn test

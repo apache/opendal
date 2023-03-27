@@ -11,6 +11,12 @@
     "name": "opendal",
     "package": {
       "name": "@opendal/lib"
+    },
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin"
+      ]
     }
   },
   "keywords": [

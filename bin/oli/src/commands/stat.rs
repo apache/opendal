@@ -34,19 +34,19 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let (op, path) = cfg.parse_location(target)?;
 
     let meta = op.stat(&path).await?;
-    println!("Path: {path}");
+    println!("path: {path}");
     let size = meta.content_length();
-    println!("Size: {size}");
+    println!("size: {size}");
     if let Some(etag) = meta.etag() {
-        println!("Etag: {etag}");
+        println!("etag: {etag}");
     }
     let file_type = meta.mode();
-    println!("Type: {file_type}");
+    println!("type: {file_type}");
     if let Some(content_type) = meta.content_type() {
-        println!("Content-Type: {content_type}");
+        println!("content-type: {content_type}");
     }
     if let Some(last_modified) = meta.last_modified() {
-        println!("LastModified: {last_modified}");
+        println!("last-modified: {last_modified}");
     }
 
     Ok(())

@@ -127,7 +127,7 @@ export class PresignedRequest {
   /**
    * Returns the headers of this request.
    *
-   * The key of the map is the header name, and the value is the header value AS bytes.
+   * The key of the map is the header name, and the value is the header value.
    */
   headers(): Record<string, string>
 }

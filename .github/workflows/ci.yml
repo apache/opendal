@@ -41,6 +41,27 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          cache-key: "-check"
+
+      - name: Check license headers
+        uses: korandoru/hawkeye@v1.5.4
+
+      - name: Cargo format
+        run: cargo fmt --all -- --check
+
+  check_docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          cache-key: "-check"
+
       - name: Checkout python env
         uses: actions/setup-python@v4
         with:
@@ -52,22 +73,34 @@ jobs:
           distribution: temurin
           java-version: "11"
 
+      - name: Cargo doc
+        run: cargo doc --lib --no-deps --all-features -p opendal
+
+  check_clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           cache-key: "-check"
 
-      - name: Check license headers
-        uses: korandoru/hawkeye@v1.5.4
+      - name: Checkout python env
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
 
-      - name: Cargo format
-        run: cargo fmt --all -- --check
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
-      - name: Cargo doc
-        run: cargo doc --lib --no-deps --all-features -p opendal
 
-  msrv_check:
+  check_msrv:
     runs-on: ubuntu-latest
     env:
       # OpenDAL's MSRV is 1.60.

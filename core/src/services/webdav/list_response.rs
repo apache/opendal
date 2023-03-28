@@ -16,6 +16,10 @@
 // under the License.
 
 use serde::Deserialize;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
+
+use crate::{EntryMode, Error, ErrorKind, Metadata, Result};
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Multistatus {
@@ -28,6 +32,61 @@ pub struct ListOpResponse {
     pub propstat: Propstat,
 }
 
+impl ListOpResponse {
+    pub fn parse_into_metadata(&self) -> Result<Metadata> {
+        match self {
+            ListOpResponse {
+                href,
+                propstat:
+                    Propstat {
+                        prop:
+                            Prop {
+                                getlastmodified,
+                                getcontentlength,
+                                getcontenttype,
+                                getetag,
+                                ..
+                            },
+                        status,
+                    },
+            } => {
+                if let [_, code, text] = status.split(" ").collect::<Vec<_>>()[..3] {
+                    // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
+                    let code = code.parse::<u16>().unwrap();
+                    if code >= 400 {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("Invalid response: {} {}", code, text),
+                        ));
+                    }
+                }
+
+                let mode = if href.ends_with('/') {
+                    EntryMode::DIR
+                } else {
+                    EntryMode::FILE
+                };
+                let mut m = Metadata::new(mode);
+
+                if let Some(v) = getcontentlength {
+                    m.set_content_length(v.parse::<u64>().unwrap());
+                }
+
+                if let Some(v) = getcontenttype {
+                    m.set_content_type(v);
+                }
+
+                if let Some(v) = getetag {
+                    m.set_etag(v);
+                }
+                // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
+                m.set_last_modified(OffsetDateTime::parse(getlastmodified, &Rfc2822).unwrap());
+                Ok(m)
+            }
+        }
+    }
+}
+
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Propstat {
     pub prop: Prop,
@@ -36,7 +95,11 @@ pub struct Propstat {
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Prop {
+    pub displayname: String,
     pub getlastmodified: String,
+    pub getetag: Option<String>,
+    pub getcontentlength: Option<String>,
+    pub getcontenttype: Option<String>,
     pub resourcetype: ResourceTypeContainer,
 }
 
@@ -112,6 +175,9 @@ mod tests {
 
         let response = from_str::<ListOpResponse>(xml).unwrap();
         assert_eq!(response.href, "/");
+
+        assert_eq!(response.propstat.prop.displayname, "/");
+
         assert_eq!(
             response.propstat.prop.getlastmodified,
             "Tue, 01 May 2022 06:39:47 GMT"
@@ -155,6 +221,7 @@ mod tests {
             response.propstat.prop.getlastmodified,
             "Tue, 07 May 2022 05:52:22 GMT"
         );
+        assert_eq!(response.propstat.prop.getcontentlength.unwrap(), "1");
         assert_eq!(response.propstat.prop.resourcetype.value, None);
         assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
     }

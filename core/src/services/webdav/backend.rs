@@ -21,19 +21,20 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::{header, HeaderMap};
 use log::debug;
+
+use crate::ops::*;
+use crate::raw::*;
+use crate::*;
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
 use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
-use crate::ops::*;
-use crate::raw::*;
-use crate::*;
 
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 ///
@@ -229,6 +230,7 @@ impl Builder for WebdavBuilder {
         })
     }
 }
+
 /// Backend is used to serve `Accessor` support for http.
 #[derive(Clone)]
 pub struct WebdavBackend {
@@ -322,18 +324,38 @@ impl Accessor for WebdavBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.webdav_head(path).await?;
+        let mut header_map = HeaderMap::new();
+        // not include children
+        header_map.insert("Depth", "0".parse().unwrap());
+        header_map.insert(
+            header::ACCEPT,
+            "text/plain,application/xml".parse().unwrap(),
+        );
+
+        let resp = self.webdav_propfind(path, Some(header_map)).await?;
 
         let status = resp.status();
 
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            // HTTP Server like nginx could return FORBIDDEN if auto-index
-            // is not enabled, we should ignore them.
-            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        if !status.is_success() {
+            match status {
+                StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
+                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
+        } else {
+            let bs = resp.into_body().bytes().await?;
+            let result: Multistatus =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+            let item = result
+                .response
+                .get(0)
+                .ok_or(Error::new(
+                    ErrorKind::Unexpected,
+                    "Failed getting item stat: bad response",
+                ))?
+                .parse_into_metadata()?;
+            Ok(RpStat::new(item))
         }
     }
 
@@ -349,17 +371,10 @@ impl Accessor for WebdavBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
-        // XML body must start without a new line. Otherwise, the server will panic: `xmlParseChunk() failed`
-        let all_prop_xml_body = r#"<?xml version="1.0" encoding="utf-8" ?>
-            <D:propfind xmlns:D="DAV:">
-                <D:allprop/>
-            </D:propfind>
-        "#;
-
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(all_prop_xml_body));
-        let resp = self
-            .webdav_propfind(path, None, "application/xml".into(), async_body)
-            .await?;
+        let mut header_map = HeaderMap::new();
+        header_map.insert("Depth", "1".parse().unwrap());
+        header_map.insert(header::CONTENT_TYPE, "application/xml".parse().unwrap());
+        let resp = self.webdav_propfind(path, Some(header_map)).await?;
         let status = resp.status();
 
         match status {
@@ -479,49 +494,38 @@ impl WebdavBackend {
     async fn webdav_propfind(
         &self,
         path: &str,
-        size: Option<u64>,
-        content_type: Option<&str>,
-        body: AsyncBody,
+        headers: Option<HeaderMap>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-        let mut req = Request::builder()
-            .method("PROPFIND")
-            .uri(&url)
-            .header("Depth", "1");
+        let mut req = Request::builder().method("PROPFIND").uri(&url);
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth);
         }
 
-        if let Some(size) = size {
-            req = req.header(header::CONTENT_LENGTH, size)
+        if let Some(headers) = headers {
+            for (name, value) in headers {
+                // all key should be not None, otherwise panic
+                req = req.header(name.unwrap(), value);
+            }
         }
 
-        if let Some(mime) = content_type {
-            req = req.header(header::CONTENT_TYPE, mime)
+        // rfc4918 9.1: retrieve all properties define in specification
+        let body;
+        {
+            req = req.header(header::CONTENT_TYPE, "application/xml");
+            // XML body must start without a new line. Otherwise, the server will panic: `xmlParseChunk() failed`
+            let all_prop_xml_body = r#"<?xml version="1.0" encoding="utf-8" ?>
+            <D:propfind xmlns:D="DAV:">
+                <D:allprop/>
+            </D:propfind>
+        "#;
+            body = AsyncBody::Bytes(bytes::Bytes::from(all_prop_xml_body));
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    async fn webdav_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::head(&url);
-
-        if let Some(auth) = &self.authorization {
-            req = req.header(header::AUTHORIZATION, auth.clone())
-        }
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
     }

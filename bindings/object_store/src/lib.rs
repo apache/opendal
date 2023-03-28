@@ -35,7 +35,6 @@ use object_store::MultipartId;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::Result;
-use opendal::Entry;
 use opendal::Metadata;
 use opendal::Metakey;
 use opendal::Operator;
@@ -161,7 +160,7 @@ impl ObjectStore for OpendalStore {
                 .await
                 .map_err(|err| format_object_store_error(err, entry.path()))?;
 
-            Ok(convert_entry(&entry, &meta))
+            Ok(format_object_meta(entry.path(), &meta))
         });
 
         Ok(stream.boxed())
@@ -192,7 +191,7 @@ impl ObjectStore for OpendalStore {
             if meta.is_dir() {
                 common_prefixes.push(entry.path().into());
             } else {
-                objects.push(convert_entry(&entry, &meta));
+                objects.push(format_object_meta(entry.path(), &meta));
             }
         }
 
@@ -251,13 +250,13 @@ fn format_object_store_error(err: opendal::Error, path: &str) -> object_store::E
     }
 }
 
-fn convert_entry(entry: &Entry, meta: &Metadata) -> ObjectMeta {
+fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
     let (secs, nsecs) = meta
         .last_modified()
         .map(|v| (v.unix_timestamp(), v.nanosecond()))
         .unwrap_or((0, 0));
     ObjectMeta {
-        location: entry.path().into(),
+        location: path.into(),
         last_modified: DateTime::from_utc(
             NaiveDateTime::from_timestamp_opt(secs, nsecs)
                 .expect("returning timestamp must be valid"),

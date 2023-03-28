@@ -34,7 +34,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
 }
 
 pub fn cli(cmd: Command) -> Command {
-    cmd.version("0.10.0")
+    cmd.version(env!("CARGO_PKG_VERSION"))
         .about("OpenDAL Command Line Interface")
         .subcommand(super::cat::cli(Command::new("cat")))
         .subcommand(super::cp::cli(Command::new("cp")))

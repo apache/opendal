@@ -92,7 +92,8 @@ pub struct Propstat {
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Prop {
-    pub displayname: Option<String>,
+    #[serde(default)]
+    pub displayname: String,
     pub getlastmodified: String,
     pub getetag: Option<String>,
     pub getcontentlength: Option<String>,

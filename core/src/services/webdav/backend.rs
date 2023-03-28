@@ -327,10 +327,7 @@ impl Accessor for WebdavBackend {
         let mut header_map = HeaderMap::new();
         // not include children
         header_map.insert("Depth", "0".parse().unwrap());
-        header_map.insert(
-            header::ACCEPT,
-            "text/plain,application/xml".parse().unwrap(),
-        );
+        header_map.insert(header::ACCEPT, "application/xml".parse().unwrap());
 
         let resp = self.webdav_propfind(path, Some(header_map)).await?;
 
@@ -338,6 +335,8 @@ impl Accessor for WebdavBackend {
 
         if !status.is_success() {
             match status {
+                // HTTP Server like nginx could return FORBIDDEN if auto-index
+                // is not enabled, we should ignore them.
                 StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
                     Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
                 }

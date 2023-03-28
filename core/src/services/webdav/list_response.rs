@@ -34,56 +34,53 @@ pub struct ListOpResponse {
 
 impl ListOpResponse {
     pub fn parse_into_metadata(&self) -> Result<Metadata> {
-        match self {
-            ListOpResponse {
-                href,
-                propstat:
-                    Propstat {
-                        prop:
-                            Prop {
-                                getlastmodified,
-                                getcontentlength,
-                                getcontenttype,
-                                getetag,
-                                ..
-                            },
-                        status,
-                    },
-            } => {
-                if let [_, code, text] = status.split(" ").collect::<Vec<_>>()[..3] {
-                    // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
-                    let code = code.parse::<u16>().unwrap();
-                    if code >= 400 {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("Invalid response: {} {}", code, text),
-                        ));
-                    }
-                }
-
-                let mode = if href.ends_with('/') {
-                    EntryMode::DIR
-                } else {
-                    EntryMode::FILE
-                };
-                let mut m = Metadata::new(mode);
-
-                if let Some(v) = getcontentlength {
-                    m.set_content_length(v.parse::<u64>().unwrap());
-                }
-
-                if let Some(v) = getcontenttype {
-                    m.set_content_type(v);
-                }
-
-                if let Some(v) = getetag {
-                    m.set_etag(v);
-                }
-                // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
-                m.set_last_modified(OffsetDateTime::parse(getlastmodified, &Rfc2822).unwrap());
-                Ok(m)
+        let ListOpResponse {
+            href,
+            propstat:
+                Propstat {
+                    prop:
+                        Prop {
+                            getlastmodified,
+                            getcontentlength,
+                            getcontenttype,
+                            getetag,
+                            ..
+                        },
+                    status,
+                },
+        } = self;
+        if let [_, code, text] = status.split(' ').collect::<Vec<_>>()[..3] {
+            // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
+            let code = code.parse::<u16>().unwrap();
+            if code >= 400 {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("Invalid response: {} {}", code, text),
+                ));
             }
         }
+
+        let mode = if href.ends_with('/') {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+        let mut m = Metadata::new(mode);
+
+        if let Some(v) = getcontentlength {
+            m.set_content_length(v.parse::<u64>().unwrap());
+        }
+
+        if let Some(v) = getcontenttype {
+            m.set_content_type(v);
+        }
+
+        if let Some(v) = getetag {
+            m.set_etag(v);
+        }
+        // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
+        m.set_last_modified(OffsetDateTime::parse(getlastmodified, &Rfc2822).unwrap());
+        Ok(m)
     }
 }
 
@@ -95,7 +92,7 @@ pub struct Propstat {
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Prop {
-    pub displayname: String,
+    pub displayname: Option<String>,
     pub getlastmodified: String,
     pub getetag: Option<String>,
     pub getcontentlength: Option<String>,

@@ -350,7 +350,7 @@ impl Accessor for WebdavBackend {
             let item = result
                 .response
                 .get(0)
-                .ok_or(Error::new(
+                .ok_or_else(|| Error::new(
                     ErrorKind::Unexpected,
                     "Failed getting item stat: bad response",
                 ))?

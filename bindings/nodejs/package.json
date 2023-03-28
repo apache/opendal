@@ -38,7 +38,9 @@
   "files": [
     "index.d.ts",
     "index.js",
-    "generated.js"
+    "generated.js",
+    "LICENSE",
+    "NOTICE"
   ],
   "devDependencies": {
     "@cucumber/cucumber": "^9.0.1",

@@ -228,6 +228,12 @@ jobs:
       - name: List packages
         run: ls -R ./npm
         shell: bash
+
+      - name: Add LICENSE & NOTICE
+        # Set working directory to root to copy LICENSE & NOTICE
+        working-directory: .
+        run: cp LICENSE NOTICE ./bindings/nodejs
+
       - name: Publish
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc

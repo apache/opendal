@@ -350,10 +350,12 @@ impl Accessor for WebdavBackend {
             let item = result
                 .response
                 .get(0)
-                .ok_or_else(|| Error::new(
-                    ErrorKind::Unexpected,
-                    "Failed getting item stat: bad response",
-                ))?
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "Failed getting item stat: bad response",
+                    )
+                })?
                 .parse_into_metadata()?;
             Ok(RpStat::new(item))
         }

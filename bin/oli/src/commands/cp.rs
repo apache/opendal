@@ -52,8 +52,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
 }
 
 pub fn cli(cmd: Command) -> Command {
-    cmd.version(env!("CARGO_PKG_VERSION"))
-        .about("copy")
+    cmd.about("copy")
         .arg(Arg::new("source").required(true))
         .arg(Arg::new("destination").required(true))
 }

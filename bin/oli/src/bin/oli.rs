@@ -37,7 +37,7 @@ fn new_cmd(name: &'static str) -> Result<Command> {
     let d = config_dir().ok_or_else(|| anyhow!("unknown config dir"))?;
     let default_config_path = d.join("oli/config.toml").as_os_str().to_owned();
 
-    Ok(Command::new(name).arg(
+    Ok(Command::new(name).version(env!("CARGO_PKG_VERSION")).arg(
         Arg::new("config")
             .long("config")
             .help("Path to the config file")

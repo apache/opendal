@@ -33,12 +33,15 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     Ok(())
 }
 
+fn new_cmd(name: &'static str) -> Command {
+    Command::new(name).disable_version_flag(true)
+}
+
 pub fn cli(cmd: Command) -> Command {
-    cmd.version(env!("CARGO_PKG_VERSION"))
-        .about("OpenDAL Command Line Interface")
-        .subcommand(super::cat::cli(Command::new("cat")))
-        .subcommand(super::cp::cli(Command::new("cp")))
-        .subcommand(super::ls::cli(Command::new("ls")))
-        .subcommand(super::rm::cli(Command::new("rm")))
-        .subcommand(super::stat::cli(Command::new("stat")))
+    cmd.about("OpenDAL Command Line Interface")
+        .subcommand(super::cat::cli(new_cmd("cat")))
+        .subcommand(super::cp::cli(new_cmd("cp")))
+        .subcommand(super::ls::cli(new_cmd("ls")))
+        .subcommand(super::rm::cli(new_cmd("rm")))
+        .subcommand(super::stat::cli(new_cmd("stat")))
 }

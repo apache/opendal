@@ -41,7 +41,6 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
 }
 
 pub fn cli(cmd: Command) -> Command {
-    cmd.version(env!("CARGO_PKG_VERSION"))
-        .about("display object content")
+    cmd.about("display object content")
         .arg(Arg::new("target").required(true))
 }

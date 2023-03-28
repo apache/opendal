@@ -47,8 +47,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
 }
 
 pub fn cli(cmd: Command) -> Command {
-    cmd.version(env!("CARGO_PKG_VERSION"))
-        .about("remove object")
+    cmd.about("remove object")
         .arg(Arg::new("target").required(true))
         .arg(
             Arg::new("recursive")

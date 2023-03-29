@@ -37,7 +37,7 @@ const server = http.createServer(async (req, res) => {
     const presignedRequest = op.presignRead(path, parseInt(expires))
 
     res.statusCode = 200
-    res.end(JSON.stringify({ url: presignedRequest.uri }))
+    res.end(JSON.stringify(presignedRequest))
   } else {
     res.statusCode = 404
     res.end('Not Found')

@@ -217,7 +217,7 @@ impl Operator {
             .0
             .presign_read(&path, Duration::seconds(expires as i64))
             .map_err(format_napi_error)?;
-        Ok(PresignedRequest(res))
+        Ok(PresignedRequest::new(res))
     }
 
     /// Get a presigned request for write.
@@ -229,7 +229,7 @@ impl Operator {
             .0
             .presign_write(&path, Duration::seconds(expires as i64))
             .map_err(format_napi_error)?;
-        Ok(PresignedRequest(res))
+        Ok(PresignedRequest::new(res))
     }
 
     /// Get a presigned request for stat.
@@ -241,7 +241,7 @@ impl Operator {
             .0
             .presign_stat(&path, Duration::seconds(expires as i64))
             .map_err(format_napi_error)?;
-        Ok(PresignedRequest(res))
+        Ok(PresignedRequest::new(res))
     }
 }
 
@@ -355,29 +355,21 @@ impl BlockingLister {
     }
 }
 
-#[napi]
-pub struct PresignedRequest(opendal::raw::PresignedRequest);
+#[napi(object)]
+pub struct PresignedRequest {
+    /// HTTP method of this request.
+    pub method: String,
+    /// URL of this request.
+    pub url: String,
+    /// HTTP headers of this request.
+    pub headers: HashMap<String, String>,
+}
 
-#[napi]
 impl PresignedRequest {
-    /// Returns the HTTP method of this request.
-    #[napi(getter)]
-    pub fn method(&self) -> String {
-        self.0.method().to_string()
-    }
-
-    /// Returns the URI of this request.
-    #[napi(getter)]
-    pub fn uri(&self) -> String {
-        self.0.uri().to_string()
-    }
-
-    /// Returns the headers of this request.
-    ///
-    /// The key of the map is the header name, and the value is the header value.
-    #[napi]
-    pub fn headers(&self) -> HashMap<String, String> {
-        self.0
+    pub fn new(req: opendal::raw::PresignedRequest) -> Self {
+        let method = req.method().to_string();
+        let url = req.uri().to_string();
+        let headers = req
             .header()
             .iter()
             .map(|(k, v)| {
@@ -388,7 +380,12 @@ impl PresignedRequest {
                         .to_string(),
                 )
             })
-            .collect()
+            .collect();
+        Self {
+            method,
+            url,
+            headers,
+        }
     }
 }
 

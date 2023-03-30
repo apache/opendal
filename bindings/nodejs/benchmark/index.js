@@ -2,7 +2,7 @@ const read = require('./read.js')
 const write = require('./write.js')
 
 async function bench() {
-  //await write()
+  await write()
   await read()
 }
 bench()

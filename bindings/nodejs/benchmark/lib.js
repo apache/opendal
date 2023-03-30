@@ -55,7 +55,7 @@ const client = new S3Client({
 
 module.exports.opendal = {
   read: (path) => opendal.read(path),
-  write: (path, data) => opendal.write(path, data)
+  write: (path, data) => opendal.write(path, data),
 }
 
 module.exports.s3 = {
@@ -73,7 +73,7 @@ module.exports.s3 = {
       Bucket: bucket,
     })
     return client.send(command)
-  }
+  },
 }
 
 module.exports.testFiles = testFiles

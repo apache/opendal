@@ -231,6 +231,7 @@ impl BatchOperations {
 pub struct OpRead {
     br: BytesRange,
     override_content_disposition: Option<String>,
+    override_cache_control: Option<String>,
 }
 
 impl OpRead {
@@ -263,6 +264,17 @@ impl OpRead {
     /// operation.
     pub fn override_content_disposition(&self) -> Option<&str> {
         self.override_content_disposition.as_deref()
+    }
+
+    /// Sets the cache-control header that should be send back by the remote read operation.
+    pub fn with_override_cache_control(mut self, cache_control: impl Into<String>) -> Self {
+        self.override_cache_control = Some(cache_control.into());
+        self
+    }
+
+    /// Returns the cache-control header that should be send back by the remote read operation.
+    pub fn override_cache_control(&self) -> Option<&str> {
+        self.override_cache_control.as_deref()
     }
 }
 

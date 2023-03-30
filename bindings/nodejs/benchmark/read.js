@@ -26,7 +26,7 @@ async function bench() {
   await testFiles
     .map((v) => async () => {
       const filename = `${uuid}_${v.name}_read_bench.txt`
-      await write(filename, v.file)
+      await opendal.write(filename, v.file)
       return suite(
         `read (${v.name})`,
         add(`s3 read (${v.name})`, async () => {

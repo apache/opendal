@@ -81,7 +81,9 @@ switch (platform) {
   case 'win32':
     switch (arch) {
       case 'x64':
-        localFileExisted = existsSync(join(__dirname, 'opendal.win32-x64-msvc.node'))
+        localFileExisted = existsSync(
+          join(__dirname, 'opendal.win32-x64-msvc.node')
+        )
         try {
           if (localFileExisted) {
             nativeBinding = require('./opendal.win32-x64-msvc.node')
@@ -93,7 +95,9 @@ switch (platform) {
         }
         break
       case 'ia32':
-        localFileExisted = existsSync(join(__dirname, 'opendal.win32-ia32-msvc.node'))
+        localFileExisted = existsSync(
+          join(__dirname, 'opendal.win32-ia32-msvc.node')
+        )
         try {
           if (localFileExisted) {
             nativeBinding = require('./opendal.win32-ia32-msvc.node')
@@ -105,7 +109,9 @@ switch (platform) {
         }
         break
       case 'arm64':
-        localFileExisted = existsSync(join(__dirname, 'opendal.win32-arm64-msvc.node'))
+        localFileExisted = existsSync(
+          join(__dirname, 'opendal.win32-arm64-msvc.node')
+        )
         try {
           if (localFileExisted) {
             nativeBinding = require('./opendal.win32-arm64-msvc.node')
@@ -144,7 +150,9 @@ switch (platform) {
         }
         break
       case 'arm64':
-        localFileExisted = existsSync(join(__dirname, 'opendal.darwin-arm64.node'))
+        localFileExisted = existsSync(
+          join(__dirname, 'opendal.darwin-arm64.node')
+        )
         try {
           if (localFileExisted) {
             nativeBinding = require('./opendal.darwin-arm64.node')
@@ -178,7 +186,9 @@ switch (platform) {
     switch (arch) {
       case 'x64':
         if (isMusl()) {
-          localFileExisted = existsSync(join(__dirname, 'opendal.linux-x64-musl.node'))
+          localFileExisted = existsSync(
+            join(__dirname, 'opendal.linux-x64-musl.node')
+          )
           try {
             if (localFileExisted) {
               nativeBinding = require('./opendal.linux-x64-musl.node')
@@ -189,7 +199,9 @@ switch (platform) {
             loadError = e
           }
         } else {
-          localFileExisted = existsSync(join(__dirname, 'opendal.linux-x64-gnu.node'))
+          localFileExisted = existsSync(
+            join(__dirname, 'opendal.linux-x64-gnu.node')
+          )
           try {
             if (localFileExisted) {
               nativeBinding = require('./opendal.linux-x64-gnu.node')
@@ -203,7 +215,9 @@ switch (platform) {
         break
       case 'arm64':
         if (isMusl()) {
-          localFileExisted = existsSync(join(__dirname, 'opendal.linux-arm64-musl.node'))
+          localFileExisted = existsSync(
+            join(__dirname, 'opendal.linux-arm64-musl.node')
+          )
           try {
             if (localFileExisted) {
               nativeBinding = require('./opendal.linux-arm64-musl.node')
@@ -214,7 +228,9 @@ switch (platform) {
             loadError = e
           }
         } else {
-          localFileExisted = existsSync(join(__dirname, 'opendal.linux-arm64-gnu.node'))
+          localFileExisted = existsSync(
+            join(__dirname, 'opendal.linux-arm64-gnu.node')
+          )
           try {
             if (localFileExisted) {
               nativeBinding = require('./opendal.linux-arm64-gnu.node')
@@ -227,7 +243,9 @@ switch (platform) {
         }
         break
       case 'arm':
-        localFileExisted = existsSync(join(__dirname, 'opendal.linux-arm-gnueabihf.node'))
+        localFileExisted = existsSync(
+          join(__dirname, 'opendal.linux-arm-gnueabihf.node')
+        )
         try {
           if (localFileExisted) {
             nativeBinding = require('./opendal.linux-arm-gnueabihf.node')

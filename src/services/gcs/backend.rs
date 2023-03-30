@@ -22,6 +22,8 @@ use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
+use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -41,6 +43,7 @@ use super::writer::GcsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
+use serde::Serialize;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
@@ -390,16 +393,29 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "append write is not supported",
-            ));
-        }
+        let upload_id = if args.append() {
+            let resp = self.gcs_initiate_multipart_upload(path).await?;
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
+
+                    let result: InitiateMultipartUploadResult =
+                        quick_xml::de::from_reader(bs.reader())
+                            .map_err(new_xml_deserialize_error)?;
+
+                    Some(result.upload_id)
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
+        } else {
+            None
+        };
 
         Ok((
             RpWrite::default(),
-            GcsWriter::new(self.clone(), args, path.to_string()),
+            GcsWriter::new(self.clone(), args, path.to_string(), upload_id),
         ))
     }
 
@@ -623,6 +639,85 @@ impl GcsBackend {
 
         self.client.send_async(req).await
     }
+
+    async fn gcs_initiate_multipart_upload(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
+        let mut req = Request::post(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
+    }
+
+    pub fn gcs_upload_part_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        size: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}/{}?partNumber={}&uploadId={}",
+            self.endpoint, self.bucket, p, part_number, upload_id
+        );
+
+        let mut req = Request::put(&url);
+
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size);
+        }
+
+        // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn gcs_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: &[CompleteMultipartUploadRequestPart],
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?uploadId={}",
+            self.endpoint, self.bucket, p, upload_id
+        );
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
+            part: parts.to_vec(),
+        })
+        .map_err(new_xml_deserialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let mut req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+}
+
+/// Result of CreateMultipartUpload
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct InitiateMultipartUploadResult {
+    upload_id: String,
 }
 
 /// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
@@ -649,6 +744,23 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    /// # TODO same issue as the one in s3
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+struct CompleteMultipartUploadRequest {
+    part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
 #[cfg(test)]

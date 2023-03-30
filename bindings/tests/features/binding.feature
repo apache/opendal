@@ -22,7 +22,7 @@ Feature: OpenDAL Binding
         When Blocking write path "test" with content "Hello, World!"
         Then The blocking file "test" should exist
         Then The blocking file "test" entry mode must be file
-        Then The blocking file "test" content length must be "13"
+        Then The blocking file "test" content length must be 13
         Then The blocking file "test" must have content "Hello, World!"
 
     Scenario: OpenDAL Async Operations
@@ -30,5 +30,5 @@ Feature: OpenDAL Binding
         When Async write path "test" with content "Hello, World!"
         Then The async file "test" should exist
         Then The async file "test" entry mode must be file
-        Then The async file "test" content length must be "13"
+        Then The async file "test" content length must be 13
         Then The async file "test" must have content "Hello, World!"

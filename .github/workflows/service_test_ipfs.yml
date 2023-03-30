@@ -25,11 +25,12 @@ on:
     branches:
       - main
     paths:
-      - "src/**"
-      - "tests/**"
-      - "!src/docs/**"
-      - "!src/services/**"
-      - "src/services/ipfs/**"
+      - "core/src/**"
+      - "core/tests/**"
+      - "!core/src/docs/**"
+      - "!core/src/services/**"
+      - "core/src/services/ipfs/**"
+      - ".github/workflows/service_test_ipfs.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -54,6 +55,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test ipfs --features services-ipfs -- --show-output
         env:
           RUST_BACKTRACE: full

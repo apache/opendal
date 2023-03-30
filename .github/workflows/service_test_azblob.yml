@@ -25,11 +25,12 @@ on:
     branches:
       - main
     paths:
-      - "src/**"
-      - "tests/**"
-      - "!src/docs/**"
-      - "!src/services/**"
-      - "src/services/azblob/**"
+      - "core/src/**"
+      - "core/tests/**"
+      - "!core/src/docs/**"
+      - "!core/src/services/**"
+      - "core/src/services/azblob/**"
+      - ".github/workflows/service_test_azblob.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -59,6 +60,7 @@ jobs:
 
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test azblob -- --show-output
         env:
           RUST_BACKTRACE: full

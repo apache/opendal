@@ -36,24 +36,26 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: "3.3.2"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
       - name: Publish opendal
+        working-directory: "core"
         run: cargo publish --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-          ROCKSDB_LIB_DIR: /usr/lib
 
       - name: Publish object_store_opendal
-        run: cargo publish
         working-directory: "bindings/object_store"
+        run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-          ROCKSDB_LIB_DIR: /usr/lib
+
+      - name: Publish oli
+        working-directory: "bin/oli"
+        run: cargo publish
+        env:
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

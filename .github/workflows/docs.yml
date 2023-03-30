@@ -39,6 +39,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          cache-key: "-services-all"
 
       - uses: actions-rs/cargo@v1
         with:
@@ -46,7 +48,6 @@ jobs:
           args: --lib --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          ROCKSDB_LIB_DIR: /usr/lib
 
       - name: Copy docs into build
         run: |
@@ -76,10 +77,6 @@ jobs:
         working-directory: bindings/nodejs
         run: yarn install
 
-      - name: Build
-        working-directory: bindings/nodejs
-        run: yarn build
-
       - name: Build bindings/nodejs Docs
         working-directory: bindings/nodejs
         run: yarn docs
@@ -87,6 +84,27 @@ jobs:
       - name: Copy docs into build
         run: |
           cp -r ./bindings/nodejs/docs ./website/static/docs/nodejs
+
+      # Setup python environment ----------------------------------------
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # Build bindings/python docs --------------------------------------
+      - name: Install dependencies
+        working-directory: bindings/python
+        run: |
+          set -e
+          python -m pip install -e .
+          python -m pip install pdoc
+
+      - name: Build bindings/python Docs
+        working-directory: bindings/python
+        run: pdoc --output-dir ./docs opendal
+
+      - name: Copy docs into build
+        run: |
+          cp -r ./bindings/python/docs ./website/static/docs/python
 
       # Build website ---------------------------------------------------
       - name: Install Dependencies
@@ -110,17 +128,3 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
           publish_branch: gh-pages
-
-      # Disable until we are allowed
-      # - name: Deploy to vercel (preview)
-      #   if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
-      #   uses: amondnet/vercel-action@v25.1.1
-      #   with:
-      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-      #     alias-domains: |
-      #       opendal-git-{{BRANCH}}.vercel.app
-      #     scope: databend
-      #     working-directory: ./website/build

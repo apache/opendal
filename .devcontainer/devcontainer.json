@@ -1,23 +1,26 @@
 {
 	"name": "OpenDAL",
-	"extensions": [
-		"cschleiden.vscode-github-actions",
-		"rust-lang.rust-analyzer",
-		"serayuzgur.crates",
-		"vadimcn.vscode-lldb"
-	],
+	"image": "ghcr.io/apache/opendal-devtools:latest",
 	"mounts": [
-		"source=${localEnv:HOME}/.cargo/registry,target=/opt/rust/cargo/registry,type=bind,consistency=cached",
-		"source=${localEnv:HOME}/.cargo/git,target=/opt/rust/cargo/git,type=bind,consistency=cached"
+		"source=${localEnv:HOME}/.cargo/registry,target=/opt/rust/cargo/registry,type=bind,consistency=cached"
 	],
-	"dockerFile": "Dockerfile",
 	"remoteUser": "builder",
 	"updateRemoteUserUID": true,
 	"postAttachCommand": "bash",
-	"settings": {
-		"editor.formatOnSave": true,
-		"files.exclude": {
-			"**/LICENSE": true
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"cschleiden.vscode-github-actions",
+				"rust-lang.rust-analyzer",
+				"serayuzgur.crates",
+				"vadimcn.vscode-lldb"
+			],
+			"settings": {
+				"editor.formatOnSave": true,
+				"files.exclude": {
+					"**/LICENSE": true
+				}
+			}
 		}
 	}
 }

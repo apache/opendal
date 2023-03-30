@@ -25,15 +25,18 @@ on:
     branches:
       - main
     paths:
-      - "src/**"
-      - "tests/**"
-      - "!src/docs/**"
-      - "!src/services/**"
-      - "src/services/rocksdb/**"
+      - "core/src/**"
+      - "core/tests/**"
+      - "!core/src/docs/**"
+      - "!core/src/services/**"
+      - "core/src/services/rocksdb/**"
+      - ".github/workflows/service_test_rocksdb.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
+
+
 
 jobs:
   rocksdb:
@@ -42,11 +45,13 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          cache-key: "-services-rocksdb"
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test rocksdb --features services-rocksdb -- --show-output --test-threads=1
         env:
-          ROCKSDB_LIB_DIR: /usr/lib
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_ROCKSDB_TEST: on

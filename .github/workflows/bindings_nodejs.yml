@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Binding NodeJS CI
+name: Bindings NodeJS CI
 
 env:
   DEBUG: napi:*
@@ -51,6 +51,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -62,7 +64,7 @@ jobs:
       - name: Install dependencies
         run: yarn install
       - name: Build
-        run: yarn build
+        run: yarn build:debug
       - name: Test bindings
         run: yarn test
 
@@ -132,10 +134,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-windows
-          path: |
-            bindings/nodejs/*.node
-            bindings/nodejs/index.d.ts
-            bindings/nodejs/generated*.*
+          path: bindings/nodejs/*.node
       - name: Test bindings
         run: yarn test
 
@@ -145,6 +144,22 @@ jobs:
       matrix:
         node:
           - '18'
+        settings:
+          - target: x86_64-apple-darwin
+            test: yarn test
+            build: |
+              yarn build
+              strip -x *.node
+          - target: aarch64-apple-darwin
+            build: |
+              sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
+              export CC=$(xcrun -f clang);
+              export CXX=$(xcrun -f clang++);
+              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
+              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+              rustup target add aarch64-apple-darwin;
+              yarn build --target aarch64-apple-darwin
+              strip -x *.node
     runs-on: macos-latest
     if: "startsWith(github.ref, 'refs/tags/')"
 
@@ -152,6 +167,8 @@ jobs:
     defaults:
       run:
         working-directory: "bindings/nodejs"
+
+    name: macos - ${{ matrix.settings.target }}
 
     steps:
       - uses: actions/checkout@v3
@@ -166,13 +183,16 @@ jobs:
       - name: Install dependencies
         run: yarn install
       - name: Build
-        run: yarn build
+        run: ${{ matrix.settings.build }}
+        shell: bash
       - uses: actions/upload-artifact@v3
         with:
-          name: bindings-macos
+          name: bindings-macos-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
       - name: Test bindings
-        run: yarn test
+        if: ${{ matrix.settings.test }}
+        run: ${{ matrix.settings.test }}
+        shell: bash
 
   release:
     name: Release
@@ -208,10 +228,16 @@ jobs:
       - name: List packages
         run: ls -R ./npm
         shell: bash
+
+      - name: Add LICENSE & NOTICE
+        # Set working directory to root to copy LICENSE & NOTICE
+        working-directory: .
+        run: cp LICENSE NOTICE ./bindings/nodejs
+
       - name: Publish
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-          npm publish --access public
+          npm publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

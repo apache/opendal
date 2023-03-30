@@ -17,6 +17,12 @@
 
 name: Setup Rust Builder
 description: 'Prepare Rust Build Environment'
+inputs:
+  cache-key:
+    description: 'the rust cache key suffix'
+    required: false
+    default: ''
+
 runs:
   using: "composite"
   steps:
@@ -25,17 +31,11 @@ runs:
       with:
         path: |
           ~/.cargo/bin/
-          ~/.cargo/registry/cache/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    - name: Install Build Dependencies
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y librocksdb-dev
-        echo "ROCKSDB_LIB_DIR=/usr/lib" >> $GITHUB_ENV
+          ~/.cargo/registry/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}${{ inputs.cache-key }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          ${{ runner.os }}-cargo
 
     - name: Setup rust related environment variables
       shell: bash

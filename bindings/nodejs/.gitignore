@@ -190,6 +190,3 @@ Cargo.lock
 .yarn
 *.node
 docs/
-
-generated*.*
-index.d.ts

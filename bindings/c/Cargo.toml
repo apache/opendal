@@ -16,13 +16,21 @@
 # under the License.
 
 [package]
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
 name = "opendal-c"
+publish = false
+repository = "https://github.com/apache/incubator-opendal"
 version = "0.1.0"
 
 [lib]
 crate-type = ["cdylib"]
-name = "opendal"
+doc = false
+
+[build-dependencies]
+cbindgen = "0.24.0"
 
 [dependencies]
-opendal = { version = "0.30", path = "../../" }
+opendal = { version = "0.30", path = "../../core" }

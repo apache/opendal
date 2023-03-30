@@ -1,0 +1,48 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# frozen_string_literal: true
+
+require "rake/testtask"
+require "rake/extensiontask"
+require "bundler/gem_tasks"
+require "standard/rake"
+require "cucumber"
+require "cucumber/rake/task"
+
+task default: ["lint", "test"]
+
+Rake::ExtensionTask.new do |ext|
+  ext.name = "opendal_ruby"
+  ext.ext_dir = "."
+  ext.lib_dir = "lib/opendal_ruby"
+end
+
+task lint: :standard
+
+task :dev do
+  ENV["RB_SYS_CARGO_PROFILE"] = "dev"
+end
+
+Rake::TestTask.new do |t|
+  t.deps << :dev << :compile
+  t.test_files = FileList[File.expand_path("tests/*_test.rb", __dir__)]
+end
+
+Cucumber::Rake::Task.new(:test) do |t|
+  t.cucumber_opts = ["--format pretty", "--publish-quiet"] # Any valid command line option can go here.
+end

@@ -25,11 +25,12 @@ on:
     branches:
       - main
     paths:
-      - "src/**"
-      - "tests/**"
-      - "!src/docs/**"
-      - "!src/services/**"
-      - "src/services/http/**"
+      - "core/src/**"
+      - "core/tests/**"
+      - "!core/src/docs/**"
+      - "!core/src/services/**"
+      - "core/src/services/http/**"
+      - ".github/workflows/service_test_http.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -47,6 +48,7 @@ jobs:
 
       - name: Start nginx
         shell: bash
+        working-directory: core
         run: |
           mkdir /tmp/static
           cp -r tests/data/* /tmp/static
@@ -57,6 +59,7 @@ jobs:
 
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test http -- --show-output
         env:
           RUST_BACKTRACE: full
@@ -77,6 +80,7 @@ jobs:
       # Use the latest beta version instead
       - name: Start caddy
         shell: bash
+        working-directory: core
         run: |
           VERSION="2.6.0-beta.3"
 
@@ -91,6 +95,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        working-directory: core
         run: cargo test http -- --show-output
         env:
           RUST_BACKTRACE: full

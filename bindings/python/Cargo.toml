@@ -16,18 +16,23 @@
 # under the License.
 
 [package]
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
 name = "opendal-python"
-version = "0.30.3"
+publish = false
+repository = "https://github.com/apache/incubator-opendal"
+version = "0.30.4"
 
 [lib]
 crate-type = ["cdylib"]
-name = "opendal"
+doc = false
 
 [dependencies]
 chrono = { version = "0.4.24", default-features = false, features = ["std"] }
 futures = "0.3.27"
-opendal = { version = "0.30", path = "../../" }
-pyo3 = { version = "0.18", features = ["extension-module", "chrono"] }
+opendal = { version = "0.30", path = "../../core" }
+pyo3 = { version = "0.18", features = ["chrono"] }
 pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }
 tokio = "1"

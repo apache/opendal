@@ -141,7 +141,6 @@ impl Operator {
         Ok(Metadata(meta))
     }
 
-
     /// Check if this operator can work correctly.
     ///
     /// We will send a `list` request to path and return any errors we met.
@@ -176,7 +175,6 @@ impl Operator {
     pub fn is_exist_sync(&self, path: String) -> Result<bool> {
         self.0.blocking().is_exist(&path).map_err(format_napi_error)
     }
-
 
     /// Create dir with given path.
     ///

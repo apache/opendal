@@ -298,9 +298,9 @@ export class Operator {
    * ```javascript
    * const req = op.presignRead(path, parseInt(expires));
    *
-   * console.log("method: ", req.method)
-   * console.log("url: ", req.url)
-   * console.log("headers: ", req.headers)
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
    * ```
    */
   presignRead(path: string, expires: number): PresignedRequest
@@ -314,9 +314,9 @@ export class Operator {
    * ```javascript
    * const req = op.presignWrite(path, parseInt(expires));
    *
-   * console.log("method: ", req.method)
-   * console.log("url: ", req.url)
-   * console.log("headers: ", req.headers)
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
    * ```
    */
   presignWrite(path: string, expires: number): PresignedRequest
@@ -330,9 +330,9 @@ export class Operator {
    * ```javascript
    * const req = op.presignStat(path, parseInt(expires));
    *
-   * console.log("method: ", req.method)
-   * console.log("url: ", req.url)
-   * console.log("headers: ", req.headers)
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
    * ```
    */
   presignStat(path: string, expires: number): PresignedRequest

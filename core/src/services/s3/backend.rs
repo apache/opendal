@@ -78,6 +78,7 @@ mod constants {
     pub const X_AMZ_BUCKET_REGION: &str = "x-amz-bucket-region";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+    pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
 /// Aws S3 and compatible services (including minio, digitalocean space and so on) support
@@ -1241,9 +1242,12 @@ impl Accessor for S3Backend {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Stat(_) => self.s3_head_object_request(path)?,
-            PresignOperation::Read(v) => {
-                self.s3_get_object_request(path, v.range(), v.override_content_disposition())?
-            }
+            PresignOperation::Read(v) => self.s3_get_object_request(
+                path,
+                v.range(),
+                v.override_content_disposition(),
+                v.override_cache_control(),
+            )?,
             PresignOperation::Write(_) => {
                 self.s3_put_object_request(path, None, None, None, AsyncBody::Empty)?
             }
@@ -1334,18 +1338,31 @@ impl S3Backend {
         path: &str,
         range: BytesRange,
         override_content_disposition: Option<&str>,
+        override_cache_control: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
+        // Add query arguments to the URL based on response overrides
+        let mut query_args = Vec::new();
         if let Some(override_content_disposition) = override_content_disposition {
-            url.push_str(&format!(
-                "?{}={}",
+            query_args.push(format!(
+                "{}={}",
                 constants::RESPONSE_CONTENT_DISPOSITION,
                 percent_encode_path(override_content_disposition)
-            ));
+            ))
+        }
+        if let Some(override_cache_control) = override_cache_control {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
         }
 
         let mut req = Request::get(&url);
@@ -1370,7 +1387,7 @@ impl S3Backend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, range, None)?;
+        let mut req = self.s3_get_object_request(path, range, None, None)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 

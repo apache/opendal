@@ -61,8 +61,15 @@ jobs:
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
         run: corepack enable
+
+      - name: Corepack
+        run: corepack enable
       - name: Install dependencies
         run: yarn install
+
+      - name: Check format
+        run: yarn run prettier --check .
+
       - name: Build
         run: yarn build:debug
       - name: Test bindings

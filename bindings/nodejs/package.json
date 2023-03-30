@@ -45,7 +45,6 @@
   "devDependencies": {
     "@aws-sdk/abort-controller": "^3.296.0",
     "@aws-sdk/client-s3": "^3.301.0",
-    "@aws-sdk/lib-storage": "^3.301.0",
     "@cucumber/cucumber": "^9.0.1",
     "@napi-rs/cli": "^2.15.1",
     "@swc-node/register": "^1.6.2",

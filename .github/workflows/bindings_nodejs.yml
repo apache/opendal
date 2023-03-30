@@ -59,8 +59,6 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
-      - name: Corepack
-        run: corepack enable
 
       - name: Corepack
         run: corepack enable

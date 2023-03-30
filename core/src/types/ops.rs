@@ -252,10 +252,7 @@ impl OpRead {
     }
 
     /// Sets the content-disposition header that should be send back by the remote read operation.
-    pub fn with_override_content_disposition(
-        mut self,
-        content_disposition: impl Into<String>,
-    ) -> Self {
+    pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
         self.override_content_disposition = Some(content_disposition.into());
         self
     }
@@ -267,7 +264,7 @@ impl OpRead {
     }
 
     /// Sets the cache-control header that should be send back by the remote read operation.
-    pub fn with_override_cache_control(mut self, cache_control: impl Into<String>) -> Self {
+    pub fn with_override_cache_control(mut self, cache_control: &str) -> Self {
         self.override_cache_control = Some(cache_control.into());
         self
     }

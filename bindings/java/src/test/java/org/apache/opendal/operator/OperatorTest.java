@@ -59,4 +59,12 @@ public class OperatorTest {
 
     }
 
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testIllegalOperator() {
+        Map<String, String> params = new HashMap<>();
+        new Operator("Dummy", params);
+
+    }
+
 }

@@ -39,7 +39,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.12</version>
+            <version>4.13.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -67,23 +67,13 @@
                             <goal>build</goal>
                         </goals>
                         <configuration>
-
                             <path>../java</path>
-
-
                             <release>true</release>
-
                             <copyTo>${project.build.directory}/classes/org/apache/opendal/rust/libs</copyTo>
-
                             <copyWithPlatformDir>true</copyWithPlatformDir>
-
-
                             <extraArgs>
                                 <extraArg>--color=always</extraArg>
                             </extraArgs>
-                            <environmentVariables>
-                                <REVERSED_STR_PREFIX>Great Scott, A reversed string!</REVERSED_STR_PREFIX>
-                            </environmentVariables>
                         </configuration>
                     </execution>
                 </executions>

@@ -26,10 +26,10 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
-use http::header::HeaderName;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::{HeaderName, CACHE_CONTROL};
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -1134,7 +1134,8 @@ impl Accessor for S3Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.s3_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req =
+            self.s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -1167,7 +1168,14 @@ impl Accessor for S3Backend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let upload_id = if args.append() {
-            let resp = self.s3_initiate_multipart_upload(path).await?;
+            let resp = self
+                .s3_initiate_multipart_upload(
+                    path,
+                    args.content_type(),
+                    args.content_disposition(),
+                    args.cache_control(),
+                )
+                .await?;
 
             let status = resp.status();
 
@@ -1245,7 +1253,7 @@ impl Accessor for S3Backend {
                 self.s3_get_object_request(path, v.range(), v.override_content_disposition())?
             }
             PresignOperation::Write(_) => {
-                self.s3_put_object_request(path, None, None, None, AsyncBody::Empty)?
+                self.s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
             }
         };
 
@@ -1383,6 +1391,7 @@ impl S3Backend {
         size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
+        cache_control: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -1401,6 +1410,10 @@ impl S3Backend {
 
         if let Some(pos) = content_disposition {
             req = req.header(CONTENT_DISPOSITION, pos)
+        }
+
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
         }
 
         // Set SSE headers.
@@ -1489,12 +1502,27 @@ impl S3Backend {
     async fn s3_initiate_multipart_upload(
         &self,
         path: &str,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        cache_control: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(content_disposition) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, content_disposition)
+        }
+
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
 
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);

@@ -284,6 +284,7 @@ pub struct OpWrite {
 
     content_type: Option<String>,
     content_disposition: Option<String>,
+    cache_control: Option<String>,
 }
 
 impl OpWrite {
@@ -296,6 +297,7 @@ impl OpWrite {
 
             content_type: None,
             content_disposition: None,
+            cache_control: None,
         }
     }
 
@@ -327,6 +329,17 @@ impl OpWrite {
     /// Set the content disposition of option
     pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
         self.content_disposition = Some(content_disposition.to_string());
+        self
+    }
+
+    /// Get the cache control from option
+    pub fn cache_control(&self) -> Option<&str> {
+        self.cache_control.as_deref()
+    }
+
+    /// Set the content type of option
+    pub fn with_cache_control(mut self, cache_control: &str) -> Self {
+        self.cache_control = Some(cache_control.to_string());
         self
     }
 }

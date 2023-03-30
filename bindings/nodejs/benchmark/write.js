@@ -18,9 +18,7 @@
  */
 
 const { suite, add, cycle, complete } = require('benny')
-const opendalWrite = require('./opendal.js').write
-const s3Write = require('./s3.js').write
-const { testFiles } = require('./constant.js')
+const { s3, opendal, testFiles } = require('./lib.js')
 const crypto = require('node:crypto')
 
 async function bench() {
@@ -32,11 +30,11 @@ async function bench() {
           `write (${v.name})`,
           add(`opendal write (${v.name})`, async () => {
             let count = 0
-            return async () => opendalWrite(`${uuid}_${count++}_${v.name}_opendal.txt`, v.file)
+            return async () => opendal.write(`${uuid}_${count++}_${v.name}_opendal.txt`, v.file)
           }),
           add(`s3 write (${v.name})`, async () => {
             let count = 0
-            return async () => s3Write(`${uuid}_${count++}_${v.name}_s3.txt`, v.file)
+            return async () => s3.write(`${uuid}_${count++}_${v.name}_s3.txt`, v.file)
           }),
           cycle(),
           complete(),

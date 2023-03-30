@@ -18,10 +18,7 @@
  */
 
 const { suite, add, cycle, complete } = require('benny')
-const write = require('./opendal.js').write
-const s3Read = require('./s3.js').read
-const openDalRead = require('./opendal.js').read
-const { testFiles } = require('./constant.js')
+const { s3, opendal, testFiles } = require('./lib.js')
 const crypto = require('node:crypto')
 
 async function bench() {
@@ -33,10 +30,10 @@ async function bench() {
       return suite(
         `read (${v.name})`,
         add(`s3 read (${v.name})`, async () => {
-          await s3Read(filename).then((v) => v.Body.transformToString('utf-8'))
+          await s3.read(filename).then((v) => v.Body.transformToString('utf-8'))
         }),
         add(`opendal read (${v.name})`, async () => {
-          await openDalRead(filename).then((v) => v.toString('utf-8'))
+          await opendal.read(filename).then((v) => v.toString('utf-8'))
         }),
         cycle(),
         complete(),

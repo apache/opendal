@@ -51,6 +51,7 @@
     "@swc/core": "^1.3.38",
     "@types/node": "^18.14.5",
     "benny": "^3.7.1",
+    "dotenv": "^16.0.3",
     "prettier": "^2.8.4",
     "typedoc": "^0.23.28",
     "typescript": "^5.0.2"
@@ -66,7 +67,8 @@
     "format": "prettier --write .",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "cucumber-js",
-    "bench": "node ./benchmark/index.js",
+    "bench": "node -r dotenv/config ./benchmark/node.js dotenv_config_path=./.env",
+    "bench:deno": "deno bench ./benchmark/deno.ts --reload=npm:opendal --allow-read --allow-ffi --allow-net --allow-env",
     "version": "napi version"
   },
   "prettier": {

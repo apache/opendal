@@ -1,6 +1,4 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": [
-    "benchmark"
-  ]
+  "exclude": ["benchmark"]
 }

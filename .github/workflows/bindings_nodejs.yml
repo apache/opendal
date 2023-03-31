@@ -168,8 +168,7 @@ jobs:
               yarn build
               strip -x *.node
     runs-on: macos-latest
-    # For test, remove this before merging
-    # if: "startsWith(github.ref, 'refs/tags/')"
+    if: "startsWith(github.ref, 'refs/tags/')"
 
     # Notes: this defaults only apply on run tasks.
     defaults:

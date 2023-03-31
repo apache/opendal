@@ -24,7 +24,7 @@ license = "Apache-2.0"
 name = "object_store_opendal"
 repository = "https://github.com/apache/incubator-opendal"
 rust-version = "1.60"                                       # MSRV for this project - please update while bump versions
-version = "0.30.4"
+version = "0.30.5"
 
 [dependencies]
 async-trait = "0.1"

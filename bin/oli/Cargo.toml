@@ -25,7 +25,7 @@ keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oli"
 repository = "https://github.com/apache/incubator-opendal"
-version = "0.30.4"
+version = "0.30.5"
 
 [features]
 # Enable services dashmap support

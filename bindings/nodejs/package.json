@@ -60,16 +60,14 @@
     "node": ">= 10"
   },
   "scripts": {
-    "artifacts": "napi artifacts",
-    "build": "napi build --platform --release --js generated.js && node ./scripts/header.js",
-    "build:debug": "napi build --platform --js generated.js && node ./scripts/header.js",
+    "build": "napi build --platform --target \"${NAPI_TARGET:-}\" --release --js generated.js && node ./scripts/header.js",
+    "build:debug": "napi build --platform --target \"${NAPI_TARGET:-}\" --js generated.js && node ./scripts/header.js",
     "docs": "typedoc",
     "format": "prettier --write .",
-    "prepublishOnly": "napi prepublish -t npm",
     "test": "cucumber-js",
     "bench": "node -r dotenv/config ./benchmark/node.js dotenv_config_path=./.env",
     "bench:deno": "deno bench ./benchmark/deno.ts --reload=npm:opendal --allow-read --allow-ffi --allow-net --allow-env",
-    "version": "napi version"
+    "prepublishOnly": "napi prepublish -t npm"
   },
   "prettier": {
     "overrides": [

@@ -162,8 +162,9 @@ jobs:
               export CXX=$(xcrun -f clang++);
               SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
               export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
-              rustup target remove x86_64-apple-darwin;
               rustup target add aarch64-apple-darwin;
+
+              export NAPI_TARGET=aarch64-apple-darwin;
               yarn build
               strip -x *.node
     runs-on: macos-latest

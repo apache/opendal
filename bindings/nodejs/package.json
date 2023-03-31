@@ -64,7 +64,8 @@
     "docs": "typedoc",
     "format": "prettier --write .",
     "test": "cucumber-js",
-    "bench": "node ./benchmark/index.js"
+    "bench": "node ./benchmark/index.js",
+    "prepublishOnly": "napi prepublish -t npm"
   },
   "prettier": {
     "overrides": [
@@ -85,5 +86,11 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
-  "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f"
+  "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f",
+  "optionalDependencies": {
+    "@opendal/lib-win32-x64-msvc": "0.30.5",
+    "@opendal/lib-darwin-x64": "0.30.5",
+    "@opendal/lib-linux-x64-gnu": "0.30.5",
+    "@opendal/lib-darwin-arm64": "0.30.5"
+  }
 }

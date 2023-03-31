@@ -2,7 +2,7 @@
   "entryPoints": ["index.d.ts"],
   "out": "docs",
   "name": "Apache OpenDAL",
-  "tsconfig": "tsconfig.json",
+  "tsconfig": "tsconfig.doc.json",
   "excludePrivate": true,
   "excludeProtected": true,
   "excludeExternals": true,

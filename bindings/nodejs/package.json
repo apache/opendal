@@ -59,15 +59,12 @@
     "node": ">= 10"
   },
   "scripts": {
-    "artifacts": "napi artifacts",
     "build": "napi build --platform --release --js generated.js && node ./scripts/header.js",
     "build:debug": "napi build --platform --js generated.js && node ./scripts/header.js",
     "docs": "typedoc",
     "format": "prettier --write .",
-    "prepublishOnly": "napi prepublish -t npm",
     "test": "cucumber-js",
     "bench": "node ./benchmark/index.js",
-    "version": "napi version"
   },
   "prettier": {
     "overrides": [

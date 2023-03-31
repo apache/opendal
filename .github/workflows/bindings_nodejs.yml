@@ -162,11 +162,13 @@ jobs:
               export CXX=$(xcrun -f clang++);
               SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
               export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
+              rustup target remove x86_64-apple-darwin;
               rustup target add aarch64-apple-darwin;
-              yarn build --target aarch64-apple-darwin
+              yarn build
               strip -x *.node
     runs-on: macos-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    # For test, remove this before merging
+    # if: "startsWith(github.ref, 'refs/tags/')"
 
     # Notes: this defaults only apply on run tasks.
     defaults:
@@ -228,7 +230,7 @@ jobs:
         with:
           path: bindings/nodejs/artifacts
       - name: Move artifacts
-        run: yarn artifacts
+        run: yarn run napi artifacts
 
       - name: List packages
         run: ls -R ./npm

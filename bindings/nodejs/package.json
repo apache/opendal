@@ -66,6 +66,7 @@
     "format": "prettier --write .",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "cucumber-js",
+    "bench": "node ./benchmark/index.js",
     "version": "napi version"
   },
   "prettier": {

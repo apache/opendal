@@ -64,7 +64,7 @@
     "docs": "typedoc",
     "format": "prettier --write .",
     "test": "cucumber-js",
-    "bench": "node ./benchmark/index.js",
+    "bench": "node ./benchmark/index.js"
   },
   "prettier": {
     "overrides": [

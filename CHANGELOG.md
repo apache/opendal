@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ci: Split clippy and docs check (#1785)
 - ci(bindings/nodejs): Support aarch64-apple-darwin (#1780)
 - ci(bindings/nodejs): publish with LICENSE & NOTICE (#1790)
+- ci(services/redis): Add dragonfly test (#1808)
 
 ### Chore
 

@@ -1154,7 +1154,9 @@ impl Accessor for S3Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.s3_get_object(path, args.range()).await?;
+        let resp = self
+            .s3_get_object(path, args.range(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -1202,13 +1204,13 @@ impl Accessor for S3Backend {
         ))
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.s3_head_object(path).await?;
+        let resp = self.s3_head_object(path, args.if_none_match()).await?;
 
         let status = resp.status();
 
@@ -1249,12 +1251,13 @@ impl Accessor for S3Backend {
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.s3_head_object_request(path)?,
+            PresignOperation::Stat(v) => self.s3_head_object_request(path, v.if_none_match())?,
             PresignOperation::Read(v) => self.s3_get_object_request(
                 path,
                 v.range(),
                 v.override_content_disposition(),
                 v.override_cache_control(),
+                v.if_none_match(),
             )?,
             PresignOperation::Write(_) => {
                 self.s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
@@ -1325,7 +1328,11 @@ impl Accessor for S3Backend {
 }
 
 impl S3Backend {
-    fn s3_head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn s3_head_object_request(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1333,6 +1340,10 @@ impl S3Backend {
         let mut req = Request::head(&url);
 
         req = self.insert_sse_headers(req, false);
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        }
 
         let req = req
             .body(AsyncBody::Empty)
@@ -1347,6 +1358,7 @@ impl S3Backend {
         range: BytesRange,
         override_content_disposition: Option<&str>,
         override_cache_control: Option<&str>,
+        if_none_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -1379,6 +1391,10 @@ impl S3Backend {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        }
+
         // Set SSE headers.
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
@@ -1394,8 +1410,9 @@ impl S3Backend {
         &self,
         path: &str,
         range: BytesRange,
+        if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, range, None, None)?;
+        let mut req = self.s3_get_object_request(path, range, None, None, if_none_match)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -1442,7 +1459,11 @@ impl S3Backend {
         Ok(req)
     }
 
-    async fn s3_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn s3_head_object(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1451,6 +1472,10 @@ impl S3Backend {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        }
 
         let mut req = req
             .body(AsyncBody::Empty)

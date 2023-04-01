@@ -296,7 +296,7 @@ pub struct OpStat {
 impl OpStat {
     /// Create a new `OpStat`.
     pub fn new() -> Self {
-        OpStat::default()
+        Self::default()
     }
 
     /// Set the If-None-Match of the option

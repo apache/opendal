@@ -232,6 +232,7 @@ pub struct OpRead {
     br: BytesRange,
     override_content_disposition: Option<String>,
     override_cache_control: Option<String>,
+    if_none_match: Option<String>,
 }
 
 impl OpRead {
@@ -273,16 +274,40 @@ impl OpRead {
     pub fn override_cache_control(&self) -> Option<&str> {
         self.override_cache_control.as_deref()
     }
+
+    /// Set the If-None-Match of the option
+    pub fn with_if_none_match(mut self, if_none_match: &str) -> Self {
+        self.if_none_match = Some(if_none_match.to_string());
+        self
+    }
+
+    /// Get If-None-Match from option
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
+    }
 }
 
 /// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpStat {}
+pub struct OpStat {
+    if_none_match: Option<String>,
+}
 
 impl OpStat {
     /// Create a new `OpStat`.
     pub fn new() -> Self {
-        Self {}
+        Self::default()
+    }
+
+    /// Set the If-None-Match of the option
+    pub fn with_if_none_match(mut self, if_none_match: &str) -> Self {
+        self.if_none_match = Some(if_none_match.to_string());
+        self
+    }
+
+    /// Get If-None-Match from option
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
     }
 }
 

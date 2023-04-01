@@ -56,7 +56,7 @@ futures = "0.3"
 log = "0.4"
 opendal = { version = "0.30", path = "../../core" }
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.26", features = ["fs", "macros", "rt-multi-thread", "io-std"] }
+tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread", "io-std"] }
 toml = "0.7.3"
 url = "2.3.1"
 

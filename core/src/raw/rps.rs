@@ -190,6 +190,14 @@ impl BatchedResults {
             Delete(v) => v.iter().filter(|v| v.1.is_err()).count(),
         }
     }
+
+    /// Return an iterator over error results.
+    pub fn errors(&self) -> Box<dyn Iterator<Item = &Error> + '_> {
+        use BatchedResults::*;
+        match self {
+            Delete(v) => Box::new(v.iter().filter_map(|v| v.1.as_ref().err())),
+        }
+    }
 }
 
 /// Reply for `stat` operation.

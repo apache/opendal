@@ -732,15 +732,16 @@ impl Operator {
     /// ```
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
         if self.info().can_batch() {
-            let mut input = input.map(|v| (v, OpDelete::default())).chunks(self.limit());
+            let mut input = input
+                .map(|v| (v, OpDelete::default().into()))
+                .chunks(self.limit());
 
             while let Some(batches) = input.next().await {
                 let results = self
                     .inner()
-                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
-                    .await?;
-
-                let BatchedResults::Delete(results) = results.into_results();
+                    .batch(OpBatch::new(batches))
+                    .await?
+                    .into_results();
 
                 // TODO: return error here directly seems not a good idea?
                 for (_, result) in results {
@@ -805,15 +806,14 @@ impl Operator {
                 let batches = batches
                     .map_err(|err| err.1)?
                     .into_iter()
-                    .map(|v| (v.path().to_string(), OpDelete::default()))
+                    .map(|v| (v.path().to_string(), OpDelete::default().into()))
                     .collect();
 
                 let results = self
                     .inner()
-                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
-                    .await?;
-
-                let BatchedResults::Delete(results) = results.into_results();
+                    .batch(OpBatch::new(batches))
+                    .await?
+                    .into_results();
 
                 // TODO: return error here directly seems not a good idea?
                 for (_, result) in results {

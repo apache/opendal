@@ -532,7 +532,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let (op, count) = (args.operation().operation(), args.operation().len());
+        let (op, count) = (args.operation()[0].1.operation(), args.operation().len());
 
         debug!(
             target: LOGGING_TARGET,
@@ -550,8 +550,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     self.scheme,
                     Operation::Batch,
                     v.results().len(),
-                    v.results().len_ok(),
-                    v.results().len_err(),
+                    v.results().iter().filter(|(_, v)|v.is_ok()).count(),
+                    v.results().iter().filter(|(_, v)|v.is_err()).count(),
                 );
                 v
             })

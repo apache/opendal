@@ -288,15 +288,10 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        { || self.inner.batch(args.clone()).map(|res| Err::<(), _>(res)) }
+        { || self.inner.batch(args.clone()).map(Err::<(), _>) }
             .retry(&self.builder)
             .when(|res| match res {
-                Ok(rp) => rp
-                    .results()
-                    .errors()
-                    .filter(|e| e.is_temporary())
-                    .next()
-                    .is_some(),
+                Ok(rp) => rp.results().errors().any(|e| e.is_temporary()),
                 Err(err) => err.is_temporary(),
             })
             .notify(|res, dur| match res {

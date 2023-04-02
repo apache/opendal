@@ -598,59 +598,58 @@ impl Accessor for AzblobBackend {
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
-        match ops {
-            BatchOperations::Delete(ops) => {
-                let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
-                if paths.len() > AZBLOB_BATCH_LIMIT {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "batch delete limit exceeded",
-                    ));
-                }
-                // construct and complete batch request
-                let resp = self.azblob_batch_delete(&paths).await?;
-
-                // check response status
-                if resp.status() != StatusCode::ACCEPTED {
-                    return Err(parse_error(resp).await?);
-                }
-
-                // get boundary from response header
-                let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "response data should have CONTENT_TYPE header",
-                    )
-                })?;
-                let content_type = content_type
-                    .to_str()
-                    .map(|ty| ty.to_string())
-                    .map_err(|e| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("get invalid CONTENT_TYPE header in response: {:?}", e),
-                        )
-                    })?;
-                let splits = content_type.split("boundary=").collect::<Vec<&str>>();
-                let boundary = splits.get(1).to_owned().ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "No boundary message provided in CONTENT_TYPE",
-                    )
-                })?;
-
-                let body = resp.into_body().bytes().await?;
-                let body = String::from_utf8(body.to_vec()).map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("get invalid batch response {e:?}"),
-                    )
-                })?;
-
-                let results = parse_batch_delete_response(boundary, body, paths)?;
-                Ok(RpBatch::new(BatchedResults::Delete(results)))
-            }
+        let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+        if paths.len() > AZBLOB_BATCH_LIMIT {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "batch delete limit exceeded",
+            ));
         }
+        // construct and complete batch request
+        let resp = self.azblob_batch_delete(&paths).await?;
+
+        // check response status
+        if resp.status() != StatusCode::ACCEPTED {
+            return Err(parse_error(resp).await?);
+        }
+
+        // get boundary from response header
+        let content_type = resp.headers().get(CONTENT_TYPE).ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "response data should have CONTENT_TYPE header",
+            )
+        })?;
+        let content_type = content_type
+            .to_str()
+            .map(|ty| ty.to_string())
+            .map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("get invalid CONTENT_TYPE header in response: {:?}", e),
+                )
+            })?;
+        let splits = content_type.split("boundary=").collect::<Vec<&str>>();
+        let boundary = splits.get(1).to_owned().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "No boundary message provided in CONTENT_TYPE",
+            )
+        })?;
+
+        let body = resp.into_body().bytes().await?;
+        let body = String::from_utf8(body.to_vec()).map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                &format!("get invalid batch response {e:?}"),
+            )
+        })?;
+
+        let results = parse_batch_delete_response(boundary, body, paths)?
+            .into_iter()
+            .map(|(path, rp)| (path, rp.map(|v| v.into())))
+            .collect();
+        Ok(RpBatch::new(results))
     }
 }
 

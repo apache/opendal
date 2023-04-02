@@ -291,7 +291,13 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         { || self.inner.batch(args.clone()).map(Err::<(), _>) }
             .retry(&self.builder)
             .when(|res| match res {
-                Ok(rp) => rp.results().errors().any(|e| e.is_temporary()),
+                Ok(rp) => rp.results().iter().any(|(_, v)| {
+                    if let Err(e) = v {
+                        e.is_temporary()
+                    } else {
+                        false
+                    }
+                }),
                 Err(err) => err.is_temporary(),
             })
             .notify(|res, dur| match res {
@@ -299,7 +305,14 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Batch, dur.as_secs_f64(),
-                    rp.results().errors().filter(|e| e.is_temporary()).collect::<Vec<_>>()),
+                    rp.results().iter().filter_map(|(_, v)| {
+                        if let Err(e) = v  {
+                            if e.is_temporary() {
+                                return Some(e);
+                            }
+                        }
+                        None
+                }).collect::<Vec<_>>()),
                 Err(err) => warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
@@ -842,54 +855,56 @@ mod tests {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
-            use BatchOperations::*;
-            match op.into_operation() {
-                Delete(v) => match *attempt {
-                    1 => Err(
-                        Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                            .set_temporary(),
-                    ),
-                    2 => Ok(RpBatch::new(BatchedResults::Delete(
-                        v.into_iter()
-                            .map(|(s, _)| {
-                                (
-                                    s,
-                                    Err(Error::new(
+            match *attempt {
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                2 => Ok(RpBatch::new(
+                    op.into_operation()
+                        .into_iter()
+                        .map(|(s, _)| {
+                            (
+                                s,
+                                Err(Error::new(
+                                    ErrorKind::Unexpected,
+                                    "retryable_error from reader",
+                                )
+                                .set_temporary()),
+                            )
+                        })
+                        .collect(),
+                )),
+                3 => Ok(RpBatch::new(
+                    op.into_operation()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, (s, _))| {
+                            (
+                                s,
+                                match i {
+                                    0 => Err(Error::new(
                                         ErrorKind::Unexpected,
                                         "retryable_error from reader",
                                     )
                                     .set_temporary()),
-                                )
-                            })
-                            .collect(),
-                    ))),
-                    3 => Ok(RpBatch::new(BatchedResults::Delete(
-                        v.into_iter()
-                            .enumerate()
-                            .map(|(i, (s, _))| {
-                                (
-                                    s,
-                                    match i {
-                                        0 => Err(Error::new(
-                                            ErrorKind::Unexpected,
-                                            "retryable_error from reader",
-                                        )
-                                        .set_temporary()),
-                                        _ => Ok(RpDelete {}),
-                                    },
-                                )
-                            })
-                            .collect(),
-                    ))),
-                    4 => Err(
-                        Error::new(ErrorKind::Unexpected, "retryable_error from reader")
-                            .set_temporary(),
-                    ),
-                    5 => Ok(RpBatch::new(BatchedResults::Delete(
-                        v.into_iter().map(|(s, _)| (s, Ok(RpDelete {}))).collect(),
-                    ))),
-                    _ => unreachable!(),
-                },
+                                    _ => Ok(RpDelete {}.into()),
+                                },
+                            )
+                        })
+                        .collect(),
+                )),
+                4 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                5 => Ok(RpBatch::new(
+                    op.into_operation()
+                        .into_iter()
+                        .map(|(s, _)| (s, Ok(RpDelete {}.into())))
+                        .collect(),
+                )),
+                _ => unreachable!(),
             }
         }
     }

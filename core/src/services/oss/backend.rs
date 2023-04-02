@@ -544,61 +544,57 @@ impl Accessor for OssBackend {
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
-        match ops {
-            BatchOperations::Delete(ops) => {
-                // Sadly, OSS will not return failed keys, so we will build
-                // a set to calculate the failed keys.
-                let mut keys = HashSet::new();
+        // Sadly, OSS will not return failed keys, so we will build
+        // a set to calculate the failed keys.
+        let mut keys = HashSet::new();
 
-                let ops_len = ops.len();
-                if ops_len > 1000 {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "oss services only allow delete up to 1000 keys at once",
-                    )
-                    .with_context("length", ops_len.to_string()));
-                }
+        let ops_len = ops.len();
+        if ops_len > 1000 {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "oss services only allow delete up to 1000 keys at once",
+            )
+            .with_context("length", ops_len.to_string()));
+        }
 
-                let paths = ops
-                    .into_iter()
-                    .map(|(p, _)| {
-                        keys.insert(p.clone());
-                        p
-                    })
-                    .collect();
+        let paths = ops
+            .into_iter()
+            .map(|(p, _)| {
+                keys.insert(p.clone());
+                p
+            })
+            .collect();
 
-                let resp = self.oss_delete_objects(paths).await?;
+        let resp = self.oss_delete_objects(paths).await?;
 
-                let status = resp.status();
+        let status = resp.status();
 
-                if let StatusCode::OK = status {
-                    let bs = resp.into_body().bytes().await?;
+        if let StatusCode::OK = status {
+            let bs = resp.into_body().bytes().await?;
 
-                    let result: DeleteObjectsResult = quick_xml::de::from_reader(bs.reader())
-                        .map_err(new_xml_deserialize_error)?;
+            let result: DeleteObjectsResult =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-                    let mut batched_result = Vec::with_capacity(ops_len);
-                    for i in result.deleted {
-                        let path = build_rel_path(&self.root, &i.key);
-                        keys.remove(&path);
-                        batched_result.push((path, Ok(RpDelete::default())));
-                    }
-                    // TODO: we should handle those errors with code.
-                    for i in keys {
-                        batched_result.push((
-                            i,
-                            Err(Error::new(
-                                ErrorKind::Unexpected,
-                                "oss delete this key failed for reason we don't know",
-                            )),
-                        ));
-                    }
-
-                    Ok(RpBatch::new(BatchedResults::Delete(batched_result)))
-                } else {
-                    Err(parse_error(resp).await?)
-                }
+            let mut batched_result = Vec::with_capacity(ops_len);
+            for i in result.deleted {
+                let path = build_rel_path(&self.root, &i.key);
+                keys.remove(&path);
+                batched_result.push((path, Ok(RpDelete::default().into())));
             }
+            // TODO: we should handle those errors with code.
+            for i in keys {
+                batched_result.push((
+                    i,
+                    Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "oss delete this key failed for reason we don't know",
+                    )),
+                ));
+            }
+
+            Ok(RpBatch::new(batched_result))
+        } else {
+            Err(parse_error(resp).await?)
         }
     }
 }

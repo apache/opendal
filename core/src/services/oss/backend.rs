@@ -417,7 +417,7 @@ impl Accessor for OssBackend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch )
             .set_hints(ReadStreamable);
 
         am
@@ -453,16 +453,27 @@ impl Accessor for OssBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "append write is not supported",
-            ));
-        }
+        let upload_id = if args.append() {
+            let resp = self.oss_initiate_upload(path).await?;
+            match resp.status() {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
+                    let result: InitiateMultipartUploadResult =
+                        quick_xml::de::from_reader(bs.reader())
+                            .map_err(new_xml_deserialize_error)?;
+                    let _ = result.bucket;
+                    let _ = result.key;
+                    Some(result.upload_id)
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
+        } else {
+            None
+        };
 
         Ok((
             RpWrite::default(),
-            OssWriter::new(self.clone(), args, path.to_string()),
+            OssWriter::new(self.clone(), args, path.to_string(), upload_id),
         ))
     }
 
@@ -808,6 +819,99 @@ impl OssBackend {
             &self.endpoint
         }
     }
+
+    async fn oss_initiate_upload(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let req = self.oss_initiate_upload_request(path, None, None, AsyncBody::Empty, false)?;
+        self.client.send_async(req).await
+    }
+
+    /// Creates a request that initiates multipart upload
+    fn oss_initiate_upload_request(&self, path: &str,
+                                   content_type: Option<&str>,
+                                   content_disposition: Option<&str>,
+                                   body: AsyncBody,
+                                   is_presign: bool) -> Result<Request<AsyncBody>> {
+        let path = build_abs_path(&self.root, path);
+        let endpoint = self.get_endpoint(is_presign);
+        let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
+        let mut req = Request::post(&url);
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+        if let Some(disposition) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, disposition);
+        }
+
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        Ok(req)
+    }
+
+    /// Creates a request to upload a part
+    pub fn oss_upload_part_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        is_presign: bool,
+        size: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let endpoint = self.get_endpoint(is_presign);
+
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            endpoint,
+            percent_encode_path(&p),
+            part_number,
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::put(&url);
+
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size);
+        }
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        Ok(req)
+    }
+
+    pub async fn oss_complete_multipart_upload_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        is_presign: bool,
+        parts: &[MultipartUploadPart],
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let endpoint = self.get_endpoint(is_presign);
+        let url = format!(
+            "{}/{}?uploadId={}",
+            endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
+            part: parts.to_vec(),
+        })
+            .map_err(new_xml_deserialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let mut req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
+    }
 }
 
 /// Request of DeleteObjects.
@@ -842,6 +946,39 @@ struct DeleteObjectsResultError {
     code: String,
     key: String,
     message: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct InitiateMultipartUploadResult {
+    bucket: String,
+    key: String,
+    upload_id: String,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct MultipartUploadPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    #[serde(rename = "ETag")]
+    pub etag: String
+}
+
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+struct CompleteMultipartUploadRequest{
+    part: Vec<MultipartUploadPart>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadResult {
+    pub location: String,
+    pub bucket: String,
+    pub key: String,
+    #[serde(rename = "ETag")]
+    pub etag: String,
 }
 
 #[cfg(test)]
@@ -913,5 +1050,84 @@ mod tests {
         assert_eq!(out.deleted[0].key, "multipart.data");
         assert_eq!(out.deleted[1].key, "test.jpg");
         assert_eq!(out.deleted[2].key, "demo.jpg");
+    }
+
+    #[test]
+    fn test_deserialize_initiate_multipart_upload_response() {
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<InitiateMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
+    <Bucket>oss-example</Bucket>
+    <Key>multipart.data</Key>
+    <UploadId>0004B9894A22E5B1888A1E29F823****</UploadId>
+</InitiateMultipartUploadResult>"#
+        );
+        let out: InitiateMultipartUploadResult =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert_eq!("0004B9894A22E5B1888A1E29F823****", out.upload_id);
+        assert_eq!("multipart.data", out.key);
+        assert_eq!("oss-example", out.bucket);
+    }
+
+    #[test]
+    fn test_serialize_complete_multipart_upload_request() {
+        let req = CompleteMultipartUploadRequest {
+            part: vec![
+                MultipartUploadPart {
+                    part_number: 1,
+                    etag: "\"3349DC700140D7F86A0784842780****\"".to_string()
+                },
+                MultipartUploadPart {
+                    part_number: 5,
+                    etag: "\"8EFDA8BE206636A695359836FE0A****\"".to_string()
+                },
+                MultipartUploadPart {
+                    part_number: 8,
+                    etag: "\"8C315065167132444177411FDA14****\"".to_string()
+                }
+            ]
+        };
+
+        // quick_xml::se::to_string()
+        let mut serializer = quick_xml::se::Serializer::new(String::new());
+        serializer.indent(' ', 4);
+        let serialized = req.serialize(serializer).unwrap();
+        pretty_assertions::assert_eq!(
+            serialized,
+r#"<CompleteMultipartUpload>
+    <Part>
+        <PartNumber>1</PartNumber>
+        <ETag>"3349DC700140D7F86A0784842780****"</ETag>
+    </Part>
+    <Part>
+        <PartNumber>5</PartNumber>
+        <ETag>"8EFDA8BE206636A695359836FE0A****"</ETag>
+    </Part>
+    <Part>
+        <PartNumber>8</PartNumber>
+        <ETag>"8C315065167132444177411FDA14****"</ETag>
+    </Part>
+</CompleteMultipartUpload>"#
+    .replace('"', "&quot;") // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
+        )
+    }
+
+    #[test]
+    fn test_deserialize_complete_oss_multipart_result() {
+        let bytes = Bytes::from(r#"<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
+    <EncodingType>url</EncodingType>
+    <Location>http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data</Location>
+    <Bucket>oss-example</Bucket>
+    <Key>multipart.data</Key>
+    <ETag>"B864DB6A936D376F9F8D3ED3BBE540****"</ETag>
+</CompleteMultipartUploadResult>"#);
+
+        let result: CompleteMultipartUploadResult = quick_xml::de::from_reader(bytes.reader()).unwrap();
+        assert_eq!("\"B864DB6A936D376F9F8D3ED3BBE540****\"", result.etag);
+        assert_eq!("http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data", result.location);
+        assert_eq!("oss-example", result.bucket);
+        assert_eq!("multipart.data", result.key);
     }
 }

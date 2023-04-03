@@ -16,25 +16,33 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use http::StatusCode;
 
 use super::backend::OssBackend;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
+use crate::services::oss::backend::{CompleteMultipartUploadResult, MultipartUploadPart};
 use crate::*;
 
 pub struct OssWriter {
     backend: OssBackend,
-
     op: OpWrite,
     path: String,
+    upload_id: Option<String>,
+    parts: Vec<MultipartUploadPart>,
 }
 
 impl OssWriter {
-    pub fn new(backend: OssBackend, op: OpWrite, path: String) -> Self {
-        OssWriter { backend, op, path }
+    pub fn new(backend: OssBackend, op: OpWrite, path: String, upload_id: Option<String>) -> Self {
+        OssWriter {
+            backend,
+            op,
+            path,
+            upload_id,
+            parts: vec![],
+        }
     }
 }
 
@@ -69,15 +77,67 @@ impl oio::Write for OssWriter {
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _ = bs;
+        let upload_id = self.upload_id.as_ref().expect(
+            "Writer doesn't have upload id, but users trying to call append, must be buggy",
+        );
+        // Aliyun OSS requires part number must between [1..=10000]
+        let part_number = self.parts.len() + 1;
+        let mut req = self.backend.oss_upload_part_request(
+            &self.path,
+            upload_id,
+            part_number,
+            false,
+            Some(bs.len() as u64),
+            AsyncBody::Bytes(bs),
+        )?;
 
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support append",
-        ))
+        self.backend
+            .signer
+            .sign(&mut req)
+            .map_err(new_request_sign_error)?;
+
+        let resp = self.backend.client.send_async(req).await?;
+        match resp.status() {
+            StatusCode::OK => {
+                let etag = parse_etag(resp.headers())?
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in returning response",
+                        )
+                    })?
+                    .to_string();
+                resp.into_body().consume().await?;
+                self.parts.push(MultipartUploadPart { part_number, etag });
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn close(&mut self) -> Result<()> {
-        Ok(())
+        let upload_id = if let Some(upload_id) = &self.upload_id {
+            upload_id
+        } else {
+            return Ok(());
+        };
+
+        let resp = self
+            .backend
+            .oss_complete_multipart_upload_request(&self.path, upload_id, false, &self.parts)
+            .await?;
+        match resp.status() {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+                let result: CompleteMultipartUploadResult =
+                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+                let _ = result.location;
+                let _ = result.key;
+                let _ = result.bucket;
+                let _ = result.etag;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

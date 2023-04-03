@@ -16,14 +16,14 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use http::StatusCode;
 
+use super::backend::MultipartUploadPart;
 use super::backend::OssBackend;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
-use crate::services::oss::backend::{CompleteMultipartUploadResult, MultipartUploadPart};
 use crate::*;
 
 pub struct OssWriter {
@@ -128,13 +128,8 @@ impl oio::Write for OssWriter {
             .await?;
         match resp.status() {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-                let result: CompleteMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-                let _ = result.location;
-                let _ = result.key;
-                let _ = result.bucket;
-                let _ = result.etag;
+                resp.into_body().consume().await?;
+
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),

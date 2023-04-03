@@ -443,12 +443,14 @@ impl Accessor for FsBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        tokio::fs::copy(
-            self.root.join(from.trim_end_matches('/')),
-            self.root.join(to.trim_end_matches('/')),
-        )
-        .await
-        .map_err(parse_io_error)?;
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        tokio::fs::metadata(&from).await.map_err(parse_io_error)?;
+
+        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+
+        tokio::fs::copy(from, to).await.map_err(parse_io_error)?;
 
         Ok(RpCopy::default())
     }
@@ -640,11 +642,14 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        std::fs::copy(
-            self.root.join(from.trim_end_matches('/')),
-            self.root.join(to.trim_end_matches('/')),
-        )
-        .map_err(parse_io_error)?;
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        std::fs::metadata(&from).map_err(parse_io_error)?;
+
+        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+
+        std::fs::copy(from, to).map_err(parse_io_error)?;
 
         Ok(RpCopy::default())
     }

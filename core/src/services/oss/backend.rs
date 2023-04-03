@@ -461,8 +461,6 @@ impl Accessor for OssBackend {
                     let result: InitiateMultipartUploadResult =
                         quick_xml::de::from_reader(bs.reader())
                             .map_err(new_xml_deserialize_error)?;
-                    let _ = result.bucket;
-                    let _ = result.key;
                     Some(result.upload_id)
                 }
                 _ => return Err(parse_error(resp).await?),
@@ -950,7 +948,9 @@ struct DeleteObjectsResultError {
 #[derive(Default, Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct InitiateMultipartUploadResult {
+    #[cfg(test)]
     bucket: String,
+    #[cfg(test)]
     key: String,
     upload_id: String,
 }

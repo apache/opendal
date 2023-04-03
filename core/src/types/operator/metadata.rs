@@ -57,6 +57,11 @@ impl OperatorInfo {
         self.0.capabilities().contains(AccessorCapability::Write)
     }
 
+    /// Check if current backend supports [`Accessor::copy`] or not.
+    pub fn can_copy(&self) -> bool {
+        self.0.capabilities().contains(AccessorCapability::Read | AccessorCapability::Write)
+    }
+
     /// Check if current backend supports [`Accessor::list`] or not.
     pub fn can_list(&self) -> bool {
         self.0.capabilities().contains(AccessorCapability::List)

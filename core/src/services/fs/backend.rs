@@ -301,6 +301,7 @@ impl Accessor for FsBackend {
             .set_capabilities(
                 AccessorCapability::Read
                     | AccessorCapability::Write
+                    | AccessorCapability::Copy
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )
@@ -439,6 +440,17 @@ impl Accessor for FsBackend {
             .map_err(parse_io_error)?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        tokio::fs::copy(
+            self.root.join(from.trim_end_matches('/')),
+            self.root.join(to.trim_end_matches('/')),
+        )
+        .await
+        .map_err(parse_io_error)?;
+
+        Ok(RpCopy::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -625,6 +637,16 @@ impl Accessor for FsBackend {
             .map_err(parse_io_error)?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        std::fs::copy(
+            self.root.join(from.trim_end_matches('/')),
+            self.root.join(to.trim_end_matches('/')),
+        )
+        .map_err(parse_io_error)?;
+
+        Ok(RpCopy::default())
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

@@ -322,6 +322,47 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::Copy,
+            from,
+            to
+        );
+
+        self.inner
+            .copy(from, to, args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::Copy,
+                    from,
+                    to
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Copy,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    )
+                };
+                err
+            })
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
             target: LOGGING_TARGET,
@@ -692,6 +733,46 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.scheme,
                         Operation::BlockingWrite,
                         path,
+                        self.err_status(&err)
+                    );
+                }
+                err
+            })
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::BlockingCopy,
+            from,
+            to,
+        );
+
+        self.inner
+            .blocking_copy(from, to, args)
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::BlockingCopy,
+                    from,
+                    to,
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingCopy,
+                        from,
+                        to,
                         self.err_status(&err)
                     );
                 }

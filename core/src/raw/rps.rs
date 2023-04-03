@@ -199,6 +199,17 @@ impl RpWrite {
     }
 }
 
+/// Reply for `copy` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCopy {}
+
+impl RpCopy {
+    /// Create a new reply for copy.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use anyhow::Result;

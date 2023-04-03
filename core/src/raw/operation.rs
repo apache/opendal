@@ -30,6 +30,8 @@ pub enum Operation {
     Read,
     /// Operation for [`crate::raw::Accessor::write`]
     Write,
+    /// Operation for [`crate::raw::Accessor::copy`]
+    Copy,
     /// Operation for [`crate::raw::Accessor::stat`]
     Stat,
     /// Operation for [`crate::raw::Accessor::delete`]
@@ -48,6 +50,8 @@ pub enum Operation {
     BlockingRead,
     /// Operation for [`crate::raw::Accessor::blocking_write`]
     BlockingWrite,
+    /// Operation for [`crate::raw::Accessor::blocking_copy`]
+    BlockingCopy,
     /// Operation for [`crate::raw::Accessor::blocking_stat`]
     BlockingStat,
     /// Operation for [`crate::raw::Accessor::blocking_delete`]
@@ -84,6 +88,7 @@ impl From<Operation> for &'static str {
             Operation::Create => "create",
             Operation::Read => "read",
             Operation::Write => "write",
+            Operation::Copy => "copy",
             Operation::Stat => "stat",
             Operation::Delete => "delete",
             Operation::List => "list",
@@ -93,6 +98,7 @@ impl From<Operation> for &'static str {
             Operation::BlockingCreate => "blocking_create",
             Operation::BlockingRead => "blocking_read",
             Operation::BlockingWrite => "blocking_write",
+            Operation::BlockingCopy => "blocking_copy",
             Operation::BlockingStat => "blocking_stat",
             Operation::BlockingDelete => "blocking_delete",
             Operation::BlockingList => "blocking_list",

@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! The internal implement details of [`Layer`].
+//! The internal implementation details of [`Layer`].
 //!
-//! [`Layer`] itself is quiet simple:
+//! [`Layer`] itself is quite simple:
 //!
 //! ```ignore
 //! pub trait Layer<A: Accessor> {
@@ -27,13 +27,13 @@
 //! }
 //! ```
 //!
-//! `XxxLayer` will wrap input [`Accessor`] as inner and returns a new [`Accessor`]. So normally the implementation of [`Layer`] will be split into two parts:
+//! `XxxLayer` will wrap input [`Accessor`] as inner and return a new [`Accessor`]. So normally the implementation of [`Layer`] will be split into two parts:
 //!
-//! - `XxxLayer` will implements [`Layer`] and return `XxxAccessor` as `Self::LayeredAccessor`.
-//! - `XxxAccessor` will implements [`Accessor`] and being built by `XxxLayer`.
+//! - `XxxLayer` will implement [`Layer`] and return `XxxAccessor` as `Self::LayeredAccessor`.
+//! - `XxxAccessor` will implement [`Accessor`] and be built by `XxxLayer`.
 //!
 //! Most layer only implements part of [`Accessor`], so we provide
-//! [`LayeredAccessor`] which will forward all not implemented methods to
+//! [`LayeredAccessor`] which will forward all unimplemented methods to
 //! `inner`. It's highly recommend to implement [`LayeredAccessor`] trait
 //! instead.
 //!

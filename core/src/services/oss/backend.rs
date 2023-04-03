@@ -417,7 +417,7 @@ impl Accessor for OssBackend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch )
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
             .set_hints(ReadStreamable);
 
         am
@@ -826,11 +826,14 @@ impl OssBackend {
     }
 
     /// Creates a request that initiates multipart upload
-    fn oss_initiate_upload_request(&self, path: &str,
-                                   content_type: Option<&str>,
-                                   content_disposition: Option<&str>,
-                                   body: AsyncBody,
-                                   is_presign: bool) -> Result<Request<AsyncBody>> {
+    fn oss_initiate_upload_request(
+        &self,
+        path: &str,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        body: AsyncBody,
+        is_presign: bool,
+    ) -> Result<Request<AsyncBody>> {
         let path = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
@@ -899,7 +902,7 @@ impl OssBackend {
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts.to_vec(),
         })
-            .map_err(new_xml_deserialize_error)?;
+        .map_err(new_xml_deserialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
@@ -962,12 +965,12 @@ pub struct MultipartUploadPart {
     #[serde(rename = "PartNumber")]
     pub part_number: usize,
     #[serde(rename = "ETag")]
-    pub etag: String
+    pub etag: String,
 }
 
 #[derive(Default, Debug, Serialize)]
 #[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
-struct CompleteMultipartUploadRequest{
+struct CompleteMultipartUploadRequest {
     part: Vec<MultipartUploadPart>,
 }
 
@@ -1060,7 +1063,7 @@ mod tests {
     <Bucket>oss-example</Bucket>
     <Key>multipart.data</Key>
     <UploadId>0004B9894A22E5B1888A1E29F823****</UploadId>
-</InitiateMultipartUploadResult>"#
+</InitiateMultipartUploadResult>"#,
         );
         let out: InitiateMultipartUploadResult =
             quick_xml::de::from_reader(bs.reader()).expect("must success");
@@ -1076,17 +1079,17 @@ mod tests {
             part: vec![
                 MultipartUploadPart {
                     part_number: 1,
-                    etag: "\"3349DC700140D7F86A0784842780****\"".to_string()
+                    etag: "\"3349DC700140D7F86A0784842780****\"".to_string(),
                 },
                 MultipartUploadPart {
                     part_number: 5,
-                    etag: "\"8EFDA8BE206636A695359836FE0A****\"".to_string()
+                    etag: "\"8EFDA8BE206636A695359836FE0A****\"".to_string(),
                 },
                 MultipartUploadPart {
                     part_number: 8,
-                    etag: "\"8C315065167132444177411FDA14****\"".to_string()
-                }
-            ]
+                    etag: "\"8C315065167132444177411FDA14****\"".to_string(),
+                },
+            ],
         };
 
         // quick_xml::se::to_string()
@@ -1095,7 +1098,7 @@ mod tests {
         let serialized = req.serialize(serializer).unwrap();
         pretty_assertions::assert_eq!(
             serialized,
-r#"<CompleteMultipartUpload>
+            r#"<CompleteMultipartUpload>
     <Part>
         <PartNumber>1</PartNumber>
         <ETag>"3349DC700140D7F86A0784842780****"</ETag>
@@ -1109,24 +1112,30 @@ r#"<CompleteMultipartUpload>
         <ETag>"8C315065167132444177411FDA14****"</ETag>
     </Part>
 </CompleteMultipartUpload>"#
-    .replace('"', "&quot;") // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
+                .replace('"', "&quot;") // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
         )
     }
 
     #[test]
     fn test_deserialize_complete_oss_multipart_result() {
-        let bytes = Bytes::from(r#"<?xml version="1.0" encoding="UTF-8"?>
+        let bytes = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <CompleteMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
     <EncodingType>url</EncodingType>
     <Location>http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data</Location>
     <Bucket>oss-example</Bucket>
     <Key>multipart.data</Key>
     <ETag>"B864DB6A936D376F9F8D3ED3BBE540****"</ETag>
-</CompleteMultipartUploadResult>"#);
+</CompleteMultipartUploadResult>"#,
+        );
 
-        let result: CompleteMultipartUploadResult = quick_xml::de::from_reader(bytes.reader()).unwrap();
+        let result: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(bytes.reader()).unwrap();
         assert_eq!("\"B864DB6A936D376F9F8D3ED3BBE540****\"", result.etag);
-        assert_eq!("http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data", result.location);
+        assert_eq!(
+            "http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data",
+            result.location
+        );
         assert_eq!("oss-example", result.bucket);
         assert_eq!("multipart.data", result.key);
     }

@@ -23,8 +23,8 @@ use super::backend::OssBackend;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
-use crate::*;
 use crate::services::oss::backend::{CompleteMultipartUploadResult, MultipartUploadPart};
+use crate::*;
 
 pub struct OssWriter {
     backend: OssBackend,
@@ -36,7 +36,13 @@ pub struct OssWriter {
 
 impl OssWriter {
     pub fn new(backend: OssBackend, op: OpWrite, path: String, upload_id: Option<String>) -> Self {
-        OssWriter { backend, op, path, upload_id, parts: vec![] }
+        OssWriter {
+            backend,
+            op,
+            path,
+            upload_id,
+            parts: vec![],
+        }
     }
 }
 
@@ -102,8 +108,7 @@ impl oio::Write for OssWriter {
                     })?
                     .to_string();
                 resp.into_body().consume().await?;
-                self.parts
-                    .push(MultipartUploadPart { part_number, etag });
+                self.parts.push(MultipartUploadPart { part_number, etag });
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),
@@ -111,7 +116,12 @@ impl oio::Write for OssWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let Some(upload_id) = &self.upload_id else { return Ok(()); };
+        let upload_id = if let Some(upload_id) = &self.upload_id {
+            upload_id
+        } else {
+            return Ok(());
+        };
+
         let resp = self
             .backend
             .oss_complete_multipart_upload_request(&self.path, upload_id, false, &self.parts)
@@ -120,8 +130,7 @@ impl oio::Write for OssWriter {
             StatusCode::OK => {
                 let bs = resp.into_body().bytes().await?;
                 let result: CompleteMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader())
-                        .map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
                 let _ = result.location;
                 let _ = result.key;
                 let _ = result.bucket;

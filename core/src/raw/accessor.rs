@@ -570,6 +570,8 @@ flags! {
         Read,
         /// Add this capability if service supports `write` and `delete`
         Write,
+        /// Add this capability if service supports `copy`
+        Copy,
         /// Add this capability if service supports `list`
         List,
         /// Add this capability if service supports `scan`

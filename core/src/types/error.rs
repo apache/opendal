@@ -68,6 +68,8 @@ pub enum ErrorKind {
     AlreadyExists,
     /// Requests that sent to this path is over the limit, please slow down.
     RateLimited,
+    /// The given file paths are same.
+    IsSameFile,
 }
 
 impl ErrorKind {
@@ -95,6 +97,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::NotADirectory => "NotADirectory",
             ErrorKind::AlreadyExists => "AlreadyExists",
             ErrorKind::RateLimited => "RateLimited",
+            ErrorKind::IsSameFile => "IsSameFile",
         }
     }
 }

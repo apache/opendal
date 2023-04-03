@@ -468,16 +468,12 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn copy(&self, from: &str, to: &str) -> Result<()> {
-        if from == to {
-            return Ok(());
-        }
-
         let from = normalize_path(from);
 
         if !validate_path(&from, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path is a directory")
-                    .with_operation("Operator::copy")
+                    .with_operation("BlockingOperator::copy")
                     .with_context("service", self.info().scheme())
                     .with_context("from", from),
             );
@@ -488,8 +484,18 @@ impl BlockingOperator {
         if !validate_path(&to, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "to path is a directory")
-                    .with_operation("Operator::copy")
+                    .with_operation("BlockingOperator::copy")
                     .with_context("service", self.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        if from == to {
+            return Err(
+                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
+                    .with_operation("BlockingOperator::copy")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from)
                     .with_context("to", to),
             );
         }

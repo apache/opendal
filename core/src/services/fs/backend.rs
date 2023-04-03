@@ -301,6 +301,7 @@ impl Accessor for FsBackend {
             .set_capabilities(
                 AccessorCapability::Read
                     | AccessorCapability::Write
+                    | AccessorCapability::Copy
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )

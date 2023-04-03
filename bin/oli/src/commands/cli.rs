@@ -22,17 +22,26 @@ use clap::Command;
 
 pub async fn main(args: &ArgMatches) -> Result<()> {
     match args.subcommand() {
+        Some(("cat", sub_args)) => super::cat::main(sub_args).await?,
         Some(("cp", sub_args)) => super::cp::main(sub_args).await?,
         Some(("ls", sub_args)) => super::ls::main(sub_args).await?,
+        Some(("rm", sub_args)) => super::rm::main(sub_args).await?,
+        Some(("stat", sub_args)) => super::stat::main(sub_args).await?,
         _ => return Err(anyhow!("not handled")),
     }
 
     Ok(())
 }
 
+fn new_cmd(name: &'static str) -> Command {
+    Command::new(name).disable_version_flag(true)
+}
+
 pub fn cli(cmd: Command) -> Command {
-    cmd.version("0.10.0")
-        .about("OpenDAL Command Line Interface")
-        .subcommand(super::cp::cli(Command::new("cp")))
-        .subcommand(super::ls::cli(Command::new("ls")))
+    cmd.about("OpenDAL Command Line Interface")
+        .subcommand(super::cat::cli(new_cmd("cat")))
+        .subcommand(super::cp::cli(new_cmd("cp")))
+        .subcommand(super::ls::cli(new_cmd("ls")))
+        .subcommand(super::rm::cli(new_cmd("rm")))
+        .subcommand(super::stat::cli(new_cmd("stat")))
 }

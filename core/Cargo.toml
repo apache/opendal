@@ -27,7 +27,7 @@ license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/apache/incubator-opendal"
 rust-version = "1.60"                                                     # MSRV for this project - please update while bump versions
-version = "0.30.3"
+version = "0.30.5"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -90,7 +90,7 @@ name = "ops"
 anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"
 async-tls = { version = "0.11", optional = true }
-async-trait = "0.1.66"
+async-trait = "0.1.68"
 backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
@@ -130,10 +130,8 @@ suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
   "async-rustls",
 ], optional = true }
-# time 0.3.18 bump MSRV to 1.62, let's pin to 0.3.17 until we decide
-# to bump ours
-time = { version = ">=0.3.10, <=0.3.17", features = ["serde"] }
-tokio = { version = "1.26", features = ["fs"] }
+time = { version = "0.3", features = ["serde"] }
+tokio = { version = "1.27", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
 trust-dns-resolver = { version = "0.22", optional = true }
 ureq = { version = "2", default-features = false }
@@ -144,16 +142,16 @@ cfg-if = "1"
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 env_logger = "0.10"
-opentelemetry = { version = "0.17", default-features = false, features = [
+opentelemetry = { version = "0.19", default-features = false, features = [
   "trace",
 ] }
-opentelemetry-jaeger = "0.16"
+opentelemetry-jaeger = "0.18"
 paste = "1"
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
-tokio = { version = "1.26", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.17"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = "0.5"

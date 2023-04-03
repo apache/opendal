@@ -172,22 +172,22 @@ impl From<OpWrite> for PresignOperation {
 /// Args for `batch` operation.
 #[derive(Debug, Clone)]
 pub struct OpBatch {
-    ops: BatchOperations,
+    ops: Vec<(String, BatchOperation)>,
 }
 
 impl OpBatch {
     /// Create a new batch options.
-    pub fn new(ops: BatchOperations) -> Self {
+    pub fn new(ops: Vec<(String, BatchOperation)>) -> Self {
         Self { ops }
     }
 
     /// Get operation from op.
-    pub fn operation(&self) -> &BatchOperations {
+    pub fn operation(&self) -> &[(String, BatchOperation)] {
         &self.ops
     }
 
     /// Consume OpBatch into BatchOperation
-    pub fn into_operation(self) -> BatchOperations {
+    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
         self.ops
     }
 }
@@ -195,33 +195,23 @@ impl OpBatch {
 /// Batch operation used for batch.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum BatchOperations {
-    /// Batch delete operations.
-    Delete(Vec<(String, OpDelete)>),
+pub enum BatchOperation {
+    /// Batch delete operation.
+    Delete(OpDelete),
 }
 
-impl BatchOperations {
+impl From<OpDelete> for BatchOperation {
+    fn from(op: OpDelete) -> Self {
+        Self::Delete(op)
+    }
+}
+
+impl BatchOperation {
     /// Return the operation of this batch.
     pub fn operation(&self) -> Operation {
-        use BatchOperations::*;
+        use BatchOperation::*;
         match self {
             Delete(_) => Operation::Delete,
-        }
-    }
-
-    /// Return the length of given operations.
-    pub fn len(&self) -> usize {
-        use BatchOperations::*;
-        match self {
-            Delete(v) => v.len(),
-        }
-    }
-
-    /// Return if given operations is empty.
-    pub fn is_empty(&self) -> bool {
-        use BatchOperations::*;
-        match self {
-            Delete(v) => v.is_empty(),
         }
     }
 }
@@ -231,6 +221,8 @@ impl BatchOperations {
 pub struct OpRead {
     br: BytesRange,
     override_content_disposition: Option<String>,
+    override_cache_control: Option<String>,
+    if_none_match: Option<String>,
 }
 
 impl OpRead {
@@ -251,10 +243,7 @@ impl OpRead {
     }
 
     /// Sets the content-disposition header that should be send back by the remote read operation.
-    pub fn with_override_content_disposition(
-        mut self,
-        content_disposition: impl Into<String>,
-    ) -> Self {
+    pub fn with_override_content_disposition(mut self, content_disposition: &str) -> Self {
         self.override_content_disposition = Some(content_disposition.into());
         self
     }
@@ -264,16 +253,51 @@ impl OpRead {
     pub fn override_content_disposition(&self) -> Option<&str> {
         self.override_content_disposition.as_deref()
     }
+
+    /// Sets the cache-control header that should be send back by the remote read operation.
+    pub fn with_override_cache_control(mut self, cache_control: &str) -> Self {
+        self.override_cache_control = Some(cache_control.into());
+        self
+    }
+
+    /// Returns the cache-control header that should be send back by the remote read operation.
+    pub fn override_cache_control(&self) -> Option<&str> {
+        self.override_cache_control.as_deref()
+    }
+
+    /// Set the If-None-Match of the option
+    pub fn with_if_none_match(mut self, if_none_match: &str) -> Self {
+        self.if_none_match = Some(if_none_match.to_string());
+        self
+    }
+
+    /// Get If-None-Match from option
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
+    }
 }
 
 /// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpStat {}
+pub struct OpStat {
+    if_none_match: Option<String>,
+}
 
 impl OpStat {
     /// Create a new `OpStat`.
     pub fn new() -> Self {
-        Self {}
+        Self::default()
+    }
+
+    /// Set the If-None-Match of the option
+    pub fn with_if_none_match(mut self, if_none_match: &str) -> Self {
+        self.if_none_match = Some(if_none_match.to_string());
+        self
+    }
+
+    /// Get If-None-Match from option
+    pub fn if_none_match(&self) -> Option<&str> {
+        self.if_none_match.as_deref()
     }
 }
 
@@ -284,6 +308,7 @@ pub struct OpWrite {
 
     content_type: Option<String>,
     content_disposition: Option<String>,
+    cache_control: Option<String>,
 }
 
 impl OpWrite {
@@ -296,6 +321,7 @@ impl OpWrite {
 
             content_type: None,
             content_disposition: None,
+            cache_control: None,
         }
     }
 
@@ -327,6 +353,17 @@ impl OpWrite {
     /// Set the content disposition of option
     pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
         self.content_disposition = Some(content_disposition.to_string());
+        self
+    }
+
+    /// Get the cache control from option
+    pub fn cache_control(&self) -> Option<&str> {
+        self.cache_control.as_deref()
+    }
+
+    /// Set the content type of option
+    pub fn with_cache_control(mut self, cache_control: &str) -> Self {
+        self.cache_control = Some(cache_control.to_string());
         self
     }
 }

@@ -26,10 +26,10 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
-use http::header::HeaderName;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::{HeaderName, CACHE_CONTROL};
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -78,6 +78,7 @@ mod constants {
     pub const X_AMZ_BUCKET_REGION: &str = "x-amz-bucket-region";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+    pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
 /// Aws S3 and compatible services (including minio, digitalocean space and so on) support
@@ -1134,7 +1135,8 @@ impl Accessor for S3Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.s3_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req =
+            self.s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -1152,7 +1154,9 @@ impl Accessor for S3Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.s3_get_object(path, args.range()).await?;
+        let resp = self
+            .s3_get_object(path, args.range(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -1167,7 +1171,14 @@ impl Accessor for S3Backend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let upload_id = if args.append() {
-            let resp = self.s3_initiate_multipart_upload(path).await?;
+            let resp = self
+                .s3_initiate_multipart_upload(
+                    path,
+                    args.content_type(),
+                    args.content_disposition(),
+                    args.cache_control(),
+                )
+                .await?;
 
             let status = resp.status();
 
@@ -1193,13 +1204,13 @@ impl Accessor for S3Backend {
         ))
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.s3_head_object(path).await?;
+        let resp = self.s3_head_object(path, args.if_none_match()).await?;
 
         let status = resp.status();
 
@@ -1240,12 +1251,16 @@ impl Accessor for S3Backend {
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.s3_head_object_request(path)?,
-            PresignOperation::Read(v) => {
-                self.s3_get_object_request(path, v.range(), v.override_content_disposition())?
-            }
+            PresignOperation::Stat(v) => self.s3_head_object_request(path, v.if_none_match())?,
+            PresignOperation::Read(v) => self.s3_get_object_request(
+                path,
+                v.range(),
+                v.override_content_disposition(),
+                v.override_cache_control(),
+                v.if_none_match(),
+            )?,
             PresignOperation::Write(_) => {
-                self.s3_put_object_request(path, None, None, None, AsyncBody::Empty)?
+                self.s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
             }
         };
 
@@ -1265,55 +1280,54 @@ impl Accessor for S3Backend {
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
-        match ops {
-            BatchOperations::Delete(ops) => {
-                if ops.len() > 1000 {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "s3 services only allow delete up to 1000 keys at once",
-                    )
-                    .with_context("length", ops.len().to_string()));
-                }
+        if ops.len() > 1000 {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "s3 services only allow delete up to 1000 keys at once",
+            )
+            .with_context("length", ops.len().to_string()));
+        }
 
-                let paths = ops.into_iter().map(|(p, _)| p).collect();
+        let paths = ops.into_iter().map(|(p, _)| p).collect();
 
-                let resp = self.s3_delete_objects(paths).await?;
+        let resp = self.s3_delete_objects(paths).await?;
 
-                let status = resp.status();
+        let status = resp.status();
 
-                if let StatusCode::OK = status {
-                    let bs = resp.into_body().bytes().await?;
+        if let StatusCode::OK = status {
+            let bs = resp.into_body().bytes().await?;
 
-                    let result: DeleteObjectsResult = quick_xml::de::from_reader(bs.reader())
-                        .map_err(new_xml_deserialize_error)?;
+            let result: DeleteObjectsResult =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-                    let mut batched_result =
-                        Vec::with_capacity(result.deleted.len() + result.error.len());
-                    for i in result.deleted {
-                        let path = build_rel_path(&self.root, &i.key);
-                        batched_result.push((path, Ok(RpDelete::default())));
-                    }
-                    // TODO: we should handle those errors with code.
-                    for i in result.error {
-                        let path = build_rel_path(&self.root, &i.key);
-
-                        batched_result.push((
-                            path,
-                            Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                        ));
-                    }
-
-                    Ok(RpBatch::new(BatchedResults::Delete(batched_result)))
-                } else {
-                    Err(parse_error(resp).await?)
-                }
+            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
+            for i in result.deleted {
+                let path = build_rel_path(&self.root, &i.key);
+                batched_result.push((path, Ok(RpDelete::default().into())));
             }
+            // TODO: we should handle those errors with code.
+            for i in result.error {
+                let path = build_rel_path(&self.root, &i.key);
+
+                batched_result.push((
+                    path,
+                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
+                ));
+            }
+
+            Ok(RpBatch::new(batched_result))
+        } else {
+            Err(parse_error(resp).await?)
         }
     }
 }
 
 impl S3Backend {
-    fn s3_head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn s3_head_object_request(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1321,6 +1335,10 @@ impl S3Backend {
         let mut req = Request::head(&url);
 
         req = self.insert_sse_headers(req, false);
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        }
 
         let req = req
             .body(AsyncBody::Empty)
@@ -1334,24 +1352,42 @@ impl S3Backend {
         path: &str,
         range: BytesRange,
         override_content_disposition: Option<&str>,
+        override_cache_control: Option<&str>,
+        if_none_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
+        // Add query arguments to the URL based on response overrides
+        let mut query_args = Vec::new();
         if let Some(override_content_disposition) = override_content_disposition {
-            url.push_str(&format!(
-                "?{}={}",
+            query_args.push(format!(
+                "{}={}",
                 constants::RESPONSE_CONTENT_DISPOSITION,
                 percent_encode_path(override_content_disposition)
-            ));
+            ))
+        }
+        if let Some(override_cache_control) = override_cache_control {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
         }
 
         let mut req = Request::get(&url);
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
         }
 
         // Set SSE headers.
@@ -1369,8 +1405,9 @@ impl S3Backend {
         &self,
         path: &str,
         range: BytesRange,
+        if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, range, None)?;
+        let mut req = self.s3_get_object_request(path, range, None, None, if_none_match)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -1383,6 +1420,7 @@ impl S3Backend {
         size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
+        cache_control: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -1403,6 +1441,10 @@ impl S3Backend {
             req = req.header(CONTENT_DISPOSITION, pos)
         }
 
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
@@ -1412,7 +1454,11 @@ impl S3Backend {
         Ok(req)
     }
 
-    async fn s3_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn s3_head_object(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1421,6 +1467,10 @@ impl S3Backend {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        }
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -1489,12 +1539,27 @@ impl S3Backend {
     async fn s3_initiate_multipart_upload(
         &self,
         path: &str,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        cache_control: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(content_disposition) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, content_disposition)
+        }
+
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
 
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);

@@ -42,7 +42,6 @@ corepack enable
 
 `corepack` is distributed with Node.js, so you do not need to specifically look for a way to install it.
 
-
 ### Build
 
 ```bash
@@ -62,9 +61,6 @@ yarn test
 
 We use [`Cucumber`](https://cucumber.io/) for behavior testing. Refer to [here](https://cucumber.io/docs/guides/overview/) for more information about `Cucumber`.
 
-
-
 ## License
 
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
-

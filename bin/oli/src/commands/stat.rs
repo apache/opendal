@@ -18,8 +18,7 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
-use clap::{Arg, ArgAction, ArgMatches, Command};
-use futures::TryStreamExt;
+use clap::{Arg, ArgMatches, Command};
 
 use crate::config::Config;
 
@@ -29,35 +28,31 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
         .ok_or_else(|| anyhow!("missing config path"))?;
     let cfg = Config::load(config_path)?;
 
-    let recursive = args.get_flag("recursive");
-
     let target = args
         .get_one::<String>("target")
         .ok_or_else(|| anyhow!("missing target"))?;
     let (op, path) = cfg.parse_location(target)?;
 
-    if !recursive {
-        let mut ds = op.list(&path).await?;
-        while let Some(de) = ds.try_next().await? {
-            println!("{}", de.name());
-        }
-        return Ok(());
+    let meta = op.stat(&path).await?;
+    println!("path: {path}");
+    let size = meta.content_length();
+    println!("size: {size}");
+    if let Some(etag) = meta.etag() {
+        println!("etag: {etag}");
+    }
+    let file_type = meta.mode();
+    println!("type: {file_type}");
+    if let Some(content_type) = meta.content_type() {
+        println!("content-type: {content_type}");
+    }
+    if let Some(last_modified) = meta.last_modified() {
+        println!("last-modified: {last_modified}");
     }
 
-    let mut ds = op.scan(&path).await?;
-    while let Some(de) = ds.try_next().await? {
-        println!("{}", de.path());
-    }
     Ok(())
 }
 
 pub fn cli(cmd: Command) -> Command {
-    cmd.about("ls").arg(Arg::new("target").required(true)).arg(
-        Arg::new("recursive")
-            .required(false)
-            .long("recursive")
-            .short('r')
-            .help("List recursively")
-            .action(ArgAction::SetTrue),
-    )
+    cmd.about("show object metadata")
+        .arg(Arg::new("target").required(true))
 }

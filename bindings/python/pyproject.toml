@@ -17,7 +17,7 @@
 
 [build-system]
 build-backend = "maturin"
-requires = ["maturin>=0.14,<0.15"]
+requires = ["maturin>=0.14.16,<0.15"]
 
 [project]
 classifiers = [
@@ -41,5 +41,6 @@ Homepage = "https://opendal.apache.org/"
 Repository = "https://github.com/apache/incubator-opendal"
 
 [tool.maturin]
+module-name = "opendal._opendal"
 features = ["pyo3/extension-module"]
 python-source = "python"

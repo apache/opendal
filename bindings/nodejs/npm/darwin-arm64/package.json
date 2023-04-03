@@ -1,15 +1,15 @@
 {
-  "name": "@opendal/lib-win32-x64-msvc",
+  "name": "@opendal/lib-darwin-arm64",
   "version": "0.30.5",
   "os": [
-    "win32"
+    "darwin"
   ],
   "cpu": [
-    "x64"
+    "arm64"
   ],
-  "main": "opendal.win32-x64-msvc.node",
+  "main": "opendal.darwin-arm64.node",
   "files": [
-    "opendal.win32-x64-msvc.node"
+    "opendal.darwin-arm64.node"
   ],
   "license": "Apache-2.0",
   "engines": {

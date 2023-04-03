@@ -23,15 +23,11 @@ license = "Apache-2.0"
 name = "opendal-python"
 publish = false
 repository = "https://github.com/apache/incubator-opendal"
-version = "0.30.3"
+version = "0.30.5"
 
 [lib]
 crate-type = ["cdylib"]
 doc = false
-# Per python extension module naming convention we use `_opendal`
-# instead of `opendal_python` to indicate that it's private API.
-# `_opendal_python` was also considered but it's a bit mouthful in python context.
-name = "_opendal"
 
 [dependencies]
 chrono = { version = "0.4.24", default-features = false, features = ["std"] }
@@ -40,6 +36,3 @@ opendal = { version = "0.30", path = "../../core" }
 pyo3 = { version = "0.18", features = ["chrono"] }
 pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }
 tokio = "1"
-
-[package.metadata.maturin]
-name = "opendal._opendal"

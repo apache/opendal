@@ -31,8 +31,7 @@ runs:
       with:
         path: |
           ~/.cargo/bin/
-          ~/.cargo/registry/cache/
-          target/
+          ~/.cargo/registry/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}${{ inputs.cache-key }}
         restore-keys: |
           ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}

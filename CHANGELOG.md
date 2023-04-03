@@ -5,6 +5,100 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.30.5] - 2023-03-31
+
+### Added
+
+- feat(oli): implement `oli rm` (#1774)
+- feat(bindings/nodejs): Support presign (#1772)
+- feat(oli): implement `oli stat` (#1778)
+- feat(bindings/object_store): Add support for list and list_with_delimiter (#1784)
+- feat(oli): implement `oli cp -r` (#1787)
+- feat(bindings/nodejs): Make PresignedRequest serializable (#1797)
+- feat(binding/c): add build.rs and cbindgen as dep to gen header (#1793)
+- feat(bindings/nodejs): Add more APIs and examples (#1799)
+- feat: reader_with and writer_with (#1803)
+- feat: add override_cache_control (#1804)
+- feat: add cache_control to OpWrite (#1806)
+
+### Changed
+
+- refactor(oli): switch to `Operator::scan` and `Operator::remove_all` (#1779)
+- refactor(bindings/nodejs): Polish benchmark to make it more readable (#1810)
+
+### Fixed
+
+- fix(oli): set the root of fs service to '/' (#1773)
+- fix: align WebDAV stat with RFC specification (#1783)
+- fix(bindings/nodejs): fix read benchmark (#1805)
+
+### CI
+
+- ci: Split clippy and docs check (#1785)
+- ci(bindings/nodejs): Support aarch64-apple-darwin (#1780)
+- ci(bindings/nodejs): publish with LICENSE & NOTICE (#1790)
+- ci(services/redis): Add dragonfly test (#1808)
+
+### Chore
+
+- chore(bindings/python): update maturin to 0.14.16 (#1777)
+- chore(bin/oli): Set oli version from package version (#1786)
+- chore(oli): set cli version in a central place (#1789)
+- chore: don't pin time version (#1788)
+- chore(bindings/nodejs): init benchmark (#1798)
+- chore(bindings/nodejs): Fix generated headers (#1802)
+
+## [v0.30.4] - 2023-03-26
+
+### Added
+
+- feat(oli): add config file to oli (#1706)
+- feat: make oli support more services (#1717)
+- feat(bindings/ruby): Setup the integrate with magnus (#1712)
+- feat(bindings/ruby): setup cucumber tests (#1725)
+- feat(bindings/python): convert to mixed Python/Rust project layout (#1729)
+- RFC-1735: Operation Extension (#1735)
+- feat(oli): load config from both env and file (#1737)
+- feat(bindings/ruby): support read and write (#1734)
+- feat(bindings/ruby): support stat, and pass all blocking bdd test (#1743)
+- feat(bindings/ruby): add namespace (#1745)
+- feat: Add override_content_disposition for OpRead (#1742)
+- feat(bindings/java): add java binding (#1736)
+- feat(oli): implement oli ls (#1755)
+- feat(oli): implement oli cat (#1759)
+
+### Fixed
+
+- fix(bindings/nodejs): Publish sub-package name (#1704)
+
+### Docs
+
+- docs: Update comparison vs object_store (#1698)
+- docs(bindings/python): add pdoc to docs env (#1718)
+- docs: List working on bindings in README (#1753)
+
+### CI
+
+- ci: Fix workflow not triggered when itself changed (#1716)
+- ci: Remove ROCKSDB_LIB_DIR after we didn't install librocksdb (#1719)
+- ci: Fix nodejs built failed for "Unexpected token o in JSON at position 0" (#1722)
+- ci: Split cache into more parts (#1730)
+- ci: add a basic ci for ruby (#1744)
+- ci: Remove target from cache (#1764)
+
+### Chore
+
+- chore: Fix CHANGELOG not found (#1694)
+- chore: Remove publish=false of oli (#1697)
+- chore: Fix a few typos in code comment (#1701)
+- chore(bindins/nodejs): Update README (#1709)
+- chore: rename binaries to bin (#1714)
+- chore: bump rocksdb to resolve dependency conflicts with magnus (#1713)
+- chore(bindings/nodejs): Remove outdated napi patches (#1727)
+- chore: Add CITATION file for OpenDAL (#1746)
+- chore: improve NotADirectory error message with ending slash (#1756)
+- chore(bindings/python): update pyo3 to 0.18.2 (#1758)
+
 ## [v0.30.3] - 2023-03-16
 
 ### Added
@@ -1664,6 +1758,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.30.5]: https://github.com/apache/incubator-opendal/compare/v0.30.4...v0.30.5
+[v0.30.4]: https://github.com/apache/incubator-opendal/compare/v0.30.3...v0.30.4
 [v0.30.3]: https://github.com/apache/incubator-opendal/compare/v0.30.2...v0.30.3
 [v0.30.2]: https://github.com/apache/incubator-opendal/compare/v0.30.1...v0.30.2
 [v0.30.1]: https://github.com/apache/incubator-opendal/compare/v0.30.0...v0.30.1

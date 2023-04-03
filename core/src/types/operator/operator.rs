@@ -462,7 +462,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn reader(&self, path: &str) -> Result<Reader> {
-        self.range_reader(path, ..).await
+        self.reader_with(path, OpRead::default()).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -484,6 +484,27 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_reader(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Reader> {
+        self.reader_with(path, OpRead::new().with_range(range.into()))
+            .await
+    }
+
+    /// Create a new reader with extra options
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # use opendal::ops::OpRead;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let r = op.reader_with("path/to/file", OpRead::default().with_range((0..10).into())).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn reader_with(&self, path: &str, args: OpRead) -> Result<Reader> {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::FILE) {
@@ -495,9 +516,7 @@ impl Operator {
             );
         }
 
-        let op = OpRead::new().with_range(range.into());
-
-        Reader::create(self.inner().clone(), &path, op).await
+        Reader::create(self.inner().clone(), &path, args).await
     }
 
     /// Write bytes into path.
@@ -550,6 +569,36 @@ impl Operator {
     /// # }
     /// ```
     pub async fn writer(&self, path: &str) -> Result<Writer> {
+        self.writer_with(path, OpWrite::default()).await
+    }
+
+    /// Write multiple bytes into path with extra options.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    /// use opendal::ops::OpWrite;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let args = OpWrite::new().with_content_type("application/octet-stream");
+    /// let mut w = op.writer_with("path/to/file", args).await?;
+    /// w.append(vec![0; 4096]).await?;
+    /// w.append(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn writer_with(&self, path: &str, args: OpWrite) -> Result<Writer> {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::FILE) {
@@ -561,8 +610,7 @@ impl Operator {
             );
         }
 
-        let op = OpWrite::default().with_append();
-        Writer::create(self.inner().clone(), &path, op).await
+        Writer::create(self.inner().clone(), &path, args.with_append()).await
     }
 
     /// Write data with extra options.
@@ -684,15 +732,16 @@ impl Operator {
     /// ```
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
         if self.info().can_batch() {
-            let mut input = input.map(|v| (v, OpDelete::default())).chunks(self.limit());
+            let mut input = input
+                .map(|v| (v, OpDelete::default().into()))
+                .chunks(self.limit());
 
             while let Some(batches) = input.next().await {
                 let results = self
                     .inner()
-                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
-                    .await?;
-
-                let BatchedResults::Delete(results) = results.into_results();
+                    .batch(OpBatch::new(batches))
+                    .await?
+                    .into_results();
 
                 // TODO: return error here directly seems not a good idea?
                 for (_, result) in results {
@@ -757,15 +806,14 @@ impl Operator {
                 let batches = batches
                     .map_err(|err| err.1)?
                     .into_iter()
-                    .map(|v| (v.path().to_string(), OpDelete::default()))
+                    .map(|v| (v.path().to_string(), OpDelete::default().into()))
                     .collect();
 
                 let results = self
                     .inner()
-                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
-                    .await?;
-
-                let BatchedResults::Delete(results) = results.into_results();
+                    .batch(OpBatch::new(batches))
+                    .await?
+                    .into_results();
 
                 // TODO: return error here directly seems not a good idea?
                 for (_, result) in results {

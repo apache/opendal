@@ -15,27 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Commands provides the implementation of each commands.
-//!
-//! Each submodule represents a single command, and should export 2 functions respectively.
-//! The signature of those should be like the following:
-//!
-//! ```ignore
-//! pub async fn main(args: &ArgMatches) -> Result<()> {
-//!     // the main logic
-//! }
-//!
-//! // cli is used to customize the command, like setting the arguments.
-//! // As each command can be invoked like a separate binary,
-//! // we will pass a command with different name to get the complete command.
-//! pub fn cli(cmd: Command) -> Command {
-//!    // set the arguments, help message, etc.
-//! }
-//! ```
+use std::path::PathBuf;
 
-pub mod cat;
-pub mod cli;
-pub mod cp;
-pub mod ls;
-pub mod rm;
-pub mod stat;
+use anyhow::{anyhow, Result};
+use clap::{Arg, ArgMatches, Command};
+use tokio::io;
+
+use crate::config::Config;
+
+pub async fn main(args: &ArgMatches) -> Result<()> {
+    let config_path = args
+        .get_one::<PathBuf>("config")
+        .ok_or_else(|| anyhow!("missing config path"))?;
+    let cfg = Config::load(config_path)?;
+
+    let target = args
+        .get_one::<String>("target")
+        .ok_or_else(|| anyhow!("missing target"))?;
+    let (op, path) = cfg.parse_location(target)?;
+
+    let mut reader = op.reader(&path).await?;
+    let mut stdout = io::stdout();
+    io::copy(&mut reader, &mut stdout).await?;
+    Ok(())
+}
+
+pub fn cli(cmd: Command) -> Command {
+    cmd.about("display object content")
+        .arg(Arg::new("target").required(true))
+}

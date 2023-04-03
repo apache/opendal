@@ -19,7 +19,6 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use clap::{Arg, ArgAction, ArgMatches, Command};
-use futures::TryStreamExt;
 
 use crate::config::Config;
 
@@ -37,27 +36,25 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let (op, path) = cfg.parse_location(target)?;
 
     if !recursive {
-        let mut ds = op.list(&path).await?;
-        while let Some(de) = ds.try_next().await? {
-            println!("{}", de.name());
-        }
+        println!("Delete: {path}");
+        op.delete(&path).await?;
         return Ok(());
     }
 
-    let mut ds = op.scan(&path).await?;
-    while let Some(de) = ds.try_next().await? {
-        println!("{}", de.path());
-    }
+    println!("Delete all: {path}");
+    op.remove_all(&path).await?;
     Ok(())
 }
 
 pub fn cli(cmd: Command) -> Command {
-    cmd.about("ls").arg(Arg::new("target").required(true)).arg(
-        Arg::new("recursive")
-            .required(false)
-            .long("recursive")
-            .short('r')
-            .help("List recursively")
-            .action(ArgAction::SetTrue),
-    )
+    cmd.about("remove object")
+        .arg(Arg::new("target").required(true))
+        .arg(
+            Arg::new("recursive")
+                .required(false)
+                .long("recursive")
+                .short('r')
+                .help("List recursively")
+                .action(ArgAction::SetTrue),
+        )
 }

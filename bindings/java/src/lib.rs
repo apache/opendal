@@ -38,10 +38,21 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
         .get_string(&input)
         .expect("Couldn't get java string!")
         .into();
-    let schema = Scheme::from_str(&input).unwrap();
+
+    let scheme = Scheme::from_str(&input).unwrap();
+
     let map = convert_map(&mut env, &params);
-    let operator = build_operator(schema, map).expect("Couldn't found operator");
-    Box::into_raw(Box::new(operator)) as *const i32
+    if let Ok(operator) = build_operator(scheme, map) {
+        Box::into_raw(Box::new(operator)) as *const i32
+    } else {
+        env.exception_clear().expect("Couldn't clear exception");
+        env.throw_new(
+            "java/lang/IllegalArgumentException",
+            "Unsupported operator.",
+        )
+        .expect("Couldn't throw exception");
+        std::ptr::null()
+    }
 }
 
 fn convert_map(env: &mut JNIEnv, params: &JObject) -> HashMap<String, String> {

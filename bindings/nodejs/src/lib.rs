@@ -24,6 +24,7 @@ use std::str::FromStr;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 use time::format_description::well_known::Rfc3339;
+use time::Duration;
 
 fn build_operator(
     scheme: opendal::Scheme,
@@ -101,6 +102,22 @@ impl Operator {
     }
 
     /// Get current path's metadata **without cache** directly.
+    ///
+    /// ### Notes
+    /// Use stat if you:
+    ///
+    /// - Want detect the outside changes of path.
+    /// - Don’t want to read from cached metadata.
+    ///
+    /// You may want to use `metadata` if you are working with entries returned by `Lister`. It’s highly possible that metadata you want has already been cached.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const meta = await op.stat("test");
+    /// if (meta.isDir) {
+    ///   // do something
+    /// }
+    /// ```
     #[napi]
     pub async fn stat(&self, path: String) -> Result<Metadata> {
         let meta = self.0.stat(&path).await.map_err(format_napi_error)?;
@@ -109,6 +126,14 @@ impl Operator {
     }
 
     /// Get current path's metadata **without cache** directly and synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const meta = op.statSync("test");
+    /// if (meta.isDir) {
+    ///   // do something
+    /// }
+    /// ```
     #[napi]
     pub fn stat_sync(&self, path: String) -> Result<Metadata> {
         let meta = self.0.blocking().stat(&path).map_err(format_napi_error)?;
@@ -116,13 +141,58 @@ impl Operator {
         Ok(Metadata(meta))
     }
 
+    /// Check if this operator can work correctly.
+    ///
+    /// We will send a `list` request to path and return any errors we met.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.check();
+    /// ```
+    #[napi]
+    pub async fn check(&self) -> Result<()> {
+        self.0.check().await.map_err(format_napi_error)
+    }
+
+    /// Check if this path exists or not.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.isExist("test");
+    /// ```
+    #[napi]
+    pub async fn is_exist(&self, path: String) -> Result<bool> {
+        self.0.is_exist(&path).await.map_err(format_napi_error)
+    }
+
+    /// Check if this path exists or not synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.isExistSync("test");
+    /// ```
+    #[napi]
+    pub fn is_exist_sync(&self, path: String) -> Result<bool> {
+        self.0.blocking().is_exist(&path).map_err(format_napi_error)
+    }
+
     /// Create dir with given path.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.createDir("path/to/dir/");
+    /// ```
     #[napi]
     pub async fn create_dir(&self, path: String) -> Result<()> {
         self.0.create_dir(&path).await.map_err(format_napi_error)
     }
 
     /// Create dir with given path synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.createDirSync("path/to/dir/");
+    /// ```
     #[napi]
     pub fn create_dir_sync(&self, path: String) -> Result<()> {
         self.0
@@ -132,20 +202,45 @@ impl Operator {
     }
 
     /// Write bytes into path.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.write("path/to/file", Buffer.from("hello world"));
+    /// // or
+    /// await op.write("path/to/file", "hello world");
+    /// ```
     #[napi]
     pub async fn write(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
-        let c = content.as_ref().to_owned();
+        let c = match content {
+            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::B(s) => s.into_bytes(),
+        };
         self.0.write(&path, c).await.map_err(format_napi_error)
     }
 
     /// Write bytes into path synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.writeSync("path/to/file", Buffer.from("hello world"));
+    /// // or
+    /// op.writeSync("path/to/file", "hello world");
+    /// ```
     #[napi]
     pub fn write_sync(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
-        let c = content.as_ref().to_owned();
+        let c = match content {
+            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::B(s) => s.into_bytes(),
+        };
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
 
     /// Read the whole path into a buffer.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const buf = await op.read("path/to/file");
+    /// ```
     #[napi]
     pub async fn read(&self, path: String) -> Result<Buffer> {
         let res = self.0.read(&path).await.map_err(format_napi_error)?;
@@ -153,6 +248,11 @@ impl Operator {
     }
 
     /// Read the whole path into a buffer synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const buf = op.readSync("path/to/file");
+    /// ```
     #[napi]
     pub fn read_sync(&self, path: String) -> Result<Buffer> {
         let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
@@ -160,12 +260,50 @@ impl Operator {
     }
 
     /// List dir in flat way.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn’t end with /.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const lister = await op.scan("/path/to/dir/");
+    /// while (true)) {
+    ///   const entry = await lister.next();
+    ///   if (entry === null) {
+    ///     break;
+    ///   }
+    ///   let meta = await op.stat(entry.path);
+    ///   if (meta.is_file) {
+    ///     // do something
+    ///   }
+    /// }
+    /// `````
     #[napi]
     pub async fn scan(&self, path: String) -> Result<Lister> {
         Ok(Lister(self.0.scan(&path).await.map_err(format_napi_error)?))
     }
 
     /// List dir in flat way synchronously.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn’t end with /.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const lister = op.scan_sync(/path/to/dir/");
+    /// while (true)) {
+    ///   const entry = lister.next();
+    ///   if (entry === null) {
+    ///     break;
+    ///   }
+    ///   let meta = op.statSync(entry.path);
+    ///   if (meta.is_file) {
+    ///     // do something
+    ///   }
+    /// }
+    /// `````
     #[napi]
     pub fn scan_sync(&self, path: String) -> Result<BlockingLister> {
         Ok(BlockingLister(
@@ -174,15 +312,56 @@ impl Operator {
     }
 
     /// Delete the given path.
+    ///
+    /// ### Notes
+    /// Delete not existing error won’t return errors.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.delete("test");
+    /// ```
     #[napi]
     pub async fn delete(&self, path: String) -> Result<()> {
         self.0.delete(&path).await.map_err(format_napi_error)
     }
 
     /// Delete the given path synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.deleteSync("test");
+    /// ```
     #[napi]
     pub fn delete_sync(&self, path: String) -> Result<()> {
         self.0.blocking().delete(&path).map_err(format_napi_error)
+    }
+
+    /// Remove given paths.
+    ///
+    /// ### Notes
+    /// If underlying services support delete in batch, we will use batch delete instead.
+    ///
+    /// ### Examples
+    /// ```javascript
+    /// await op.remove(["abc", "def"]);
+    /// ```
+    #[napi]
+    pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
+        self.0.remove(paths).await.map_err(format_napi_error)
+    }
+
+    /// Remove the path and all nested dirs and files recursively.
+    ///
+    /// ### Notes
+    /// If underlying services support delete in batch, we will use batch delete instead.
+    ///
+    /// ### Examples
+    /// ```javascript
+    /// await op.removeAll("path/to/dir/");
+    /// ```
+    #[napi]
+    pub async fn remove_all(&self, path: String) -> Result<()> {
+        self.0.remove_all(&path).await.map_err(format_napi_error)
     }
 
     /// List given path.
@@ -190,6 +369,21 @@ impl Operator {
     /// This function will create a new handle to list entries.
     ///
     /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const lister = await op.list("path/to/dir/");
+    /// while (true)) {
+    ///   const entry = await lister.next();
+    ///   if (entry === null) {
+    ///     break;
+    ///   }
+    ///   let meta = await op.stat(entry.path);
+    ///   if (meta.isFile) {
+    ///     // do something
+    ///   }
+    /// }
+    /// ```
     #[napi]
     pub async fn list(&self, path: String) -> Result<Lister> {
         Ok(Lister(self.0.list(&path).await.map_err(format_napi_error)?))
@@ -200,11 +394,92 @@ impl Operator {
     /// This function will create a new handle to list entries.
     ///
     /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const lister = op.listSync("path/to/dir/");
+    /// while (true)) {
+    ///   const entry = lister.next();
+    ///   if (entry === null) {
+    ///     break;
+    ///   }
+    ///   let meta = op.statSync(entry.path);
+    ///   if (meta.isFile) {
+    ///     // do something
+    ///   }
+    /// }
+    /// ```
     #[napi]
     pub fn list_sync(&self, path: String) -> Result<BlockingLister> {
         Ok(BlockingLister(
             self.0.blocking().scan(&path).map_err(format_napi_error)?,
         ))
+    }
+
+    /// Get a presigned request for read.
+    ///
+    /// Unit of expires is seconds.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const req = op.presignRead(path, parseInt(expires));
+    ///
+    /// console.log("method: ", req.method);
+    /// console.log("url: ", req.url);
+    /// console.log("headers: ", req.headers);
+    /// ```
+    #[napi]
+    pub fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .0
+            .presign_read(&path, Duration::seconds(expires as i64))
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest::new(res))
+    }
+
+    /// Get a presigned request for write.
+    ///
+    /// Unit of expires is seconds.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const req = op.presignWrite(path, parseInt(expires));
+    ///
+    /// console.log("method: ", req.method);
+    /// console.log("url: ", req.url);
+    /// console.log("headers: ", req.headers);
+    /// ```
+    #[napi]
+    pub fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .0
+            .presign_write(&path, Duration::seconds(expires as i64))
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest::new(res))
+    }
+
+    /// Get a presigned request for stat.
+    ///
+    /// Unit of expires is seconds.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const req = op.presignStat(path, parseInt(expires));
+    ///
+    /// console.log("method: ", req.method);
+    /// console.log("url: ", req.url);
+    /// console.log("headers: ", req.headers);
+    /// ```
+    #[napi]
+    pub fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .0
+            .presign_stat(&path, Duration::seconds(expires as i64))
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest::new(res))
     }
 }
 
@@ -314,6 +589,40 @@ impl BlockingLister {
             Some(Ok(entry)) => Ok(Some(Entry(entry))),
             Some(Err(e)) => Err(format_napi_error(e)),
             None => Ok(None),
+        }
+    }
+}
+
+#[napi(object)]
+pub struct PresignedRequest {
+    /// HTTP method of this request.
+    pub method: String,
+    /// URL of this request.
+    pub url: String,
+    /// HTTP headers of this request.
+    pub headers: HashMap<String, String>,
+}
+
+impl PresignedRequest {
+    pub fn new(req: opendal::raw::PresignedRequest) -> Self {
+        let method = req.method().to_string();
+        let url = req.uri().to_string();
+        let headers = req
+            .header()
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.as_str().to_string(),
+                    v.to_str()
+                        .expect("header value contains non visible ascii characters")
+                        .to_string(),
+                )
+            })
+            .collect();
+        Self {
+            method,
+            url,
+            headers,
         }
     }
 }

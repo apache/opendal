@@ -37,7 +37,7 @@ fn new_cmd(name: &'static str) -> Result<Command> {
     let d = config_dir().ok_or_else(|| anyhow!("unknown config dir"))?;
     let default_config_path = d.join("oli/config.toml").as_os_str().to_owned();
 
-    Ok(Command::new(name).arg(
+    Ok(Command::new(name).version(env!("CARGO_PKG_VERSION")).arg(
         Arg::new("config")
             .long("config")
             .help("Path to the config file")
@@ -65,6 +65,10 @@ async fn main() -> Result<()> {
             let cmd = oli::commands::cli::cli(new_cmd("oli")?);
             oli::commands::cli::main(&cmd.get_matches()).await?;
         }
+        Some("ocat") => {
+            let cmd = oli::commands::cat::cli(new_cmd("ocat")?);
+            oli::commands::cat::main(&cmd.get_matches()).await?;
+        }
         Some("ocp") => {
             let cmd = oli::commands::cp::cli(new_cmd("ocp")?);
             oli::commands::cp::main(&cmd.get_matches()).await?;
@@ -72,6 +76,14 @@ async fn main() -> Result<()> {
         Some("ols") => {
             let cmd = oli::commands::ls::cli(new_cmd("ols")?);
             oli::commands::ls::main(&cmd.get_matches()).await?;
+        }
+        Some("orm") => {
+            let cmd = oli::commands::rm::cli(new_cmd("orm")?);
+            oli::commands::rm::main(&cmd.get_matches()).await?;
+        }
+        Some("ostat") => {
+            let cmd = oli::commands::stat::cli(new_cmd("ostat")?);
+            oli::commands::stat::main(&cmd.get_matches()).await?;
         }
         Some(v) => {
             println!("{v} is not supported")

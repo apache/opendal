@@ -377,3 +377,14 @@ impl OpWrite {
         self
     }
 }
+
+/// Args for `copy` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpCopy {}
+
+impl OpCopy {
+    /// Create a new `OpCopy`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}

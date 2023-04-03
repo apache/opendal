@@ -447,6 +447,58 @@ impl BlockingOperator {
         self.write_with(path, OpWrite::new(), bs)
     }
 
+    /// Copy a file from `from` to `to`.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - `to` will be overwritten if it exists.
+    /// - If `from` and `to` are the same, nothing will happen.
+    /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::BlockingOperator;
+    ///
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.copy("path/to/file", "path/to/file2")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn copy(&self, from: &str, to: &str) -> Result<()> {
+        if from == to {
+            return Ok(());
+        }
+
+        let from = normalize_path(from);
+
+        if !validate_path(&from, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path is a directory")
+                    .with_operation("Operator::copy")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from),
+            );
+        }
+
+        let to = normalize_path(to);
+
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "to path is a directory")
+                    .with_operation("Operator::copy")
+                    .with_context("service", self.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        self.inner().blocking_copy(&from, &to, OpCopy::new())?;
+
+        Ok(())
+    }
+
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
     ///
     /// # Notes

@@ -131,6 +131,24 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
+    /// Invoke the `copy` operation on the specified `from` path and `to` path.
+    ///
+    /// Require [AccessorCapability::Read] and [AccessorCapability::Write]
+    ///
+    /// # Behaviour
+    ///
+    /// - `from` and `to` MUST be file path, DON'T NEED to check mode.
+    /// - Copy on existing file SHOULD succeed.
+    /// - Copy on existing file SHOULD overwrite and truncate.
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// Invoke the `stat` operation on the specified path.
     ///
     /// Require [`AccessorCapability::Read`]
@@ -263,6 +281,20 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
+    /// Invoke the `blocking_copy` operation on the specified `from` path and `to` path.
+    ///
+    /// This operation is the blocking version of [`Accessor::copy`]
+    ///
+    /// Require [`AccessorCapability::Read`], [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// Invoke the `blocking_stat` operation on the specified path.
     ///
     /// This operation is the blocking version of [`Accessor::stat`]
@@ -369,6 +401,11 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.as_ref().write(path, args).await
     }
+
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.as_ref().copy(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().stat(path, args).await
     }
@@ -399,6 +436,11 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.as_ref().blocking_write(path, args)
     }
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.as_ref().blocking_copy(from, to, args)
+    }
+
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().blocking_stat(path, args)
     }

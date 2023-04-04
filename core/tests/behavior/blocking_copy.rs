@@ -79,116 +79,124 @@ macro_rules! behavior_blocking_copy_tests {
 
 // Copy a file and test with stat.
 pub fn test_copy(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes();
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes();
 
-    op.write(&path, content)?;
+    op.write(&source_path, source_content.clone())?;
 
-    let path2 = uuid::Uuid::new_v4().to_string();
+    let target_path = uuid::Uuid::new_v4().to_string();
 
-    op.copy(&path, &path2)?;
+    op.copy(&source_path, &target_path)?;
 
-    let meta = op.stat(&path2).expect("stat must succeed");
-    assert_eq!(meta.content_length(), size as u64);
+    let target_content = op.read(&target_path).expect("read must succeed");
+    assert_eq!(target_content, source_content);
 
-    op.delete(&path).expect("delete must succeed");
-    op.delete(&path2).expect("delete must succeed");
+    op.delete(&source_path).expect("delete must succeed");
+    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
 // Copy a nonexistent source should return an error.
 pub fn test_non_existing_source(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    let path2 = uuid::Uuid::new_v4().to_string();
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let target_path = uuid::Uuid::new_v4().to_string();
 
-    let err = op.copy(&path, &path2).expect_err("copy must fail");
+    let err = op
+        .copy(&source_path, &target_path)
+        .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::NotFound);
     Ok(())
 }
 
 // Copy a dir as source should return an error.
 pub fn test_copy_source_dir(op: BlockingOperator) -> Result<()> {
-    let path = format!("{}/", uuid::Uuid::new_v4());
-    let path2 = uuid::Uuid::new_v4().to_string();
+    let source_path = format!("{}/", uuid::Uuid::new_v4());
+    let target_path = uuid::Uuid::new_v4().to_string();
 
-    op.create_dir(&path)?;
+    op.create_dir(&source_path)?;
 
-    let err = op.copy(&path, &path2).expect_err("copy must fail");
+    let err = op
+        .copy(&source_path, &target_path)
+        .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
     Ok(())
 }
 
 // Copy to a dir should return an error.
 pub fn test_copy_target_dir(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    let (content, _size) = gen_bytes();
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes();
 
-    op.write(&path, content)?;
+    op.write(&source_path, source_content)?;
 
-    let path2 = format!("{}/", uuid::Uuid::new_v4());
+    let target_path = format!("{}/", uuid::Uuid::new_v4());
 
-    op.create_dir(&path2)?;
+    op.create_dir(&target_path)?;
 
-    let err = op.copy(&path, &path2).expect_err("copy must fail");
+    let err = op
+        .copy(&source_path, &target_path)
+        .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
 
-    op.delete(&path).expect("delete must succeed");
-    op.delete(&path2).expect("delete must succeed");
+    op.delete(&source_path).expect("delete must succeed");
+    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
 // Copy a file to self should return an error.
 pub fn test_copy_self(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    let (content, _size) = gen_bytes();
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _size) = gen_bytes();
 
-    op.write(&path, content)?;
+    op.write(&source_path, source_content)?;
 
-    let err = op.copy(&path, &path).expect_err("copy must fail");
+    let err = op
+        .copy(&source_path, &source_path)
+        .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::IsSameFile);
 
-    op.delete(&path).expect("delete must succeed");
+    op.delete(&source_path).expect("delete must succeed");
     Ok(())
 }
 
 // Copy to a nested path, parent path should be created successfully.
 pub fn test_copy_nested(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes();
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes();
 
-    op.write(&path, content)?;
+    op.write(&source_path, source_content.clone())?;
 
-    let path2 = format!("{}/{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let target_path = format!("{}/{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
 
-    op.copy(&path, &path2)?;
+    op.copy(&source_path, &target_path)?;
 
-    let meta = op.stat(&path2).expect("stat must succeed");
-    assert_eq!(meta.content_length(), size as u64);
+    let target_content = op.read(&target_path).expect("read must succeed");
+    assert_eq!(target_content, source_content);
 
-    op.delete(&path).expect("delete must succeed");
-    op.delete(&path2).expect("delete must succeed");
+    op.delete(&source_path).expect("delete must succeed");
+    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }
 
 // Copy to a exist path should overwrite successfully.
 pub fn test_copy_overwrite(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes();
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes();
 
-    op.write(&path, content.clone())?;
+    op.write(&source_path, source_content.clone())?;
 
-    let path2 = uuid::Uuid::new_v4().to_string();
-    let (content2, _size2) = gen_bytes();
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes();
+    assert_ne!(source_content, target_content);
 
-    op.write(&path2, content2)?;
+    op.write(&target_path, target_content)?;
 
-    op.copy(&path, &path2)?;
+    op.copy(&source_path, &target_path)?;
 
-    let data2 = op.read(&path2).expect("read must succeed");
-    assert_eq!(data2.len(), size);
-    assert_eq!(data2, content);
+    let target_content = op.read(&target_path).expect("read must succeed");
+    assert_eq!(target_content, source_content);
 
-    op.delete(&path).expect("delete must succeed");
-    op.delete(&path2).expect("delete must succeed");
+    op.delete(&source_path).expect("delete must succeed");
+    op.delete(&target_path).expect("delete must succeed");
     Ok(())
 }

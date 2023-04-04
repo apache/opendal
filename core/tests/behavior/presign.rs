@@ -48,7 +48,7 @@ macro_rules! behavior_presign_test {
                         match op {
                             Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => $crate::presign::$test(op).await,
                             Some(_) => {
-                                log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
+                                log::warn!("service {} doesn't support presign, ignored", opendal::Scheme::$service);
                                 Ok(())
                             },
                             None => {

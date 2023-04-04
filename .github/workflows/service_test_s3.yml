@@ -56,6 +56,7 @@ jobs:
           OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
           OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
           OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
+          OPENDAL_S3_REGION: ap-northeast-1
 
   aws_s3_with_virtual_host:
     runs-on: ubuntu-latest
@@ -77,6 +78,7 @@ jobs:
           OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
           OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
           OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE: on
+          OPENDAL_S3_REGION: ap-northeast-1
 
   aws_s3_with_sse_c:
     runs-on: ubuntu-latest
@@ -100,6 +102,7 @@ jobs:
           OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: AES256
           OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
           OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: zZ5FnqcIqUjVwvWmyog4zw==
+          OPENDAL_S3_REGION: ap-northeast-1
 
   minio_s3:
     runs-on: ubuntu-latest

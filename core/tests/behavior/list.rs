@@ -51,7 +51,7 @@ macro_rules! behavior_list_test {
                                 && (op.info().can_list()
                                     || op.info().can_scan()) => $crate::list::$test(op).await,
                             Some(_) => {
-                                log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
+                                log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
                                 Ok(())
                             },
                             None => {

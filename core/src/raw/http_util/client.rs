@@ -15,22 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::env;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::thread;
 
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use log::debug;
 use reqwest::redirect::Policy;
-use reqwest::ClientBuilder;
 use reqwest::Url;
 
 use super::body::IncomingAsyncBody;
-use super::dns::*;
+use super::body::IncomingBody;
 use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
@@ -42,7 +39,7 @@ use crate::Result;
 #[derive(Clone)]
 pub struct HttpClient {
     async_client: reqwest::Client,
-    sync_client: ureq::Agent,
+    blocking_client: reqwest::blocking::Client,
 }
 
 /// We don't want users to know details about our clients.
@@ -53,148 +50,144 @@ impl Debug for HttpClient {
 }
 
 impl HttpClient {
-    /// Create a new http client.
+    /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        let async_client = {
-            let mut builder = ClientBuilder::new();
+        Self::build(
+            reqwest::ClientBuilder::new(),
+            reqwest::blocking::ClientBuilder::new(),
+        )
+    }
 
-            // Make sure we don't enable auto gzip decompress.
-            builder = builder.no_gzip();
-            // Make sure we don't enable auto brotli decompress.
-            builder = builder.no_brotli();
-            // Make sure we don't enable auto deflate decompress.
-            builder = builder.no_deflate();
-            // Redirect will be handled by ourselves.
-            builder = builder.redirect(Policy::none());
-
-            #[cfg(feature = "trust-dns")]
-            let builder = builder.dns_resolver(Arc::new(AsyncTrustDnsResolver::new().unwrap()));
-            #[cfg(not(feature = "trust-dns"))]
-            let builder = builder.dns_resolver(Arc::new(AsyncStdDnsResolver::default()));
-
-            builder.build().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
-            })?
-        };
-
-        let sync_client = {
-            let mut builder = ureq::AgentBuilder::new();
-
-            for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"] {
-                if let Ok(proxy) = env::var(key) {
-                    // Ignore proxy setting if proxy is invalid.
-                    if let Ok(proxy) = ureq::Proxy::new(proxy) {
-                        debug!("sync client: set proxy to {proxy:?}");
-                        builder = builder.proxy(proxy);
-                    }
-                }
-            }
-
-            let builder = builder.resolver(StdDnsResolver::default());
-
-            builder.build()
-        };
-
+    /// Build a new http client in async context.
+    pub fn build(
+        async_builder: reqwest::ClientBuilder,
+        blocking_builder: reqwest::blocking::ClientBuilder,
+    ) -> Result<Self> {
         Ok(HttpClient {
-            async_client,
-            sync_client,
+            async_client: Self::build_async_client(async_builder)?,
+            blocking_client: Self::build_blocking_client(blocking_builder)?,
         })
     }
 
-    /// Build a new http client from already built clients.
+    /// Build a new blocking client with given builder.
+    fn build_async_client(mut builder: reqwest::ClientBuilder) -> Result<reqwest::Client> {
+        // Make sure we don't enable auto gzip decompress.
+        builder = builder.no_gzip();
+        // Make sure we don't enable auto brotli decompress.
+        builder = builder.no_brotli();
+        // Make sure we don't enable auto deflate decompress.
+        builder = builder.no_deflate();
+        // Redirect will be handled by ourselves.
+        builder = builder.redirect(Policy::none());
+
+        #[cfg(feature = "trust-dns")]
+        let builder = builder.trust_dns(true);
+
+        builder.build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
+        })
+    }
+
+    /// Build a new blocking client with given builder.
     ///
     /// # Notes
     ///
-    /// By using this method, it's caller's duty to make sure everything
-    /// configured correctly. Like proxy, dns resolver and so on.
+    /// `reqwest::blocking::ClientBuilder::build` will panic if called
+    /// inside async context. So we need to spawn a thread to build it.
     ///
-    /// And this API is an internal API, OpenDAL could change it while bumping
-    /// minor versions.
-    ///
-    /// ## Reminders
-    /// ### no auto redirect
-    /// OpenDAL will handle all HTTP responses, including redirections.
-    /// Auto redirect may cause OpenDAL to fail.
-    ///
-    /// For reqwest client, please make sure your client's redirect policy is `Policy::none()`.
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use reqwest::redirect::Policy;
-    /// # fn main() -> Result<()> {
-    /// let _client = reqwest::ClientBuilder::new()
-    ///     .redirect(Policy::none())
-    ///     .build()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    /// For ureq client, please make sure your client's redirect count is `0`:
-    /// ```no_run
-    /// # fn main() {
-    /// let _client = ureq::AgentBuilder::new().redirects(0).build();
-    /// # }
-    /// ```
-    pub fn with_client(async_client: reqwest::Client, sync_client: ureq::Agent) -> Self {
-        Self {
-            async_client,
-            sync_client,
-        }
+    /// And users SHOULD never call blocking clients in async context.
+    fn build_blocking_client(
+        mut builder: reqwest::blocking::ClientBuilder,
+    ) -> Result<reqwest::blocking::Client> {
+        // Make sure we don't enable auto gzip decompress.
+        builder = builder.no_gzip();
+        // Make sure we don't enable auto brotli decompress.
+        builder = builder.no_brotli();
+        // Make sure we don't enable auto deflate decompress.
+        builder = builder.no_deflate();
+        // Redirect will be handled by ourselves.
+        builder = builder.redirect(Policy::none());
+
+        #[cfg(feature = "trust-dns")]
+        let builder = builder.trust_dns(true);
+
+        thread::spawn(|| {
+            builder.build().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "blocking client build failed").set_source(err)
+            })
+        })
+        .join()
+        .expect("the thread of building blocking client join failed")
     }
 
     /// Get the async client from http client.
-    pub fn async_client(&self) -> reqwest::Client {
+    pub async fn async_client(&self) -> reqwest::Client {
         self.async_client.clone()
     }
 
-    /// Get the sync client from http client.
-    pub fn sync_client(&self) -> ureq::Agent {
-        self.sync_client.clone()
+    /// Get the blocking client from http client.
+    pub fn blocking_client(&self) -> reqwest::blocking::Client {
+        self.blocking_client.clone()
     }
 
     /// Send a request in blocking way.
-    pub fn send(&self, req: Request<Body>) -> Result<Response<Body>> {
+    pub fn send(&self, req: Request<Body>) -> Result<Response<IncomingBody>> {
+        let is_head = req.method() == http::Method::HEAD;
         let (parts, body) = req.into_parts();
 
-        let mut ur = self
-            .sync_client
-            .request(parts.method.as_str(), &parts.uri.to_string());
-        for (k, v) in parts.headers.iter() {
-            ur = ur.set(k.as_str(), v.to_str().expect("must be valid header"));
-        }
+        let mut req_builder = self
+            .blocking_client
+            .request(
+                parts.method,
+                Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
+            )
+            .version(parts.version)
+            .headers(parts.headers);
 
-        let resp = match ur.send(body) {
-            Ok(resp) => resp,
-            Err(err_resp) => match err_resp {
-                ureq::Error::Status(_code, resp) => resp,
-                ureq::Error::Transport(transport) => {
-                    let is_temporary = matches!(
-                        transport.kind(),
-                        ureq::ErrorKind::Dns
-                            | ureq::ErrorKind::ConnectionFailed
-                            | ureq::ErrorKind::Io
-                    );
+        req_builder = req_builder.body(body);
 
-                    let mut err = Error::new(ErrorKind::Unexpected, "send blocking request")
-                        .with_operation("http_util::Client::send")
-                        .set_source(transport);
-                    if is_temporary {
-                        err = err.set_temporary();
-                    }
+        let resp = req_builder.send().map_err(|err| {
+            let is_temporary = !(
+                // Builder related error should not be retried.
+                err.is_builder() ||
+                // Error returned by RedirectPolicy.
+                //
+                // We don't set this by hand, just don't allow retry.
+                err.is_redirect() ||
+                 // We never use `Response::error_for_status`, just don't allow retry.
+                //
+                // Status should be checked by our services.
+                err.is_status()
+            );
 
-                    return Err(err);
-                }
-            },
+            let mut oerr = Error::new(ErrorKind::Unexpected, "send blocking request")
+                .with_operation("http_util::Client::send")
+                .set_source(err);
+            if is_temporary {
+                oerr = oerr.set_temporary();
+            }
+
+            oerr
+        })?;
+
+        // Get content length from header so that we can check it.
+        // If the request method is HEAD, we will ignore this.
+        let content_length = if is_head {
+            None
+        } else {
+            parse_content_length(resp.headers()).expect("response content length must be valid")
         };
 
-        let mut hr = Response::builder().status(resp.status());
-        for name in resp.headers_names() {
-            if let Some(value) = resp.header(&name) {
-                hr = hr.header(name, value);
-            }
+        let mut hr = Response::builder()
+            .version(resp.version())
+            .status(resp.status());
+        for (k, v) in resp.headers().iter() {
+            hr = hr.header(k, v);
         }
 
-        let resp = hr
-            .body(Body::Reader(Box::new(resp.into_reader())))
-            .expect("response must build succeed");
+        let body = IncomingBody::new(resp, content_length);
+
+        let resp = hr.body(body).expect("response must build succeed");
 
         Ok(resp)
     }

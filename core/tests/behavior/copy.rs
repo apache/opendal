@@ -158,11 +158,7 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 
     op.write(&path, content).await?;
 
-    let path2 = format!(
-        "{}/{}",
-        uuid::Uuid::new_v4(),
-        uuid::Uuid::new_v4()
-    );
+    let path2 = format!("{}/{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
 
     op.copy(&path, &path2).await?;
 

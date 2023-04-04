@@ -204,7 +204,7 @@ dependencies = [
  "futures-io",
  "rustls 0.19.1",
  "webpki 0.21.4",
- "webpki-roots",
+ "webpki-roots 0.21.1",
 ]
 
 [[package]]
@@ -2266,6 +2266,7 @@ dependencies = [
  "tracing-opentelemetry",
  "tracing-subscriber",
  "trust-dns-resolver",
+ "ureq",
  "uuid",
  "wiremock",
 ]
@@ -4207,8 +4208,13 @@ checksum = "338b31dd1314f68f3aabf3ed57ab922df95ffcd902476ca7ba3c4ce7b908c46d"
 dependencies = [
  "base64 0.13.1",
  "log",
+ "native-tls",
  "once_cell",
+ "rustls 0.20.8",
+ "rustls-native-certs",
  "url",
+ "webpki 0.22.0",
+ "webpki-roots 0.22.6",
 ]
 
 [[package]]
@@ -4436,6 +4442,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
 dependencies = [
  "webpki 0.21.4",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6c71e40d7d2c34a5106301fb632274ca37242cd0c9d3e64dbece371a40a2d87"
+dependencies = [
+ "webpki 0.22.0",
 ]
 
 [[package]]

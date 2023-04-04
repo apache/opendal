@@ -18,13 +18,13 @@
 RPATH=$(PWD)/../../target/debug
 CFLAGS = -I./include
 LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
-LIBS = -lopendal
-OBJ_DIR=build/
+LIBS = -lopendal_c
+OBJ_DIR=build
 
-all: $(OBJ_DIR) build test
+all: objdir build test
 
-$(OBJ_DIR):
-	mkdir -p $@
+objdir:
+	mkdir -p $(OBJ_DIR)
 
 build:
 	cargo build

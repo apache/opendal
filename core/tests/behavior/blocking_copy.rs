@@ -77,7 +77,6 @@ macro_rules! behavior_blocking_copy_tests {
     };
 }
 
-
 // Copy a file and test with stat.
 pub fn test_copy(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
@@ -109,7 +108,7 @@ pub fn test_non_existing_source(op: BlockingOperator) -> Result<()> {
 
 // Copy a dir as source should return an error.
 pub fn test_copy_source_dir(op: BlockingOperator) -> Result<()> {
-    let path = format!("{}/", uuid::Uuid::new_v4().to_string());
+    let path = format!("{}/", uuid::Uuid::new_v4());
     let path2 = uuid::Uuid::new_v4().to_string();
 
     op.create_dir(&path)?;
@@ -126,7 +125,7 @@ pub fn test_copy_target_dir(op: BlockingOperator) -> Result<()> {
 
     op.write(&path, content)?;
 
-    let path2 = format!("{}/", uuid::Uuid::new_v4().to_string());
+    let path2 = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path2)?;
 
@@ -159,7 +158,11 @@ pub fn test_copy_nested(op: BlockingOperator) -> Result<()> {
 
     op.write(&path, content)?;
 
-    let path2 = format!("{}/{}", uuid::Uuid::new_v4().to_string(), uuid::Uuid::new_v4().to_string());
+    let path2 = format!(
+        "{}/{}",
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4()
+    );
 
     op.copy(&path, &path2)?;
 

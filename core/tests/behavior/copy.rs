@@ -108,7 +108,7 @@ pub async fn test_non_existing_source(op: Operator) -> Result<()> {
 
 // Copy a dir as source should return an error.
 pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
-    let path = format!("{}/", uuid::Uuid::new_v4().to_string());
+    let path = format!("{}/", uuid::Uuid::new_v4());
     let path2 = uuid::Uuid::new_v4().to_string();
 
     op.create_dir(&path).await?;
@@ -125,7 +125,7 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
 
     op.write(&path, content).await?;
 
-    let path2 = format!("{}/", uuid::Uuid::new_v4().to_string());
+    let path2 = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path2).await?;
 
@@ -158,7 +158,11 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 
     op.write(&path, content).await?;
 
-    let path2 = format!("{}/{}", uuid::Uuid::new_v4().to_string(), uuid::Uuid::new_v4().to_string());
+    let path2 = format!(
+        "{}/{}",
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4()
+    );
 
     op.copy(&path, &path2).await?;
 

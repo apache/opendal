@@ -21,17 +21,19 @@ LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS = -lopendal_c
 OBJ_DIR=build
 
-all: objdir build test
+.PHONY: all
+all: build test
 
-objdir:
-	mkdir -p $(OBJ_DIR)
-
+.PHONY: build
 build:
+	mkdir -p $(OBJ_DIR)
 	cargo build
 
+.PHONY: test
 test:
 	$(CC) tests/hello.c -o $(OBJ_DIR)/hello $(CFLAGS) $(LDFLAGS) $(LIBS)
 
+.PHONY: clean
 clean:
 	cargo clean
-	rm -rf $(OBJ_DIR)
+	rm -rf "./$(OBJ_DIR)"

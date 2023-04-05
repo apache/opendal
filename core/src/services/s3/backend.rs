@@ -64,6 +64,8 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 });
 
 mod constants {
+    pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
+
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
         "x-amz-server-side-encryption-customer-algorithm";
@@ -87,6 +89,7 @@ mod constants {
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
@@ -1058,7 +1061,7 @@ impl Accessor for S3Backend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy)
             .set_hints(ReadStreamable);
 
         am
@@ -1132,6 +1135,23 @@ impl Accessor for S3Backend {
             RpWrite::default(),
             S3Writer::new(self.clone(), args, path.to_string(), upload_id),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.s3_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
+                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
+                resp.into_body().consume().await?;
+
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -1422,6 +1442,23 @@ impl S3Backend {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+
+        let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
+
+        let mut req = Request::put(&target)
+            .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

@@ -62,7 +62,7 @@ impl oio::Write for S3Writer {
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            self.op.storage_class(),
+            None,
             AsyncBody::Bytes(bs),
         )?;
 

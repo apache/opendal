@@ -1103,7 +1103,7 @@ impl Accessor for S3Backend {
                     args.content_type(),
                     args.content_disposition(),
                     args.cache_control(),
-                    args.storage_class(),
+                    None,
                 )
                 .await?;
 

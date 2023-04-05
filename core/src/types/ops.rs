@@ -309,6 +309,7 @@ pub struct OpWrite {
     content_type: Option<String>,
     content_disposition: Option<String>,
     cache_control: Option<String>,
+    storage_class: Option<String>,
 }
 
 impl OpWrite {
@@ -316,13 +317,7 @@ impl OpWrite {
     ///
     /// If input path is not a file path, an error will be returned.
     pub fn new() -> Self {
-        Self {
-            append: false,
-
-            content_type: None,
-            content_disposition: None,
-            cache_control: None,
-        }
+        Self::default()
     }
 
     pub(crate) fn with_append(mut self) -> Self {
@@ -364,6 +359,17 @@ impl OpWrite {
     /// Set the content type of option
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
+        self
+    }
+
+    /// Get the storage class from option
+    pub fn storage_class(&self) -> Option<&str> {
+        self.storage_class.as_deref()
+    }
+
+    /// Set the storage class of option
+    pub fn with_storage_class(mut self, storage_class: &str) -> Self {
+        self.storage_class = Some(storage_class.to_string());
         self
     }
 }

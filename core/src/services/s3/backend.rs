@@ -73,6 +73,7 @@ mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
+    pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
@@ -100,6 +101,7 @@ mod constants {
 /// - `access_key_id`: Set the access_key_id for backend.
 /// - `secret_access_key`: Set the secret_access_key for backend.
 /// - `security_token`: Set the security_token for backend.
+/// - `storage_class`: Set the storage_class for backend.
 /// - `server_side_encryption`: Set the server_side_encryption for backend.
 /// - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
 /// - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
@@ -314,6 +316,7 @@ pub struct S3Builder {
     server_side_encryption_customer_algorithm: Option<String>,
     server_side_encryption_customer_key: Option<String>,
     server_side_encryption_customer_key_md5: Option<String>,
+    storage_class: Option<String>,
 
     /// temporary credentials, check the official [doc](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html) for detail
     security_token: Option<String>,
@@ -336,7 +339,8 @@ impl Debug for S3Builder {
             .field("role_arn", &self.role_arn)
             .field("external_id", &self.external_id)
             .field("disable_config_load", &self.disable_config_load)
-            .field("enable_virtual_host_style", &self.enable_virtual_host_style);
+            .field("enable_virtual_host_style", &self.enable_virtual_host_style)
+            .field("storage_class", &self.storage_class);
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
@@ -458,6 +462,26 @@ impl S3Builder {
     pub fn external_id(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.external_id = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set storage_class for this backend.
+    ///
+    /// Available values:
+    /// - `DEEP_ARCHIVE`
+    /// - `GLACIER`
+    /// - `GLACIER_IR`
+    /// - `INTELLIGENT_TIERING`
+    /// - `ONEZONE_IA`
+    /// - `OUTPOSTS`
+    /// - `REDUCED_REDUNDANCY`
+    /// - `STANDARD`
+    /// - `STANDARD_IA`
+    pub fn storage_class(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.storage_class = Some(v.to_string())
         }
 
         self
@@ -743,6 +767,7 @@ impl Builder for S3Builder {
         map.get("enable_virtual_host_style")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.enable_virtual_host_style());
+        map.get("storage_class").map(|v| builder.storage_class(v));
 
         builder
     }
@@ -762,6 +787,15 @@ impl Builder for S3Builder {
             ),
         }?;
         debug!("backend use bucket {}", &bucket);
+
+        let storage_class = match &self.storage_class {
+            None => None,
+            Some(v) => Some(v.parse().map_err(|e| {
+                Error::new(ErrorKind::ConfigInvalid, "storage_class value is invalid")
+                    .with_context("value", v)
+                    .set_source(e)
+            })?),
+        };
 
         let server_side_encryption = match &self.server_side_encryption {
             None => None,
@@ -916,6 +950,7 @@ impl Builder for S3Builder {
             server_side_encryption_customer_algorithm,
             server_side_encryption_customer_key,
             server_side_encryption_customer_key_md5,
+            storage_class,
         })
     }
 }
@@ -935,6 +970,7 @@ pub struct S3Backend {
     server_side_encryption_customer_algorithm: Option<HeaderValue>,
     server_side_encryption_customer_key: Option<HeaderValue>,
     server_side_encryption_customer_key_md5: Option<HeaderValue>,
+    storage_class: Option<HeaderValue>,
 }
 
 impl S3Backend {
@@ -1026,7 +1062,7 @@ impl Accessor for S3Backend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut req =
-            self.s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+            self.s3_put_object_request(path, Some(0), None, None, None, None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -1067,6 +1103,7 @@ impl Accessor for S3Backend {
                     args.content_type(),
                     args.content_disposition(),
                     args.cache_control(),
+                    args.storage_class(),
                 )
                 .await?;
 
@@ -1150,7 +1187,7 @@ impl Accessor for S3Backend {
                 v.if_none_match(),
             )?,
             PresignOperation::Write(_) => {
-                self.s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
+                self.s3_put_object_request(path, None, None, None, None, None, AsyncBody::Empty)?
             }
         };
 
@@ -1311,6 +1348,7 @@ impl S3Backend {
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
+        storage_class: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -1333,6 +1371,14 @@ impl S3Backend {
 
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // Set storage class header
+        if let Some(v) = storage_class
+            .and_then(|v| v.parse::<HeaderValue>().ok())
+            .or_else(|| self.storage_class.clone())
+        {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
         }
 
         // Set SSE headers.
@@ -1432,6 +1478,7 @@ impl S3Backend {
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
+        storage_class: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -1449,6 +1496,14 @@ impl S3Backend {
 
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // Set storage class header
+        if let Some(v) = storage_class
+            .and_then(|v| v.parse::<HeaderValue>().ok())
+            .or_else(|| self.storage_class.clone())
+        {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
         }
 
         // Set SSE headers.

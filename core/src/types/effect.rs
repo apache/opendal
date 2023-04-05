@@ -15,48 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod mode;
-pub use mode::EntryMode;
+pub trait Effect {}
 
-mod entry;
-pub use entry::Entry;
+pub struct Async;
+impl Effect for Async {}
 
-mod metadata;
-pub use metadata::Metadata;
-pub use metadata::Metakey;
-
-mod reader;
-pub use reader::BlockingReader;
-pub use reader::Reader;
-
-mod writer;
-pub use writer::BlockingWriter;
-pub use writer::Writer;
-
-mod list;
-pub use list::BlockingLister;
-pub use list::Lister;
-
-mod operator;
-pub use operator::BlockingOperator;
-pub use operator::Operator;
-pub use operator::OperatorBuilder;
-pub use operator::OperatorInfo;
-
-mod builder;
-pub use builder::Builder;
-
-mod error;
-pub use error::Error;
-pub use error::ErrorKind;
-pub use error::Result;
-
-mod scheme;
-pub use scheme::Scheme;
-
-mod effect;
-pub use effect::Async;
-pub use effect::Blocking;
-pub use effect::Effect;
-
-pub mod ops;
+pub struct Blocking;
+impl Effect for Blocking {}

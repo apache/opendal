@@ -31,6 +31,8 @@ pub use accessor::Accessor;
 pub use accessor::AccessorCapability;
 pub use accessor::AccessorHint;
 pub use accessor::AccessorInfo;
+pub use accessor::AccessorX;
+pub use accessor::EResult;
 pub use accessor::FusedAccessor;
 
 mod layer;

@@ -285,6 +285,66 @@ impl FsBackend {
     }
 }
 
+impl AccessorX<Blocking> for FsBackend {
+    fn delete(&self, path: &str, args: OpDelete) -> EResult<Blocking, RpDelete> {
+        let res = self.inner_delete(path, args);
+
+        res.into()
+    }
+}
+
+impl AccessorX<Async> for FsBackend {
+    fn delete<'o>(&'o self, path: &str, args: OpDelete) -> EResult<'o, Async, RpDelete> {
+        let path = path.to_string();
+
+        let res = Box::pin(async move { self.async_inner_delete(&path, args).await });
+
+        EResult::Async(Async, res)
+    }
+}
+
+impl FsBackend {
+    fn inner_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let p = self.root.join(path.trim_end_matches('/'));
+
+        let meta = std::fs::metadata(&p);
+
+        match meta {
+            Ok(meta) => {
+                if meta.is_dir() {
+                    std::fs::remove_dir(&p).map_err(parse_io_error)?;
+                } else {
+                    std::fs::remove_file(&p).map_err(parse_io_error)?;
+                }
+
+                Ok(RpDelete::default())
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
+            Err(err) => Err(parse_io_error(err)),
+        }
+    }
+
+    async fn async_inner_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let p = self.root.join(path.trim_end_matches('/'));
+
+        let meta = tokio::fs::metadata(&p).await;
+
+        match meta {
+            Ok(meta) => {
+                if meta.is_dir() {
+                    fs::remove_dir(&p).await.map_err(parse_io_error)?;
+                } else {
+                    fs::remove_file(&p).await.map_err(parse_io_error)?;
+                }
+
+                Ok(RpDelete::default())
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
+            Err(err) => Err(parse_io_error(err)),
+        }
+    }
+}
+
 #[async_trait]
 impl Accessor for FsBackend {
     type Reader = oio::into_reader::FdReader<Compat<tokio::fs::File>>;

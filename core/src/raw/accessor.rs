@@ -21,6 +21,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
+use futures::future::BoxFuture;
 
 use crate::ops::*;
 use crate::raw::*;
@@ -467,6 +468,47 @@ pub type FusedAccessor = Arc<
         BlockingPager = oio::BlockingPager,
     >,
 >;
+
+pub trait AccessorX<E: Effect>: Send + Sync + Debug + Unpin + 'static {
+    fn delete(&self, path: &str, args: OpDelete) -> EResult<E, RpDelete>;
+}
+
+pub enum EResult<'o, E, RP> {
+    Async(E, BoxFuture<'o, Result<RP>>),
+    Blocking(E, Result<RP>),
+}
+
+impl<RP> EResult<'_, Blocking, RP> {
+    pub fn call(self) -> Result<RP> {
+        if let EResult::Blocking(_, res) = self {
+            res
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+impl<RP> From<Result<RP>> for EResult<'_, Blocking, RP> {
+    fn from(res: Result<RP>) -> Self {
+        Self::Blocking(Blocking, res)
+    }
+}
+
+impl<'o, RP> EResult<'o, Async, RP> {
+    pub async fn call(self) -> Result<RP> {
+        if let EResult::Async(_, res) = self {
+            res.await
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+impl<'o, RP> From<BoxFuture<'o, Result<RP>>> for EResult<'o, Async, RP> {
+    fn from(res: BoxFuture<'o, Result<RP>>) -> Self {
+        Self::Async(Async, res)
+    }
+}
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]

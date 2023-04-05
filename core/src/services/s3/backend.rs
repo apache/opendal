@@ -1341,6 +1341,7 @@ impl S3Backend {
         self.client.send_async(req).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn s3_put_object_request(
         &self,
         path: &str,

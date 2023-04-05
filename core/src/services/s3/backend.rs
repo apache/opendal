@@ -77,6 +77,13 @@ mod constants {
         "x-amz-server-side-encryption-aws-kms-key-id";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
+        "x-amz-copy-source-server-side-encryption-customer-algorithm";
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
+        "x-amz-copy-source-server-side-encryption-customer-key";
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
+        "x-amz-copy-source-server-side-encryption-customer-key-md5";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
@@ -319,6 +326,9 @@ pub struct S3Builder {
     server_side_encryption_customer_algorithm: Option<String>,
     server_side_encryption_customer_key: Option<String>,
     server_side_encryption_customer_key_md5: Option<String>,
+    copy_source_server_side_encryption_customer_algorithm: Option<String>,
+    copy_source_server_side_encryption_customer_key: Option<String>,
+    copy_source_server_side_encryption_customer_key_md5: Option<String>,
     default_storage_class: Option<String>,
 
     /// temporary credentials, check the official [doc](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html) for detail
@@ -365,6 +375,33 @@ impl Debug for S3Builder {
         }
         if self.server_side_encryption_customer_key_md5.is_some() {
             d.field("server_side_encryption_customer_key_md5", &"<redacted>");
+        }
+        if self
+            .copy_source_server_side_encryption_customer_algorithm
+            .is_some()
+        {
+            d.field(
+                "copy_source_server_side_encryption_customer_algorithm",
+                &"<redacted>",
+            );
+        }
+        if self
+            .copy_source_server_side_encryption_customer_key
+            .is_some()
+        {
+            d.field(
+                "copy_source_server_side_encryption_customer_key",
+                &"<redacted>",
+            );
+        }
+        if self
+            .copy_source_server_side_encryption_customer_key_md5
+            .is_some()
+        {
+            d.field(
+                "copy_source_server_side_encryption_customer_key_md5",
+                &"<redacted>",
+            );
         }
 
         if self.security_token.is_some() {
@@ -592,6 +629,65 @@ impl S3Builder {
         self
     }
 
+    /// Set copy_source_server_side_encryption_customer_algorithm for this backend.
+    ///
+    /// Available values: `AES256`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `copy_source_server_side_encryption_with_*` helpers if even possible.
+    pub fn copy_source_server_side_encryption_customer_algorithm(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.copy_source_server_side_encryption_customer_algorithm = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set copy_source_server_side_encryption_customer_key for this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: base64 encoded key that matches algorithm specified in
+    /// `copy_source_server_side_encryption_customer_algorithm`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `copy_source_server_side_encryption_with_*` helpers if even possible.
+    pub fn copy_source_server_side_encryption_customer_key(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.copy_source_server_side_encryption_customer_key = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set copy_source_server_side_encryption_customer_key_md5 for this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: MD5 digest of key specified in `copy_source_server_side_encryption_customer_key`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `copy_source_server_side_encryption_with_*` helpers if even possible.
+    pub fn copy_source_server_side_encryption_customer_key_md5(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.copy_source_server_side_encryption_customer_key_md5 = Some(v.to_string())
+        }
+
+        self
+    }
+
     /// Enable server side encryption with aws managed kms key
     ///
     /// As known as: SSE-KMS
@@ -640,6 +736,23 @@ impl S3Builder {
         self.server_side_encryption_customer_key = Some(BASE64_STANDARD.encode(key));
         self.server_side_encryption_customer_key_md5 =
             Some(BASE64_STANDARD.encode(Md5::digest(key).as_slice()));
+        self
+    }
+
+    /// Enable copy source server side encryption with customer key.
+    /// This is used for copy object.
+    ///
+    /// Is similar with `server_side_encryption_with_customer_key`.
+    pub fn copy_source_server_side_encryption_with_customer_key(
+        &mut self,
+        algorithm: &str,
+        key: &[u8],
+    ) -> &mut Self {
+        self.copy_source_server_side_encryption_customer_algorithm = Some(algorithm.to_string());
+        self.copy_source_server_side_encryption_customer_key = Some(BASE64_STANDARD.encode(key));
+        self.copy_source_server_side_encryption_customer_key_md5 =
+            Some(BASE64_STANDARD.encode(Md5::digest(key).as_slice()));
+
         self
     }
 
@@ -764,6 +877,12 @@ impl Builder for S3Builder {
             .map(|v| builder.server_side_encryption_customer_key(v));
         map.get("server_side_encryption_customer_key_md5")
             .map(|v| builder.server_side_encryption_customer_key_md5(v));
+        map.get("copy_source_server_side_encryption_customer_algorithm")
+            .map(|v| builder.copy_source_server_side_encryption_customer_algorithm(v));
+        map.get("copy_source_server_side_encryption_customer_key")
+            .map(|v| builder.copy_source_server_side_encryption_customer_key(v));
+        map.get("copy_source_server_side_encryption_customer_key_md5")
+            .map(|v| builder.copy_source_server_side_encryption_customer_key_md5(v));
         map.get("disable_config_load")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.disable_config_load());
@@ -865,6 +984,42 @@ impl Builder for S3Builder {
                     .set_source(e)
                 })?),
             };
+        let copy_source_server_side_encryption_customer_algorithm =
+            match &self.copy_source_server_side_encryption_customer_algorithm {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "copy_source_server_side_encryption_customer_algorithm value is invalid",
+                    )
+                    .with_context("value", v)
+                    .set_source(e)
+                })?),
+            };
+        let copy_source_server_side_encryption_customer_key =
+            match &self.copy_source_server_side_encryption_customer_key {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "copy_source_server_side_encryption_customer_key value is invalid",
+                    )
+                    .with_context("value", v)
+                    .set_source(e)
+                })?),
+            };
+        let copy_source_server_side_encryption_customer_key_md5 =
+            match &self.copy_source_server_side_encryption_customer_key_md5 {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "copy_source_server_side_encryption_customer_key_md5 value is invalid",
+                    )
+                    .with_context("value", v)
+                    .set_source(e)
+                })?),
+            };
 
         let client = if let Some(client) = self.http_client.take() {
             client
@@ -957,6 +1112,11 @@ impl Builder for S3Builder {
             server_side_encryption_customer_algorithm,
             server_side_encryption_customer_key,
             server_side_encryption_customer_key_md5,
+
+            copy_source_server_side_encryption_customer_algorithm,
+            copy_source_server_side_encryption_customer_key,
+            copy_source_server_side_encryption_customer_key_md5,
+
             default_storage_class,
         })
     }
@@ -977,6 +1137,11 @@ pub struct S3Backend {
     server_side_encryption_customer_algorithm: Option<HeaderValue>,
     server_side_encryption_customer_key: Option<HeaderValue>,
     server_side_encryption_customer_key_md5: Option<HeaderValue>,
+
+    copy_source_server_side_encryption_customer_algorithm: Option<HeaderValue>,
+    copy_source_server_side_encryption_customer_key: Option<HeaderValue>,
+    copy_source_server_side_encryption_customer_key_md5: Option<HeaderValue>,
+
     default_storage_class: Option<HeaderValue>,
 }
 
@@ -989,6 +1154,7 @@ impl S3Backend {
         &self,
         mut req: http::request::Builder,
         is_write: bool,
+        is_copy: bool,
     ) -> http::request::Builder {
         if is_write {
             if let Some(v) = &self.server_side_encryption {
@@ -1006,6 +1172,44 @@ impl S3Backend {
 
                 req = req.header(
                     HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID),
+                    v,
+                )
+            }
+        }
+
+        if is_copy {
+            if let Some(v) = &self.copy_source_server_side_encryption_customer_algorithm {
+                let mut v = v.clone();
+                v.set_sensitive(true);
+
+                req = req.header(
+                    HeaderName::from_static(
+                        constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM,
+                    ),
+                    v,
+                )
+            }
+
+            if let Some(v) = &self.copy_source_server_side_encryption_customer_key {
+                let mut v = v.clone();
+                v.set_sensitive(true);
+
+                req = req.header(
+                    HeaderName::from_static(
+                        constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
+                    ),
+                    v,
+                )
+            }
+
+            if let Some(v) = &self.copy_source_server_side_encryption_customer_key_md5 {
+                let mut v = v.clone();
+                v.set_sensitive(true);
+
+                req = req.header(
+                    HeaderName::from_static(
+                        constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
+                    ),
                     v,
                 )
             }
@@ -1284,7 +1488,7 @@ impl S3Backend {
 
         let mut req = Request::head(&url);
 
-        req = self.insert_sse_headers(req, false);
+        req = self.insert_sse_headers(req, false, false);
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(http::header::IF_NONE_MATCH, if_none_match);
@@ -1342,7 +1546,7 @@ impl S3Backend {
 
         // Set SSE headers.
         // TODO: how will this work with presign?
-        req = self.insert_sse_headers(req, false);
+        req = self.insert_sse_headers(req, false, false);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -1401,7 +1605,7 @@ impl S3Backend {
         }
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, true, false);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -1421,7 +1625,7 @@ impl S3Backend {
         let mut req = Request::head(&url);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, false);
+        req = self.insert_sse_headers(req, false, false);
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(http::header::IF_NONE_MATCH, if_none_match);
@@ -1460,7 +1664,7 @@ impl S3Backend {
         let mut req = Request::put(&target);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, true, true);
 
         let mut req = req
             .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
@@ -1544,7 +1748,7 @@ impl S3Backend {
         }
 
         // Set SSE headers.
-        let req = self.insert_sse_headers(req, true);
+        let req = self.insert_sse_headers(req, true, false);
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -1580,7 +1784,7 @@ impl S3Backend {
         }
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, true, false);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -1606,7 +1810,7 @@ impl S3Backend {
         let req = Request::post(&url);
 
         // Set SSE headers.
-        let req = self.insert_sse_headers(req, true);
+        let req = self.insert_sse_headers(req, true, false);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts.to_vec(),

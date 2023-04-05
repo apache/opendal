@@ -2275,6 +2275,7 @@ dependencies = [
 name = "opendal-c"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "cbindgen",
  "opendal",
 ]

@@ -33,4 +33,5 @@ doc = false
 cbindgen = "0.24.0"
 
 [dependencies]
+bytes = "1.4.0"
 opendal = { version = "0.30", path = "../../core" }

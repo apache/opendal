@@ -667,10 +667,19 @@ impl S3Builder {
         self
     }
 
+    /// Check if `bucket` is valid
+    /// `bucket` must be not empty and if `enable_virtual_host_style` is true
+    /// it couldn't contain dot(.) character
+    fn is_valid_bucket(&self) -> bool {
+        !self.bucket.is_empty() &&
+            (!self.enable_virtual_host_style ||
+                self.enable_virtual_host_style && !self.bucket.contains('.'))
+    }
+
     /// Build endpoint with given region.
     fn build_endpoint(&self, region: &str) -> String {
         let bucket = {
-            debug_assert!(!self.bucket.is_empty(), "bucket must be valid");
+            debug_assert!(self.is_valid_bucket(), "bucket must be valid");
 
             self.bucket.as_str()
         };
@@ -754,9 +763,9 @@ impl Builder for S3Builder {
         debug!("backend use root {}", &root);
 
         // Handle bucket name.
-        let bucket = match self.bucket.is_empty() {
-            false => Ok(&self.bucket),
-            true => Err(
+        let bucket = match self.is_valid_bucket() {
+            true => Ok(&self.bucket),
+            false => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
                     .with_context("service", Scheme::S3),
             ),
@@ -1658,6 +1667,27 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    #[test]
+    fn test_is_valid_bucket() {
+        let bucket_cases = vec![
+            ("", false, false),
+            ("test", false, true),
+            ("test.xyz", false, true),
+            ("", true, false),
+            ("test", true, true),
+            ("test.xyz", true, false),
+        ];
+
+        for (bucket, enable_virutal_host_style, expected) in bucket_cases {
+            let mut b = S3Builder::default();
+            b.bucket(bucket);
+            if enable_virutal_host_style {
+                b.enable_virtual_host_style();
+            }
+            assert_eq!(b.is_valid_bucket(), expected)
+        }
+    }
 
     #[test]
     fn test_build_endpoint() {

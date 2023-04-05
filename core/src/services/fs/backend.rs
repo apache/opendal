@@ -44,6 +44,7 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~

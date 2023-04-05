@@ -1457,7 +1457,12 @@ impl S3Backend {
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
 
-        let mut req = Request::put(&target)
+        let mut req = Request::put(&target);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        let mut req = req
             .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;

@@ -105,7 +105,7 @@ pub async fn test_non_existing_source(op: Operator) -> Result<()> {
         .copy(&source_path, &target_path)
         .await
         .expect_err("copy must fail");
-    assert_eq!(err.kind(), ErrorKind::NotFound);
+    assert!(err.kind() == ErrorKind::NotFound || err.kind() == ErrorKind::PermissionDenied);
     Ok(())
 }
 

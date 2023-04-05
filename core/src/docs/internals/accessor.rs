@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! The internal implement details of [`Accessor`].
+//! The internal implementation details of [`Accessor`].
 //!
 //! [`Accessor`] is the core trait of OpenDAL's raw API. We operate
 //! underlying storage services via APIs provided by [`Accessor`].
@@ -85,9 +85,9 @@
 //! - [`Sync`]: Allow user to sync between threads without extra lock.
 //! - [`Debug`][std::fmt::Debug]: Allow users to print underlying debug information of accessor.
 //! - [`Unpin`]: Make sure `Accessor` can be safely moved after being pinned, so users don't need to `Pin<Box<A>>`.
-//! - `'static`: Make sure `Accessor` is not a short-time reference, allow users to use `Accessor` in clouse, futures without playing with lifetime.
+//! - `'static`: Make sure `Accessor` is not a short-time reference, allow users to use `Accessor` in closures and futures without playing with lifetime.
 //!
-//! Implementer of `Accessor` should take care the following things:
+//! Implementer of `Accessor` should take care of the following things:
 //!
 //! - Implement `Debug` for backend, but don't leak credentials.
 //! - Make sure the backend is `Send` and `Sync`, wrap the internal struct with `Arc<Mutex<T>>` if necessary.
@@ -202,7 +202,7 @@
 //! /// async fn main() -> Result<()> {
 //! ///     // Create Duck backend builder.
 //! ///     let mut builder = Duck::default();
-//! ///     // Set the root for duck, all operations wilxl happen under this root.
+//! ///     // Set the root for duck, all operations will happen under this root.
 //! ///     //
 //! ///     // NOTE: the root must be absolute path.
 //! ///     builder.root("/path/to/dir");

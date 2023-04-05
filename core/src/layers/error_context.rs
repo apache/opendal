@@ -214,9 +214,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.inner
             .batch(args)
             .map_ok(|v| {
-                let BatchedResults::Delete(res) = v.into_results();
-
-                let res = res
+                let res = v
+                    .into_results()
                     .into_iter()
                     .map(|(path, res)| {
                         let res = res.map_err(|err| {
@@ -228,7 +227,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                     })
                     .collect();
 
-                RpBatch::new(BatchedResults::Delete(res))
+                RpBatch::new(res)
             })
             .map_err(|err| {
                 err.with_operation(Operation::Batch)

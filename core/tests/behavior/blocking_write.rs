@@ -49,7 +49,7 @@ macro_rules! behavior_blocking_write_test {
                                 && op.info().can_write()
                                 && op.info().can_blocking() => $crate::blocking_write::$test(op.blocking()),
                             Some(_) => {
-                                log::warn!("service {} doesn't support read, ignored", opendal::Scheme::$service);
+                                log::warn!("service {} doesn't support blocking_write, ignored", opendal::Scheme::$service);
                                 Ok(())
                             },
                             None => {

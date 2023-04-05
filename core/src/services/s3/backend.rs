@@ -35,8 +35,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use log::error;
-use log::warn;
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
@@ -66,6 +64,8 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 });
 
 mod constants {
+    pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
+
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
         "x-amz-server-side-encryption-customer-algorithm";
@@ -75,7 +75,7 @@ mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
-    pub const X_AMZ_BUCKET_REGION: &str = "x-amz-bucket-region";
+    pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
@@ -89,6 +89,7 @@ mod constants {
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
@@ -103,6 +104,7 @@ mod constants {
 /// - `access_key_id`: Set the access_key_id for backend.
 /// - `secret_access_key`: Set the secret_access_key for backend.
 /// - `security_token`: Set the security_token for backend.
+/// - `default_storage_class`: Set the default storage_class for backend.
 /// - `server_side_encryption`: Set the server_side_encryption for backend.
 /// - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
 /// - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
@@ -317,6 +319,7 @@ pub struct S3Builder {
     server_side_encryption_customer_algorithm: Option<String>,
     server_side_encryption_customer_key: Option<String>,
     server_side_encryption_customer_key_md5: Option<String>,
+    default_storage_class: Option<String>,
 
     /// temporary credentials, check the official [doc](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html) for detail
     security_token: Option<String>,
@@ -339,7 +342,8 @@ impl Debug for S3Builder {
             .field("role_arn", &self.role_arn)
             .field("external_id", &self.external_id)
             .field("disable_config_load", &self.disable_config_load)
-            .field("enable_virtual_host_style", &self.enable_virtual_host_style);
+            .field("enable_virtual_host_style", &self.enable_virtual_host_style)
+            .field("default_storage_class", &self.default_storage_class);
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
@@ -415,9 +419,7 @@ impl S3Builder {
     /// Region represent the signing region of this endpoint.
     ///
     /// - If region is set, we will take user's input first.
-    /// - If not, We will try to detect region via [RFC-0057: Auto Region](https://github.com/apache/incubator-opendal/blob/main/docs/rfcs/0057-auto-region.md).
-    ///
-    /// Most of time, region is not need to be set, especially for AWS S3 and minio.
+    /// - If not, we will use `us-east-1` as default.
     pub fn region(&mut self, region: &str) -> &mut Self {
         if !region.is_empty() {
             self.region = Some(region.to_string())
@@ -463,6 +465,26 @@ impl S3Builder {
     pub fn external_id(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.external_id = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set default storage_class for this backend.
+    ///
+    /// Available values:
+    /// - `DEEP_ARCHIVE`
+    /// - `GLACIER`
+    /// - `GLACIER_IR`
+    /// - `INTELLIGENT_TIERING`
+    /// - `ONEZONE_IA`
+    /// - `OUTPOSTS`
+    /// - `REDUCED_REDUNDANCY`
+    /// - `STANDARD`
+    /// - `STANDARD_IA`
+    pub fn default_storage_class(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.default_storage_class = Some(v.to_string())
         }
 
         self
@@ -672,101 +694,6 @@ impl S3Builder {
         self
     }
 
-    /// Read RFC-0057: Auto Region for detailed behavior.
-    ///
-    /// - If region is already known, the region will be returned directly.
-    /// - If region is not known, we will send API to `{endpoint}/{bucket}` to get
-    ///   `x-amz-bucket-region`, use `us-east-1` if not found.
-    ///
-    /// Returning endpoint will trim bucket name:
-    ///
-    /// - `https://bucket_name.s3.amazonaws.com` => `https://s3.amazonaws.com`
-    fn detect_region(&self, client: &HttpClient) -> Result<String> {
-        debug_assert!(
-            self.region.is_none(),
-            "calling detect region with region already know is buggy"
-        );
-
-        // Builder's bucket must be valid.
-        let bucket = self.bucket.as_str();
-
-        let mut endpoint = match &self.endpoint {
-            Some(endpoint) => {
-                if endpoint.starts_with("http") {
-                    endpoint.to_string()
-                } else {
-                    // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{endpoint}")
-                }
-            }
-            None => "https://s3.amazonaws.com".to_string(),
-        };
-
-        // If endpoint contains bucket name, we should trim them.
-        endpoint = endpoint.replace(&format!("//{bucket}."), "//");
-
-        let url = format!("{endpoint}/{bucket}");
-        debug!("backend detect region with url: {url}");
-
-        let req = http::Request::head(&url).body(Body::Empty).map_err(|e| {
-            error!("backend detect_region {}: {:?}", url, e);
-            Error::new(ErrorKind::Unexpected, "build request for head")
-                .with_context("service", Scheme::S3)
-                .with_context("url", &url)
-                .set_source(e)
-        })?;
-
-        let res = client.send(req)?;
-        let (res, body) = res.into_parts();
-
-        // Make sure the body has been consumed so that we can reuse
-        // the connection later.
-        let _ = body.consume();
-
-        debug!(
-            "auto detect region got response: status {:?}, header: {:?}",
-            res.status, res.headers
-        );
-        match res.status {
-            // The endpoint works, return with not changed endpoint and
-            // default region.
-            StatusCode::OK | StatusCode::FORBIDDEN => {
-                let region = res
-                    .headers
-                    .get(constants::X_AMZ_BUCKET_REGION)
-                    .unwrap_or(&HeaderValue::from_static("us-east-1"))
-                    .to_str()
-                    .map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "header value is not valid utf-8")
-                            .set_source(e)
-                    })?
-                    .to_string();
-                Ok(region)
-            }
-            // The endpoint should move, return with constructed endpoint
-            StatusCode::MOVED_PERMANENTLY => {
-                let region = res
-                    .headers
-                    .get(constants::X_AMZ_BUCKET_REGION)
-                    .ok_or_else(|| Error::new(ErrorKind::Unexpected, "region is empty"))?
-                    .to_str()
-                    .map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "header value is not valid utf-8")
-                            .set_source(e)
-                    })?
-                    .to_string();
-
-                Ok(region)
-            }
-            // Unexpected status code, fallback to default region "us-east-1"
-            code => Err(Error::new(
-                ErrorKind::Unexpected,
-                "can't detect region automatically, unexpected status code got",
-            )
-            .with_context("status", code.as_str())),
-        }
-    }
-
     /// Build endpoint with given region.
     fn build_endpoint(&self, region: &str) -> String {
         let bucket = {
@@ -843,6 +770,8 @@ impl Builder for S3Builder {
         map.get("enable_virtual_host_style")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.enable_virtual_host_style());
+        map.get("default_storage_class")
+            .map(|v| builder.default_storage_class(v));
 
         builder
     }
@@ -862,6 +791,18 @@ impl Builder for S3Builder {
             ),
         }?;
         debug!("backend use bucket {}", &bucket);
+
+        let default_storage_class = match &self.default_storage_class {
+            None => None,
+            Some(v) => Some(v.parse().map_err(|e| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "default_storage_class value is invalid",
+                )
+                .with_context("value", v)
+                .set_source(e)
+            })?),
+        };
 
         let server_side_encryption = match &self.server_side_encryption {
             None => None,
@@ -966,17 +907,8 @@ impl Builder for S3Builder {
                 // region is required to make signer work.
                 //
                 // If we don't know region after loading from builder and env.
-                // We should try to detect them.
-                let region = self
-                    .detect_region(&client)
-                    // If we met error during detect region, use "us-east-1"
-                    // as default instead of returning error.
-                    .unwrap_or_else(|err| {
-                        warn!(
-                            "backend detect region failed for {err:?}, using default region instead"
-                        );
-                        "us-east-1".to_string()
-                    });
+                // We will use `us-east-1` as default.
+                let region = "us-east-1".to_string();
                 cfg.set_region(&region);
 
                 region
@@ -995,7 +927,6 @@ impl Builder for S3Builder {
         signer_builder.credential_loader({
             let mut cred_loader = AwsCredentialLoader::new(cfg);
             cred_loader = cred_loader.with_allow_anonymous();
-            cred_loader = cred_loader.with_client(client.sync_client());
             if self.disable_config_load {
                 // If load config has been disable, we should also disable
                 // ec2 metadata to avoid leaking permits.
@@ -1026,6 +957,7 @@ impl Builder for S3Builder {
             server_side_encryption_customer_algorithm,
             server_side_encryption_customer_key,
             server_side_encryption_customer_key_md5,
+            default_storage_class,
         })
     }
 }
@@ -1045,6 +977,7 @@ pub struct S3Backend {
     server_side_encryption_customer_algorithm: Option<HeaderValue>,
     server_side_encryption_customer_key: Option<HeaderValue>,
     server_side_encryption_customer_key_md5: Option<HeaderValue>,
+    default_storage_class: Option<HeaderValue>,
 }
 
 impl S3Backend {
@@ -1128,7 +1061,7 @@ impl Accessor for S3Backend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy)
             .set_hints(ReadStreamable);
 
         am
@@ -1202,6 +1135,23 @@ impl Accessor for S3Backend {
             RpWrite::default(),
             S3Writer::new(self.clone(), args, path.to_string(), upload_id),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.s3_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
+                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
+                resp.into_body().consume().await?;
+
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -1280,49 +1230,44 @@ impl Accessor for S3Backend {
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
-        match ops {
-            BatchOperations::Delete(ops) => {
-                if ops.len() > 1000 {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "s3 services only allow delete up to 1000 keys at once",
-                    )
-                    .with_context("length", ops.len().to_string()));
-                }
+        if ops.len() > 1000 {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "s3 services only allow delete up to 1000 keys at once",
+            )
+            .with_context("length", ops.len().to_string()));
+        }
 
-                let paths = ops.into_iter().map(|(p, _)| p).collect();
+        let paths = ops.into_iter().map(|(p, _)| p).collect();
 
-                let resp = self.s3_delete_objects(paths).await?;
+        let resp = self.s3_delete_objects(paths).await?;
 
-                let status = resp.status();
+        let status = resp.status();
 
-                if let StatusCode::OK = status {
-                    let bs = resp.into_body().bytes().await?;
+        if let StatusCode::OK = status {
+            let bs = resp.into_body().bytes().await?;
 
-                    let result: DeleteObjectsResult = quick_xml::de::from_reader(bs.reader())
-                        .map_err(new_xml_deserialize_error)?;
+            let result: DeleteObjectsResult =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-                    let mut batched_result =
-                        Vec::with_capacity(result.deleted.len() + result.error.len());
-                    for i in result.deleted {
-                        let path = build_rel_path(&self.root, &i.key);
-                        batched_result.push((path, Ok(RpDelete::default())));
-                    }
-                    // TODO: we should handle those errors with code.
-                    for i in result.error {
-                        let path = build_rel_path(&self.root, &i.key);
-
-                        batched_result.push((
-                            path,
-                            Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                        ));
-                    }
-
-                    Ok(RpBatch::new(BatchedResults::Delete(batched_result)))
-                } else {
-                    Err(parse_error(resp).await?)
-                }
+            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
+            for i in result.deleted {
+                let path = build_rel_path(&self.root, &i.key);
+                batched_result.push((path, Ok(RpDelete::default().into())));
             }
+            // TODO: we should handle those errors with code.
+            for i in result.error {
+                let path = build_rel_path(&self.root, &i.key);
+
+                batched_result.push((
+                    path,
+                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
+                ));
+            }
+
+            Ok(RpBatch::new(batched_result))
+        } else {
+            Err(parse_error(resp).await?)
         }
     }
 }
@@ -1450,6 +1395,11 @@ impl S3Backend {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        // Set storage class header
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
+        }
+
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
@@ -1492,6 +1442,23 @@ impl S3Backend {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+
+        let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
+
+        let mut req = Request::put(&target)
+            .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -1564,6 +1531,11 @@ impl S3Backend {
 
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // Set storage class header
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
         }
 
         // Set SSE headers.
@@ -1769,40 +1741,10 @@ struct DeleteObjectsResultError {
 
 #[cfg(test)]
 mod tests {
-    use backon::BlockingRetryable;
-    use backon::ExponentialBuilder;
     use bytes::Buf;
     use bytes::Bytes;
 
     use super::*;
-
-    #[test]
-    fn test_region() {
-        let _ = env_logger::try_init();
-
-        let client = HttpClient::new().unwrap();
-
-        let endpoint_cases = vec![
-            Some("s3.amazonaws.com"),
-            Some("https://s3.amazonaws.com"),
-            Some("https://s3.us-east-2.amazonaws.com"),
-            None,
-        ];
-
-        for endpoint in endpoint_cases {
-            let mut b = S3Builder::default();
-            b.bucket("test");
-            if let Some(endpoint) = endpoint {
-                b.endpoint(endpoint);
-            }
-
-            let region = { || b.detect_region(&client) }
-                .retry(&ExponentialBuilder::default())
-                .call()
-                .expect("detect region must success");
-            assert_eq!(region, "us-east-2");
-        }
-    }
 
     #[test]
     fn test_build_endpoint() {

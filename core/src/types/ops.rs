@@ -172,22 +172,22 @@ impl From<OpWrite> for PresignOperation {
 /// Args for `batch` operation.
 #[derive(Debug, Clone)]
 pub struct OpBatch {
-    ops: BatchOperations,
+    ops: Vec<(String, BatchOperation)>,
 }
 
 impl OpBatch {
     /// Create a new batch options.
-    pub fn new(ops: BatchOperations) -> Self {
+    pub fn new(ops: Vec<(String, BatchOperation)>) -> Self {
         Self { ops }
     }
 
     /// Get operation from op.
-    pub fn operation(&self) -> &BatchOperations {
+    pub fn operation(&self) -> &[(String, BatchOperation)] {
         &self.ops
     }
 
     /// Consume OpBatch into BatchOperation
-    pub fn into_operation(self) -> BatchOperations {
+    pub fn into_operation(self) -> Vec<(String, BatchOperation)> {
         self.ops
     }
 }
@@ -195,33 +195,23 @@ impl OpBatch {
 /// Batch operation used for batch.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum BatchOperations {
-    /// Batch delete operations.
-    Delete(Vec<(String, OpDelete)>),
+pub enum BatchOperation {
+    /// Batch delete operation.
+    Delete(OpDelete),
 }
 
-impl BatchOperations {
+impl From<OpDelete> for BatchOperation {
+    fn from(op: OpDelete) -> Self {
+        Self::Delete(op)
+    }
+}
+
+impl BatchOperation {
     /// Return the operation of this batch.
     pub fn operation(&self) -> Operation {
-        use BatchOperations::*;
+        use BatchOperation::*;
         match self {
             Delete(_) => Operation::Delete,
-        }
-    }
-
-    /// Return the length of given operations.
-    pub fn len(&self) -> usize {
-        use BatchOperations::*;
-        match self {
-            Delete(v) => v.len(),
-        }
-    }
-
-    /// Return if given operations is empty.
-    pub fn is_empty(&self) -> bool {
-        use BatchOperations::*;
-        match self {
-            Delete(v) => v.is_empty(),
         }
     }
 }
@@ -326,13 +316,7 @@ impl OpWrite {
     ///
     /// If input path is not a file path, an error will be returned.
     pub fn new() -> Self {
-        Self {
-            append: false,
-
-            content_type: None,
-            content_disposition: None,
-            cache_control: None,
-        }
+        Self::default()
     }
 
     pub(crate) fn with_append(mut self) -> Self {
@@ -375,5 +359,16 @@ impl OpWrite {
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
         self
+    }
+}
+
+/// Args for `copy` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpCopy {}
+
+impl OpCopy {
+    /// Create a new `OpCopy`.
+    pub fn new() -> Self {
+        Self::default()
     }
 }

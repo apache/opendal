@@ -18,8 +18,6 @@
 use std::cmp::min;
 use std::cmp::Ordering;
 use std::io;
-use std::io::Read;
-use std::io::Write;
 use std::task::Context;
 use std::task::Poll;
 
@@ -41,8 +39,6 @@ pub enum Body {
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
-    /// Body with a Reader.
-    Reader(Box<dyn Read + Send>),
 }
 
 impl Default for Body {
@@ -54,32 +50,41 @@ impl Default for Body {
 impl Body {
     /// Consume the entire body.
     pub fn consume(self) -> Result<()> {
-        if let Body::Reader(mut r) = self {
-            std::io::copy(&mut r, &mut std::io::sink()).map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "consuming response")
-                    .with_operation("http_util::Body::consume")
-                    .set_source(err)
-            })?;
-        }
-
         Ok(())
     }
 }
 
-impl Read for Body {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        match self {
-            Body::Empty => Ok(0),
-            Body::Bytes(bs) => {
-                let size = min(bs.len(), buf.len());
-                let rbs = bs.split_to(size);
-                bs.advance(size);
-
-                buf.write_all(&rbs).expect("write all must succeed");
-                Ok(size)
-            }
-            Body::Reader(r) => r.read(buf),
+impl From<Body> for reqwest::blocking::Body {
+    fn from(v: Body) -> Self {
+        match v {
+            Body::Empty => reqwest::blocking::Body::from(""),
+            Body::Bytes(bs) => reqwest::blocking::Body::from(bs),
         }
+    }
+}
+
+/// IncomingBody carries the content returned by remote servers.
+///
+/// # Notes
+///
+/// Client SHOULD NEVER construct this body.
+pub struct IncomingBody {
+    /// # TODO
+    ///
+    /// hyper returns `impl Stream<Item = crate::Result<Bytes>>` but we can't
+    /// write the types in stable. So we will box here.
+    ///
+    /// After [TAIT](https://rust-lang.github.io/rfcs/2515-type_alias_impl_trait.html)
+    /// has been stable, we can change `IncomingAsyncBody` into `IncomingAsyncBody<S>`.
+    #[allow(unused)]
+    inner: reqwest::blocking::Response,
+    #[allow(unused)]
+    size: Option<u64>,
+}
+
+impl IncomingBody {
+    pub fn new(resp: reqwest::blocking::Response, size: Option<u64>) -> Self {
+        IncomingBody { inner: resp, size }
     }
 }
 

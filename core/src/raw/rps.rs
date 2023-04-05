@@ -132,63 +132,35 @@ impl RpRead {
 
 /// Reply for `batch` operation.
 pub struct RpBatch {
-    results: BatchedResults,
+    results: Vec<(String, Result<BatchedReply>)>,
 }
 
 impl RpBatch {
     /// Create a new RpBatch.
-    pub fn new(results: BatchedResults) -> Self {
+    pub fn new(results: Vec<(String, Result<BatchedReply>)>) -> Self {
         Self { results }
     }
 
     /// Get the results from RpBatch.
-    pub fn results(&self) -> &BatchedResults {
+    pub fn results(&self) -> &[(String, Result<BatchedReply>)] {
         &self.results
     }
 
     /// Consume RpBatch to get the batched results.
-    pub fn into_results(self) -> BatchedResults {
+    pub fn into_results(self) -> Vec<(String, Result<BatchedReply>)> {
         self.results
     }
 }
 
 /// Batch results of `batch` operations.
-pub enum BatchedResults {
+pub enum BatchedReply {
     /// results of delete batch operation
-    Delete(Vec<(String, Result<RpDelete>)>),
+    Delete(RpDelete),
 }
 
-impl BatchedResults {
-    /// Return the length of given results.
-    pub fn len(&self) -> usize {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.len(),
-        }
-    }
-
-    /// Return if given results is empty.
-    pub fn is_empty(&self) -> bool {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.is_empty(),
-        }
-    }
-
-    /// Return the length of ok results.
-    pub fn len_ok(&self) -> usize {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.iter().filter(|v| v.1.is_ok()).count(),
-        }
-    }
-
-    /// Return the length of error results.
-    pub fn len_err(&self) -> usize {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.iter().filter(|v| v.1.is_err()).count(),
-        }
+impl From<RpDelete> for BatchedReply {
+    fn from(rp: RpDelete) -> Self {
+        Self::Delete(rp)
     }
 }
 
@@ -222,6 +194,17 @@ pub struct RpWrite {}
 
 impl RpWrite {
     /// Create a new reply for write.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+/// Reply for `copy` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCopy {}
+
+impl RpCopy {
+    /// Create a new reply for copy.
     pub fn new() -> Self {
         Self {}
     }

@@ -77,6 +77,13 @@ mod constants {
         "x-amz-server-side-encryption-aws-kms-key-id";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
+        "x-amz-copy-source-server-side-encryption-customer-algorithm";
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
+        "x-amz-copy-source-server-side-encryption-customer-key";
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
+        "x-amz-copy-source-server-side-encryption-customer-key-md5";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
@@ -366,7 +373,6 @@ impl Debug for S3Builder {
         if self.server_side_encryption_customer_key_md5.is_some() {
             d.field("server_side_encryption_customer_key_md5", &"<redacted>");
         }
-
         if self.security_token.is_some() {
             d.field("security_token", &"<redacted>");
         }
@@ -1457,7 +1463,48 @@ impl S3Backend {
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
 
-        let mut req = Request::put(&target)
+        let mut req = Request::put(&target);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
+                ),
+                v,
+            )
+        }
+
+        let mut req = req
             .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;

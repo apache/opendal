@@ -88,6 +88,7 @@ mod constants {
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [x] scan
 /// - [x] presign

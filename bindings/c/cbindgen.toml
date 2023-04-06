@@ -44,11 +44,3 @@ include_guard = "_OPENDAL_H"
 language = "C"
 no_includes = true
 sys_includes = ["stdint.h", "stddef.h", "stdbool.h"]
-
-[export]
-prefix = "opendal_"
-
-[export.rename]
-"OperatorPtr" = "operator_ptr"
-"Bytes" = "bytes"
-

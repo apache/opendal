@@ -26,7 +26,61 @@
 #include <stdbool.h>
 
 /*
- The [`OperatorPtr`] owns a pointer to a [`BlockingOperator`].
+ The error code for opendal APIs in C binding
+ */
+typedef enum opendal_code {
+  /*
+   All is well
+   */
+  OPENDAL_OK,
+  /*
+   General error
+   */
+  OPENDAL_ERROR,
+  /*
+   returning it back. For example, s3 returns an internal service error.
+   */
+  OPENDAL_UNEXPECTED,
+  /*
+   Underlying service doesn't support this operation.
+   */
+  OPENDAL_UNSUPPORTED,
+  /*
+   The config for backend is invalid.
+   */
+  OPENDAL_CONFIG_INVALID,
+  /*
+   The given path is not found.
+   */
+  OPENDAL_NOT_FOUND,
+  /*
+   The given path doesn't have enough permission for this operation
+   */
+  OPENDAL_PERMISSION_DENIED,
+  /*
+   The given path is a directory.
+   */
+  OPENDAL_IS_A_DIRECTORY,
+  /*
+   The given path is not a directory.
+   */
+  OPENDAL_NOT_A_DIRECTORY,
+  /*
+   The given path already exists thus we failed to the specified operation on it.
+   */
+  OPENDAL_ALREADY_EXISTS,
+  /*
+   Requests that sent to this path is over the limit, please slow down.
+   */
+  OPENDAL_RATE_LIMITED,
+  /*
+   The given file paths are same.
+   */
+  OPENDAL_IS_SAME_FILE,
+} opendal_code;
+
+/*
+ The [`OperatorPtr`] owns a pointer to a [`od::BlockingOperator`].
  It is also the key struct that OpenDAL's APIs access the real
  operator's memory. The use of OperatorPtr is zero cost, it
  only returns a reference of the underlying Operator.
@@ -40,7 +94,7 @@ typedef const void *opendal_operator_ptr;
 /*
  The [`Bytes`] type is a C-compatible substitute for [`Bytes`]
  in Rust, it will not be deallocated automatically like what
- has been done in Rust. Instead, you have to call [`free_bytes`]
+ has been done in Rust. Instead, you have to call [`opendal_free_bytes`]
  to free the heap memory to avoid memory leak.
  The field `data` should not be modified since it might causes
  the reallocation of the Vector.
@@ -50,13 +104,24 @@ typedef struct opendal_bytes {
   uintptr_t len;
 } opendal_bytes;
 
+/*
+ The Rust-like Result type of opendal C binding, it contains
+ the data that the read operation returns and a error code
+ If the read operation failed, the `data` fields should be a nullptr
+ and the error code is NOT OPENDAL_OK.
+ */
+typedef struct opendal_result_read {
+  struct opendal_bytes *data;
+  enum opendal_code code;
+} opendal_result_read;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
 /*
- Constructs a new [`OperatorPtr`] which contains a underlying [`BlockingOperator`]
- If the scheme is invalid, or the operator constructions failed, a nullptr is returned
+ Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
+ the error is nullptr, otherwise it contains the error information.
 
  # Safety
 
@@ -65,10 +130,11 @@ extern "C" {
    the string.
  * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
  */
-opendal_operator_ptr opendal_new_operator(const char *scheme);
+opendal_operator_ptr opendal_operator_new(const char *scheme);
 
 /*
- Write the data into the path blockingly by operator, returns whether the write succeeds
+ Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
+ if succeeds, others otherwise
 
  # Safety
 
@@ -77,13 +143,14 @@ opendal_operator_ptr opendal_new_operator(const char *scheme);
    the string.
  * The `path` points to NULL, this function simply returns you false
  */
-bool opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
-                                     const char *path,
-                                     struct opendal_bytes bytes);
+enum opendal_code opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
+                                                  const char *path,
+                                                  struct opendal_bytes bytes);
 
 /*
  Read the data out from path into a [`Bytes`] blockingly by operator, returns
- a pointer to the [`Bytes`] if succeeds, nullptr otherwise
+ a result with error code. If the error code is not OPENDAL_OK, the `data` field
+ of the result points to NULL.
 
  # Safety
 
@@ -92,12 +159,13 @@ bool opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
    the string.
  * The `path` points to NULL, this function simply returns you a nullptr
  */
-struct opendal_bytes *opendal_operator_blocking_read(opendal_operator_ptr op_ptr, const char *path);
+struct opendal_result_read opendal_operator_blocking_read(opendal_operator_ptr op_ptr,
+                                                          const char *path);
 
 /*
  Frees the heap memory used by the [`Bytes`]
  */
-void opendal_free_bytes(const struct opendal_bytes *vec);
+void opendal_bytes_free(const struct opendal_bytes *vec);
 
 #ifdef __cplusplus
 } // extern "C"

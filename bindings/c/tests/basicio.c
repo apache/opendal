@@ -16,51 +16,44 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+#include "assert.h"
 #include "stdio.h"
 #include "opendal.h"
 
-int test_transparent_layout() {
-    char scheme[] = "invalid scheme";
-    opendal_operator_ptr ptr = opendal_new_operator(scheme);
-    if (ptr) {
-        return -3;
-    }
-    return 0;
-}
+void test_operator_rw(opendal_operator_ptr ptr) {
+    // have to be valid ptr
+    assert(ptr);
 
-int main(int argc, char *argv[]) {
-    // test the transparent layout of operator_ptr
-    int errno;
-    if ((errno = test_transparent_layout())) {
-        return errno;
-    }
-
-    // creates a memory operator
-    char scheme[] = "memory";
-    opendal_operator_ptr ptr = opendal_new_operator(scheme);
-    if (!ptr) {
-        return -1;
-    }
-
-    // write some contents by the operator
+    // write some contents by the operator, must be successful
     char path[] = "test";
     char content[] = "Hello World";
     const opendal_bytes data = {
         .len = sizeof(content) - 1,
         .data = (uint8_t*)content,
     };
-    if (!opendal_operator_blocking_write(ptr, path, data)) {
-        return -2;
-    }
+    opendal_code code = opendal_operator_blocking_write(ptr, path, data);
+    assert(code == OPENDAL_OK);
 
-    // reads the data out from the bytes
-    opendal_bytes* v = opendal_operator_blocking_read(ptr, path);
-    for (int i = 0; i < v->len; i++) {
-        printf("%c", (char)(v->data[i]));
+    // reads the data out from the bytes, must be successful
+    struct opendal_result_read r = opendal_operator_blocking_read(ptr, path);
+    assert(r.code == OPENDAL_OK);
+    assert(r.data->len == (sizeof(content) - 1));
+
+    for (int i = 0; i < r.data->len; i++) {
+        printf("%c", (char)(r.data->data[i]));
     }
 
     // free the bytes's heap memory
-    opendal_free_bytes(v);
+    opendal_bytes_free(r.data);
+}
+
+int main(int argc, char *argv[]) {
+    // test memory operator
+    char scheme1[] = "memory";
+    opendal_operator_ptr p1 = opendal_operator_new(scheme1);
+    assert(p1);
+    test_operator_rw(p1);
 
     return 0;
 }

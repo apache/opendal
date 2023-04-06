@@ -316,13 +316,7 @@ impl OpWrite {
     ///
     /// If input path is not a file path, an error will be returned.
     pub fn new() -> Self {
-        Self {
-            append: false,
-
-            content_type: None,
-            content_disposition: None,
-            cache_control: None,
-        }
+        Self::default()
     }
 
     pub(crate) fn with_append(mut self) -> Self {

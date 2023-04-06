@@ -64,6 +64,8 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 });
 
 mod constants {
+    pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
+
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
         "x-amz-server-side-encryption-customer-algorithm";
@@ -73,6 +75,14 @@ mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
+    pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
+
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
+        "x-amz-copy-source-server-side-encryption-customer-algorithm";
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
+        "x-amz-copy-source-server-side-encryption-customer-key";
+    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
+        "x-amz-copy-source-server-side-encryption-customer-key-md5";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
@@ -86,6 +96,7 @@ mod constants {
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
@@ -100,6 +111,7 @@ mod constants {
 /// - `access_key_id`: Set the access_key_id for backend.
 /// - `secret_access_key`: Set the secret_access_key for backend.
 /// - `security_token`: Set the security_token for backend.
+/// - `default_storage_class`: Set the default storage_class for backend.
 /// - `server_side_encryption`: Set the server_side_encryption for backend.
 /// - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
 /// - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
@@ -314,6 +326,7 @@ pub struct S3Builder {
     server_side_encryption_customer_algorithm: Option<String>,
     server_side_encryption_customer_key: Option<String>,
     server_side_encryption_customer_key_md5: Option<String>,
+    default_storage_class: Option<String>,
 
     /// temporary credentials, check the official [doc](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html) for detail
     security_token: Option<String>,
@@ -336,7 +349,8 @@ impl Debug for S3Builder {
             .field("role_arn", &self.role_arn)
             .field("external_id", &self.external_id)
             .field("disable_config_load", &self.disable_config_load)
-            .field("enable_virtual_host_style", &self.enable_virtual_host_style);
+            .field("enable_virtual_host_style", &self.enable_virtual_host_style)
+            .field("default_storage_class", &self.default_storage_class);
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
@@ -359,7 +373,6 @@ impl Debug for S3Builder {
         if self.server_side_encryption_customer_key_md5.is_some() {
             d.field("server_side_encryption_customer_key_md5", &"<redacted>");
         }
-
         if self.security_token.is_some() {
             d.field("security_token", &"<redacted>");
         }
@@ -458,6 +471,26 @@ impl S3Builder {
     pub fn external_id(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.external_id = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set default storage_class for this backend.
+    ///
+    /// Available values:
+    /// - `DEEP_ARCHIVE`
+    /// - `GLACIER`
+    /// - `GLACIER_IR`
+    /// - `INTELLIGENT_TIERING`
+    /// - `ONEZONE_IA`
+    /// - `OUTPOSTS`
+    /// - `REDUCED_REDUNDANCY`
+    /// - `STANDARD`
+    /// - `STANDARD_IA`
+    pub fn default_storage_class(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.default_storage_class = Some(v.to_string())
         }
 
         self
@@ -759,6 +792,8 @@ impl Builder for S3Builder {
         map.get("enable_virtual_host_style")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.enable_virtual_host_style());
+        map.get("default_storage_class")
+            .map(|v| builder.default_storage_class(v));
 
         builder
     }
@@ -779,6 +814,18 @@ impl Builder for S3Builder {
             )
         }?;
         debug!("backend use bucket {}", &bucket);
+
+        let default_storage_class = match &self.default_storage_class {
+            None => None,
+            Some(v) => Some(v.parse().map_err(|e| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "default_storage_class value is invalid",
+                )
+                .with_context("value", v)
+                .set_source(e)
+            })?),
+        };
 
         let server_side_encryption = match &self.server_side_encryption {
             None => None,
@@ -933,6 +980,7 @@ impl Builder for S3Builder {
             server_side_encryption_customer_algorithm,
             server_side_encryption_customer_key,
             server_side_encryption_customer_key_md5,
+            default_storage_class,
         })
     }
 }
@@ -952,6 +1000,7 @@ pub struct S3Backend {
     server_side_encryption_customer_algorithm: Option<HeaderValue>,
     server_side_encryption_customer_key: Option<HeaderValue>,
     server_side_encryption_customer_key_md5: Option<HeaderValue>,
+    default_storage_class: Option<HeaderValue>,
 }
 
 impl S3Backend {
@@ -1035,7 +1084,7 @@ impl Accessor for S3Backend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy)
             .set_hints(ReadStreamable);
 
         am
@@ -1109,6 +1158,23 @@ impl Accessor for S3Backend {
             RpWrite::default(),
             S3Writer::new(self.clone(), args, path.to_string(), upload_id),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.s3_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                // According to the documentation, when using copy_object, a 200 error may occur and we need to detect it.
+                // https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_RequestSyntax
+                resp.into_body().consume().await?;
+
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -1352,6 +1418,11 @@ impl S3Backend {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        // Set storage class header
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
+        }
+
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
@@ -1394,6 +1465,64 @@ impl S3Backend {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+
+        let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
+
+        let mut req = Request::put(&target);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
+                ),
+                v,
+            )
+        }
+
+        let mut req = req
+            .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -1466,6 +1595,11 @@ impl S3Backend {
 
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // Set storage class header
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
         }
 
         // Set SSE headers.

@@ -19,10 +19,11 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 /// Operation is the name for APIs in `Accessor`.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Operation {
     /// Operation for [`crate::raw::Accessor::info`]
+    #[default]
     Info,
     /// Operation for [`crate::raw::Accessor::create`]
     Create,
@@ -70,12 +71,6 @@ impl Operation {
     /// Convert self into static str.
     pub fn into_static(self) -> &'static str {
         self.into()
-    }
-}
-
-impl Default for Operation {
-    fn default() -> Self {
-        Operation::Info
     }
 }
 

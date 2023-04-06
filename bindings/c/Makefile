@@ -31,7 +31,6 @@ build:
 
 .PHONY: test
 test:
-	$(CC) tests/hello.c -o $(OBJ_DIR)/hello $(CFLAGS) $(LDFLAGS) $(LIBS)
 	$(CC) tests/basicio.c -o $(OBJ_DIR)/basicio $(CFLAGS) $(LDFLAGS) $(LIBS)
 
 .PHONY: clean

@@ -127,12 +127,3 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
         Err(_) => std::ptr::null_mut(),
     }
 }
-
-/// Hello, OpenDAL!
-#[no_mangle]
-pub extern "C" fn hello_opendal() {
-    let op = od::Operator::new(od::services::Memory::default())
-        .unwrap()
-        .finish();
-    println!("{op:?}")
-}

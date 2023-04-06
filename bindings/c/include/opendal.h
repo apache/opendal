@@ -94,11 +94,6 @@ struct opendal_bytes *opendal_operator_blocking_read(struct opendal_operator_ptr
                                                      const char *path);
 
 /*
- Hello, OpenDAL!
- */
-void hello_opendal(void);
-
-/*
  Returns whether the [`OperatorPtr`] is valid, i.e. whether
  there exists a underlying [`BlockingOperator`]
  */

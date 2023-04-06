@@ -500,7 +500,9 @@ impl Operator {
     /// # use opendal::ops::OpRead;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.reader_with("path/to/file", OpRead::default().with_range((0..10).into())).await?;
+    /// let r = op
+    ///     .reader_with("path/to/file", OpRead::default().with_range((0..10).into()))
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```

@@ -16,18 +16,19 @@
 # under the License.
 
 [package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 categories = ["filesystem"]
 description = "OpenDAL: Access data freely, painlessly, and efficiently."
-edition = "2021"
 exclude = ["tests/"]
-homepage = "https://opendal.apache.org/"
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
-license = "Apache-2.0"
 name = "opendal"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.60"                                                     # MSRV for this project - please update while bump versions
-version = "0.30.5"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
@@ -121,7 +122,7 @@ reqsign = "0.8.5"
 reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",
-  "blocking"
+  "blocking",
 ], default-features = false }
 rocksdb = { version = "0.20.1", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }

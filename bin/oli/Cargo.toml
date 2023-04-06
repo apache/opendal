@@ -16,16 +16,18 @@
 # under the License.
 
 [package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 categories = ["filesystem"]
 description = "OpenDAL Command Line Interface"
-edition = "2021"
-homepage = "https://opendal.apache.org/"
 keywords = ["storage", "data", "s3", "fs", "azblob"]
-license = "Apache-2.0"
 name = "oli"
-repository = "https://github.com/apache/incubator-opendal"
-version = "0.30.5"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [features]
 # Enable services dashmap support
@@ -56,7 +58,12 @@ futures = "0.3"
 log = "0.4"
 opendal = { version = "0.30", path = "../../core" }
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread", "io-std"] }
+tokio = { version = "1.27", features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "io-std",
+] }
 toml = "0.7.3"
 url = "2.3.1"
 

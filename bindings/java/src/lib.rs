@@ -88,7 +88,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_freeOperator(
     _class: JClass,
     ptr: *mut Operator,
 ) {
-    unsafe { Box::from_raw(ptr) };
+    let _ = Box::from_raw(ptr);
 }
 
 /// # Safety
@@ -102,7 +102,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     file: JString,
     content: JString,
 ) {
-    let op = unsafe { &mut *ptr };
+    let op = &mut *ptr;
     let file: String = env
         .get_string(&file)
         .expect("Couldn't get java string!")
@@ -124,7 +124,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
     ptr: *mut BlockingOperator,
     file: JString<'local>,
 ) -> JString<'local> {
-    let op = unsafe { &mut *ptr };
+    let op = &mut *ptr;
     let file: String = env
         .get_string(&file)
         .expect("Couldn't get java string!")
@@ -147,7 +147,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
     ptr: *mut BlockingOperator,
     file: JString<'local>,
 ) {
-    let op = unsafe { &mut *ptr };
+    let op = &mut *ptr;
     let file: String = env
         .get_string(&file)
         .expect("Couldn't get java string!")

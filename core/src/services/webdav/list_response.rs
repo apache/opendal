@@ -19,14 +19,18 @@ use serde::Deserialize;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use crate::{EntryMode, Error, ErrorKind, Metadata, Result};
+use crate::EntryMode;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Metadata;
+use crate::Result;
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct Multistatus {
     pub response: Vec<ListOpResponse>,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct ListOpResponse {
     pub href: String,
     pub propstat: Propstat,
@@ -84,13 +88,13 @@ impl ListOpResponse {
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct Propstat {
     pub prop: Prop,
     pub status: String,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct Prop {
     #[serde(default)]
     pub displayname: String,
@@ -101,13 +105,13 @@ pub struct Prop {
     pub resourcetype: ResourceTypeContainer,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 pub struct ResourceTypeContainer {
     #[serde(rename = "$value")]
     pub value: Option<ResourceType>,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ResourceType {
     Collection,

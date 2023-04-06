@@ -201,6 +201,30 @@ impl Operator {
             .map_err(format_napi_error)
     }
 
+    /// Read the whole path into a buffer.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const buf = await op.read("path/to/file");
+    /// ```
+    #[napi]
+    pub async fn read(&self, path: String) -> Result<Buffer> {
+        let res = self.0.read(&path).await.map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
+    /// Read the whole path into a buffer synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const buf = op.readSync("path/to/file");
+    /// ```
+    #[napi]
+    pub fn read_sync(&self, path: String) -> Result<Buffer> {
+        let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
     /// Write bytes into path.
     ///
     /// ### Example
@@ -235,28 +259,58 @@ impl Operator {
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
 
-    /// Read the whole path into a buffer.
+    /// Copy file according to given `from` and `to` path.
     ///
     /// ### Example
     /// ```javascript
-    /// const buf = await op.read("path/to/file");
+    /// await op.copy("path/to/file", "path/to/dest");
     /// ```
     #[napi]
-    pub async fn read(&self, path: String) -> Result<Buffer> {
-        let res = self.0.read(&path).await.map_err(format_napi_error)?;
-        Ok(res.into())
+    pub async fn copy(&self, from: String, to: String) -> Result<()> {
+        self.0.copy(&from, &to).await.map_err(format_napi_error)
     }
 
-    /// Read the whole path into a buffer synchronously.
+    /// Copy file according to given `from` and `to` path synchronously.
     ///
     /// ### Example
     /// ```javascript
-    /// const buf = op.readSync("path/to/file");
+    /// op.copySync("path/to/file", "path/to/dest");
     /// ```
     #[napi]
-    pub fn read_sync(&self, path: String) -> Result<Buffer> {
-        let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
-        Ok(res.into())
+    pub fn copy_sync(&self, from: String, to: String) -> Result<()> {
+        self.0
+            .blocking()
+            .copy(&from, &to)
+            .map_err(format_napi_error)
+    }
+
+    /// Rename file according to given `from` and `to` path.
+    ///
+    /// It's similar to `mv` command.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.rename("path/to/file", "path/to/dest");
+    /// ```
+    #[napi]
+    pub async fn rename(&self, from: String, to: String) -> Result<()> {
+        self.0.rename(&from, &to).await.map_err(format_napi_error)
+    }
+
+    /// Rename file according to given `from` and `to` path synchronously.
+    ///
+    /// It's similar to `mv` command.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.renameSync("path/to/file", "path/to/dest");
+    /// ```
+    #[napi]
+    pub fn rename_sync(&self, from: String, to: String) -> Result<()> {
+        self.0
+            .blocking()
+            .rename(&from, &to)
+            .map_err(format_napi_error)
     }
 
     /// List dir in flat way.

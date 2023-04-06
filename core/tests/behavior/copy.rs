@@ -77,7 +77,7 @@ macro_rules! behavior_copy_tests {
     };
 }
 
-// Copy a file and test with stat.
+/// Copy a file and test with stat.
 pub async fn test_copy(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
@@ -96,7 +96,7 @@ pub async fn test_copy(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy a nonexistent source should return an error.
+/// Copy a nonexistent source should return an error.
 pub async fn test_copy_non_existing_source(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let target_path = uuid::Uuid::new_v4().to_string();
@@ -109,7 +109,7 @@ pub async fn test_copy_non_existing_source(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy a dir as source should return an error.
+/// Copy a dir as source should return an error.
 pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
@@ -124,7 +124,7 @@ pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy to a dir should return an error.
+/// Copy to a dir should return an error.
 pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
@@ -146,7 +146,7 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy a file to self should return an error.
+/// Copy a file to self should return an error.
 pub async fn test_copy_self(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
@@ -163,7 +163,7 @@ pub async fn test_copy_self(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy to a nested path, parent path should be created successfully.
+/// Copy to a nested path, parent path should be created successfully.
 pub async fn test_copy_nested(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
@@ -182,7 +182,7 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy to a exist path should overwrite successfully.
+/// Copy to a exist path should overwrite successfully.
 pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();

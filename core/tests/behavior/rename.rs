@@ -77,7 +77,7 @@ macro_rules! behavior_rename_tests {
     };
 }
 
-// Rename a file and test with stat.
+/// Rename a file and test with stat.
 pub async fn test_rename(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
@@ -99,7 +99,7 @@ pub async fn test_rename(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Rename a nonexistent source should return an error.
+/// Rename a nonexistent source should return an error.
 pub async fn test_rename_non_existing_source(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let target_path = uuid::Uuid::new_v4().to_string();
@@ -112,7 +112,7 @@ pub async fn test_rename_non_existing_source(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Rename a dir as source should return an error.
+/// Rename a dir as source should return an error.
 pub async fn test_rename_source_dir(op: Operator) -> Result<()> {
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
@@ -127,7 +127,7 @@ pub async fn test_rename_source_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Rename to a dir should return an error.
+/// Rename to a dir should return an error.
 pub async fn test_rename_target_dir(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
@@ -149,7 +149,7 @@ pub async fn test_rename_target_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Rename a file to self should return an error.
+/// Rename a file to self should return an error.
 pub async fn test_rename_self(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
@@ -166,7 +166,7 @@ pub async fn test_rename_self(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Rename to a nested path, parent path should be created successfully.
+/// Rename to a nested path, parent path should be created successfully.
 pub async fn test_rename_nested(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
@@ -188,7 +188,7 @@ pub async fn test_rename_nested(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Rename to a exist path should overwrite successfully.
+/// Rename to a exist path should overwrite successfully.
 pub async fn test_rename_overwrite(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();

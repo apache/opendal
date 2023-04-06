@@ -550,7 +550,7 @@ impl Operator {
     ///
     /// - `from` and `to` must be a file.
     /// - `to` will be overwritten if it exists.
-    /// - If `from` and `to` are the same, nothing will happen.
+    /// - If `from` and `to` are the same,  a `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Examples
@@ -599,6 +599,64 @@ impl Operator {
         }
 
         self.inner().copy(&from, &to, OpCopy::new()).await?;
+
+        Ok(())
+    }
+
+    /// Rename a file from `from` to `to`.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - `to` will be overwritten if it exists.
+    /// - If `from` and `to` are the same, a `IsSameFile` error will occur.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.rename("path/to/file", "path/to/file2").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn rename(&self, from: &str, to: &str) -> Result<()> {
+        let from = normalize_path(from);
+
+        if !validate_path(&from, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path is a directory")
+                    .with_operation("Operator::move_")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from),
+            );
+        }
+
+        let to = normalize_path(to);
+
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "to path is a directory")
+                    .with_operation("Operator::move_")
+                    .with_context("service", self.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        if from == to {
+            return Err(
+                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
+                    .with_operation("Operator::move_")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from)
+                    .with_context("to", to),
+            );
+        }
+
+        self.inner().rename(&from, &to, OpRename::new()).await?;
 
         Ok(())
     }

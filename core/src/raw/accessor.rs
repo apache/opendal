@@ -133,7 +133,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `copy` operation on the specified `from` path and `to` path.
     ///
-    /// Require [AccessorCapability::Read] and [AccessorCapability::Write]
+    /// Require [AccessorCapability::Copy]
     ///
     /// # Behaviour
     ///
@@ -141,6 +141,18 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Copy on existing file SHOULD succeed.
     /// - Copy on existing file SHOULD overwrite and truncate.
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `rename` operation on the specified `from` path and `to` path.
+    ///
+    /// Require [AccessorCapability::Rename]
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let (_, _, _) = (from, to, args);
 
         Err(Error::new(
@@ -285,8 +297,22 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::copy`]
     ///
-    /// Require [`AccessorCapability::Read`], [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
+    /// Require [`AccessorCapability::Copy`] and [`AccessorCapability::Blocking`]
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `blocking_rename` operation on the specified `from` path and `to` path.
+    ///
+    /// This operation is the blocking version of [`Accessor::rename`]
+    ///
+    /// Require [`AccessorCapability::Rename`] and [`AccessorCapability::Blocking`]
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let (_, _, _) = (from, to, args);
 
         Err(Error::new(
@@ -406,6 +432,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().copy(from, to, args).await
     }
 
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.as_ref().rename(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().stat(path, args).await
     }
@@ -439,6 +469,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.as_ref().blocking_copy(from, to, args)
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.as_ref().blocking_rename(from, to, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -572,6 +606,8 @@ flags! {
         Write,
         /// Add this capability if service supports `copy`
         Copy,
+        /// Add this capability if service supports `rename`
+        Rename,
         /// Add this capability if service supports `list`
         List,
         /// Add this capability if service supports `scan`

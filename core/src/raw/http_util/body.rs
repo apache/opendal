@@ -34,17 +34,13 @@ use crate::ErrorKind;
 use crate::Result;
 
 /// Body used in blocking HTTP requests.
+#[derive(Default)]
 pub enum Body {
     /// An empty body.
+    #[default]
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
-}
-
-impl Default for Body {
-    fn default() -> Self {
-        Body::Empty
-    }
 }
 
 impl Body {
@@ -89,8 +85,10 @@ impl IncomingBody {
 }
 
 /// Body used in async HTTP requests.
+#[derive(Default)]
 pub enum AsyncBody {
     /// An empty body.
+    #[default]
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
@@ -99,12 +97,6 @@ pub enum AsyncBody {
     /// If input with this field, we will goto the internal multipart
     /// handle logic.
     Multipart(String, Bytes),
-}
-
-impl Default for AsyncBody {
-    fn default() -> Self {
-        AsyncBody::Empty
-    }
 }
 
 impl From<AsyncBody> for reqwest::Body {

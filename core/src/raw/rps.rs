@@ -42,7 +42,7 @@ pub struct RpPresign {
 }
 
 impl RpPresign {
-    /// Create a new reply for presign.
+    /// Create a new reply for `presign`.
     pub fn new(req: PresignedRequest) -> Self {
         RpPresign { req }
     }
@@ -107,7 +107,7 @@ pub struct RpRead {
 }
 
 impl RpRead {
-    /// Create a new reply.
+    /// Create a new reply for `read`.
     pub fn new(content_length: u64) -> Self {
         RpRead {
             meta: Metadata::new(EntryMode::FILE).with_content_length(content_length),
@@ -154,7 +154,7 @@ impl RpBatch {
 
 /// Batch results of `batch` operations.
 pub enum BatchedReply {
-    /// results of delete batch operation
+    /// results of `delete batch` operation
     Delete(RpDelete),
 }
 
@@ -171,7 +171,7 @@ pub struct RpStat {
 }
 
 impl RpStat {
-    /// Create a new reply for stat.
+    /// Create a new reply for `stat`.
     pub fn new(meta: Metadata) -> Self {
         RpStat { meta }
     }
@@ -193,7 +193,7 @@ impl RpStat {
 pub struct RpWrite {}
 
 impl RpWrite {
-    /// Create a new reply for write.
+    /// Create a new reply for `write`.
     pub fn new() -> Self {
         Self {}
     }
@@ -204,7 +204,18 @@ impl RpWrite {
 pub struct RpCopy {}
 
 impl RpCopy {
-    /// Create a new reply for copy.
+    /// Create a new reply for `copy`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+/// Reply for `rename` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpRename {}
+
+impl RpRename {
+    /// Create a new reply for `rename`.
     pub fn new() -> Self {
         Self {}
     }

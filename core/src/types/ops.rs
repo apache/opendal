@@ -372,3 +372,14 @@ impl OpCopy {
         Self::default()
     }
 }
+
+/// Args for `rename` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpRename {}
+
+impl OpRename {
+    /// Create a new `OpMove`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}

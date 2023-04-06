@@ -163,6 +163,10 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().copy(from, to, args).await
     }
 
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().rename(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().stat(path, args).await
     }
@@ -193,6 +197,10 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().blocking_copy(from, to, args)
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().blocking_rename(from, to, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -237,6 +245,10 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).copy(from, to, args).await
     }
 
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        (self as &L).rename(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         (self as &L).stat(path, args).await
     }
@@ -275,6 +287,10 @@ impl<L: LayeredAccessor> Accessor for L {
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         (self as &L).blocking_copy(from, to, args)
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        (self as &L).blocking_rename(from, to, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

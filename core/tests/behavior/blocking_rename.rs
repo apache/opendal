@@ -25,12 +25,12 @@ use super::utils::*;
 ///
 /// - can_read
 /// - can_write
-/// - can_copy
+/// - can_rename
 /// - can_blocking
-macro_rules! behavior_blocking_copy_test {
+macro_rules! behavior_blocking_rename_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _blocking_copy>] {
+            mod [<services_ $service:lower _blocking_rename>] {
                 $(
                     #[test]
                     $(
@@ -41,10 +41,10 @@ macro_rules! behavior_blocking_copy_test {
                         match op {
                             Some(op) if op.info().can_read()
                                 && op.info().can_write()
-                                && op.info().can_copy()
-                                && op.info().can_blocking() => $crate::blocking_copy::$test(op.blocking()),
+                                && op.info().can_rename()
+                                && op.info().can_blocking() => $crate::blocking_rename::$test(op.blocking()),
                             Some(_) => {
-                                log::warn!("service {} doesn't support blocking_copy, ignored", opendal::Scheme::$service);
+                                log::warn!("service {} doesn't support blocking_rename, ignored", opendal::Scheme::$service);
                                 Ok(())
                             },
                             None => {
@@ -60,26 +60,26 @@ macro_rules! behavior_blocking_copy_test {
 }
 
 #[macro_export]
-macro_rules! behavior_blocking_copy_tests {
+macro_rules! behavior_blocking_rename_tests {
      ($($service:ident),*) => {
         $(
-            behavior_blocking_copy_test!(
+            behavior_blocking_rename_test!(
                 $service,
 
-                test_copy,
-                test_copy_non_existing_source,
-                test_copy_source_dir,
-                test_copy_target_dir,
-                test_copy_self,
-                test_copy_nested,
-                test_copy_overwrite,
+                test_rename,
+                test_rename_non_existing_source,
+                test_rename_source_dir,
+                test_rename_target_dir,
+                test_rename_self,
+                test_rename_nested,
+                test_rename_overwrite,
             );
         )*
     };
 }
 
-// Copy a file and test with stat.
-pub fn test_copy(op: BlockingOperator) -> Result<()> {
+/// Rename a file and test with stat.
+pub fn test_rename(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -87,7 +87,10 @@ pub fn test_copy(op: BlockingOperator) -> Result<()> {
 
     let target_path = uuid::Uuid::new_v4().to_string();
 
-    op.copy(&source_path, &target_path)?;
+    op.rename(&source_path, &target_path)?;
+
+    let err = op.stat(&source_path).expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).expect("read must succeed");
     assert_eq!(target_content, source_content);
@@ -97,34 +100,34 @@ pub fn test_copy(op: BlockingOperator) -> Result<()> {
     Ok(())
 }
 
-// Copy a nonexistent source should return an error.
-pub fn test_copy_non_existing_source(op: BlockingOperator) -> Result<()> {
+/// Rename a nonexistent source should return an error.
+pub fn test_rename_non_existing_source(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let target_path = uuid::Uuid::new_v4().to_string();
 
     let err = op
-        .copy(&source_path, &target_path)
-        .expect_err("copy must fail");
+        .rename(&source_path, &target_path)
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::NotFound);
     Ok(())
 }
 
-// Copy a dir as source should return an error.
-pub fn test_copy_source_dir(op: BlockingOperator) -> Result<()> {
+/// Rename a dir as source should return an error.
+pub fn test_rename_source_dir(op: BlockingOperator) -> Result<()> {
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
 
     op.create_dir(&source_path)?;
 
     let err = op
-        .copy(&source_path, &target_path)
-        .expect_err("copy must fail");
+        .rename(&source_path, &target_path)
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
     Ok(())
 }
 
-// Copy to a dir should return an error.
-pub fn test_copy_target_dir(op: BlockingOperator) -> Result<()> {
+/// Rename to a dir should return an error.
+pub fn test_rename_target_dir(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -135,8 +138,8 @@ pub fn test_copy_target_dir(op: BlockingOperator) -> Result<()> {
     op.create_dir(&target_path)?;
 
     let err = op
-        .copy(&source_path, &target_path)
-        .expect_err("copy must fail");
+        .rename(&source_path, &target_path)
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
 
     op.delete(&source_path).expect("delete must succeed");
@@ -144,24 +147,24 @@ pub fn test_copy_target_dir(op: BlockingOperator) -> Result<()> {
     Ok(())
 }
 
-// Copy a file to self should return an error.
-pub fn test_copy_self(op: BlockingOperator) -> Result<()> {
+/// Rename a file to self should return an error.
+pub fn test_rename_self(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _size) = gen_bytes();
 
     op.write(&source_path, source_content)?;
 
     let err = op
-        .copy(&source_path, &source_path)
-        .expect_err("copy must fail");
+        .rename(&source_path, &source_path)
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsSameFile);
 
     op.delete(&source_path).expect("delete must succeed");
     Ok(())
 }
 
-// Copy to a nested path, parent path should be created successfully.
-pub fn test_copy_nested(op: BlockingOperator) -> Result<()> {
+/// Rename to a nested path, parent path should be created successfully.
+pub fn test_rename_nested(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -169,7 +172,10 @@ pub fn test_copy_nested(op: BlockingOperator) -> Result<()> {
 
     let target_path = format!("{}/{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
 
-    op.copy(&source_path, &target_path)?;
+    op.rename(&source_path, &target_path)?;
+
+    let err = op.stat(&source_path).expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).expect("read must succeed");
     assert_eq!(target_content, source_content);
@@ -179,8 +185,8 @@ pub fn test_copy_nested(op: BlockingOperator) -> Result<()> {
     Ok(())
 }
 
-// Copy to a exist path should overwrite successfully.
-pub fn test_copy_overwrite(op: BlockingOperator) -> Result<()> {
+/// Rename to a exist path should overwrite successfully.
+pub fn test_rename_overwrite(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -192,7 +198,10 @@ pub fn test_copy_overwrite(op: BlockingOperator) -> Result<()> {
 
     op.write(&target_path, target_content)?;
 
-    op.copy(&source_path, &target_path)?;
+    op.rename(&source_path, &target_path)?;
+
+    let err = op.stat(&source_path).expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).expect("read must succeed");
     assert_eq!(target_content, source_content);

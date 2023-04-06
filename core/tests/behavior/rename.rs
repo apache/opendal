@@ -25,11 +25,11 @@ use super::utils::*;
 ///
 /// - can_read
 /// - can_write
-/// - can_copy
-macro_rules! behavior_copy_test {
+/// - can_rename
+macro_rules! behavior_rename_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _copy>] {
+            mod [<services_ $service:lower _rename>] {
                 $(
                     #[tokio::test]
                     $(
@@ -40,9 +40,9 @@ macro_rules! behavior_copy_test {
                         match op {
                             Some(op) if op.info().can_read()
                               && op.info().can_write()
-                              && op.info().can_copy() => $crate::copy::$test(op).await,
+                              && op.info().can_rename() => $crate::rename::$test(op).await,
                             Some(_) => {
-                                log::warn!("service {} doesn't support copy, ignored", opendal::Scheme::$service);
+                                log::warn!("service {} doesn't support rename, ignored", opendal::Scheme::$service);
                                 Ok(())
                             },
                             None => {
@@ -58,27 +58,27 @@ macro_rules! behavior_copy_test {
 }
 
 #[macro_export]
-macro_rules! behavior_copy_tests {
+macro_rules! behavior_rename_tests {
      ($($service:ident),*) => {
         $(
-            behavior_copy_test!(
+            behavior_rename_test!(
                 $service,
 
-                test_copy,
-                test_copy_non_existing_source,
-                test_copy_source_dir,
-                test_copy_target_dir,
-                test_copy_self,
-                test_copy_nested,
-                test_copy_overwrite,
+                test_rename,
+                test_rename_non_existing_source,
+                test_rename_source_dir,
+                test_rename_target_dir,
+                test_rename_self,
+                test_rename_nested,
+                test_rename_overwrite,
 
             );
         )*
     };
 }
 
-// Copy a file and test with stat.
-pub async fn test_copy(op: Operator) -> Result<()> {
+// Rename a file and test with stat.
+pub async fn test_rename(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -86,7 +86,10 @@ pub async fn test_copy(op: Operator) -> Result<()> {
 
     let target_path = uuid::Uuid::new_v4().to_string();
 
-    op.copy(&source_path, &target_path).await?;
+    op.rename(&source_path, &target_path).await?;
+
+    let err = op.stat(&source_path).await.expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(target_content, source_content);
@@ -96,36 +99,36 @@ pub async fn test_copy(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy a nonexistent source should return an error.
-pub async fn test_copy_non_existing_source(op: Operator) -> Result<()> {
+// Rename a nonexistent source should return an error.
+pub async fn test_rename_non_existing_source(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let target_path = uuid::Uuid::new_v4().to_string();
 
     let err = op
-        .copy(&source_path, &target_path)
+        .rename(&source_path, &target_path)
         .await
-        .expect_err("copy must fail");
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::NotFound);
     Ok(())
 }
 
-// Copy a dir as source should return an error.
-pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
+// Rename a dir as source should return an error.
+pub async fn test_rename_source_dir(op: Operator) -> Result<()> {
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
 
     op.create_dir(&source_path).await?;
 
     let err = op
-        .copy(&source_path, &target_path)
+        .rename(&source_path, &target_path)
         .await
-        .expect_err("copy must fail");
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
     Ok(())
 }
 
-// Copy to a dir should return an error.
-pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
+// Rename to a dir should return an error.
+pub async fn test_rename_target_dir(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 
@@ -136,9 +139,9 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
     op.create_dir(&target_path).await?;
 
     let err = op
-        .copy(&source_path, &target_path)
+        .rename(&source_path, &target_path)
         .await
-        .expect_err("copy must fail");
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
 
     op.delete(&source_path).await.expect("delete must succeed");
@@ -146,25 +149,25 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy a file to self should return an error.
-pub async fn test_copy_self(op: Operator) -> Result<()> {
+// Rename a file to self should return an error.
+pub async fn test_rename_self(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 
     op.write(&source_path, content).await?;
 
     let err = op
-        .copy(&source_path, &source_path)
+        .rename(&source_path, &source_path)
         .await
-        .expect_err("copy must fail");
+        .expect_err("rename must fail");
     assert_eq!(err.kind(), ErrorKind::IsSameFile);
 
     op.delete(&source_path).await.expect("delete must succeed");
     Ok(())
 }
 
-// Copy to a nested path, parent path should be created successfully.
-pub async fn test_copy_nested(op: Operator) -> Result<()> {
+// Rename to a nested path, parent path should be created successfully.
+pub async fn test_rename_nested(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -172,7 +175,10 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 
     let target_path = format!("{}/{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
 
-    op.copy(&source_path, &target_path).await?;
+    op.rename(&source_path, &target_path).await?;
+
+    let err = op.stat(&source_path).await.expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(target_content, source_content);
@@ -182,8 +188,8 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Copy to a exist path should overwrite successfully.
-pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
+// Rename to a exist path should overwrite successfully.
+pub async fn test_rename_overwrite(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -195,7 +201,10 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
 
     op.write(&target_path, target_content).await?;
 
-    op.copy(&source_path, &target_path).await?;
+    op.rename(&source_path, &target_path).await?;
+
+    let err = op.stat(&source_path).await.expect_err("stat must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(target_content, source_content);

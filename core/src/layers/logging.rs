@@ -363,6 +363,47 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::Rename,
+            from,
+            to
+        );
+
+        self.inner
+            .rename(from, to, args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::Rename,
+                    from,
+                    to
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Rename,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    )
+                };
+                err
+            })
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
             target: LOGGING_TARGET,
@@ -771,6 +812,46 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         "service={} operation={} from={} to={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingCopy,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    );
+                }
+                err
+            })
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::BlockingMove,
+            from,
+            to,
+        );
+
+        self.inner
+            .blocking_rename(from, to, args)
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::BlockingMove,
+                    from,
+                    to,
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingMove,
                         from,
                         to,
                         self.err_status(&err)

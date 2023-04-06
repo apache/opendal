@@ -1108,7 +1108,7 @@ mod tests {
         <ETag>"8C315065167132444177411FDA14****"</ETag>
     </Part>
 </CompleteMultipartUpload>"#
-                .replace('"', "&quot;") // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
+                .replace('"', "&quot;") /* Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362> */
         )
     }
 

@@ -19,7 +19,9 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::path::Component;
+use std::path::Path;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -76,7 +78,7 @@ impl Config {
         let profiles = Config::load_from_env().profiles.into_iter().fold(
             cfg.profiles,
             |mut acc, (name, opts)| {
-                acc.entry(name).or_insert(HashMap::new()).extend(opts);
+                acc.entry(name).or_insert_with(HashMap::new).extend(opts);
                 acc
             },
         );
@@ -114,7 +116,7 @@ impl Config {
             })
             .fold(HashMap::new(), |mut acc, (profile_name, key, val)| {
                 acc.entry(profile_name)
-                    .or_insert(HashMap::new())
+                    .or_insert_with(HashMap::new)
                     .insert(key, val);
                 acc
             });

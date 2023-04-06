@@ -21,20 +21,20 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use bytes::Buf;
+use http::header;
+use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use http::{header, HeaderMap};
 use log::debug;
-
-use crate::ops::*;
-use crate::raw::*;
-use crate::*;
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
 use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
+use crate::ops::*;
+use crate::raw::*;
+use crate::*;
 
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 ///

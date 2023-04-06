@@ -17,8 +17,12 @@
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use anyhow::anyhow;
+use anyhow::Result;
+use clap::Arg;
+use clap::ArgAction;
+use clap::ArgMatches;
+use clap::Command;
 
 use crate::config::Config;
 

@@ -16,15 +16,16 @@
 # under the License.
 
 [package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
 description = "OpenDAL's object_store binding"
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
 name = "object_store_opendal"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.60"                                       # MSRV for this project - please update while bump versions
-version = "0.30.5"
+
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [dependencies]
 async-trait = "0.1"

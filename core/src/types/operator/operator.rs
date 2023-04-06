@@ -603,6 +603,41 @@ impl Operator {
         Ok(())
     }
 
+    /// Moves object from `from` to `to`.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` MUST be within the working directory.
+    /// - `to` MUST be file path.
+    /// - Moving non-existing file/directory SHOULD fail.
+    /// - Moving to a directory path SHOULD fail.
+    /// - Moving directory to a file path SHOULD:
+    ///     - path not occupied: rename into `<path>/`, succeed.
+    ///     - path occupied by file: fail.
+    /// - Moving file to a file path SHOULD:
+    ///     - path not occupied: rename, succeed.
+    ///     - path occupied by file: rewrite and truncate, succeed.
+    ///
+    /// ## Term
+    /// - `directory`: path ends with '/'.
+    /// - `file`: path does not end with '/'.
+    ///
+    /// # Example
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.moves("path/to/file", "path/to/file2").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn moves(&self, from: &str, to: &str) -> Result<()> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+        self.inner().moves(&from, &to, OpMove::new()).await?;
+        Ok(())
+    }
+
     /// Write multiple bytes into path.
     ///
     /// # Notes

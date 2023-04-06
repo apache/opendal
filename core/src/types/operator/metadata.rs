@@ -62,6 +62,11 @@ impl OperatorInfo {
         self.0.capabilities().contains(AccessorCapability::Copy)
     }
 
+    /// Check if current backend supports [`Accessor::moves`] or not.
+    pub fn can_moves(&self) -> bool {
+        self.0.capabilities().contains(AccessorCapability::Moves)
+    }
+
     /// Check if current backend supports [`Accessor::list`] or not.
     pub fn can_list(&self) -> bool {
         self.0.capabilities().contains(AccessorCapability::List)

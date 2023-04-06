@@ -210,6 +210,17 @@ impl RpCopy {
     }
 }
 
+/// Reply for `moves` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpMove {}
+
+impl RpMove {
+    /// Create a new reply for moves.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use anyhow::Result;

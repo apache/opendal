@@ -456,6 +456,39 @@ impl Accessor for FsBackend {
         Ok(RpCopy::default())
     }
 
+    async fn moves(&self, from: &str, to: &str, _: OpMove) -> Result<RpMove> {
+        if from == "/" {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "moving root directory is not allowed!",
+            ));
+        }
+        if from == to {
+            return Ok(RpMove::default());
+        }
+
+        // don't truncate the final '/' because we allow moving directories
+        let from = self.root.join(from);
+
+        // try to get the metadata of the source file to ensure it exists
+        tokio::fs::metadata(&from).await.map_err(parse_io_error)?;
+
+        let dest = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+
+        let is_within = dest.starts_with(&self.root);
+        if !is_within {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "destination is not within the root!",
+            ));
+        }
+
+        tokio::fs::rename(from, dest)
+            .await
+            .map_err(parse_io_error)?;
+        Ok(RpMove::default())
+    }
+
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -653,6 +686,36 @@ impl Accessor for FsBackend {
         std::fs::copy(from, to).map_err(parse_io_error)?;
 
         Ok(RpCopy::default())
+    }
+
+    fn blocking_moves(&self, from: &str, to: &str, _: OpMove) -> Result<RpMove> {
+        if from == "/" {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "cannot move the root directory",
+            ));
+        }
+        if from == to {
+            return Ok(RpMove::default());
+        }
+
+        // don't truncate the final '/' because we allow moving directories
+        let from = self.root.join(from);
+
+        // try to get the metadata of the source file to ensure it exists
+        std::fs::metadata(&from).map_err(parse_io_error)?;
+
+        let dest = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+        let is_within = dest.starts_with(&self.root);
+        if !is_within {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "destination is not within the root!",
+            ));
+        }
+
+        std::fs::rename(from, dest).map_err(parse_io_error)?;
+        Ok(RpMove::default())
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

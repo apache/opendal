@@ -163,6 +163,10 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().copy(from, to, args).await
     }
 
+    async fn moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        self.inner().moves(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().stat(path, args).await
     }
@@ -193,6 +197,10 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().blocking_copy(from, to, args)
+    }
+
+    fn blocking_moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        self.inner().blocking_moves(from, to, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

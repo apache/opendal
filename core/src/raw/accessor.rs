@@ -149,6 +149,37 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
+    /// Invoke the `moves` operation on the specified `from` path and `to` path.
+    ///
+    /// Require [AccessorCapability::Read] and [AccessorCapability::Write]
+    ///
+    /// # Behaviour
+    ///
+    /// - `from` and `to` MUST be within the working directory.
+    /// - `to` MUST be file path, DON'T NEED to check mode.
+    /// - Moving non-existing file/directory SHOULD fail.
+    /// - Moving *working directory root* SHOULD fail.
+    /// - Moving directory to a file path SHOULD:
+    ///     - path not occupied: rename into `<path>/`, succeed.
+    ///     - path occupied by empty directory: succeed.
+    ///     - path occupied: fail.
+    /// - Moving file to a file path SHOULD:
+    ///     - path not occupied: rename, succeed.
+    ///     - path occupied by file: rewrite and truncate, succeed.
+    /// - Moving from and to itself MUST be succeed, just do nothing.
+    ///
+    /// # Note
+    /// - `directory`: path ends with '/'.
+    /// - `file`: path does not end with '/'.
+    async fn moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// Invoke the `stat` operation on the specified path.
     ///
     /// Require [`AccessorCapability::Read`]
@@ -295,6 +326,35 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
+    /// Invoke the `blocking_moves` operation on the specified `from` path and `to` path.
+    ///
+    /// Require [AccessorCapability::Read], [AccessorCapability::Write] and [`AccessorCapability::Blocking`]
+    ///
+    /// # Behaviour
+    ///
+    /// - `from` and `to` MUST be within the working directory.
+    /// - `to` MUST be file path.
+    /// - Moving non-existing file/directory SHOULD fail.
+    /// - Moving to a directory path SHOULD fail.
+    /// - Moving directory to a file path SHOULD:
+    ///     - path not occupied: rename into `<path>/`, succeed.
+    ///     - path occupied by file: fail.
+    /// - Moving file to a file path SHOULD:
+    ///     - path not occupied: rename, succeed.
+    ///     - path occupied by file: rewrite and truncate, succeed.
+    ///
+    /// # Note
+    /// - `directory`: path ends with '/'.
+    /// - `file`: path does not end with '/'.
+    fn blocking_moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        let (_, _, _) = (from, to, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// Invoke the `blocking_stat` operation on the specified path.
     ///
     /// This operation is the blocking version of [`Accessor::stat`]
@@ -406,6 +466,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().copy(from, to, args).await
     }
 
+    async fn moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        self.as_ref().moves(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().stat(path, args).await
     }
@@ -453,6 +517,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
 
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         self.as_ref().blocking_scan(path, args)
+    }
+
+    fn blocking_moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        self.as_ref().blocking_moves(from, to, args)
     }
 }
 
@@ -582,6 +650,8 @@ flags! {
         Blocking,
         /// Add this capability if service supports `batch`
         Batch,
+        /// Add this capability if service supports `moves`
+        Moves,
     }
 }
 

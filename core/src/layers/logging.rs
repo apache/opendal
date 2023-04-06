@@ -363,6 +363,46 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
+    async fn moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::Moves,
+            from,
+            to
+        );
+        self.inner
+            .moves(from, to, args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::Moves,
+                    from,
+                    to
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Moves,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    )
+                };
+                err
+            })
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
             target: LOGGING_TARGET,
@@ -776,6 +816,45 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.err_status(&err)
                     );
                 }
+                err
+            })
+    }
+
+    fn blocking_moves(&self, from: &str, to: &str, args: OpMove) -> Result<RpMove> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::BlockingMoves,
+            from,
+            to
+        );
+        self.inner
+            .blocking_moves(from, to, args)
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::BlockingMoves,
+                    from,
+                    to
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingMoves,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    )
+                };
                 err
             })
     }

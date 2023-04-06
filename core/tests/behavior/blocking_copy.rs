@@ -25,6 +25,7 @@ use super::utils::*;
 ///
 /// - can_read
 /// - can_write
+/// - can_copy
 /// - can_blocking
 macro_rules! behavior_blocking_copy_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {

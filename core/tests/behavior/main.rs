@@ -24,6 +24,8 @@ mod blocking_read;
 #[macro_use]
 mod blocking_write;
 #[macro_use]
+mod blocking_moves;
+#[macro_use]
 mod copy;
 #[macro_use]
 mod list;
@@ -35,6 +37,8 @@ mod presign;
 mod read_only;
 #[macro_use]
 mod write;
+#[macro_use]
+mod moves;
 
 mod utils;
 
@@ -53,6 +57,10 @@ macro_rules! behavior_tests {
             behavior_blocking_write_tests!($service);
             // can_read && can_write && can_copy
             behavior_copy_tests!($service);
+            // can_read && can_write && can_moves
+            behavior_moves_tests!($service);
+            // can_read && can_write && can_moves && can_blocking
+            behavior_blocking_moves_tests!($service);
             // can read && can_write && can_blocking && can_copy
             behavior_blocking_copy_tests!($service);
             // can_read && can_write && can_list

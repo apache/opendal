@@ -372,3 +372,14 @@ impl OpCopy {
         Self::default()
     }
 }
+
+/// Args for `moves` operation
+#[derive(Debug, Clone, Default)]
+pub struct OpMove {}
+
+impl OpMove {
+    /// Create a new `moves`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}

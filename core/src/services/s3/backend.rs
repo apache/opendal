@@ -1687,10 +1687,10 @@ mod tests {
             ("test.xyz", true, false),
         ];
 
-        for (bucket, enable_virutal_host_style, expected) in bucket_cases {
+        for (bucket, enable_virtual_host_style, expected) in bucket_cases {
             let mut b = S3Builder::default();
             b.bucket(bucket);
-            if enable_virutal_host_style {
+            if enable_virtual_host_style {
                 b.enable_virtual_host_style();
             }
             assert_eq!(b.is_bucket_valid(), expected)

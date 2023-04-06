@@ -700,10 +700,26 @@ impl S3Builder {
         self
     }
 
+    /// Check if `bucket` is valid
+    /// `bucket` must be not empty and if `enable_virtual_host_style` is true
+    /// it couldn't contain dot(.) character
+    fn is_bucket_valid(&self) -> bool {
+        if self.bucket.is_empty() {
+            return false;
+        }
+        // If enable virtual host style, `bucket` will reside in domain part,
+        // for example `https://bucket_name.s3.us-east-1.amazonaws.com`,
+        // so `bucket` with dot can't be recognized correctly for this format.
+        if self.enable_virtual_host_style && self.bucket.contains('.') {
+            return false;
+        }
+        true
+    }
+
     /// Build endpoint with given region.
     fn build_endpoint(&self, region: &str) -> String {
         let bucket = {
-            debug_assert!(!self.bucket.is_empty(), "bucket must be valid");
+            debug_assert!(self.is_bucket_valid(), "bucket must be valid");
 
             self.bucket.as_str()
         };
@@ -789,12 +805,13 @@ impl Builder for S3Builder {
         debug!("backend use root {}", &root);
 
         // Handle bucket name.
-        let bucket = match self.bucket.is_empty() {
-            false => Ok(&self.bucket),
-            true => Err(
+        let bucket = if self.is_bucket_valid() {
+            Ok(&self.bucket)
+        } else {
+            Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
                     .with_context("service", Scheme::S3),
-            ),
+            )
         }?;
         debug!("backend use bucket {}", &bucket);
 
@@ -1792,6 +1809,27 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    #[test]
+    fn test_is_valid_bucket() {
+        let bucket_cases = vec![
+            ("", false, false),
+            ("test", false, true),
+            ("test.xyz", false, true),
+            ("", true, false),
+            ("test", true, true),
+            ("test.xyz", true, false),
+        ];
+
+        for (bucket, enable_virtual_host_style, expected) in bucket_cases {
+            let mut b = S3Builder::default();
+            b.bucket(bucket);
+            if enable_virtual_host_style {
+                b.enable_virtual_host_style();
+            }
+            assert_eq!(b.is_bucket_valid(), expected)
+        }
+    }
 
     #[test]
     fn test_build_endpoint() {

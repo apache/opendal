@@ -30,10 +30,12 @@
  It is also the key struct that OpenDAL's APIs access the real
  operator's memory. The use of OperatorPtr is zero cost, it
  only returns a reference of the underlying Operator.
+
+ The [`OperatorPtr`] also has a transparent layout, allowing you
+ to check its validity by native boolean operator.
+ e.g. you could check by (!ptr) on a opendal_operator_ptr type
  */
-typedef struct opendal_operator_ptr {
-  const void *ptr;
-} opendal_operator_ptr;
+typedef const void *opendal_operator_ptr;
 
 /*
  The [`Bytes`] type is a C-compatible substitute for [`Bytes`]
@@ -63,7 +65,7 @@ extern "C" {
    the string.
  * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
  */
-struct opendal_operator_ptr opendal_new_operator(const char *scheme);
+opendal_operator_ptr opendal_new_operator(const char *scheme);
 
 /*
  Write the data into the path blockingly by operator, returns whether the write succeeds
@@ -75,7 +77,7 @@ struct opendal_operator_ptr opendal_new_operator(const char *scheme);
    the string.
  * The `path` points to NULL, this function simply returns you false
  */
-bool opendal_operator_blocking_write(struct opendal_operator_ptr op_ptr,
+bool opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
                                      const char *path,
                                      struct opendal_bytes bytes);
 
@@ -90,14 +92,7 @@ bool opendal_operator_blocking_write(struct opendal_operator_ptr op_ptr,
    the string.
  * The `path` points to NULL, this function simply returns you a nullptr
  */
-struct opendal_bytes *opendal_operator_blocking_read(struct opendal_operator_ptr op_ptr,
-                                                     const char *path);
-
-/*
- Returns whether the [`OperatorPtr`] is valid, i.e. whether
- there exists a underlying [`BlockingOperator`]
- */
-bool opendal_is_ptr_valid(const struct opendal_operator_ptr *self);
+struct opendal_bytes *opendal_operator_blocking_read(opendal_operator_ptr op_ptr, const char *path);
 
 /*
  Frees the heap memory used by the [`Bytes`]

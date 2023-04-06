@@ -19,11 +19,26 @@
 #include "stdio.h"
 #include "opendal.h"
 
+int test_transparent_layout() {
+    char scheme[] = "invalid scheme";
+    opendal_operator_ptr ptr = opendal_new_operator(scheme);
+    if (ptr) {
+        return -3;
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
+    // test the transparent layout of operator_ptr
+    int errno;
+    if ((errno = test_transparent_layout())) {
+        return errno;
+    }
+
     // creates a memory operator
     char scheme[] = "memory";
     opendal_operator_ptr ptr = opendal_new_operator(scheme);
-    if (!opendal_is_ptr_valid(&ptr)) {
+    if (!ptr) {
         return -1;
     }
 

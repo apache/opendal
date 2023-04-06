@@ -23,7 +23,11 @@ use ::opendal as od;
 /// It is also the key struct that OpenDAL's APIs access the real
 /// operator's memory. The use of OperatorPtr is zero cost, it
 /// only returns a reference of the underlying Operator.
-#[repr(C)]
+///
+/// The [`OperatorPtr`] also has a transparent layout, allowing you
+/// to check its validity by native boolean operator.
+/// e.g. you could check by (!ptr) on a opendal_operator_ptr type
+#[repr(transparent)]
 pub struct OperatorPtr {
     // this is typed with [`c_void`] because cbindgen does not
     // support our own custom type.
@@ -32,7 +36,9 @@ pub struct OperatorPtr {
 
 impl OperatorPtr {
     /// Creates an OperatorPtr will nullptr, indicating this [`OperatorPtr`]
-    /// is invalid
+    /// is invalid. The `transparent` layout also guarantees that if the
+    /// underlying field `ptr` is a nullptr, the [`OperatorPtr`] has the
+    /// same layout as the nullptr.
     pub(crate) fn null() -> Self {
         Self {
             ptr: std::ptr::null(),
@@ -42,13 +48,6 @@ impl OperatorPtr {
     /// Returns a reference to the underlying [`BlockingOperator`]
     pub(crate) fn get_ref(&self) -> &od::BlockingOperator {
         unsafe { &*(self.ptr as *const od::BlockingOperator) }
-    }
-
-    /// Returns whether the [`OperatorPtr`] is valid, i.e. whether
-    /// there exists a underlying [`BlockingOperator`]
-    #[no_mangle]
-    pub extern "C" fn opendal_is_ptr_valid(&self) -> bool {
-        !self.ptr.is_null()
     }
 }
 

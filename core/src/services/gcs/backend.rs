@@ -30,7 +30,6 @@ use http::StatusCode;
 use log::debug;
 use reqsign::GoogleSigner;
 use serde::Deserialize;
-use serde::Serialize;
 use serde_json;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -408,46 +407,28 @@ impl Accessor for GcsBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        let source = percent_encode_path(&build_abs_path(&self.root, from.trim_end_matches("/")));
-        let dest = percent_encode_path(&build_abs_path(&self.root, to.trim_end_matches("/")));
+        let source = percent_encode_path(&build_abs_path(&self.root, from.trim_end_matches('/')));
+        let dest = percent_encode_path(&build_abs_path(&self.root, to.trim_end_matches('/')));
         let req_uri = format!(
-            "{}/storage/v1/b/{}/o/{}/rewriteTo/b/{}/o/{}",
+            "{}/storage/v1/b/{}/o/{}/copyTo/b/{}/o/{}",
             self.endpoint, self.bucket, source, self.bucket, dest
         );
 
-        let mut rewrite_token = None;
+        let mut req = Request::builder()
+            .method(http::Method::POST)
+            .uri(&req_uri)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
-        loop {
-            let body = match rewrite_token {
-                Some(rewrite_token) => {
-                    let req_body = CopyJsonRequest { rewrite_token };
-                    let body = serde_json::to_vec(&req_body).map_err(new_json_serialize_error)?;
-                    AsyncBody::Bytes(body.into())
-                }
-                None => AsyncBody::Empty,
-            };
-            let mut req = Request::builder()
-                .method(http::Method::POST)
-                .uri(&req_uri)
-                .body(body)
-                .map_err(new_request_build_error)?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        let resp = self.client.send_async(req).await?;
 
-            let resp = self.client.send_async(req).await?;
-
-            if !resp.status().is_success() {
-                return Err(parse_error(resp).await?);
-            }
-            let bs = resp.into_body().bytes().await?;
-
-            let resp: CopyJsonResponse =
-                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
-            if resp.done {
-                break;
-            }
-            rewrite_token = resp.rewrite_token;
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).await?);
         }
+        resp.into_body().consume().await?;
+
         Ok(RpCopy::default())
     }
 
@@ -699,21 +680,6 @@ struct GetObjectJsonResponse {
     content_type: String,
 }
 
-/// the raw json request to [`Copy`](https://cloud.google.com/storage/docs/copying-renaming-moving-objects)
-#[derive(Debug, Default, Serialize)]
-#[serde(default, rename_all = "camelCase")]
-struct CopyJsonRequest {
-    rewrite_token: String,
-}
-
-/// the raw json response returned by [`Copy`](https://cloud.google.com/storage/docs/copying-renaming-moving-objects)
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct CopyJsonResponse {
-    done: bool,
-    rewrite_token: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -748,21 +714,5 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
-    }
-
-    #[test]
-    fn test_deserialize_copy_object_json_response() {
-        let content = r#"{
-  "kind": "storage#rewriteResponse",
-  "totalBytesRewritten": 1048576,
-  "objectSize": 10000000000,
-  "done": false,
-  "rewriteToken": "TOKEN_VALUE"
-}"#;
-        let des = serde_json::from_str::<CopyJsonResponse>(content)
-            .expect("json Deserialize must succeed");
-        assert_eq!(des.done, false);
-        assert!(des.rewrite_token.is_some());
-        assert_eq!(des.rewrite_token.unwrap(), "TOKEN_VALUE");
     }
 }

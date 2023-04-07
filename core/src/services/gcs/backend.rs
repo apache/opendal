@@ -55,6 +55,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - [x] write
 /// - [x] list
 /// - [x] scan
+/// - [x] copy
 /// - [ ] presign
 /// - [ ] blocking
 ///
@@ -360,7 +361,7 @@ impl Accessor for GcsBackend {
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(Read | Write | List | Scan)
+            .set_capabilities(Read | Write | List | Scan | Copy)
             .set_hints(ReadStreamable);
         am
     }
@@ -403,6 +404,30 @@ impl Accessor for GcsBackend {
             RpWrite::default(),
             GcsWriter::new(self.clone(), args, path.to_string()),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let source = percent_encode_path(&build_abs_path(&self.root, from.trim_end_matches('/')));
+        let dest = percent_encode_path(&build_abs_path(&self.root, to.trim_end_matches('/')));
+        let req_uri = format!(
+            "{}/storage/v1/b/{}/o/{}/copyTo/b/{}/o/{}",
+            self.endpoint, self.bucket, source, self.bucket, dest
+        );
+
+        let mut req = Request::post(req_uri)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        let resp = self.client.send_async(req).await?;
+
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).await?);
+        }
+        resp.into_body().consume().await?;
+
+        Ok(RpCopy::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

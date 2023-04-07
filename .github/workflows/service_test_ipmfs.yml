@@ -55,6 +55,6 @@ jobs:
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_IPFS_TEST: on
-          OPENDAL_IPFS_ROOT: /opendal/
-          OPENDAL_IPFS_ENDPOINT: "http://127.0.0.1:5001"
+          OPENDAL_IPMFS_TEST: on
+          OPENDAL_IPMFS_ROOT: /opendal/
+          OPENDAL_IPMFS_ENDPOINT: "http://127.0.0.1:5001"

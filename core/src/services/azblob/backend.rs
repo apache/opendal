@@ -544,7 +544,7 @@ impl Accessor for AzblobBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let resp = self.azblob_copy_blob(from, to).await?;
 
         let status = resp.status();
@@ -804,7 +804,8 @@ impl AzblobBackend {
 
         let mut req = Request::put(&target)
             .header(X_MS_COPY_SOURCE, source)
-            .body(AsyncBody::Empty).map_err(new_request_build_error)?;
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 

@@ -414,9 +414,7 @@ impl Accessor for GcsBackend {
             self.endpoint, self.bucket, source, self.bucket, dest
         );
 
-        let mut req = Request::builder()
-            .method(http::Method::POST)
-            .uri(&req_uri)
+        let mut req = Request::post(req_uri)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

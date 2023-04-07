@@ -74,7 +74,10 @@ impl Accessor for IpmfsBackend {
         am.set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::Copy
+                    | AccessorCapability::List,
             )
             .set_hints(AccessorHint::ReadStreamable);
 
@@ -125,6 +128,20 @@ impl Accessor for IpmfsBackend {
             RpWrite::default(),
             IpmfsWriter::new(self.clone(), path.to_string()),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.ipmfs_cp(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -295,6 +312,26 @@ impl IpmfsBackend {
         let req = Request::post(url);
 
         let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    pub async fn ipmfs_cp(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let from = build_rooted_abs_path(&self.root, from);
+        let to = build_rooted_abs_path(&self.root, to);
+
+        let url = format!(
+            "{}/api/v0/files/cp?arg={}&arg={}&parents=true",
+            self.endpoint,
+            percent_encode_path(&from),
+            percent_encode_path(&to)
+        );
+
+        let req = Request::post(url);
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
     }

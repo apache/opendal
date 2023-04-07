@@ -277,22 +277,10 @@ impl Accessor for WebdavBackend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        // create dir recursively, split path by `/` and create each dir except the last one
+        self.ensure_parent_path(path).await?;
+
         let abs_path = build_abs_path(&self.root, path);
-        let abs_path = abs_path.as_str();
-        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
-        if !parts.is_empty() {
-            parts.pop();
-        }
-
-        let mut sub_path = String::new();
-        for sub_part in parts {
-            let sub_path_with_slash = sub_part.to_owned() + "/";
-            sub_path.push_str(&sub_path_with_slash);
-            self.create_internal(&sub_path).await?;
-        }
-
-        self.create_internal(abs_path).await
+        self.create_internal(&abs_path).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -323,6 +311,8 @@ impl Accessor for WebdavBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        self.ensure_parent_path(to).await?;
+
         let resp = self.webdav_copy(from, to).await?;
 
         let status = resp.status();
@@ -614,5 +604,24 @@ impl WebdavBackend {
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn ensure_parent_path(&self, path: &str) -> Result<()> {
+        // create dir recursively, split path by `/` and create each dir except the last one
+        let abs_path = build_abs_path(&self.root, path);
+        let abs_path = abs_path.as_str();
+        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
+        if !parts.is_empty() {
+            parts.pop();
+        }
+
+        let mut sub_path = String::new();
+        for sub_part in parts {
+            let sub_path_with_slash = sub_part.to_owned() + "/";
+            sub_path.push_str(&sub_path_with_slash);
+            self.create_internal(&sub_path).await?;
+        }
+
+        Ok(())
     }
 }

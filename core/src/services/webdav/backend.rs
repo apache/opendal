@@ -44,6 +44,7 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -265,7 +266,10 @@ impl Accessor for WebdavBackend {
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::Copy
+                    | AccessorCapability::List,
             )
             .set_hints(AccessorHint::ReadStreamable);
 
@@ -316,6 +320,17 @@ impl Accessor for WebdavBackend {
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.webdav_copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -541,6 +556,31 @@ impl WebdavBackend {
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
+        let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));
+
+        let mut req = Request::builder().method("COPY").uri(&source);
+
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        req = req.header("Destination", target);
+
+        // We always specific "T" for keeping to overwrite the destination.
+        req = req.header("Overwrite", "T");
 
         let req = req
             .body(AsyncBody::Empty)

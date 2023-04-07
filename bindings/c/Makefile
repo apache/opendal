@@ -19,7 +19,7 @@ RPATH=$(PWD)/../../target/debug
 CFLAGS = -I./include
 LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS = -lopendal_c
-OBJ_DIR=build
+OBJ_DIR=./build
 
 .PHONY: all
 all: build test
@@ -31,9 +31,9 @@ build:
 
 .PHONY: test
 test:
-	$(CC) tests/hello.c -o $(OBJ_DIR)/hello $(CFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) tests/basicio.c -o $(OBJ_DIR)/basicio $(CFLAGS) $(LDFLAGS) $(LIBS)
 
 .PHONY: clean
 clean:
 	cargo clean
-	rm -rf "./$(OBJ_DIR)"
+	rm -rf $(OBJ_DIR)

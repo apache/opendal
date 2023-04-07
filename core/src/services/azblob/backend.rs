@@ -44,6 +44,7 @@ use crate::types::Metadata;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
+const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.
 /// Azure public cloud: https://accountname.blob.core.windows.net
@@ -65,6 +66,7 @@ const AZBLOB_BATCH_LIMIT: usize = 256;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign
@@ -489,7 +491,7 @@ impl Accessor for AzblobBackend {
             .set_root(&self.root)
             .set_name(&self.container)
             .set_max_batch_operations(AZBLOB_BATCH_LIMIT)
-            .set_capabilities(Read | Write | List | Scan | Batch)
+            .set_capabilities(Read | Write | List | Scan | Batch | Copy)
             .set_hints(ReadStreamable);
 
         am
@@ -540,6 +542,20 @@ impl Accessor for AzblobBackend {
             RpWrite::default(),
             AzblobWriter::new(self.clone(), args, path.to_string()),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.azblob_copy_blob(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::ACCEPTED => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -761,6 +777,33 @@ impl AzblobBackend {
         let req = Request::delete(&url);
 
         let mut req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let source = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&source)
+        );
+        let target = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&target)
+        );
+
+        let mut req = Request::put(&target)
+            .header(X_MS_COPY_SOURCE, source)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

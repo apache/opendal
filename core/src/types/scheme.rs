@@ -67,6 +67,8 @@ pub enum Scheme {
     Moka,
     /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
     Obs,
+    /// [onedrive][crate::services::Onedrive]: Microsoft OneDrive services.
+    Onedrive,
     /// [oss][crate::services::Oss]: Aliyun Object Storage Services
     Oss,
     /// [redis][crate::services::Redis]: Redis services
@@ -178,6 +180,7 @@ impl From<Scheme> for &'static str {
             #[cfg(feature = "services-moka")]
             Scheme::Moka => "moka",
             Scheme::Obs => "obs",
+            Scheme::Onedrive => "onedrive",
             #[cfg(feature = "services-redis")]
             Scheme::Redis => "redis",
             #[cfg(feature = "services-rocksdb")]

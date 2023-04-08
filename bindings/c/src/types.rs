@@ -27,8 +27,6 @@ use ::opendal as od;
 /// e.g. you could check by (!ptr) on a opendal_operator_ptr type
 #[repr(transparent)]
 pub struct opendal_operator_ptr {
-    // this is typed with [`c_void`] because cbindgen does not
-    // support our own custom type.
     ptr: *const od::BlockingOperator,
 }
 
@@ -45,7 +43,7 @@ impl opendal_operator_ptr {
 
     /// Returns a reference to the underlying [`BlockingOperator`]
     pub(crate) fn get_ref(&self) -> &od::BlockingOperator {
-        unsafe { &*(self.ptr as *const od::BlockingOperator) }
+        unsafe { &*(self.ptr) }
     }
 }
 

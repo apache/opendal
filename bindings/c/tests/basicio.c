@@ -18,8 +18,8 @@
  */
 
 #include "assert.h"
-#include "stdio.h"
 #include "opendal.h"
+#include "stdio.h"
 
 void test_operator_rw(opendal_operator_ptr ptr) {
     // have to be valid ptr
@@ -30,7 +30,7 @@ void test_operator_rw(opendal_operator_ptr ptr) {
     char content[] = "Hello World";
     const opendal_bytes data = {
         .len = sizeof(content) - 1,
-        .data = (uint8_t*)content,
+        .data = (uint8_t *)content,
     };
     opendal_code code = opendal_operator_blocking_write(ptr, path, data);
     assert(code == OPENDAL_OK);

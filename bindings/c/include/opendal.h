@@ -80,6 +80,38 @@ typedef enum opendal_code {
 } opendal_code;
 
 /*
+ BlockingOperator is the entry for all public blocking APIs.
+
+ Read [`concepts`][docs::concepts] for know more about [`Operator`].
+
+ # Examples
+
+ Read more backend init examples in [`services`]
+
+ ```
+ # use anyhow::Result;
+ use opendal::services::Fs;
+ use opendal::BlockingOperator;
+ use opendal::Operator;
+ #[tokio::main]
+ async fn main() -> Result<()> {
+     // Create fs backend builder.
+     let mut builder = Fs::default();
+     // Set the root for fs, all operations will happen under this root.
+     //
+     // NOTE: the root must be absolute path.
+     builder.root("/tmp");
+
+     // Build an `BlockingOperator` to start operating the storage.
+     let _: BlockingOperator = Operator::new(builder)?.finish().blocking();
+
+     Ok(())
+ }
+ ```
+ */
+typedef struct BlockingOperator BlockingOperator;
+
+/*
  The [`OperatorPtr`] owns a pointer to a [`od::BlockingOperator`].
  It is also the key struct that OpenDAL's APIs access the real
  operator's memory. The use of OperatorPtr is zero cost, it
@@ -89,7 +121,7 @@ typedef enum opendal_code {
  to check its validity by native boolean operator.
  e.g. you could check by (!ptr) on a opendal_operator_ptr type
  */
-typedef const void *opendal_operator_ptr;
+typedef const struct BlockingOperator *opendal_operator_ptr;
 
 /*
  The [`Bytes`] type is a C-compatible substitute for [`Bytes`]

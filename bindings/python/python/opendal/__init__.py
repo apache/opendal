@@ -20,4 +20,3 @@ from ._opendal import *
 
 __doc__ = _opendal.__doc__
 __all__ = _opendal.__all__
-

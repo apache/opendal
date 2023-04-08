@@ -85,8 +85,9 @@ impl AsyncOperator {
     }
 
     /// Write bytes into given path.
-    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: Vec<u8>) -> PyResult<&'p PyAny> {
+    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: &PyBytes) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
+        let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
             this.write(&path, bs).await.map_err(format_pyerr)
         })

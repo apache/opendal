@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::os::raw::c_void;
-
 use ::opendal as od;
 
 /// The [`OperatorPtr`] owns a pointer to a [`od::BlockingOperator`].
@@ -31,7 +29,7 @@ use ::opendal as od;
 pub struct opendal_operator_ptr {
     // this is typed with [`c_void`] because cbindgen does not
     // support our own custom type.
-    ptr: *const c_void,
+    ptr: *const od::BlockingOperator,
 }
 
 impl opendal_operator_ptr {
@@ -54,18 +52,14 @@ impl opendal_operator_ptr {
 #[allow(clippy::from_over_into)]
 impl From<&od::BlockingOperator> for opendal_operator_ptr {
     fn from(value: &od::BlockingOperator) -> Self {
-        Self {
-            ptr: value as *const _ as *const c_void,
-        }
+        Self { ptr: value }
     }
 }
 
 #[allow(clippy::from_over_into)]
 impl From<&mut od::BlockingOperator> for opendal_operator_ptr {
     fn from(value: &mut od::BlockingOperator) -> Self {
-        Self {
-            ptr: value as *const _ as *const c_void,
-        }
+        Self { ptr: value }
     }
 }
 

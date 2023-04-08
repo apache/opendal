@@ -1,0 +1,57 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Bug report
+description: Create a bug report to help improve opendal
+labels: unconfirmed-bug-claim
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If you are reporting a new issue, make sure that we do not have any duplicates
+        already open. You can ensure this by searching the issue list for this
+        repository. If there is a duplicate, please close your issue and add a comment
+        to the existing issue instead.
+
+  - type: textarea
+    attributes:
+      label: Description
+      description: |
+        Briefly describe the problem you are having in a few paragraphs.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Steps to reproduce the issue
+      value: |
+        1.
+        2.
+        3.
+
+  - type: textarea
+    attributes:
+      label: Describe the results you received and expected
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: What version of opendal are you using?
+    validations:
+      required: true
+

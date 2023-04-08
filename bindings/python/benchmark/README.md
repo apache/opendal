@@ -20,7 +20,6 @@ export AWS_ACCESS_KEY_ID=minioadmin
 export AWS_SECRET_ACCESS_KEY=minioadmin
 export AWS_S3_BUCKET=opendal
 
-
 python async_opendal_benchmark.py
 python async_origin_s3_benchmark_with_gevent.py
 ```

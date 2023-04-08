@@ -44,6 +44,7 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign
@@ -314,7 +315,7 @@ impl Accessor for ObsBackend {
         am.set_scheme(Scheme::Obs)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(Read | Write | List | Scan)
+            .set_capabilities(Read | Write | Copy | List | Scan)
             .set_hints(ReadStreamable);
 
         am
@@ -364,6 +365,20 @@ impl Accessor for ObsBackend {
             RpWrite::default(),
             ObsWriter::new(self.clone(), args, path.to_string()),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.obs_copy_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -492,6 +507,23 @@ impl ObsBackend {
         let req = Request::delete(&url);
 
         let mut req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn obs_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
+
+        let mut req = Request::put(&url)
+            .header("x-obs-copy-source", percent_encode_path(&source))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

@@ -33,6 +33,7 @@ from pydantic import BaseSettings
 
 class Config(BaseSettings):
     aws_region: str
+    aws_endpoint: str
     aws_s3_bucket: str
     aws_access_key_id: str
     aws_secret_access_key: str
@@ -43,6 +44,7 @@ SETTINGS = Config()
 S3_CLIENT: S3Client = boto3_client(
     "s3",
     region_name=SETTINGS.aws_region,
+    endpoint_url=SETTINGS.aws_endpoint,
     aws_access_key_id=SETTINGS.aws_access_key_id,
     aws_secret_access_key=SETTINGS.aws_secret_access_key,
 )

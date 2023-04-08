@@ -22,11 +22,9 @@ import timeit
 
 
 class Config(BaseSettings):
+    aws_endpoint: str
     aws_region: str
     aws_s3_bucket: str
-    aws_access_key_id: str
-    aws_secret_access_key: str
-
 
 SETTINGS = Config()
 
@@ -42,7 +40,7 @@ TEST_CASE = [
 
 
 async def opendal_write():
-    op = opendal.AsyncOperator("s3", bucket=SETTINGS.aws_s3_bucket)
+    op = opendal.AsyncOperator("s3", bucket=SETTINGS.aws_s3_bucket, region=SETTINGS.aws_region, endpoint=SETTINGS.aws_endpoint)
     tasks = []
     for case in TEST_CASE:
         tasks.append(
@@ -55,7 +53,7 @@ async def opendal_write():
 
 
 async def opendal_read():
-    op = opendal.AsyncOperator("s3", bucket=SETTINGS.aws_s3_bucket)
+    op = opendal.AsyncOperator("s3", bucket=SETTINGS.aws_s3_bucket, region=SETTINGS.aws_region, endpoint=SETTINGS.aws_endpoint)
     tasks = []
     for case in TEST_CASE:
         tasks.append(op.read(f"/benchmark/opendal_write/{case['name']}"))

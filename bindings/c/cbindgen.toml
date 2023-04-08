@@ -46,5 +46,5 @@ no_includes = true
 sys_includes = ["stdint.h", "stddef.h", "stdbool.h"]
 
 [parse]
-parse_deps = true
 include = ["opendal"]
+parse_deps = true

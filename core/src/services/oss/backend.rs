@@ -53,6 +53,7 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign
@@ -417,7 +418,7 @@ impl Accessor for OssBackend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
+            .set_capabilities(Read | Write | Copy | List | Scan | Presign | Batch)
             .set_hints(ReadStreamable);
 
         am
@@ -473,6 +474,19 @@ impl Accessor for OssBackend {
             RpWrite::default(),
             OssWriter::new(self.clone(), args, path.to_string(), upload_id),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.oss_copy_object(from, to).await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCopy::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -751,6 +765,26 @@ impl OssBackend {
             body,
             false,
         )?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
+    }
+
+    async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let url = format!(
+            "{}/{}",
+            self.get_endpoint(false),
+            percent_encode_path(&target)
+        );
+        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+
+        let mut req = Request::put(&url)
+            .header("x-oss-copy-source", source)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await

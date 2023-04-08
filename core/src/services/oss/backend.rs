@@ -779,7 +779,7 @@ impl OssBackend {
             self.get_endpoint(false),
             percent_encode_path(&target)
         );
-        let source = format!("{}/{}", self.bucket, percent_encode_path(&source));
+        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
 
         let mut req = Request::put(&url)
             .header("x-oss-copy-source", source)

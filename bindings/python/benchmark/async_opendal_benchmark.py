@@ -26,6 +26,7 @@ class Config(BaseSettings):
     aws_region: str
     aws_s3_bucket: str
 
+
 SETTINGS = Config()
 
 TEST_CASE = [
@@ -40,7 +41,12 @@ TEST_CASE = [
 
 
 async def opendal_write():
-    op = opendal.AsyncOperator("s3", bucket=SETTINGS.aws_s3_bucket, region=SETTINGS.aws_region, endpoint=SETTINGS.aws_endpoint)
+    op = opendal.AsyncOperator(
+        "s3",
+        bucket=SETTINGS.aws_s3_bucket,
+        region=SETTINGS.aws_region,
+        endpoint=SETTINGS.aws_endpoint,
+    )
     tasks = []
     for case in TEST_CASE:
         tasks.append(
@@ -53,7 +59,12 @@ async def opendal_write():
 
 
 async def opendal_read():
-    op = opendal.AsyncOperator("s3", bucket=SETTINGS.aws_s3_bucket, region=SETTINGS.aws_region, endpoint=SETTINGS.aws_endpoint)
+    op = opendal.AsyncOperator(
+        "s3",
+        bucket=SETTINGS.aws_s3_bucket,
+        region=SETTINGS.aws_region,
+        endpoint=SETTINGS.aws_endpoint,
+    )
     tasks = []
     for case in TEST_CASE:
         tasks.append(op.read(f"/benchmark/opendal_write/{case['name']}"))

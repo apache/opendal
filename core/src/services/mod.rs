@@ -101,4 +101,6 @@ mod webdav;
 pub use webdav::Webdav;
 
 mod webhdfs;
+mod onedrive;
+
 pub use webhdfs::Webhdfs;

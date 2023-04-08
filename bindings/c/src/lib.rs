@@ -42,7 +42,10 @@ use result::opendal_result_read;
 ///   the string.
 /// * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_operator_ptr {
+pub unsafe extern "C" fn opendal_operator_new(
+    scheme: *const c_char,
+    root: *const c_char,
+) -> opendal_operator_ptr {
     if scheme.is_null() {
         return opendal_operator_ptr::null();
     }
@@ -55,16 +58,21 @@ pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_
         }
     };
 
-    // todo: api for map construction
-    let map = HashMap::default();
+    let root = if root.is_null() {
+        "/".to_string()
+    } else {
+        unsafe { std::ffi::CStr::from_ptr(root).to_str().unwrap() }.to_string()
+    };
 
-    let op = match scheme {
-        od::Scheme::Memory => generate_operator!(od::services::Memory, map),
-        _ => {
+    // todo: api for map construction
+    let options = HashMap::from([("root".to_string(), root)]);
+
+    let op = match build_operator(scheme, options) {
+        Ok(op) => op.blocking(),
+        Err(_) => {
             return opendal_operator_ptr::null();
         }
-    }
-    .blocking();
+    };
 
     // this prevents the operator memory from being dropped by the Box
     let op = Box::leak(Box::new(op));
@@ -137,4 +145,38 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
             code: opendal_code::from_opendal_error(e),
         },
     }
+}
+
+fn build_operator(
+    scheme: opendal::Scheme,
+    map: HashMap<String, String>,
+) -> Result<opendal::Operator, opendal::Error> {
+    use opendal::services::*;
+
+    let op = match scheme {
+        opendal::Scheme::Azblob => opendal::Operator::from_map::<Azblob>(map).unwrap().finish(),
+        opendal::Scheme::Azdfs => opendal::Operator::from_map::<Azdfs>(map).unwrap().finish(),
+        opendal::Scheme::Fs => opendal::Operator::from_map::<Fs>(map).unwrap().finish(),
+        opendal::Scheme::Gcs => opendal::Operator::from_map::<Gcs>(map).unwrap().finish(),
+        opendal::Scheme::Ghac => opendal::Operator::from_map::<Ghac>(map).unwrap().finish(),
+        opendal::Scheme::Http => opendal::Operator::from_map::<Http>(map).unwrap().finish(),
+        opendal::Scheme::Ipmfs => opendal::Operator::from_map::<Ipmfs>(map).unwrap().finish(),
+        opendal::Scheme::Memory => opendal::Operator::from_map::<Memory>(map).unwrap().finish(),
+        opendal::Scheme::Obs => opendal::Operator::from_map::<Obs>(map).unwrap().finish(),
+        opendal::Scheme::Oss => opendal::Operator::from_map::<Oss>(map).unwrap().finish(),
+        opendal::Scheme::S3 => opendal::Operator::from_map::<S3>(map).unwrap().finish(),
+        opendal::Scheme::Webdav => opendal::Operator::from_map::<Webdav>(map).unwrap().finish(),
+        opendal::Scheme::Webhdfs => opendal::Operator::from_map::<Webhdfs>(map)
+            .unwrap()
+            .finish(),
+
+        _ => {
+            return Err(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                "Scheme not supported",
+            ));
+        }
+    };
+
+    Ok(op)
 }

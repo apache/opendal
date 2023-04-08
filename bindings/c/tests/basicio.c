@@ -43,6 +43,7 @@ void test_operator_rw(opendal_operator_ptr ptr) {
     for (int i = 0; i < r.data->len; i++) {
         printf("%c", (char)(r.data->data[i]));
     }
+    printf("\n");
 
     // free the bytes's heap memory
     opendal_bytes_free(r.data);
@@ -50,10 +51,18 @@ void test_operator_rw(opendal_operator_ptr ptr) {
 
 int main(int argc, char *argv[]) {
     // test memory operator
-    char scheme1[] = "memory";
-    opendal_operator_ptr p1 = opendal_operator_new(scheme1);
-    assert(p1);
-    test_operator_rw(p1);
+    char scheme_memory[] = "memory";
+    opendal_operator_ptr op_mem = opendal_operator_new(scheme_memory, NULL);
+
+    assert(op_mem);
+    test_operator_rw(op_mem);
+
+    // test fs operator
+    char scheme_fs[] = "fs";
+    char root[] = "/tmp";
+    opendal_operator_ptr op_fs = opendal_operator_new(scheme_fs, root);
+    assert(op_fs);
+    test_operator_rw(op_fs);
 
     return 0;
 }

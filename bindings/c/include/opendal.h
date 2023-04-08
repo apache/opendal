@@ -162,7 +162,7 @@ extern "C" {
    the string.
  * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
  */
-opendal_operator_ptr opendal_operator_new(const char *scheme);
+opendal_operator_ptr opendal_operator_new(const char *scheme, const char *root);
 
 /*
  Write the data into the path blockingly by operator, returns the error code OPENDAL_OK

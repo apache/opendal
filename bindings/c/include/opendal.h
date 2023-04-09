@@ -165,6 +165,11 @@ extern "C" {
 opendal_operator_ptr opendal_operator_new(const char *scheme);
 
 /*
+ Free the allocated operator pointed by [`opendal_operator_ptr`]
+ */
+void opendal_operator_free(opendal_operator_ptr op_ptr);
+
+/*
  Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
  if succeeds, others otherwise
 
@@ -195,7 +200,7 @@ struct opendal_result_read opendal_operator_blocking_read(opendal_operator_ptr o
                                                           const char *path);
 
 /*
- Frees the heap memory used by the [`Bytes`]
+ Frees the heap memory used by the [`opendal_bytes`]
  */
 void opendal_bytes_free(const struct opendal_bytes *vec);
 

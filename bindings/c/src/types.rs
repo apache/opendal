@@ -41,9 +41,22 @@ impl opendal_operator_ptr {
         }
     }
 
+    /// Returns whether this points to NULL
+    pub(crate) fn is_null(&self) -> bool {
+        self.ptr.is_null()
+    }
+
     /// Returns a reference to the underlying [`BlockingOperator`]
     pub(crate) fn get_ref(&self) -> &od::BlockingOperator {
         unsafe { &*(self.ptr) }
+    }
+
+    /// Returns a mutable reference to the underlying [`od::BlockingOperator`].
+    /// Note that this should be only used when the operator is being freed
+    #[allow(clippy::mut_from_ref)]
+    pub(crate) fn get_ref_mut(&self) -> &mut od::BlockingOperator {
+        let ptr_mut = self.ptr as *mut od::BlockingOperator;
+        unsafe { &mut (*ptr_mut) }
     }
 }
 
@@ -91,7 +104,7 @@ impl Into<bytes::Bytes> for opendal_bytes {
     }
 }
 
-/// Frees the heap memory used by the [`Bytes`]
+/// Frees the heap memory used by the [`opendal_bytes`]
 #[no_mangle]
 pub extern "C" fn opendal_bytes_free(vec: *const opendal_bytes) {
     unsafe {

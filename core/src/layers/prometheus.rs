@@ -195,7 +195,7 @@ impl PrometheusMetrics {
         .unwrap();
         let opts = histogram_opts!(
             "write_request_latency",
-            "Histogram of the time spent on writeing",
+            "Histogram of the time spent on writing",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let write_request_latency = register_histogram_with_registry!(opts, registry).unwrap();

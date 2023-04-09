@@ -538,11 +538,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
                     )
                 })
             })
-            .map_err(|err| {
-                self.stats
-                    .increment_errors_total(Operation::Read, err.kind());
-                err
-            })
             .await;
         timer.observe_duration();
         read_res
@@ -564,11 +559,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
                         MetricWrapper::new(r, Operation::Write, self.stats.clone()),
                     )
                 })
-            })
-            .map_err(|err| {
-                self.stats
-                    .increment_errors_total(Operation::Write, err.kind());
-                err
             })
             .await;
         timer.observe_duration();
@@ -633,107 +623,64 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.stats.requests_total_presign.inc();
+        self.stats.presign_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self.stats.presign_request_latency.start_timer();
         let result = self.inner.presign(path, args);
-        let dur = start.elapsed().as_secs_f64();
+        timer.observe_duration();
 
-        self.stats.requests_duration_seconds_presign.record(dur);
-
-        result.map_err(|e| {
-            self.stats
-                .increment_errors_total(Operation::Presign, e.kind());
-            e
-        })
+        result
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.stats.requests_total_blocking_create.inc();
+        self.stats.blocking_create_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self.stats.blocking_create_request_latency.start_timer();
         let result = self.inner.blocking_create(path, args);
-        let dur = start.elapsed().as_secs_f64();
 
-        self.stats
-            .requests_duration_seconds_blocking_create
-            .record(dur);
+        timer.observe_duration();
 
-        result.map_err(|e| {
-            self.stats
-                .increment_errors_total(Operation::BlockingCreate, e.kind());
-            e
-        })
+        result
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.stats.requests_total_blocking_read.inc();
+        self.stats.blocking_read_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self.stats.blocking_read_request_latency.start_timer();
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
+            self.stats
+                .read_size
+                .observe(rp.metadata().content_length() as f64);
             (
                 rp,
-                MetricWrapper::new(
-                    r,
-                    Operation::BlockingRead,
-                    self.stats.clone(),
-                    self.stats.bytes_total_blocking_read.clone(),
-                    self.stats.requests_duration_seconds_blocking_read.clone(),
-                    Some(start),
-                ),
+                MetricWrapper::new(r, Operation::BlockingRead, self.stats.clone()),
             )
         });
-
-        result.map_err(|e| {
-            self.stats
-                .increment_errors_total(Operation::BlockingRead, e.kind());
-            e
-        })
+        timer.observe_duration();
+        result
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.stats.requests_total_blocking_write.inc();
+        self.stats.blocking_write_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
-        let result = self.inner.blocking_write(path, args);
-        let dur = start.elapsed().as_secs_f64();
-
-        self.stats
-            .requests_duration_seconds_blocking_write
-            .record(dur);
-
+        let timer = self.stats.blocking_write_request_latency.start_timer();
+        let result = self.inner.blocking_write(path, args).map(|(rp, r)| {
+            // todo: monitor blocking write size
+            (
+                rp,
+                MetricWrapper::new(r, Operation::BlockingWrite, self.stats.clone()),
+            )
+        });
+        timer.observe_duration();
         result
-            .map(|(rp, w)| {
-                (
-                    rp,
-                    MetricWrapper::new(
-                        w,
-                        Operation::BlockingWrite,
-                        self.stats.clone(),
-                        self.stats.bytes_total_write.clone(),
-                        self.stats.requests_duration_seconds_write.clone(),
-                        Some(start),
-                    ),
-                )
-            })
-            .map_err(|e| {
-                self.stats
-                    .increment_errors_total(Operation::BlockingWrite, e.kind());
-                e
-            })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.stats.requests_total_blocking_stat.inc();
+        self.stats.blocking_stat_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self.stats.blocking_stat_request_latency.start_timer();
         let result = self.inner.blocking_stat(path, args);
-        let dur = start.elapsed().as_secs_f64();
-
-        self.stats
-            .requests_duration_seconds_blocking_stat
-            .record(dur);
-
+        timer.observe_duration();
         result.map_err(|e| {
             self.stats
                 .increment_errors_total(Operation::BlockingStat, e.kind());
@@ -742,15 +689,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.stats.requests_total_blocking_delete.inc();
+        self.stats.blocking_delete_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self.stats.blocking_delete_request_latency.start_timer();
         let result = self.inner.blocking_delete(path, args);
-        let dur = start.elapsed().as_secs_f64();
-
-        self.stats
-            .requests_duration_seconds_blocking_delete
-            .record(dur);
+        timer.observe_duration();
 
         result.map_err(|e| {
             self.stats
@@ -760,15 +703,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        self.stats.requests_total_blocking_list.inc();
+        self.stats.blocking_list_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self.stats.blocking_list_request_latency.start_timer();
         let result = self.inner.blocking_list(path, args);
-        let dur = start.elapsed().as_secs_f64();
-
-        self.stats
-            .requests_duration_seconds_blocking_list
-            .record(dur);
+        timer.observe_duration();
 
         result.map_err(|e| {
             self.stats
@@ -778,16 +717,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     }
 
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.stats.requests_total_blocking_scan.inc();
+        self.stats.blocking_scan_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self.stats.blocking_scan_request_latency.start_timer();
         let result = self.inner.blocking_scan(path, args);
-        let dur = start.elapsed().as_secs_f64();
-
-        self.stats
-            .requests_duration_seconds_blocking_scan
-            .record(dur);
-
+        timer.observe_duration();
         result.map_err(|e| {
             self.stats
                 .increment_errors_total(Operation::BlockingScan, e.kind());
@@ -813,11 +747,11 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
-                self.bytes += bytes as u64;
+                self.stats.read_size.observe(bytes as f64);
                 Ok(bytes)
             }
             Err(e) => {
-                self.handle.increment_errors_total(self.op, e.kind());
+                self.stats.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
         })
@@ -827,7 +761,7 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
         self.inner.poll_seek(cx, pos).map(|res| match res {
             Ok(n) => Ok(n),
             Err(e) => {
-                self.handle.increment_errors_total(self.op, e.kind());
+                self.stats.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
         })
@@ -836,11 +770,11 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         self.inner.poll_next(cx).map(|res| match res {
             Some(Ok(bytes)) => {
-                self.bytes += bytes.len() as u64;
+                self.stats.read_size.observe(bytes.len() as f64);
                 Some(Ok(bytes))
             }
             Some(Err(e)) => {
-                self.handle.increment_errors_total(self.op, e.kind());
+                self.stats.increment_errors_total(self.op, e.kind());
                 Some(Err(e))
             }
             None => None,
@@ -853,18 +787,18 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
         self.inner
             .read(buf)
             .map(|n| {
-                self.bytes += n as u64;
+                self.stats.blocking_read_size.observe(n as f64);
                 n
             })
             .map_err(|e| {
-                self.handle.increment_errors_total(self.op, e.kind());
+                self.stats.increment_errors_total(self.op, e.kind());
                 e
             })
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos).map_err(|err| {
-            self.handle.increment_errors_total(self.op, err.kind());
+            self.stats.increment_errors_total(self.op, err.kind());
             err
         })
     }
@@ -872,11 +806,11 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
     fn next(&mut self) -> Option<Result<Bytes>> {
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
-                self.bytes += bytes.len() as u64;
+                self.stats.blocking_read_size.observe(bytes.len() as f64);
                 Ok(bytes)
             }
             Err(e) => {
-                self.handle.increment_errors_total(self.op, e.kind());
+                self.stats.increment_errors_total(self.op, e.kind());
                 Err(e)
             }
         })
@@ -890,9 +824,9 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
         self.inner
             .write(bs)
             .await
-            .map(|_| self.bytes += size as u64)
+            .map(|_| self.stats.write_size.observe(size as f64))
             .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
+                self.stats.increment_errors_total(self.op, err.kind());
                 err
             })
     }
@@ -902,16 +836,16 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
         self.inner
             .append(bs)
             .await
-            .map(|_| self.bytes += size as u64)
+            .map(|_| self.stats.write_size.observe(size as f64))
             .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
+                self.stats.increment_errors_total(self.op, err.kind());
                 err
             })
     }
 
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await.map_err(|err| {
-            self.handle.increment_errors_total(self.op, err.kind());
+            self.stats.increment_errors_total(self.op, err.kind());
             err
         })
     }
@@ -922,9 +856,9 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
         let size = bs.len();
         self.inner
             .write(bs)
-            .map(|_| self.bytes += size as u64)
+            .map(|_| self.stats.blocking_write_size.observe(size as f64))
             .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
+                self.stats.increment_errors_total(self.op, err.kind());
                 err
             })
     }
@@ -933,16 +867,16 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
         let size = bs.len();
         self.inner
             .append(bs)
-            .map(|_| self.bytes += size as u64)
+            .map(|_| self.stats.blocking_write_size.observe(size as f64))
             .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
+                self.stats.increment_errors_total(self.op, err.kind());
                 err
             })
     }
 
     fn close(&mut self) -> Result<()> {
         self.inner.close().map_err(|err| {
-            self.handle.increment_errors_total(self.op, err.kind());
+            self.stats.increment_errors_total(self.op, err.kind());
             err
         })
     }

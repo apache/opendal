@@ -72,6 +72,16 @@ pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_
     opendal_operator_ptr::from(op)
 }
 
+/// Free the allocated operator pointed by [`opendal_operator_ptr`]
+#[no_mangle]
+pub extern "C" fn opendal_operator_free(op_ptr: opendal_operator_ptr) {
+    if op_ptr.is_null() {
+        return;
+    }
+    let _ = unsafe { Box::from_raw(op_ptr.get_ref_mut()) };
+    // dropped
+}
+
 /// Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
 /// if succeeds, others otherwise
 ///

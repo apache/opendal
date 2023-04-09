@@ -86,7 +86,7 @@ impl oio::Page for IpmfsPager {
                 };
 
                 let path = if &self.path == "/" {
-                    path.strip_prefix("/").unwrap().to_string()
+                    path.strip_prefix('/').unwrap().to_string()
                 } else {
                     path
                 };
@@ -95,7 +95,8 @@ impl oio::Page for IpmfsPager {
                     &path,
                     Metadata::new(object.mode()).with_content_length(object.size),
                 )
-            }).collect();
+            })
+            .collect();
 
         Ok(if oes.is_empty() { None } else { Some(oes) })
     }

@@ -37,6 +37,7 @@ mod layer;
 pub use layer::Layer;
 pub use layer::LayeredAccessor;
 
+pub mod monitor;
 pub mod oio;
 
 mod path;

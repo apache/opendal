@@ -30,16 +30,14 @@ use crate::Result;
 
 pub struct IpmfsPager {
     backend: Arc<IpmfsBackend>,
-    root: String,
     path: String,
     consumed: bool,
 }
 
 impl IpmfsPager {
-    pub fn new(backend: Arc<IpmfsBackend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<IpmfsBackend>, path: &str) -> Self {
         Self {
             backend,
-            root: root.to_string(),
             path: path.to_string(),
             consumed: false,
         }

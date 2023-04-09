@@ -176,7 +176,7 @@ impl Accessor for IpmfsBackend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            IpmfsPager::new(Arc::new(self.clone()), &self.root, path),
+            IpmfsPager::new(Arc::new(self.clone()), path),
         ))
     }
 }

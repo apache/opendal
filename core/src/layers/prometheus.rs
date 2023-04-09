@@ -21,12 +21,12 @@ use std::io;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
+use log::debug;
 
 use crate::ops::*;
 use crate::raw::*;
@@ -40,7 +40,23 @@ use prometheus::{exponential_buckets, histogram_opts, register_histogram_with_re
 
 use crate::raw::Accessor;
 
-/// [`AccessorBasicMetrics`] stores the performance and IO metrics of AccessorBasicMetrics.
+/// todo: add doc.
+#[derive(Debug, Copy, Clone)]
+pub struct PrometheusLayer;
+
+impl<A: Accessor> Layer<A> for PrometheusLayer {
+    type LayeredAccessor = PrometheusMetricsAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        let registry = prometheus::Registry::new();
+        PrometheusMetricsAccessor {
+            inner,
+            stats: Arc::new(PrometheusMetrics::new(registry)),
+        }
+    }
+}
+/// [`PrometheusMetrics`] provide the performance and IO metrics.
+///
 #[derive(Debug)]
 pub struct PrometheusMetrics {
     // metadata
@@ -51,7 +67,7 @@ pub struct PrometheusMetrics {
     pub create_request_counts: GenericCounter<AtomicU64>,
     pub create_request_latency: Histogram,
 
-    // read
+    /// read
     pub read_request_counts: GenericCounter<AtomicU64>,
     pub read_request_latency: Histogram,
     pub read_size: Histogram,
@@ -466,10 +482,15 @@ impl PrometheusMetrics {
     /// in advance.
     #[inline]
     fn increment_errors_total(&self, op: Operation, kind: ErrorKind) {
-        todo!()
+        debug!(
+            "Prometheus statistics metrics error, operation {} error {}",
+            op.into_static(),
+            kind.into_static()
+        );
     }
 }
 
+/// todo: add doc
 #[derive(Clone)]
 pub struct PrometheusMetricsAccessor<A: Accessor> {
     inner: A,
@@ -511,7 +532,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.stats.create_request_counts.inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
         let timer = self.stats.create_request_latency.start_timer();
         let create_res = self.inner.create(path, args).await;
 
@@ -553,7 +573,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
             .write(path, args)
             .map(|v| {
                 v.map(|(rp, r)| {
-                    // todo: monitor write_size
                     (
                         rp,
                         MetricWrapper::new(r, Operation::Write, self.stats.clone()),
@@ -730,6 +749,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     }
 }
 
+/// todo: add doc
 pub struct MetricWrapper<R> {
     inner: R,
 

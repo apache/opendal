@@ -23,6 +23,8 @@ pub use concurrent_limit::ConcurrentLimitLayer;
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;
 
+pub mod monitor;
+
 mod logging;
 pub use logging::LoggingLayer;
 

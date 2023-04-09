@@ -23,7 +23,10 @@ pub use concurrent_limit::ConcurrentLimitLayer;
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;
 
-pub mod monitor;
+#[cfg(feature = "layers-prometheus")]
+mod prometheus;
+#[cfg(feature = "layers-prometheus")]
+pub use self::prometheus::PrometheusLayer;
 
 mod logging;
 pub use logging::LoggingLayer;

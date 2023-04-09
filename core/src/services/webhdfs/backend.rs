@@ -56,6 +56,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -443,6 +444,31 @@ impl WebhdfsBackend {
 
         self.client.send(req).await
     }
+
+    async fn webhdfs_rename_object(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op=RENAME&destination={}",
+            self.endpoint,
+            percent_encode_path(&from),
+            percent_encode_path(&to),
+        );
+        if let Some(auth) = &self.auth {
+            url += format!("&{auth}").as_str();
+        }
+
+        let req = Request::put(&url);
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send_async(req).await
+    }
 }
 
 impl WebhdfsBackend {
@@ -542,7 +568,10 @@ impl Accessor for WebhdfsBackend {
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::Rename
+                    | AccessorCapability::List,
             )
             .set_hints(AccessorHint::ReadStreamable);
         am
@@ -614,6 +643,20 @@ impl Accessor for WebhdfsBackend {
             RpWrite::default(),
             WebhdfsWriter::new(self.clone(), args, path.to_string()),
         ))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let resp = self.webhdfs_rename_object(from, to).await?;
+        match resp.status() {
+            StatusCode::OK => Ok(RpRename::default()),
+            // StatusCode::CONFLICT => Err(Error::new(
+            //     ErrorKind::Conflict,
+            //     "destination already exists",
+            // )),
+            StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::NotFound, "from file not found")
+                .with_context("service", Scheme::Webhdfs)),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

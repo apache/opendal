@@ -408,7 +408,7 @@ impl MetricsHandler {
         }
     }
 
-    /// error handling in the cold path, so we will not init error counters
+    /// error handling is the cold path, so we will not init error counters
     /// in advance.
     #[inline]
     fn increment_errors_total(&self, op: Operation, kind: ErrorKind) {

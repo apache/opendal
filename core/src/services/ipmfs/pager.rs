@@ -56,7 +56,11 @@ impl oio::Page for IpmfsPager {
         let resp = self.backend.ipmfs_ls(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp).await?);
+            let err = parse_error(resp).await?;
+            if err.kind() == crate::ErrorKind::NotFound {
+                return Ok(None);
+            }
+            return Err(err);
         }
 
         let bs = resp.into_body().bytes().await?;
@@ -66,31 +70,34 @@ impl oio::Page for IpmfsPager {
         // Mark dir stream has been consumed.
         self.consumed = true;
 
-        Ok(Some(
-            entries_body
-                .entries
-                .unwrap_or_default()
-                .into_iter()
-                .map(|object| {
-                    let path = match object.mode() {
-                        EntryMode::FILE => {
-                            format!("{}{}", &self.path, object.name)
-                        }
-                        EntryMode::DIR => {
-                            format!("{}{}/", &self.path, object.name)
-                        }
-                        EntryMode::Unknown => unreachable!(),
-                    };
+        let oes: Vec<oio::Entry> = entries_body
+            .entries
+            .unwrap_or_default()
+            .into_iter()
+            .map(|object| {
+                let path = match object.mode() {
+                    EntryMode::FILE => {
+                        format!("{}{}", &self.path, object.name)
+                    }
+                    EntryMode::DIR => {
+                        format!("{}{}/", &self.path, object.name)
+                    }
+                    EntryMode::Unknown => unreachable!(),
+                };
 
-                    let path = build_rel_path(&self.root, &path);
+                let path = if &self.path == "/" {
+                    path.strip_prefix("/").unwrap().to_string()
+                } else {
+                    path
+                };
 
-                    oio::Entry::new(
-                        &path,
-                        Metadata::new(object.mode()).with_content_length(object.size),
-                    )
-                })
-                .collect(),
-        ))
+                oio::Entry::new(
+                    &path,
+                    Metadata::new(object.mode()).with_content_length(object.size),
+                )
+            }).collect();
+
+        Ok(if oes.is_empty() { None } else { Some(oes) })
     }
 }
 

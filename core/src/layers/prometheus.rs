@@ -40,7 +40,50 @@ use prometheus::{exponential_buckets, histogram_opts, register_histogram_with_re
 
 use crate::raw::Accessor;
 
-/// todo: add doc.
+/// # Examples
+///
+/// ```
+/// use log::debug;
+/// use log::info;
+/// use opendal::services;
+/// use opendal::Operator;
+/// use opendal::Result;
+
+/// use opendal::layers::PrometheusLayer;
+/// use prometheus::Encoder;
+
+/// /// Visit [`opendal::services`] for more service related config.
+/// /// Visit [`opendal::Object`] for more object level APIs.
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Pick a builder and configure it.
+///     let builder = services::Memory::default();
+
+///     let op = Operator::new(builder)
+///         .expect("must init")
+///         .layer(PrometheusLayer)
+///         .finish();
+///     debug!("operator: {op:?}");
+
+///     // Write data into object test.
+///     op.write("test", "Hello, World!").await?;
+///     // Read data from object.
+///     let bs = op.read("test").await?;
+///     info!("content: {}", String::from_utf8_lossy(&bs));
+
+///     // Get object metadata.
+///     let meta = op.stat("test").await?;
+///     info!("meta: {:?}", meta);
+
+///     // Export prometheus metrics.
+///     let mut buffer = Vec::<u8>::new();
+///     let encoder = prometheus::TextEncoder::new();
+///     encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+///     println!("## Metrics");
+///     println!("{}", String::from_utf8(buffer.clone()).unwrap());
+///     Ok(())
+/// }
+///  ```
 #[derive(Debug, Copy, Clone)]
 pub struct PrometheusLayer;
 
@@ -48,10 +91,11 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
     type LayeredAccessor = PrometheusMetricsAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let registry = prometheus::Registry::new();
+        let registry = prometheus::default_registry();
+
         PrometheusMetricsAccessor {
             inner,
-            stats: Arc::new(PrometheusMetrics::new(registry)),
+            stats: Arc::new(PrometheusMetrics::new(registry.clone())),
         }
     }
 }
@@ -180,7 +224,7 @@ impl PrometheusMetrics {
         let read_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
 
         let opts = histogram_opts!(
-            "read_request_latency",
+            "read_size",
             "read size",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
@@ -201,7 +245,7 @@ impl PrometheusMetrics {
         let write_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
 
         let opts = histogram_opts!(
-            "write_request_latency",
+            "write_size",
             "write size",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
@@ -329,7 +373,7 @@ impl PrometheusMetrics {
             register_histogram_with_registry!(opts, registry).unwrap();
 
         let opts = histogram_opts!(
-            "blocking_read_request_latency",
+            "blocking_read_size",
             "blocking_read size",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
@@ -351,8 +395,8 @@ impl PrometheusMetrics {
             register_histogram_with_registry!(opts, registry).unwrap();
 
         let opts = histogram_opts!(
-            "blocking_write_request_latency",
-            "blocking_write size",
+            "blocking_write_size",
+            "total size by blocking_write",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let blocking_write_size = register_histogram_with_registry!(opts, registry).unwrap();
@@ -420,6 +464,7 @@ impl PrometheusMetrics {
 
         let blocking_scan_request_latency =
             register_histogram_with_registry!(opts, registry).unwrap();
+
         Self {
             metadata_request_counts,
             metadata_request_latency,
@@ -586,7 +631,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.stats.stat_request_counts.inc();
-
         let timer = self.stats.stat_request_latency.start_timer();
 
         let stat_res = self

@@ -39,7 +39,8 @@ use prometheus::{
 use prometheus::{exponential_buckets, histogram_opts, register_histogram_with_registry, Registry};
 
 use crate::raw::Accessor;
-
+/// Add [prometheus](https://docs.rs/prometheus) for every operations.
+///
 /// # Examples
 ///
 /// ```
@@ -48,42 +49,42 @@ use crate::raw::Accessor;
 /// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Result;
-
+///
 /// use opendal::layers::PrometheusLayer;
 /// use prometheus::Encoder;
-
+///
 /// /// Visit [`opendal::services`] for more service related config.
 /// /// Visit [`opendal::Object`] for more object level APIs.
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.
 ///     let builder = services::Memory::default();
-
+///
 ///     let op = Operator::new(builder)
 ///         .expect("must init")
 ///         .layer(PrometheusLayer)
 ///         .finish();
 ///     debug!("operator: {op:?}");
-
+///
 ///     // Write data into object test.
 ///     op.write("test", "Hello, World!").await?;
 ///     // Read data from object.
 ///     let bs = op.read("test").await?;
 ///     info!("content: {}", String::from_utf8_lossy(&bs));
-
+///
 ///     // Get object metadata.
 ///     let meta = op.stat("test").await?;
 ///     info!("meta: {:?}", meta);
-
+///
 ///     // Export prometheus metrics.
 ///     let mut buffer = Vec::<u8>::new();
 ///     let encoder = prometheus::TextEncoder::new();
 ///     encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
-///     println!("## Metrics");
+///     println!("## Prometheus Metrics");
 ///     println!("{}", String::from_utf8(buffer.clone()).unwrap());
 ///     Ok(())
 /// }
-///  ```
+/// ```
 #[derive(Debug, Copy, Clone)]
 pub struct PrometheusLayer;
 

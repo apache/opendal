@@ -739,14 +739,14 @@ impl OssBackend {
         let mut req = self.oss_get_object_request(path, range, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_head_object_request(path, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn oss_put_object(
@@ -767,7 +767,7 @@ impl OssBackend {
         )?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -787,7 +787,7 @@ impl OssBackend {
             .map_err(new_request_build_error)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub(super) async fn oss_list_object(
@@ -800,13 +800,13 @@ impl OssBackend {
         let mut req = self.oss_list_object_request(path, token, delimiter, limit)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn oss_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_delete_object_request(path)?;
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
@@ -837,7 +837,7 @@ impl OssBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     fn get_endpoint(&self, is_presign: bool) -> &str {
@@ -850,7 +850,7 @@ impl OssBackend {
 
     async fn oss_initiate_upload(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let req = self.oss_initiate_upload_request(path, None, None, AsyncBody::Empty, false)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     /// Creates a request that initiates multipart upload
@@ -941,7 +941,7 @@ impl OssBackend {
             .map_err(new_request_build_error)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

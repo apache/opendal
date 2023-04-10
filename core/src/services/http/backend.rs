@@ -318,7 +318,7 @@ impl HttpBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn http_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -336,7 +336,7 @@ impl HttpBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

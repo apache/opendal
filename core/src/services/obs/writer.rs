@@ -53,7 +53,7 @@ impl oio::Write for ObsWriter {
             .sign(&mut req)
             .map_err(new_request_sign_error)?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
 

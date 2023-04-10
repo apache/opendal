@@ -319,7 +319,7 @@ impl Accessor for GhacBackend {
 
         let req = self.ghac_reserve(path).await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body().bytes().await?;
@@ -340,7 +340,7 @@ impl Accessor for GhacBackend {
             .ghac_upload(cache_id, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
             .await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
@@ -351,7 +351,7 @@ impl Accessor for GhacBackend {
         }
 
         let req = self.ghac_commit(cache_id, 1).await?;
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
@@ -366,7 +366,7 @@ impl Accessor for GhacBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let req = self.ghac_query(path).await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body().bytes().await?;
@@ -378,7 +378,7 @@ impl Accessor for GhacBackend {
         };
 
         let req = self.ghac_get_location(&location, args.range()).await?;
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let status = resp.status();
         match status {
@@ -400,7 +400,7 @@ impl Accessor for GhacBackend {
 
         let req = self.ghac_reserve(path).await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body().bytes().await?;
@@ -424,7 +424,7 @@ impl Accessor for GhacBackend {
 
         let req = self.ghac_query(path).await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body().bytes().await?;
@@ -438,7 +438,7 @@ impl Accessor for GhacBackend {
         };
 
         let req = self.ghac_head_location(&location).await?;
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let status = resp.status();
         match status {
@@ -615,7 +615,7 @@ impl GhacBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

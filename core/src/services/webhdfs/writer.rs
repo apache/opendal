@@ -51,7 +51,7 @@ impl oio::Write for WebhdfsWriter {
             )
             .await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
         match status {

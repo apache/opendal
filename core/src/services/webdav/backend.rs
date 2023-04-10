@@ -448,7 +448,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub async fn webdav_put(
@@ -482,7 +482,7 @@ impl WebdavBackend {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_mkcol(
@@ -509,7 +509,7 @@ impl WebdavBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_propfind(
@@ -548,7 +548,7 @@ impl WebdavBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -566,7 +566,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -591,7 +591,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -616,7 +616,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {

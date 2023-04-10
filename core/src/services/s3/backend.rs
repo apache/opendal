@@ -1097,7 +1097,7 @@ impl Accessor for S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let status = resp.status();
 
@@ -1385,7 +1385,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub fn s3_put_object_request(
@@ -1457,7 +1457,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn s3_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -1471,7 +1471,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -1529,7 +1529,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     /// Make this functions as `pub(suber)` because `DirStream` depends
@@ -1570,7 +1570,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn s3_initiate_multipart_upload(
@@ -1612,7 +1612,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub fn s3_upload_part_request(
@@ -1683,7 +1683,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
@@ -1714,7 +1714,7 @@ impl S3Backend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

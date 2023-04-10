@@ -247,16 +247,7 @@ mod tests {
             },
         };
 
-        let req: Request<AsyncBody> = pr.clone().into();
-        assert_eq!(Method::PATCH, req.method());
-        assert_eq!(
-            "https://opendal.apache.org/path/to/file",
-            req.uri().to_string()
-        );
-        assert_eq!("123", req.headers().get(CONTENT_LENGTH).unwrap());
-        assert_eq!("application/json", req.headers().get(CONTENT_TYPE).unwrap());
-
-        let req: Request<Body> = pr.into();
+        let req: Request<AsyncBody> = pr.into();
         assert_eq!(Method::PATCH, req.method());
         assert_eq!(
             "https://opendal.apache.org/path/to/file",

@@ -33,57 +33,6 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-/// Body used in blocking HTTP requests.
-#[derive(Default)]
-pub enum Body {
-    /// An empty body.
-    #[default]
-    Empty,
-    /// Body with bytes.
-    Bytes(Bytes),
-}
-
-impl Body {
-    /// Consume the entire body.
-    pub fn consume(self) -> Result<()> {
-        Ok(())
-    }
-}
-
-impl From<Body> for reqwest::blocking::Body {
-    fn from(v: Body) -> Self {
-        match v {
-            Body::Empty => reqwest::blocking::Body::from(""),
-            Body::Bytes(bs) => reqwest::blocking::Body::from(bs),
-        }
-    }
-}
-
-/// IncomingBody carries the content returned by remote servers.
-///
-/// # Notes
-///
-/// Client SHOULD NEVER construct this body.
-pub struct IncomingBody {
-    /// # TODO
-    ///
-    /// hyper returns `impl Stream<Item = crate::Result<Bytes>>` but we can't
-    /// write the types in stable. So we will box here.
-    ///
-    /// After [TAIT](https://rust-lang.github.io/rfcs/2515-type_alias_impl_trait.html)
-    /// has been stable, we can change `IncomingAsyncBody` into `IncomingAsyncBody<S>`.
-    #[allow(unused)]
-    inner: reqwest::blocking::Response,
-    #[allow(unused)]
-    size: Option<u64>,
-}
-
-impl IncomingBody {
-    pub fn new(resp: reqwest::blocking::Response, size: Option<u64>) -> Self {
-        IncomingBody { inner: resp, size }
-    }
-}
-
 /// Body used in async HTTP requests.
 #[derive(Default)]
 pub enum AsyncBody {

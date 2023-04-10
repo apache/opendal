@@ -326,7 +326,7 @@ impl Accessor for ObsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let status = resp.status();
 
@@ -451,7 +451,7 @@ impl ObsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub fn obs_put_object_request(
@@ -496,7 +496,7 @@ impl ObsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -512,7 +512,7 @@ impl ObsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn obs_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -529,7 +529,7 @@ impl ObsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub(crate) async fn obs_list_objects(
@@ -567,6 +567,6 @@ impl ObsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }

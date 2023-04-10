@@ -70,7 +70,7 @@ impl oio::Write for S3Writer {
             .sign(&mut req)
             .map_err(new_request_sign_error)?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
 
@@ -103,7 +103,7 @@ impl oio::Write for S3Writer {
             .sign(&mut req)
             .map_err(new_request_sign_error)?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
 

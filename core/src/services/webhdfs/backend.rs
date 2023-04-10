@@ -288,7 +288,7 @@ impl WebhdfsBackend {
             return Ok(req);
         }
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         // should be a 307 TEMPORARY_REDIRECT
         if resp.status() != StatusCode::TEMPORARY_REDIRECT {
@@ -391,7 +391,7 @@ impl WebhdfsBackend {
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
         let req = self.webhdfs_open_req(path, &range).await?;
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         // this should be a 307 redirect
         if resp.status() != StatusCode::TEMPORARY_REDIRECT {
@@ -402,7 +402,7 @@ impl WebhdfsBackend {
         let re_req = Request::get(&re_url)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
-        self.client.send_async(re_req).await
+        self.client.send(re_req).await
     }
 
     async fn webhdfs_status_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -422,7 +422,7 @@ impl WebhdfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webhdfs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -441,7 +441,7 @@ impl WebhdfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 
@@ -564,7 +564,7 @@ impl Accessor for WebhdfsBackend {
             .webhdfs_create_object_req(&path, Some(0), None, AsyncBody::Empty)
             .await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let status = resp.status();
 
@@ -666,7 +666,7 @@ impl Accessor for WebhdfsBackend {
         let path = path.trim_end_matches('/');
         let req = self.webhdfs_list_status_req(path)?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
         match resp.status() {
             StatusCode::OK => {
                 let body_bs = resp.into_body().bytes().await?;

@@ -63,7 +63,7 @@ impl oio::Write for OssWriter {
             .sign(&mut req)
             .map_err(new_request_sign_error)?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
 
@@ -96,7 +96,7 @@ impl oio::Write for OssWriter {
             .sign(&mut req)
             .map_err(new_request_sign_error)?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.backend.client.send(req).await?;
         match resp.status() {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())?

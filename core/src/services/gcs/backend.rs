@@ -371,7 +371,7 @@ impl Accessor for GcsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
@@ -420,7 +420,7 @@ impl Accessor for GcsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         if !resp.status().is_success() {
             return Err(parse_error(resp).await?);
@@ -535,7 +535,7 @@ impl GcsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub fn gcs_insert_object_request(
@@ -588,7 +588,7 @@ impl GcsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -607,7 +607,7 @@ impl GcsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub(crate) async fn gcs_list_objects(
@@ -648,7 +648,7 @@ impl GcsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

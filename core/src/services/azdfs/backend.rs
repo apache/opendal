@@ -342,7 +342,7 @@ impl Accessor for AzdfsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let status = resp.status();
 
@@ -462,7 +462,7 @@ impl AzdfsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     /// resource should be one of `file` or `directory`
@@ -556,7 +556,7 @@ impl AzdfsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn azdfs_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -579,7 +579,7 @@ impl AzdfsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub(crate) async fn azdfs_list(
@@ -613,7 +613,7 @@ impl AzdfsBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

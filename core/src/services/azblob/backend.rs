@@ -502,7 +502,7 @@ impl Accessor for AzblobBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.client.send(req).await?;
 
         let status = resp.status();
 
@@ -706,7 +706,7 @@ impl AzblobBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub fn azblob_put_blob_request(
@@ -761,7 +761,7 @@ impl AzblobBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn azblob_delete_blob(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -782,7 +782,7 @@ impl AzblobBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -809,7 +809,7 @@ impl AzblobBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub(crate) async fn azblob_list_blobs(
@@ -845,7 +845,7 @@ impl AzblobBackend {
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<IncomingAsyncBody>> {
@@ -881,7 +881,7 @@ impl AzblobBackend {
         let mut req = batch_delete_req_builder.try_into_req()?;
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

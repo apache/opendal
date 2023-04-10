@@ -35,7 +35,7 @@ use crate::Result;
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    async_client: reqwest::Client,
+    client: reqwest::Client,
 }
 
 /// We don't want users to know details about our clients.
@@ -52,14 +52,7 @@ impl HttpClient {
     }
 
     /// Build a new http client in async context.
-    pub fn build(async_builder: reqwest::ClientBuilder) -> Result<Self> {
-        Ok(HttpClient {
-            async_client: Self::build_async_client(async_builder)?,
-        })
-    }
-
-    /// Build a new blocking client with given builder.
-    fn build_async_client(mut builder: reqwest::ClientBuilder) -> Result<reqwest::Client> {
+    pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {
         // Make sure we don't enable auto gzip decompress.
         builder = builder.no_gzip();
         // Make sure we don't enable auto brotli decompress.
@@ -72,23 +65,25 @@ impl HttpClient {
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);
 
-        builder.build().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
+        Ok(Self {
+            client: builder.build().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
+            })?,
         })
     }
 
     /// Get the async client from http client.
-    pub async fn async_client(&self) -> reqwest::Client {
-        self.async_client.clone()
+    pub async fn client(&self) -> reqwest::Client {
+        self.client.clone()
     }
 
     /// Send a request in async way.
-    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         let is_head = req.method() == http::Method::HEAD;
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
-            .async_client
+            .client
             .request(
                 parts.method,
                 Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),

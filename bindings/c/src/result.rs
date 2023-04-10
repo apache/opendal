@@ -31,3 +31,12 @@ pub struct opendal_result_read {
     pub data: *mut opendal_bytes,
     pub code: opendal_code,
 }
+
+/// The result type for [`opendal_operator_is_exist()`], the field `is_exist`
+/// contains whether the path exists, and the field `code` contains the
+/// corresponding error code.
+#[repr(C)]
+pub struct opendal_result_is_exist {
+    pub is_exist: bool,
+    pub code: opendal_code,
+}

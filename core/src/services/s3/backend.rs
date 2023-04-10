@@ -22,6 +22,8 @@ use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+#[cfg(madsim)]
+use aws_sdk_s3 as sim_s3;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
@@ -762,7 +764,10 @@ impl S3Builder {
 
 impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
+    #[cfg(not(madsim))]
     type Accessor = S3Backend;
+    #[cfg(madsim)]
+    type Accessor = S3BackendSim;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = S3Builder::default();
@@ -799,6 +804,7 @@ impl Builder for S3Builder {
         builder
     }
 
+    #[cfg(not(madsim))]
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
@@ -984,6 +990,13 @@ impl Builder for S3Builder {
             default_storage_class,
         })
     }
+
+    #[cfg(madsim)]
+    fn build(&mut self) -> Result<Self::Accessor> {
+        let config = sim_s3::Config::builder().build();
+        let client = sim_s3::Client::from_conf(config);
+        todo!()
+    }
 }
 
 /// Backend for s3 services.
@@ -1003,6 +1016,9 @@ pub struct S3Backend {
     server_side_encryption_customer_key_md5: Option<HeaderValue>,
     default_storage_class: Option<HeaderValue>,
 }
+
+#[derive(Debug, Clone)]
+struct S3BackendSim {}
 
 impl S3Backend {
     /// # Note
@@ -1294,6 +1310,11 @@ impl Accessor for S3Backend {
             Err(parse_error(resp).await?)
         }
     }
+}
+
+#[async_trait]
+impl Accessor for S3BackendSim {
+    todo!();
 }
 
 impl S3Backend {

@@ -92,6 +92,7 @@ anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"
 async-tls = { version = "0.11", optional = true }
 async-trait = "0.1.68"
+aws-sdk-s3 = { version = "0.2", package = "madsim-aws-sdk-s3" }
 backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
@@ -104,6 +105,7 @@ http = "0.2.5"
 hyper = "0.14"
 lazy-regex = { version = "2.5.0", optional = true }
 log = "0.4"
+madsim = "0.2"
 md-5 = "0.10"
 metrics = { version = "0.20", optional = true }
 moka = { version = "0.10", optional = true, features = ["future"] }

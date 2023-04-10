@@ -73,7 +73,7 @@ impl HttpClient {
     }
 
     /// Get the async client from http client.
-    pub async fn client(&self) -> reqwest::Client {
+    pub fn client(&self) -> reqwest::Client {
         self.client.clone()
     }
 

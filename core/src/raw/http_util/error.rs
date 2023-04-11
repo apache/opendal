@@ -95,6 +95,16 @@ pub fn new_request_build_error(err: http::Error) -> Error {
 }
 
 /// Create a new error happened during signing request.
+pub fn new_request_credential_error(err: anyhow::Error) -> Error {
+    Error::new(
+        ErrorKind::Unexpected,
+        "loading credentail to sign http request",
+    )
+    .with_operation("reqsign::LoadCredential")
+    .set_source(err)
+}
+
+/// Create a new error happened during signing request.
 pub fn new_request_sign_error(err: anyhow::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "signing http request")
         .with_operation("reqsign::Sign")

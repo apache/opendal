@@ -17,9 +17,10 @@
 
 //! HTTP response messages
 
+use serde::Deserialize;
+
 use crate::raw::*;
 use crate::*;
-use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct BooleanResp {

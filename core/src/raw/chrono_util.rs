@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::Duration;
+use std::time::UNIX_EPOCH;
 
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
+use chrono::Utc;
 
 use crate::*;
 

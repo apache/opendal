@@ -24,7 +24,6 @@ use quick_xml::escape::unescape;
 use serde::Deserialize;
 
 use super::core::*;
-
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;

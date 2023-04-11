@@ -195,7 +195,7 @@ impl GcsBuilder {
         self
     }
 
-    /// Specify the customed token load used by this service.
+    /// Specify the customed token loader used by this service.
     pub fn customed_token_loader(&mut self, token_load: Box<dyn GoogleTokenLoad>) -> &mut Self {
         self.customed_token_loader = Some(token_load);
         self

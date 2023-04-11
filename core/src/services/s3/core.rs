@@ -121,7 +121,7 @@ impl S3Core {
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, durtion: Duration) -> Result<()> {
+    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
         let cred = if let Some(cred) = self.load_credential().await? {
             cred
         } else {
@@ -129,7 +129,7 @@ impl S3Core {
         };
 
         self.signer
-            .sign_query(req, durtion, &cred)
+            .sign_query(req, duration, &cred)
             .map_err(new_request_sign_error)
     }
 

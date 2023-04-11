@@ -21,6 +21,8 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::time::Duration;
 
+use backon::ExponentialBuilder;
+use backon::Retryable;
 use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
@@ -30,6 +32,7 @@ use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use once_cell::sync::Lazy;
 use reqsign_0_9::AwsCredential;
 use reqsign_0_9::AwsLoader;
 use reqsign_0_9::AwsV4Signer;
@@ -64,6 +67,9 @@ mod constants {
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
+static BACKOFF: Lazy<ExponentialBuilder> =
+    Lazy::new(|| ExponentialBuilder::default().with_jitter());
+
 pub struct S3Core {
     pub bucket: String,
     pub endpoint: String,
@@ -93,9 +99,8 @@ impl Debug for S3Core {
 impl S3Core {
     /// If credential is not found, we will not sign the request.
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
-        let cred = self
-            .loader
-            .load()
+        let cred = { || self.loader.load() }
+            .retry(&*BACKOFF)
             .await
             .map_err(new_request_credential_error)?;
 

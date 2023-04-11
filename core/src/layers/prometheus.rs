@@ -536,7 +536,6 @@ impl PrometheusMetrics {
     }
 }
 
-/// todo: add doc
 #[derive(Clone)]
 pub struct PrometheusMetricsAccessor<A: Accessor> {
     inner: A,

@@ -47,7 +47,7 @@ pub fn parse_datetime_from_rfc3339(s: &str) -> Result<DateTime<Utc>> {
 pub fn parse_datetime_from_from_timestamp_millis(s: i64) -> Result<DateTime<Utc>> {
     let st = UNIX_EPOCH
         .checked_add(Duration::from_millis(s as u64))
-        .ok_or_else(|| Error::new(ErrorKind::Unexpected, "intput timestamp overflow"))?;
+        .ok_or_else(|| Error::new(ErrorKind::Unexpected, "input timestamp overflow"))?;
 
     Ok(st.into())
 }

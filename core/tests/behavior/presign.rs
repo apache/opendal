@@ -16,6 +16,7 @@
 // under the License.
 
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Result;
 use http::header;
@@ -25,7 +26,6 @@ use opendal::Operator;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
-use time::Duration;
 
 use super::utils::*;
 
@@ -84,7 +84,7 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let signed_req = op.presign_write(&path, Duration::hours(1)).await?;
+    let signed_req = op.presign_write(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
 
     let client = reqwest::Client::new();
@@ -118,7 +118,7 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
     op.write(&path, content.clone())
         .await
         .expect("write must succeed");
-    let signed_req = op.presign_stat(&path, Duration::hours(1)).await?;
+    let signed_req = op.presign_stat(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
     let client = reqwest::Client::new();
     let mut req = client.request(
@@ -150,7 +150,7 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let signed_req = op.presign_read(&path, Duration::hours(1)).await?;
+    let signed_req = op.presign_read(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
 
     let client = reqwest::Client::new();

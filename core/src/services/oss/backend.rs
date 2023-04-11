@@ -552,7 +552,11 @@ impl Accessor for OssBackend {
         };
 
         self.signer
-            .sign_query(&mut req, args.expire())
+            .sign_query(
+                &mut req,
+                // TODO: convert to std::time::Duration
+                time::Duration::seconds_f64(args.expire().as_secs_f64()),
+            )
             .map_err(new_request_sign_error)?;
 
         // We don't need this request anymore, consume it directly.

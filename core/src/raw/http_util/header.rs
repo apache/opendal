@@ -26,6 +26,7 @@ use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
 use http::HeaderMap;
+use http::HeaderValue;
 use md5::Digest;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
@@ -271,6 +272,18 @@ pub fn format_authorization_by_bearer(token: &str) -> Result<String> {
     }
 
     Ok(format!("Bearer {token}"))
+}
+
+/// Build header value from given string.
+pub fn build_header_value(v: &str) -> Result<HeaderValue> {
+    HeaderValue::from_str(v).map_err(|e| {
+        Error::new(
+            ErrorKind::ConfigInvalid,
+            "header value contains invalid characters",
+        )
+        .with_operation("http_util::build_header_value")
+        .set_source(e)
+    })
 }
 
 #[cfg(test)]

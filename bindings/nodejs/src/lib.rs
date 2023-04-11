@@ -20,11 +20,11 @@ extern crate napi_derive;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 use time::format_description::well_known::Rfc3339;
-use time::Duration;
 
 fn build_operator(
     scheme: opendal::Scheme,
@@ -487,7 +487,7 @@ impl Operator {
     pub async fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_read(&path, Duration::seconds(expires as i64))
+            .presign_read(&path, Duration::from_secs(expires as u64))
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -510,7 +510,7 @@ impl Operator {
     pub async fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_write(&path, Duration::seconds(expires as i64))
+            .presign_write(&path, Duration::from_secs(expires as u64))
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -533,7 +533,7 @@ impl Operator {
     pub async fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_stat(&path, Duration::seconds(expires as i64))
+            .presign_stat(&path, Duration::from_secs(expires as u64))
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))

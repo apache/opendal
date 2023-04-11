@@ -19,10 +19,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 
+use backon::ExponentialBuilder;
+use backon::Retryable;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
+use once_cell::sync::Lazy;
 use reqsign_0_9::GoogleCredentialLoader;
 use reqsign_0_9::GoogleSigner;
 use reqsign_0_9::GoogleToken;
@@ -53,11 +56,13 @@ impl Debug for GcsCore {
     }
 }
 
+static BACKOFF: Lazy<ExponentialBuilder> =
+    Lazy::new(|| ExponentialBuilder::default().with_jitter());
+
 impl GcsCore {
     async fn load_token(&self) -> Result<GoogleToken> {
-        let cred = self
-            .token_loader
-            .load()
+        let cred = { || self.token_loader.load() }
+            .retry(&*BACKOFF)
             .await
             .map_err(new_request_credential_error)?;
 

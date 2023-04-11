@@ -24,7 +24,7 @@ use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use super::backend::S3Backend;
+use super::core::S3Core;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
@@ -34,8 +34,8 @@ use crate::Metadata;
 use crate::Result;
 
 pub struct S3Pager {
-    backend: Arc<S3Backend>,
-    root: String,
+    core: Arc<S3Core>,
+
     path: String,
     delimiter: String,
     limit: Option<usize>,
@@ -45,16 +45,10 @@ pub struct S3Pager {
 }
 
 impl S3Pager {
-    pub fn new(
-        backend: Arc<S3Backend>,
-        root: &str,
-        path: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Self {
+    pub fn new(core: Arc<S3Core>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
         Self {
-            backend,
-            root: root.to_string(),
+            core,
+
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
@@ -73,7 +67,7 @@ impl oio::Page for S3Pager {
         }
 
         let resp = self
-            .backend
+            .core
             .s3_list_objects(&self.path, &self.token, &self.delimiter, self.limit)
             .await?;
 
@@ -103,7 +97,7 @@ impl oio::Page for S3Pager {
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.root, &prefix.prefix),
+                &build_rel_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -140,7 +134,7 @@ impl oio::Page for S3Pager {
                 })?;
             meta.set_last_modified(dt);
 
-            let de = oio::Entry::new(&build_rel_path(&self.root, &object.key), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
 
             entries.push(de);
         }

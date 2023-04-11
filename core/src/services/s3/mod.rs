@@ -18,6 +18,7 @@
 mod backend;
 pub use backend::S3Builder as S3;
 
+mod core;
 mod error;
 mod pager;
 mod writer;

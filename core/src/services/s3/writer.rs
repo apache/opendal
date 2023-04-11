@@ -15,19 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::CompleteMultipartUploadRequestPart;
-use super::backend::S3Backend;
+use super::core::*;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct S3Writer {
-    backend: S3Backend,
+    core: Arc<S3Core>,
 
     op: OpWrite,
     path: String,
@@ -37,9 +38,10 @@ pub struct S3Writer {
 }
 
 impl S3Writer {
-    pub fn new(backend: S3Backend, op: OpWrite, path: String, upload_id: Option<String>) -> Self {
+    pub fn new(core: Arc<S3Core>, op: OpWrite, path: String, upload_id: Option<String>) -> Self {
         S3Writer {
-            backend,
+            core,
+
             op,
             path,
             upload_id,
@@ -56,7 +58,7 @@ impl oio::Write for S3Writer {
             "Writer initiated with upload id, but users trying to call write, must be buggy"
         );
 
-        let mut req = self.backend.s3_put_object_request(
+        let mut req = self.core.s3_put_object_request(
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
@@ -65,12 +67,9 @@ impl oio::Write for S3Writer {
             AsyncBody::Bytes(bs),
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -90,7 +89,7 @@ impl oio::Write for S3Writer {
         // AWS S3 requires part number must between [1..=10000]
         let part_number = self.parts.len() + 1;
 
-        let mut req = self.backend.s3_upload_part_request(
+        let mut req = self.core.s3_upload_part_request(
             &self.path,
             upload_id,
             part_number,
@@ -98,12 +97,9 @@ impl oio::Write for S3Writer {
             AsyncBody::Bytes(bs),
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -137,7 +133,7 @@ impl oio::Write for S3Writer {
         };
 
         let resp = self
-            .backend
+            .core
             .s3_complete_multipart_upload(&self.path, upload_id, &self.parts)
             .await?;
 

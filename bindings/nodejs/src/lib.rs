@@ -477,7 +477,7 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignRead(path, parseInt(expires));
+    /// const req = await op.presignRead(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
@@ -500,7 +500,7 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignWrite(path, parseInt(expires));
+    /// const req = await op.presignWrite(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
@@ -523,7 +523,7 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignStat(path, parseInt(expires));
+    /// const req = await op.presignStat(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);

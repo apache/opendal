@@ -484,10 +484,11 @@ impl Operator {
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
             .presign_read(&path, Duration::seconds(expires as i64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -506,10 +507,11 @@ impl Operator {
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
             .presign_write(&path, Duration::seconds(expires as i64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -528,10 +530,11 @@ impl Operator {
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
             .presign_stat(&path, Duration::seconds(expires as i64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }

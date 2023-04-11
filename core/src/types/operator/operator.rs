@@ -1074,12 +1074,12 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+    pub async fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         let path = normalize_path(path);
 
         let op = OpPresign::new(OpStat::new(), expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1109,12 +1109,12 @@ impl Operator {
     /// ```shell
     /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -O /tmp/test.txt
     /// ```
-    pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+    pub async fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         let path = normalize_path(path);
 
         let op = OpPresign::new(OpRead::new(), expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1139,7 +1139,7 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_read_with(
+    pub async fn presign_read_with(
         &self,
         path: &str,
         op: OpRead,
@@ -1149,7 +1149,7 @@ impl Operator {
 
         let op = OpPresign::new(op, expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1179,8 +1179,8 @@ impl Operator {
     /// ```shell
     /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
     /// ```
-    pub fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
-        self.presign_write_with(path, OpWrite::new(), expire)
+    pub async fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.presign_write_with(path, OpWrite::new(), expire).await
     }
 
     /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -1208,7 +1208,7 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_write_with(
+    pub async fn presign_write_with(
         &self,
         path: &str,
         op: OpWrite,
@@ -1218,7 +1218,7 @@ impl Operator {
 
         let op = OpPresign::new(op, expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 }

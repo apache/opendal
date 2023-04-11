@@ -630,11 +630,11 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.handle.requests_total_presign.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.presign(path, args);
+        let result = self.inner.presign(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         self.handle.requests_duration_seconds_presign.record(dur);

@@ -202,8 +202,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args).map_err(|err| {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner.presign(path, args).await.map_err(|err| {
             err.with_operation(Operation::Presign)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)

@@ -30,6 +30,7 @@ pub use body::AsyncBody;
 pub use body::IncomingAsyncBody;
 
 mod header;
+pub use header::build_header_value;
 pub use header::format_authorization_by_basic;
 pub use header::format_authorization_by_bearer;
 pub use header::format_content_md5;

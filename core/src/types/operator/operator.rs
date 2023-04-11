@@ -16,6 +16,7 @@
 // under the License.
 
 use std::ops::RangeBounds;
+use std::time::Duration;
 
 use bytes::Bytes;
 use flagset::FlagSet;
@@ -24,7 +25,6 @@ use futures::AsyncReadExt;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use time::Duration;
 use tokio::io::ReadBuf;
 
 use super::BlockingOperator;

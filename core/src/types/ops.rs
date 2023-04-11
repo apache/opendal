@@ -19,7 +19,7 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use time::Duration;
+use std::time::Duration;
 
 use crate::raw::*;
 use crate::*;

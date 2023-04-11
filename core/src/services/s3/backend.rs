@@ -25,27 +25,17 @@ use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
-use bytes::Bytes;
-use http::header::HeaderName;
-use http::header::CACHE_CONTROL;
-use http::header::CONTENT_DISPOSITION;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
-use http::HeaderValue;
-use http::Request;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
-use reqsign::AwsConfigLoader;
-use reqsign::AwsCredentialLoad;
-use reqsign::AwsCredentialLoader;
-use reqsign::AwsV4Signer;
-use serde::Deserialize;
-use serde::Serialize;
+use reqsign_0_9::AwsConfig;
+use reqsign_0_9::AwsCredentialLoad;
+use reqsign_0_9::AwsLoader;
+use reqsign_0_9::AwsV4Signer;
 
+use super::core::*;
 use super::error::parse_error;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
@@ -63,31 +53,6 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     );
     m
 });
-
-mod constants {
-    pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
-
-    pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
-    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
-        "x-amz-server-side-encryption-customer-algorithm";
-    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
-        "x-amz-server-side-encryption-customer-key";
-    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
-        "x-amz-server-side-encryption-customer-key-md5";
-    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
-        "x-amz-server-side-encryption-aws-kms-key-id";
-    pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
-
-    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
-        "x-amz-copy-source-server-side-encryption-customer-algorithm";
-    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
-        "x-amz-copy-source-server-side-encryption-customer-key";
-    pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
-        "x-amz-copy-source-server-side-encryption-customer-key-md5";
-
-    pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
-    pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
-}
 
 /// Aws S3 and compatible services (including minio, digitalocean space and so on) support
 ///
@@ -311,7 +276,7 @@ mod constants {
 ///
 /// # Compatible Services
 #[doc = include_str!("compatible_services.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct S3Builder {
     root: Option<String>,
 
@@ -333,10 +298,11 @@ pub struct S3Builder {
     security_token: Option<String>,
 
     disable_config_load: bool,
+    disable_load_credential_from_ec2_metadata: bool,
     enable_virtual_host_style: bool,
 
     http_client: Option<HttpClient>,
-    customed_credential_load: Option<Arc<dyn AwsCredentialLoad>>,
+    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
 }
 
 impl Debug for S3Builder {
@@ -346,39 +312,9 @@ impl Debug for S3Builder {
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("region", &self.region)
-            .field("role_arn", &self.role_arn)
-            .field("external_id", &self.external_id)
-            .field("disable_config_load", &self.disable_config_load)
-            .field("enable_virtual_host_style", &self.enable_virtual_host_style)
-            .field("default_storage_class", &self.default_storage_class);
+            .field("region", &self.region);
 
-        if self.access_key_id.is_some() {
-            d.field("access_key_id", &"<redacted>");
-        }
-        if self.secret_access_key.is_some() {
-            d.field("secret_access_key", &"<redacted>");
-        }
-        if self.server_side_encryption.is_some() {
-            d.field("server_side_encryption", &"<redacted>");
-        }
-        if self.server_side_encryption_aws_kms_key_id.is_some() {
-            d.field("server_side_encryption_aws_kms_key_id", &"<redacted>");
-        }
-        if self.server_side_encryption_customer_algorithm.is_some() {
-            d.field("server_side_encryption_customer_algorithm", &"<redacted>");
-        }
-        if self.server_side_encryption_customer_key.is_some() {
-            d.field("server_side_encryption_customer_key", &"<redacted>");
-        }
-        if self.server_side_encryption_customer_key_md5.is_some() {
-            d.field("server_side_encryption_customer_key_md5", &"<redacted>");
-        }
-        if self.security_token.is_some() {
-            d.field("security_token", &"<redacted>");
-        }
-
-        d.finish()
+        d.finish_non_exhaustive()
     }
 }
 
@@ -674,6 +610,15 @@ impl S3Builder {
         self
     }
 
+    /// Disable load credential from ec2 metadata.
+    ///
+    /// This option is used to disable the default behavior of opendal
+    /// to load credential from ec2 metadata, a.k.a, IMDSv2
+    pub fn disable_load_credential_from_ec2_metadata(&mut self) -> &mut Self {
+        self.disable_load_credential_from_ec2_metadata = true;
+        self
+    }
+
     /// Enable virtual host style so that opendal will send API requests
     /// in virtual host style instead of path style.
     ///
@@ -685,8 +630,8 @@ impl S3Builder {
     }
 
     /// Adding a customed credential load for service.
-    pub fn customed_credential_load(&mut self, cred: impl AwsCredentialLoad) -> &mut Self {
-        self.customed_credential_load = Some(Arc::new(cred));
+    pub fn customed_credential_load(&mut self, cred: Box<dyn AwsCredentialLoad>) -> &mut Self {
+        self.customed_credential_load = Some(cred);
         self
     }
 
@@ -818,75 +763,48 @@ impl Builder for S3Builder {
 
         let default_storage_class = match &self.default_storage_class {
             None => None,
-            Some(v) => Some(v.parse().map_err(|e| {
-                Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "default_storage_class value is invalid",
-                )
-                .with_context("value", v)
-                .set_source(e)
-            })?),
+            Some(v) => Some(
+                build_header_value(v).map_err(|err| err.with_context("key", "storage_class"))?,
+            ),
         };
 
         let server_side_encryption = match &self.server_side_encryption {
             None => None,
-            Some(v) => Some(v.parse().map_err(|e| {
-                Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "server_side_encryption value is invalid",
-                )
-                .with_context("value", v)
-                .set_source(e)
-            })?),
+            Some(v) => Some(
+                build_header_value(v)
+                    .map_err(|err| err.with_context("key", "server_side_encryption"))?,
+            ),
         };
 
         let server_side_encryption_aws_kms_key_id =
             match &self.server_side_encryption_aws_kms_key_id {
                 None => None,
-                Some(v) => Some(v.parse().map_err(|e| {
-                    Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "server_side_encryption_aws_kms_key_id value is invalid",
-                    )
-                    .with_context("value", v)
-                    .set_source(e)
+                Some(v) => Some(build_header_value(v).map_err(|err| {
+                    err.with_context("key", "server_side_encryption_aws_kms_key_id")
                 })?),
             };
 
         let server_side_encryption_customer_algorithm =
             match &self.server_side_encryption_customer_algorithm {
                 None => None,
-                Some(v) => Some(v.parse().map_err(|e| {
-                    Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "server_side_encryption_customer_algorithm value is invalid",
-                    )
-                    .with_context("value", v)
-                    .set_source(e)
+                Some(v) => Some(build_header_value(v).map_err(|err| {
+                    err.with_context("key", "server_side_encryption_customer_algorithm")
                 })?),
             };
 
-        let server_side_encryption_customer_key = match &self.server_side_encryption_customer_key {
-            None => None,
-            Some(v) => Some(v.parse().map_err(|e| {
-                Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "server_side_encryption_customer_key value is invalid",
-                )
-                .with_context("value", v)
-                .set_source(e)
-            })?),
-        };
+        let server_side_encryption_customer_key =
+            match &self.server_side_encryption_customer_key {
+                None => None,
+                Some(v) => Some(build_header_value(v).map_err(|err| {
+                    err.with_context("key", "server_side_encryption_customer_key")
+                })?),
+            };
+
         let server_side_encryption_customer_key_md5 =
             match &self.server_side_encryption_customer_key_md5 {
                 None => None,
-                Some(v) => Some(v.parse().map_err(|e| {
-                    Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "server_side_encryption_customer_key_md5 value is invalid",
-                    )
-                    .with_context("value", v)
-                    .set_source(e)
+                Some(v) => Some(build_header_value(v).map_err(|err| {
+                    err.with_context("key", "server_side_encryption_customer_key_md5")
                 })?),
             };
 
@@ -899,89 +817,73 @@ impl Builder for S3Builder {
             })?
         };
 
-        let cfg = AwsConfigLoader::default();
+        let mut cfg = AwsConfig::default();
         if !self.disable_config_load {
-            cfg.load();
+            cfg = cfg.from_profile();
+            cfg = cfg.from_env();
         }
 
         // Setting all value from user input if available.
-        if let Some(region) = &self.region {
-            cfg.set_region(region);
+        if let Some(v) = self.region.take() {
+            cfg.region = Some(v);
         }
-        if let Some(v) = &self.access_key_id {
-            cfg.set_access_key_id(v);
+        if let Some(v) = self.access_key_id.take() {
+            cfg.access_key_id = Some(v)
         }
-        if let Some(v) = &self.secret_access_key {
-            cfg.set_secret_access_key(v);
+        if let Some(v) = self.secret_access_key.take() {
+            cfg.secret_access_key = Some(v)
         }
-        if let Some(v) = &self.security_token {
-            cfg.set_session_token(v);
+        if let Some(v) = self.security_token.take() {
+            cfg.session_token = Some(v)
         }
-        if let Some(v) = &self.role_arn {
-            cfg.set_role_arn(v);
+        if let Some(v) = self.role_arn.take() {
+            cfg.role_arn = Some(v)
         }
-        if let Some(v) = &self.external_id {
-            cfg.set_external_id(v);
+        if let Some(v) = self.external_id.take() {
+            cfg.external_id = Some(v)
         }
 
-        // Calculate region based on current cfg.
-        let region = match cfg.region() {
-            Some(region) => region,
-            None => {
-                // region is required to make signer work.
-                //
-                // If we don't know region after loading from builder and env.
-                // We will use `us-east-1` as default.
-                let region = "us-east-1".to_string();
-                cfg.set_region(&region);
+        if cfg.region.is_none() {
+            // region is required to make signer work.
+            //
+            // If we don't know region after loading from builder and env.
+            // We will use `us-east-1` as default.
+            cfg.region = Some("us-east-1".to_string());
+        }
 
-                region
-            }
-        };
+        let region = cfg.region.to_owned().unwrap();
         debug!("backend use region: {region}");
 
         // Building endpoint.
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut signer_builder = AwsV4Signer::builder();
-        signer_builder.service("s3");
-        signer_builder.allow_anonymous();
-        signer_builder.config_loader(cfg.clone());
-        signer_builder.credential_loader({
-            let mut cred_loader = AwsCredentialLoader::new(cfg);
-            cred_loader = cred_loader.with_allow_anonymous();
-            if self.disable_config_load {
-                // If load config has been disable, we should also disable
-                // ec2 metadata to avoid leaking permits.
-                cred_loader = cred_loader.with_disable_ec2_metadata();
-            }
+        let mut loader = AwsLoader::new(client.client(), cfg);
+        if self.disable_load_credential_from_ec2_metadata {
+            loader = loader.with_disable_ec2_metadata();
+        }
+        if let Some(v) = self.customed_credential_load.take() {
+            loader = loader.with_customed_credential_loader(v);
+        }
 
-            if let Some(ccl) = &self.customed_credential_load {
-                cred_loader = cred_loader.with_customed_credential_loader(ccl.clone());
-            }
+        let signer = AwsV4Signer::new("s3", &region);
 
-            cred_loader
-        });
-
-        let signer = signer_builder
-            .build()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
-
-        debug!("backend build finished: {:?}", &self);
+        debug!("backend build finished");
         Ok(S3Backend {
-            root,
-            endpoint,
-            signer: Arc::new(signer),
-            bucket: self.bucket.clone(),
-            client,
-
-            server_side_encryption,
-            server_side_encryption_aws_kms_key_id,
-            server_side_encryption_customer_algorithm,
-            server_side_encryption_customer_key,
-            server_side_encryption_customer_key_md5,
-            default_storage_class,
+            core: Arc::new(S3Core {
+                bucket: bucket.to_string(),
+                endpoint,
+                root,
+                server_side_encryption,
+                server_side_encryption_aws_kms_key_id,
+                server_side_encryption_customer_algorithm,
+                server_side_encryption_customer_key,
+                server_side_encryption_customer_key_md5,
+                default_storage_class,
+                signer,
+                loader,
+                client,
+            }),
         })
     }
 }
@@ -989,82 +891,7 @@ impl Builder for S3Builder {
 /// Backend for s3 services.
 #[derive(Debug, Clone)]
 pub struct S3Backend {
-    bucket: String,
-    endpoint: String,
-    pub signer: Arc<AwsV4Signer>,
-    pub client: HttpClient,
-    // root will be "/" or "/abc/"
-    root: String,
-
-    server_side_encryption: Option<HeaderValue>,
-    server_side_encryption_aws_kms_key_id: Option<HeaderValue>,
-    server_side_encryption_customer_algorithm: Option<HeaderValue>,
-    server_side_encryption_customer_key: Option<HeaderValue>,
-    server_side_encryption_customer_key_md5: Option<HeaderValue>,
-    default_storage_class: Option<HeaderValue>,
-}
-
-impl S3Backend {
-    /// # Note
-    ///
-    /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
-    //  get or stat.
-    pub(crate) fn insert_sse_headers(
-        &self,
-        mut req: http::request::Builder,
-        is_write: bool,
-    ) -> http::request::Builder {
-        if is_write {
-            if let Some(v) = &self.server_side_encryption {
-                let mut v = v.clone();
-                v.set_sensitive(true);
-
-                req = req.header(
-                    HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION),
-                    v,
-                )
-            }
-            if let Some(v) = &self.server_side_encryption_aws_kms_key_id {
-                let mut v = v.clone();
-                v.set_sensitive(true);
-
-                req = req.header(
-                    HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID),
-                    v,
-                )
-            }
-        }
-
-        if let Some(v) = &self.server_side_encryption_customer_algorithm {
-            let mut v = v.clone();
-            v.set_sensitive(true);
-
-            req = req.header(
-                HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM),
-                v,
-            )
-        }
-        if let Some(v) = &self.server_side_encryption_customer_key {
-            let mut v = v.clone();
-            v.set_sensitive(true);
-
-            req = req.header(
-                HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY),
-                v,
-            )
-        }
-        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
-            let mut v = v.clone();
-            v.set_sensitive(true);
-
-            req = req.header(
-                HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5),
-                v,
-            )
-        }
-
-        req
-    }
+    core: Arc<S3Core>,
 }
 
 #[async_trait]
@@ -1082,8 +909,8 @@ impl Accessor for S3Backend {
 
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::S3)
-            .set_root(&self.root)
-            .set_name(&self.bucket)
+            .set_root(&self.core.root)
+            .set_name(&self.core.bucket)
             .set_max_batch_operations(1000)
             .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy)
             .set_hints(ReadStreamable);
@@ -1093,11 +920,12 @@ impl Accessor for S3Backend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut req =
-            self.s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+            self.core
+                .s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -1112,6 +940,7 @@ impl Accessor for S3Backend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
+            .core
             .s3_get_object(path, args.range(), args.if_none_match())
             .await?;
 
@@ -1129,6 +958,7 @@ impl Accessor for S3Backend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let upload_id = if args.append() {
             let resp = self
+                .core
                 .s3_initiate_multipart_upload(
                     path,
                     args.content_type(),
@@ -1157,12 +987,12 @@ impl Accessor for S3Backend {
 
         Ok((
             RpWrite::default(),
-            S3Writer::new(self.clone(), args, path.to_string(), upload_id),
+            S3Writer::new(self.core.clone(), args, path.to_string(), upload_id),
         ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.s3_copy_object(from, to).await?;
+        let resp = self.core.s3_copy_object(from, to).await?;
 
         let status = resp.status();
 
@@ -1184,7 +1014,7 @@ impl Accessor for S3Backend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.s3_head_object(path, args.if_none_match()).await?;
+        let resp = self.core.s3_head_object(path, args.if_none_match()).await?;
 
         let status = resp.status();
 
@@ -1198,7 +1028,7 @@ impl Accessor for S3Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.s3_delete_object(path).await?;
+        let resp = self.core.s3_delete_object(path).await?;
 
         let status = resp.status();
 
@@ -1211,22 +1041,24 @@ impl Accessor for S3Backend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            S3Pager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            S3Pager::new(self.core.clone(), path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            S3Pager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            S3Pager::new(self.core.clone(), path, "", args.limit()),
         ))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.s3_head_object_request(path, v.if_none_match())?,
-            PresignOperation::Read(v) => self.s3_get_object_request(
+            PresignOperation::Stat(v) => {
+                self.core.s3_head_object_request(path, v.if_none_match())?
+            }
+            PresignOperation::Read(v) => self.core.s3_get_object_request(
                 path,
                 v.range(),
                 v.override_content_disposition(),
@@ -1234,13 +1066,12 @@ impl Accessor for S3Backend {
                 v.if_none_match(),
             )?,
             PresignOperation::Write(_) => {
-                self.s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
+                self.core
+                    .s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
             }
         };
 
-        self.signer
-            .sign_query(&mut req, args.expire())
-            .map_err(new_request_sign_error)?;
+        self.core.sign_query(&mut req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -1264,7 +1095,7 @@ impl Accessor for S3Backend {
 
         let paths = ops.into_iter().map(|(p, _)| p).collect();
 
-        let resp = self.s3_delete_objects(paths).await?;
+        let resp = self.core.s3_delete_objects(paths).await?;
 
         let status = resp.status();
 
@@ -1276,12 +1107,12 @@ impl Accessor for S3Backend {
 
             let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
             for i in result.deleted {
-                let path = build_rel_path(&self.root, &i.key);
+                let path = build_rel_path(&self.core.root, &i.key);
                 batched_result.push((path, Ok(RpDelete::default().into())));
             }
             // TODO: we should handle those errors with code.
             for i in result.error {
-                let path = build_rel_path(&self.root, &i.key);
+                let path = build_rel_path(&self.core.root, &i.key);
 
                 batched_result.push((
                     path,
@@ -1296,519 +1127,8 @@ impl Accessor for S3Backend {
     }
 }
 
-impl S3Backend {
-    fn s3_head_object_request(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::head(&url);
-
-        req = self.insert_sse_headers(req, false);
-
-        if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
-        }
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    fn s3_get_object_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        override_content_disposition: Option<&str>,
-        override_cache_control: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        // Construct headers to add to the request
-        let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        // Add query arguments to the URL based on response overrides
-        let mut query_args = Vec::new();
-        if let Some(override_content_disposition) = override_content_disposition {
-            query_args.push(format!(
-                "{}={}",
-                constants::RESPONSE_CONTENT_DISPOSITION,
-                percent_encode_path(override_content_disposition)
-            ))
-        }
-        if let Some(override_cache_control) = override_cache_control {
-            query_args.push(format!(
-                "{}={}",
-                constants::RESPONSE_CACHE_CONTROL,
-                percent_encode_path(override_cache_control)
-            ))
-        }
-        if !query_args.is_empty() {
-            url.push_str(&format!("?{}", query_args.join("&")));
-        }
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
-        }
-
-        if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
-        }
-
-        // Set SSE headers.
-        // TODO: how will this work with presign?
-        req = self.insert_sse_headers(req, false);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn s3_get_object(
-        &self,
-        path: &str,
-        range: BytesRange,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, range, None, None, if_none_match)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub fn s3_put_object_request(
-        &self,
-        path: &str,
-        size: Option<usize>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::put(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
-
-        if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime)
-        }
-
-        if let Some(pos) = content_disposition {
-            req = req.header(CONTENT_DISPOSITION, pos)
-        }
-
-        if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
-
-        // Set storage class header
-        if let Some(v) = &self.default_storage_class {
-            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
-        }
-
-        // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn s3_head_object(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::head(&url);
-
-        // Set SSE headers.
-        req = self.insert_sse_headers(req, false);
-
-        if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
-        }
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn s3_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
-
-        let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
-        let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
-
-        let mut req = Request::put(&target);
-
-        // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
-
-        if let Some(v) = &self.server_side_encryption_customer_algorithm {
-            let mut v = v.clone();
-            v.set_sensitive(true);
-
-            req = req.header(
-                HeaderName::from_static(
-                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM,
-                ),
-                v,
-            )
-        }
-
-        if let Some(v) = &self.server_side_encryption_customer_key {
-            let mut v = v.clone();
-            v.set_sensitive(true);
-
-            req = req.header(
-                HeaderName::from_static(
-                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
-                ),
-                v,
-            )
-        }
-
-        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
-            let mut v = v.clone();
-            v.set_sensitive(true);
-
-            req = req.header(
-                HeaderName::from_static(
-                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
-                ),
-                v,
-            )
-        }
-
-        let mut req = req
-            .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    /// Make this functions as `pub(suber)` because `DirStream` depends
-    /// on this.
-    pub(super) async fn s3_list_objects(
-        &self,
-        path: &str,
-        continuation_token: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut url = format!(
-            "{}?list-type=2&delimiter={delimiter}&prefix={}",
-            self.endpoint,
-            percent_encode_path(&p)
-        );
-        if let Some(limit) = limit {
-            write!(url, "&max-keys={limit}").expect("write into string must succeed");
-        }
-        if !continuation_token.is_empty() {
-            // AWS S3 could return continuation-token that contains `=`
-            // which could lead `reqsign` parse query wrongly.
-            // URL encode continuation-token before starting signing so that
-            // our signer will not be confused.
-            write!(
-                url,
-                "&continuation-token={}",
-                percent_encode_path(continuation_token)
-            )
-            .expect("write into string must succeed");
-        }
-
-        let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn s3_initiate_multipart_upload(
-        &self,
-        path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::post(&url);
-
-        if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime)
-        }
-
-        if let Some(content_disposition) = content_disposition {
-            req = req.header(CONTENT_DISPOSITION, content_disposition)
-        }
-
-        if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
-
-        // Set storage class header
-        if let Some(v) = &self.default_storage_class {
-            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
-        }
-
-        // Set SSE headers.
-        let req = self.insert_sse_headers(req, true);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub fn s3_upload_part_request(
-        &self,
-        path: &str,
-        upload_id: &str,
-        part_number: usize,
-        size: Option<u64>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}?partNumber={}&uploadId={}",
-            self.endpoint,
-            percent_encode_path(&p),
-            part_number,
-            percent_encode_path(upload_id)
-        );
-
-        let mut req = Request::put(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size);
-        }
-
-        // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn s3_complete_multipart_upload(
-        &self,
-        path: &str,
-        upload_id: &str,
-        parts: &[CompleteMultipartUploadRequestPart],
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}?uploadId={}",
-            self.endpoint,
-            percent_encode_path(&p),
-            percent_encode_path(upload_id)
-        );
-
-        let req = Request::post(&url);
-
-        // Set SSE headers.
-        let req = self.insert_sse_headers(req, true);
-
-        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
-            part: parts.to_vec(),
-        })
-        .map_err(new_xml_deserialize_error)?;
-        // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
-        // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
-
-        let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("{}/?delete", self.endpoint);
-
-        let req = Request::post(&url);
-
-        let content = quick_xml::se::to_string(&DeleteObjectsRequest {
-            object: paths
-                .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
-                })
-                .collect(),
-        })
-        .map_err(new_xml_deserialize_error)?;
-
-        // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
-        // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
-        // Set content-md5 as required by API.
-        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
-
-        let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-}
-
-/// Result of CreateMultipartUpload
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct InitiateMultipartUploadResult {
-    upload_id: String,
-}
-
-/// Request of CompleteMultipartUploadRequest
-#[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
-struct CompleteMultipartUploadRequest {
-    part: Vec<CompleteMultipartUploadRequestPart>,
-}
-
-#[derive(Clone, Default, Debug, Serialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadRequestPart {
-    #[serde(rename = "PartNumber")]
-    pub part_number: usize,
-    /// # TODO
-    ///
-    /// quick-xml will do escape on `"` which leads to our serialized output is
-    /// not the same as aws s3's example.
-    ///
-    /// Ideally, we could use `serialize_with` to address this (buf failed)
-    ///
-    /// ```ignore
-    /// #[derive(Default, Debug, Serialize)]
-    /// #[serde(default, rename_all = "PascalCase")]
-    /// struct CompleteMultipartUploadRequestPart {
-    ///     #[serde(rename = "PartNumber")]
-    ///     part_number: usize,
-    ///     #[serde(rename = "ETag", serialize_with = "partial_escape")]
-    ///     etag: String,
-    /// }
-    ///
-    /// fn partial_escape<S>(s: &str, ser: S) -> std::result::Result<S::Ok, S::Error>
-    /// where
-    ///     S: serde::Serializer,
-    /// {
-    ///     ser.serialize_str(&String::from_utf8_lossy(
-    ///         &quick_xml::escape::partial_escape(s.as_bytes()),
-    ///     ))
-    /// }
-    /// ```
-    ///
-    /// ref: <https://github.com/tafia/quick-xml/issues/362>
-    #[serde(rename = "ETag")]
-    pub etag: String,
-}
-
-/// Request of DeleteObjects.
-#[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "Delete", rename_all = "PascalCase")]
-struct DeleteObjectsRequest {
-    object: Vec<DeleteObjectsRequestObject>,
-}
-
-#[derive(Default, Debug, Serialize)]
-#[serde(rename_all = "PascalCase")]
-struct DeleteObjectsRequestObject {
-    key: String,
-}
-
-/// Result of DeleteObjects.
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
-struct DeleteObjectsResult {
-    deleted: Vec<DeleteObjectsResultDeleted>,
-    error: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct DeleteObjectsResultDeleted {
-    key: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct DeleteObjectsResultError {
-    code: String,
-    key: String,
-    message: String,
-}
-
 #[cfg(test)]
 mod tests {
-    use bytes::Buf;
-    use bytes::Bytes;
-
     use super::*;
 
     #[test]
@@ -1865,130 +1185,5 @@ mod tests {
             let endpoint = b.build_endpoint("us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
         }
-    }
-
-    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
-    #[test]
-    fn test_deserialize_initiate_multipart_upload_result() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-            <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-              <Bucket>example-bucket</Bucket>
-              <Key>example-object</Key>
-              <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
-            </InitiateMultipartUploadResult>"#,
-        );
-
-        let out: InitiateMultipartUploadResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(
-            out.upload_id,
-            "VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA"
-        )
-    }
-
-    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Examples
-    #[test]
-    fn test_serialize_complete_multipart_upload_request() {
-        let req = CompleteMultipartUploadRequest {
-            part: vec![
-                CompleteMultipartUploadRequestPart {
-                    part_number: 1,
-                    etag: "\"a54357aff0632cce46d942af68356b38\"".to_string(),
-                },
-                CompleteMultipartUploadRequestPart {
-                    part_number: 2,
-                    etag: "\"0c78aef83f66abc1fa1e8477f296d394\"".to_string(),
-                },
-                CompleteMultipartUploadRequestPart {
-                    part_number: 3,
-                    etag: "\"acbd18db4cc2f85cedef654fccc4a4d8\"".to_string(),
-                },
-            ],
-        };
-
-        let actual = quick_xml::se::to_string(&req).expect("must succeed");
-
-        pretty_assertions::assert_eq!(
-            actual,
-            r#"<CompleteMultipartUpload>
-             <Part>
-                <PartNumber>1</PartNumber>
-               <ETag>"a54357aff0632cce46d942af68356b38"</ETag>
-             </Part>
-             <Part>
-                <PartNumber>2</PartNumber>
-               <ETag>"0c78aef83f66abc1fa1e8477f296d394"</ETag>
-             </Part>
-             <Part>
-               <PartNumber>3</PartNumber>
-               <ETag>"acbd18db4cc2f85cedef654fccc4a4d8"</ETag>
-             </Part>
-            </CompleteMultipartUpload>"#
-                // Cleanup space and new line
-                .replace([' ', '\n'], "")
-                // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
-                .replace('"', "&quot;")
-        )
-    }
-
-    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html#API_DeleteObjects_Examples
-    #[test]
-    fn test_serialize_delete_objects_request() {
-        let req = DeleteObjectsRequest {
-            object: vec![
-                DeleteObjectsRequestObject {
-                    key: "sample1.txt".to_string(),
-                },
-                DeleteObjectsRequestObject {
-                    key: "sample2.txt".to_string(),
-                },
-            ],
-        };
-
-        let actual = quick_xml::se::to_string(&req).expect("must succeed");
-
-        pretty_assertions::assert_eq!(
-            actual,
-            r#"<Delete>
-             <Object>
-             <Key>sample1.txt</Key>
-             </Object>
-             <Object>
-               <Key>sample2.txt</Key>
-             </Object>
-             </Delete>"#
-                // Cleanup space and new line
-                .replace([' ', '\n'], "")
-        )
-    }
-
-    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html#API_DeleteObjects_Examples
-    #[test]
-    fn test_deserialize_delete_objects_result() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-            <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-             <Deleted>
-               <Key>sample1.txt</Key>
-             </Deleted>
-             <Error>
-              <Key>sample2.txt</Key>
-              <Code>AccessDenied</Code>
-              <Message>Access Denied</Message>
-             </Error>
-            </DeleteResult>"#,
-        );
-
-        let out: DeleteObjectsResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "sample1.txt");
-        assert_eq!(out.error.len(), 1);
-        assert_eq!(out.error[0].key, "sample2.txt");
-        assert_eq!(out.error[0].code, "AccessDenied");
-        assert_eq!(out.error[0].message, "Access Denied");
     }
 }

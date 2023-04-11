@@ -298,7 +298,7 @@ pub struct S3Builder {
     security_token: Option<String>,
 
     disable_config_load: bool,
-    disable_load_credential_from_ec2_metadata: bool,
+    disable_ec2_metadata: bool,
     enable_virtual_host_style: bool,
 
     http_client: Option<HttpClient>,
@@ -614,8 +614,8 @@ impl S3Builder {
     ///
     /// This option is used to disable the default behavior of opendal
     /// to load credential from ec2 metadata, a.k.a, IMDSv2
-    pub fn disable_load_credential_from_ec2_metadata(&mut self) -> &mut Self {
-        self.disable_load_credential_from_ec2_metadata = true;
+    pub fn disable_ec2_metadata(&mut self) -> &mut Self {
+        self.disable_ec2_metadata = true;
         self
     }
 
@@ -735,6 +735,9 @@ impl Builder for S3Builder {
         map.get("disable_config_load")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.disable_config_load());
+        map.get("disable_ec2_metadata")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.disable_ec2_metadata());
         map.get("enable_virtual_host_style")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.enable_virtual_host_style());
@@ -859,7 +862,7 @@ impl Builder for S3Builder {
         debug!("backend use endpoint: {endpoint}");
 
         let mut loader = AwsLoader::new(client.client(), cfg).with_allow_anonymous();
-        if self.disable_load_credential_from_ec2_metadata {
+        if self.disable_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
         }
         if let Some(v) = self.customed_credential_load.take() {

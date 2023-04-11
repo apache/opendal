@@ -22,6 +22,7 @@ use jni::objects::JClass;
 use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::sys::{jboolean, jlong};
 use jni::JNIEnv;
 use opendal::BlockingOperator;
 use opendal::Operator;
@@ -33,7 +34,7 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
     _class: JClass,
     input: JString,
     params: JObject,
-) -> *const i32 {
+) -> jlong {
     let input: String = env
         .get_string(&input)
         .expect("Couldn't get java string!")
@@ -43,7 +44,7 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
 
     let map = convert_map(&mut env, &params);
     if let Ok(operator) = build_operator(scheme, map) {
-        Box::into_raw(Box::new(operator)) as *const i32
+        Box::into_raw(Box::new(operator)) as jlong
     } else {
         env.exception_clear().expect("Couldn't clear exception");
         env.throw_new(
@@ -51,32 +52,8 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
             "Unsupported operator.",
         )
         .expect("Couldn't throw exception");
-        std::ptr::null()
+        0 as jlong
     }
-}
-
-fn convert_map(env: &mut JNIEnv, params: &JObject) -> HashMap<String, String> {
-    let mut result: HashMap<String, String> = HashMap::new();
-    let _ = JMap::from_env(env, params)
-        .unwrap()
-        .iter(env)
-        .and_then(|mut iter| {
-            while let Some(e) = iter.next(env)? {
-                let key = JString::from(e.0);
-                let value = JString::from(e.1);
-                let key: String = env
-                    .get_string(&key)
-                    .expect("Couldn't get java string!")
-                    .into();
-                let value: String = env
-                    .get_string(&value)
-                    .expect("Couldn't get java string!")
-                    .into();
-                result.insert(key, value);
-            }
-            Ok(())
-        });
-    result
 }
 
 /// # Safety
@@ -88,6 +65,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_freeOperator(
     _class: JClass,
     ptr: *mut Operator,
 ) {
+    // Take ownership of the pointer by wrapping it with a Box
     let _ = Box::from_raw(ptr);
 }
 
@@ -141,6 +119,64 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
+    mut env: JNIEnv,
+    _class: JClass,
+    ptr: *mut BlockingOperator,
+    file: JString,
+) -> jlong {
+    let op = &mut *ptr;
+    let file: String = env
+        .get_string(&file)
+        .expect("Couldn't get java string!")
+        .into();
+    let metadata = op.stat(&file).unwrap();
+    Box::into_raw(Box::new(metadata)) as jlong
+}
+
+/// # Safety
+///
+/// This function should not be called before the Stat are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_isFile(
+    mut _env: JNIEnv,
+    _class: JClass,
+    ptr: *mut opendal::Metadata,
+) -> jboolean {
+    let metadata = &mut *ptr;
+    metadata.is_file() as jboolean
+}
+
+/// # Safety
+///
+/// This function should not be called before the Stat are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_getContentLength(
+    mut _env: JNIEnv,
+    _class: JClass,
+    ptr: *mut opendal::Metadata,
+) -> jlong {
+    let metadata = &mut *ptr;
+    metadata.content_length() as jlong
+}
+
+/// # Safety
+///
+/// This function should not be called before the Stat are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_freeStat(
+    mut _env: JNIEnv,
+    _class: JClass,
+    ptr: *mut opendal::Metadata,
+) {
+    // Take ownership of the pointer by wrapping it with a Box
+    let _ = Box::from_raw(ptr);
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
@@ -187,4 +223,28 @@ fn build_operator(
     };
 
     Ok(op)
+}
+
+fn convert_map(env: &mut JNIEnv, params: &JObject) -> HashMap<String, String> {
+    let mut result: HashMap<String, String> = HashMap::new();
+    let _ = JMap::from_env(env, params)
+        .unwrap()
+        .iter(env)
+        .and_then(|mut iter| {
+            while let Some(e) = iter.next(env)? {
+                let key = JString::from(e.0);
+                let value = JString::from(e.1);
+                let key: String = env
+                    .get_string(&key)
+                    .expect("Couldn't get java string!")
+                    .into();
+                let value: String = env
+                    .get_string(&value)
+                    .expect("Couldn't get java string!")
+                    .into();
+                result.insert(key, value);
+            }
+            Ok(())
+        });
+    result
 }

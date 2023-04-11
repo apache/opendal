@@ -2261,7 +2261,6 @@ dependencies = [
  "size",
  "sled",
  "suppaftp",
- "time 0.3.17",
  "tokio",
  "tracing",
  "tracing-opentelemetry",

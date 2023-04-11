@@ -18,16 +18,18 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
+use std::sync::Arc;
 
-use super::backend::MultipartUploadPart;
-use super::backend::OssBackend;
+use super::core::*;
+
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct OssWriter {
-    backend: OssBackend,
+    core: Arc<OssCore>,
+
     op: OpWrite,
     path: String,
     upload_id: Option<String>,
@@ -35,9 +37,9 @@ pub struct OssWriter {
 }
 
 impl OssWriter {
-    pub fn new(backend: OssBackend, op: OpWrite, path: String, upload_id: Option<String>) -> Self {
+    pub fn new(core: Arc<OssCore>, op: OpWrite, path: String, upload_id: Option<String>) -> Self {
         OssWriter {
-            backend,
+            core,
             op,
             path,
             upload_id,
@@ -49,7 +51,7 @@ impl OssWriter {
 #[async_trait]
 impl oio::Write for OssWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut req = self.backend.oss_put_object_request(
+        let mut req = self.core.oss_put_object_request(
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
@@ -58,12 +60,9 @@ impl oio::Write for OssWriter {
             false,
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -82,21 +81,21 @@ impl oio::Write for OssWriter {
         );
         // Aliyun OSS requires part number must between [1..=10000]
         let part_number = self.parts.len() + 1;
-        let mut req = self.backend.oss_upload_part_request(
-            &self.path,
-            upload_id,
-            part_number,
-            false,
-            Some(bs.len() as u64),
-            AsyncBody::Bytes(bs),
-        )?;
+        let mut req = self
+            .core
+            .oss_upload_part_request(
+                &self.path,
+                upload_id,
+                part_number,
+                false,
+                Some(bs.len() as u64),
+                AsyncBody::Bytes(bs),
+            )
+            .await?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send(req).await?;
+        let resp = self.core.send(req).await?;
         match resp.status() {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())?
@@ -123,7 +122,7 @@ impl oio::Write for OssWriter {
         };
 
         let resp = self
-            .backend
+            .core
             .oss_complete_multipart_upload_request(&self.path, upload_id, false, &self.parts)
             .await?;
         match resp.status() {

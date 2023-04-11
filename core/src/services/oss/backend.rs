@@ -23,21 +23,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
-use http::header::CONTENT_DISPOSITION;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
-use http::header::RANGE;
-use http::Request;
-use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign::AliyunOssBuilder;
-use reqsign::AliyunOssSigner;
-use serde::Deserialize;
-use serde::Serialize;
+use reqsign_0_9::AliyunConfig;
+use reqsign_0_9::AliyunLoader;
+use reqsign_0_9::AliyunOssSigner;
 
+use super::core::*;
 use super::error::parse_error;
 use super::pager::OssPager;
 use super::writer::OssWriter;
@@ -113,7 +106,7 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct OssBuilder {
     root: Option<String>,
 
@@ -135,19 +128,9 @@ impl Debug for OssBuilder {
         let mut d = f.debug_struct("Builder");
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .field("presign_endpoint", &self.presign_endpoint)
-            .field("allow_anonymous", &self.allow_anonymous);
+            .field("endpoint", &self.endpoint);
 
-        if self.access_key_id.is_some() {
-            d.field("access_key_id", &"<redacted>");
-        }
-
-        if self.access_key_secret.is_some() {
-            d.field("access_key_secret", &"<redacted>");
-        }
-
-        d.finish()
+        d.finish_non_exhaustive()
     }
 }
 
@@ -338,66 +321,41 @@ impl Builder for OssBuilder {
         };
         debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
-        let mut signer_builder = AliyunOssBuilder::default();
+        let mut cfg = AliyunConfig::default();
 
-        if self.allow_anonymous {
-            signer_builder.allow_anonymous();
+        if let Some(v) = self.access_key_id.take() {
+            cfg.access_key_id = Some(v);
         }
 
-        signer_builder.bucket(bucket);
-
-        if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.access_key_secret) {
-            signer_builder.access_key_id(ak);
-            signer_builder.access_key_secret(sk);
+        if let Some(v) = self.access_key_secret.take() {
+            cfg.access_key_secret = Some(v);
         }
 
-        let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "build AliyunOssSigner")
-                .with_context("service", Scheme::Oss)
-                .with_context("endpoint", &endpoint)
-                .with_context("bucket", bucket)
-                .set_source(e)
-        })?;
+        let loader = AliyunLoader::new(client.client(), cfg);
 
-        debug!("Backend build finished: {:?}", &self);
+        let signer = AliyunOssSigner::new(bucket);
+
+        debug!("Backend build finished");
 
         Ok(OssBackend {
-            root,
-            endpoint,
-            presign_endpoint,
-            host,
-            client,
-            bucket: self.bucket.clone(),
-            signer: Arc::new(signer),
+            core: Arc::new(OssCore {
+                root,
+                bucket: bucket.to_owned(),
+                endpoint,
+                host,
+                presign_endpoint,
+                signer,
+                loader,
+                client,
+            }),
         })
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 /// Aliyun Object Storage Service backend
 pub struct OssBackend {
-    pub client: HttpClient,
-
-    root: String,
-    bucket: String,
-    /// buffered host string
-    ///
-    /// format: <bucket-name>.<endpoint-domain-name>
-    host: String,
-    endpoint: String,
-    presign_endpoint: String,
-    pub signer: Arc<AliyunOssSigner>,
-}
-
-impl Debug for OssBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
-            .field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint)
-            .field("host", &self.host)
-            .finish()
-    }
+    core: Arc<OssCore>,
 }
 
 #[async_trait]
@@ -415,8 +373,8 @@ impl Accessor for OssBackend {
 
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Oss)
-            .set_root(&self.root)
-            .set_name(&self.bucket)
+            .set_root(&self.core.root)
+            .set_name(&self.core.bucket)
             .set_max_batch_operations(1000)
             .set_capabilities(Read | Write | Copy | List | Scan | Presign | Batch)
             .set_hints(ReadStreamable);
@@ -426,6 +384,7 @@ impl Accessor for OssBackend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let resp = self
+            .core
             .oss_put_object(path, None, None, None, AsyncBody::Empty)
             .await?;
         let status = resp.status();
@@ -440,7 +399,7 @@ impl Accessor for OssBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.oss_get_object(path, args.range()).await?;
+        let resp = self.core.oss_get_object(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -455,7 +414,7 @@ impl Accessor for OssBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let upload_id = if args.append() {
-            let resp = self.oss_initiate_upload(path).await?;
+            let resp = self.core.oss_initiate_upload(path).await?;
             match resp.status() {
                 StatusCode::OK => {
                     let bs = resp.into_body().bytes().await?;
@@ -472,12 +431,12 @@ impl Accessor for OssBackend {
 
         Ok((
             RpWrite::default(),
-            OssWriter::new(self.clone(), args, path.to_string(), upload_id),
+            OssWriter::new(self.core.clone(), args, path.to_string(), upload_id),
         ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.oss_copy_object(from, to).await?;
+        let resp = self.core.oss_copy_object(from, to).await?;
         let status = resp.status();
 
         match status {
@@ -495,7 +454,7 @@ impl Accessor for OssBackend {
             return Ok(RpStat::new(m));
         }
 
-        let resp = self.oss_head_object(path).await?;
+        let resp = self.core.oss_head_object(path).await?;
 
         let status = resp.status();
 
@@ -511,7 +470,7 @@ impl Accessor for OssBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.oss_delete_object(path).await?;
+        let resp = self.core.oss_delete_object(path).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
@@ -525,23 +484,23 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            OssPager::new(self.core.clone(), path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            OssPager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            OssPager::new(self.core.clone(), path, "", args.limit()),
         ))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.oss_head_object_request(path, true)?,
-            PresignOperation::Read(v) => self.oss_get_object_request(path, v.range(), true)?,
-            PresignOperation::Write(v) => self.oss_put_object_request(
+            PresignOperation::Stat(_) => self.core.oss_head_object_request(path, true)?,
+            PresignOperation::Read(v) => self.core.oss_get_object_request(path, v.range(), true)?,
+            PresignOperation::Write(v) => self.core.oss_put_object_request(
                 path,
                 None,
                 v.content_type(),
@@ -551,13 +510,7 @@ impl Accessor for OssBackend {
             )?,
         };
 
-        self.signer
-            .sign_query(
-                &mut req,
-                // TODO: convert to std::time::Duration
-                time::Duration::seconds_f64(args.expire().as_secs_f64()),
-            )
-            .map_err(new_request_sign_error)?;
+        self.core.sign_query(&mut req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -592,7 +545,7 @@ impl Accessor for OssBackend {
             })
             .collect();
 
-        let resp = self.oss_delete_objects(paths).await?;
+        let resp = self.core.oss_delete_objects(paths).await?;
 
         let status = resp.status();
 
@@ -604,7 +557,7 @@ impl Accessor for OssBackend {
 
             let mut batched_result = Vec::with_capacity(ops_len);
             for i in result.deleted {
-                let path = build_rel_path(&self.root, &i.key);
+                let path = build_rel_path(&self.core.root, &i.key);
                 keys.remove(&path);
                 batched_result.push((path, Ok(RpDelete::default().into())));
             }
@@ -623,554 +576,5 @@ impl Accessor for OssBackend {
         } else {
             Err(parse_error(resp).await?)
         }
-    }
-}
-
-impl OssBackend {
-    pub fn oss_put_object_request(
-        &self,
-        path: &str,
-        size: Option<usize>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        body: AsyncBody,
-        is_presign: bool,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
-
-        let mut req = Request::put(&url);
-
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
-
-        if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = content_disposition {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        let req = req.body(body).map_err(new_request_build_error)?;
-        Ok(req)
-    }
-
-    fn oss_get_object_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        is_presign: bool,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-        req = req.header(CONTENT_TYPE, "application/octet-stream");
-
-        if !range.is_full() {
-            req = req.header(RANGE, range.to_header());
-            // Adding `x-oss-range-behavior` header to use standard behavior.
-            // ref: https://help.aliyun.com/document_detail/39571.html
-            req = req.header("x-oss-range-behavior", "standard");
-        }
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    fn oss_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(false);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
-        let req = Request::delete(&url);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    fn oss_head_object_request(&self, path: &str, is_presign: bool) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
-
-        let req = Request::head(&url);
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    fn oss_list_object_request(
-        &self,
-        path: &str,
-        token: Option<&str>,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let endpoint = self.get_endpoint(false);
-        let url = format!(
-            "{}/?list-type=2&delimiter={delimiter}&prefix={}{}{}",
-            endpoint,
-            percent_encode_path(&p),
-            limit.map(|t| format!("&max-keys={t}")).unwrap_or_default(),
-            token
-                .map(|t| format!("&continuation-token={}", percent_encode_path(t)))
-                .unwrap_or_default(),
-        );
-
-        let req = Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-        Ok(req)
-    }
-
-    async fn oss_get_object(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_get_object_request(path, range, false)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send(req).await
-    }
-
-    async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_head_object_request(path, false)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send(req).await
-    }
-
-    async fn oss_put_object(
-        &self,
-        path: &str,
-        size: Option<usize>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_put_object_request(
-            path,
-            size,
-            content_type,
-            content_disposition,
-            body,
-            false,
-        )?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send(req).await
-    }
-
-    async fn oss_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
-
-        let url = format!(
-            "{}/{}",
-            self.get_endpoint(false),
-            percent_encode_path(&target)
-        );
-        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
-
-        let mut req = Request::put(&url)
-            .header("x-oss-copy-source", source)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send(req).await
-    }
-
-    pub(super) async fn oss_list_object(
-        &self,
-        path: &str,
-        token: Option<&str>,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_list_object_request(path, token, delimiter, limit)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send(req).await
-    }
-
-    async fn oss_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_delete_object_request(path)?;
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send(req).await
-    }
-
-    async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("{}/?delete", self.endpoint);
-
-        let req = Request::post(&url);
-
-        let content = quick_xml::se::to_string(&DeleteObjectsRequest {
-            object: paths
-                .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
-                })
-                .collect(),
-        })
-        .map_err(new_xml_deserialize_error)?;
-
-        // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
-        // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
-        // Set content-md5 as required by API.
-        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
-
-        let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    fn get_endpoint(&self, is_presign: bool) -> &str {
-        if is_presign {
-            &self.presign_endpoint
-        } else {
-            &self.endpoint
-        }
-    }
-
-    async fn oss_initiate_upload(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let req = self.oss_initiate_upload_request(path, None, None, AsyncBody::Empty, false)?;
-        self.client.send(req).await
-    }
-
-    /// Creates a request that initiates multipart upload
-    fn oss_initiate_upload_request(
-        &self,
-        path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        body: AsyncBody,
-        is_presign: bool,
-    ) -> Result<Request<AsyncBody>> {
-        let path = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
-        let mut req = Request::post(&url);
-        if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-        if let Some(disposition) = content_disposition {
-            req = req.header(CONTENT_DISPOSITION, disposition);
-        }
-
-        let mut req = req.body(body).map_err(new_request_build_error)?;
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        Ok(req)
-    }
-
-    /// Creates a request to upload a part
-    pub fn oss_upload_part_request(
-        &self,
-        path: &str,
-        upload_id: &str,
-        part_number: usize,
-        is_presign: bool,
-        size: Option<u64>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
-
-        let url = format!(
-            "{}/{}?partNumber={}&uploadId={}",
-            endpoint,
-            percent_encode_path(&p),
-            part_number,
-            percent_encode_path(upload_id)
-        );
-
-        let mut req = Request::put(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size);
-        }
-        let mut req = req.body(body).map_err(new_request_build_error)?;
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        Ok(req)
-    }
-
-    pub async fn oss_complete_multipart_upload_request(
-        &self,
-        path: &str,
-        upload_id: &str,
-        is_presign: bool,
-        parts: &[MultipartUploadPart],
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
-        let url = format!(
-            "{}/{}?uploadId={}",
-            endpoint,
-            percent_encode_path(&p),
-            percent_encode_path(upload_id)
-        );
-
-        let req = Request::post(&url);
-
-        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
-            part: parts.to_vec(),
-        })
-        .map_err(new_xml_deserialize_error)?;
-        // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
-        // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
-
-        let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send(req).await
-    }
-}
-
-/// Request of DeleteObjects.
-#[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "Delete", rename_all = "PascalCase")]
-struct DeleteObjectsRequest {
-    object: Vec<DeleteObjectsRequestObject>,
-}
-
-#[derive(Default, Debug, Serialize)]
-#[serde(rename_all = "PascalCase")]
-struct DeleteObjectsRequestObject {
-    key: String,
-}
-
-/// Result of DeleteObjects.
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
-struct DeleteObjectsResult {
-    deleted: Vec<DeleteObjectsResultDeleted>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct DeleteObjectsResultDeleted {
-    key: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct DeleteObjectsResultError {
-    code: String,
-    key: String,
-    message: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct InitiateMultipartUploadResult {
-    #[cfg(test)]
-    bucket: String,
-    #[cfg(test)]
-    key: String,
-    upload_id: String,
-}
-
-#[derive(Clone, Default, Debug, Serialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct MultipartUploadPart {
-    #[serde(rename = "PartNumber")]
-    pub part_number: usize,
-    #[serde(rename = "ETag")]
-    pub etag: String,
-}
-
-#[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
-struct CompleteMultipartUploadRequest {
-    part: Vec<MultipartUploadPart>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadResult {
-    pub location: String,
-    pub bucket: String,
-    pub key: String,
-    #[serde(rename = "ETag")]
-    pub etag: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use bytes::Buf;
-    use bytes::Bytes;
-
-    use super::*;
-
-    /// This example is from https://www.alibabacloud.com/help/zh/object-storage-service/latest/deletemultipleobjects
-    #[test]
-    fn test_serialize_delete_objects_request() {
-        let req = DeleteObjectsRequest {
-            object: vec![
-                DeleteObjectsRequestObject {
-                    key: "multipart.data".to_string(),
-                },
-                DeleteObjectsRequestObject {
-                    key: "test.jpg".to_string(),
-                },
-                DeleteObjectsRequestObject {
-                    key: "demo.jpg".to_string(),
-                },
-            ],
-        };
-
-        let actual = quick_xml::se::to_string(&req).expect("must succeed");
-
-        pretty_assertions::assert_eq!(
-            actual,
-            r#"<Delete>
-  <Object>
-    <Key>multipart.data</Key>
-  </Object>
-  <Object>
-    <Key>test.jpg</Key>
-  </Object>
-  <Object>
-    <Key>demo.jpg</Key>
-  </Object>
-</Delete>"#
-                // Cleanup space and new line
-                .replace([' ', '\n'], "")
-        )
-    }
-
-    /// This example is from https://www.alibabacloud.com/help/zh/object-storage-service/latest/deletemultipleobjects
-    #[test]
-    fn test_deserialize_delete_objects_result() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<DeleteResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
-    <Deleted>
-       <Key>multipart.data</Key>
-    </Deleted>
-    <Deleted>
-       <Key>test.jpg</Key>
-    </Deleted>
-    <Deleted>
-       <Key>demo.jpg</Key>
-    </Deleted>
-</DeleteResult>"#,
-        );
-
-        let out: DeleteObjectsResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(out.deleted.len(), 3);
-        assert_eq!(out.deleted[0].key, "multipart.data");
-        assert_eq!(out.deleted[1].key, "test.jpg");
-        assert_eq!(out.deleted[2].key, "demo.jpg");
-    }
-
-    #[test]
-    fn test_deserialize_initiate_multipart_upload_response() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<InitiateMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
-    <Bucket>oss-example</Bucket>
-    <Key>multipart.data</Key>
-    <UploadId>0004B9894A22E5B1888A1E29F823****</UploadId>
-</InitiateMultipartUploadResult>"#,
-        );
-        let out: InitiateMultipartUploadResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!("0004B9894A22E5B1888A1E29F823****", out.upload_id);
-        assert_eq!("multipart.data", out.key);
-        assert_eq!("oss-example", out.bucket);
-    }
-
-    #[test]
-    fn test_serialize_complete_multipart_upload_request() {
-        let req = CompleteMultipartUploadRequest {
-            part: vec![
-                MultipartUploadPart {
-                    part_number: 1,
-                    etag: "\"3349DC700140D7F86A0784842780****\"".to_string(),
-                },
-                MultipartUploadPart {
-                    part_number: 5,
-                    etag: "\"8EFDA8BE206636A695359836FE0A****\"".to_string(),
-                },
-                MultipartUploadPart {
-                    part_number: 8,
-                    etag: "\"8C315065167132444177411FDA14****\"".to_string(),
-                },
-            ],
-        };
-
-        // quick_xml::se::to_string()
-        let mut serializer = quick_xml::se::Serializer::new(String::new());
-        serializer.indent(' ', 4);
-        let serialized = req.serialize(serializer).unwrap();
-        pretty_assertions::assert_eq!(
-            serialized,
-            r#"<CompleteMultipartUpload>
-    <Part>
-        <PartNumber>1</PartNumber>
-        <ETag>"3349DC700140D7F86A0784842780****"</ETag>
-    </Part>
-    <Part>
-        <PartNumber>5</PartNumber>
-        <ETag>"8EFDA8BE206636A695359836FE0A****"</ETag>
-    </Part>
-    <Part>
-        <PartNumber>8</PartNumber>
-        <ETag>"8C315065167132444177411FDA14****"</ETag>
-    </Part>
-</CompleteMultipartUpload>"#
-                .replace('"', "&quot;") /* Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362> */
-        )
-    }
-
-    #[test]
-    fn test_deserialize_complete_oss_multipart_result() {
-        let bytes = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-<CompleteMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
-    <EncodingType>url</EncodingType>
-    <Location>http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data</Location>
-    <Bucket>oss-example</Bucket>
-    <Key>multipart.data</Key>
-    <ETag>"B864DB6A936D376F9F8D3ED3BBE540****"</ETag>
-</CompleteMultipartUploadResult>"#,
-        );
-
-        let result: CompleteMultipartUploadResult =
-            quick_xml::de::from_reader(bytes.reader()).unwrap();
-        assert_eq!("\"B864DB6A936D376F9F8D3ED3BBE540****\"", result.etag);
-        assert_eq!(
-            "http://oss-example.oss-cn-hangzhou.aliyuncs.com /multipart.data",
-            result.location
-        );
-        assert_eq!("oss-example", result.bucket);
-        assert_eq!("multipart.data", result.key);
     }
 }

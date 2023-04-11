@@ -24,8 +24,8 @@ use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
+use chrono::DateTime;
 use log::debug;
-use time::OffsetDateTime;
 use tokio::fs;
 use uuid::Uuid;
 
@@ -494,7 +494,7 @@ impl Accessor for FsBackend {
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
-                    .map(OffsetDateTime::from)
+                    .map(DateTime::from)
                     .map_err(parse_io_error)?,
             );
 
@@ -706,7 +706,7 @@ impl Accessor for FsBackend {
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
-                    .map(OffsetDateTime::from)
+                    .map(DateTime::from)
                     .map_err(parse_io_error)?,
             );
 

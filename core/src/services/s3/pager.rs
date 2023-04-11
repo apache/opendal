@@ -21,15 +21,11 @@ use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
 use serde::Deserialize;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
 use super::core::S3Core;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
-use crate::Error;
-use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
@@ -120,19 +116,7 @@ impl oio::Page for S3Pager {
 
             // object.last_modified provides more precious time that contains
             // nanosecond, let's trim them.
-            let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
-                .map(|v| {
-                    v.replace_nanosecond(0)
-                        .expect("replace nanosecond of last modified must succeed")
-                })
-                .map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "parse last modified RFC3339 datetime",
-                    )
-                    .set_source(e)
-                })?;
-            meta.set_last_modified(dt);
+            meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
             let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
 

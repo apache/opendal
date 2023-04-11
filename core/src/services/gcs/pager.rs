@@ -20,8 +20,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
 use super::core::GcsCore;
 use super::error::parse_error;
@@ -113,10 +111,7 @@ impl oio::Page for GcsPager {
                 meta.set_content_type(&object.content_type);
             }
 
-            let dt = OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified as rfc3339").set_source(e)
-            })?;
-            meta.set_last_modified(dt);
+            meta.set_last_modified(parse_datetime_from_rfc3339(object.updated.as_str())?);
 
             let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.name), meta);
 

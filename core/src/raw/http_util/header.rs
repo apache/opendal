@@ -17,6 +17,8 @@
 
 use base64::engine::general_purpose;
 use base64::Engine;
+use chrono::DateTime;
+use chrono::Utc;
 use http::header::HeaderName;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -28,8 +30,6 @@ use http::header::LOCATION;
 use http::HeaderMap;
 use http::HeaderValue;
 use md5::Digest;
-use time::format_description::well_known::Rfc2822;
-use time::OffsetDateTime;
 
 use crate::raw::*;
 use crate::EntryMode;
@@ -130,7 +130,7 @@ pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRan
 }
 
 /// Parse last modified from header map.
-pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>> {
+pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<DateTime<Utc>>> {
     match headers.get(LAST_MODIFIED) {
         None => Ok(None),
         Some(v) => {
@@ -142,16 +142,8 @@ pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>
                 .with_operation("http_util::parse_last_modified")
                 .set_source(e)
             })?;
-            let t = OffsetDateTime::parse(v, &Rfc2822).map_err(|e| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "header value is not valid rfc2822 time",
-                )
-                .with_operation("http_util::parse_last_modified")
-                .set_source(e)
-            })?;
 
-            Ok(Some(t))
+            Ok(Some(parse_datetime_from_rfc2822(v)?))
         }
     }
 }

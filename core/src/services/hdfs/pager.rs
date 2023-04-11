@@ -56,7 +56,7 @@ impl oio::Page for HdfsPager {
             let d = if de.is_file() {
                 let meta = Metadata::new(EntryMode::FILE)
                     .with_content_length(de.len())
-                    .with_last_modified(time::OffsetDateTime::from(de.modified()));
+                    .with_last_modified(de.modified().into());
                 oio::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
@@ -87,7 +87,7 @@ impl oio::BlockingPage for HdfsPager {
             let d = if de.is_file() {
                 let meta = Metadata::new(EntryMode::FILE)
                     .with_content_length(de.len())
-                    .with_last_modified(time::OffsetDateTime::from(de.modified()));
+                    .with_last_modified(de.modified().into());
                 oio::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.

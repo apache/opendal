@@ -23,7 +23,7 @@ use serde_json;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use super::backend::GcsBackend;
+use super::core::GcsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -31,8 +31,8 @@ use crate::*;
 /// GcsPager takes over task of listing objects and
 /// helps walking directory
 pub struct GcsPager {
-    backend: Arc<GcsBackend>,
-    root: String,
+    core: Arc<GcsCore>,
+
     path: String,
     delimiter: String,
     limit: Option<usize>,
@@ -43,16 +43,10 @@ pub struct GcsPager {
 
 impl GcsPager {
     /// Generate a new directory walker
-    pub fn new(
-        backend: Arc<GcsBackend>,
-        root: &str,
-        path: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Self {
+    pub fn new(core: Arc<GcsCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
         Self {
-            backend,
-            root: root.to_string(),
+            core,
+
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
@@ -71,7 +65,7 @@ impl oio::Page for GcsPager {
         }
 
         let resp = self
-            .backend
+            .core
             .gcs_list_objects(&self.path, &self.page_token, &self.delimiter, self.limit)
             .await?;
 
@@ -93,7 +87,7 @@ impl oio::Page for GcsPager {
 
         for prefix in output.prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.root, &prefix),
+                &build_rel_path(&self.core.root, &prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -124,7 +118,7 @@ impl oio::Page for GcsPager {
             })?;
             meta.set_last_modified(dt);
 
-            let de = oio::Entry::new(&build_rel_path(&self.root, &object.name), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.name), meta);
 
             entries.push(de);
         }

@@ -30,7 +30,7 @@ use crate::types::{opendal_bytes, opendal_operator_ptr};
 
 use ::opendal as od;
 use error::opendal_code;
-use result::opendal_result_read;
+use result::{opendal_result_is_exist, opendal_result_read};
 
 /// Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
 /// the error is nullptr, otherwise it contains the error information.
@@ -90,7 +90,10 @@ pub extern "C" fn opendal_operator_free(op_ptr: opendal_operator_ptr) {
 /// It is [safe] under two cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
-/// * The `path` points to NULL, this function simply returns you false
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_blocking_write(
     op_ptr: opendal_operator_ptr,
@@ -98,7 +101,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
     bytes: opendal_bytes,
 ) -> opendal_code {
     if path.is_null() {
-        return opendal_code::OPENDAL_ERROR;
+        panic!("The path given is pointing at NULL");
     }
 
     let op = op_ptr.get_ref();
@@ -118,17 +121,17 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
 /// It is [safe] under two cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
-/// * The `path` points to NULL, this function simply returns you a nullptr
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_blocking_read(
     op_ptr: opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_read {
     if path.is_null() {
-        return opendal_result_read {
-            data: std::ptr::null_mut(),
-            code: opendal_code::OPENDAL_ERROR,
-        };
+        panic!("The path given is pointing at NULL");
     }
 
     let op = op_ptr.get_ref();
@@ -145,6 +148,45 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
         Err(e) => opendal_result_read {
             data: std::ptr::null_mut(),
             code: opendal_code::from_opendal_error(e),
+        },
+    }
+}
+
+/// Check whether the path exists.
+///
+/// If the operation succeeds, no matter the path exists or not,
+/// the error code should be opendal_code::OPENDAL_OK. Otherwise,
+/// the field `is_exist` is filled with false, and the error code
+/// is set correspondingly.
+///
+/// # Safety
+///
+/// It is [safe] under two cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_is_exist(
+    op_ptr: opendal_operator_ptr,
+    path: *const c_char,
+) -> opendal_result_is_exist {
+    if path.is_null() {
+        panic!("The path given is pointing at NULL");
+    }
+
+    let op = op_ptr.get_ref();
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    match op.is_exist(path) {
+        Ok(e) => opendal_result_is_exist {
+            is_exist: e,
+            code: opendal_code::OPENDAL_OK,
+        },
+        Err(err) => opendal_result_is_exist {
+            is_exist: false,
+            code: opendal_code::from_opendal_error(err),
         },
     }
 }

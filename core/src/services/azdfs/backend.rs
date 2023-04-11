@@ -18,19 +18,16 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::header::CONTENT_DISPOSITION;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
-use http::Request;
-use http::Response;
 use http::StatusCode;
 use log::debug;
-use reqsign::AzureStorageSigner;
+use reqsign_0_9::AzureStorageConfig;
+use reqsign_0_9::AzureStorageLoader;
+use reqsign_0_9::AzureStorageSigner;
 
+use super::core::AzdfsCore;
 use super::error::parse_error;
 use super::pager::AzdfsPager;
 use super::writer::AzdfsWriter;
@@ -252,35 +249,28 @@ impl Builder for AzdfsBuilder {
             })?
         };
 
-        let mut signer_builder = AzureStorageSigner::builder();
-        let mut account_name = None;
-        if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
-            account_name = Some(name.clone());
-            signer_builder.account_name(name).account_key(key);
-        } else if let Some(key) = &self.account_key {
-            account_name = infer_storage_name_from_endpoint(endpoint.as_str());
-            signer_builder
-                .account_name(account_name.as_ref().unwrap_or(&String::new()))
-                .account_key(key);
-        }
+        let config_loader = AzureStorageConfig {
+            account_name: self
+                .account_name
+                .clone()
+                .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
+            account_key: self.account_key.clone(),
+            sas_token: None,
+        };
 
-        let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Azdfs)
-                .with_context("endpoint", &endpoint)
-                .with_context("container", filesystem.as_str())
-                .set_source(e)
-        })?;
+        let cred_loader = AzureStorageLoader::new(config_loader);
+        let signer = AzureStorageSigner::new();
 
         debug!("backend build finished: {:?}", &self);
         Ok(AzdfsBackend {
-            root,
-            endpoint,
-            signer: Arc::new(signer),
-            filesystem: self.filesystem.clone(),
-            client,
-            _account_name: account_name.unwrap_or_default(),
+            core: Arc::new(AzdfsCore {
+                filesystem: self.filesystem.clone(),
+                root,
+                endpoint,
+                client,
+                loader: cred_loader,
+                signer,
+            }),
         })
     }
 
@@ -300,13 +290,7 @@ impl Builder for AzdfsBuilder {
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
 pub struct AzdfsBackend {
-    filesystem: String,
-    // TODO: remove pub after https://github.com/apache/incubator-opendal/issues/1427
-    pub client: HttpClient,
-    root: String, // root will be "/" or /abc/
-    endpoint: String,
-    pub signer: Arc<AzureStorageSigner>,
-    _account_name: String,
+    core: Arc<AzdfsCore>,
 }
 
 #[async_trait]
@@ -321,8 +305,8 @@ impl Accessor for AzdfsBackend {
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azdfs)
-            .set_root(&self.root)
-            .set_name(&self.filesystem)
+            .set_root(&self.core.root)
+            .set_name(&self.core.filesystem)
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
@@ -338,11 +322,13 @@ impl Accessor for AzdfsBackend {
             _ => unimplemented!("not supported object mode"),
         };
 
-        let mut req = self.azdfs_create_request(path, resource, None, None, AsyncBody::Empty)?;
+        let mut req =
+            self.core
+                .azdfs_create_request(path, resource, None, None, AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -356,7 +342,7 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.azdfs_read(path, args.range()).await?;
+        let resp = self.core.azdfs_read(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -379,7 +365,7 @@ impl Accessor for AzdfsBackend {
 
         Ok((
             RpWrite::default(),
-            AzdfsWriter::new(self.clone(), args, path.to_string()),
+            AzdfsWriter::new(self.core.clone(), args, path.to_string()),
         ))
     }
 
@@ -389,7 +375,7 @@ impl Accessor for AzdfsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.azdfs_get_properties(path).await?;
+        let resp = self.core.azdfs_get_properties(path).await?;
 
         let status = resp.status();
 
@@ -403,7 +389,7 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.azdfs_delete(path).await?;
+        let resp = self.core.azdfs_delete(path).await?;
 
         let status = resp.status();
 
@@ -414,216 +400,19 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = AzdfsPager::new(
-            Arc::new(self.clone()),
-            self.root.clone(),
-            path.to_string(),
-            args.limit(),
-        );
+        let op = AzdfsPager::new(self.core.clone(), path.to_string(), args.limit());
 
         Ok((RpList::default(), op))
     }
 }
 
-impl AzdfsBackend {
-    async fn azdfs_read(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.filesystem,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            // azblob doesn't support read with suffix range.
-            //
-            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "azblob doesn't support read with suffix range",
-                ));
-            }
-
-            req = req.header(http::header::RANGE, range.to_header());
-        }
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    /// resource should be one of `file` or `directory`
-    ///
-    /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/create
-    pub fn azdfs_create_request(
-        &self,
-        path: &str,
-        resource: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let url = format!(
-            "{}/{}/{}?resource={resource}",
-            self.endpoint,
-            self.filesystem,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::put(&url);
-
-        // Content length must be 0 for create request.
-        req = req.header(CONTENT_LENGTH, 0);
-
-        if let Some(ty) = content_type {
-            req = req.header(CONTENT_TYPE, ty)
-        }
-
-        if let Some(pos) = content_disposition {
-            req = req.header(CONTENT_DISPOSITION, pos)
-        }
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
-    pub fn azdfs_update_request(
-        &self,
-        path: &str,
-        size: Option<usize>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        // - close: Make this is the final action to this file.
-        // - flush: Flush the file directly.
-        let url = format!(
-            "{}/{}/{}?action=append&close=true&flush=true&position=0",
-            self.endpoint,
-            self.filesystem,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::patch(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn azdfs_get_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let url = format!(
-            "{}/{}/{}?action=getStatus",
-            self.endpoint,
-            self.filesystem,
-            percent_encode_path(&p)
-        );
-
-        let req = Request::head(&url);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn azdfs_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.filesystem,
-            percent_encode_path(&p)
-        );
-
-        let req = Request::delete(&url);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub(crate) async fn azdfs_list(
-        &self,
-        path: &str,
-        continuation: &str,
-        limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let mut url = format!(
-            "{}/{}?resource=filesystem&recursive=false",
-            self.endpoint, self.filesystem
-        );
-        if !p.is_empty() {
-            write!(url, "&directory={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
-        }
-        if let Some(limit) = limit {
-            write!(url, "&maxresults={limit}").expect("write into string must succeed");
-        }
-        if !continuation.is_empty() {
-            write!(url, "&continuation={continuation}").expect("write into string must succeed");
-        }
-
-        let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-}
-
 fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let _endpoint: &str = endpoint
+    let endpoint: &str = endpoint
         .strip_prefix("http://")
         .or_else(|| endpoint.strip_prefix("https://"))
         .unwrap_or(endpoint);
 
-    let mut parts = _endpoint.splitn(2, '.');
+    let mut parts = endpoint.splitn(2, '.');
     let storage_name = parts.next();
     let endpoint_suffix = parts
         .next()
@@ -672,13 +461,11 @@ mod tests {
             .expect("build azdfs should be succeeded.");
 
         assert_eq!(
-            azdfs.endpoint,
+            azdfs.core.endpoint,
             "https://storagesample.dfs.core.chinacloudapi.cn"
         );
 
-        assert_eq!(azdfs._account_name, "storagesample".to_string());
-
-        assert_eq!(azdfs.filesystem, "filesystem".to_string());
+        assert_eq!(azdfs.core.filesystem, "filesystem".to_string());
 
         assert_eq!(
             azdfs_builder.account_key.unwrap(),
@@ -695,11 +482,12 @@ mod tests {
             .build()
             .expect("build azdfs should be succeeded.");
 
-        assert_eq!(azdfs.endpoint, "https://storagesample.dfs.core.windows.net");
+        assert_eq!(
+            azdfs.core.endpoint,
+            "https://storagesample.dfs.core.windows.net"
+        );
 
-        assert_eq!(azdfs._account_name, "".to_string());
-
-        assert_eq!(azdfs.filesystem, "filesystem".to_string());
+        assert_eq!(azdfs.core.filesystem, "filesystem".to_string());
 
         assert_eq!(azdfs_builder.account_key, None);
     }

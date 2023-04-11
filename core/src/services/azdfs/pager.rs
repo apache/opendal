@@ -23,14 +23,14 @@ use serde_json::de;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::backend::AzdfsBackend;
+use super::core::AzdfsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct AzdfsPager {
-    backend: Arc<AzdfsBackend>,
-    root: String,
+    core: Arc<AzdfsCore>,
+
     path: String,
     limit: Option<usize>,
 
@@ -39,15 +39,9 @@ pub struct AzdfsPager {
 }
 
 impl AzdfsPager {
-    pub fn new(
-        backend: Arc<AzdfsBackend>,
-        root: String,
-        path: String,
-        limit: Option<usize>,
-    ) -> Self {
+    pub fn new(core: Arc<AzdfsCore>, path: String, limit: Option<usize>) -> Self {
         Self {
-            backend,
-            root,
+            core,
             path,
             limit,
 
@@ -65,7 +59,7 @@ impl oio::Page for AzdfsPager {
         }
 
         let resp = self
-            .backend
+            .core
             .azdfs_list(&self.path, &self.continuation, self.limit)
             .await?;
 
@@ -123,7 +117,7 @@ impl oio::Page for AzdfsPager {
                     })?,
                 );
 
-            let mut path = build_rel_path(&self.root, &object.name);
+            let mut path = build_rel_path(&self.core.root, &object.name);
             if mode == EntryMode::DIR {
                 path += "/"
             };

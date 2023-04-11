@@ -44,7 +44,7 @@ impl GcsWriter {
 impl oio::Write for GcsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.core.gcs_insert_object_request(
-            &self.path,
+            &percent_encode_path(&self.path),
             Some(bs.len()),
             self.op.content_type(),
             AsyncBody::Bytes(bs),

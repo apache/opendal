@@ -15,45 +15,44 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::GcsBackend;
+use super::core::GcsCore;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct GcsWriter {
-    backend: GcsBackend,
+    core: Arc<GcsCore>,
 
     op: OpWrite,
     path: String,
 }
 
 impl GcsWriter {
-    pub fn new(backend: GcsBackend, op: OpWrite, path: String) -> Self {
-        GcsWriter { backend, op, path }
+    pub fn new(core: Arc<GcsCore>, op: OpWrite, path: String) -> Self {
+        GcsWriter { core, op, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for GcsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut req = self.backend.gcs_insert_object_request(
+        let mut req = self.core.gcs_insert_object_request(
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
             AsyncBody::Bytes(bs),
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 

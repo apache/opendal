@@ -536,7 +536,7 @@ impl Accessor for OssBackend {
         ))
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Stat(_) => self.oss_head_object_request(path, true)?,

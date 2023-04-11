@@ -1222,7 +1222,7 @@ impl Accessor for S3Backend {
         ))
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.s3_head_object_request(path, v.if_none_match())?,

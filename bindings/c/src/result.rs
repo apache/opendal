@@ -20,7 +20,8 @@
 //! "opendal_result_opendal_operator_ptr", which is unacceptable. Therefore,
 //! we are defining all Result types here
 
-use crate::{error::opendal_code, types::opendal_bytes};
+use crate::error::opendal_code;
+use crate::types::opendal_bytes;
 
 /// The Rust-like Result type of opendal C binding, it contains
 /// the data that the read operation returns and a error code

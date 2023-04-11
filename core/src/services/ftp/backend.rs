@@ -36,7 +36,6 @@ use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
-use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 
 use super::pager::FtpPager;
@@ -419,7 +418,7 @@ impl Accessor for FtpBackend {
         };
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(OffsetDateTime::from(file.modified()));
+        meta.set_last_modified(file.modified().into());
 
         Ok(RpStat::new(meta))
     }

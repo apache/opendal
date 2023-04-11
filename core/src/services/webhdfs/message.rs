@@ -17,9 +17,9 @@
 
 //! HTTP response messages
 
-use serde::Deserialize;
-
+use crate::raw::*;
 use crate::*;
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct BooleanResp {
@@ -62,12 +62,11 @@ impl TryFrom<FileStatus> for Metadata {
             FileStatusType::Directory => Metadata::new(EntryMode::DIR),
             FileStatusType::File => Metadata::new(EntryMode::FILE),
         };
-        let till_now = time::Duration::milliseconds(value.modification_time);
-        let last_modified = time::OffsetDateTime::UNIX_EPOCH
-            .checked_add(till_now)
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "last modification overflowed!"))?;
-        meta.set_last_modified(last_modified)
-            .set_content_length(value.length);
+
+        meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+            value.modification_time,
+        )?)
+        .set_content_length(value.length);
         Ok(meta)
     }
 }

@@ -20,8 +20,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::de;
-use time::format_description::well_known::Rfc2822;
-use time::OffsetDateTime;
 
 use super::core::AzdfsCore;
 use super::error::parse_error;
@@ -107,15 +105,7 @@ impl oio::Page for AzdfsPager {
                     Error::new(ErrorKind::Unexpected, "content length is not valid integer")
                         .set_source(err)
                 })?)
-                .with_last_modified(
-                    OffsetDateTime::parse(&object.last_modified, &Rfc2822).map_err(|e| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "last modified is not valid RFC2822 datetime",
-                        )
-                        .set_source(e)
-                    })?,
-                );
+                .with_last_modified(parse_datetime_from_rfc2822(&object.last_modified)?);
 
             let mut path = build_rel_path(&self.core.root, &object.name);
             if mode == EntryMode::DIR {

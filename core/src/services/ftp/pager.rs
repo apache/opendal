@@ -21,7 +21,6 @@ use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use suppaftp::list::File;
-use time::OffsetDateTime;
 
 use crate::raw::*;
 use crate::*;
@@ -62,7 +61,7 @@ impl oio::Page for FtpPager {
                     &path,
                     Metadata::new(EntryMode::FILE)
                         .with_content_length(de.size() as u64)
-                        .with_last_modified(OffsetDateTime::from(de.modified())),
+                        .with_last_modified(de.modified().into()),
                 )
             } else if de.is_directory() {
                 oio::Entry::new(&format!("{}/", &path), Metadata::new(EntryMode::DIR))

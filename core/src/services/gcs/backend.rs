@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 use reqsign_0_9::GoogleCredentialLoader;
 use reqsign_0_9::GoogleSigner;
+use reqsign_0_9::GoogleTokenLoad;
 use reqsign_0_9::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
@@ -91,7 +92,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 ///     Ok(())
 /// }
 /// ```
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct GcsBuilder {
     /// root URI, all operations happens under `root`
     root: Option<String>,
@@ -111,7 +112,7 @@ pub struct GcsBuilder {
     credential_path: Option<String>,
 
     http_client: Option<HttpClient>,
-    signer: Option<Arc<GoogleSigner>>,
+    customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
 
 impl GcsBuilder {
@@ -194,19 +195,9 @@ impl GcsBuilder {
         self
     }
 
-    /// Specify the signer directly instead of building by OpenDAL.
-    ///
-    /// If signer is specified, the following settings will not be used
-    /// any more:
-    ///
-    /// - `scope`
-    /// - `service_account`
-    /// - `credential`
-    /// - `credential_path`
-    ///
-    /// PLEASE USE THIS API CAREFULLY.
-    pub fn signer(&mut self, signer: GoogleSigner) -> &mut Self {
-        self.signer = Some(Arc::new(signer));
+    /// Specify the customed token load used by this service.
+    pub fn customed_token_loader(&mut self, token_load: Box<dyn GoogleTokenLoad>) -> &mut Self {
+        self.customed_token_loader = Some(token_load);
         self
     }
 }
@@ -294,6 +285,9 @@ impl Builder for GcsBuilder {
         }
         if let Ok(Some(cred)) = cred_loader.load() {
             token_loader = token_loader.with_credentials(cred)
+        }
+        if let Some(loader) = self.customed_token_loader.take() {
+            token_loader = token_loader.with_customed_token_loader(loader)
         }
 
         let signer = GoogleSigner::new("storage");

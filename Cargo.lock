@@ -2252,7 +2252,7 @@ dependencies = [
  "rand 0.8.5",
  "redis",
  "reqsign 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "reqsign 0.8.5 (git+https://github.com/Xuanwo/reqsign?rev=8d81f7fa5618c395ab0e684af5cdf2313f822f17)",
+ "reqsign 0.8.5 (git+https://github.com/Xuanwo/reqsign?rev=fde88af3aecf4ba6c39e5d84dc39c5200f8f3a5e)",
  "reqwest",
  "rocksdb",
  "serde",
@@ -3165,7 +3165,7 @@ dependencies = [
 [[package]]
 name = "reqsign"
 version = "0.8.5"
-source = "git+https://github.com/Xuanwo/reqsign?rev=8d81f7fa5618c395ab0e684af5cdf2313f822f17#8d81f7fa5618c395ab0e684af5cdf2313f822f17"
+source = "git+https://github.com/Xuanwo/reqsign?rev=fde88af3aecf4ba6c39e5d84dc39c5200f8f3a5e#fde88af3aecf4ba6c39e5d84dc39c5200f8f3a5e"
 dependencies = [
  "anyhow",
  "async-trait",

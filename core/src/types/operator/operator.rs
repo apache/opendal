@@ -1065,7 +1065,7 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_stat("test",Duration::hours(1))?;
+    ///     let signed_req = op.presign_stat("test",Duration::hours(1)).await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
@@ -1095,7 +1095,7 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_read("test.txt", Duration::hours(1))?;
+    ///     let signed_req = op.presign_read("test.txt", Duration::hours(1)).await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -1135,7 +1135,7 @@ impl Operator {
     /// async fn test(op: Operator) -> Result<()> {
     ///     let args = OpRead::new()
     ///         .with_override_content_disposition("attachment; filename=\"othertext.txt\"");
-    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::hours(1))?;
+    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::hours(1)).await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -1165,7 +1165,7 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_write("test.txt", Duration::hours(1))?;
+    ///     let signed_req = op.presign_write("test.txt", Duration::hours(1)).await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -1199,7 +1199,7 @@ impl Operator {
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let args = OpWrite::new().with_content_type("text/csv");
-    ///     let signed_req = op.presign_write_with("test", args, Duration::hours(1))?;
+    ///     let signed_req = op.presign_write_with("test", args, Duration::hours(1)).await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())

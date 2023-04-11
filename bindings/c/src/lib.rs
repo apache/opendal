@@ -26,11 +26,13 @@ use std::collections::HashMap;
 use std::os::raw::c_char;
 use std::str::FromStr;
 
-use crate::types::{opendal_bytes, opendal_operator_ptr};
-
 use ::opendal as od;
 use error::opendal_code;
-use result::{opendal_result_is_exist, opendal_result_read};
+use result::opendal_result_is_exist;
+use result::opendal_result_read;
+
+use crate::types::opendal_bytes;
+use crate::types::opendal_operator_ptr;
 
 /// Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
 /// the error is nullptr, otherwise it contains the error information.

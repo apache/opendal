@@ -858,7 +858,7 @@ impl Builder for S3Builder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg);
+        let mut loader = AwsLoader::new(client.client(), cfg).with_allow_anonymous();
         if self.disable_load_credential_from_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
         }

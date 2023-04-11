@@ -118,8 +118,6 @@ pub struct OssBuilder {
     access_key_id: Option<String>,
     access_key_secret: Option<String>,
 
-    allow_anonymous: bool,
-
     http_client: Option<HttpClient>,
 }
 
@@ -206,12 +204,6 @@ impl OssBuilder {
         self
     }
 
-    /// Anonymously access the bucket.
-    pub fn allow_anonymous(&mut self) -> &mut Self {
-        self.allow_anonymous = true;
-        self
-    }
-
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -278,9 +270,6 @@ impl Builder for OssBuilder {
         map.get("access_key_id").map(|v| builder.access_key_id(v));
         map.get("access_key_secret")
             .map(|v| builder.access_key_secret(v));
-        map.get("allow_anonymous")
-            .filter(|v| *v == "on" || *v == "true")
-            .map(|_| builder.allow_anonymous());
 
         builder
     }

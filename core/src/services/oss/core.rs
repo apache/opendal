@@ -62,7 +62,7 @@ impl Debug for OssCore {
 }
 
 impl OssCore {
-    async fn load_credential(&self) -> Result<AliyunCredential> {
+    async fn load_credential(&self) -> Result<Option<AliyunCredential>> {
         let cred = self
             .loader
             .load()
@@ -70,22 +70,29 @@ impl OssCore {
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
-            Ok(cred)
+            Ok(Some(cred))
         } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
+            Ok(None)
         }
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_credential().await?;
+        let cred = if let Some(cred) = self.load_credential().await? {
+            cred
+        } else {
+            return Ok(());
+        };
+
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = self.load_credential().await?;
+        let cred = if let Some(cred) = self.load_credential().await? {
+            cred
+        } else {
+            return Ok(());
+        };
+
         self.signer
             .sign_query(req, duration, &cred)
             .map_err(new_request_sign_error)

@@ -2174,7 +2174,6 @@ version = "0.30.5"
 dependencies = [
  "async-trait",
  "bytes",
- "chrono",
  "futures",
  "object_store",
  "opendal",
@@ -2225,6 +2224,7 @@ dependencies = [
  "bb8",
  "bytes",
  "cfg-if",
+ "chrono",
  "criterion",
  "dashmap",
  "dotenvy",
@@ -2261,7 +2261,6 @@ dependencies = [
  "size",
  "sled",
  "suppaftp",
- "time 0.3.17",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
@@ -2298,7 +2297,6 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "opendal",
- "time 0.3.17",
 ]
 
 [[package]]

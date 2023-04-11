@@ -24,7 +24,6 @@ use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use time::format_description::well_known::Rfc3339;
 
 fn build_operator(
     scheme: opendal::Scheme,
@@ -599,12 +598,12 @@ impl Metadata {
         self.0.etag().map(|s| s.to_string())
     }
 
-    /// Last Modified of this object.(UTC)
+    /// Last Modified of this object.
+    ///
+    /// We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
-        self.0
-            .last_modified()
-            .map(|ta| ta.format(&Rfc3339).unwrap())
+        self.0.last_modified().map(|ta| ta.to_rfc3339())
     }
 }
 

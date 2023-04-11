@@ -22,11 +22,8 @@ use bytes::Buf;
 use quick_xml::de;
 use quick_xml::escape::unescape;
 use serde::Deserialize;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
 use super::core::*;
-
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
@@ -108,16 +105,7 @@ impl oio::Page for OssPager {
 
             meta.set_etag(&object.etag);
             meta.set_content_length(object.size);
-            let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
-                .map(|v| {
-                    v.replace_nanosecond(0)
-                        .expect("replace nanosecond of last modified must succeed")
-                })
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse str into rfc 3339 datetime")
-                        .set_source(e)
-                })?;
-            meta.set_last_modified(dt);
+            meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
             let rel = build_rel_path(&self.core.root, &object.key);
             let path = unescape(&rel)

@@ -29,8 +29,6 @@ use reqsign_0_9::GoogleTokenLoad;
 use reqsign_0_9::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
 use super::core::GcsCore;
 use super::error::parse_error;
@@ -422,10 +420,7 @@ impl Accessor for GcsBackend {
                 m.set_content_type(&meta.content_type);
             }
 
-            let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse date time with rfc 3339").set_source(e)
-            })?;
-            m.set_last_modified(datetime);
+            m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
 
             Ok(RpStat::new(m))
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {

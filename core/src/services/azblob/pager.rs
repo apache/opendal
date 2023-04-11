@@ -24,14 +24,14 @@ use serde::Deserialize;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::backend::AzblobBackend;
+use super::core::AzblobCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct AzblobPager {
-    backend: Arc<AzblobBackend>,
-    root: String,
+    core: Arc<AzblobCore>,
+
     path: String,
     delimiter: String,
     limit: Option<usize>,
@@ -42,15 +42,13 @@ pub struct AzblobPager {
 
 impl AzblobPager {
     pub fn new(
-        backend: Arc<AzblobBackend>,
-        root: String,
+        core: Arc<AzblobCore>,
         path: String,
         delimiter: String,
         limit: Option<usize>,
     ) -> Self {
         Self {
-            backend,
-            root,
+            core,
             path,
             delimiter,
             limit,
@@ -69,7 +67,7 @@ impl oio::Page for AzblobPager {
         }
 
         let resp = self
-            .backend
+            .core
             .azblob_list_blobs(&self.path, &self.next_marker, &self.delimiter, self.limit)
             .await?;
 
@@ -96,7 +94,7 @@ impl oio::Page for AzblobPager {
 
         for prefix in prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.root, &prefix.name),
+                &build_rel_path(&self.core.root, &prefix.name),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -128,7 +126,7 @@ impl oio::Page for AzblobPager {
                         })?,
                 );
 
-            let de = oio::Entry::new(&build_rel_path(&self.root, &object.name), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.name), meta);
 
             entries.push(de);
         }

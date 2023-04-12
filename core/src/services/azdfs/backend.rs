@@ -374,7 +374,9 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let abs_target_path = build_abs_path(&self.core.root, to);
+        let abs_target_path = build_abs_path(&self.core.root, to)
+            .trim_end_matches('/')
+            .to_string();
         let abs_target_path = abs_target_path.as_str();
         let mut parts: Vec<&str> = abs_target_path
             .split('/')
@@ -386,7 +388,7 @@ impl Accessor for AzdfsBackend {
         }
 
         if !parts.is_empty() {
-            let parent_path = format!("/{}", parts.join("/"));
+            let parent_path = parts.join("/");
             let mut req = self.core.azdfs_create_request(
                 &parent_path,
                 "directory",
@@ -402,7 +404,7 @@ impl Accessor for AzdfsBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED | StatusCode::OK | StatusCode::CONFLICT => {
+                StatusCode::CREATED | StatusCode::CONFLICT => {
                     resp.into_body().consume().await?;
                 }
                 _ => return Err(parse_error(resp).await?),

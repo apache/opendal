@@ -26,10 +26,10 @@ use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use once_cell::sync::Lazy;
-use reqsign_0_9::GoogleCredentialLoader;
-use reqsign_0_9::GoogleSigner;
-use reqsign_0_9::GoogleToken;
-use reqsign_0_9::GoogleTokenLoader;
+use reqsign::GoogleCredentialLoader;
+use reqsign::GoogleSigner;
+use reqsign::GoogleToken;
+use reqsign::GoogleTokenLoader;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;

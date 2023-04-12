@@ -26,9 +26,9 @@ use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign_0_9::AliyunConfig;
-use reqsign_0_9::AliyunLoader;
-use reqsign_0_9::AliyunOssSigner;
+use reqsign::AliyunConfig;
+use reqsign::AliyunLoader;
+use reqsign::AliyunOssSigner;
 
 use super::core::*;
 use super::error::parse_error;

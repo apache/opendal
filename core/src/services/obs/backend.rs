@@ -23,9 +23,9 @@ use async_trait::async_trait;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign_0_9::HuaweicloudObsConfig;
-use reqsign_0_9::HuaweicloudObsCredentialLoader;
-use reqsign_0_9::HuaweicloudObsSigner;
+use reqsign::HuaweicloudObsConfig;
+use reqsign::HuaweicloudObsCredentialLoader;
+use reqsign::HuaweicloudObsSigner;
 
 use super::core::ObsCore;
 use super::error::parse_error;

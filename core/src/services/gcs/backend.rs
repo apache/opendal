@@ -23,10 +23,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
-use reqsign_0_9::GoogleCredentialLoader;
-use reqsign_0_9::GoogleSigner;
-use reqsign_0_9::GoogleTokenLoad;
-use reqsign_0_9::GoogleTokenLoader;
+use reqsign::GoogleCredentialLoader;
+use reqsign::GoogleSigner;
+use reqsign::GoogleTokenLoad;
+use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
 

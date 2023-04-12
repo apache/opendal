@@ -25,9 +25,9 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
-use reqsign_0_9::AzureStorageCredential;
-use reqsign_0_9::AzureStorageLoader;
-use reqsign_0_9::AzureStorageSigner;
+use reqsign::AzureStorageCredential;
+use reqsign::AzureStorageLoader;
+use reqsign::AzureStorageSigner;
 
 use crate::raw::*;
 use crate::*;

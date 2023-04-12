@@ -34,7 +34,23 @@ version.workspace = true
 all-features = true
 
 [features]
-default = ["rustls"]
+default = [
+  "rustls",
+  "services-azblob",
+  "services-azdfs",
+  "services-fs",
+  "services-gcs",
+  "services-ghac",
+  "services-http",
+  "services-ipmfs",
+  "services-memory",
+  "services-obs",
+  "services-oss",
+  "services-s3",
+  "services-sled",
+  "services-webdav",
+  "services-webhdfs",
+]
 
 # Build docs or not.
 #
@@ -43,14 +59,14 @@ default = ["rustls"]
 docs = []
 
 # Enable trust-dns for pure rust dns cache.
-trust-dns = ["reqwest/trust-dns", "dep:trust-dns-resolver"]
+trust-dns = ["reqwest/trust-dns"]
 
 # Enable rustls for TLS support
-rustls = ["reqwest/rustls-tls-native-roots", "ureq/tls", "ureq/native-certs"]
+rustls = ["reqwest/rustls-tls-native-roots"]
 # Enable native-tls for TLS support
-native-tls = ["reqwest/native-tls", "ureq/native-tls"]
+native-tls = ["reqwest/native-tls"]
 # Enable vendored native-tls for TLS support
-native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
+native-tls-vendored = ["reqwest/native-tls-vendored"]
 
 # Enable all layers.
 layers-all = ["layers-chaos", "layers-metrics", "layers-tracing"]
@@ -61,24 +77,52 @@ layers-metrics = ["dep:metrics"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
 
-# Enable services dashmap support
+services-azblob = [
+  "dep:reqsign",
+  "reqsign?/services-azblob",
+  "reqsign?/reqwest_request",
+]
+services-azdfs = [
+  "dep:reqsign",
+  "reqsign?/services-azblob",
+  "reqsign?/reqwest_request",
+]
 services-dashmap = ["dep:dashmap"]
-# Enable services ftp support
+services-fs = ["tokio/fs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
-# Enable services hdfs support
+services-gcs = [
+  "dep:reqsign",
+  "reqsign?/services-google",
+  "reqsign?/reqwest_request",
+]
+services-ghac = []
 services-hdfs = ["dep:hdrs"]
-# Enable services ipfs support
+services-http = []
 services-ipfs = ["dep:prost"]
-# Enable services memcached support
+services-ipmfs = []
 services-memcached = ["dep:bb8"]
-# Enable services moka support
+services-memory = []
 services-moka = ["dep:moka"]
-# Enable services redis support
+services-obs = [
+  "dep:reqsign",
+  "reqsign?/services-huaweicloud",
+  "reqsign?/reqwest_request",
+]
+services-oss = [
+  "dep:reqsign",
+  "reqsign?/services-aliyun",
+  "reqsign?/reqwest_request",
+]
 services-redis = ["dep:redis"]
-# Enable services rocksdb support
 services-rocksdb = ["dep:rocksdb"]
-# Enable services sled support
+services-s3 = [
+  "dep:reqsign",
+  "reqsign?/services-aws",
+  "reqsign?/reqwest_request",
+]
 services-sled = ["dep:sled"]
+services-webdav = []
+services-webhdfs = []
 
 [lib]
 bench = false
@@ -96,6 +140,7 @@ backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bytes = "1.2"
+chrono = "0.4.24"
 dashmap = { version = "5.4", optional = true }
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
@@ -118,8 +163,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-# NOTE: we keep this for service migration one by one. And finally we will replace reqsign by v0.9.
-reqsign_0_9 = { package = "reqsign", git = "https://github.com/Xuanwo/reqsign", rev = "3707b084b534233a11cd34729dba8ec4f4c9e1fc" }
+reqsign = { version = "0.9.1", default-features = false, optional = true }
 reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",
@@ -132,11 +176,8 @@ suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
   "async-rustls",
 ], optional = true }
-chrono = "0.4.24"
-tokio = { version = "1.27", features = ["fs"] }
+tokio = "1.27"
 tracing = { version = "0.1", optional = true }
-trust-dns-resolver = { version = "0.22", optional = true }
-ureq = { version = "2", default-features = false }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]

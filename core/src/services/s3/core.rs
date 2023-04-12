@@ -33,9 +33,9 @@ use http::HeaderValue;
 use http::Request;
 use http::Response;
 use once_cell::sync::Lazy;
-use reqsign_0_9::AwsCredential;
-use reqsign_0_9::AwsLoader;
-use reqsign_0_9::AwsV4Signer;
+use reqsign::AwsCredential;
+use reqsign::AwsLoader;
+use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
 

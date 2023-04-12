@@ -24,9 +24,9 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
-use reqsign_0_9::HuaweicloudObsCredential;
-use reqsign_0_9::HuaweicloudObsCredentialLoader;
-use reqsign_0_9::HuaweicloudObsSigner;
+use reqsign::HuaweicloudObsCredential;
+use reqsign::HuaweicloudObsCredentialLoader;
+use reqsign::HuaweicloudObsSigner;
 
 pub struct ObsCore {
     pub bucket: String,

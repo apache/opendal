@@ -24,9 +24,9 @@ use async_trait::async_trait;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
 use log::debug;
-use reqsign_0_9::AzureStorageConfig;
-use reqsign_0_9::AzureStorageLoader;
-use reqsign_0_9::AzureStorageSigner;
+use reqsign::AzureStorageConfig;
+use reqsign::AzureStorageLoader;
+use reqsign::AzureStorageSigner;
 
 use super::batch::parse_batch_delete_response;
 use super::error::parse_error;

@@ -28,17 +28,19 @@ use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
 
+use prometheus::core::AtomicU64;
+use prometheus::core::GenericCounter;
+use prometheus::exponential_buckets;
+use prometheus::histogram_opts;
+use prometheus::register_histogram_with_registry;
+use prometheus::register_int_counter_with_registry;
+use prometheus::Histogram;
+use prometheus::Registry;
+
 use crate::ops::*;
+use crate::raw::Accessor;
 use crate::raw::*;
 use crate::*;
-
-use prometheus::{
-    core::{AtomicU64, GenericCounter},
-    register_int_counter_with_registry, Histogram,
-};
-use prometheus::{exponential_buckets, histogram_opts, register_histogram_with_registry, Registry};
-
-use crate::raw::Accessor;
 /// Add [prometheus](https://docs.rs/prometheus) for every operations.
 ///
 /// # Examples
@@ -580,7 +582,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
         let create_res = self.inner.create(path, args).await;
 
         timer.observe_duration();
-        create_res
+        create_res.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::Create, e.kind());
+            e
+        })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -604,7 +610,10 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
             })
             .await;
         timer.observe_duration();
-        read_res
+        read_res.map_err(|e| {
+            self.stats.increment_errors_total(Operation::Read, e.kind());
+            e
+        })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -625,7 +634,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
             })
             .await;
         timer.observe_duration();
-        write_res
+        write_res.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::Write, e.kind());
+            e
+        })
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -640,7 +653,10 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
             })
             .await;
         timer.observe_duration();
-        stat_res
+        stat_res.map_err(|e| {
+            self.stats.increment_errors_total(Operation::Stat, e.kind());
+            e
+        })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
@@ -650,7 +666,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
 
         let delete_res = self.inner.delete(path, args).await;
         timer.observe_duration();
-        delete_res
+        delete_res.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::Delete, e.kind());
+            e
+        })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
@@ -661,7 +681,10 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
         let list_res = self.inner.list(path, args).await;
 
         timer.observe_duration();
-        list_res
+        list_res.map_err(|e| {
+            self.stats.increment_errors_total(Operation::List, e.kind());
+            e
+        })
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
@@ -671,7 +694,10 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
 
         let scan_res = self.inner.scan(path, args).await;
         timer.observe_duration();
-        scan_res
+        scan_res.map_err(|e| {
+            self.stats.increment_errors_total(Operation::Scan, e.kind());
+            e
+        })
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
@@ -681,17 +707,25 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
         let result = self.inner.batch(args).await;
 
         timer.observe_duration();
-        result
+        result.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::Batch, e.kind());
+            e
+        })
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.stats.presign_request_counts.inc();
 
         let timer = self.stats.presign_request_latency.start_timer();
-        let result = self.inner.presign(path, args);
+        let result = self.inner.presign(path, args).await;
         timer.observe_duration();
 
-        result
+        result.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::Presign, e.kind());
+            e
+        })
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -702,7 +736,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
 
         timer.observe_duration();
 
-        result
+        result.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::BlockingCreate, e.kind());
+            e
+        })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -719,7 +757,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
             )
         });
         timer.observe_duration();
-        result
+        result.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::BlockingRead, e.kind());
+            e
+        })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -733,7 +775,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
             )
         });
         timer.observe_duration();
-        result
+        result.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::BlockingWrite, e.kind());
+            e
+        })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

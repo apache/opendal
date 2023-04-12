@@ -374,6 +374,41 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let abs_target_path = build_abs_path(&self.core.root, to);
+        let abs_target_path = abs_target_path.as_str();
+        let mut parts: Vec<&str> = abs_target_path
+            .split('/')
+            .filter(|x| !x.is_empty())
+            .collect();
+
+        if !parts.is_empty() {
+            parts.pop();
+        }
+
+        if !parts.is_empty() {
+            let parent_path = format!("/{}", parts.join("/"));
+            let mut req = self.core.azdfs_create_request(
+                &parent_path,
+                "directory",
+                None,
+                None,
+                AsyncBody::Empty,
+            )?;
+
+            self.core.sign(&mut req).await?;
+
+            let resp = self.core.send(req).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::CREATED | StatusCode::OK | StatusCode::CONFLICT => {
+                    resp.into_body().consume().await?;
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
+        }
+
         let resp = self.core.azdfs_rename(from, to).await?;
 
         let status = resp.status();

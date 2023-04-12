@@ -38,20 +38,35 @@ use crate::*;
 /// - [ ] ~~presign~~
 /// - [x] blocking
 #[derive(Default)]
-pub struct DashmapBuilder {}
+pub struct DashmapBuilder {
+    root: Option<String>,
+}
+
+impl DashmapBuilder {
+    /// Set the root for dashmap.
+    pub fn root(&mut self, path: &str) -> &mut Self {
+        self.root = Some(path.into());
+        self
+    }
+}
 
 impl Builder for DashmapBuilder {
     const SCHEME: Scheme = Scheme::Dashmap;
     type Accessor = DashmapBackend;
 
-    fn from_map(_: HashMap<String, String>) -> Self {
-        Self::default()
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Self::default();
+
+        map.get("root").map(|v| builder.root(v));
+
+        builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         Ok(DashmapBackend::new(Adapter {
             inner: DashMap::default(),
-        }))
+        })
+        .with_root(self.root.as_deref().unwrap_or_default()))
     }
 }
 

@@ -209,14 +209,8 @@ pub struct KvPager {
 
 impl KvPager {
     fn new(root: &str, inner: Vec<String>) -> Self {
-        let root = if root == "/" {
-            "".to_string()
-        } else {
-            root.to_string()
-        };
-
         Self {
-            root,
+            root: root.to_string(),
             inner: Some(inner),
         }
     }
@@ -233,11 +227,7 @@ impl KvPager {
                     EntryMode::FILE
                 };
 
-                oio::Entry::new(
-                    v.strip_prefix(&self.root)
-                        .expect("key must start with root"),
-                    Metadata::new(mode),
-                )
+                oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
             })
             .collect();
 

@@ -293,4 +293,32 @@ impl AzdfsCore {
         self.sign(&mut req).await?;
         self.send(req).await
     }
+
+    pub async fn azdfs_ensure_parent_path(
+        &self,
+        path: &str,
+    ) -> Result<Option<Response<IncomingAsyncBody>>> {
+        let abs_target_path = path.trim_end_matches('/').to_string();
+        let abs_target_path = abs_target_path.as_str();
+        let mut parts: Vec<&str> = abs_target_path
+            .split('/')
+            .filter(|x| !x.is_empty())
+            .collect();
+
+        if !parts.is_empty() {
+            parts.pop();
+        }
+
+        if !parts.is_empty() {
+            let parent_path = parts.join("/");
+            let mut req =
+                self.azdfs_create_request(&parent_path, "directory", None, None, AsyncBody::Empty)?;
+
+            self.sign(&mut req).await?;
+
+            Ok(Some(self.send(req).await?))
+        } else {
+            Ok(None)
+        }
+    }
 }

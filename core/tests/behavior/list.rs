@@ -289,7 +289,11 @@ pub async fn test_scan_root(op: Operator) -> Result<()> {
         .map(|v| v.path().to_string())
         .collect::<HashSet<_>>();
 
-    assert!(actual.is_empty(), "empty root should return empty");
+    assert!(
+        actual.is_empty(),
+        "empty root should return empty, but got {:?}",
+        actual
+    );
     Ok(())
 }
 

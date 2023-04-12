@@ -893,31 +893,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
-dependencies = [
- "dirs-sys 0.3.7",
-]
-
-[[package]]
-name = "dirs"
 version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dece029acd3353e3a58ac2e3eb3c8d6c35827a892edc6cc4138ef9c33df46ecd"
 dependencies = [
- "dirs-sys 0.4.0",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1d1d91c932ef41c0f2663aa8b0ca0342d444d842c06914aa0a7e352d0bada6"
-dependencies = [
- "libc",
- "redox_users",
- "winapi",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -2187,7 +2167,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap 4.1.11",
- "dirs 5.0.0",
+ "dirs",
  "env_logger",
  "futures",
  "log",
@@ -2251,8 +2231,7 @@ dependencies = [
  "quick-xml 0.27.1",
  "rand 0.8.5",
  "redis",
- "reqsign 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "reqsign 0.8.5 (git+https://github.com/Xuanwo/reqsign?rev=fde88af3aecf4ba6c39e5d84dc39c5200f8f3a5e)",
+ "reqsign",
  "reqwest",
  "rocksdb",
  "serde",
@@ -3132,45 +3111,14 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 [[package]]
 name = "reqsign"
 version = "0.8.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7db6d8d2cd7fa61403d14de670f98d7cedac38143681c124943d7bb69258b3a"
-dependencies = [
- "anyhow",
- "backon",
- "base64 0.21.0",
- "bytes",
- "dirs 4.0.0",
- "form_urlencoded",
- "hex",
- "hmac",
- "http",
- "jsonwebtoken",
- "log",
- "once_cell",
- "percent-encoding",
- "quick-xml 0.28.1",
- "rand 0.8.5",
- "rsa",
- "rust-ini",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "time 0.3.17",
- "ureq",
-]
-
-[[package]]
-name = "reqsign"
-version = "0.8.5"
-source = "git+https://github.com/Xuanwo/reqsign?rev=fde88af3aecf4ba6c39e5d84dc39c5200f8f3a5e#fde88af3aecf4ba6c39e5d84dc39c5200f8f3a5e"
+source = "git+https://github.com/Xuanwo/reqsign?rev=27f4138f679c74380060fd0fb5f29be7b364e3fd#27f4138f679c74380060fd0fb5f29be7b364e3fd"
 dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.0",
  "bytes",
  "chrono",
- "dirs 5.0.0",
+ "dirs",
  "form_urlencoded",
  "hex",
  "hmac",

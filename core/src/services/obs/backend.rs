@@ -20,15 +20,14 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
-use http::Request;
-use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign::HuaweicloudObsSigner;
+use reqsign_0_9::HuaweicloudObsConfig;
+use reqsign_0_9::HuaweicloudObsCredentialLoader;
+use reqsign_0_9::HuaweicloudObsSigner;
 
+use super::core::ObsCore;
 use super::error::parse_error;
 use super::pager::ObsPager;
 use super::writer::ObsWriter;
@@ -249,14 +248,13 @@ impl Builder for ObsBuilder {
             })?
         };
 
-        let mut signer_builder = HuaweicloudObsSigner::builder();
-        if let (Some(access_key_id), Some(secret_access_key)) =
-            (&self.access_key_id, &self.secret_access_key)
-        {
-            signer_builder
-                .access_key(access_key_id)
-                .secret_key(secret_access_key);
-        }
+        let config = HuaweicloudObsConfig {
+            access_key_id: self.access_key_id.take(),
+            secret_access_key: self.secret_access_key.take(),
+            security_token: None,
+        };
+
+        let cred_loader = HuaweicloudObsCredentialLoader::new(config);
 
         // Set the bucket name in CanonicalizedResource.
         // 1. If the bucket is bound to a user domain name, use the user domain name as the bucket name,
@@ -265,25 +263,24 @@ impl Builder for ObsBuilder {
         //
         // Please refer to this doc for more details:
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0010.html
-        if is_obs_default {
-            signer_builder.bucket(&bucket);
-        } else {
-            signer_builder.bucket(&endpoint);
-        }
+        let signer = HuaweicloudObsSigner::new({
+            if is_obs_default {
+                &bucket
+            } else {
+                &endpoint
+            }
+        });
 
-        let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "build HuaweicloudObsSigner")
-                .with_context("service", Scheme::Obs)
-                .set_source(e)
-        })?;
-
-        debug!("backend build finished: {:?}", &self);
+        debug!("backend build finished");
         Ok(ObsBackend {
-            client,
-            root,
-            endpoint: format!("{}://{}", &scheme, &endpoint),
-            signer: Arc::new(signer),
-            bucket,
+            core: Arc::new(ObsCore {
+                bucket,
+                root,
+                endpoint: format!("{}://{}", &scheme, &endpoint),
+                signer,
+                loader: cred_loader,
+                client,
+            }),
         })
     }
 }
@@ -291,11 +288,7 @@ impl Builder for ObsBuilder {
 /// Backend for Huaweicloud OBS services.
 #[derive(Debug, Clone)]
 pub struct ObsBackend {
-    pub client: HttpClient,
-    root: String,
-    endpoint: String,
-    pub signer: Arc<HuaweicloudObsSigner>,
-    bucket: String,
+    core: Arc<ObsCore>,
 }
 
 #[async_trait]
@@ -313,8 +306,8 @@ impl Accessor for ObsBackend {
 
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Obs)
-            .set_root(&self.root)
-            .set_name(&self.bucket)
+            .set_root(&self.core.root)
+            .set_name(&self.core.bucket)
             .set_capabilities(Read | Write | Copy | List | Scan)
             .set_hints(ReadStreamable);
 
@@ -322,11 +315,13 @@ impl Accessor for ObsBackend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req = self
+            .core
+            .obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.client.send(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -340,7 +335,7 @@ impl Accessor for ObsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.obs_get_object(path, args.range()).await?;
+        let resp = self.core.obs_get_object(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -363,12 +358,12 @@ impl Accessor for ObsBackend {
 
         Ok((
             RpWrite::default(),
-            ObsWriter::new(self.clone(), args, path.to_string()),
+            ObsWriter::new(self.core.clone(), args, path.to_string()),
         ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.obs_copy_object(from, to).await?;
+        let resp = self.core.obs_copy_object(from, to).await?;
 
         let status = resp.status();
 
@@ -387,7 +382,7 @@ impl Accessor for ObsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.obs_get_head_object(path).await?;
+        let resp = self.core.obs_get_head_object(path).await?;
 
         let status = resp.status();
 
@@ -402,7 +397,7 @@ impl Accessor for ObsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.obs_delete_object(path).await?;
+        let resp = self.core.obs_delete_object(path).await?;
 
         let status = resp.status();
 
@@ -417,156 +412,14 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            ObsPager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            ObsPager::new(self.core.clone(), path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            ObsPager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            ObsPager::new(self.core.clone(), path, "", args.limit()),
         ))
-    }
-}
-
-impl ObsBackend {
-    async fn obs_get_object(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header())
-        }
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub fn obs_put_object_request(
-        &self,
-        path: &str,
-        size: Option<usize>,
-        content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::put(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
-
-        if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime)
-        }
-
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn obs_get_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
-        // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0084.html
-
-        let req = Request::head(&url);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let req = Request::delete(&url);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn obs_copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
-
-        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
-
-        let mut req = Request::put(&url)
-            .header("x-obs-copy-source", percent_encode_path(&source))
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub(crate) async fn obs_list_objects(
-        &self,
-        path: &str,
-        next_marker: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut queries = vec![];
-        if !path.is_empty() {
-            queries.push(format!("prefix={}", percent_encode_path(&p)));
-        }
-        if !delimiter.is_empty() {
-            queries.push(format!("delimiter={delimiter}"));
-        }
-        if let Some(limit) = limit {
-            queries.push(format!("max-keys={limit}"));
-        }
-        if !next_marker.is_empty() {
-            queries.push(format!("marker={next_marker}"));
-        }
-
-        let url = if queries.is_empty() {
-            self.endpoint.to_string()
-        } else {
-            format!("{}?{}", self.endpoint, queries.join("&"))
-        };
-
-        let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send(req).await
     }
 }

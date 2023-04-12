@@ -46,8 +46,28 @@ jobs:
         # namenode will use ports: 9870 and 9000
         # datanode will use ports: 9864
         run: |
-          docker run -d --network host -e CLUSTER_NAME=test -e WEBHDFS_CONF_dfs_webhdfs_enabled=true -e CORE_CONF_hadoop_http_staticuser_user=root bde2020/hadoop-namenode:2.0.0-hadoop3.1.3-java8
-          docker run -d --network host -e WEBHDFS_CONF_dfs_webhdfs_enabled=true -e CORE_CONF_hadoop_http_staticuser_user=root bde2020/hadoop-datanode:2.0.0-hadoop3.1.3-java8
+          docker run -d \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            --health-cmd "curl -f http://localhost:9870" \
+            --health-interval 5s \
+            --health-timeout 5s \
+            --health-retries 3 \
+            bde2020/hadoop-namenode:2.0.0-hadoop3.1.3-java8
+
+          docker run -d \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            --health-cmd "curl -f http://localhost:9864" \
+            --health-interval 5s \
+            --health-timeout 5s \
+            --health-retries 3 \
+            bde2020/hadoop-datanode:2.0.0-hadoop3.1.3-java8
+
           curl http://localhost:9870
 
       - name: Setup Rust toolchain

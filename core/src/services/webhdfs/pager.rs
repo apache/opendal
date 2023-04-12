@@ -45,7 +45,11 @@ impl oio::Page for WebhdfsPager {
         let mut entries = Vec::with_capacity(self.statuses.len());
 
         while let Some(status) = self.statuses.pop() {
-            let mut path = format!("{}/{}", &self.path, status.path_suffix);
+            let mut path = if self.path.is_empty() {
+                status.path_suffix.to_string()
+            } else {
+                format!("{}/{}", self.path, status.path_suffix)
+            };
 
             let meta: Metadata = status.try_into()?;
             if meta.mode().is_dir() {

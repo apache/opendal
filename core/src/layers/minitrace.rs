@@ -24,6 +24,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
 use minitrace::trace;
+use minitrace::Span;
 
 use crate::ops::*;
 use crate::raw::*;
@@ -153,7 +154,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(r))))
+            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(Span::new_noop(), r))))
             .await
     }
 
@@ -162,7 +163,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner
             .write(path, args)
             .await
-            .map(|(rp, r)| (rp, MinitraceWrapper::new(r)))
+            .map(|(rp, r)| (rp, MinitraceWrapper::new(Span::new_noop(), r)))
     }
 
     #[trace("stat", enter_on_poll = true)]
@@ -179,7 +180,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(s))))
+            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(Span::new_noop(), s))))
             .await
     }
 
@@ -187,7 +188,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         self.inner
             .scan(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(s))))
+            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(Span::new_noop(), s))))
             .await
     }
 
@@ -206,18 +207,18 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.blocking_create(path, args)
     }
 
-    #[trace("blocking_read")]
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        let span = Span::enter_with_local_parent("blocking_read");
         self.inner
             .blocking_read(path, args)
-            .map(|(rp, r)| (rp, MinitraceWrapper::new(r)))
+            .map(|(rp, r)| (rp, MinitraceWrapper::new(span, r)))
     }
 
-    #[trace("blocking_write")]
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let span = Span::enter_with_local_parent("blocking_write");
         self.inner
             .blocking_write(path, args)
-            .map(|(rp, r)| (rp, MinitraceWrapper::new(r)))
+            .map(|(rp, r)| (rp, MinitraceWrapper::new(span, r)))
     }
 
     #[trace("blocking_stat")]
@@ -230,28 +231,30 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.blocking_delete(path, args)
     }
 
-    #[trace("blocking_list")]
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        let span = Span::enter_with_local_parent("blocking_list");
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, it)| (rp, MinitraceWrapper::new(it)))
+            .map(|(rp, it)| (rp, MinitraceWrapper::new(span, it)))
     }
 
     #[trace("blocking_scan")]
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        let span = Span::enter_with_local_parent("blocking_scan");
         self.inner
             .blocking_scan(path, args)
-            .map(|(rp, it)| (rp, MinitraceWrapper::new(it)))
+            .map(|(rp, it)| (rp, MinitraceWrapper::new(span, it)))
     }
 }
 
 pub struct MinitraceWrapper<R> {
+    span: Span,
     inner: R,
 }
 
 impl<R> MinitraceWrapper<R> {
-    fn new(inner: R) -> Self {
-        Self { inner }
+    fn new(span: Span, inner: R) -> Self {
+        Self { span, inner }
     }
 }
 
@@ -273,18 +276,21 @@ impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
-    #[trace("inner_blocking_read")]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_blocking_read");
         self.inner.read(buf)
     }
 
-    #[trace("inner_blocking_seek")]
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_blocking_seek");
         self.inner.seek(pos)
     }
 
-    #[trace("inner_blocking_next")]
     fn next(&mut self) -> Option<Result<Bytes>> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_blocking_next");
         self.inner.next()
     }
 }
@@ -308,18 +314,21 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
-    #[trace("inner_blocking_write")]
     fn write(&mut self, bs: Bytes) -> Result<()> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_blocking_write");
         self.inner.write(bs)
     }
 
-    #[trace("inner_blocking_append")]
     fn append(&mut self, bs: Bytes) -> Result<()> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_blocking_append");
         self.inner.append(bs)
     }
 
-    #[trace("inner_blocking_close")]
     fn close(&mut self) -> Result<()> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_blocking_close");
         self.inner.close()
     }
 }
@@ -333,8 +342,9 @@ impl<R: oio::Page> oio::Page for MinitraceWrapper<R> {
 }
 
 impl<R: oio::BlockingPage> oio::BlockingPage for MinitraceWrapper<R> {
-    #[trace("inner_blocking_next")]
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_blocking_next");
         self.inner.next()
     }
 }

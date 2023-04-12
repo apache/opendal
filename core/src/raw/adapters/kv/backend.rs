@@ -209,14 +209,8 @@ pub struct KvPager {
 
 impl KvPager {
     fn new(root: &str, inner: Vec<String>) -> Self {
-        let root = if root == "/" {
-            "".to_string()
-        } else {
-            root.to_string()
-        };
-
         Self {
-            root,
+            root: root.to_string(),
             inner: Some(inner),
         }
     }

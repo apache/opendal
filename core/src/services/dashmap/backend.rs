@@ -66,7 +66,7 @@ impl Builder for DashmapBuilder {
         Ok(DashmapBackend::new(Adapter {
             inner: DashMap::default(),
         })
-        .with_root(&self.root.as_deref().unwrap_or_default()))
+        .with_root(self.root.as_deref().unwrap_or_default()))
     }
 }
 

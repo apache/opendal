@@ -117,7 +117,7 @@ impl Builder for SledBuilder {
             datadir: datadir_path,
             db,
         })
-        .with_root(&self.root.as_deref().unwrap_or_default()))
+        .with_root(self.root.as_deref().unwrap_or_default()))
     }
 }
 

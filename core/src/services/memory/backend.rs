@@ -68,7 +68,7 @@ impl Builder for MemoryBuilder {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(MemoryBackend::new(adapter).with_root(&self.root.as_deref().unwrap_or_default()))
+        Ok(MemoryBackend::new(adapter).with_root(self.root.as_deref().unwrap_or_default()))
     }
 }
 

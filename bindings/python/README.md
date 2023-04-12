@@ -1,4 +1,4 @@
-# OpenDAL Python Binding
+# OpenDAL Python Binding [![Python Docs](https://img.shields.io/badge/docs-python-brightgreen)](https://opendal.apache.org/docs/python/opendal.html)
 
 This crate intends to build a native python binding.
 

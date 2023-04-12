@@ -47,26 +47,28 @@ jobs:
         # datanode will use ports: 9864
         run: |
           docker run -d \
+            --name namenode \
             --network host \
             -e CLUSTER_NAME=test \
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
-            --health-cmd "curl -f http://localhost:9870" \
-            --health-interval 5s \
-            --health-timeout 5s \
-            --health-retries 3 \
             bde2020/hadoop-namenode:2.0.0-hadoop3.1.3-java8
 
+          until [ "`docker inspect -f {{.State.Health.Status}} namenode`"=="healthy" ]; do
+              sleep 0.5;
+          done;
+
           docker run -d \
+            --name datanode \
             --network host \
             -e CLUSTER_NAME=test \
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
-            --health-cmd "curl -f http://localhost:9864" \
-            --health-interval 5s \
-            --health-timeout 5s \
-            --health-retries 3 \
             bde2020/hadoop-datanode:2.0.0-hadoop3.1.3-java8
+
+          until [ "`docker inspect -f {{.State.Health.Status}} datanode`"=="healthy" ]; do
+              sleep 0.5;
+          done;
 
           curl http://localhost:9870
 

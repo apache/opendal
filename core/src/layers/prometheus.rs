@@ -101,7 +101,6 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
     }
 }
 /// [`PrometheusMetrics`] provide the performance and IO metrics.
-///
 #[derive(Debug)]
 pub struct PrometheusMetrics {
     // metadata
@@ -553,10 +552,10 @@ impl<A: Accessor> Debug for PrometheusMetricsAccessor<A> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     type Inner = A;
-    type Reader = MetricWrapper<A::Reader>;
-    type BlockingReader = MetricWrapper<A::BlockingReader>;
-    type Writer = MetricWrapper<A::Writer>;
-    type BlockingWriter = MetricWrapper<A::BlockingWriter>;
+    type Reader = PrometheusMetricWrapper<A::Reader>;
+    type BlockingReader = PrometheusMetricWrapper<A::BlockingReader>;
+    type Writer = PrometheusMetricWrapper<A::Writer>;
+    type BlockingWriter = PrometheusMetricWrapper<A::BlockingWriter>;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -599,7 +598,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
                         .observe(rp.metadata().content_length() as f64);
                     (
                         rp,
-                        MetricWrapper::new(r, Operation::Read, self.stats.clone()),
+                        PrometheusMetricWrapper::new(r, Operation::Read, self.stats.clone()),
                     )
                 })
             })
@@ -620,7 +619,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
                 v.map(|(rp, r)| {
                     (
                         rp,
-                        MetricWrapper::new(r, Operation::Write, self.stats.clone()),
+                        PrometheusMetricWrapper::new(r, Operation::Write, self.stats.clone()),
                     )
                 })
             })
@@ -716,7 +715,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
                 .observe(rp.metadata().content_length() as f64);
             (
                 rp,
-                MetricWrapper::new(r, Operation::BlockingRead, self.stats.clone()),
+                PrometheusMetricWrapper::new(r, Operation::BlockingRead, self.stats.clone()),
             )
         });
         timer.observe_duration();
@@ -728,10 +727,9 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
 
         let timer = self.stats.blocking_write_request_latency.start_timer();
         let result = self.inner.blocking_write(path, args).map(|(rp, r)| {
-            // todo: monitor blocking write size
             (
                 rp,
-                MetricWrapper::new(r, Operation::BlockingWrite, self.stats.clone()),
+                PrometheusMetricWrapper::new(r, Operation::BlockingWrite, self.stats.clone()),
             )
         });
         timer.observe_duration();
@@ -793,21 +791,20 @@ impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
     }
 }
 
-/// todo: add doc
-pub struct MetricWrapper<R> {
+pub struct PrometheusMetricWrapper<R> {
     inner: R,
 
     op: Operation,
     stats: Arc<PrometheusMetrics>,
 }
 
-impl<R> MetricWrapper<R> {
+impl<R> PrometheusMetricWrapper<R> {
     fn new(inner: R, op: Operation, stats: Arc<PrometheusMetrics>) -> Self {
         Self { inner, op, stats }
     }
 }
 
-impl<R: oio::Read> oio::Read for MetricWrapper<R> {
+impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
@@ -846,7 +843,7 @@ impl<R: oio::Read> oio::Read for MetricWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner
             .read(buf)
@@ -882,7 +879,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 }
 
 #[async_trait]
-impl<R: oio::Write> oio::Write for MetricWrapper<R> {
+impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let size = bs.len();
         self.inner
@@ -915,7 +912,7 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
+impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         let size = bs.len();
         self.inner

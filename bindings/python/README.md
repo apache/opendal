@@ -1,5 +1,7 @@
 # OpenDAL Python Binding
 
+Documentation: [main](https://opendal.apache.org/docs/python/)
+
 This crate intends to build a native python binding.
 
 ## Installation

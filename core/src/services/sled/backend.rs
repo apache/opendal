@@ -174,6 +174,11 @@ impl kv::Adapter for Adapter {
 
         for i in it {
             let bs = i.map_err(parse_error)?.to_vec();
+            // Skip the path itself
+            if bs == path.as_bytes() {
+                continue;
+            }
+
             res.push(String::from_utf8(bs).map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)

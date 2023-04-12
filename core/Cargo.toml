@@ -47,7 +47,6 @@ default = [
   "services-obs",
   "services-oss",
   "services-s3",
-  "services-sled",
   "services-webdav",
   "services-webhdfs",
 ]

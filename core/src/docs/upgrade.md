@@ -8,7 +8,7 @@ We increased the MSRV to 1.64 from v0.31 onwards. Although it is still possible 
 
 ## Accept `std::time::Duration` instead
 
-Previously, OpenDAL accepted `time::Duration` as input for `presign_xxx`. However, since v0.31, we have changed this to accept `std::time::Duration` so that users do not need to depend on `time`. Internally, we migrated from `time` to `chonoe` for better integration with other parts of the ecosystem.
+Previously, OpenDAL accepted `time::Duration` as input for `presign_xxx`. However, since v0.31, we have changed this to accept `std::time::Duration` so that users do not need to depend on `time`. Internally, we migrated from `time` to `chrono` for better integration with other parts of the ecosystem.
 
 ## `disable_ec2_metadata` for services s3
 

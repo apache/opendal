@@ -52,6 +52,7 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
       - name: Test
         shell: bash
         working-directory: core

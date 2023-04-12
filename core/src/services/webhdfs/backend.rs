@@ -453,7 +453,7 @@ impl WebhdfsBackend {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op=RENAME&destination={}",
+            "{}/webhdfs/v1/{}?op=RENAME&destination=/{}",
             self.endpoint,
             percent_encode_path(&from),
             percent_encode_path(&to),

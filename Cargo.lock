@@ -3110,8 +3110,8 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
 name = "reqsign"
-version = "0.8.5"
-source = "git+https://github.com/Xuanwo/reqsign?rev=27f4138f679c74380060fd0fb5f29be7b364e3fd#27f4138f679c74380060fd0fb5f29be7b364e3fd"
+version = "0.9.0"
+source = "git+https://github.com/Xuanwo/reqsign?rev=3707b084b534233a11cd34729dba8ec4f4c9e1fc#3707b084b534233a11cd34729dba8ec4f4c9e1fc"
 dependencies = [
  "anyhow",
  "async-trait",

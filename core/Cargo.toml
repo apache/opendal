@@ -119,7 +119,7 @@ redis = { version = "0.22", features = [
   "connection-manager",
 ], optional = true }
 # NOTE: we keep this for service migration one by one. And finally we will replace reqsign by v0.9.
-reqsign_0_9 = { package = "reqsign", git = "https://github.com/Xuanwo/reqsign", rev = "27f4138f679c74380060fd0fb5f29be7b364e3fd" }
+reqsign_0_9 = { package = "reqsign", git = "https://github.com/Xuanwo/reqsign", rev = "3707b084b534233a11cd34729dba8ec4f4c9e1fc" }
 reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",

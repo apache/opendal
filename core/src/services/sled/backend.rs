@@ -55,7 +55,6 @@ use crate::*;
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Sled;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -64,7 +63,6 @@ use crate::*;
 ///     builder.datadir("/tmp/opendal/sled");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }
 /// ```

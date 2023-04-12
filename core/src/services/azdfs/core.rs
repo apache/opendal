@@ -32,6 +32,9 @@ use reqsign::AzureStorageSigner;
 use crate::raw::*;
 use crate::*;
 
+const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
+const X_MS_PROPERTIES: &str = "x-ms-properties";
+
 pub struct AzdfsCore {
     pub filesystem: String,
     pub root: String,
@@ -159,6 +162,28 @@ impl AzdfsCore {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
+    }
+
+    pub async fn azdfs_rename(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.filesystem,
+            percent_encode_path(&target)
+        );
+
+        let mut req = Request::put(&url)
+            // We specify overwrite=true to make sure the target file will be overwritten.
+            .header(X_MS_PROPERTIES, "overwrite=true")
+            .header(X_MS_RENAME_SOURCE, percent_encode_path(&source))
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
     }
 
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update

@@ -57,6 +57,7 @@ const KNOWN_AZDFS_ENDPOINT_SUFFIX: &[&str] = &[
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] presign
@@ -308,7 +309,10 @@ impl Accessor for AzdfsBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.filesystem)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::Rename
+                    | AccessorCapability::List,
             )
             .set_hints(AccessorHint::ReadStreamable);
 
@@ -367,6 +371,20 @@ impl Accessor for AzdfsBackend {
             RpWrite::default(),
             AzdfsWriter::new(self.core.clone(), args, path.to_string()),
         ))
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let resp = self.core.azdfs_rename(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED => {
+                resp.into_body().consume().await?;
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

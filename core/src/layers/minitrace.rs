@@ -237,7 +237,6 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
             .map(|(rp, it)| (rp, MinitraceWrapper::new(span, it)))
     }
 
-    #[trace("blocking_scan")]
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         let span = Span::enter_with_local_parent("blocking_scan");
         self.inner
@@ -259,40 +258,34 @@ impl<R> MinitraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_poll_read");
+        let _span = Span::enter_with_parent("inner_poll_read", &self.span);
         self.inner.poll_read(cx, buf)
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_poll_seek");
+        let _span = Span::enter_with_parent("inner_poll_seek", &self.span);
         self.inner.poll_seek(cx, pos)
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_poll_next");
+        let _span = Span::enter_with_parent("inner_poll_next", &self.span);
         self.inner.poll_next(cx)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_blocking_read");
+        let _span = Span::enter_with_parent("inner_blocking_read", &self.span);
         self.inner.read(buf)
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_blocking_seek");
+        let _span = Span::enter_with_parent("inner_blocking_seek", &self.span);
         self.inner.seek(pos)
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_blocking_next");
+        let _span = Span::enter_with_parent("inner_blocking_next", &self.span);
         self.inner.next()
     }
 }
@@ -323,20 +316,17 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_blocking_write");
+        let _span = Span::enter_with_parent("inner_blocing_write", &self.span);
         self.inner.write(bs)
     }
 
     fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_blocking_append");
+        let _span = Span::enter_with_parent("inner_blocking_append", &self.span);
         self.inner.append(bs)
     }
 
     fn close(&mut self) -> Result<()> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_blocking_close");
+        let _span = Span::enter_with_parent("inner_blocking_close", &self.span);
         self.inner.close()
     }
 }
@@ -353,8 +343,7 @@ impl<R: oio::Page> oio::Page for MinitraceWrapper<R> {
 
 impl<R: oio::BlockingPage> oio::BlockingPage for MinitraceWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let _guard = self.span.set_local_parent();
-        let _span = Span::enter_with_local_parent("inner_blocking_next");
+        let _span = Span::enter_with_parent("inner_blocking_next", &self.span);
         self.inner.next()
     }
 }

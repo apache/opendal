@@ -718,9 +718,13 @@ impl BlockingOperator {
 
     /// List dir in flat way.
     ///
-    /// This function will create a new handle to list entries.
+    /// Also, this function can be used to list a prefix.
     ///
     /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Notes
+    ///
+    /// - `scan` will not return the prefix itself.
     ///
     /// # Examples
     ///

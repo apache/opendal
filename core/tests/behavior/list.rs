@@ -82,6 +82,7 @@ macro_rules! behavior_list_tests {
                 test_list_nested_dir,
                 test_list_dir_with_file_path,
                 test_scan,
+                test_scan_root,
                 test_remove_all,
             );
         )*
@@ -276,6 +277,19 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     assert!(obs.is_err());
     assert_eq!(obs.unwrap_err().kind(), ErrorKind::NotADirectory);
 
+    Ok(())
+}
+
+pub async fn test_scan_root(op: Operator) -> Result<()> {
+    let w = op.scan("").await?;
+    let actual = w
+        .try_collect::<Vec<_>>()
+        .await?
+        .into_iter()
+        .map(|v| v.path().to_string())
+        .collect::<HashSet<_>>();
+
+    assert!(actual.is_empty(), "empty root should return empty");
     Ok(())
 }
 

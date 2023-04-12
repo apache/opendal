@@ -33,7 +33,6 @@ use crate::raw::*;
 use crate::*;
 
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
-const X_MS_PROPERTIES: &str = "x-ms-properties";
 
 pub struct AzdfsCore {
     pub filesystem: String,
@@ -176,9 +175,11 @@ impl AzdfsCore {
         );
 
         let mut req = Request::put(&url)
-            // We specify overwrite=true to make sure the target file will be overwritten.
-            .header(X_MS_PROPERTIES, "overwrite=true")
-            .header(X_MS_RENAME_SOURCE, percent_encode_path(&source))
+            .header(
+                X_MS_RENAME_SOURCE,
+                format!("/{}/{}", self.filesystem, percent_encode_path(&source)),
+            )
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

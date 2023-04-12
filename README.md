@@ -1,4 +1,4 @@
-# OpenDAL &emsp; [![Build Status]][actions] [![chat]][discord]
+# OpenDAL &emsp; [![Build Status]][actions] [![chat]][discord] [![Rust Docs](https://img.shields.io/badge/docs-rust-brightgreen)](https://opendal.apache.org/docs/rust/opendal/index.html) [![Python Docs](https://img.shields.io/badge/docs-python-brightgreen)](https://opendal.apache.org/docs/python/opendal.html)
 
 [build status]: https://img.shields.io/github/actions/workflow/status/apache/incubator-opendal/ci.yml?branch=main
 [actions]: https://github.com/apache/incubator-opendal/actions?query=branch%3Amain

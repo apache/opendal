@@ -256,34 +256,34 @@ impl<R> MinitraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
-    #[trace("poll_read")]
+    #[trace("inner_poll_read")]
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf)
     }
 
-    #[trace("poll_seek")]
+    #[trace("inner_poll_seek")]
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         self.inner.poll_seek(cx, pos)
     }
 
-    #[trace("poll_next")]
+    #[trace("inner_poll_next")]
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         self.inner.poll_next(cx)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
-    #[trace("read")]
+    #[trace("inner_blocking_read")]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf)
     }
 
-    #[trace("seek")]
+    #[trace("inner_blocking_seek")]
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
 
-    #[trace("next")]
+    #[trace("inner_blocking_next")]
     fn next(&mut self) -> Option<Result<Bytes>> {
         self.inner.next()
     }
@@ -291,34 +291,34 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
-    #[trace("write", enter_on_poll = true)]
+    #[trace("inner_write", enter_on_poll = true)]
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs).await
     }
 
-    #[trace("append", enter_on_poll = true)]
+    #[trace("inner_append", enter_on_poll = true)]
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.inner.append(bs).await
     }
 
-    #[trace("close", enter_on_poll = true)]
+    #[trace("inner_close", enter_on_poll = true)]
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
-    #[trace("write")]
+    #[trace("inner_blocking_write")]
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs)
     }
 
-    #[trace("append")]
+    #[trace("inner_blocking_append")]
     fn append(&mut self, bs: Bytes) -> Result<()> {
         self.inner.append(bs)
     }
 
-    #[trace("close")]
+    #[trace("inner_blocking_close")]
     fn close(&mut self) -> Result<()> {
         self.inner.close()
     }
@@ -326,14 +326,14 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Page> oio::Page for MinitraceWrapper<R> {
-    #[trace("next", enter_on_poll = true)]
+    #[trace("inner_next", enter_on_poll = true)]
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await
     }
 }
 
 impl<R: oio::BlockingPage> oio::BlockingPage for MinitraceWrapper<R> {
-    #[trace("next")]
+    #[trace("inner_blocking_next")]
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next()
     }

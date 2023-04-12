@@ -23,8 +23,7 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
-use minitrace::trace;
-use minitrace::Span;
+use minitrace::prelude::*;
 
 use crate::ops::*;
 use crate::raw::*;
@@ -150,20 +149,20 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.create(path, args).await
     }
 
-    #[trace("read", enter_on_poll = true)]
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let span = Span::enter_with_local_parent("read");
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(Span::new_noop(), r))))
+            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(span, r))))
             .await
     }
 
-    #[trace("write", enter_on_poll = true)]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let span = Span::enter_with_local_parent("write");
         self.inner
             .write(path, args)
             .await
-            .map(|(rp, r)| (rp, MinitraceWrapper::new(Span::new_noop(), r)))
+            .map(|(rp, r)| (rp, MinitraceWrapper::new(span, r)))
     }
 
     #[trace("stat", enter_on_poll = true)]
@@ -176,19 +175,19 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.delete(path, args).await
     }
 
-    #[trace("list", enter_on_poll = true)]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let span = Span::enter_with_local_parent("list");
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(Span::new_noop(), s))))
+            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(span, s))))
             .await
     }
 
-    #[trace("scan", enter_on_poll = true)]
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let span = Span::enter_with_local_parent("scan");
         self.inner
             .scan(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(Span::new_noop(), s))))
+            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(span, s))))
             .await
     }
 
@@ -259,18 +258,21 @@ impl<R> MinitraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
-    #[trace("inner_poll_read")]
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_poll_read");
         self.inner.poll_read(cx, buf)
     }
 
-    #[trace("inner_poll_seek")]
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_poll_seek");
         self.inner.poll_seek(cx, pos)
     }
 
-    #[trace("inner_poll_next")]
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        let _guard = self.span.set_local_parent();
+        let _span = Span::enter_with_local_parent("inner_poll_next");
         self.inner.poll_next(cx)
     }
 }
@@ -297,19 +299,25 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
-    #[trace("inner_write", enter_on_poll = true)]
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.write(bs).await
+        self.inner
+            .write(bs)
+            .in_span(Span::enter_with_parent("inner_write", &self.span))
+            .await
     }
 
-    #[trace("inner_append", enter_on_poll = true)]
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).await
+        self.inner
+            .append(bs)
+            .in_span(Span::enter_with_parent("inner_append", &self.span))
+            .await
     }
 
-    #[trace("inner_close", enter_on_poll = true)]
     async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
+        self.inner
+            .close()
+            .in_span(Span::enter_with_parent("inner_close", &self.span))
+            .await
     }
 }
 
@@ -335,9 +343,11 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Page> oio::Page for MinitraceWrapper<R> {
-    #[trace("inner_next", enter_on_poll = true)]
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        self.inner.next().await
+        self.inner
+            .next()
+            .in_span(Span::enter_with_parent("inner_next", &self.span))
+            .await
     }
 }
 

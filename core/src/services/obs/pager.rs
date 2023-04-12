@@ -22,7 +22,7 @@ use bytes::Buf;
 use quick_xml::de;
 use serde::Deserialize;
 
-use super::backend::ObsBackend;
+use super::core::ObsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
@@ -32,8 +32,7 @@ use crate::Metadata;
 use crate::Result;
 
 pub struct ObsPager {
-    backend: Arc<ObsBackend>,
-    root: String,
+    core: Arc<ObsCore>,
     path: String,
     delimiter: String,
     limit: Option<usize>,
@@ -43,16 +42,9 @@ pub struct ObsPager {
 }
 
 impl ObsPager {
-    pub fn new(
-        backend: Arc<ObsBackend>,
-        root: &str,
-        path: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Self {
+    pub fn new(core: Arc<ObsCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
         Self {
-            backend,
-            root: root.to_string(),
+            core,
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
@@ -71,7 +63,7 @@ impl oio::Page for ObsPager {
         }
 
         let resp = self
-            .backend
+            .core
             .obs_list_objects(&self.path, &self.next_marker, &self.delimiter, self.limit)
             .await?;
 
@@ -98,7 +90,7 @@ impl oio::Page for ObsPager {
 
         for prefix in common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.root, &prefix.prefix),
+                &build_rel_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -112,7 +104,7 @@ impl oio::Page for ObsPager {
 
             let meta = Metadata::new(EntryMode::FILE).with_content_length(object.size);
 
-            let de = oio::Entry::new(&build_rel_path(&self.root, &object.key), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
 
             entries.push(de);
         }

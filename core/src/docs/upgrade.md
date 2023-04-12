@@ -1,3 +1,31 @@
+# Upgrade to v0.31
+
+In version v0.31 of OpenDAL, we made some internal refactoring to improve its compatibility with the ecosystem.
+
+## MSRV Bump
+
+We increased the MSRV to 1.64 from v0.31 onwards. Although it is still possible to build OpenDAL under older rustc versions, we cannot guarantee that any issues related to them will be fixed.
+
+## Accept `std::time::Duration` instead
+
+Previously, OpenDAL accepted `time::Duration` as input for `presign_xxx`. However, since v0.31, we have changed this to accept `std::time::Duration` so that users do not need to depend on `time`. Internally, we migrated from `time` to `chonoe` for better integration with other parts of the ecosystem.
+
+## `disable_ec2_metadata` for services s3
+
+We have added a new configuration option called `disable_ec2_metadata` for the S3 service in response to a mistake where it was mixed up with another option called `disable_config_load`. Users who want to disable loading credentials from EC2 metadata should set this option instead.
+
+## Services Feature Flag
+
+Starting from v0.31, all services in OpenDAL are split into different feature flags. To enable only S3 support, use the following TOML configuration:
+
+```toml
+opendal = {
+    version = "0.31",
+    default-features = false,
+    features = ["services-s3"]
+}
+```
+
 # Upgrade to v0.30
 
 In version 0.30, we made significant breaking changes by removing objects. Our goal in doing so was to provide our users with APIs that are easier to understand and maintain.

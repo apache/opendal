@@ -39,14 +39,28 @@ use crate::*;
 /// - [ ] ~~presign~~
 /// - [x] blocking
 #[derive(Default)]
-pub struct MemoryBuilder {}
+pub struct MemoryBuilder {
+    root: Option<String>,
+}
+
+impl MemoryBuilder {
+    /// Set the root for dashmap.
+    pub fn root(&mut self, path: &str) -> &mut Self {
+        self.root = Some(path.into());
+        self
+    }
+}
 
 impl Builder for MemoryBuilder {
     const SCHEME: Scheme = Scheme::Memory;
     type Accessor = MemoryBackend;
 
-    fn from_map(_: HashMap<String, String>) -> Self {
-        Self::default()
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Self::default();
+
+        map.get("root").map(|v| builder.root(v));
+
+        builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -54,7 +68,7 @@ impl Builder for MemoryBuilder {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(MemoryBackend::new(adapter))
+        Ok(MemoryBackend::new(adapter).with_root(&self.root.as_deref().unwrap_or_default()))
     }
 }
 

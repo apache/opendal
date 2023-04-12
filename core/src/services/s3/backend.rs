@@ -30,10 +30,10 @@ use log::debug;
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
-use reqsign_0_9::AwsConfig;
-use reqsign_0_9::AwsCredentialLoad;
-use reqsign_0_9::AwsLoader;
-use reqsign_0_9::AwsV4Signer;
+use reqsign::AwsConfig;
+use reqsign::AwsCredentialLoad;
+use reqsign::AwsLoader;
+use reqsign::AwsV4Signer;
 
 use super::core::*;
 use super::error::parse_error;

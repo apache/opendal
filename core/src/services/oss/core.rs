@@ -26,9 +26,9 @@ use http::header::CONTENT_TYPE;
 use http::header::RANGE;
 use http::Request;
 use http::Response;
-use reqsign_0_9::AliyunCredential;
-use reqsign_0_9::AliyunLoader;
-use reqsign_0_9::AliyunOssSigner;
+use reqsign::AliyunCredential;
+use reqsign::AliyunLoader;
+use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 

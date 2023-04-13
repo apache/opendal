@@ -170,7 +170,12 @@ pub fn test_rename_nested(op: BlockingOperator) -> Result<()> {
 
     op.write(&source_path, source_content.clone())?;
 
-    let target_path = format!("{}/{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let target_path = format!(
+        "{}/{}/{}",
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4()
+    );
 
     op.rename(&source_path, &target_path)?;
 

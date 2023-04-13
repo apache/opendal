@@ -201,7 +201,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_metadata =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // create
         let opendal_requests_total_create = register_int_counter_vec_with_registry!(
@@ -218,7 +218,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_create =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // read
         let opendal_requests_total_read = register_int_counter_vec_with_registry!(
@@ -234,7 +234,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_requests_duration_seconds_read =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         let opts = histogram_opts!(
             "opendal_bytes_total_read",
@@ -242,7 +242,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_bytes_total_read =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // write
         let opendal_requests_total_write = register_int_counter_vec_with_registry!(
@@ -258,7 +258,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_requests_duration_seconds_write =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         let opts = histogram_opts!(
             "opendal_bytes_total_write",
@@ -266,7 +266,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_bytes_total_write =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // stat
         let opendal_requests_total_stat = register_int_counter_vec_with_registry!(
@@ -283,7 +283,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_stat =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // delete
         let opendal_requests_total_delete = register_int_counter_vec_with_registry!(
@@ -300,7 +300,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_delete =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // list
         let opendal_requests_total_list = register_int_counter_vec_with_registry!(
@@ -317,7 +317,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_list =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // scan
         let opendal_requests_total_scan = register_int_counter_vec_with_registry!(
@@ -334,7 +334,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_scan =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // presign
         let opendal_requests_total_presign = register_int_counter_vec_with_registry!(
@@ -351,7 +351,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_presign =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // batch
         let opendal_requests_total_batch = register_int_counter_vec_with_registry!(
@@ -368,7 +368,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_batch =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // blocking_create
         let opendal_requests_total_blocking_create = register_int_counter_vec_with_registry!(
@@ -385,7 +385,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_blocking_create =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // blocking_read
         let opendal_requests_total_blocking_read = register_int_counter_vec_with_registry!(
@@ -401,7 +401,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_requests_duration_seconds_blocking_read =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         let opts = histogram_opts!(
             "opendal_bytes_total_blocking_read",
@@ -409,7 +409,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_bytes_total_blocking_read =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // blocking_write
         let opendal_requests_total_blocking_write = register_int_counter_vec_with_registry!(
@@ -425,7 +425,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_requests_duration_seconds_blocking_write =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         let opts = histogram_opts!(
             "opendal_bytes_total_blocking_write",
@@ -433,7 +433,7 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let opendal_bytes_total_blocking_write =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // blocking_stat
         let opendal_requests_total_blocking_stat = register_int_counter_vec_with_registry!(
@@ -450,7 +450,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_blocking_stat =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // blocking_delete
         let opendal_requests_total_blocking_delete = register_int_counter_vec_with_registry!(
@@ -467,7 +467,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_blocking_delete =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // blocking_list
         let opendal_requests_total_blocking_list = register_int_counter_vec_with_registry!(
@@ -484,7 +484,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_blocking_list =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         // blocking_scan
         let opendal_requests_total_blocking_scan = register_int_counter_vec_with_registry!(
@@ -502,7 +502,7 @@ impl PrometheusMetrics {
         );
 
         let opendal_requests_duration_seconds_blocking_scan =
-            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["schema"], registry).unwrap();
 
         Self {
             opendal_requests_total_metadata,

@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! HTTP response messages
+//! WebHDFS response messages
 
 use serde::Deserialize;
-
-use crate::raw::*;
-use crate::*;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct BooleanResp {
@@ -54,22 +51,6 @@ pub struct FileStatus {
     pub path_suffix: String,
     #[serde(rename = "type")]
     pub ty: FileStatusType,
-}
-
-impl TryFrom<FileStatus> for Metadata {
-    type Error = Error;
-    fn try_from(value: FileStatus) -> Result<Self> {
-        let mut meta = match value.ty {
-            FileStatusType::Directory => Metadata::new(EntryMode::DIR),
-            FileStatusType::File => Metadata::new(EntryMode::FILE),
-        };
-
-        meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
-            value.modification_time,
-        )?)
-        .set_content_length(value.length);
-        Ok(meta)
-    }
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]

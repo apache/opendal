@@ -43,7 +43,7 @@ impl oio::Write for WebhdfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let req = self
             .backend
-            .webhdfs_create_object_req(
+            .webhdfs_create_object_request(
                 &self.path,
                 Some(bs.len()),
                 self.op.content_type(),

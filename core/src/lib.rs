@@ -89,7 +89,7 @@ mod tests {
     /// unexpected struct/enum size change.
     #[test]
     fn assert_size() {
-        assert_eq!(104, size_of::<AccessorInfo>());
+        assert_eq!(112, size_of::<AccessorInfo>());
         assert_eq!(24, size_of::<Operator>());
         assert_eq!(216, size_of::<Entry>());
         assert_eq!(192, size_of::<Metadata>());

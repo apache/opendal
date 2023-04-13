@@ -407,7 +407,7 @@ impl WebhdfsBackend {
 
     /// get redirect destination from 307 TEMPORARY_REDIRECT http response
     fn follow_redirect(&self, resp: Response<IncomingAsyncBody>) -> Result<String> {
-        let location = parse_location(resp.headers())?.ok_or({
+        let location = parse_location(resp.headers())?.ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
                 "webhdfs expect to have redirect location but got none",

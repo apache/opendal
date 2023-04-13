@@ -26,6 +26,7 @@ use futures::FutureExt;
 use minitrace::prelude::*;
 
 use crate::ops::*;
+use crate::raw::oio::{PageOperation, ReadOperation, WriteOperation};
 use crate::raw::*;
 use crate::*;
 
@@ -298,34 +299,34 @@ impl<R> MinitraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let _span = Span::enter_with_parent("Read", &self.span);
+        let _span = Span::enter_with_parent(ReadOperation::Read.into_static(), &self.span);
         self.inner.poll_read(cx, buf)
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        let _span = Span::enter_with_parent("Seek", &self.span);
+        let _span = Span::enter_with_parent(ReadOperation::Seek.into_static(), &self.span);
         self.inner.poll_seek(cx, pos)
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _span = Span::enter_with_parent("Next", &self.span);
+        let _span = Span::enter_with_parent(ReadOperation::Next.into_static(), &self.span);
         self.inner.poll_next(cx)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let _span = Span::enter_with_parent("BlockingRead", &self.span);
+        let _span = Span::enter_with_parent(ReadOperation::BlockingRead.into_static(), &self.span);
         self.inner.read(buf)
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _span = Span::enter_with_parent("BlockingSeek", &self.span);
+        let _span = Span::enter_with_parent(ReadOperation::BlockingSeek.into_static(), &self.span);
         self.inner.seek(pos)
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        let _span = Span::enter_with_parent("BlockingNext", &self.span);
+        let _span = Span::enter_with_parent(ReadOperation::BlockingNext.into_static(), &self.span);
         self.inner.next()
     }
 }
@@ -335,38 +336,50 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner
             .write(bs)
-            .in_span(Span::enter_with_parent("Write", &self.span))
+            .in_span(Span::enter_with_parent(
+                WriteOperation::Write.into_static(),
+                &self.span,
+            ))
             .await
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.inner
             .append(bs)
-            .in_span(Span::enter_with_parent("Append", &self.span))
+            .in_span(Span::enter_with_parent(
+                WriteOperation::Append.into_static(),
+                &self.span,
+            ))
             .await
     }
 
     async fn close(&mut self) -> Result<()> {
         self.inner
             .close()
-            .in_span(Span::enter_with_parent("Close", &self.span))
+            .in_span(Span::enter_with_parent(
+                WriteOperation::Close.into_static(),
+                &self.span,
+            ))
             .await
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        let _span = Span::enter_with_parent("BlockingWrite", &self.span);
+        let _span =
+            Span::enter_with_parent(WriteOperation::BlockingWrite.into_static(), &self.span);
         self.inner.write(bs)
     }
 
     fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _span = Span::enter_with_parent("BlockingAppend", &self.span);
+        let _span =
+            Span::enter_with_parent(WriteOperation::BlockingAppend.into_static(), &self.span);
         self.inner.append(bs)
     }
 
     fn close(&mut self) -> Result<()> {
-        let _span = Span::enter_with_parent("BlockingClose", &self.span);
+        let _span =
+            Span::enter_with_parent(WriteOperation::BlockingClose.into_static(), &self.span);
         self.inner.close()
     }
 }
@@ -376,14 +389,17 @@ impl<R: oio::Page> oio::Page for MinitraceWrapper<R> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner
             .next()
-            .in_span(Span::enter_with_parent("Next", &self.span))
+            .in_span(Span::enter_with_parent(
+                PageOperation::Next.into_static(),
+                &self.span,
+            ))
             .await
     }
 }
 
 impl<R: oio::BlockingPage> oio::BlockingPage for MinitraceWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let _span = Span::enter_with_parent("BlockingNext", &self.span);
+        let _span = Span::enter_with_parent(PageOperation::BlockingNext.into_static(), &self.span);
         self.inner.next()
     }
 }

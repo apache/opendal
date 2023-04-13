@@ -52,6 +52,9 @@ impl oio::Page for WebhdfsPager {
             };
 
             let meta: Metadata = status.try_into()?;
+            if meta.mode().is_file() {
+                path = path.trim_end_matches('/').to_string();
+            }
             if meta.mode().is_dir() {
                 path += "/"
             }

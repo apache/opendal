@@ -670,7 +670,7 @@ impl Accessor for WebhdfsBackend {
         match resp.status() {
             StatusCode::OK => {
                 let body_bs = resp.into_body().bytes().await?;
-                let file_statuses =
+                let mut file_statuses =
                     serde_json::from_reader::<_, FileStatusesWrapper>(body_bs.reader())
                         .map_err(|e| {
                             Error::new(ErrorKind::Unexpected, "cannot parse returned json")

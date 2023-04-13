@@ -87,7 +87,7 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct PrometheusLayer {
     registry: Registry,
 }
@@ -99,13 +99,6 @@ impl PrometheusLayer {
     }
 }
 
-impl Default for PrometheusLayer {
-    fn default() -> Self {
-        Self {
-            registry: prometheus::Registry::default(),
-        }
-    }
-}
 impl<A: Accessor> Layer<A> for PrometheusLayer {
     type LayeredAccessor = PrometheusAccessor<A>;
 
@@ -123,13 +116,9 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
 /// [`PrometheusMetrics`] provide the performance and IO metrics.
 #[derive(Debug)]
 pub struct PrometheusMetrics {
-    // metadata
-    pub requests_total_metadata: GenericCounterVec<AtomicU64>,
-    pub requests_duration_seconds_metadata: HistogramVec,
-
     // create
-    pub requests_total_create: GenericCounterVec<AtomicU64>,
-    pub requests_duration_seconds_create: HistogramVec,
+    pub requests_total: GenericCounterVec<AtomicU64>,
+    pub requests_duration_seconds: HistogramVec,
 
     /// read
     pub requests_total_read: GenericCounterVec<AtomicU64>,
@@ -199,38 +188,21 @@ pub struct PrometheusMetrics {
 impl PrometheusMetrics {
     /// new with prometheus register.
     pub fn new(registry: Registry) -> Self {
-        // metadata
-        let requests_total_metadata = register_int_counter_vec_with_registry!(
-            "requests_total_metadata",
-            "Total times of metadata be called",
-            &["scheme"],
-            registry
-        )
-        .unwrap();
-        let opts = histogram_opts!(
-            "requests_duration_seconds_metadata",
-            "Histogram of the time spent on getting metadata",
-            exponential_buckets(0.01, 2.0, 16).unwrap()
-        );
-
-        let requests_duration_seconds_metadata =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
-
         // create
-        let requests_total_create = register_int_counter_vec_with_registry!(
-            "requests_total_create",
+        let requests_total = register_int_counter_vec_with_registry!(
+            "requests_total",
             "Total times of create be called",
             &["scheme", "operation"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "requests_duration_seconds_create",
+            "requests_duration_seconds",
             "Histogram of the time spent on creating",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let requests_duration_seconds_create =
+        let requests_duration_seconds =
             register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
                 .unwrap();
 
@@ -538,11 +510,8 @@ impl PrometheusMetrics {
                 .unwrap();
 
         Self {
-            requests_total_metadata,
-            requests_duration_seconds_metadata,
-
-            requests_total_create,
-            requests_duration_seconds_create,
+            requests_total,
+            requests_duration_seconds,
 
             requests_total_read,
             requests_duration_seconds_read,
@@ -636,32 +605,15 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         &self.inner
     }
 
-    fn metadata(&self) -> AccessorInfo {
-        self.stats
-            .requests_total_metadata
-            .with_label_values(&[&self.scheme])
-            .inc();
-
-        let timer = self
-            .stats
-            .requests_duration_seconds_metadata
-            .with_label_values(&[&self.scheme])
-            .start_timer();
-        let result = self.inner.info();
-        timer.observe_duration();
-
-        result
-    }
-
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.stats
-            .requests_total_create
+            .requests_total
             .with_label_values(&[&self.scheme])
             .inc();
 
         let timer = self
             .stats
-            .requests_duration_seconds_create
+            .requests_duration_seconds
             .with_label_values(&[&self.scheme, Operation::Create.into_static()])
             .start_timer();
         let create_res = self.inner.create(path, args).await;

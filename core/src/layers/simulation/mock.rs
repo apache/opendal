@@ -4,7 +4,7 @@ use crate::raw::oio::Entry;
 use crate::raw::{oio, Accessor, Layer, LayeredAccessor, RpList, RpRead, RpScan, RpWrite};
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::io::SeekFrom;
 use std::task::{Context, Poll};
 use madsim::net::Endpoint;
@@ -12,7 +12,8 @@ use std::io::Result;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-const SIM_SERVER_ADDR: &str = "10.0.0.1:2379";
+const SIM_SERVER_ADDR: &str = "10.0.0.1:1";
+const SIM_CLIENT_ADDR: &str = "10.0.0.2:1";
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct MadsimLayer;
@@ -21,22 +22,27 @@ impl<A: Accessor> Layer<A> for MadsimLayer {
     type LayeredAccessor = MadsimAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let addr = SIM_SERVER_ADDR.parse().unwrap();
-
         let runtime = madsim::runtime::Runtime::new();
-        std::thread::spawn(move || {
-            runtime.block_on(async {
-                SimServer::serve(addr).await.unwrap();
-                Endpoint::connect(addr).await.unwrap();
-            })
-        });
-        MadsimAccessor { inner }
+        let sim_server_adder = "10.0.0.1:1".parse::<SocketAddr>().unwrap();
+        let sim_client_addr = "10.0.0.2:1".parse::<SocketAddr>().unwrap();
+        let ep = runtime.block_on(async {
+            madsim::task::spawn(SimServer::serve(sim_server_adder));
+            Endpoint::bind(sim_client_addr).await
+        }
+        ).unwrap();
+        MadsimAccessor { inner, ep }
     }
 }
 
-#[derive(Debug)]
 pub struct MadsimAccessor<A: Accessor> {
     inner: A,
+    ep: Endpoint,
+}
+
+impl<A: Accessor> Debug for MadsimAccessor<A> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
 }
 
 #[async_trait]
@@ -58,7 +64,12 @@ impl<A: Accessor> LayeredAccessor for MadsimAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> crate::Result<(RpWrite, Self::Writer)> {
-        todo!()
+        let req = Request::Write(path.to_string(), args);
+        let sim_server_addr = SIM_SERVER_ADDR.parse::<SocketAddr>().unwrap();
+        let (tx, mut rx) = self.ep.connect1(sim_server_addr).await.unwrap();
+        tx.send(Box::new(req)).await.unwrap();
+        let resp = *rx.recv().await.unwrap().downcast().unwrap();
+        Ok(resp)
     }
 
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Pager)> {

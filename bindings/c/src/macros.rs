@@ -15,13 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Macro used to generate operator upon construction and return C-compatible
-/// error if failed
+/// Macro used to generate operator upon construction and return a NULL [`opendal_operator_ptr`]
+/// if failed. Examples can be seen in [`crate::opendal_operator_new`].
+///
+/// Arguments:
+/// * cast_to: The builder type you want to cast to, e.g. [`opendal_builder_memory`]
+/// * builder: The pointer to the builder
 #[macro_export]
 macro_rules! generate_operator {
-    ($type:ty, $map:expr) => {{
-        let b = od::Operator::from_map::<$type>($map);
-        match b {
+    ($cast_to:ty, $builder:expr) => {{
+        let builder = (*($builder as *mut $cast_to)).cast_to_builder();
+        match od::Operator::new(builder) {
             Ok(b) => b.finish(),
             Err(_) => {
                 return opendal_operator_ptr::null();

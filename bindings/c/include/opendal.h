@@ -155,22 +155,31 @@ typedef struct opendal_result_is_exist {
   enum opendal_code code;
 } opendal_result_is_exist;
 
+/*
+ The builder of building [`od::services::Memory`] service.
+ Fields' semantics could be checked in [`od::services::Memory`]
+ */
+typedef struct opendal_builder_memory {
+  const char *root;
+} opendal_builder_memory;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
 /*
- Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
- the error is nullptr, otherwise it contains the error information.
+ Returns a pointer [`opendal_operator_ptr`], with operator_ptr. If the construction failed,
+ the pointer will be pointing at NULL.
 
  # Safety
 
- It is [safe] under two cases below
+ It is [safe] under if followings are satisfied
  * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
-   the string.
- * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
+   the string. Or the `scheme` points to NULL, this function simply returns you a
+   null [`opendal_operator_ptr`].
+ * The `builder` is pointing at a valid opendal_builder, e.g. [`opendal_builder_memory`]
  */
-opendal_operator_ptr opendal_operator_new(const char *scheme);
+opendal_operator_ptr opendal_operator_new(const char *scheme, void *builder);
 
 /*
  Free the allocated operator pointed by [`opendal_operator_ptr`]
@@ -233,6 +242,19 @@ struct opendal_result_read opendal_operator_blocking_read(opendal_operator_ptr o
  */
 struct opendal_result_is_exist opendal_operator_is_exist(opendal_operator_ptr op_ptr,
                                                          const char *path);
+
+/*
+ Construct a new [`opendal_builder_memory`], the memory is allocated on the heap.
+ The memory will be deallocated when it is used to build the [`opendal_operator_ptr`],
+ i.e. will become invalid.
+ */
+struct opendal_builder_memory *opendal_builder_memory_new(void);
+
+/*
+ Set the `root` of the [`od::services::Memory`] service
+ */
+struct opendal_builder_memory *opendal_builder_memory_set_root(const struct opendal_builder_memory *self,
+                                                               const char *root);
 
 /*
  Frees the heap memory used by the [`opendal_bytes`]

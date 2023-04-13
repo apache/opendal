@@ -15,11 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! This is for better naming in C header file. If we use generics for Result type,
-//! it will no doubt work find. However, the generics will lead to naming like
-//! "opendal_result_opendal_operator_ptr", which is unacceptable. Therefore,
-//! we are defining all Result types here
-
 use crate::error::opendal_code;
 use crate::types::opendal_bytes;
 

@@ -17,34 +17,37 @@
 
 #![allow(non_camel_case_types)]
 
+mod builders;
 mod error;
 mod macros;
 mod result;
 mod types;
 
-use std::collections::HashMap;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_void};
 use std::str::FromStr;
+
+use crate::builders::{opendal_builder_memory, CastBuilder};
+use crate::types::{opendal_bytes, opendal_operator_ptr};
 
 use ::opendal as od;
 use error::opendal_code;
-use result::opendal_result_is_exist;
-use result::opendal_result_read;
+use result::{opendal_result_is_exist, opendal_result_read};
 
-use crate::types::opendal_bytes;
-use crate::types::opendal_operator_ptr;
-
-/// Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
-/// the error is nullptr, otherwise it contains the error information.
+/// Returns a pointer [`opendal_operator_ptr`], with operator_ptr. If the construction failed,
+/// the pointer will be pointing at NULL.
 ///
 /// # Safety
 ///
-/// It is [safe] under two cases below
+/// It is [safe] under if followings are satisfied
 /// * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
-///   the string.
-/// * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
+///   the string. Or the `scheme` points to NULL, this function simply returns you a
+///   null [`opendal_operator_ptr`].
+/// * The `builder` is pointing at a valid opendal_builder, e.g. [`opendal_builder_memory`]
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_operator_ptr {
+pub unsafe extern "C" fn opendal_operator_new(
+    scheme: *const c_char,
+    builder: *mut c_void,
+) -> opendal_operator_ptr {
     if scheme.is_null() {
         return opendal_operator_ptr::null();
     }
@@ -57,11 +60,8 @@ pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_
         }
     };
 
-    // todo: api for map construction
-    let map = HashMap::default();
-
     let op = match scheme {
-        od::Scheme::Memory => generate_operator!(od::services::Memory, map),
+        od::Scheme::Memory => generate_operator!(opendal_builder_memory, builder),
         _ => {
             return opendal_operator_ptr::null();
         }

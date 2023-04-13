@@ -293,6 +293,14 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
         Ok(())
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        // TODO(hl)
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
+        ))
+    }
+
     async fn close(&mut self) -> Result<()> {
         if let Some(buf) = self.buf.as_deref() {
             self.kv.set(&self.path, buf).await?;

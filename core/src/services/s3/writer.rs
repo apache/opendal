@@ -125,6 +125,14 @@ impl oio::Write for S3Writer {
         }
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        // TODO(hl)
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support close",
+        ))
+    }
+
     async fn close(&mut self) -> Result<()> {
         let upload_id = if let Some(upload_id) = &self.upload_id {
             upload_id

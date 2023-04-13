@@ -27,6 +27,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
+use hyper::body::HttpBody;
 use metrics::increment_counter;
 use metrics::register_counter;
 use metrics::register_histogram;
@@ -935,6 +936,13 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
                 self.handle.increment_errors_total(self.op, err.kind());
                 err
             })
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
+            self.handle.increment_errors_total(self.op, err.kind());
+            err
+        })
     }
 
     async fn close(&mut self) -> Result<()> {

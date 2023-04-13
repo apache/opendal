@@ -102,7 +102,7 @@ impl PrometheusLayer {
 impl Default for PrometheusLayer {
     fn default() -> Self {
         Self {
-            registry: prometheus::default_registry().clone(),
+            registry: prometheus::Registry::default(),
         }
     }
 }
@@ -220,7 +220,7 @@ impl PrometheusMetrics {
         let requests_total_create = register_int_counter_vec_with_registry!(
             "requests_total_create",
             "Total times of create be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -231,13 +231,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_create =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // read
         let requests_total_read = register_int_counter_vec_with_registry!(
             "requests_total_read",
             "Total times of read be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -247,7 +248,8 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let requests_duration_seconds_read =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         let opts = histogram_opts!(
             "bytes_total_read",
@@ -255,13 +257,14 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let bytes_total_read =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // write
         let requests_total_write = register_int_counter_vec_with_registry!(
             "requests_total_write",
             "Total times of write be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -271,7 +274,8 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let requests_duration_seconds_write =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         let opts = histogram_opts!(
             "bytes_total_write",
@@ -279,13 +283,14 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let bytes_total_write =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // stat
         let requests_total_stat = register_int_counter_vec_with_registry!(
             "requests_total_stat",
             "Total times of stat be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -296,13 +301,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_stat =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // delete
         let requests_total_delete = register_int_counter_vec_with_registry!(
             "requests_total_delete",
             "Total times of delete be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -313,13 +319,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_delete =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // list
         let requests_total_list = register_int_counter_vec_with_registry!(
             "requests_total_list",
             "Total times of list be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -330,13 +337,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_list =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // scan
         let requests_total_scan = register_int_counter_vec_with_registry!(
             "requests_total_scan",
             "Total times of scan be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -347,13 +355,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_scan =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // presign
         let requests_total_presign = register_int_counter_vec_with_registry!(
             "requests_total_presign",
             "Total times of presign be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -364,13 +373,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_presign =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // batch
         let requests_total_batch = register_int_counter_vec_with_registry!(
             "requests_total_batch",
             "Total times of batch be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -381,13 +391,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_batch =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // blocking_create
         let requests_total_blocking_create = register_int_counter_vec_with_registry!(
             "requests_total_blocking_create",
             "Total times of blocking_create be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -398,13 +409,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_blocking_create =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // blocking_read
         let requests_total_blocking_read = register_int_counter_vec_with_registry!(
             "requests_total_blocking_read",
             "Total times of blocking_read be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -414,7 +426,8 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let requests_duration_seconds_blocking_read =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         let opts = histogram_opts!(
             "bytes_total_blocking_read",
@@ -422,13 +435,14 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let bytes_total_blocking_read =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // blocking_write
         let requests_total_blocking_write = register_int_counter_vec_with_registry!(
             "requests_total_blocking_write",
             "Total times of blocking_write be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -438,7 +452,8 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let requests_duration_seconds_blocking_write =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         let opts = histogram_opts!(
             "bytes_total_blocking_write",
@@ -446,13 +461,14 @@ impl PrometheusMetrics {
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let bytes_total_blocking_write =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // blocking_stat
         let requests_total_blocking_stat = register_int_counter_vec_with_registry!(
             "requests_total_blocking_stat",
             "Total times of blocking_stat be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -463,13 +479,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_blocking_stat =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // blocking_delete
         let requests_total_blocking_delete = register_int_counter_vec_with_registry!(
             "requests_total_blocking_delete",
             "Total times of blocking_delete be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -480,13 +497,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_blocking_delete =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // blocking_list
         let requests_total_blocking_list = register_int_counter_vec_with_registry!(
             "requests_total_blocking_list",
             "Total times of blocking_list be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -497,13 +515,14 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_blocking_list =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         // blocking_scan
         let requests_total_blocking_scan = register_int_counter_vec_with_registry!(
             "requests_total_blocking_scan",
             "Total times of blocking_scan be called",
-            &["scheme"],
+            &["scheme", "operation"],
             registry
         )
         .unwrap();
@@ -515,7 +534,8 @@ impl PrometheusMetrics {
         );
 
         let requests_duration_seconds_blocking_scan =
-            register_histogram_vec_with_registry!(opts, &["scheme"], registry).unwrap();
+            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+                .unwrap();
 
         Self {
             requests_total_metadata,
@@ -642,7 +662,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         let timer = self
             .stats
             .requests_duration_seconds_create
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Create.into_static()])
             .start_timer();
         let create_res = self.inner.create(path, args).await;
 
@@ -657,13 +677,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.stats
             .requests_total_read
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Read.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_read
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Read.into_static()])
             .start_timer();
 
         let read_res = self
@@ -673,7 +693,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
                 v.map(|(rp, r)| {
                     self.stats
                         .bytes_total_read
-                        .with_label_values(&[&self.scheme])
+                        .with_label_values(&[&self.scheme, Operation::Read.into_static()])
                         .observe(rp.metadata().content_length() as f64);
                     (
                         rp,
@@ -697,13 +717,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.stats
             .requests_total_write
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Write.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_write
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Write.into_static()])
             .start_timer();
 
         let write_res = self
@@ -734,12 +754,12 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.stats
             .requests_total_stat
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Stat.into_static()])
             .inc();
         let timer = self
             .stats
             .requests_duration_seconds_stat
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Stat.into_static()])
             .start_timer();
 
         let stat_res = self
@@ -759,13 +779,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.stats
             .requests_total_delete
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Stat.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_delete
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Stat.into_static()])
             .start_timer();
 
         let delete_res = self.inner.delete(path, args).await;
@@ -780,13 +800,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.stats
             .requests_total_list
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::List.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_list
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::List.into_static()])
             .start_timer();
 
         let list_res = self.inner.list(path, args).await;
@@ -801,13 +821,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         self.stats
             .requests_total_scan
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Scan.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_scan
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Scan.into_static()])
             .start_timer();
 
         let scan_res = self.inner.scan(path, args).await;
@@ -821,13 +841,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.stats
             .requests_total_batch
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Batch.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_batch
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Batch.into_static()])
             .start_timer();
         let result = self.inner.batch(args).await;
 
@@ -842,13 +862,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.stats
             .requests_total_presign
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Presign.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_presign
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::Presign.into_static()])
             .start_timer();
         let result = self.inner.presign(path, args).await;
         timer.observe_duration();
@@ -863,13 +883,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.stats
             .requests_total_blocking_create
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingCreate.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_blocking_create
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingCreate.into_static()])
             .start_timer();
         let result = self.inner.blocking_create(path, args);
 
@@ -885,7 +905,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.stats
             .requests_total_blocking_read
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingRead.into_static()])
             .inc();
 
         let timer = self
@@ -896,7 +916,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
             self.stats
                 .bytes_total_read
-                .with_label_values(&[&self.scheme])
+                .with_label_values(&[&self.scheme, Operation::BlockingRead.into_static()])
                 .observe(rp.metadata().content_length() as f64);
             (
                 rp,
@@ -919,13 +939,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.stats
             .requests_total_blocking_write
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingWrite.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_blocking_write
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingWrite.into_static()])
             .start_timer();
         let result = self.inner.blocking_write(path, args).map(|(rp, r)| {
             (
@@ -949,13 +969,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.stats
             .requests_total_blocking_stat
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingStat.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_blocking_stat
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingStat.into_static()])
             .start_timer();
         let result = self.inner.blocking_stat(path, args);
         timer.observe_duration();
@@ -969,13 +989,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.stats
             .requests_total_blocking_delete
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingDelete.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_blocking_delete
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingDelete.into_static()])
             .start_timer();
         let result = self.inner.blocking_delete(path, args);
         timer.observe_duration();
@@ -990,13 +1010,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.stats
             .requests_total_blocking_list
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingList.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_blocking_list
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingList.into_static()])
             .start_timer();
         let result = self.inner.blocking_list(path, args);
         timer.observe_duration();
@@ -1011,13 +1031,13 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         self.stats
             .requests_total_blocking_scan
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingScan.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds_blocking_scan
-            .with_label_values(&[&self.scheme])
+            .with_label_values(&[&self.scheme, Operation::BlockingScan.into_static()])
             .start_timer();
         let result = self.inner.blocking_scan(path, args);
         timer.observe_duration();
@@ -1054,7 +1074,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
             Ok(bytes) => {
                 self.stats
                     .bytes_total_read
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::Read.into_static()])
                     .observe(bytes as f64);
                 Ok(bytes)
             }
@@ -1080,7 +1100,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
             Some(Ok(bytes)) => {
                 self.stats
                     .bytes_total_read
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::Read.into_static()])
                     .observe(bytes.len() as f64);
                 Some(Ok(bytes))
             }
@@ -1100,7 +1120,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
             .map(|n| {
                 self.stats
                     .bytes_total_blocking_read
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::BlockingRead.into_static()])
                     .observe(n as f64);
                 n
             })
@@ -1122,7 +1142,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
             Ok(bytes) => {
                 self.stats
                     .bytes_total_blocking_read
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::BlockingRead.into_static()])
                     .observe(bytes.len() as f64);
                 Ok(bytes)
             }
@@ -1144,7 +1164,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.stats
                     .bytes_total_write
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::Write.into_static()])
                     .observe(size as f64)
             })
             .map_err(|err| {
@@ -1161,7 +1181,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.stats
                     .bytes_total_write
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::Write.into_static()])
                     .observe(size as f64)
             })
             .map_err(|err| {
@@ -1186,7 +1206,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.stats
                     .bytes_total_blocking_write
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::BlockingWrite.into_static()])
                     .observe(size as f64)
             })
             .map_err(|err| {
@@ -1202,7 +1222,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
             .map(|_| {
                 self.stats
                     .bytes_total_blocking_write
-                    .with_label_values(&[&self.scheme])
+                    .with_label_values(&[&self.scheme, Operation::BlockingWrite.into_static()])
                     .observe(size as f64)
             })
             .map_err(|err| {

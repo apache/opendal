@@ -91,12 +91,12 @@ use crate::*;
 pub struct PrometheusLayer;
 
 impl<A: Accessor> Layer<A> for PrometheusLayer {
-    type LayeredAccessor = PrometheusMetricsAccessor<A>;
+    type LayeredAccessor = PrometheusAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
         let registry = prometheus::default_registry();
 
-        PrometheusMetricsAccessor {
+        PrometheusAccessor {
             inner,
             stats: Arc::new(PrometheusMetrics::new(registry.clone())),
         }
@@ -538,21 +538,21 @@ impl PrometheusMetrics {
 }
 
 #[derive(Clone)]
-pub struct PrometheusMetricsAccessor<A: Accessor> {
+pub struct PrometheusAccessor<A: Accessor> {
     inner: A,
     stats: Arc<PrometheusMetrics>,
 }
 
-impl<A: Accessor> Debug for PrometheusMetricsAccessor<A> {
+impl<A: Accessor> Debug for PrometheusAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PrometheusMetricsAccessor")
+        f.debug_struct("PrometheusAccessor")
             .field("inner", &self.inner)
             .finish_non_exhaustive()
     }
 }
 
 #[async_trait]
-impl<A: Accessor> LayeredAccessor for PrometheusMetricsAccessor<A> {
+impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     type Inner = A;
     type Reader = PrometheusMetricWrapper<A::Reader>;
     type BlockingReader = PrometheusMetricWrapper<A::BlockingReader>;

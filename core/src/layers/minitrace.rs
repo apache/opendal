@@ -151,32 +151,18 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let span = Span::enter_with_local_parent("read");
         self.inner
             .read(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
-                    )
-                })
-            })
-            .enter_on_poll("read")
+            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(span, r))))
             .await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let span = Span::enter_with_local_parent("write");
         self.inner
             .write(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
-                    )
-                })
-            })
-            .enter_on_poll("write")
+            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(span, r))))
             .await
     }
 
@@ -191,32 +177,18 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let span = Span::enter_with_local_parent("list");
         self.inner
             .list(path, args)
-            .map(|v| {
-                v.map(|(rp, s)| {
-                    (
-                        rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("PageOperation"), s),
-                    )
-                })
-            })
-            .enter_on_poll("list")
+            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(span, s))))
             .await
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let span = Span::enter_with_local_parent("scan");
         self.inner
             .scan(path, args)
-            .map(|v| {
-                v.map(|(rp, s)| {
-                    (
-                        rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("PageOperation"), s),
-                    )
-                })
-            })
-            .enter_on_poll("scan")
+            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(span, s))))
             .await
     }
 

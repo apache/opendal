@@ -32,6 +32,8 @@ use reqsign::AzureStorageSigner;
 use crate::raw::*;
 use crate::*;
 
+const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
+
 pub struct AzdfsCore {
     pub filesystem: String,
     pub root: String,
@@ -161,6 +163,30 @@ impl AzdfsCore {
         Ok(req)
     }
 
+    pub async fn azdfs_rename(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.filesystem,
+            percent_encode_path(&target)
+        );
+
+        let mut req = Request::put(&url)
+            .header(
+                X_MS_RENAME_SOURCE,
+                format!("/{}/{}", self.filesystem, percent_encode_path(&source)),
+            )
+            .header(CONTENT_LENGTH, 0)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
     pub fn azdfs_update_request(
         &self,
@@ -266,5 +292,33 @@ impl AzdfsCore {
 
         self.sign(&mut req).await?;
         self.send(req).await
+    }
+
+    pub async fn azdfs_ensure_parent_path(
+        &self,
+        path: &str,
+    ) -> Result<Option<Response<IncomingAsyncBody>>> {
+        let abs_target_path = path.trim_end_matches('/').to_string();
+        let abs_target_path = abs_target_path.as_str();
+        let mut parts: Vec<&str> = abs_target_path
+            .split('/')
+            .filter(|x| !x.is_empty())
+            .collect();
+
+        if !parts.is_empty() {
+            parts.pop();
+        }
+
+        if !parts.is_empty() {
+            let parent_path = parts.join("/");
+            let mut req =
+                self.azdfs_create_request(&parent_path, "directory", None, None, AsyncBody::Empty)?;
+
+            self.sign(&mut req).await?;
+
+            Ok(Some(self.send(req).await?))
+        } else {
+            Ok(None)
+        }
     }
 }

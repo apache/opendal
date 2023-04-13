@@ -170,7 +170,12 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 
     op.write(&source_path, source_content.clone()).await?;
 
-    let target_path = format!("{}/{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let target_path = format!(
+        "{}/{}/{}",
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4(),
+        uuid::Uuid::new_v4()
+    );
 
     op.copy(&source_path, &target_path).await?;
 

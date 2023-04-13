@@ -28,14 +28,13 @@ use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
 
-use prometheus::core::AtomicU64;
-use prometheus::core::GenericCounter;
+use prometheus::core::GenericCounterVec;
 use prometheus::exponential_buckets;
 use prometheus::histogram_opts;
-use prometheus::register_histogram_with_registry;
-use prometheus::register_int_counter_with_registry;
-use prometheus::Histogram;
+use prometheus::register_histogram_vec_with_registry;
+use prometheus::register_int_counter_vec_with_registry;
 use prometheus::Registry;
+use prometheus::{core::AtomicU64, HistogramVec};
 
 use crate::ops::*;
 use crate::raw::Accessor;
@@ -94,11 +93,17 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
     type LayeredAccessor = PrometheusAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let registry = prometheus::default_registry();
+        let mut meta = inner.info();
+        let schema = meta.scheme();
+        let registry = match meta.prometheus_register() {
+            Some(register) => register,
+            None => prometheus::default_registry(),
+        };
 
         PrometheusAccessor {
             inner,
             stats: Arc::new(PrometheusMetrics::new(registry.clone())),
+            schema: schema.to_string(),
         }
     }
 }
@@ -106,422 +111,454 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
 #[derive(Debug)]
 pub struct PrometheusMetrics {
     // metadata
-    pub metadata_request_counts: GenericCounter<AtomicU64>,
-    pub metadata_request_latency: Histogram,
+    pub opendal_requests_total_metadata: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_metadata: HistogramVec,
 
     // create
-    pub create_request_counts: GenericCounter<AtomicU64>,
-    pub create_request_latency: Histogram,
+    pub opendal_requests_total_create: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_create: HistogramVec,
 
     /// read
-    pub read_request_counts: GenericCounter<AtomicU64>,
-    pub read_request_latency: Histogram,
-    pub read_size: Histogram,
+    pub opendal_requests_total_read: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_read: HistogramVec,
+    pub opendal_bytes_total_read: HistogramVec,
 
     // write
-    pub write_request_counts: GenericCounter<AtomicU64>,
-    pub write_request_latency: Histogram,
-    pub write_size: Histogram,
+    pub opendal_requests_total_write: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_write: HistogramVec,
+    pub opendal_bytes_total_write: HistogramVec,
 
     // stat
-    pub stat_request_counts: GenericCounter<AtomicU64>,
-    pub stat_request_latency: Histogram,
+    pub opendal_requests_total_stat: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_stat: HistogramVec,
 
     // delete
-    pub delete_request_counts: GenericCounter<AtomicU64>,
-    pub delete_request_latency: Histogram,
+    pub opendal_requests_total_delete: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_delete: HistogramVec,
 
     // list
-    pub list_request_counts: GenericCounter<AtomicU64>,
-    pub list_request_latency: Histogram,
+    pub opendal_requests_total_list: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_list: HistogramVec,
 
     // scan
-    pub scan_request_counts: GenericCounter<AtomicU64>,
-    pub scan_request_latency: Histogram,
+    pub opendal_requests_total_scan: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_scan: HistogramVec,
 
     // presign
-    pub presign_request_counts: GenericCounter<AtomicU64>,
-    pub presign_request_latency: Histogram,
+    pub opendal_requests_total_presign: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_presign: HistogramVec,
 
     // batch
-    pub batch_request_counts: GenericCounter<AtomicU64>,
-    pub batch_request_latency: Histogram,
+    pub opendal_requests_total_batch: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_batch: HistogramVec,
 
     // blocking create
-    pub blocking_create_request_counts: GenericCounter<AtomicU64>,
-    pub blocking_create_request_latency: Histogram,
+    pub opendal_requests_total_blocking_create: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_blocking_create: HistogramVec,
 
     // blocking read
-    pub blocking_read_request_counts: GenericCounter<AtomicU64>,
-    pub blocking_read_request_latency: Histogram,
-    pub blocking_read_size: Histogram,
+    pub opendal_requests_total_blocking_read: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_blocking_read: HistogramVec,
+    pub opendal_bytes_total_blocking_read: HistogramVec,
 
     // blocking write
-    pub blocking_write_request_counts: GenericCounter<AtomicU64>,
-    pub blocking_write_request_latency: Histogram,
-    pub blocking_write_size: Histogram,
+    pub opendal_requests_total_blocking_write: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_blocking_write: HistogramVec,
+    pub opendal_bytes_total_blocking_write: HistogramVec,
 
     // blocking stat
-    pub blocking_stat_request_counts: GenericCounter<AtomicU64>,
-    pub blocking_stat_request_latency: Histogram,
+    pub opendal_requests_total_blocking_stat: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_blocking_stat: HistogramVec,
 
     // blocking delete
-    pub blocking_delete_request_counts: GenericCounter<AtomicU64>,
-    pub blocking_delete_request_latency: Histogram,
+    pub opendal_requests_total_blocking_delete: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_blocking_delete: HistogramVec,
 
     // blocking list
-    pub blocking_list_request_counts: GenericCounter<AtomicU64>,
-    pub blocking_list_request_latency: Histogram,
+    pub opendal_requests_total_blocking_list: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_blocking_list: HistogramVec,
 
     // blocking scan
-    pub blocking_scan_request_counts: GenericCounter<AtomicU64>,
-    pub blocking_scan_request_latency: Histogram,
+    pub opendal_requests_total_blocking_scan: GenericCounterVec<AtomicU64>,
+    pub opendal_requests_duration_seconds_blocking_scan: HistogramVec,
 }
 
 impl PrometheusMetrics {
     /// new with prometheus register.
     pub fn new(registry: Registry) -> Self {
         // metadata
-        let metadata_request_counts = register_int_counter_with_registry!(
-            "metadata_request_counts",
+        let opendal_requests_total_metadata = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_metadata",
             "Total times of metadata be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "metadata_request_latency",
+            "opendal_requests_duration_seconds_metadata",
             "Histogram of the time spent on getting metadata",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let metadata_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_metadata =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // create
-        let create_request_counts = register_int_counter_with_registry!(
-            "create_request_counts",
+        let opendal_requests_total_create = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_create",
             "Total times of create be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "create_request_latency",
+            "opendal_requests_duration_seconds_create",
             "Histogram of the time spent on creating",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let create_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_create =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // read
-        let read_request_counts = register_int_counter_with_registry!(
-            "read_request_counts",
+        let opendal_requests_total_read = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_read",
             "Total times of read be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "read_request_latency",
+            "opendal_requests_duration_seconds_read",
             "Histogram of the time spent on reading",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let read_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_read =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         let opts = histogram_opts!(
-            "read_size",
+            "opendal_bytes_total_read",
             "read size",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let read_size = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_bytes_total_read =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // write
-        let write_request_counts = register_int_counter_with_registry!(
-            "write_request_counts",
+        let opendal_requests_total_write = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_write",
             "Total times of write be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "write_request_latency",
+            "opendal_requests_duration_seconds_write",
             "Histogram of the time spent on writing",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let write_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_write =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         let opts = histogram_opts!(
-            "write_size",
+            "opendal_bytes_total_write",
             "write size",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let write_size = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_bytes_total_write =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // stat
-        let stat_request_counts = register_int_counter_with_registry!(
-            "stat_request_counts",
+        let opendal_requests_total_stat = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_stat",
             "Total times of stat be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "stat_request_latency",
+            "opendal_requests_duration_seconds_stat",
             "stat letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let stat_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_stat =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // delete
-        let delete_request_counts = register_int_counter_with_registry!(
-            "delete_request_counts",
+        let opendal_requests_total_delete = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_delete",
             "Total times of delete be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "delete_request_latency",
+            "opendal_requests_duration_seconds_delete",
             "delete letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let delete_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_delete =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // list
-        let list_request_counts = register_int_counter_with_registry!(
-            "list_request_counts",
+        let opendal_requests_total_list = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_list",
             "Total times of list be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "list_request_latency",
+            "opendal_requests_duration_seconds_list",
             "list letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let list_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_list =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // scan
-        let scan_request_counts = register_int_counter_with_registry!(
-            "scan_request_counts",
+        let opendal_requests_total_scan = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_scan",
             "Total times of scan be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "scan_request_latency",
+            "opendal_requests_duration_seconds_scan",
             "scan letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let scan_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_scan =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // presign
-        let presign_request_counts = register_int_counter_with_registry!(
-            "presign_request_counts",
+        let opendal_requests_total_presign = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_presign",
             "Total times of presign be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "presign_request_latency",
+            "opendal_requests_duration_seconds_presign",
             "presign letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let presign_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_presign =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // batch
-        let batch_request_counts = register_int_counter_with_registry!(
-            "batch_request_counts",
+        let opendal_requests_total_batch = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_batch",
             "Total times of batch be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "batch_request_latency",
+            "opendal_requests_duration_seconds_batch",
             "batch letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let batch_request_latency = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_batch =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // blocking_create
-        let blocking_create_request_counts = register_int_counter_with_registry!(
-            "blocking_create_request_counts",
+        let opendal_requests_total_blocking_create = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_blocking_create",
             "Total times of blocking_create be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "blocking_create_request_latency",
+            "opendal_requests_duration_seconds_blocking_create",
             "blocking create letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let blocking_create_request_latency =
-            register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_blocking_create =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // blocking_read
-        let blocking_read_request_counts = register_int_counter_with_registry!(
-            "blocking_read_request_counts",
+        let opendal_requests_total_blocking_read = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_blocking_read",
             "Total times of blocking_read be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "blocking_read_request_latency",
+            "opendal_requests_duration_seconds_blocking_read",
             "Histogram of the time spent on blocking_reading",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let blocking_read_request_latency =
-            register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_blocking_read =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         let opts = histogram_opts!(
-            "blocking_read_size",
+            "opendal_bytes_total_blocking_read",
             "blocking_read size",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let blocking_read_size = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_bytes_total_blocking_read =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // blocking_write
-        let blocking_write_request_counts = register_int_counter_with_registry!(
-            "blocking_write_request_counts",
+        let opendal_requests_total_blocking_write = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_blocking_write",
             "Total times of blocking_write be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "blocking_write_request_latency",
+            "opendal_requests_duration_seconds_blocking_write",
             "Histogram of the time spent on blocking_writing",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let blocking_write_request_latency =
-            register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_blocking_write =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         let opts = histogram_opts!(
-            "blocking_write_size",
+            "opendal_bytes_total_blocking_write",
             "total size by blocking_write",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
-        let blocking_write_size = register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_bytes_total_blocking_write =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // blocking_stat
-        let blocking_stat_request_counts = register_int_counter_with_registry!(
-            "blocking_stat_request_counts",
+        let opendal_requests_total_blocking_stat = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_blocking_stat",
             "Total times of blocking_stat be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "blocking_stat_request_latency",
+            "opendal_requests_duration_seconds_blocking_stat",
             "blocking_stat letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let blocking_stat_request_latency =
-            register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_blocking_stat =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // blocking_delete
-        let blocking_delete_request_counts = register_int_counter_with_registry!(
-            "blocking_delete_request_counts",
+        let opendal_requests_total_blocking_delete = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_blocking_delete",
             "Total times of blocking_delete be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "blocking_delete_request_latency",
+            "opendal_requests_duration_seconds_blocking_delete",
             "blocking_delete letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let blocking_delete_request_latency =
-            register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_blocking_delete =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // blocking_list
-        let blocking_list_request_counts = register_int_counter_with_registry!(
-            "blocking_list_request_counts",
+        let opendal_requests_total_blocking_list = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_blocking_list",
             "Total times of blocking_list be called",
+            &["schema"],
             registry
         )
         .unwrap();
         let opts = histogram_opts!(
-            "blocking_list_request_latency",
+            "opendal_requests_duration_seconds_blocking_list",
             "blocking_list letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let blocking_list_request_latency =
-            register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_blocking_list =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         // blocking_scan
-        let blocking_scan_request_counts = register_int_counter_with_registry!(
-            "blocking_scan_request_counts",
+        let opendal_requests_total_blocking_scan = register_int_counter_vec_with_registry!(
+            "opendal_requests_total_blocking_scan",
             "Total times of blocking_scan be called",
+            &["schema"],
             registry
         )
         .unwrap();
+
         let opts = histogram_opts!(
-            "blocking_scan_request_latency",
+            "opendal_requests_duration_seconds_blocking_scan",
             "blocking_scan letency",
             exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
-        let blocking_scan_request_latency =
-            register_histogram_with_registry!(opts, registry).unwrap();
+        let opendal_requests_duration_seconds_blocking_scan =
+            register_histogram_vec_with_registry!(opts, &["shcema"], registry).unwrap();
 
         Self {
-            metadata_request_counts,
-            metadata_request_latency,
+            opendal_requests_total_metadata,
+            opendal_requests_duration_seconds_metadata,
 
-            create_request_counts,
-            create_request_latency,
+            opendal_requests_total_create,
+            opendal_requests_duration_seconds_create,
 
-            read_request_counts,
-            read_request_latency,
-            read_size,
+            opendal_requests_total_read,
+            opendal_requests_duration_seconds_read,
+            opendal_bytes_total_read,
 
-            write_request_counts,
-            write_request_latency,
-            write_size,
+            opendal_requests_total_write,
+            opendal_requests_duration_seconds_write,
+            opendal_bytes_total_write,
 
-            stat_request_counts,
-            stat_request_latency,
+            opendal_requests_total_stat,
+            opendal_requests_duration_seconds_stat,
 
-            delete_request_counts,
-            delete_request_latency,
+            opendal_requests_total_delete,
+            opendal_requests_duration_seconds_delete,
 
-            list_request_counts,
-            list_request_latency,
+            opendal_requests_total_list,
+            opendal_requests_duration_seconds_list,
 
-            scan_request_counts,
-            scan_request_latency,
+            opendal_requests_total_scan,
+            opendal_requests_duration_seconds_scan,
 
-            presign_request_counts,
-            presign_request_latency,
+            opendal_requests_total_presign,
+            opendal_requests_duration_seconds_presign,
 
-            batch_request_counts,
-            batch_request_latency,
+            opendal_requests_total_batch,
+            opendal_requests_duration_seconds_batch,
 
-            blocking_create_request_counts,
-            blocking_create_request_latency,
+            opendal_requests_total_blocking_create,
+            opendal_requests_duration_seconds_blocking_create,
 
-            blocking_read_request_counts,
-            blocking_read_request_latency,
-            blocking_read_size,
+            opendal_requests_total_blocking_read,
+            opendal_requests_duration_seconds_blocking_read,
+            opendal_bytes_total_blocking_read,
 
-            blocking_write_request_counts,
-            blocking_write_request_latency,
-            blocking_write_size,
+            opendal_requests_total_blocking_write,
+            opendal_requests_duration_seconds_blocking_write,
+            opendal_bytes_total_blocking_write,
 
-            blocking_stat_request_counts,
-            blocking_stat_request_latency,
+            opendal_requests_total_blocking_stat,
+            opendal_requests_duration_seconds_blocking_stat,
 
-            blocking_delete_request_counts,
-            blocking_delete_request_latency,
+            opendal_requests_total_blocking_delete,
+            opendal_requests_duration_seconds_blocking_delete,
 
-            blocking_list_request_counts,
-            blocking_list_request_latency,
+            opendal_requests_total_blocking_list,
+            opendal_requests_duration_seconds_blocking_list,
 
-            blocking_scan_request_counts,
-            blocking_scan_request_latency,
+            opendal_requests_total_blocking_scan,
+            opendal_requests_duration_seconds_blocking_scan,
         }
     }
 
@@ -541,6 +578,7 @@ impl PrometheusMetrics {
 pub struct PrometheusAccessor<A: Accessor> {
     inner: A,
     stats: Arc<PrometheusMetrics>,
+    schema: String,
 }
 
 impl<A: Accessor> Debug for PrometheusAccessor<A> {
@@ -566,9 +604,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn metadata(&self) -> AccessorInfo {
-        self.stats.metadata_request_counts.inc();
+        self.stats
+            .opendal_requests_total_metadata
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.metadata_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_metadata
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.info();
         timer.observe_duration();
 
@@ -576,9 +621,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.stats.create_request_counts.inc();
+        self.stats
+            .opendal_requests_total_create
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.create_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_create
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let create_res = self.inner.create(path, args).await;
 
         timer.observe_duration();
@@ -590,9 +642,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.stats.read_request_counts.inc();
+        self.stats
+            .opendal_requests_total_read
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.read_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_read
+            .with_label_values(&[&self.schema])
+            .start_timer();
 
         let read_res = self
             .inner
@@ -600,11 +659,17 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             .map(|v| {
                 v.map(|(rp, r)| {
                     self.stats
-                        .read_size
+                        .opendal_bytes_total_read
+                        .with_label_values(&[&self.schema])
                         .observe(rp.metadata().content_length() as f64);
                     (
                         rp,
-                        PrometheusMetricWrapper::new(r, Operation::Read, self.stats.clone()),
+                        PrometheusMetricWrapper::new(
+                            r,
+                            Operation::Read,
+                            self.stats.clone(),
+                            &self.schema,
+                        ),
                     )
                 })
             })
@@ -617,9 +682,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.stats.write_request_counts.inc();
+        self.stats
+            .opendal_requests_total_write
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.write_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_write
+            .with_label_values(&[&self.schema])
+            .start_timer();
 
         let write_res = self
             .inner
@@ -628,7 +700,12 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
                 v.map(|(rp, r)| {
                     (
                         rp,
-                        PrometheusMetricWrapper::new(r, Operation::Write, self.stats.clone()),
+                        PrometheusMetricWrapper::new(
+                            r,
+                            Operation::Write,
+                            self.stats.clone(),
+                            &self.schema,
+                        ),
                     )
                 })
             })
@@ -642,8 +719,15 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.stats.stat_request_counts.inc();
-        let timer = self.stats.stat_request_latency.start_timer();
+        self.stats
+            .opendal_requests_total_stat
+            .with_label_values(&[&self.schema])
+            .inc();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_stat
+            .with_label_values(&[&self.schema])
+            .start_timer();
 
         let stat_res = self
             .inner
@@ -660,9 +744,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.stats.delete_request_counts.inc();
+        self.stats
+            .opendal_requests_total_delete
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.delete_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_delete
+            .with_label_values(&[&self.schema])
+            .start_timer();
 
         let delete_res = self.inner.delete(path, args).await;
         timer.observe_duration();
@@ -674,9 +765,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        self.stats.list_request_counts.inc();
+        self.stats
+            .opendal_requests_total_list
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.list_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_list
+            .with_label_values(&[&self.schema])
+            .start_timer();
 
         let list_res = self.inner.list(path, args).await;
 
@@ -688,9 +786,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.stats.scan_request_counts.inc();
+        self.stats
+            .opendal_requests_total_scan
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.scan_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_scan
+            .with_label_values(&[&self.schema])
+            .start_timer();
 
         let scan_res = self.inner.scan(path, args).await;
         timer.observe_duration();
@@ -701,9 +806,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        self.stats.batch_request_counts.inc();
+        self.stats
+            .opendal_requests_total_batch
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.batch_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_batch
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.batch(args).await;
 
         timer.observe_duration();
@@ -715,9 +827,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.stats.presign_request_counts.inc();
+        self.stats
+            .opendal_requests_total_presign
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.presign_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_presign
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.presign(path, args).await;
         timer.observe_duration();
 
@@ -729,9 +848,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.stats.blocking_create_request_counts.inc();
+        self.stats
+            .opendal_requests_total_blocking_create
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.blocking_create_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_blocking_create
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.blocking_create(path, args);
 
         timer.observe_duration();
@@ -744,16 +870,29 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.stats.blocking_read_request_counts.inc();
+        self.stats
+            .opendal_requests_total_blocking_read
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.blocking_read_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_blocking_read
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
             self.stats
-                .read_size
+                .opendal_bytes_total_read
+                .with_label_values(&[&self.schema])
                 .observe(rp.metadata().content_length() as f64);
             (
                 rp,
-                PrometheusMetricWrapper::new(r, Operation::BlockingRead, self.stats.clone()),
+                PrometheusMetricWrapper::new(
+                    r,
+                    Operation::BlockingRead,
+                    self.stats.clone(),
+                    &self.schema,
+                ),
             )
         });
         timer.observe_duration();
@@ -765,13 +904,25 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.stats.blocking_write_request_counts.inc();
+        self.stats
+            .opendal_requests_total_blocking_write
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.blocking_write_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_blocking_write
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.blocking_write(path, args).map(|(rp, r)| {
             (
                 rp,
-                PrometheusMetricWrapper::new(r, Operation::BlockingWrite, self.stats.clone()),
+                PrometheusMetricWrapper::new(
+                    r,
+                    Operation::BlockingWrite,
+                    self.stats.clone(),
+                    &self.schema,
+                ),
             )
         });
         timer.observe_duration();
@@ -783,9 +934,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.stats.blocking_stat_request_counts.inc();
+        self.stats
+            .opendal_requests_total_blocking_stat
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.blocking_stat_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_blocking_stat
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.blocking_stat(path, args);
         timer.observe_duration();
         result.map_err(|e| {
@@ -796,9 +954,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.stats.blocking_delete_request_counts.inc();
+        self.stats
+            .opendal_requests_total_blocking_delete
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.blocking_delete_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_blocking_delete
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.blocking_delete(path, args);
         timer.observe_duration();
 
@@ -810,9 +975,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        self.stats.blocking_list_request_counts.inc();
+        self.stats
+            .opendal_requests_total_blocking_list
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.blocking_list_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_blocking_list
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.blocking_list(path, args);
         timer.observe_duration();
 
@@ -824,9 +996,16 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     }
 
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.stats.blocking_scan_request_counts.inc();
+        self.stats
+            .opendal_requests_total_blocking_scan
+            .with_label_values(&[&self.schema])
+            .inc();
 
-        let timer = self.stats.blocking_scan_request_latency.start_timer();
+        let timer = self
+            .stats
+            .opendal_requests_duration_seconds_blocking_scan
+            .with_label_values(&[&self.schema])
+            .start_timer();
         let result = self.inner.blocking_scan(path, args);
         timer.observe_duration();
         result.map_err(|e| {
@@ -842,11 +1021,17 @@ pub struct PrometheusMetricWrapper<R> {
 
     op: Operation,
     stats: Arc<PrometheusMetrics>,
+    schema: String,
 }
 
 impl<R> PrometheusMetricWrapper<R> {
-    fn new(inner: R, op: Operation, stats: Arc<PrometheusMetrics>) -> Self {
-        Self { inner, op, stats }
+    fn new(inner: R, op: Operation, stats: Arc<PrometheusMetrics>, schema: &String) -> Self {
+        Self {
+            inner,
+            op,
+            stats,
+            schema: schema.to_string(),
+        }
     }
 }
 
@@ -854,7 +1039,10 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
-                self.stats.read_size.observe(bytes as f64);
+                self.stats
+                    .opendal_bytes_total_read
+                    .with_label_values(&[&self.schema])
+                    .observe(bytes as f64);
                 Ok(bytes)
             }
             Err(e) => {
@@ -877,7 +1065,10 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         self.inner.poll_next(cx).map(|res| match res {
             Some(Ok(bytes)) => {
-                self.stats.read_size.observe(bytes.len() as f64);
+                self.stats
+                    .opendal_bytes_total_read
+                    .with_label_values(&[&self.schema])
+                    .observe(bytes.len() as f64);
                 Some(Ok(bytes))
             }
             Some(Err(e)) => {
@@ -894,7 +1085,10 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
         self.inner
             .read(buf)
             .map(|n| {
-                self.stats.blocking_read_size.observe(n as f64);
+                self.stats
+                    .opendal_bytes_total_blocking_read
+                    .with_label_values(&[&self.schema])
+                    .observe(n as f64);
                 n
             })
             .map_err(|e| {
@@ -913,7 +1107,10 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
     fn next(&mut self) -> Option<Result<Bytes>> {
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
-                self.stats.blocking_read_size.observe(bytes.len() as f64);
+                self.stats
+                    .opendal_bytes_total_blocking_read
+                    .with_label_values(&[&self.schema])
+                    .observe(bytes.len() as f64);
                 Ok(bytes)
             }
             Err(e) => {
@@ -931,7 +1128,12 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
         self.inner
             .write(bs)
             .await
-            .map(|_| self.stats.write_size.observe(size as f64))
+            .map(|_| {
+                self.stats
+                    .opendal_bytes_total_write
+                    .with_label_values(&[&self.schema])
+                    .observe(size as f64)
+            })
             .map_err(|err| {
                 self.stats.increment_errors_total(self.op, err.kind());
                 err
@@ -943,7 +1145,12 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
         self.inner
             .append(bs)
             .await
-            .map(|_| self.stats.write_size.observe(size as f64))
+            .map(|_| {
+                self.stats
+                    .opendal_bytes_total_write
+                    .with_label_values(&[&self.schema])
+                    .observe(size as f64)
+            })
             .map_err(|err| {
                 self.stats.increment_errors_total(self.op, err.kind());
                 err
@@ -963,7 +1170,12 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
         let size = bs.len();
         self.inner
             .write(bs)
-            .map(|_| self.stats.blocking_write_size.observe(size as f64))
+            .map(|_| {
+                self.stats
+                    .opendal_bytes_total_blocking_write
+                    .with_label_values(&[&self.schema])
+                    .observe(size as f64)
+            })
             .map_err(|err| {
                 self.stats.increment_errors_total(self.op, err.kind());
                 err
@@ -974,7 +1186,12 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
         let size = bs.len();
         self.inner
             .append(bs)
-            .map(|_| self.stats.blocking_write_size.observe(size as f64))
+            .map(|_| {
+                self.stats
+                    .opendal_bytes_total_blocking_write
+                    .with_label_values(&[&self.schema])
+                    .observe(size as f64)
+            })
             .map_err(|err| {
                 self.stats.increment_errors_total(self.op, err.kind());
                 err

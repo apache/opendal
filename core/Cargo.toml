@@ -71,8 +71,8 @@ native-tls-vendored = ["reqwest/native-tls-vendored"]
 layers-all = [
   "layers-chaos",
   "layers-metrics",
-  "layers-tracing",
   "layers-prometheus",
+  "layers-tracing",
   "layers-minitrace",
 ]
 # Enable layers chaos support

@@ -163,7 +163,7 @@ once_cell = "1"
 parking_lot = "0.12"
 percent-encoding = "2"
 pin-project = "1"
-prometheus = { version = "0.13", features = ["process"]}
+prometheus = { version = "0.13", features = ["process"], optional = true}
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.27", features = ["serialize", "overlapped-lists"] }
 rand = { version = "0.8", optional = true }

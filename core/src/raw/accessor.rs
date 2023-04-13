@@ -398,6 +398,7 @@ impl Accessor for () {
             max_batch_operations: None,
             capabilities: None.into(),
             hints: None.into(),
+            #[cfg(feature = "layers-prometheus")]
             prometheus_register: None,
         }
     }
@@ -514,6 +515,7 @@ pub struct AccessorInfo {
     max_batch_operations: Option<usize>,
     capabilities: FlagSet<AccessorCapability>,
     hints: FlagSet<AccessorHint>,
+    #[cfg(feature = "layers-prometheus")]
     prometheus_register: Option<prometheus::Registry>,
 }
 
@@ -528,12 +530,12 @@ impl AccessorInfo {
         self.scheme = scheme;
         self
     }
-
+    #[cfg(feature = "layers-prometheus")]
     /// prometheus register for backend.
     pub fn prometheus_register(&mut self) -> &Option<prometheus::Registry> {
         &self.prometheus_register
     }
-
+    #[cfg(feature = "layers-prometheus")]
     /// Set prometheus register for backend.
     pub fn set_prometheus_register(&mut self, register: prometheus::Registry) -> &mut Self {
         self.prometheus_register = Some(register);

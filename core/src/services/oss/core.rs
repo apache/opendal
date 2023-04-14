@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 use std::time::Duration;
 
 use bytes::Bytes;
-use http::header::CACHE_CONTROL;
+use http::header::{CACHE_CONTROL, IF_NONE_MATCH};
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -164,7 +164,7 @@ impl OssCore {
         }
 
         if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let req = req
@@ -199,7 +199,7 @@ impl OssCore {
 
         let mut req = Request::head(&url);
         if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
         let req = req
             .body(AsyncBody::Empty)

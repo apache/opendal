@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use http::header;
+use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -314,7 +315,7 @@ impl HttpBackend {
         let mut req = Request::get(&url);
 
         if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         if let Some(auth) = &self.authorization {
@@ -344,7 +345,7 @@ impl HttpBackend {
         let mut req = Request::head(&url);
 
         if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         if let Some(auth) = &self.authorization {

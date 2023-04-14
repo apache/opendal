@@ -18,12 +18,12 @@ See our documentations on [opendal.apache.org](https://opendal.apache.org/docs/n
 import { Operator } from "opendal";
 
 async function main() {
-const op = new Operator("fs", { root: "/tmp" });
-await op.write("test", "Hello, World!");
-const bs = await op.read("test");
-console.log(new TextDecoder().decode(bs));
-const meta = await op.stat("test");
-console.log(`contentLength: ${meta.contentLength}`);
+  const op = new Operator("fs", { root: "/tmp" });
+  await op.write("test", "Hello, World!");
+  const bs = await op.read("test");
+  console.log(new TextDecoder().decode(bs));
+  const meta = await op.stat("test");
+  console.log(`contentLength: ${meta.contentLength}`);
 }
 
 main();

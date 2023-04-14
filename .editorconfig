@@ -33,7 +33,7 @@ indent_size = 4
 # double whitespace at end of line
 # denotes a line break in Markdown
 trim_trailing_whitespace = false
-indent_size = 0
+indent_size = 2
 
 [*.yml]
 indent_size = 2

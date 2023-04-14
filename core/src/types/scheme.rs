@@ -71,6 +71,8 @@ pub enum Scheme {
     S3,
     /// [sled][crate::services::Sled]: Sled services
     Sled,
+    /// [wasabi][crate::services::Wasabi]: Wasabi service
+    Wasabi,
     /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
@@ -129,6 +131,7 @@ impl FromStr for Scheme {
             "s3" => Ok(Scheme::S3),
             "sled" => Ok(Scheme::Sled),
             "oss" => Ok(Scheme::Oss),
+            "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
@@ -159,6 +162,7 @@ impl From<Scheme> for &'static str {
             Scheme::S3 => "s3",
             Scheme::Sled => "sled",
             Scheme::Oss => "oss",
+            Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
             Scheme::Custom(v) => v,

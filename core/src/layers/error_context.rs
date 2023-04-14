@@ -138,6 +138,27 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
+        self.inner
+            .append(path, args)
+            .map_ok(|(rp, os)| {
+                (
+                    rp,
+                    ErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        inner: os,
+                    },
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Append)
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+            .await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner
             .stat(path, args)

@@ -151,6 +151,10 @@ struct MetricsHandler {
     requests_duration_seconds_write: Histogram,
     bytes_total_write: Counter,
 
+    requests_total_append: Counter,
+    requests_duration_seconds_append: Histogram,
+    bytes_total_append: Counter,
+
     requests_total_stat: Counter,
     requests_duration_seconds_stat: Histogram,
 
@@ -251,6 +255,22 @@ impl MetricsHandler {
                 METRIC_BYTES_TOTAL,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Write.into_static(),
+            ),
+
+            requests_total_append: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Append.into_static(),
+            ),
+            requests_duration_seconds_append: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Append.into_static(),
+            ),
+            bytes_total_append: register_counter!(
+                METRIC_BYTES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Append.into_static(),
             ),
 
             requests_total_stat: register_counter!(
@@ -534,6 +554,33 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .inspect_err(|e| {
                 self.handle
                     .increment_errors_total(Operation::Write, e.kind());
+            })
+            .await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
+        self.handle.requests_total_append.increment(1);
+
+        let start = Instant::now();
+
+        self.inner
+            .append(path, args)
+            .map_ok(|(rp, w)| {
+                (
+                    rp,
+                    MetricWrapper::new(
+                        w,
+                        Operation::Append,
+                        self.handle.clone(),
+                        self.handle.bytes_total_append.clone(),
+                        self.handle.requests_duration_seconds_append.clone(),
+                        Some(start),
+                    ),
+                )
+            })
+            .inspect_err(|e| {
+                self.handle
+                    .increment_errors_total(Operation::Append, e.kind());
             })
             .await
     }

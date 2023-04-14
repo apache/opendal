@@ -219,6 +219,23 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
+        { || self.inner.append(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Append, dur.as_secs_f64(), err)
+            })
+            .map(|v| {
+                v.map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
+                    .map_err(|e| e.set_persistent())
+            })
+            .await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         { || self.inner.stat(path, args.clone()) }
             .retry(&self.builder)

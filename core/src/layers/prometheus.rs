@@ -299,6 +299,43 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
+        self.stats
+            .requests_total
+            .with_label_values(&[&self.scheme, Operation::Append.into_static()])
+            .inc();
+
+        let timer = self
+            .stats
+            .requests_duration_seconds
+            .with_label_values(&[&self.scheme, Operation::Append.into_static()])
+            .start_timer();
+
+        let append_res = self
+            .inner
+            .append(path, args)
+            .map(|v| {
+                v.map(|(rp, r)| {
+                    (
+                        rp,
+                        PrometheusMetricWrapper::new(
+                            r,
+                            Operation::Append,
+                            self.stats.clone(),
+                            &self.scheme,
+                        ),
+                    )
+                })
+            })
+            .await;
+        timer.observe_duration();
+        append_res.map_err(|e| {
+            self.stats
+                .increment_errors_total(Operation::Append, e.kind());
+            e
+        })
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.stats
             .requests_total

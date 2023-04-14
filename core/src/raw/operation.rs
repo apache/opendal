@@ -47,6 +47,8 @@ pub enum Operation {
     Batch,
     /// Operation for [`crate::raw::Accessor::presign`]
     Presign,
+    /// Operation for [`crate::raw::Accessor::append`]
+    Append,
     /// Operation for [`crate::raw::Accessor::blocking_create`]
     BlockingCreate,
     /// Operation for [`crate::raw::Accessor::blocking_read`]
@@ -95,6 +97,7 @@ impl From<Operation> for &'static str {
             Operation::Scan => "scan",
             Operation::Presign => "presign",
             Operation::Batch => "batch",
+            Operation::Append => "append",
             Operation::BlockingCreate => "blocking_create",
             Operation::BlockingRead => "blocking_read",
             Operation::BlockingWrite => "blocking_write",

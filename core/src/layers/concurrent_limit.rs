@@ -132,6 +132,20 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
             .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
+        let permit = self
+            .semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("semaphore must be valid");
+
+        self.inner
+            .append(path, args)
+            .await
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let _permit = self
             .semaphore

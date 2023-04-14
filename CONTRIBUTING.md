@@ -20,7 +20,7 @@ By removing the assignment, we create space for other community members to take 
 
 OpenDAL promises fast iteration (I mean very fast).
 
-We commit to reviewing your PRs within 24 hours, and often within 8 hours. In return, we expect you to respond to our review within 24 hours as well.
+We commit to reviewing your PRs within 24 hours, and often within 8 hours. In return, we expect you to respond to our review within 24 hours as well. *It doesn't mean you MUST respond to us within 24 hours. You can contribute at your own pace.*
 
 If a PR receives no response for 24 hours, it will be closed. Please note that closing a PR does not mean rejection; we simply aim to keep our community iterating quickly by only tracking PRs awaiting review. By closing on-going (instead of on-reviewing) PR allow both of us foucing our own work.
 

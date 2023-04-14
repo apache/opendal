@@ -44,6 +44,8 @@ pub struct GcsCore {
     pub signer: GoogleSigner,
     pub token_loader: GoogleTokenLoader,
     pub credential_loader: GoogleCredentialLoader,
+
+    pub predefined_acl: Option<String>,
 }
 
 impl Debug for GcsCore {
@@ -136,12 +138,16 @@ impl GcsCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
+        let mut url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
+
+        if let Some(acl) = &self.predefined_acl {
+            write!(&mut url, "&predefinedAcl={}", acl).unwrap();
+        }
 
         let mut req = Request::post(&url);
 

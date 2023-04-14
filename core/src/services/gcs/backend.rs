@@ -61,6 +61,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - `bucket`: Set the container name for backend
 /// - `endpoint`: Customizable endpoint setting
 /// - `credentials`: Credential string for GCS OAuth2
+/// - `predefined_acl`: Predefined ACL for GCS
 ///
 /// You can refer to [`GcsBuilder`]'s docs for more information
 ///
@@ -85,6 +86,8 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 ///     builder.root("/path/to/dir");
 ///     // set the credentials for GCS OAUTH2 authentication
 ///     builder.credential("authentication token");
+///     // set the predefined ACL for GCS
+///     builder.predefined_acl("publicRead");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///     Ok(())
@@ -111,6 +114,7 @@ pub struct GcsBuilder {
 
     http_client: Option<HttpClient>,
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    predefined_acl: Option<String>,
 }
 
 impl GcsBuilder {
@@ -198,6 +202,22 @@ impl GcsBuilder {
         self.customed_token_loader = Some(token_load);
         self
     }
+
+    /// Set the predefined acl for GCS.
+    ///
+    /// Available values are:
+    /// - `authenticatedRead`
+    /// - `bucketOwnerFullControl`
+    /// - `bucketOwnerRead`
+    /// - `private`
+    /// - `projectPrivate`
+    /// - `publicRead`
+    pub fn predefined_acl(&mut self, acl: &str) -> &mut Self {
+        if !acl.is_empty() {
+            self.predefined_acl = Some(acl.to_string())
+        };
+        self
+    }
 }
 
 impl Debug for GcsBuilder {
@@ -209,6 +229,9 @@ impl Debug for GcsBuilder {
             .field("endpoint", &self.endpoint);
         if self.credential.is_some() {
             ds.field("credentials", &"<redacted>");
+        }
+        if self.predefined_acl.is_some() {
+            ds.field("predefined_acl", &self.predefined_acl);
         }
         ds.finish()
     }
@@ -226,6 +249,7 @@ impl Builder for GcsBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("credential").map(|v| builder.credential(v));
         map.get("scope").map(|v| builder.scope(v));
+        map.get("predefined_acl").map(|v| builder.predefined_acl(v));
 
         builder
     }
@@ -299,6 +323,7 @@ impl Builder for GcsBuilder {
                 signer,
                 token_loader,
                 credential_loader: cred_loader,
+                predefined_acl: self.predefined_acl.clone(),
             }),
         };
 

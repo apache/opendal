@@ -29,86 +29,86 @@ const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
 const bucket = process.env.AWS_BUCKET
 
 const opendalClient = new Operator('s3', {
-    root: '/',
-    bucket,
-    endpoint,
+  root: '/',
+  bucket,
+  endpoint,
 })
 
 const s3Client = new S3Client({
-    endpoint,
-    region,
-    credentials: {
-        accessKeyId,
-        secretAccessKey,
-    },
+  endpoint,
+  region,
+  credentials: {
+    accessKeyId,
+    secretAccessKey,
+  },
 })
 
 const testCases = [
-    { name: '4kb', content: Buffer.alloc(4 * 1024, 'opendal', 'utf8') },
-    { name: '256kb', content: Buffer.alloc(256 * 1024, 'opendal', 'utf8') },
-    { name: '4mb', content: Buffer.alloc(4 * 1024 * 1024, 'opendal', 'utf8') },
-    { name: '16mb', content: Buffer.alloc(16 * 1024 * 1024, 'opendal', 'utf8') },
+  { name: '4kb', content: Buffer.alloc(4 * 1024, 'opendal', 'utf8') },
+  { name: '256kb', content: Buffer.alloc(256 * 1024, 'opendal', 'utf8') },
+  { name: '4mb', content: Buffer.alloc(4 * 1024 * 1024, 'opendal', 'utf8') },
+  { name: '16mb', content: Buffer.alloc(16 * 1024 * 1024, 'opendal', 'utf8') },
 ]
 
 async function benchRead() {
-    const uuid = crypto.randomUUID()
-    await testCases
-        .map((v) => async () => {
-            const filename = `${uuid}_${v.name}_read_bench.txt`
-            await opendalClient.write(filename, v.content)
+  const uuid = crypto.randomUUID()
+  await testCases
+    .map((v) => async () => {
+      const filename = `${uuid}_${v.name}_read_bench.txt`
+      await opendalClient.write(filename, v.content)
 
-            return suite(
-                `read (${v.name})`,
-                add(`opendal read (${v.name})`, async () => {
-                    await opendalClient.read(filename).then((v) => v.toString('utf-8'))
-                }),
-                add(`s3 read (${v.name})`, async () => {
-                    const command = new GetObjectCommand({
-                        Key: filename,
-                        Bucket: bucket,
-                    })
-                    await s3Client.send(command).then((v) => v.Body.transformToString('utf-8'))
-                }),
-                cycle(),
-                complete(),
-            )
-        })
-        .reduce((p, v) => p.then(() => v()), Promise.resolve())
+      return suite(
+        `read (${v.name})`,
+        add(`opendal read (${v.name})`, async () => {
+          await opendalClient.read(filename).then((v) => v.toString('utf-8'))
+        }),
+        add(`s3 read (${v.name})`, async () => {
+          const command = new GetObjectCommand({
+            Key: filename,
+            Bucket: bucket,
+          })
+          await s3Client.send(command).then((v) => v.Body.transformToString('utf-8'))
+        }),
+        cycle(),
+        complete(),
+      )
+    })
+    .reduce((p, v) => p.then(() => v()), Promise.resolve())
 }
 
 async function benchWrite() {
-    const uuid = crypto.randomUUID()
-    await testCases
-        .map(
-            (v) => () =>
-                suite(
-                    `write (${v.name})`,
-                    add(`opendal write (${v.name})`, async () => {
-                        let count = 0
-                        return async () => opendalClient.write(`${uuid}_${count++}_${v.name}_opendal.txt`, v.content)
-                    }),
-                    add(`s3 write (${v.name})`, async () => {
-                        let count = 0
+  const uuid = crypto.randomUUID()
+  await testCases
+    .map(
+      (v) => () =>
+        suite(
+          `write (${v.name})`,
+          add(`opendal write (${v.name})`, async () => {
+            let count = 0
+            return async () => opendalClient.write(`${uuid}_${count++}_${v.name}_opendal.txt`, v.content)
+          }),
+          add(`s3 write (${v.name})`, async () => {
+            let count = 0
 
-                        return async () => {
-                            const command = new PutObjectCommand({
-                                Bucket: bucket,
-                                Key: `${uuid}_${count++}_${v.name}_s3.txt`,
-                                Body: v.content,
-                            })
-                            await s3Client.send(command)
-                        }
-                    }),
-                    cycle(),
-                    complete(),
-                ),
-        )
-        .reduce((p, v) => p.then(() => v()), Promise.resolve())
+            return async () => {
+              const command = new PutObjectCommand({
+                Bucket: bucket,
+                Key: `${uuid}_${count++}_${v.name}_s3.txt`,
+                Body: v.content,
+              })
+              await s3Client.send(command)
+            }
+          }),
+          cycle(),
+          complete(),
+        ),
+    )
+    .reduce((p, v) => p.then(() => v()), Promise.resolve())
 }
 
 async function bench() {
-    await benchRead()
-    await benchWrite()
+  await benchRead()
+  await benchWrite()
 }
 
 bench()

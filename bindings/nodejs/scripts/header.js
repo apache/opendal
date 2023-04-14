@@ -22,10 +22,10 @@ const fs = require('fs')
 let files = ['generated.js', 'index.d.ts']
 
 for (path of files) {
-    let data = fs.readFileSync(path, 'utf8')
-    fs.writeFileSync(
-        path,
-        `/*
+  let data = fs.readFileSync(path, 'utf8')
+  fs.writeFileSync(
+    path,
+    `/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -45,5 +45,5 @@ for (path of files) {
  */
 
 ` + data,
-    )
+  )
 }

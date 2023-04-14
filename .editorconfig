@@ -39,3 +39,15 @@ indent_size = 2
 
 [*.json]
 indent_size = 2
+
+[*.{ts, tsx}]
+indent_size = 2
+
+[*.{js, jsx}]
+indent_size = 2
+
+[*.css]
+indent_size = 2
+
+[*.html]
+indent_size = 2

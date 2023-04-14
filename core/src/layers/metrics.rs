@@ -937,6 +937,13 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
             })
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
+            self.handle.increment_errors_total(self.op, err.kind());
+            err
+        })
+    }
+
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await.map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());

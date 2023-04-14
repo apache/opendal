@@ -336,6 +336,14 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+
+    #[tracing::instrument(
+        parent = &self.span,
+        level = "trace",
+        skip_all)]
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await
     }

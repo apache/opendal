@@ -62,6 +62,10 @@ impl oio::Write for FtpWriter {
         ))
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
+    }
+
     async fn close(&mut self) -> Result<()> {
         Ok(())
     }

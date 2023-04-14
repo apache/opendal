@@ -31,6 +31,8 @@ pub enum WriteOperation {
     Write,
     /// Operation for [`Write::append`]
     Append,
+    /// Operation for [`Write::abort`]
+    Abort,
     /// Operation for [`Write::close`]
     Close,
     /// Operation for [`BlockingWrite::write`]
@@ -61,6 +63,7 @@ impl From<WriteOperation> for &'static str {
         match v {
             Write => "Writer::write",
             Append => "Writer::append",
+            Abort => "Writer::abort",
             Close => "Writer::close",
             BlockingWrite => "BlockingWriter::write",
             BlockingAppend => "BlockingWriter::append",
@@ -87,6 +90,11 @@ pub trait Write: Unpin + Send + Sync {
     /// and compatibility.
     async fn append(&mut self, bs: Bytes) -> Result<()>;
 
+    /// Abort the pending appendable writer.
+    /// #note
+    /// This method is only applicable to writers opened in append mode.
+    async fn abort(&mut self) -> Result<()>;
+
     /// Close the writer and make sure all data has been flushed.
     async fn close(&mut self) -> Result<()>;
 }
@@ -108,6 +116,13 @@ impl Write for () {
         ))
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
+        ))
+    }
+
     async fn close(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -126,6 +141,10 @@ impl<T: Write + ?Sized> Write for Box<T> {
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         (**self).append(bs).await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        (**self).abort().await
     }
 
     async fn close(&mut self) -> Result<()> {

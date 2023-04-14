@@ -71,6 +71,10 @@ impl oio::Write for GhacWriter {
         ))
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
+    }
+
     async fn close(&mut self) -> Result<()> {
         let req = self.backend.ghac_commit(self.cache_id, self.size).await?;
         let resp = self.backend.client.send(req).await?;

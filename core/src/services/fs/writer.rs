@@ -75,6 +75,13 @@ impl oio::Write for FsWriter<tokio::fs::File> {
         Ok(())
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
+        ))
+    }
+
     async fn close(&mut self) -> Result<()> {
         self.f.sync_all().await.map_err(parse_io_error)?;
 

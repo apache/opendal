@@ -1419,6 +1419,36 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        match self.inner.abort().await {
+            Ok(_) => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> abort writer",
+                    self.scheme,
+                    WriteOperation::Abort,
+                    self.path,
+                    self.written,
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> abort writer failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::Abort,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
     async fn close(&mut self) -> Result<()> {
         match self.inner.close().await {
             Ok(_) => Ok(()),

@@ -147,6 +147,7 @@ impl OssCore {
         path: &str,
         range: BytesRange,
         is_presign: bool,
+        if_none_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
@@ -160,6 +161,10 @@ impl OssCore {
             // Adding `x-oss-range-behavior` header to use standard behavior.
             // ref: https://help.aliyun.com/document_detail/39571.html
             req = req.header("x-oss-range-behavior", "standard");
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
         }
 
         let req = req
@@ -186,12 +191,16 @@ impl OssCore {
         &self,
         path: &str,
         is_presign: bool,
+        if_none_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
-        let req = Request::head(&url);
+        let mut req = Request::head(&url);
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        }
         let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -229,15 +238,16 @@ impl OssCore {
         &self,
         path: &str,
         range: BytesRange,
+        if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_get_object_request(path, range, false)?;
+        let mut req = self.oss_get_object_request(path, range, false, if_none_match)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
     }
 
-    pub async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_head_object_request(path, false)?;
+    pub async fn oss_head_object(&self, path: &str, if_none_match: Option<&str>,) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.oss_head_object_request(path, false, if_none_match)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

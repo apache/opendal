@@ -21,7 +21,7 @@ use std::fmt::Write;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use bytes::Bytes;
+use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -162,30 +162,38 @@ impl GcsCore {
             req = req.header(CONTENT_LENGTH, size)
         }
 
-        if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        let mut body = body;
-
         if let Some(storage_class) = &self.default_storage_class {
-            let json = format!(r#"{{"storageClass": "{}"}}"#, storage_class);
+            req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
 
-            match body {
-                AsyncBody::Empty => {
-                    body = AsyncBody::Multipart(json, Bytes::new());
-                }
-                AsyncBody::Bytes(bytes) => {
-                    body = AsyncBody::Multipart(json, bytes);
-                }
-                AsyncBody::Multipart(_, _) => {
-                    unreachable!("multipart body should not be used here")
-                }
+            let mut req_body = BytesMut::with_capacity(100);
+            write!(
+                &mut req_body,
+                "--my-boundary\nContent-Type: application/json; charset=UTF-8\n\n{{\"storageClass\": \"{}\"}}\n\n--my-boundary\n",
+                storage_class
+            ).unwrap();
+
+            if let Some(mime) = content_type {
+                write!(&mut req_body, "Content-Type: {}\n\n", mime).unwrap();
+            } else {
+                write!(&mut req_body, "Content-Type: application/octet-stream\n\n").unwrap();
             }
-        }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
-        Ok(req)
+            if let AsyncBody::Bytes(bytes) = body {
+                req_body.extend_from_slice(&bytes);
+            }
+            write!(&mut req_body, "\n--my-boundary").unwrap();
+
+            let req_body = AsyncBody::Bytes(req_body.freeze());
+            let req = req.body(req_body).map_err(new_request_build_error)?;
+            Ok(req)
+        } else {
+            if let Some(content_type) = content_type {
+                req = req.header(CONTENT_TYPE, content_type);
+            }
+
+            let req = req.body(body).map_err(new_request_build_error)?;
+            Ok(req)
+        }
     }
 
     pub async fn gcs_get_object_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {

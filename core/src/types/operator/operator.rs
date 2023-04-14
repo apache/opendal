@@ -180,9 +180,45 @@ impl Operator {
     /// # }
     /// ```
     pub async fn stat(&self, path: &str) -> Result<Metadata> {
+        self.stat_with(&path, OpStat::new()).await
+    }
+
+    /// Get current path's metadata **without cache** directly with extra options.
+    ///
+    /// # Notes
+    ///
+    /// Use `stat` if you:
+    ///
+    /// - Want detect the outside changes of path.
+    /// - Don't want to read from cached metadata.
+    ///
+    /// You may want to use `metadata` if you are working with entries
+    /// returned by [`Lister`]. It's highly possible that metadata
+    /// you want has already been cached.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ops::OpStat;
+    /// use opendal::ErrorKind;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// if let Err(e) = op.stat_with("test", OpStat::new()).await {
+    ///     if e.kind() == ErrorKind::NotFound {
+    ///         println!("file not exist")
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn stat_with(&self, path: &str, args: OpStat) -> Result<Metadata> {
         let path = normalize_path(path);
 
-        let rp = self.inner().stat(&path, OpStat::new()).await?;
+        let rp = self.inner().stat(&path, args).await?;
         let meta = rp.into_metadata();
 
         Ok(meta)
@@ -382,6 +418,28 @@ impl Operator {
         self.range_read(path, ..).await
     }
 
+     /// Read the whole path into a bytes with extra options.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Operator::reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::ops::OpRead;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op.read_with("path/to/file", OpRead::new()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn read_with(&self, path: &str, args: OpRead) -> Result<Vec<u8>> {
+        self.range_read_with(path, .., args).await
+    }
+
     /// Read the specified range of path into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
@@ -396,6 +454,7 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
+    /// # use opendal::ops::OpRead;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -404,6 +463,32 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
+        self.range_read_with(path, range, OpRead::new()).await
+    }
+
+    /// Read the specified range of path into a bytes with extra options..
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Operator::range_reader`]
+    ///
+    /// # Notes
+    ///
+    /// - The returning content's length may be smaller than the range specified.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::ops::OpRead;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op.range_read_with("path/to/file", 1024..2048, OpRead::new()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn range_read_with(&self, path: &str, range: impl RangeBounds<u64>, args: OpRead) -> Result<Vec<u8>> {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::FILE) {
@@ -417,9 +502,7 @@ impl Operator {
 
         let br = BytesRange::from(range);
 
-        let op = OpRead::new().with_range(br);
-
-        let (rp, mut s) = self.inner().read(&path, op).await?;
+        let (rp, mut s) = self.inner().read(&path, args.with_range(br)).await?;
 
         let length = rp.into_metadata().content_length() as usize;
         let mut buffer = Vec::with_capacity(length);

@@ -126,11 +126,20 @@ impl oio::Write for S3Writer {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        // TODO(hl)
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support close",
-        ))
+        let upload_id = if let Some(upload_id) = &self.upload_id {
+            upload_id
+        } else {
+            return Ok(());
+        };
+
+        let resp = self.core.s3_abort_multipart_upload(&self.path, upload_id).await?;
+        match resp.status() {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn close(&mut self) -> Result<()> {

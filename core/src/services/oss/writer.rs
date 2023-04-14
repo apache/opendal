@@ -115,7 +115,6 @@ impl oio::Write for OssWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        // TODO(hl)
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support abort",

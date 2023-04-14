@@ -63,11 +63,11 @@ impl From<WriteOperation> for &'static str {
         match v {
             Write => "Writer::write",
             Append => "Writer::append",
+            Abort => "Writer::abort",
             Close => "Writer::close",
             BlockingWrite => "BlockingWriter::write",
             BlockingAppend => "BlockingWriter::append",
             BlockingClose => "BlockingWriter::close",
-            Abort => "Writer::abort",
         }
     }
 }

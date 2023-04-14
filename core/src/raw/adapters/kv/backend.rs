@@ -294,7 +294,6 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        // TODO(hl)
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support abort",

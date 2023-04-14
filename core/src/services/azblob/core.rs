@@ -235,6 +235,7 @@ impl AzblobCore {
 
         let mut req = Request::put(&target)
             .header(X_MS_COPY_SOURCE, source)
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

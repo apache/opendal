@@ -62,6 +62,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - `endpoint`: Customizable endpoint setting
 /// - `credentials`: Credential string for GCS OAuth2
 /// - `predefined_acl`: Predefined ACL for GCS
+/// - `default_storage_class`: Default storage class for GCS
 ///
 /// You can refer to [`GcsBuilder`]'s docs for more information
 ///
@@ -88,6 +89,8 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 ///     builder.credential("authentication token");
 ///     // set the predefined ACL for GCS
 ///     builder.predefined_acl("publicRead");
+///     // set the default storage class for GCS
+///     builder.default_storage_class("STANDARD");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///     Ok(())
@@ -115,6 +118,7 @@ pub struct GcsBuilder {
     http_client: Option<HttpClient>,
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
     predefined_acl: Option<String>,
+    default_storage_class: Option<String>,
 }
 
 impl GcsBuilder {
@@ -218,6 +222,20 @@ impl GcsBuilder {
         };
         self
     }
+
+    /// Set the default storage class for GCS.
+    ///
+    /// Available values are:
+    /// - `STANDARD`
+    /// - `NEARLINE`
+    /// - `COLDLINE`
+    /// - `ARCHIVE`
+    pub fn default_storage_class(&mut self, class: &str) -> &mut Self {
+        if !class.is_empty() {
+            self.default_storage_class = Some(class.to_string())
+        };
+        self
+    }
 }
 
 impl Debug for GcsBuilder {
@@ -233,6 +251,7 @@ impl Debug for GcsBuilder {
         if self.predefined_acl.is_some() {
             ds.field("predefined_acl", &self.predefined_acl);
         }
+        ds.field("default_storage_class", &self.default_storage_class);
         ds.finish()
     }
 }
@@ -250,6 +269,8 @@ impl Builder for GcsBuilder {
         map.get("credential").map(|v| builder.credential(v));
         map.get("scope").map(|v| builder.scope(v));
         map.get("predefined_acl").map(|v| builder.predefined_acl(v));
+        map.get("default_storage_class")
+            .map(|v| builder.default_storage_class(v));
 
         builder
     }
@@ -324,6 +345,7 @@ impl Builder for GcsBuilder {
                 token_loader,
                 credential_loader: cred_loader,
                 predefined_acl: self.predefined_acl.clone(),
+                default_storage_class: self.default_storage_class.clone(),
             }),
         };
 

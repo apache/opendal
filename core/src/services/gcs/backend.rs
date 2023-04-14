@@ -118,7 +118,7 @@ pub struct GcsBuilder {
     http_client: Option<HttpClient>,
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
     predefined_acl: Option<String>,
-    default_storage_class: String,
+    default_storage_class: Option<String>,
 }
 
 impl GcsBuilder {
@@ -232,7 +232,7 @@ impl GcsBuilder {
     /// - `ARCHIVE`
     pub fn default_storage_class(&mut self, class: &str) -> &mut Self {
         if !class.is_empty() {
-            self.default_storage_class = class.to_string()
+            self.default_storage_class = Some(class.to_string())
         };
         self
     }
@@ -334,10 +334,6 @@ impl Builder for GcsBuilder {
         }
 
         let signer = GoogleSigner::new("storage");
-
-        if self.default_storage_class.is_empty() {
-            self.default_storage_class = "STANDARD".to_string();
-        }
 
         let backend = GcsBackend {
             core: Arc::new(GcsCore {

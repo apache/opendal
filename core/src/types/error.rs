@@ -72,7 +72,7 @@ pub enum ErrorKind {
     IsSameFile,
     /// The preconfition of this operation is not met.
     ///
-    /// For exmaple, reading a file with If-Match header but the file's ETag
+    /// For example, reading a file with If-Match header but the file's ETag
     /// is not match.
     PreconditionFailed,
 }

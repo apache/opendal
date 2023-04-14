@@ -180,7 +180,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn stat(&self, path: &str) -> Result<Metadata> {
-        self.stat_with(&path, OpStat::new()).await
+        self.stat_with(path, OpStat::new()).await
     }
 
     /// Get current path's metadata **without cache** directly with extra options.
@@ -418,7 +418,7 @@ impl Operator {
         self.range_read(path, ..).await
     }
 
-     /// Read the whole path into a bytes with extra options.
+    /// Read the whole path into a bytes with extra options.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`Operator::reader`]
@@ -488,7 +488,12 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn range_read_with(&self, path: &str, range: impl RangeBounds<u64>, args: OpRead) -> Result<Vec<u8>> {
+    pub async fn range_read_with(
+        &self,
+        path: &str,
+        range: impl RangeBounds<u64>,
+        args: OpRead,
+    ) -> Result<Vec<u8>> {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::FILE) {

@@ -1,6 +1,6 @@
 # Contributing
 
-Hello contributors, welcome to the OpenDAL Community! This document will guide you on how to participate in our community and enjoy your time here.
+Hello, welcome to the OpenDAL Community! This document will guide you on how to participate in our community and enjoy your time here.
 
 ## Taking Issues
 

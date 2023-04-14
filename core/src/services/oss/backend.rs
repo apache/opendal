@@ -374,7 +374,7 @@ impl Accessor for OssBackend {
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let resp = self
             .core
-            .oss_put_object(path, None, None, None, AsyncBody::Empty)
+            .oss_put_object(path, None, None, None, None, AsyncBody::Empty)
             .await?;
         let status = resp.status();
 
@@ -403,7 +403,7 @@ impl Accessor for OssBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let upload_id = if args.append() {
-            let resp = self.core.oss_initiate_upload(path).await?;
+            let resp = self.core.oss_initiate_upload(path, &args).await?;
             match resp.status() {
                 StatusCode::OK => {
                     let bs = resp.into_body().bytes().await?;
@@ -494,6 +494,7 @@ impl Accessor for OssBackend {
                 None,
                 v.content_type(),
                 v.content_disposition(),
+                v.cache_control(),
                 AsyncBody::Empty,
                 true,
             )?,

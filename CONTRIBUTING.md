@@ -1,6 +1,18 @@
 # Contributing
 
-Hello, welcome to the OpenDAL Community! This document will guide you on how to participate in our community and enjoy your time here.
+Hello, welcome to the OpenDAL Community! Thanks for your interest in the Apache OpenDAL project! This document will guide you on how to participate in our community and enjoy your time here. 
+
+## Code of Conduct
+
+We expect all community members to follow our [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
+
+## Communication
+
+We use [GitHub Discussions](https://github.com/apache/incubator-opendal/discussions) for general discussions and questions. Please use the `Q&A` category for questions and the `General` category for general discussions.
+
+We also use [GitHub Issues](https://github.com/apache/incubator-opendal/issues) for bug reports and feature requests.
+
+Otherwise, you can join our [Discord Channel](https://discord.gg/XQy8yGR2dg) for real-time discussions.
 
 ## Taking Issues
 
@@ -14,6 +26,9 @@ By removing the assignment, we create space for other community members to take 
 
 ## Sending PRs
 
+If you find an issue you would like to fix, open a pull request. For code changes, please refer to the particular component's development guide.
+
 We will try our best to review your PRs within 24 hours, and often within 8 hours.
 
 If a PR does not receive a response within 24 hours, it will be converted to draft status. To indicate that you are ready for review, please mark the PR as `ready for review`.
+

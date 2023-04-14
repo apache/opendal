@@ -17,5 +17,3 @@ By removing the assignment, we create space for other community members to take 
 We will try our best to review your PRs within 24 hours, and often within 8 hours.
 
 If a PR does not receive a response within 24 hours, it will be converted to draft status. To indicate that you are ready for review, please mark the PR as `ready for review`. By default, all reviewers ignore draft PRs.
-
-If a PR remains inactive for 90 days, it will be closed. It is important to note that closing a PR does not necessarily mean rejection; our goal is to keep our community iterating quickly. You are welcome to reopen the PR at any time when you are ready for another review.

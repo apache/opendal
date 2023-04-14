@@ -27,7 +27,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
-use hyper::body::HttpBody;
 use metrics::increment_counter;
 use metrics::register_counter;
 use metrics::register_histogram;

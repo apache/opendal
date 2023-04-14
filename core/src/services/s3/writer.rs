@@ -132,7 +132,10 @@ impl oio::Write for S3Writer {
             return Ok(());
         };
 
-        let resp = self.core.s3_abort_multipart_upload(&self.path, upload_id).await?;
+        let resp = self
+            .core
+            .s3_abort_multipart_upload(&self.path, upload_id)
+            .await?;
         match resp.status() {
             StatusCode::OK => {
                 resp.into_body().consume().await?;

@@ -616,7 +616,6 @@ impl S3Core {
         self.send(req).await
     }
 
-
     pub async fn s3_delete_objects(
         &self,
         paths: Vec<String>,

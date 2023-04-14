@@ -20,11 +20,11 @@ use std::fmt::Formatter;
 use std::time::Duration;
 
 use bytes::Bytes;
-use http::header::{CACHE_CONTROL, IF_NONE_MATCH};
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::RANGE;
+use http::header::{CACHE_CONTROL, IF_NONE_MATCH};
 use http::Request;
 use http::Response;
 use reqsign::AliyunCredential;
@@ -246,7 +246,11 @@ impl OssCore {
         self.send(req).await
     }
 
-    pub async fn oss_head_object(&self, path: &str, if_none_match: Option<&str>,) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn oss_head_object(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_head_object_request(path, false, if_none_match)?;
 
         self.sign(&mut req).await?;

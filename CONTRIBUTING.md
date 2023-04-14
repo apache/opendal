@@ -22,6 +22,6 @@ OpenDAL promises fast iteration (I mean very fast).
 
 We commit to reviewing your PRs within 24 hours, and often within 8 hours. In return, we expect you to respond to our review within 24 hours as well.
 
-If a PR receives no response for 24 hours, it will be closed. Please note that closing a PR does not mean rejection; we simply aim to keep our community iterating quickly by only tracking PRs awaiting review.
+If a PR receives no response for 24 hours, it will be closed. Please note that closing a PR does not mean rejection; we simply aim to keep our community iterating quickly by only tracking PRs awaiting review. By closing on-going (instead of on-reviewing) PR allow both of us foucing our own work.
 
 You are welcome to reopen the PR at any time when you are ready for a new review.

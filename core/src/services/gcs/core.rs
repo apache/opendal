@@ -21,6 +21,7 @@ use std::fmt::Write;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
+use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -46,6 +47,7 @@ pub struct GcsCore {
     pub credential_loader: GoogleCredentialLoader,
 
     pub predefined_acl: Option<String>,
+    pub default_storage_class: String,
 }
 
 impl Debug for GcsCore {
@@ -53,8 +55,12 @@ impl Debug for GcsCore {
         let mut de = f.debug_struct("Backend");
         de.field("endpoint", &self.endpoint)
             .field("bucket", &self.bucket)
-            .field("root", &self.root)
-            .finish_non_exhaustive()
+            .field("root", &self.root);
+        if self.predefined_acl.is_some() {
+            de.field("predefined_acl", &self.predefined_acl);
+        }
+        de.field("default_storage_class", &self.default_storage_class);
+        de.finish_non_exhaustive()
     }
 }
 
@@ -139,7 +145,7 @@ impl GcsCore {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
+            "{}/upload/storage/v1/b/{}/o?uploadType=multipart&name={}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
@@ -149,19 +155,32 @@ impl GcsCore {
             write!(&mut url, "&predefinedAcl={}", acl).unwrap();
         }
 
-        let mut req = Request::post(&url);
+        let mut req =
+            Request::post(&url).header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
 
+        let mut req_body = BytesMut::with_capacity(100);
+        write!(
+            &mut req_body,
+            "--my-boundary\nContent-Type: application/json; charset=UTF-8\n\n{{\"storageClass\": \"{}\"}}\n\n--my-boundary\n",
+            self.default_storage_class
+        ).unwrap();
+
         if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime)
+            write!(&mut req_body, "Content-Type: {}\n\n", mime).unwrap();
+        } else {
+            write!(&mut req_body, "Content-Type: application/octet-stream\n\n").unwrap();
         }
 
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
+        if let AsyncBody::Bytes(bytes) = body {
+            req_body.extend_from_slice(&bytes);
+        }
+        write!(&mut req_body, "\n--my-boundary").unwrap();
+        let req_body = AsyncBody::Bytes(req_body.freeze());
+        let req = req.body(req_body).map_err(new_request_build_error)?;
         Ok(req)
     }
 

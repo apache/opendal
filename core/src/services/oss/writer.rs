@@ -56,6 +56,7 @@ impl oio::Write for OssWriter {
             Some(bs.len()),
             self.op.content_type(),
             self.op.content_disposition(),
+            self.op.cache_control(),
             AsyncBody::Bytes(bs),
             false,
         )?;

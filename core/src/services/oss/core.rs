@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::time::Duration;
 
 use bytes::Bytes;
+use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -32,6 +33,7 @@ use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
@@ -105,12 +107,14 @@ impl OssCore {
 }
 
 impl OssCore {
+    #[allow(clippy::too_many_arguments)]
     pub fn oss_put_object_request(
         &self,
         path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
+        cache_control: Option<&str>,
         body: AsyncBody,
         is_presign: bool,
     ) -> Result<Request<AsyncBody>> {
@@ -128,6 +132,10 @@ impl OssCore {
 
         if let Some(pos) = content_disposition {
             req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -241,6 +249,7 @@ impl OssCore {
         size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
+        cache_control: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_put_object_request(
@@ -248,6 +257,7 @@ impl OssCore {
             size,
             content_type,
             content_disposition,
+            cache_control,
             body,
             false,
         )?;
@@ -341,9 +351,14 @@ impl OssCore {
         }
     }
 
-    pub async fn oss_initiate_upload(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn oss_initiate_upload(
+        &self,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let cache_control = args.cache_control();
         let req = self
-            .oss_initiate_upload_request(path, None, None, AsyncBody::Empty, false)
+            .oss_initiate_upload_request(path, None, None, cache_control, AsyncBody::Empty, false)
             .await?;
         self.send(req).await
     }
@@ -354,6 +369,7 @@ impl OssCore {
         path: &str,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
+        cache_control: Option<&str>,
         body: AsyncBody,
         is_presign: bool,
     ) -> Result<Request<AsyncBody>> {
@@ -366,6 +382,9 @@ impl OssCore {
         }
         if let Some(disposition) = content_disposition {
             req = req.header(CONTENT_DISPOSITION, disposition);
+        }
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control);
         }
 
         let mut req = req.body(body).map_err(new_request_build_error)?;

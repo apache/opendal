@@ -16,22 +16,28 @@
 # under the License.
 
 RPATH=$(PWD)/../../target/debug
-CFLAGS = -I./include
-LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
-LIBS = -lopendal
-OBJ_DIR=build/
+CFLAGS=-I./include
+LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
+LIBS=-lopendal_c
+OBJ_DIR=./build
 
-all: $(OBJ_DIR) build test
+.PHONY: all
+all: build test
 
-$(OBJ_DIR):
-	mkdir -p $@
+.PHONY: format
+format:
+	find . \( -name '*.c' -o -name '*.h' \) -exec clang-format -i --style=WebKit --verbose {} \;
 
+.PHONY: build
 build:
+	mkdir -p $(OBJ_DIR)
 	cargo build
 
+.PHONY: test
 test:
-	$(CC) tests/hello.c -o $(OBJ_DIR)/hello $(CFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) tests/basicio.c -o $(OBJ_DIR)/basicio $(CFLAGS) $(LDFLAGS) $(LIBS)
 
+.PHONY: clean
 clean:
 	cargo clean
 	rm -rf $(OBJ_DIR)

@@ -322,6 +322,88 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::Copy,
+            from,
+            to
+        );
+
+        self.inner
+            .copy(from, to, args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::Copy,
+                    from,
+                    to
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Copy,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    )
+                };
+                err
+            })
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::Rename,
+            from,
+            to
+        );
+
+        self.inner
+            .rename(from, to, args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::Rename,
+                    from,
+                    to
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Rename,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    )
+                };
+                err
+            })
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
             target: LOGGING_TARGET,
@@ -494,7 +576,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -505,6 +587,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         self.inner
             .presign(path, args)
+            .await
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
@@ -532,7 +615,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let (op, count) = (args.operation().operation(), args.operation().len());
+        let (op, count) = (args.operation()[0].1.operation(), args.operation().len());
 
         debug!(
             target: LOGGING_TARGET,
@@ -550,8 +633,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     self.scheme,
                     Operation::Batch,
                     v.results().len(),
-                    v.results().len_ok(),
-                    v.results().len_err(),
+                    v.results().iter().filter(|(_, v)|v.is_ok()).count(),
+                    v.results().iter().filter(|(_, v)|v.is_err()).count(),
                 );
                 v
             })
@@ -692,6 +775,86 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.scheme,
                         Operation::BlockingWrite,
                         path,
+                        self.err_status(&err)
+                    );
+                }
+                err
+            })
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::BlockingCopy,
+            from,
+            to,
+        );
+
+        self.inner
+            .blocking_copy(from, to, args)
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::BlockingCopy,
+                    from,
+                    to,
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingCopy,
+                        from,
+                        to,
+                        self.err_status(&err)
+                    );
+                }
+                err
+            })
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} from={} to={} -> started",
+            self.scheme,
+            Operation::BlockingMove,
+            from,
+            to,
+        );
+
+        self.inner
+            .blocking_rename(from, to, args)
+            .map(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} from={} to={} -> finished",
+                    self.scheme,
+                    Operation::BlockingMove,
+                    from,
+                    to,
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} from={} to={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingMove,
+                        from,
+                        to,
                         self.err_status(&err)
                     );
                 }
@@ -1247,6 +1410,36 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         "service={} operation={} path={} written={} -> data write failed: {err:?}",
                         self.scheme,
                         WriteOperation::Append,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match self.inner.abort().await {
+            Ok(_) => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> abort writer",
+                    self.scheme,
+                    WriteOperation::Abort,
+                    self.path,
+                    self.written,
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> abort writer failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::Abort,
                         self.path,
                         self.written,
                     )

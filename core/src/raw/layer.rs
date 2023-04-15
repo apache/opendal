@@ -159,6 +159,14 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)>;
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().copy(from, to, args).await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().rename(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().stat(path, args).await
     }
@@ -175,8 +183,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().batch(args).await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner().presign(path, args)
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner().presign(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -186,6 +194,14 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)>;
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)>;
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().blocking_copy(from, to, args)
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().blocking_rename(from, to, args)
+    }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().blocking_stat(path, args)
@@ -225,6 +241,14 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).write(path, args).await
     }
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        (self as &L).copy(from, to, args).await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        (self as &L).rename(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         (self as &L).stat(path, args).await
     }
@@ -245,8 +269,8 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).batch(args).await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        (self as &L).presign(path, args)
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        (self as &L).presign(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -259,6 +283,14 @@ impl<L: LayeredAccessor> Accessor for L {
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         (self as &L).blocking_write(path, args)
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        (self as &L).blocking_copy(from, to, args)
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        (self as &L).blocking_rename(from, to, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

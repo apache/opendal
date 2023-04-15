@@ -25,7 +25,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::debug;
-use time::OffsetDateTime;
 
 use super::error::parse_io_error;
 use super::pager::HdfsPager;
@@ -362,7 +361,7 @@ impl Accessor for HdfsBackend {
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());
-        m.set_last_modified(OffsetDateTime::from(meta.modified()));
+        m.set_last_modified(meta.modified().into());
 
         Ok(RpStat::new(m))
     }
@@ -529,7 +528,7 @@ impl Accessor for HdfsBackend {
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());
-        m.set_last_modified(OffsetDateTime::from(meta.modified()));
+        m.set_last_modified(meta.modified().into());
 
         Ok(RpStat::new(m))
     }

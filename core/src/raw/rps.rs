@@ -42,7 +42,7 @@ pub struct RpPresign {
 }
 
 impl RpPresign {
-    /// Create a new reply for presign.
+    /// Create a new reply for `presign`.
     pub fn new(req: PresignedRequest) -> Self {
         RpPresign { req }
     }
@@ -107,7 +107,7 @@ pub struct RpRead {
 }
 
 impl RpRead {
-    /// Create a new reply.
+    /// Create a new reply for `read`.
     pub fn new(content_length: u64) -> Self {
         RpRead {
             meta: Metadata::new(EntryMode::FILE).with_content_length(content_length),
@@ -132,63 +132,35 @@ impl RpRead {
 
 /// Reply for `batch` operation.
 pub struct RpBatch {
-    results: BatchedResults,
+    results: Vec<(String, Result<BatchedReply>)>,
 }
 
 impl RpBatch {
     /// Create a new RpBatch.
-    pub fn new(results: BatchedResults) -> Self {
+    pub fn new(results: Vec<(String, Result<BatchedReply>)>) -> Self {
         Self { results }
     }
 
     /// Get the results from RpBatch.
-    pub fn results(&self) -> &BatchedResults {
+    pub fn results(&self) -> &[(String, Result<BatchedReply>)] {
         &self.results
     }
 
     /// Consume RpBatch to get the batched results.
-    pub fn into_results(self) -> BatchedResults {
+    pub fn into_results(self) -> Vec<(String, Result<BatchedReply>)> {
         self.results
     }
 }
 
 /// Batch results of `batch` operations.
-pub enum BatchedResults {
-    /// results of delete batch operation
-    Delete(Vec<(String, Result<RpDelete>)>),
+pub enum BatchedReply {
+    /// results of `delete batch` operation
+    Delete(RpDelete),
 }
 
-impl BatchedResults {
-    /// Return the length of given results.
-    pub fn len(&self) -> usize {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.len(),
-        }
-    }
-
-    /// Return if given results is empty.
-    pub fn is_empty(&self) -> bool {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.is_empty(),
-        }
-    }
-
-    /// Return the length of ok results.
-    pub fn len_ok(&self) -> usize {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.iter().filter(|v| v.1.is_ok()).count(),
-        }
-    }
-
-    /// Return the length of error results.
-    pub fn len_err(&self) -> usize {
-        use BatchedResults::*;
-        match self {
-            Delete(v) => v.iter().filter(|v| v.1.is_err()).count(),
-        }
+impl From<RpDelete> for BatchedReply {
+    fn from(rp: RpDelete) -> Self {
+        Self::Delete(rp)
     }
 }
 
@@ -199,7 +171,7 @@ pub struct RpStat {
 }
 
 impl RpStat {
-    /// Create a new reply for stat.
+    /// Create a new reply for `stat`.
     pub fn new(meta: Metadata) -> Self {
         RpStat { meta }
     }
@@ -221,7 +193,29 @@ impl RpStat {
 pub struct RpWrite {}
 
 impl RpWrite {
-    /// Create a new reply for write.
+    /// Create a new reply for `write`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+/// Reply for `copy` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCopy {}
+
+impl RpCopy {
+    /// Create a new reply for `copy`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+/// Reply for `rename` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpRename {}
+
+impl RpRename {
+    /// Create a new reply for `rename`.
     pub fn new() -> Self {
         Self {}
     }
@@ -253,16 +247,7 @@ mod tests {
             },
         };
 
-        let req: Request<AsyncBody> = pr.clone().into();
-        assert_eq!(Method::PATCH, req.method());
-        assert_eq!(
-            "https://opendal.apache.org/path/to/file",
-            req.uri().to_string()
-        );
-        assert_eq!("123", req.headers().get(CONTENT_LENGTH).unwrap());
-        assert_eq!("application/json", req.headers().get(CONTENT_TYPE).unwrap());
-
-        let req: Request<Body> = pr.into();
+        let req: Request<AsyncBody> = pr.into();
         assert_eq!(Method::PATCH, req.method());
         assert_eq!(
             "https://opendal.apache.org/path/to/file",

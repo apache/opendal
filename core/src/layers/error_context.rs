@@ -202,8 +202,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args).map_err(|err| {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner.presign(path, args).await.map_err(|err| {
             err.with_operation(Operation::Presign)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
@@ -214,9 +214,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.inner
             .batch(args)
             .map_ok(|v| {
-                let BatchedResults::Delete(res) = v.into_results();
-
-                let res = res
+                let res = v
+                    .into_results()
                     .into_iter()
                     .map(|(path, res)| {
                         let res = res.map_err(|err| {
@@ -228,7 +227,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                     })
                     .collect();
 
-                RpBatch::new(BatchedResults::Delete(res))
+                RpBatch::new(res)
             })
             .map_err(|err| {
                 err.with_operation(Operation::Batch)
@@ -414,6 +413,14 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.inner.append(bs).await.map_err(|err| {
+            err.with_operation(WriteOperation::Append)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
             err.with_operation(WriteOperation::Append)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)

@@ -18,8 +18,6 @@
 use std::cmp::min;
 use std::cmp::Ordering;
 use std::io;
-use std::io::Read;
-use std::io::Write;
 use std::task::Context;
 use std::task::Poll;
 
@@ -35,57 +33,11 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-/// Body used in blocking HTTP requests.
-pub enum Body {
-    /// An empty body.
-    Empty,
-    /// Body with bytes.
-    Bytes(Bytes),
-    /// Body with a Reader.
-    Reader(Box<dyn Read + Send>),
-}
-
-impl Default for Body {
-    fn default() -> Self {
-        Body::Empty
-    }
-}
-
-impl Body {
-    /// Consume the entire body.
-    pub fn consume(self) -> Result<()> {
-        if let Body::Reader(mut r) = self {
-            std::io::copy(&mut r, &mut std::io::sink()).map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "consuming response")
-                    .with_operation("http_util::Body::consume")
-                    .set_source(err)
-            })?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Read for Body {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        match self {
-            Body::Empty => Ok(0),
-            Body::Bytes(bs) => {
-                let size = min(bs.len(), buf.len());
-                let rbs = bs.split_to(size);
-                bs.advance(size);
-
-                buf.write_all(&rbs).expect("write all must succeed");
-                Ok(size)
-            }
-            Body::Reader(r) => r.read(buf),
-        }
-    }
-}
-
 /// Body used in async HTTP requests.
+#[derive(Default)]
 pub enum AsyncBody {
     /// An empty body.
+    #[default]
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
@@ -94,12 +46,6 @@ pub enum AsyncBody {
     /// If input with this field, we will goto the internal multipart
     /// handle logic.
     Multipart(String, Bytes),
-}
-
-impl Default for AsyncBody {
-    fn default() -> Self {
-        AsyncBody::Empty
-    }
 }
 
 impl From<AsyncBody> for reqwest::Body {

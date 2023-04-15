@@ -31,3 +31,15 @@ members = [
 
   "bin/oli",
 ]
+
+[workspace.package]
+authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+edition = "2021"
+homepage = "https://opendal.apache.org/"
+license = "Apache-2.0"
+repository = "https://github.com/apache/incubator-opendal"
+rust-version = "1.64"
+version = "0.31.0"
+
+[workspace.dependencies]
+opendal = { version = "0.31", path = "core" }

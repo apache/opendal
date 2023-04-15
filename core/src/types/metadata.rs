@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use chrono::prelude::*;
 use flagset::flags;
 use flagset::FlagSet;
-use time::OffsetDateTime;
 
 use crate::raw::*;
 use crate::*;
@@ -42,7 +42,7 @@ pub struct Metadata {
     content_range: Option<BytesContentRange>,
     content_type: Option<String>,
     etag: Option<String>,
-    last_modified: Option<OffsetDateTime>,
+    last_modified: Option<DateTime<Utc>>,
 }
 
 impl Metadata {
@@ -246,8 +246,8 @@ impl Metadata {
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     ///
-    /// OpenDAL parse the raw value into [`OffsetDateTime`] for convenient.
-    pub fn last_modified(&self) -> Option<OffsetDateTime> {
+    /// OpenDAL parse the raw value into [`DateTime`] for convenient.
+    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
         debug_assert!(
             self.bit.contains(Metakey::LastModified) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: last_modified, maybe a bug"
@@ -260,7 +260,7 @@ impl Metadata {
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
+    pub fn set_last_modified(&mut self, last_modified: DateTime<Utc>) -> &mut Self {
         self.last_modified = Some(last_modified);
         self.bit |= Metakey::LastModified;
         self
@@ -270,7 +270,7 @@ impl Metadata {
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    pub fn with_last_modified(mut self, last_modified: OffsetDateTime) -> Self {
+    pub fn with_last_modified(mut self, last_modified: DateTime<Utc>) -> Self {
         self.last_modified = Some(last_modified);
         self.bit |= Metakey::LastModified;
         self

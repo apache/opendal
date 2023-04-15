@@ -18,27 +18,21 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
-use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use http::header::CONTENT_TYPE;
-use http::header::{CONTENT_LENGTH, CONTENT_RANGE};
-use http::Request;
-use http::Response;
 use http::StatusCode;
 use log::debug;
+use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
+use reqsign::GoogleTokenLoad;
+use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
+use super::core::GcsCore;
 use super::error::parse_error;
 use super::pager::GcsPager;
-use super::uri::percent_encode_path;
 use super::writer::GcsWriter;
 use crate::ops::*;
 use crate::raw::*;
@@ -58,6 +52,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - [x] write
 /// - [x] list
 /// - [x] scan
+/// - [x] copy
 /// - [ ] presign
 /// - [ ] blocking
 ///
@@ -67,6 +62,8 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - `bucket`: Set the container name for backend
 /// - `endpoint`: Customizable endpoint setting
 /// - `credentials`: Credential string for GCS OAuth2
+/// - `predefined_acl`: Predefined ACL for GCS
+/// - `default_storage_class`: Default storage class for GCS
 ///
 /// You can refer to [`GcsBuilder`]'s docs for more information
 ///
@@ -91,12 +88,16 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 ///     builder.root("/path/to/dir");
 ///     // set the credentials for GCS OAUTH2 authentication
 ///     builder.credential("authentication token");
+///     // set the predefined ACL for GCS
+///     builder.predefined_acl("publicRead");
+///     // set the default storage class for GCS
+///     builder.default_storage_class("STANDARD");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///     Ok(())
 /// }
 /// ```
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct GcsBuilder {
     /// root URI, all operations happens under `root`
     root: Option<String>,
@@ -116,7 +117,9 @@ pub struct GcsBuilder {
     credential_path: Option<String>,
 
     http_client: Option<HttpClient>,
-    signer: Option<Arc<GoogleSigner>>,
+    customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    predefined_acl: Option<String>,
+    default_storage_class: Option<String>,
 }
 
 impl GcsBuilder {
@@ -199,19 +202,39 @@ impl GcsBuilder {
         self
     }
 
-    /// Specify the signer directly instead of building by OpenDAL.
+    /// Specify the customed token loader used by this service.
+    pub fn customed_token_loader(&mut self, token_load: Box<dyn GoogleTokenLoad>) -> &mut Self {
+        self.customed_token_loader = Some(token_load);
+        self
+    }
+
+    /// Set the predefined acl for GCS.
     ///
-    /// If signer is specified, the following settings will not be used
-    /// any more:
+    /// Available values are:
+    /// - `authenticatedRead`
+    /// - `bucketOwnerFullControl`
+    /// - `bucketOwnerRead`
+    /// - `private`
+    /// - `projectPrivate`
+    /// - `publicRead`
+    pub fn predefined_acl(&mut self, acl: &str) -> &mut Self {
+        if !acl.is_empty() {
+            self.predefined_acl = Some(acl.to_string())
+        };
+        self
+    }
+
+    /// Set the default storage class for GCS.
     ///
-    /// - `scope`
-    /// - `service_account`
-    /// - `credential`
-    /// - `credential_path`
-    ///
-    /// PLEASE USE THIS API CAREFULLY.
-    pub fn signer(&mut self, signer: GoogleSigner) -> &mut Self {
-        self.signer = Some(Arc::new(signer));
+    /// Available values are:
+    /// - `STANDARD`
+    /// - `NEARLINE`
+    /// - `COLDLINE`
+    /// - `ARCHIVE`
+    pub fn default_storage_class(&mut self, class: &str) -> &mut Self {
+        if !class.is_empty() {
+            self.default_storage_class = Some(class.to_string())
+        };
         self
     }
 }
@@ -226,6 +249,10 @@ impl Debug for GcsBuilder {
         if self.credential.is_some() {
             ds.field("credentials", &"<redacted>");
         }
+        if self.predefined_acl.is_some() {
+            ds.field("predefined_acl", &self.predefined_acl);
+        }
+        ds.field("default_storage_class", &self.default_storage_class);
         ds.finish()
     }
 }
@@ -242,6 +269,9 @@ impl Builder for GcsBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("credential").map(|v| builder.credential(v));
         map.get("scope").map(|v| builder.scope(v));
+        map.get("predefined_acl").map(|v| builder.predefined_acl(v));
+        map.get("default_storage_class")
+            .map(|v| builder.default_storage_class(v));
 
         builder
     }
@@ -277,45 +307,47 @@ impl Builder for GcsBuilder {
             .endpoint
             .clone()
             .unwrap_or_else(|| DEFAULT_GCS_ENDPOINT.to_string());
-
         debug!("backend use endpoint: {endpoint}");
 
-        let signer = if let Some(signer) = &self.signer {
-            signer.clone()
+        let mut cred_loader = GoogleCredentialLoader::default();
+        if let Some(cred) = &self.credential {
+            cred_loader = cred_loader.with_content(cred);
+        }
+        if let Some(cred) = &self.credential_path {
+            cred_loader = cred_loader.with_path(cred);
+        }
+
+        let scope = if let Some(scope) = &self.scope {
+            scope
         } else {
-            // build signer
-            let mut signer_builder = GoogleSigner::builder();
-            if let Some(scope) = &self.scope {
-                signer_builder.scope(scope);
-            } else {
-                signer_builder.scope(DEFAULT_GCS_SCOPE);
-            }
-            if let Some(account) = &self.service_account {
-                signer_builder.service_account(account);
-            }
-            if let Some(cred) = &self.credential {
-                signer_builder.credential_content(cred);
-            }
-            if let Some(cred) = &self.credential_path {
-                signer_builder.credential_path(cred);
-            }
-            let signer = signer_builder.build().map_err(|e| {
-                Error::new(ErrorKind::ConfigInvalid, "build GoogleSigner")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Gcs)
-                    .with_context("bucket", bucket)
-                    .with_context("endpoint", &endpoint)
-                    .set_source(e)
-            })?;
-            Arc::new(signer)
+            DEFAULT_GCS_SCOPE
         };
 
+        let mut token_loader = GoogleTokenLoader::new(scope, client.client());
+        if let Some(account) = &self.service_account {
+            token_loader = token_loader.with_service_account(account);
+        }
+        if let Ok(Some(cred)) = cred_loader.load() {
+            token_loader = token_loader.with_credentials(cred)
+        }
+        if let Some(loader) = self.customed_token_loader.take() {
+            token_loader = token_loader.with_customed_token_loader(loader)
+        }
+
+        let signer = GoogleSigner::new("storage");
+
         let backend = GcsBackend {
-            root,
-            endpoint,
-            bucket: bucket.clone(),
-            signer,
-            client,
+            core: Arc::new(GcsCore {
+                endpoint,
+                bucket: bucket.to_string(),
+                root,
+                client,
+                signer,
+                token_loader,
+                credential_loader: cred_loader,
+                predefined_acl: self.predefined_acl.clone(),
+                default_storage_class: self.default_storage_class.clone(),
+            }),
         };
 
         Ok(backend)
@@ -323,27 +355,9 @@ impl Builder for GcsBuilder {
 }
 
 /// GCS storage backend
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GcsBackend {
-    endpoint: String,
-    bucket: String,
-    // root should end with "/"
-    root: String,
-
-    pub client: HttpClient,
-    pub signer: Arc<GoogleSigner>,
-}
-
-impl Debug for GcsBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("Backend");
-        de.field("endpoint", &self.endpoint)
-            .field("bucket", &self.bucket)
-            .field("root", &self.root)
-            .field("client", &self.client)
-            .field("signer", &"<redacted>")
-            .finish()
-    }
+    core: Arc<GcsCore>,
 }
 
 #[async_trait]
@@ -361,19 +375,21 @@ impl Accessor for GcsBackend {
 
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Gcs)
-            .set_root(&self.root)
-            .set_name(&self.bucket)
-            .set_capabilities(Read | Write | List | Scan)
+            .set_root(&self.core.root)
+            .set_name(&self.core.bucket)
+            .set_capabilities(Read | Write | List | Scan | Copy)
             .set_hints(ReadStreamable);
         am
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req = self
+            .core
+            .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
@@ -384,7 +400,7 @@ impl Accessor for GcsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.gcs_get_object(path, args.range()).await?;
+        let resp = self.core.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
             let meta = parse_into_metadata(path, resp.headers())?;
@@ -396,7 +412,7 @@ impl Accessor for GcsBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let upload_location = if args.append() {
-            let resp = self.gcs_initiate_resumable_upload(path).await?;
+            let resp = self.core.gcs_initiate_resumable_upload(path).await?;
             let status = resp.status();
 
             match status {
@@ -420,8 +436,19 @@ impl Accessor for GcsBackend {
 
         Ok((
             RpWrite::default(),
-            GcsWriter::new(self.clone(), args, path.to_string(), upload_location),
+            GcsWriter::new(self.core.clone(), args, path.to_string(), upload_location),
         ))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.gcs_copy_object(from, to).await?;
+
+        if resp.status().is_success() {
+            resp.into_body().consume().await?;
+            Ok(RpCopy::default())
+        } else {
+            Err(parse_error(resp).await?)
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -430,7 +457,7 @@ impl Accessor for GcsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.gcs_get_object_metadata(path).await?;
+        let resp = self.core.gcs_get_object_metadata(path).await?;
 
         if resp.status().is_success() {
             // read http response body
@@ -457,10 +484,7 @@ impl Accessor for GcsBackend {
                 m.set_content_type(&meta.content_type);
             }
 
-            let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse date time with rfc 3339").set_source(e)
-            })?;
-            m.set_last_modified(datetime);
+            m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
 
             Ok(RpStat::new(m))
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
@@ -471,7 +495,7 @@ impl Accessor for GcsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.gcs_delete_object(path).await?;
+        let resp = self.core.gcs_delete_object(path).await?;
 
         // deleting not existing objects is ok
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
@@ -484,249 +508,16 @@ impl Accessor for GcsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            GcsPager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            GcsPager::new(self.core.clone(), path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            GcsPager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            GcsPager::new(self.core.clone(), path, "", args.limit()),
         ))
     }
-}
-
-impl GcsBackend {
-    fn gcs_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/storage/v1/b/{}/o/{}?alt=media",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
-        }
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn gcs_get_object(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_get_object_request(path, range)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    pub fn gcs_insert_object_request(
-        &self,
-        path: &str,
-        size: Option<usize>,
-        content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::post(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
-
-        if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime)
-        }
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn gcs_get_object_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/storage/v1/b/{}/o/{}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        let req = Request::get(&url);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/storage/v1/b/{}/o/{}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    pub(crate) async fn gcs_list_objects(
-        &self,
-        path: &str,
-        page_token: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut url = format!(
-            "{}/storage/v1/b/{}/o?prefix={}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
-        if !delimiter.is_empty() {
-            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
-        }
-        if let Some(limit) = limit {
-            write!(url, "&maxResults={limit}").expect("write into string must succeed");
-        }
-        if !page_token.is_empty() {
-            // NOTE:
-            //
-            // GCS uses pageToken in request and nextPageToken in response
-            //
-            // Don't know how will those tokens be like so this part are copied
-            // directly from AWS S3 service.
-            write!(url, "&pageToken={}", percent_encode_path(page_token))
-                .expect("write into string must succeed");
-        }
-
-        let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    async fn gcs_initiate_resumable_upload(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
-            self.endpoint, self.bucket, p
-        );
-        let mut req = Request::post(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-        self.client.send_async(req).await
-    }
-
-    pub fn gcs_upload_chunks_in_resumable_upload(
-        &self,
-        upload_location: &str,
-        size: u64,
-        already_sent_bytes: u64,
-        is_last_chunk: bool,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let mut req = Request::put(upload_location);
-
-        let range_header = if is_last_chunk {
-            format!(
-                "bytes {}-{}/{}",
-                already_sent_bytes,
-                already_sent_bytes + size - 1,
-                already_sent_bytes + size
-            )
-        } else {
-            format!(
-                "bytes {}-{}/*",
-                already_sent_bytes,
-                already_sent_bytes + size - 1
-            )
-        };
-
-        req = req
-            .header(CONTENT_LENGTH, size)
-            .header(CONTENT_RANGE, range_header);
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    pub async fn gcs_complete_resumable_upload(
-        &self,
-        upload_location: &str,
-        already_uploaded_chunk: u64,
-        prev_upload_chunk: Bytes,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::post(upload_location)
-            .header(CONTENT_LENGTH, prev_upload_chunk.len())
-            .header(
-                CONTENT_RANGE,
-                format!(
-                    "bytes {}-{}/{}",
-                    already_uploaded_chunk - prev_upload_chunk.len() as u64,
-                    already_uploaded_chunk - 1,
-                    already_uploaded_chunk
-                ),
-            )
-            .body(AsyncBody::Bytes(prev_upload_chunk))
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-}
-
-/// Result of CreateMultipartUpload
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-struct InitiateMultipartUploadResult {
-    upload_id: String,
 }
 
 /// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)

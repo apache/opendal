@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -16,9 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "opendal.h"
 
-int main(int argc, char *argv[]) {
-    hello_opendal();
-    return 0;
+package org.apache.opendal;
+
+public class Metadata {
+
+    long ptr;
+
+    private native void freeStat(long statPtr);
+
+    private native boolean isFile(long statPtr);
+
+    private native long getContentLength(long statPtr);
+
+
+    public Metadata(long ptr) {
+        this.ptr = ptr;
+    }
+
+    public boolean isFile() {
+        return isFile(this.ptr);
+    }
+
+    @Override
+    protected void finalize() {
+        freeStat(this.ptr);
+    }
+
+    public long getContentLength() {
+        return getContentLength(this.ptr);
+    }
 }

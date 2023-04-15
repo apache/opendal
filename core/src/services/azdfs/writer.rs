@@ -15,33 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::AzdfsBackend;
+use super::core::AzdfsCore;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct AzdfsWriter {
-    backend: AzdfsBackend,
+    core: Arc<AzdfsCore>,
 
     op: OpWrite,
     path: String,
 }
 
 impl AzdfsWriter {
-    pub fn new(backend: AzdfsBackend, op: OpWrite, path: String) -> Self {
-        AzdfsWriter { backend, op, path }
+    pub fn new(core: Arc<AzdfsCore>, op: OpWrite, path: String) -> Self {
+        AzdfsWriter { core, op, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for AzdfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut req = self.backend.azdfs_create_request(
+        let mut req = self.core.azdfs_create_request(
             &self.path,
             "file",
             self.op.content_type(),
@@ -49,12 +51,9 @@ impl oio::Write for AzdfsWriter {
             AsyncBody::Empty,
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
         match status {
@@ -69,15 +68,12 @@ impl oio::Write for AzdfsWriter {
         }
 
         let mut req =
-            self.backend
+            self.core
                 .azdfs_update_request(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
         match status {
@@ -98,6 +94,10 @@ impl oio::Write for AzdfsWriter {
             ErrorKind::Unsupported,
             "output writer doesn't support append",
         ))
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

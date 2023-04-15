@@ -17,15 +17,20 @@
 
 [package]
 name = "opendal-java"
+publish = false
 version = "0.1.0"
-edition = "2021"
 
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 [lib]
 crate-type = ["cdylib"]
 doc = false
 
-
 [dependencies]
 jni = "0.21.1"
-opendal = { version = "0.30", path = "../../core" }
+opendal.workspace = true

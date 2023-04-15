@@ -447,6 +447,121 @@ impl BlockingOperator {
         self.write_with(path, OpWrite::new(), bs)
     }
 
+    /// Copy a file from `from` to `to`.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - `to` will be overwritten if it exists.
+    /// - If `from` and `to` are the same, nothing will happen.
+    /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::BlockingOperator;
+    ///
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.copy("path/to/file", "path/to/file2")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn copy(&self, from: &str, to: &str) -> Result<()> {
+        let from = normalize_path(from);
+
+        if !validate_path(&from, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path is a directory")
+                    .with_operation("BlockingOperator::copy")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from),
+            );
+        }
+
+        let to = normalize_path(to);
+
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "to path is a directory")
+                    .with_operation("BlockingOperator::copy")
+                    .with_context("service", self.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        if from == to {
+            return Err(
+                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
+                    .with_operation("BlockingOperator::copy")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from)
+                    .with_context("to", to),
+            );
+        }
+
+        self.inner().blocking_copy(&from, &to, OpCopy::new())?;
+
+        Ok(())
+    }
+
+    /// Rename a file from `from` to `to`.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - `to` will be overwritten if it exists.
+    /// - If `from` and `to` are the same, a `IsSameFile` error will occur.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::BlockingOperator;
+    ///
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.rename("path/to/file", "path/to/file2")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        let from = normalize_path(from);
+
+        if !validate_path(&from, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path is a directory")
+                    .with_operation("BlockingOperator::move")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from),
+            );
+        }
+
+        let to = normalize_path(to);
+
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "to path is a directory")
+                    .with_operation("BlockingOperator::move")
+                    .with_context("service", self.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        if from == to {
+            return Err(
+                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
+                    .with_operation("BlockingOperator::move")
+                    .with_context("service", self.info().scheme())
+                    .with_context("from", from)
+                    .with_context("to", to),
+            );
+        }
+
+        self.inner().blocking_rename(&from, &to, OpRename::new())?;
+
+        Ok(())
+    }
+
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
     ///
     /// # Notes
@@ -603,9 +718,13 @@ impl BlockingOperator {
 
     /// List dir in flat way.
     ///
-    /// This function will create a new handle to list entries.
+    /// Also, this function can be used to list a prefix.
     ///
     /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Notes
+    ///
+    /// - `scan` will not return the prefix itself.
     ///
     /// # Examples
     ///

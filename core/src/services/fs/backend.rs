@@ -24,8 +24,8 @@ use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
+use chrono::DateTime;
 use log::debug;
-use time::OffsetDateTime;
 use tokio::fs;
 use uuid::Uuid;
 
@@ -44,6 +44,8 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -301,6 +303,8 @@ impl Accessor for FsBackend {
             .set_capabilities(
                 AccessorCapability::Read
                     | AccessorCapability::Write
+                    | AccessorCapability::Copy
+                    | AccessorCapability::Rename
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )
@@ -441,6 +445,32 @@ impl Accessor for FsBackend {
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        tokio::fs::metadata(&from).await.map_err(parse_io_error)?;
+
+        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+
+        tokio::fs::copy(from, to).await.map_err(parse_io_error)?;
+
+        Ok(RpCopy::default())
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        tokio::fs::metadata(&from).await.map_err(parse_io_error)?;
+
+        let to = Self::ensure_write_abs_path(&self.root, to.trim_end_matches('/')).await?;
+
+        tokio::fs::rename(from, to).await.map_err(parse_io_error)?;
+
+        Ok(RpRename::default())
+    }
+
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -464,7 +494,7 @@ impl Accessor for FsBackend {
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
-                    .map(OffsetDateTime::from)
+                    .map(DateTime::from)
                     .map_err(parse_io_error)?,
             );
 
@@ -627,6 +657,32 @@ impl Accessor for FsBackend {
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
+    fn blocking_copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        std::fs::metadata(&from).map_err(parse_io_error)?;
+
+        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+
+        std::fs::copy(from, to).map_err(parse_io_error)?;
+
+        Ok(RpCopy::default())
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let from = self.root.join(from.trim_end_matches('/'));
+
+        // try to get the metadata of the source file to ensure it exists
+        std::fs::metadata(&from).map_err(parse_io_error)?;
+
+        let to = Self::blocking_ensure_write_abs_path(&self.root, to.trim_end_matches('/'))?;
+
+        std::fs::rename(from, to).map_err(parse_io_error)?;
+
+        Ok(RpRename::default())
+    }
+
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -650,7 +706,7 @@ impl Accessor for FsBackend {
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
-                    .map(OffsetDateTime::from)
+                    .map(DateTime::from)
                     .map_err(parse_io_error)?,
             );
 

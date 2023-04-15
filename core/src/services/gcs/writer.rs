@@ -15,18 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::GcsBackend;
+use super::core::GcsCore;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct GcsWriter {
-    backend: GcsBackend,
+    core: Arc<GcsCore>,
 
     op: OpWrite,
     path: String,
@@ -38,13 +40,13 @@ pub struct GcsWriter {
 
 impl GcsWriter {
     pub fn new(
-        backend: GcsBackend,
+        core: Arc<GcsCore>,
         op: OpWrite,
         path: String,
         upload_location: Option<String>,
     ) -> Self {
         GcsWriter {
-            backend,
+            core,
             op,
             path,
             upload_location,
@@ -58,19 +60,16 @@ impl GcsWriter {
 #[async_trait]
 impl oio::Write for GcsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut req = self.backend.gcs_insert_object_request(
-            &self.path,
+        let mut req = self.core.gcs_insert_object_request(
+            &percent_encode_path(&self.path),
             Some(bs.len()),
             self.op.content_type(),
             AsyncBody::Bytes(bs),
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -93,7 +92,7 @@ impl oio::Write for GcsWriter {
         let copied = bs.slice(0..bs.len());
         let chunk_size = bs.len() as u64;
         let is_last_chunk = chunk_size / 256 / 1024 == 0;
-        let mut req = self.backend.gcs_upload_chunks_in_resumable_upload(
+        let mut req = self.core.gcs_upload_chunks_in_resumable_upload(
             upload_location,
             chunk_size,
             self.already_uploaded_chunk,
@@ -101,12 +100,9 @@ impl oio::Write for GcsWriter {
             AsyncBody::Bytes(bs),
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -122,6 +118,10 @@ impl oio::Write for GcsWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -143,7 +143,7 @@ impl oio::Write for GcsWriter {
         let copied_prev_chunk = bs.slice(0..bs.len());
 
         let resp = self
-            .backend
+            .core
             .gcs_complete_resumable_upload(
                 upload_location,
                 self.already_uploaded_chunk,

@@ -2,6 +2,7 @@
 
 - `layers-all`: Enable all layers support.
 - `layers-metrics`: Enable metrics layer support.
+- `layers-prometheus`: Enable prometheus layer support.
 - `layers-tracing`: Enable tracing layer support.
 - `layers-chaos`: Enable chaos layer support.
 

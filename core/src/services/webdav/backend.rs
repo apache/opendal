@@ -21,20 +21,20 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use bytes::Buf;
+use http::header;
+use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use http::{header, HeaderMap};
 use log::debug;
-
-use crate::ops::*;
-use crate::raw::*;
-use crate::*;
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
 use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
+use crate::ops::*;
+use crate::raw::*;
+use crate::*;
 
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 ///
@@ -44,6 +44,8 @@ use super::writer::WebdavWriter;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] copy
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -265,7 +267,11 @@ impl Accessor for WebdavBackend {
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::Copy
+                    | AccessorCapability::Rename
+                    | AccessorCapability::List,
             )
             .set_hints(AccessorHint::ReadStreamable);
 
@@ -273,22 +279,10 @@ impl Accessor for WebdavBackend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        // create dir recursively, split path by `/` and create each dir except the last one
+        self.ensure_parent_path(path).await?;
+
         let abs_path = build_abs_path(&self.root, path);
-        let abs_path = abs_path.as_str();
-        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
-        if !parts.is_empty() {
-            parts.pop();
-        }
-
-        let mut sub_path = String::new();
-        for sub_part in parts {
-            let sub_path_with_slash = sub_part.to_owned() + "/";
-            sub_path.push_str(&sub_path_with_slash);
-            self.create_internal(&sub_path).await?;
-        }
-
-        self.create_internal(abs_path).await
+        self.create_internal(&abs_path).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -316,6 +310,32 @@ impl Accessor for WebdavBackend {
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        self.ensure_parent_path(to).await?;
+
+        let resp = self.webdav_copy(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        self.ensure_parent_path(to).await?;
+
+        let resp = self.webdav_move(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpRename::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -428,7 +448,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub async fn webdav_put(
@@ -462,7 +482,7 @@ impl WebdavBackend {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_mkcol(
@@ -489,7 +509,7 @@ impl WebdavBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_propfind(
@@ -528,7 +548,7 @@ impl WebdavBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -546,7 +566,57 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
+    }
+
+    async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
+        let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));
+
+        let mut req = Request::builder().method("COPY").uri(&source);
+
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        req = req.header("Destination", target);
+
+        // We always specific "T" for keeping to overwrite the destination.
+        req = req.header("Overwrite", "T");
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
+        let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));
+
+        let mut req = Request::builder().method("MOVE").uri(&source);
+
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        req = req.header("Destination", target);
+
+        // We always specific "T" for keeping to overwrite the destination.
+        req = req.header("Overwrite", "T");
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
     }
 
     async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {
@@ -574,5 +644,24 @@ impl WebdavBackend {
             }
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn ensure_parent_path(&self, path: &str) -> Result<()> {
+        // create dir recursively, split path by `/` and create each dir except the last one
+        let abs_path = build_abs_path(&self.root, path);
+        let abs_path = abs_path.as_str();
+        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
+        if !parts.is_empty() {
+            parts.pop();
+        }
+
+        let mut sub_path = String::new();
+        for sub_part in parts {
+            let sub_path_with_slash = sub_part.to_owned() + "/";
+            sub_path.push_str(&sub_path_with_slash);
+            self.create_internal(&sub_path).await?;
+        }
+
+        Ok(())
     }
 }

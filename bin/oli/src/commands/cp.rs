@@ -15,10 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use anyhow::anyhow;
+use anyhow::Result;
+use clap::Arg;
+use clap::ArgAction;
+use clap::ArgMatches;
+use clap::Command;
 use futures::TryStreamExt;
 use opendal::Metakey;
 

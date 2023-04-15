@@ -20,11 +20,10 @@ extern crate napi_derive;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use time::format_description::well_known::Rfc3339;
-use time::Duration;
 
 fn build_operator(
     scheme: opendal::Scheme,
@@ -201,6 +200,30 @@ impl Operator {
             .map_err(format_napi_error)
     }
 
+    /// Read the whole path into a buffer.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const buf = await op.read("path/to/file");
+    /// ```
+    #[napi]
+    pub async fn read(&self, path: String) -> Result<Buffer> {
+        let res = self.0.read(&path).await.map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
+    /// Read the whole path into a buffer synchronously.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const buf = op.readSync("path/to/file");
+    /// ```
+    #[napi]
+    pub fn read_sync(&self, path: String) -> Result<Buffer> {
+        let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
     /// Write bytes into path.
     ///
     /// ### Example
@@ -235,28 +258,58 @@ impl Operator {
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
 
-    /// Read the whole path into a buffer.
+    /// Copy file according to given `from` and `to` path.
     ///
     /// ### Example
     /// ```javascript
-    /// const buf = await op.read("path/to/file");
+    /// await op.copy("path/to/file", "path/to/dest");
     /// ```
     #[napi]
-    pub async fn read(&self, path: String) -> Result<Buffer> {
-        let res = self.0.read(&path).await.map_err(format_napi_error)?;
-        Ok(res.into())
+    pub async fn copy(&self, from: String, to: String) -> Result<()> {
+        self.0.copy(&from, &to).await.map_err(format_napi_error)
     }
 
-    /// Read the whole path into a buffer synchronously.
+    /// Copy file according to given `from` and `to` path synchronously.
     ///
     /// ### Example
     /// ```javascript
-    /// const buf = op.readSync("path/to/file");
+    /// op.copySync("path/to/file", "path/to/dest");
     /// ```
     #[napi]
-    pub fn read_sync(&self, path: String) -> Result<Buffer> {
-        let res = self.0.blocking().read(&path).map_err(format_napi_error)?;
-        Ok(res.into())
+    pub fn copy_sync(&self, from: String, to: String) -> Result<()> {
+        self.0
+            .blocking()
+            .copy(&from, &to)
+            .map_err(format_napi_error)
+    }
+
+    /// Rename file according to given `from` and `to` path.
+    ///
+    /// It's similar to `mv` command.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.rename("path/to/file", "path/to/dest");
+    /// ```
+    #[napi]
+    pub async fn rename(&self, from: String, to: String) -> Result<()> {
+        self.0.rename(&from, &to).await.map_err(format_napi_error)
+    }
+
+    /// Rename file according to given `from` and `to` path synchronously.
+    ///
+    /// It's similar to `mv` command.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// op.renameSync("path/to/file", "path/to/dest");
+    /// ```
+    #[napi]
+    pub fn rename_sync(&self, from: String, to: String) -> Result<()> {
+        self.0
+            .blocking()
+            .rename(&from, &to)
+            .map_err(format_napi_error)
     }
 
     /// List dir in flat way.
@@ -423,17 +476,18 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignRead(path, parseInt(expires));
+    /// const req = await op.presignRead(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_read(&path, Duration::seconds(expires as i64))
+            .presign_read(&path, Duration::from_secs(expires as u64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -445,17 +499,18 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignWrite(path, parseInt(expires));
+    /// const req = await op.presignWrite(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_write(&path, Duration::seconds(expires as i64))
+            .presign_write(&path, Duration::from_secs(expires as u64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -467,17 +522,18 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignStat(path, parseInt(expires));
+    /// const req = await op.presignStat(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_stat(&path, Duration::seconds(expires as i64))
+            .presign_stat(&path, Duration::from_secs(expires as u64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -542,12 +598,12 @@ impl Metadata {
         self.0.etag().map(|s| s.to_string())
     }
 
-    /// Last Modified of this object.(UTC)
+    /// Last Modified of this object.
+    ///
+    /// We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
-        self.0
-            .last_modified()
-            .map(|ta| ta.format(&Rfc3339).unwrap())
+        self.0.last_modified().map(|ta| ta.to_rfc3339())
     }
 }
 

@@ -198,8 +198,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args)
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner.presign(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -330,6 +330,14 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         skip_all)]
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.inner.append(bs).await
+    }
+
+    #[tracing::instrument(
+        parent = &self.span,
+        level = "trace",
+        skip_all)]
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 
     #[tracing::instrument(

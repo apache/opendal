@@ -22,10 +22,8 @@ use bytes::Buf;
 use quick_xml::de;
 use quick_xml::escape::unescape;
 use serde::Deserialize;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
-use super::backend::OssBackend;
+use super::core::*;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
@@ -35,8 +33,8 @@ use crate::Metadata;
 use crate::Result;
 
 pub struct OssPager {
-    backend: Arc<OssBackend>,
-    root: String,
+    core: Arc<OssCore>,
+
     path: String,
     delimiter: String,
     limit: Option<usize>,
@@ -46,16 +44,9 @@ pub struct OssPager {
 }
 
 impl OssPager {
-    pub fn new(
-        backend: Arc<OssBackend>,
-        root: &str,
-        path: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Self {
+    pub fn new(core: Arc<OssCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
         Self {
-            backend,
-            root: root.to_string(),
+            core,
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
@@ -75,7 +66,7 @@ impl oio::Page for OssPager {
         }
 
         let resp = self
-            .backend
+            .core
             .oss_list_object(
                 &self.path,
                 self.token.as_deref(),
@@ -100,7 +91,7 @@ impl oio::Page for OssPager {
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.root, &prefix.prefix),
+                &build_rel_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
             entries.push(de);
@@ -114,18 +105,9 @@ impl oio::Page for OssPager {
 
             meta.set_etag(&object.etag);
             meta.set_content_length(object.size);
-            let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
-                .map(|v| {
-                    v.replace_nanosecond(0)
-                        .expect("replace nanosecond of last modified must succeed")
-                })
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse str into rfc 3339 datetime")
-                        .set_source(e)
-                })?;
-            meta.set_last_modified(dt);
+            meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
-            let rel = build_rel_path(&self.root, &object.key);
+            let rel = build_rel_path(&self.core.root, &object.key);
             let path = unescape(&rel)
                 .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
             let de = oio::Entry::new(&path, meta);

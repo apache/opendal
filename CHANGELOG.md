@@ -5,6 +5,131 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.31.0] - 2023-04-12
+
+### Added
+
+- feat(bindings/java): add cucumber test (#1809)
+- feat(bindings/java): setup Java CI (#1823)
+- feat: add if_none_match support (#1832)
+- feat: Retry when some of batch operations are failing (#1840)
+- feat: add writer support for aliyun oss (#1842)
+- feat(core): Add Copy Support (#1841)
+- feat(bindings/c): fix c bindings makefile (#1849)
+- feat(core): add behavior tests for copy & blocking_copy (#1852)
+- feat(s3): allow users to specify storage_class (#1854)
+- feat(s3): Support copy (#1856)
+- Add check for s3 bucket name (#1857)
+- feat(core): Support rename (#1862)
+- feat(bindings/nodejs): add `copy` and `rename` (#1866)
+- feat(azblob): Support copy (#1868)
+- feat(gcs): copy support for GCS (#1869)
+- feat(bindings/c): framework of add basic io and init logics (#1861)
+- feat(webdav): support copy (#1870)
+- feat(services/oss): Add Copy Support (#1874)
+- feat(services/obs): Add Copy Support (#1876)
+- feat(services/webdav): Support Rename (#1878)
+- binding/c: parse opendal to use typed BlockingOperator (#1881)
+- binding/c: clean up comments and type assertion for BlockingOperator (#1883)
+- binding(python): Support python binding benchmark for opendal (#1882)
+- feat(bindings/c): add support for free heap-allocated operator (#1890)
+- feat(binding/c): add is_exist to operator (#1892)
+- feat(bindings/java): add Stat support (#1894)
+- feat(services/gcs): Add customed token loader support (#1908)
+- feat(services/oss): remove unused builder prop allow_anonymous (#1913)
+- feat: Add feature flag for all services (#1915)
+
+### Changed
+
+- refactor(core): Simplify the usage of BatchOperation and BatchResults (#1843)
+- refactor: Use reqwest blocking client instead of ureq (#1853)
+- refactor: Bump MSRV to 1.64 (#1864)
+- refactor: Remove not used blocking http client (#1895)
+- refactor: Change presign to async for future refactor (#1900)
+- refactor(services/gcs): Migrate to async reqsign (#1906)
+- refactor(services/azdfs): Migrate to async reqsign (#1903)
+- refactor(services/azblob): Adopt new reqsign  (#1902)
+- refactor(services/s3): Migrate to async reqsign (#1909)
+- refactor(services/oss): Migrate to async reqsign (#1911)
+- refactor: Use chrono instead of time to work well with ecosystem (#1912)
+- refactor(service/obs): Migrate obs to async reqsign (#1914)
+
+### Fixed
+
+- fix: podling website check (#1838)
+- fix(website): copyright update (#1839)
+- fix(core): Add checks before doing copy (#1845)
+- fix(core): S3 Copy should set SSE headers (#1860)
+- fix: Fix presign related unit tests (#1910)
+
+### Docs
+
+- docs(bindings/nodejs): fix build failed (#1819)
+- docs: fix several typos in the documentation (#1846)
+- doc(bindings/nodejs): update presign example in doc (#1901)
+
+### CI
+
+- ci: Fix build for nodejs binding on macos (#1813)
+- binding/c: build: add phony to makefile, and some improve (#1850)
+- ci: upgrade hawkeye action (#1834)
+
+### Chore
+
+- chore(bindings/nodejs): add deno benchmark (#1814)
+- chore: Add CODEOWNERS (#1817)
+- chore(deps): bump opentelemetry-jaeger from 0.16.0 to 0.18.0 (#1829)
+- chore(deps): bump opentelemetry from 0.17.0 to 0.19.0 (#1830)
+- chore(deps): bump tokio from 1.26.0 to 1.27.0 (#1828)
+- chore(deps): bump napi-derive from 2.12.1 to 2.12.2 (#1827)
+- chore(deps): bump async-trait from 0.1.67 to 0.1.68 (#1826)
+- chore: Cleanup code for oss writer (#1847)
+- chore: Make clippy happy (#1865)
+- binding(python): Format python code in binding (#1885)
+
+## [v0.30.5] - 2023-03-31
+
+### Added
+
+- feat(oli): implement `oli rm` (#1774)
+- feat(bindings/nodejs): Support presign (#1772)
+- feat(oli): implement `oli stat` (#1778)
+- feat(bindings/object_store): Add support for list and list_with_delimiter (#1784)
+- feat(oli): implement `oli cp -r` (#1787)
+- feat(bindings/nodejs): Make PresignedRequest serializable (#1797)
+- feat(binding/c): add build.rs and cbindgen as dep to gen header (#1793)
+- feat(bindings/nodejs): Add more APIs and examples (#1799)
+- feat: reader_with and writer_with (#1803)
+- feat: add override_cache_control (#1804)
+- feat: add cache_control to OpWrite (#1806)
+
+### Changed
+
+- refactor(oli): switch to `Operator::scan` and `Operator::remove_all` (#1779)
+- refactor(bindings/nodejs): Polish benchmark to make it more readable (#1810)
+
+### Fixed
+
+- fix(oli): set the root of fs service to '/' (#1773)
+- fix: align WebDAV stat with RFC specification (#1783)
+- fix(bindings/nodejs): fix read benchmark (#1805)
+
+### CI
+
+- ci: Split clippy and docs check (#1785)
+- ci(bindings/nodejs): Support aarch64-apple-darwin (#1780)
+- ci(bindings/nodejs): publish with LICENSE & NOTICE (#1790)
+- ci(services/redis): Add dragonfly test (#1808)
+
+### Chore
+
+- chore(bindings/python): update maturin to 0.14.16 (#1777)
+- chore(bin/oli): Set oli version from package version (#1786)
+- chore(oli): set cli version in a central place (#1789)
+- chore: don't pin time version (#1788)
+- chore(bindings/nodejs): init benchmark (#1798)
+- chore(bindings/nodejs): Fix generated headers (#1802)
+
 ## [v0.30.4] - 2023-03-26
 
 ### Added
@@ -1715,6 +1840,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.31.0]: https://github.com/apache/incubator-opendal/compare/v0.30.5...v0.31.0
+[v0.30.5]: https://github.com/apache/incubator-opendal/compare/v0.30.4...v0.30.5
 [v0.30.4]: https://github.com/apache/incubator-opendal/compare/v0.30.3...v0.30.4
 [v0.30.3]: https://github.com/apache/incubator-opendal/compare/v0.30.2...v0.30.3
 [v0.30.2]: https://github.com/apache/incubator-opendal/compare/v0.30.1...v0.30.2

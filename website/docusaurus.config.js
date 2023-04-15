@@ -151,6 +151,10 @@ const config = {
                 to: 'https://www.apache.org/events/current-event'
               },
               {
+                label: 'Privacy',
+                to: 'https://privacy.apache.org/policies/privacy-policy-public.html'
+              },
+              {
                 label: 'Security',
                 to: 'https://www.apache.org/security/'
               },
@@ -182,11 +186,11 @@ const config = {
         style: 'light',
         logo: {
           alt: 'Apache Software Foundation',
-          src: 'https://www.apache.org/foundation/press/kit/asf_logo.png',
+          src: './img/incubator.svg',
           href: 'https://www.apache.org/',
-          width: 150,
+          width: 200,
         },
-        copyright: `Copyright © 2022-${new Date().getFullYear()}, The Apache Software Foundation Apache OpenDAL, OpenDAL, Apache, the Apache feather, and the Apache OpenDAL project logo are either registered trademarks or trademarks of the Apache Software Foundation.`,
+        copyright: `Apache OpenDAL (incubating) is an effort undergoing incubation at The Apache Software Foundation (ASF), sponsored by the Apache Incubator. Incubation is required of all newly accepted projects until a further review indicates that the infrastructure, communications, and decision making process have stabilized in a manner consistent with other successful ASF projects. While incubation status is not necessarily a reflection of the completeness or stability of the code, it does indicate that the project has yet to be fully endorsed by the ASF. <br/><br/> Copyright © 2022-${new Date().getFullYear()}, The Apache Software Foundation Apache OpenDAL, OpenDAL, Apache, Apache Incubator, the Apache feather, the Apache Incubator logo and the Apache OpenDAL project logo are either registered trademarks or trademarks of the Apache Software Foundation.`,
       },
       prism: {
         theme: lightCodeTheme,

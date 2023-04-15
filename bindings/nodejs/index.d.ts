@@ -112,6 +112,24 @@ export class Operator {
    */
   createDirSync(path: string): void
   /**
+   * Read the whole path into a buffer.
+   *
+   * ### Example
+   * ```javascript
+   * const buf = await op.read("path/to/file");
+   * ```
+   */
+  read(path: string): Promise<Buffer>
+  /**
+   * Read the whole path into a buffer synchronously.
+   *
+   * ### Example
+   * ```javascript
+   * const buf = op.readSync("path/to/file");
+   * ```
+   */
+  readSync(path: string): Buffer
+  /**
    * Write bytes into path.
    *
    * ### Example
@@ -134,23 +152,45 @@ export class Operator {
    */
   writeSync(path: string, content: Buffer | string): void
   /**
-   * Read the whole path into a buffer.
+   * Copy file according to given `from` and `to` path.
    *
    * ### Example
    * ```javascript
-   * const buf = await op.read("path/to/file");
+   * await op.copy("path/to/file", "path/to/dest");
    * ```
    */
-  read(path: string): Promise<Buffer>
+  copy(from: string, to: string): Promise<void>
   /**
-   * Read the whole path into a buffer synchronously.
+   * Copy file according to given `from` and `to` path synchronously.
    *
    * ### Example
    * ```javascript
-   * const buf = op.readSync("path/to/file");
+   * op.copySync("path/to/file", "path/to/dest");
    * ```
    */
-  readSync(path: string): Buffer
+  copySync(from: string, to: string): void
+  /**
+   * Rename file according to given `from` and `to` path.
+   *
+   * It's similar to `mv` command.
+   *
+   * ### Example
+   * ```javascript
+   * await op.rename("path/to/file", "path/to/dest");
+   * ```
+   */
+  rename(from: string, to: string): Promise<void>
+  /**
+   * Rename file according to given `from` and `to` path synchronously.
+   *
+   * It's similar to `mv` command.
+   *
+   * ### Example
+   * ```javascript
+   * op.renameSync("path/to/file", "path/to/dest");
+   * ```
+   */
+  renameSync(from: string, to: string): void
   /**
    * List dir in flat way.
    *
@@ -298,9 +338,9 @@ export class Operator {
    * ```javascript
    * const req = op.presignRead(path, parseInt(expires));
    *
-   * console.log("method: ", req.method)
-   * console.log("url: ", req.url)
-   * console.log("headers: ", req.headers)
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
    * ```
    */
   presignRead(path: string, expires: number): PresignedRequest
@@ -314,9 +354,9 @@ export class Operator {
    * ```javascript
    * const req = op.presignWrite(path, parseInt(expires));
    *
-   * console.log("method: ", req.method)
-   * console.log("url: ", req.url)
-   * console.log("headers: ", req.headers)
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
    * ```
    */
   presignWrite(path: string, expires: number): PresignedRequest
@@ -330,9 +370,9 @@ export class Operator {
    * ```javascript
    * const req = op.presignStat(path, parseInt(expires));
    *
-   * console.log("method: ", req.method)
-   * console.log("url: ", req.url)
-   * console.log("headers: ", req.headers)
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
    * ```
    */
   presignStat(path: string, expires: number): PresignedRequest

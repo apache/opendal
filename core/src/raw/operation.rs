@@ -19,10 +19,11 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 /// Operation is the name for APIs in `Accessor`.
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Default)]
 #[non_exhaustive]
 pub enum Operation {
     /// Operation for [`crate::raw::Accessor::info`]
+    #[default]
     Info,
     /// Operation for [`crate::raw::Accessor::create`]
     Create,
@@ -30,6 +31,10 @@ pub enum Operation {
     Read,
     /// Operation for [`crate::raw::Accessor::write`]
     Write,
+    /// Operation for [`crate::raw::Accessor::copy`]
+    Copy,
+    /// Operation for [`crate::raw::Accessor::rename`]
+    Rename,
     /// Operation for [`crate::raw::Accessor::stat`]
     Stat,
     /// Operation for [`crate::raw::Accessor::delete`]
@@ -48,6 +53,10 @@ pub enum Operation {
     BlockingRead,
     /// Operation for [`crate::raw::Accessor::blocking_write`]
     BlockingWrite,
+    /// Operation for [`crate::raw::Accessor::blocking_copy`]
+    BlockingCopy,
+    /// Operation for [`crate::raw::Accessor::blocking_rename`]
+    BlockingMove,
     /// Operation for [`crate::raw::Accessor::blocking_stat`]
     BlockingStat,
     /// Operation for [`crate::raw::Accessor::blocking_delete`]
@@ -65,12 +74,6 @@ impl Operation {
     }
 }
 
-impl Default for Operation {
-    fn default() -> Self {
-        Operation::Info
-    }
-}
-
 impl Display for Operation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.into_static())
@@ -84,6 +87,8 @@ impl From<Operation> for &'static str {
             Operation::Create => "create",
             Operation::Read => "read",
             Operation::Write => "write",
+            Operation::Copy => "copy",
+            Operation::Rename => "rename",
             Operation::Stat => "stat",
             Operation::Delete => "delete",
             Operation::List => "list",
@@ -93,6 +98,8 @@ impl From<Operation> for &'static str {
             Operation::BlockingCreate => "blocking_create",
             Operation::BlockingRead => "blocking_read",
             Operation::BlockingWrite => "blocking_write",
+            Operation::BlockingCopy => "blocking_copy",
+            Operation::BlockingMove => "blocking_rename",
             Operation::BlockingStat => "blocking_stat",
             Operation::BlockingDelete => "blocking_delete",
             Operation::BlockingList => "blocking_list",

@@ -288,16 +288,37 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        { || self.inner.batch(args.clone()) }
+        { || self.inner.batch(args.clone()).map(Err::<(), _>) }
             .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
+            .when(|res| match res {
+                Ok(rp) => rp.results().iter().any(|(_, v)| {
+                    if let Err(e) = v {
+                        e.is_temporary()
+                    } else {
+                        false
+                    }
+                }),
+                Err(err) => err.is_temporary(),
+            })
+            .notify(|res, dur| match res {
+                Ok(rp) => warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
-                    Operation::Batch, dur.as_secs_f64(), err)
+                    Operation::Batch, dur.as_secs_f64(),
+                    rp.results().iter().filter_map(|(_, v)| {
+                        if let Err(e) = v  {
+                            if e.is_temporary() {
+                                return Some(e);
+                            }
+                        }
+                        None
+                }).collect::<Vec<_>>()),
+                Err(err) => warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Batch, dur.as_secs_f64(), err),
             })
-            .map(|v| v.map_err(|e| e.set_persistent()))
+            .map(|v| v.unwrap_err().map_err(|e| e.set_persistent()))
             .await
     }
 
@@ -651,6 +672,27 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
         }
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.abort().await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+
     async fn close(&mut self) -> Result<()> {
         let mut backoff = self.builder.build();
 
@@ -809,7 +851,7 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capabilities(AccessorCapability::List);
+            am.set_capabilities(AccessorCapability::List | AccessorCapability::Batch);
             am.set_hints(AccessorHint::ReadStreamable);
 
             am
@@ -828,6 +870,63 @@ mod tests {
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
             let pager = MockPager::default();
             Ok((RpList::default(), pager))
+        }
+
+        async fn batch(&self, op: OpBatch) -> Result<RpBatch> {
+            let mut attempt = self.attempt.lock().unwrap();
+            *attempt += 1;
+
+            match *attempt {
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                2 => Ok(RpBatch::new(
+                    op.into_operation()
+                        .into_iter()
+                        .map(|(s, _)| {
+                            (
+                                s,
+                                Err(Error::new(
+                                    ErrorKind::Unexpected,
+                                    "retryable_error from reader",
+                                )
+                                .set_temporary()),
+                            )
+                        })
+                        .collect(),
+                )),
+                3 => Ok(RpBatch::new(
+                    op.into_operation()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, (s, _))| {
+                            (
+                                s,
+                                match i {
+                                    0 => Err(Error::new(
+                                        ErrorKind::Unexpected,
+                                        "retryable_error from reader",
+                                    )
+                                    .set_temporary()),
+                                    _ => Ok(RpDelete {}.into()),
+                                },
+                            )
+                        })
+                        .collect(),
+                )),
+                4 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
+                5 => Ok(RpBatch::new(
+                    op.into_operation()
+                        .into_iter()
+                        .map(|(s, _)| (s, Ok(RpDelete {}.into())))
+                        .collect(),
+                )),
+                _ => unreachable!(),
+            }
         }
     }
 
@@ -970,5 +1069,30 @@ mod tests {
         }
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_retry_batch() {
+        let _ = env_logger::try_init();
+
+        let builder = MockBuilder::default();
+        // set to a lower delay to make it run faster
+        let op = Operator::new(builder.clone())
+            .unwrap()
+            .layer(
+                RetryLayer::new()
+                    .with_min_delay(Duration::from_secs_f32(0.1))
+                    .with_max_times(5),
+            )
+            .finish();
+
+        let paths = vec![
+            "hello".into(),
+            "world".into(),
+            "test".into(),
+            "batch".into(),
+        ];
+        op.remove(paths).await.expect("batch must succeed");
+        assert_eq!(*builder.attempt.lock().unwrap(), 5);
     }
 }

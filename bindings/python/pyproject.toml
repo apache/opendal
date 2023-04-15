@@ -32,15 +32,23 @@ readme = "README.md"
 requires-python = ">=3.7"
 
 [project.optional-dependencies]
-test = ["behave"]
+benchmark = [
+  "gevent",
+  "greenify",
+  "greenlet",
+  "boto3",
+  "pydantic",
+  "boto3-stubs[essential]",
+]
 docs = ["pdoc"]
+test = ["behave"]
 
 [project.urls]
-Documentation = "https://docs.rs/opendal/"
+Documentation = "https://opendal.apache.org/docs/python/opendal.html"
 Homepage = "https://opendal.apache.org/"
 Repository = "https://github.com/apache/incubator-opendal"
 
 [tool.maturin]
-module-name = "opendal._opendal"
 features = ["pyo3/extension-module"]
+module-name = "opendal._opendal"
 python-source = "python"

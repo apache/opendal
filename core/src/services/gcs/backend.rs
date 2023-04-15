@@ -19,13 +19,13 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use bytes::Bytes;
-use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::{CONTENT_LENGTH, CONTENT_RANGE};
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -395,19 +395,22 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let upload_id = if args.append() {
-            let resp = self.gcs_initiate_multipart_upload(path).await?;
+        let upload_location = if args.append() {
+            let resp = self.gcs_initiate_resumable_upload(path).await?;
             let status = resp.status();
 
             match status {
                 StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
-
-                    let result: InitiateMultipartUploadResult =
-                        quick_xml::de::from_reader(bs.reader())
-                            .map_err(new_xml_deserialize_error)?;
-
-                    Some(result.upload_id)
+                    let bs = resp
+                        .headers()
+                        .into_iter()
+                        .filter(|&x| x.0.as_str().to_ascii_lowercase().eq("location"))
+                        .next()
+                        .expect("Failed to retrieve location of resumable upload");
+                    Some(
+                        String::from_utf8(bs.1.as_bytes().to_vec())
+                            .expect("failed to convert location to string"),
+                    )
                 }
                 _ => return Err(parse_error(resp).await?),
             }
@@ -417,7 +420,7 @@ impl Accessor for GcsBackend {
 
         Ok((
             RpWrite::default(),
-            GcsWriter::new(self.clone(), args, path.to_string(), upload_id),
+            GcsWriter::new(self.clone(), args, path.to_string(), upload_location),
         ))
     }
 
@@ -642,12 +645,15 @@ impl GcsBackend {
         self.client.send_async(req).await
     }
 
-    async fn gcs_initiate_multipart_upload(
+    async fn gcs_initiate_resumable_upload(
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
+        let url = format!(
+            "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
+            self.endpoint, self.bucket, p
+        );
         let mut req = Request::post(&url)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -655,25 +661,34 @@ impl GcsBackend {
         self.client.send_async(req).await
     }
 
-    pub fn gcs_upload_part_request(
+    pub fn gcs_upload_chunks_in_resumable_upload(
         &self,
-        path: &str,
-        upload_id: &str,
-        part_number: usize,
-        size: Option<u64>,
+        upload_location: &str,
+        size: u64,
+        already_sent_bytes: u64,
+        is_last_chunk: bool,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/{}/{}?partNumber={}&uploadId={}",
-            self.endpoint, self.bucket, p, part_number, upload_id
-        );
+        let mut req = Request::put(upload_location);
 
-        let mut req = Request::put(&url);
+        let range_header = if is_last_chunk {
+            format!(
+                "bytes {}-{}/{}",
+                already_sent_bytes,
+                already_sent_bytes + size - 1,
+                already_sent_bytes + size
+            )
+        } else {
+            format!(
+                "bytes {}-{}/*",
+                already_sent_bytes,
+                already_sent_bytes + size - 1
+            )
+        };
 
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size);
-        }
+        req = req
+            .header(CONTENT_LENGTH, size)
+            .header(CONTENT_RANGE, range_header);
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -681,32 +696,24 @@ impl GcsBackend {
         Ok(req)
     }
 
-    pub async fn gcs_complete_multipart_upload(
+    pub async fn gcs_complete_resumable_upload(
         &self,
-        path: &str,
-        upload_id: &str,
-        parts: &[CompleteMultipartUploadRequestPart],
+        upload_location: &str,
+        already_uploaded_chunk: u64,
+        prev_upload_chunk: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}/{}?uploadId={}",
-            self.endpoint, self.bucket, p, upload_id
-        );
-
-        let req = Request::post(&url);
-
-        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
-            part: parts.to_vec(),
-        })
-        .map_err(new_xml_deserialize_error)?;
-        // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
-        // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
-
-        let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
+        let mut req = Request::post(upload_location)
+            .header(CONTENT_LENGTH, prev_upload_chunk.len())
+            .header(
+                CONTENT_RANGE,
+                format!(
+                    "bytes {}-{}/{}",
+                    already_uploaded_chunk - prev_upload_chunk.len() as u64,
+                    already_uploaded_chunk - 1,
+                    already_uploaded_chunk
+                ),
+            )
+            .body(AsyncBody::Bytes(prev_upload_chunk))
             .map_err(new_request_build_error)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;

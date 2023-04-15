@@ -5,42 +5,47 @@ mod real;
 
 #[cfg(madsim)]
 pub use mock::MadsimLayer;
+#[cfg(madsim)]
+pub use mock::SimServer;
 #[cfg(not(madsim))]
 pub use real::MadsimLayer;
 
+#[cfg(madsim)]
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{services, EntryMode, Operator};
+    use madsim::{net::NetSim, runtime::Handle, time::sleep};
+    use std::time::Duration;
 
+    //  RUSTFLAGS="--cfg madsim" cargo test layers::simulation::test::test_madsim_layer
     #[madsim::test]
     async fn test_madsim_layer() {
-        let mut builder = services::Fs::default();
-        builder.root(".");
+        let handle = Handle::current();
+        let ip1 = "10.0.0.1".parse().unwrap();
+        let ip2 = "10.0.0.2".parse().unwrap();
+        let sim_server_socket = "10.0.0.1:2379".parse().unwrap();
+        let server = handle.create_node().name("server").ip(ip1).build();
+        let client = handle.create_node().name("client").ip(ip2).build();
 
-        // Init an operator
-        let op = Operator::new(builder)
-            .unwrap()
-            // Init with logging layer enabled.
-            .layer(MadsimLayer::default())
-            .finish();
+        server.spawn(async move {
+            SimServer::serve(sim_server_socket).await.unwrap();
+        });
+        sleep(Duration::from_secs(1)).await;
 
-        let path = "hello.txt";
-        let data = "Hello, World!";
+        let handle = client.spawn(async move {
+            let mut builder = services::Fs::default();
+            builder.root(".");
+            let op = Operator::new(builder)
+                .unwrap()
+                .layer(MadsimLayer::new(sim_server_socket))
+                .finish();
 
-        // Write data
-        op.write("hello.txt", "Hello, World!").await.unwrap();
+            let path = "hello.txt";
+            let data = "Hello, World!";
+            op.write(path, data).await.unwrap();
+            assert_eq!(data.as_bytes(), op.read(path).await.unwrap());
+        });
+        handle.await.unwrap();
     }
-        // // Read data
-        // let bs = op.read(path).await.unwrap();
-        // assert_eq!(bs, data.as_bytes());
-        //
-        // // Fetch metadata
-        // let meta = op.stat("hello.txt").await.unwrap();
-        // let mode = meta.mode();
-        // let length = meta.content_length();
-        // assert_eq!(mode, EntryMode::FILE);
-        // assert_eq!(length, data.len() as u64);
-        // // Delete
-        // op.delete("hello.txt").await.unwrap();
 }

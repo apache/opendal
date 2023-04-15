@@ -66,3 +66,5 @@ pub(crate) use complete::CompleteLayer;
 mod simulation;
 
 pub use simulation::MadsimLayer;
+#[cfg(madsim)]
+pub use simulation::SimServer;

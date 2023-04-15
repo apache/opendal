@@ -1,75 +1,83 @@
-use std::collections::HashMap;
 use crate::ops::{OpList, OpRead, OpScan, OpWrite};
 use crate::raw::oio::Entry;
 use crate::raw::{oio, Accessor, Layer, LayeredAccessor, RpList, RpRead, RpScan, RpWrite};
+use crate::EntryMode;
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::fmt::{Debug, Formatter};
-use std::io::SeekFrom;
-use std::task::{Context, Poll};
 use madsim::net::Endpoint;
+use madsim::net::Payload;
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::io::Result;
+use std::io::SeekFrom;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::task::{Context, Poll};
 
-const SIM_SERVER_ADDR: &str = "10.0.0.1:1";
-const SIM_CLIENT_ADDR: &str = "10.0.0.2:1";
+#[derive(Debug, Copy, Clone)]
+pub struct MadsimLayer {
+    sim_server_socket: SocketAddr,
+}
 
-#[derive(Debug, Copy, Clone, Default)]
-pub struct MadsimLayer;
+impl MadsimLayer {
+    pub fn new(sim_server_socket: SocketAddr) -> Self {
+        Self { sim_server_socket }
+    }
+}
 
 impl<A: Accessor> Layer<A> for MadsimLayer {
-    type LayeredAccessor = MadsimAccessor<A>;
+    type LayeredAccessor = MadsimAccessor;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let runtime = madsim::runtime::Runtime::new();
-        let sim_server_adder = "10.0.0.1:1".parse::<SocketAddr>().unwrap();
-        let sim_client_addr = "10.0.0.2:1".parse::<SocketAddr>().unwrap();
-        let ep = runtime.block_on(async {
-            madsim::task::spawn(SimServer::serve(sim_server_adder));
-            Endpoint::bind(sim_client_addr).await
+    fn layer(&self, _inner: A) -> Self::LayeredAccessor {
+        MadsimAccessor {
+            sim_server_socket: self.sim_server_socket,
         }
-        ).unwrap();
-        MadsimAccessor { inner, ep }
     }
 }
 
-pub struct MadsimAccessor<A: Accessor> {
-    inner: A,
-    ep: Endpoint,
-}
-
-impl<A: Accessor> Debug for MadsimAccessor<A> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
+#[derive(Debug)]
+pub struct MadsimAccessor {
+    sim_server_socket: SocketAddr,
 }
 
 #[async_trait]
-impl<A: Accessor> LayeredAccessor for MadsimAccessor<A> {
-    type Inner = A;
-    type Reader = MadsimReader<A::Reader>;
-    type BlockingReader = MadsimReader<A::BlockingReader>;
-    type Writer = MadsimWriter<A::Writer>;
-    type BlockingWriter = MadsimWriter<A::BlockingWriter>;
-    type Pager = MadsimPager<A::Pager>;
-    type BlockingPager = MadsimPager<A::BlockingPager>;
+impl LayeredAccessor for MadsimAccessor {
+    type Inner = ();
+    type Reader = MadsimReader;
+    type BlockingReader = MadsimReader;
+    type Writer = MadsimWriter;
+    type BlockingWriter = MadsimWriter;
+    type Pager = MadsimPager;
+    type BlockingPager = MadsimPager;
 
     fn inner(&self) -> &Self::Inner {
-        &self.inner
+        &()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> crate::Result<(RpRead, Self::Reader)> {
-        todo!()
+        let req = Request::Read(path.to_string(), args);
+        let ep = Endpoint::connect(self.sim_server_socket).await.expect("fail to connect to sim server");
+        let (tx, mut rx) = ep.connect1(self.sim_server_socket).await.expect("fail to connect1 to sim server");
+        tx.send(Box::new(req)).await.expect("fail to send request to sim server");
+        let resp = rx.recv().await.expect("fail to recv response from sim server");
+        let resp = resp.downcast::<ReadResponse>().expect("fail to downcast response to ReadResponse");
+        let content_length = resp.data.as_ref().map(|b| b.len()).unwrap_or(0);
+        Ok((
+            RpRead::new(content_length as u64),
+            MadsimReader { data: resp.data },
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> crate::Result<(RpWrite, Self::Writer)> {
-        let req = Request::Write(path.to_string(), args);
-        let sim_server_addr = SIM_SERVER_ADDR.parse::<SocketAddr>().unwrap();
-        let (tx, mut rx) = self.ep.connect1(sim_server_addr).await.unwrap();
-        tx.send(Box::new(req)).await.unwrap();
-        let resp = *rx.recv().await.unwrap().downcast().unwrap();
-        Ok(resp)
+        Ok((
+            RpWrite::default(),
+            MadsimWriter {
+                path: path.to_string(),
+                args,
+                sim_server_socket: self.sim_server_socket,
+            },
+        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Pager)> {
@@ -113,13 +121,19 @@ impl<A: Accessor> LayeredAccessor for MadsimAccessor<A> {
     }
 }
 
-pub struct MadsimReader<R> {
-    inner: R,
+pub struct MadsimReader {
+    data: Option<Bytes>,
 }
 
-impl<R: oio::Read> oio::Read for MadsimReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
-        todo!()
+impl oio::Read for MadsimReader {
+    fn poll_read(&mut self, _cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
+        if let Some(ref data) = self.data {
+            let len = data.len();
+            buf[..len].copy_from_slice(&data);
+            Poll::Ready(Ok(len))
+        } else {
+            Poll::Ready(Ok(0))
+        }
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<crate::Result<u64>> {
@@ -131,7 +145,7 @@ impl<R: oio::Read> oio::Read for MadsimReader<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for MadsimReader<R> {
+impl oio::BlockingRead for MadsimReader {
     fn read(&mut self, buf: &mut [u8]) -> crate::Result<usize> {
         todo!()
     }
@@ -145,11 +159,13 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MadsimReader<R> {
     }
 }
 
-pub struct MadsimWriter<W> {
-    inner: W,
+pub struct MadsimWriter {
+    path: String,
+    args: OpWrite,
+    sim_server_socket: SocketAddr,
 }
 
-impl<W: oio::BlockingWrite> oio::BlockingWrite for MadsimWriter<W> {
+impl oio::BlockingWrite for MadsimWriter {
     fn write(&mut self, bs: Bytes) -> crate::Result<()> {
         todo!()
     }
@@ -164,9 +180,14 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for MadsimWriter<W> {
 }
 
 #[async_trait]
-impl<W: oio::Write> oio::Write for MadsimWriter<W> {
+impl oio::Write for MadsimWriter {
     async fn write(&mut self, bs: Bytes) -> crate::Result<()> {
-        todo!()
+        let req = Request::Write(self.path.to_string(), bs);
+        let ep = Endpoint::connect(self.sim_server_socket).await.expect("fail to connect to sim server");
+        let (tx, mut rx) = ep.connect1(self.sim_server_socket).await.expect("fail to connect1 to sim server");
+        tx.send(Box::new(req)).await.expect("fail to send request to sim server");
+        rx.recv().await.expect("fail to recv response from sim server");
+        Ok(())
     }
 
     async fn append(&mut self, bs: Bytes) -> crate::Result<()> {
@@ -174,27 +195,24 @@ impl<W: oio::Write> oio::Write for MadsimWriter<W> {
     }
 
     async fn close(&mut self) -> crate::Result<()> {
-        todo!()
+        Ok(())
     }
 }
 
-pub struct MadsimPager<P> {
-    inner: P,
-}
+pub struct MadsimPager {}
 
 #[async_trait]
-impl<P: oio::Page> oio::Page for MadsimPager<P> {
+impl oio::Page for MadsimPager {
     async fn next(&mut self) -> crate::Result<Option<Vec<Entry>>> {
         todo!()
     }
 }
 
-impl<P: oio::BlockingPage> oio::BlockingPage for MadsimPager<P> {
+impl oio::BlockingPage for MadsimPager {
     fn next(&mut self) -> crate::Result<Option<Vec<Entry>>> {
         todo!()
     }
 }
-
 
 /// A simulated server.
 #[derive(Default, Clone)]
@@ -208,10 +226,14 @@ impl SimServer {
             let (tx, mut rx, _) = ep.accept1().await?;
             let service = service.clone();
             madsim::task::spawn(async move {
-                let request = *rx.recv().await?.downcast::<Request>().unwrap();
+                let request = *rx.recv().await?.downcast::<Request>().expect("invalid request");
                 let response = match request {
-                    Request::Read(path, args) => Box::new(SimServerResponse::Read(service.read(&path, args).await)),
-                    Request::Write(path, args) => Box::new(SimServerResponse::Write(service.write(&path, args).await)),
+                    Request::Read(path, args) => {
+                        Box::new(service.read(&path, args).await) as Payload
+                    }
+                    Request::Write(path, args) => {
+                        Box::new(service.write(&path, args).await) as Payload
+                    }
                 };
                 tx.send(response).await?;
                 Ok(()) as Result<()>
@@ -220,34 +242,45 @@ impl SimServer {
     }
 }
 
-enum Request {
-    Read(String, OpRead),
-    Write(String, OpWrite),
+pub struct SimClient {
+    ep: Endpoint,
 }
 
+impl SimClient {
+    pub async fn connect(addr: SocketAddr) -> Result<Self> {
+        let ep = Endpoint::bind(addr).await?;
+        Ok(Self { ep })
+    }
+}
+
+enum Request {
+    Read(String, OpRead),
+    Write(String, Bytes),
+}
 
 #[derive(Default)]
 pub struct SimService {
-    data: HashMap<String, Vec<u8>>,
+    inner: Mutex<HashMap<String, Bytes>>,
 }
 
 impl SimService {
     async fn read(&self, path: &str, args: OpRead) -> ReadResponse {
-        todo!()
+        let mut inner = self.inner.lock().unwrap();
+        let data = inner.get(path);
+        ReadResponse {
+            data: data.cloned(),
+        }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> WriteResponse {
-        todo!()
+    async fn write(&self, path: &str, data: Bytes) -> WriteResponse {
+        let mut inner = self.inner.lock().unwrap();
+        inner.insert(path.to_string(), data);
+        WriteResponse {}
     }
 }
 
 struct ReadResponse {
-    data: Option<Vec<u8>>,
+    data: Option<Bytes>,
 }
 
 struct WriteResponse {}
-
-enum SimServerResponse {
-    Read(ReadResponse),
-    Write(WriteResponse),
-}

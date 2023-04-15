@@ -62,8 +62,14 @@ mod complete;
 
 pub(crate) use complete::CompleteLayer;
 
-mod simulation;
-
-pub use simulation::MadsimLayer;
+#[cfg(feature = "layers-madsim")]
 #[cfg(madsim)]
-pub use simulation::SimServer;
+mod madsim;
+
+#[cfg(feature = "layers-madsim")]
+#[cfg(madsim)]
+pub use self::madsim::MadsimLayer;
+
+#[cfg(feature = "layers-madsim")]
+#[cfg(madsim)]
+pub use self::madsim::SimServer;

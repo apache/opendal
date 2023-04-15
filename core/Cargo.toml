@@ -53,13 +53,15 @@ native-tls = ["reqwest/native-tls", "ureq/native-tls"]
 native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
 
 # Enable all layers.
-layers-all = ["layers-chaos", "layers-metrics", "layers-tracing"]
+layers-all = ["layers-chaos", "layers-metrics", "layers-tracing","layers-madsim"]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
 layers-metrics = ["dep:metrics"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
+# Enable layers madsim support
+layers-madsim = ["dep:madsim"]
 
 # Enable services dashmap support
 services-dashmap = ["dep:dashmap"]
@@ -104,7 +106,7 @@ http = "0.2.5"
 hyper = "0.14"
 lazy-regex = { version = "2.5.0", optional = true }
 log = "0.4"
-madsim = "0.2.19"
+madsim = {version = "0.2.19", optional = true }
 md-5 = "0.10"
 metrics = { version = "0.20", optional = true }
 moka = { version = "0.10", optional = true, features = ["future"] }

@@ -19,7 +19,6 @@ use crate::ops::{OpList, OpRead, OpScan, OpWrite};
 use crate::raw::{Accessor, Layer, LayeredAccessor, RpList, RpRead, RpScan, RpWrite};
 use async_trait::async_trait;
 
-
 #[derive(Debug, Copy, Clone, Default)]
 pub struct MadsimLayer;
 

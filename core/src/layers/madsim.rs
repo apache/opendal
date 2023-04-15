@@ -18,13 +18,12 @@
 use crate::ops::{OpList, OpRead, OpScan, OpWrite};
 use crate::raw::oio::Entry;
 use crate::raw::{oio, Accessor, Layer, LayeredAccessor, RpList, RpRead, RpScan, RpWrite};
-use crate::EntryMode;
 use async_trait::async_trait;
 use bytes::Bytes;
 use madsim::net::Endpoint;
 use madsim::net::Payload;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::io::Result;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
@@ -232,6 +231,10 @@ impl oio::Write for MadsimWriter {
         todo!()
     }
 
+    async fn abort(&mut self) -> crate::Result<()> {
+        todo!()
+    }
+
     async fn close(&mut self) -> crate::Result<()> {
         Ok(())
     }
@@ -319,8 +322,8 @@ struct WriteResponse {}
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{services, EntryMode, Operator};
-    use madsim::{net::NetSim, runtime::Handle, time::sleep};
+    use crate::{services, Operator};
+    use madsim::{runtime::Handle, time::sleep};
     use std::time::Duration;
 
     #[madsim::test]

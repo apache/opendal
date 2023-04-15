@@ -105,7 +105,7 @@ impl LayeredAccessor for MadsimAccessor {
         path: &str,
         args: OpRead,
     ) -> crate::Result<(RpRead, Self::BlockingReader)> {
-        todo!()
+        panic!("blocking_read is not supported in MadsimLayer");
     }
 
     fn blocking_write(
@@ -113,7 +113,7 @@ impl LayeredAccessor for MadsimAccessor {
         path: &str,
         args: OpWrite,
     ) -> crate::Result<(RpWrite, Self::BlockingWriter)> {
-        todo!()
+        panic!("blocking_write is not supported in MadsimLayer");
     }
 
     fn blocking_list(
@@ -121,7 +121,7 @@ impl LayeredAccessor for MadsimAccessor {
         path: &str,
         args: OpList,
     ) -> crate::Result<(RpList, Self::BlockingPager)> {
-        todo!()
+        panic!("blocking_list is not supported in MadsimLayer");
     }
 
     fn blocking_scan(
@@ -129,7 +129,7 @@ impl LayeredAccessor for MadsimAccessor {
         path: &str,
         args: OpScan,
     ) -> crate::Result<(RpScan, Self::BlockingPager)> {
-        todo!()
+        panic!("blocking_scan is not supported in MadsimLayer");
     }
 }
 

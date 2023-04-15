@@ -34,7 +34,22 @@ version.workspace = true
 all-features = true
 
 [features]
-default = ["rustls"]
+default = [
+  "rustls",
+  "services-azblob",
+  "services-azdfs",
+  "services-fs",
+  "services-gcs",
+  "services-ghac",
+  "services-http",
+  "services-ipmfs",
+  "services-memory",
+  "services-obs",
+  "services-oss",
+  "services-s3",
+  "services-webdav",
+  "services-webhdfs",
+]
 
 # Build docs or not.
 #
@@ -43,44 +58,83 @@ default = ["rustls"]
 docs = []
 
 # Enable trust-dns for pure rust dns cache.
-trust-dns = ["reqwest/trust-dns", "dep:trust-dns-resolver"]
+trust-dns = ["reqwest/trust-dns"]
 
 # Enable rustls for TLS support
-rustls = ["reqwest/rustls-tls-native-roots", "ureq/tls", "ureq/native-certs"]
+rustls = ["reqwest/rustls-tls-native-roots"]
 # Enable native-tls for TLS support
-native-tls = ["reqwest/native-tls", "ureq/native-tls"]
+native-tls = ["reqwest/native-tls"]
 # Enable vendored native-tls for TLS support
-native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
+native-tls-vendored = ["reqwest/native-tls-vendored"]
 
 # Enable all layers.
-layers-all = ["layers-chaos", "layers-metrics", "layers-tracing","layers-madsim"]
+layers-all = [
+  "layers-chaos",
+  "layers-metrics",
+  "layers-prometheus",
+  "layers-tracing",
+  "layers-minitrace",
+  "layers-madsim"
+]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
 layers-metrics = ["dep:metrics"]
+# Enable layers prometheus support
+layers-prometheus = ["dep:prometheus"]
+# Enable layers minitrace support.
+layers-minitrace = ["dep:minitrace"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
 # Enable layers madsim support
 layers-madsim = ["dep:madsim"]
 
-# Enable services dashmap support
+services-azblob = [
+  "dep:reqsign",
+  "reqsign?/services-azblob",
+  "reqsign?/reqwest_request",
+]
+services-azdfs = [
+  "dep:reqsign",
+  "reqsign?/services-azblob",
+  "reqsign?/reqwest_request",
+]
 services-dashmap = ["dep:dashmap"]
-# Enable services ftp support
+services-fs = ["tokio/fs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
-# Enable services hdfs support
+services-gcs = [
+  "dep:reqsign",
+  "reqsign?/services-google",
+  "reqsign?/reqwest_request",
+]
+services-ghac = []
 services-hdfs = ["dep:hdrs"]
-# Enable services ipfs support
+services-http = []
 services-ipfs = ["dep:prost"]
-# Enable services memcached support
+services-ipmfs = []
 services-memcached = ["dep:bb8"]
-# Enable services moka support
+services-memory = []
 services-moka = ["dep:moka"]
-# Enable services redis support
+services-obs = [
+  "dep:reqsign",
+  "reqsign?/services-huaweicloud",
+  "reqsign?/reqwest_request",
+]
+services-oss = [
+  "dep:reqsign",
+  "reqsign?/services-aliyun",
+  "reqsign?/reqwest_request",
+]
 services-redis = ["dep:redis"]
-# Enable services rocksdb support
 services-rocksdb = ["dep:rocksdb"]
-# Enable services sled support
+services-s3 = [
+  "dep:reqsign",
+  "reqsign?/services-aws",
+  "reqsign?/reqwest_request",
+]
 services-sled = ["dep:sled"]
+services-webdav = []
+services-webhdfs = []
 
 [lib]
 bench = false
@@ -98,6 +152,7 @@ backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bytes = "1.2"
+chrono = "0.4.24"
 dashmap = { version = "5.4", optional = true }
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
@@ -109,11 +164,13 @@ log = "0.4"
 madsim = {version = "0.2.19", optional = true }
 md-5 = "0.10"
 metrics = { version = "0.20", optional = true }
+minitrace = { version = "0.4.0", optional = true }
 moka = { version = "0.10", optional = true, features = ["future"] }
 once_cell = "1"
 parking_lot = "0.12"
 percent-encoding = "2"
 pin-project = "1"
+prometheus = { version = "0.13", features = ["process"], optional = true}
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.27", features = ["serialize", "overlapped-lists"] }
 rand = { version = "0.8", optional = true }
@@ -121,11 +178,10 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.8.5"
+reqsign = { version = "0.9.1", default-features = false, optional = true }
 reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",
-  "blocking",
 ], default-features = false }
 rocksdb = { version = "0.20.1", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }
@@ -135,11 +191,8 @@ suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
   "async-rustls",
 ], optional = true }
-time = { version = "0.3", features = ["serde"] }
-tokio = { version = "1.27", features = ["fs"] }
+tokio = "1.27"
 tracing = { version = "0.1", optional = true }
-trust-dns-resolver = { version = "0.22", optional = true }
-ureq = { version = "2", default-features = false }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]

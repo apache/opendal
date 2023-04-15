@@ -36,7 +36,6 @@ pub enum Scheme {
     /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
     Azdfs,
     /// [dashmap][crate::services::Dashmap]: dashmap backend support.
-    #[cfg(feature = "services-dashmap")]
     Dashmap,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
@@ -45,40 +44,32 @@ pub enum Scheme {
     /// [ghac][crate::services::Ghac]: GitHub Action Cache services.
     Ghac,
     /// [hdfs][crate::services::Hdfs]: Hadoop Distributed File System.
-    #[cfg(feature = "services-hdfs")]
     Hdfs,
     /// [http][crate::services::Http]: HTTP backend.
     Http,
     /// [ftp][crate::services::Ftp]: FTP backend.
-    #[cfg(feature = "services-ftp")]
     Ftp,
     /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
-    #[cfg(feature = "services-ipfs")]
     Ipfs,
     /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
     Ipmfs,
     /// [memcached][crate::services::Memcached]: Memcached service support.
-    #[cfg(feature = "services-memcached")]
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
     Memory,
     /// [moka][crate::services::Moka]: moka backend support.
-    #[cfg(feature = "services-moka")]
     Moka,
     /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
     Obs,
     /// [oss][crate::services::Oss]: Aliyun Object Storage Services
     Oss,
     /// [redis][crate::services::Redis]: Redis services
-    #[cfg(feature = "services-redis")]
     Redis,
     /// [rocksdb][crate::services::Rocksdb]: RocksDB services
-    #[cfg(feature = "services-rocksdb")]
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
     S3,
     /// [sled][crate::services::Sled]: Sled services
-    #[cfg(feature = "services-sled")]
     Sled,
     /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
@@ -120,31 +111,22 @@ impl FromStr for Scheme {
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
             "azdfs" => Ok(Scheme::Azdfs),
-            #[cfg(feature = "services-dashmap")]
             "dashmap" => Ok(Scheme::Dashmap),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
             "ghac" => Ok(Scheme::Ghac),
-            #[cfg(feature = "services-hdfs")]
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
-            #[cfg(feature = "services-ftp")]
             "ftp" | "ftps" => Ok(Scheme::Ftp),
-            #[cfg(feature = "services-ipfs")]
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
-            #[cfg(feature = "services-memcached")]
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
-            #[cfg(feature = "services-moka")]
             "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
-            #[cfg(feature = "services-redis")]
             "redis" => Ok(Scheme::Redis),
-            #[cfg(feature = "services-rocksdb")]
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
-            #[cfg(feature = "services-sled")]
             "sled" => Ok(Scheme::Sled),
             "oss" => Ok(Scheme::Oss),
             "webdav" => Ok(Scheme::Webdav),
@@ -159,31 +141,22 @@ impl From<Scheme> for &'static str {
         match v {
             Scheme::Azblob => "azblob",
             Scheme::Azdfs => "azdfs",
-            #[cfg(feature = "services-dashmap")]
             Scheme::Dashmap => "dashmap",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             Scheme::Ghac => "ghac",
-            #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",
-            #[cfg(feature = "services-ftp")]
             Scheme::Ftp => "ftp",
-            #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
-            #[cfg(feature = "services-memcached")]
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
-            #[cfg(feature = "services-moka")]
             Scheme::Moka => "moka",
             Scheme::Obs => "obs",
-            #[cfg(feature = "services-redis")]
             Scheme::Redis => "redis",
-            #[cfg(feature = "services-rocksdb")]
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",
-            #[cfg(feature = "services-sled")]
             Scheme::Sled => "sled",
             Scheme::Oss => "oss",
             Scheme::Webdav => "webdav",

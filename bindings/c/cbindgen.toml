@@ -44,3 +44,7 @@ include_guard = "_OPENDAL_H"
 language = "C"
 no_includes = true
 sys_includes = ["stdint.h", "stddef.h", "stdbool.h"]
+
+[parse]
+include = ["opendal"]
+parse_deps = true

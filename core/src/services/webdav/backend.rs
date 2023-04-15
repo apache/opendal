@@ -45,6 +45,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] copy
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -269,6 +270,7 @@ impl Accessor for WebdavBackend {
                 AccessorCapability::Read
                     | AccessorCapability::Write
                     | AccessorCapability::Copy
+                    | AccessorCapability::Rename
                     | AccessorCapability::List,
             )
             .set_hints(AccessorHint::ReadStreamable);
@@ -319,6 +321,19 @@ impl Accessor for WebdavBackend {
 
         match status {
             StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        self.ensure_parent_path(to).await?;
+
+        let resp = self.webdav_move(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -433,7 +448,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub async fn webdav_put(
@@ -467,7 +482,7 @@ impl WebdavBackend {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_mkcol(
@@ -494,7 +509,7 @@ impl WebdavBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_propfind(
@@ -533,7 +548,7 @@ impl WebdavBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -551,7 +566,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn webdav_copy(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -576,7 +591,32 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
+    }
+
+    async fn webdav_move(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let source = format!("{}/{}", self.endpoint, percent_encode_path(&source));
+        let target = format!("{}/{}", self.endpoint, percent_encode_path(&target));
+
+        let mut req = Request::builder().method("MOVE").uri(&source);
+
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        req = req.header("Destination", target);
+
+        // We always specific "T" for keeping to overwrite the destination.
+        req = req.header("Overwrite", "T");
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
     }
 
     async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {

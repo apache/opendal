@@ -17,7 +17,7 @@
 
 use async_trait::async_trait;
 
-use super::message::FileStatus;
+use super::message::{FileStatus, FileStatusType};
 use crate::raw::*;
 use crate::*;
 
@@ -45,9 +45,24 @@ impl oio::Page for WebhdfsPager {
         let mut entries = Vec::with_capacity(self.statuses.len());
 
         while let Some(status) = self.statuses.pop() {
-            let mut path = format!("{}/{}", &self.path, status.path_suffix);
+            let mut path = if self.path.is_empty() {
+                status.path_suffix.to_string()
+            } else {
+                format!("{}/{}", self.path, status.path_suffix)
+            };
 
-            let meta: Metadata = status.try_into()?;
+            let meta = match status.ty {
+                FileStatusType::Directory => Metadata::new(EntryMode::DIR),
+                FileStatusType::File => Metadata::new(EntryMode::FILE)
+                    .with_content_length(status.length)
+                    .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                        status.modification_time,
+                    )?),
+            };
+
+            if meta.mode().is_file() {
+                path = path.trim_end_matches('/').to_string();
+            }
             if meta.mode().is_dir() {
                 path += "/"
             }

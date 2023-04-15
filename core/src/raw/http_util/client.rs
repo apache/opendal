@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use std::thread;
 
 use futures::TryStreamExt;
 use http::Request;
@@ -27,10 +26,8 @@ use reqwest::redirect::Policy;
 use reqwest::Url;
 
 use super::body::IncomingAsyncBody;
-use super::body::IncomingBody;
 use super::parse_content_length;
 use super::AsyncBody;
-use super::Body;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -38,8 +35,7 @@ use crate::Result;
 /// HttpClient that used across opendal.
 #[derive(Clone)]
 pub struct HttpClient {
-    async_client: reqwest::Client,
-    blocking_client: reqwest::blocking::Client,
+    client: reqwest::Client,
 }
 
 /// We don't want users to know details about our clients.
@@ -52,25 +48,11 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client in async context.
     pub fn new() -> Result<Self> {
-        Self::build(
-            reqwest::ClientBuilder::new(),
-            reqwest::blocking::ClientBuilder::new(),
-        )
+        Self::build(reqwest::ClientBuilder::new())
     }
 
     /// Build a new http client in async context.
-    pub fn build(
-        async_builder: reqwest::ClientBuilder,
-        blocking_builder: reqwest::blocking::ClientBuilder,
-    ) -> Result<Self> {
-        Ok(HttpClient {
-            async_client: Self::build_async_client(async_builder)?,
-            blocking_client: Self::build_blocking_client(blocking_builder)?,
-        })
-    }
-
-    /// Build a new blocking client with given builder.
-    fn build_async_client(mut builder: reqwest::ClientBuilder) -> Result<reqwest::Client> {
+    pub fn build(mut builder: reqwest::ClientBuilder) -> Result<Self> {
         // Make sure we don't enable auto gzip decompress.
         builder = builder.no_gzip();
         // Make sure we don't enable auto brotli decompress.
@@ -83,122 +65,25 @@ impl HttpClient {
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);
 
-        builder.build().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
+        Ok(Self {
+            client: builder.build().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
+            })?,
         })
-    }
-
-    /// Build a new blocking client with given builder.
-    ///
-    /// # Notes
-    ///
-    /// `reqwest::blocking::ClientBuilder::build` will panic if called
-    /// inside async context. So we need to spawn a thread to build it.
-    ///
-    /// And users SHOULD never call blocking clients in async context.
-    fn build_blocking_client(
-        mut builder: reqwest::blocking::ClientBuilder,
-    ) -> Result<reqwest::blocking::Client> {
-        // Make sure we don't enable auto gzip decompress.
-        builder = builder.no_gzip();
-        // Make sure we don't enable auto brotli decompress.
-        builder = builder.no_brotli();
-        // Make sure we don't enable auto deflate decompress.
-        builder = builder.no_deflate();
-        // Redirect will be handled by ourselves.
-        builder = builder.redirect(Policy::none());
-
-        #[cfg(feature = "trust-dns")]
-        let builder = builder.trust_dns(true);
-
-        thread::spawn(|| {
-            builder.build().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "blocking client build failed").set_source(err)
-            })
-        })
-        .join()
-        .expect("the thread of building blocking client join failed")
     }
 
     /// Get the async client from http client.
-    pub async fn async_client(&self) -> reqwest::Client {
-        self.async_client.clone()
-    }
-
-    /// Get the blocking client from http client.
-    pub fn blocking_client(&self) -> reqwest::blocking::Client {
-        self.blocking_client.clone()
-    }
-
-    /// Send a request in blocking way.
-    pub fn send(&self, req: Request<Body>) -> Result<Response<IncomingBody>> {
-        let is_head = req.method() == http::Method::HEAD;
-        let (parts, body) = req.into_parts();
-
-        let mut req_builder = self
-            .blocking_client
-            .request(
-                parts.method,
-                Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
-            )
-            .version(parts.version)
-            .headers(parts.headers);
-
-        req_builder = req_builder.body(body);
-
-        let resp = req_builder.send().map_err(|err| {
-            let is_temporary = !(
-                // Builder related error should not be retried.
-                err.is_builder() ||
-                // Error returned by RedirectPolicy.
-                //
-                // We don't set this by hand, just don't allow retry.
-                err.is_redirect() ||
-                 // We never use `Response::error_for_status`, just don't allow retry.
-                //
-                // Status should be checked by our services.
-                err.is_status()
-            );
-
-            let mut oerr = Error::new(ErrorKind::Unexpected, "send blocking request")
-                .with_operation("http_util::Client::send")
-                .set_source(err);
-            if is_temporary {
-                oerr = oerr.set_temporary();
-            }
-
-            oerr
-        })?;
-
-        // Get content length from header so that we can check it.
-        // If the request method is HEAD, we will ignore this.
-        let content_length = if is_head {
-            None
-        } else {
-            parse_content_length(resp.headers()).expect("response content length must be valid")
-        };
-
-        let mut hr = Response::builder()
-            .version(resp.version())
-            .status(resp.status());
-        for (k, v) in resp.headers().iter() {
-            hr = hr.header(k, v);
-        }
-
-        let body = IncomingBody::new(resp, content_length);
-
-        let resp = hr.body(body).expect("response must build succeed");
-
-        Ok(resp)
+    pub fn client(&self) -> reqwest::Client {
+        self.client.clone()
     }
 
     /// Send a request in async way.
-    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         let is_head = req.method() == http::Method::HEAD;
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
-            .async_client
+            .client
             .request(
                 parts.method,
                 Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),

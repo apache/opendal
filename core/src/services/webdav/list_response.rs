@@ -16,9 +16,8 @@
 // under the License.
 
 use serde::Deserialize;
-use time::format_description::well_known::Rfc2822;
-use time::OffsetDateTime;
 
+use crate::raw::parse_datetime_from_rfc2822;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
@@ -83,7 +82,7 @@ impl ListOpResponse {
             m.set_etag(v);
         }
         // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
-        m.set_last_modified(OffsetDateTime::parse(getlastmodified, &Rfc2822).unwrap());
+        m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
         Ok(m)
     }
 }

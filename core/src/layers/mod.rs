@@ -40,6 +40,11 @@ mod metrics;
 #[cfg(feature = "layers-metrics")]
 pub use self::metrics::MetricsLayer;
 
+#[cfg(feature = "layers-prometheus")]
+mod prometheus;
+#[cfg(feature = "layers-prometheus")]
+pub use self::prometheus::PrometheusLayer;
+
 mod retry;
 
 pub use self::retry::RetryLayer;
@@ -49,6 +54,11 @@ mod tracing;
 
 #[cfg(feature = "layers-tracing")]
 pub use self::tracing::TracingLayer;
+
+#[cfg(feature = "layers-minitrace")]
+mod minitrace;
+#[cfg(feature = "layers-minitrace")]
+pub use self::minitrace::MinitraceLayer;
 
 mod type_eraser;
 

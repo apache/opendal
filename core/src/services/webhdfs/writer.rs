@@ -43,7 +43,7 @@ impl oio::Write for WebhdfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let req = self
             .backend
-            .webhdfs_create_object_req(
+            .webhdfs_create_object_request(
                 &self.path,
                 Some(bs.len()),
                 self.op.content_type(),
@@ -51,7 +51,7 @@ impl oio::Write for WebhdfsWriter {
             )
             .await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.backend.client.send(req).await?;
 
         let status = resp.status();
         match status {
@@ -70,6 +70,10 @@ impl oio::Write for WebhdfsWriter {
             ErrorKind::Unsupported,
             "output writer doesn't support append",
         ))
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

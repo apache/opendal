@@ -70,6 +70,11 @@ pub enum ErrorKind {
     RateLimited,
     /// The given file paths are same.
     IsSameFile,
+    /// The preconfition of this operation is not met.
+    ///
+    /// For example, reading a file with If-Match header but the file's ETag
+    /// is not match.
+    PreconditionFailed,
 }
 
 impl ErrorKind {
@@ -98,6 +103,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::AlreadyExists => "AlreadyExists",
             ErrorKind::RateLimited => "RateLimited",
             ErrorKind::IsSameFile => "IsSameFile",
+            ErrorKind::PreconditionFailed => "PreconditionFailed",
         }
     }
 }

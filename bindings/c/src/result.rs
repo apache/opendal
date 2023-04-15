@@ -20,7 +20,8 @@
 //! "opendal_result_opendal_operator_ptr", which is unacceptable. Therefore,
 //! we are defining all Result types here
 
-use crate::{error::opendal_code, types::opendal_bytes};
+use crate::error::opendal_code;
+use crate::types::opendal_bytes;
 
 /// The Rust-like Result type of opendal C binding, it contains
 /// the data that the read operation returns and a error code
@@ -29,5 +30,14 @@ use crate::{error::opendal_code, types::opendal_bytes};
 #[repr(C)]
 pub struct opendal_result_read {
     pub data: *mut opendal_bytes,
+    pub code: opendal_code,
+}
+
+/// The result type for [`opendal_operator_is_exist()`], the field `is_exist`
+/// contains whether the path exists, and the field `code` contains the
+/// corresponding error code.
+#[repr(C)]
+pub struct opendal_result_is_exist {
+    pub is_exist: bool,
     pub code: opendal_code,
 }

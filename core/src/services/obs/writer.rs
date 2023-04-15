@@ -15,45 +15,44 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::ObsBackend;
+use super::core::ObsCore;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct ObsWriter {
-    backend: ObsBackend,
+    core: Arc<ObsCore>,
 
     op: OpWrite,
     path: String,
 }
 
 impl ObsWriter {
-    pub fn new(backend: ObsBackend, op: OpWrite, path: String) -> Self {
-        ObsWriter { backend, op, path }
+    pub fn new(core: Arc<ObsCore>, op: OpWrite, path: String) -> Self {
+        ObsWriter { core, op, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for ObsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut req = self.backend.obs_put_object_request(
+        let mut req = self.core.obs_put_object_request(
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
             AsyncBody::Bytes(bs),
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -73,6 +72,10 @@ impl oio::Write for ObsWriter {
             ErrorKind::Unsupported,
             "output writer doesn't support append",
         ))
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

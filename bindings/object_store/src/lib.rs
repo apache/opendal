@@ -22,9 +22,6 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use chrono::DateTime;
-use chrono::NaiveDateTime;
-use chrono::Utc;
 use futures::stream::BoxStream;
 use futures::Stream;
 use futures::StreamExt;
@@ -117,18 +114,9 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let (secs, nsecs) = meta
-            .last_modified()
-            .map(|v| (v.unix_timestamp(), v.nanosecond()))
-            .unwrap_or((0, 0));
-
         Ok(ObjectMeta {
             location: location.clone(),
-            last_modified: DateTime::from_utc(
-                NaiveDateTime::from_timestamp_opt(secs, nsecs)
-                    .expect("returning timestamp must be valid"),
-                Utc,
-            ),
+            last_modified: meta.last_modified().unwrap_or_default(),
             size: meta.content_length() as usize,
         })
     }
@@ -251,17 +239,9 @@ fn format_object_store_error(err: opendal::Error, path: &str) -> object_store::E
 }
 
 fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
-    let (secs, nsecs) = meta
-        .last_modified()
-        .map(|v| (v.unix_timestamp(), v.nanosecond()))
-        .unwrap_or((0, 0));
     ObjectMeta {
         location: path.into(),
-        last_modified: DateTime::from_utc(
-            NaiveDateTime::from_timestamp_opt(secs, nsecs)
-                .expect("returning timestamp must be valid"),
-            Utc,
-        ),
+        last_modified: meta.last_modified().unwrap_or_default(),
         size: meta.content_length() as usize,
     }
 }

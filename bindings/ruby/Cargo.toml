@@ -34,4 +34,4 @@ name = "opendal_ruby"
 
 [dependencies]
 magnus = { version = "0.5", features = ["bytes-crate"] }
-opendal = { version = "0.30", path = "../../core" }
+opendal.workspace = true

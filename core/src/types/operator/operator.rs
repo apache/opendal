@@ -16,6 +16,7 @@
 // under the License.
 
 use std::ops::RangeBounds;
+use std::time::Duration;
 
 use bytes::Bytes;
 use flagset::FlagSet;
@@ -24,7 +25,6 @@ use futures::AsyncReadExt;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use time::Duration;
 use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
@@ -180,9 +180,45 @@ impl Operator {
     /// # }
     /// ```
     pub async fn stat(&self, path: &str) -> Result<Metadata> {
+        self.stat_with(path, OpStat::new()).await
+    }
+
+    /// Get current path's metadata **without cache** directly with extra options.
+    ///
+    /// # Notes
+    ///
+    /// Use `stat` if you:
+    ///
+    /// - Want detect the outside changes of path.
+    /// - Don't want to read from cached metadata.
+    ///
+    /// You may want to use `metadata` if you are working with entries
+    /// returned by [`Lister`]. It's highly possible that metadata
+    /// you want has already been cached.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ops::OpStat;
+    /// use opendal::ErrorKind;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// if let Err(e) = op.stat_with("test", OpStat::new()).await {
+    ///     if e.kind() == ErrorKind::NotFound {
+    ///         println!("file not exist")
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn stat_with(&self, path: &str, args: OpStat) -> Result<Metadata> {
         let path = normalize_path(path);
 
-        let rp = self.inner().stat(&path, OpStat::new()).await?;
+        let rp = self.inner().stat(&path, args).await?;
         let meta = rp.into_metadata();
 
         Ok(meta)
@@ -382,6 +418,28 @@ impl Operator {
         self.range_read(path, ..).await
     }
 
+    /// Read the whole path into a bytes with extra options.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Operator::reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::ops::OpRead;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op.read_with("path/to/file", OpRead::new()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn read_with(&self, path: &str, args: OpRead) -> Result<Vec<u8>> {
+        self.range_read_with(path, .., args).await
+    }
+
     /// Read the specified range of path into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
@@ -396,6 +454,7 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
+    /// # use opendal::ops::OpRead;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -404,6 +463,37 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
+        self.range_read_with(path, range, OpRead::new()).await
+    }
+
+    /// Read the specified range of path into a bytes with extra options..
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Operator::range_reader`]
+    ///
+    /// # Notes
+    ///
+    /// - The returning content's length may be smaller than the range specified.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::ops::OpRead;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = op.range_read_with("path/to/file", 1024..2048, OpRead::new()).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn range_read_with(
+        &self,
+        path: &str,
+        range: impl RangeBounds<u64>,
+        args: OpRead,
+    ) -> Result<Vec<u8>> {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::FILE) {
@@ -417,9 +507,7 @@ impl Operator {
 
         let br = BytesRange::from(range);
 
-        let op = OpRead::new().with_range(br);
-
-        let (rp, mut s) = self.inner().read(&path, op).await?;
+        let (rp, mut s) = self.inner().read(&path, args.with_range(br)).await?;
 
         let length = rp.into_metadata().content_length() as usize;
         let mut buffer = Vec::with_capacity(length);
@@ -944,6 +1032,9 @@ impl Operator {
                 .await?;
         }
 
+        // Remove the directory itself.
+        self.delete(path).await?;
+
         Ok(())
     }
 
@@ -1000,9 +1091,13 @@ impl Operator {
 
     /// List dir in flat way.
     ///
-    /// This function will create a new handle to list entries.
+    /// Also, this function can be used to list a prefix.
     ///
     /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Notes
+    ///
+    /// - `scan` will not return the prefix itself.
     ///
     /// # Examples
     ///
@@ -1061,11 +1156,11 @@ impl Operator {
     /// use anyhow::Result;
     /// use futures::io;
     /// use opendal::Operator;
-    /// use time::Duration;
+    /// use std::time::Duration;
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_stat("test",Duration::hours(1))?;
+    ///     let signed_req = op.presign_stat("test",Duration::from_secs(3600)).await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
@@ -1074,12 +1169,12 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+    pub async fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         let path = normalize_path(path);
 
         let op = OpPresign::new(OpStat::new(), expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1091,11 +1186,11 @@ impl Operator {
     /// use anyhow::Result;
     /// use futures::io;
     /// use opendal::Operator;
-    /// use time::Duration;
+    /// use std::time::Duration;
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_read("test.txt", Duration::hours(1))?;
+    ///     let signed_req = op.presign_read("test.txt", Duration::from_secs(3600)).await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -1109,12 +1204,12 @@ impl Operator {
     /// ```shell
     /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -O /tmp/test.txt
     /// ```
-    pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+    pub async fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         let path = normalize_path(path);
 
         let op = OpPresign::new(OpRead::new(), expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1128,18 +1223,18 @@ impl Operator {
     /// use anyhow::Result;
     /// use futures::io;
     /// use opendal::Operator;
-    /// use time::Duration;
+    /// use std::time::Duration;
     /// use opendal::ops::OpRead;
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let args = OpRead::new()
     ///         .with_override_content_disposition("attachment; filename=\"othertext.txt\"");
-    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::hours(1))?;
+    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::from_secs(3600)).await?;
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_read_with(
+    pub async fn presign_read_with(
         &self,
         path: &str,
         op: OpRead,
@@ -1149,7 +1244,7 @@ impl Operator {
 
         let op = OpPresign::new(op, expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 
@@ -1161,11 +1256,11 @@ impl Operator {
     /// use anyhow::Result;
     /// use futures::io;
     /// use opendal::Operator;
-    /// use time::Duration;
+    /// use std::time::Duration;
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.presign_write("test.txt", Duration::hours(1))?;
+    ///     let signed_req = op.presign_write("test.txt", Duration::from_secs(3600)).await?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -1179,8 +1274,8 @@ impl Operator {
     /// ```shell
     /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
     /// ```
-    pub fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
-        self.presign_write_with(path, OpWrite::new(), expire)
+    pub async fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.presign_write_with(path, OpWrite::new(), expire).await
     }
 
     /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -1194,12 +1289,12 @@ impl Operator {
     /// use futures::io;
     /// use opendal::ops::OpWrite;
     /// use opendal::Operator;
-    /// use time::Duration;
+    /// use std::time::Duration;
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let args = OpWrite::new().with_content_type("text/csv");
-    ///     let signed_req = op.presign_write_with("test", args, Duration::hours(1))?;
+    ///     let signed_req = op.presign_write_with("test", args, Duration::from_secs(3600)).await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
@@ -1208,7 +1303,7 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_write_with(
+    pub async fn presign_write_with(
         &self,
         path: &str,
         op: OpWrite,
@@ -1218,7 +1313,7 @@ impl Operator {
 
         let op = OpPresign::new(op, expire);
 
-        let rp = self.inner().presign(&path, op)?;
+        let rp = self.inner().presign(&path, op).await?;
         Ok(rp.into_presigned_request())
     }
 }

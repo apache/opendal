@@ -576,7 +576,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -587,6 +587,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         self.inner
             .presign(path, args)
+            .await
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
@@ -1409,6 +1410,36 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         "service={} operation={} path={} written={} -> data write failed: {err:?}",
                         self.scheme,
                         WriteOperation::Append,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match self.inner.abort().await {
+            Ok(_) => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> abort writer",
+                    self.scheme,
+                    WriteOperation::Abort,
+                    self.path,
+                    self.written,
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> abort writer failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::Abort,
                         self.path,
                         self.written,
                     )

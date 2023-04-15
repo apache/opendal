@@ -209,14 +209,8 @@ pub struct KvPager {
 
 impl KvPager {
     fn new(root: &str, inner: Vec<String>) -> Self {
-        let root = if root == "/" {
-            "".to_string()
-        } else {
-            root.to_string()
-        };
-
         Self {
-            root,
+            root: root.to_string(),
             inner: Some(inner),
         }
     }
@@ -233,11 +227,7 @@ impl KvPager {
                     EntryMode::FILE
                 };
 
-                oio::Entry::new(
-                    v.strip_prefix(&self.root)
-                        .expect("key must start with root"),
-                    Metadata::new(mode),
-                )
+                oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
             })
             .collect();
 
@@ -263,7 +253,7 @@ pub struct KvWriter<S> {
     path: String,
 
     /// TODO: if kv supports append, we can use them directly.
-    buf: Vec<u8>,
+    buf: Option<Vec<u8>>,
 }
 
 impl<S> KvWriter<S> {
@@ -271,7 +261,15 @@ impl<S> KvWriter<S> {
         KvWriter {
             kv,
             path,
-            buf: Vec::new(),
+            buf: None,
+        }
+    }
+
+    fn extend_buf(&mut self, bs: Bytes) {
+        if let Some(buf) = self.buf.as_mut() {
+            buf.extend(bs);
+        } else {
+            self.buf = Some(bs.into())
         }
     }
 }
@@ -279,7 +277,7 @@ impl<S> KvWriter<S> {
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf = bs.into();
+        self.buf = Some(bs.into());
 
         Ok(())
     }
@@ -287,7 +285,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         if let Err(e) = self.kv.append(&self.path, bs.to_vec().as_slice()).await {
             if e.kind() == ErrorKind::Unsupported {
-                self.buf.extend(bs);
+                self.extend_buf(bs);
             } else {
                 return Err(e);
             }
@@ -295,9 +293,16 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
         Ok(())
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
+        ))
+    }
+
     async fn close(&mut self) -> Result<()> {
-        if !self.buf.is_empty() {
-            self.kv.set(&self.path, &self.buf).await?;
+        if let Some(buf) = self.buf.as_deref() {
+            self.kv.set(&self.path, buf).await?;
         }
 
         Ok(())
@@ -306,19 +311,21 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf = bs.into();
+        self.buf = Some(bs.into());
 
         Ok(())
     }
 
     fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.buf.extend(bs);
+        self.extend_buf(bs);
 
         Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
-        self.kv.blocking_set(&self.path, &self.buf)?;
+        if let Some(buf) = self.buf.as_deref() {
+            self.kv.blocking_set(&self.path, buf)?;
+        }
 
         Ok(())
     }

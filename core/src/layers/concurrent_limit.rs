@@ -320,6 +320,10 @@ impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
         self.inner.append(bs).await
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await
     }

@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! HTTP response messages
+//! WebHDFS response messages
 
 use serde::Deserialize;
-
-use crate::*;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct BooleanResp {
@@ -53,23 +51,6 @@ pub struct FileStatus {
     pub path_suffix: String,
     #[serde(rename = "type")]
     pub ty: FileStatusType,
-}
-
-impl TryFrom<FileStatus> for Metadata {
-    type Error = Error;
-    fn try_from(value: FileStatus) -> Result<Self> {
-        let mut meta = match value.ty {
-            FileStatusType::Directory => Metadata::new(EntryMode::DIR),
-            FileStatusType::File => Metadata::new(EntryMode::FILE),
-        };
-        let till_now = time::Duration::milliseconds(value.modification_time);
-        let last_modified = time::OffsetDateTime::UNIX_EPOCH
-            .checked_add(till_now)
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "last modification overflowed!"))?;
-        meta.set_last_modified(last_modified)
-            .set_content_length(value.length);
-        Ok(meta)
-    }
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]

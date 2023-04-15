@@ -27,10 +27,10 @@ pub use client::HttpClient;
 
 mod body;
 pub use body::AsyncBody;
-pub use body::Body;
 pub use body::IncomingAsyncBody;
 
 mod header;
+pub use header::build_header_value;
 pub use header::format_authorization_by_basic;
 pub use header::format_authorization_by_bearer;
 pub use header::format_content_md5;
@@ -49,6 +49,7 @@ pub use uri::percent_encode_path;
 
 mod error;
 pub use error::new_request_build_error;
+pub use error::new_request_credential_error;
 pub use error::new_request_sign_error;
 pub use error::parse_error_response;
 pub use error::ErrorResponse;

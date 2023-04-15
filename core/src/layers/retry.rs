@@ -672,6 +672,27 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
         }
     }
 
+    async fn abort(&mut self) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.abort().await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+
     async fn close(&mut self) -> Result<()> {
         let mut backoff = self.builder.build();
 

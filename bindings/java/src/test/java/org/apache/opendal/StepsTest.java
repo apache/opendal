@@ -26,7 +26,7 @@ import io.cucumber.java.en.When;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class StepsTest {
 
@@ -46,21 +46,24 @@ public class StepsTest {
 
 
     @Then("The blocking file {string} should exist")
-    public void the_blocking_file_test_should_exist(String content) {
-
+    public void the_blocking_file_test_should_exist(String fileName) {
+        Metadata metadata = this.operator.stat(fileName);
+        assertNotNull(metadata);
     }
 
 
     @Then("The blocking file {string} entry mode must be file")
     public void the_blocking_file_test_entry_mode_must_be_file(String fileName) {
+        Metadata metadata = this.operator.stat(fileName);
+        assertTrue(metadata.isFile());
 
     }
 
     @Then("The blocking file {string} content length must be {int}")
     public void the_blocking_file_test_content_length_must_be_13(String fileName, int length) {
-        String content = this.operator.read(fileName);
+        Metadata metadata = this.operator.stat(fileName);
 
-        assertEquals(content.length(), length);
+        assertEquals(metadata.getContentLength(), length);
     }
 
     @Then("The blocking file {string} must have content {string}")

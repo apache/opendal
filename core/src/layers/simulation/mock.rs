@@ -57,11 +57,23 @@ impl LayeredAccessor for MadsimAccessor {
 
     async fn read(&self, path: &str, args: OpRead) -> crate::Result<(RpRead, Self::Reader)> {
         let req = Request::Read(path.to_string(), args);
-        let ep = Endpoint::connect(self.sim_server_socket).await.expect("fail to connect to sim server");
-        let (tx, mut rx) = ep.connect1(self.sim_server_socket).await.expect("fail to connect1 to sim server");
-        tx.send(Box::new(req)).await.expect("fail to send request to sim server");
-        let resp = rx.recv().await.expect("fail to recv response from sim server");
-        let resp = resp.downcast::<ReadResponse>().expect("fail to downcast response to ReadResponse");
+        let ep = Endpoint::connect(self.sim_server_socket)
+            .await
+            .expect("fail to connect to sim server");
+        let (tx, mut rx) = ep
+            .connect1(self.sim_server_socket)
+            .await
+            .expect("fail to connect1 to sim server");
+        tx.send(Box::new(req))
+            .await
+            .expect("fail to send request to sim server");
+        let resp = rx
+            .recv()
+            .await
+            .expect("fail to recv response from sim server");
+        let resp = resp
+            .downcast::<ReadResponse>()
+            .expect("fail to downcast response to ReadResponse");
         let content_length = resp.data.as_ref().map(|b| b.len()).unwrap_or(0);
         Ok((
             RpRead::new(content_length as u64),
@@ -129,7 +141,7 @@ impl oio::Read for MadsimReader {
     fn poll_read(&mut self, _cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
         if let Some(ref data) = self.data {
             let len = data.len();
-            buf[..len].copy_from_slice(&data);
+            buf[..len].copy_from_slice(data);
             Poll::Ready(Ok(len))
         } else {
             Poll::Ready(Ok(0))
@@ -183,10 +195,19 @@ impl oio::BlockingWrite for MadsimWriter {
 impl oio::Write for MadsimWriter {
     async fn write(&mut self, bs: Bytes) -> crate::Result<()> {
         let req = Request::Write(self.path.to_string(), bs);
-        let ep = Endpoint::connect(self.sim_server_socket).await.expect("fail to connect to sim server");
-        let (tx, mut rx) = ep.connect1(self.sim_server_socket).await.expect("fail to connect1 to sim server");
-        tx.send(Box::new(req)).await.expect("fail to send request to sim server");
-        rx.recv().await.expect("fail to recv response from sim server");
+        let ep = Endpoint::connect(self.sim_server_socket)
+            .await
+            .expect("fail to connect to sim server");
+        let (tx, mut rx) = ep
+            .connect1(self.sim_server_socket)
+            .await
+            .expect("fail to connect1 to sim server");
+        tx.send(Box::new(req))
+            .await
+            .expect("fail to send request to sim server");
+        rx.recv()
+            .await
+            .expect("fail to recv response from sim server");
         Ok(())
     }
 
@@ -226,7 +247,11 @@ impl SimServer {
             let (tx, mut rx, _) = ep.accept1().await?;
             let service = service.clone();
             madsim::task::spawn(async move {
-                let request = *rx.recv().await?.downcast::<Request>().expect("invalid request");
+                let request = *rx
+                    .recv()
+                    .await?
+                    .downcast::<Request>()
+                    .expect("invalid request");
                 let response = match request {
                     Request::Read(path, args) => {
                         Box::new(service.read(&path, args).await) as Payload
@@ -242,17 +267,6 @@ impl SimServer {
     }
 }
 
-pub struct SimClient {
-    ep: Endpoint,
-}
-
-impl SimClient {
-    pub async fn connect(addr: SocketAddr) -> Result<Self> {
-        let ep = Endpoint::bind(addr).await?;
-        Ok(Self { ep })
-    }
-}
-
 enum Request {
     Read(String, OpRead),
     Write(String, Bytes),
@@ -265,7 +279,7 @@ pub struct SimService {
 
 impl SimService {
     async fn read(&self, path: &str, args: OpRead) -> ReadResponse {
-        let mut inner = self.inner.lock().unwrap();
+        let inner = self.inner.lock().unwrap();
         let data = inner.get(path);
         ReadResponse {
             data: data.cloned(),

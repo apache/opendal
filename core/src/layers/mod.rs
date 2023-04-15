@@ -18,7 +18,6 @@
 //! `Layer` is the mechanism to intercept operations.
 
 mod concurrent_limit;
-
 pub use concurrent_limit::ConcurrentLimitLayer;
 
 mod immutable_index;

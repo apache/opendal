@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - refactor: Polish the behavior of scan (#1926)
-- refactor: Polish the implementaion of webhdfs (#1935)
+- refactor: Polish the implementation of webhdfs (#1935)
 
 ### Fixed
 

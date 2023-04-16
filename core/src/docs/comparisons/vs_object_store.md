@@ -164,7 +164,7 @@ builder.access_key_id("access_key_id");
 builder.secret_access_key("secret_access_key");
 
 let store = Operator::new(builder)?.finish();
-let r = store.reader("data.parquet").await?;
+let r = store.read("data.parquet").await?;
 ```
 
 `object_store`

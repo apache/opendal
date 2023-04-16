@@ -1179,7 +1179,10 @@ impl Operator {
             );
         }
 
-        let (_, mut w) = self.inner().append(&path, OpAppend::default().with_enabled()).await?;
+        let (_, mut w) = self
+            .inner()
+            .append(&path, OpAppend::default().with_enabled())
+            .await?;
         w.write(bs.into()).await?;
         w.close().await?;
 

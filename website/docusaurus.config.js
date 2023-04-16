@@ -50,7 +50,7 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
-          sidebarPath: require.resolve('./sidebars.js'),
+          sidebarPath: require.resolve('./docs/sidebars.js'),
           editUrl:
             'https://github.com/apache/incubator-opendal/website/',
           showLastUpdateAuthor: true,
@@ -90,6 +90,10 @@ const config = {
             position: 'right',
             label: 'Documentation',
             items: [
+              {
+                type: 'html',
+                value: '<a class="dropdown__link" href="/docs">General</a>'
+              },
               {
                 type: 'html',
                 value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust</a>'

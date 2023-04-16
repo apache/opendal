@@ -65,8 +65,7 @@ typedef enum opendal_code {
      */
     OPENDAL_NOT_A_DIRECTORY,
     /*
-     The given path already exists thus we failed to the specified operation on
-     it.
+     The given path already exists thus we failed to the specified operation on it.
      */
     OPENDAL_ALREADY_EXISTS,
     /*
@@ -160,17 +159,15 @@ extern "C" {
 #endif // __cplusplus
 
 /*
- Returns a result type [`opendal_result_op`], with operator_ptr. If the
- construction succeeds the error is nullptr, otherwise it contains the error
- information.
+ Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
+ the error is nullptr, otherwise it contains the error information.
 
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `scheme` must contain a valid nul terminator at the
- end of the string.
- * The `scheme` points to NULL, this function simply returns you a null
- opendal_operator_ptr
+ * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
+   the string.
+ * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
  */
 opendal_operator_ptr opendal_operator_new(const char* scheme);
 
@@ -180,14 +177,14 @@ opendal_operator_ptr opendal_operator_new(const char* scheme);
 void opendal_operator_free(opendal_operator_ptr op_ptr);
 
 /*
- Write the data into the path blockingly by operator, returns the error code
- OPENDAL_OK if succeeds, others otherwise
+ Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
+ if succeeds, others otherwise
 
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `path` must contain a valid nul terminator at the
- end of the string.
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
 
  # Panic
 
@@ -205,15 +202,15 @@ enum opendal_code opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `path` must contain a valid nul terminator at the
- end of the string.
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
 
  # Panic
 
  * If the `path` points to NULL, this function panics
  */
-struct opendal_result_read opendal_operator_blocking_read(
-    opendal_operator_ptr op_ptr, const char* path);
+struct opendal_result_read opendal_operator_blocking_read(opendal_operator_ptr op_ptr,
+    const char* path);
 
 /*
  Check whether the path exists.
@@ -226,15 +223,15 @@ struct opendal_result_read opendal_operator_blocking_read(
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `path` must contain a valid nul terminator at the
- end of the string.
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
 
  # Panic
 
  * If the `path` points to NULL, this function panics
  */
-struct opendal_result_is_exist opendal_operator_is_exist(
-    opendal_operator_ptr op_ptr, const char* path);
+struct opendal_result_is_exist opendal_operator_is_exist(opendal_operator_ptr op_ptr,
+    const char* path);
 
 /*
  Frees the heap memory used by the [`opendal_bytes`]

@@ -11,7 +11,7 @@ OpenDAL must enable users to access various storage services ranging from `s3` t
 
 - Add support for google drive: Good, it allows users to access and manage their data on the google drive.
 - Add support for oss via native API: Good, users can utilize Aliyun's RAM support.
-- Add support for [supabase storage](https://supabase.com/docs/guides/storage): Good, users can visit supabase sotrage now!
+- Add support for [supabase storage](https://supabase.com/docs/guides/storage): Good, users can visit supabase storage now!
 
 
 - Add support for gcs via XML API: Bad, gcs has native JSON API which more powerful

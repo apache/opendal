@@ -17,66 +17,66 @@
  * under the License.
  */
 
+
 #ifndef _OPENDAL_H
 #define _OPENDAL_H
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
 /*
  The error code for opendal APIs in C binding
  */
 typedef enum opendal_code {
-    /*
-     All is well
-     */
-    OPENDAL_OK,
-    /*
-     General error
-     */
-    OPENDAL_ERROR,
-    /*
-     returning it back. For example, s3 returns an internal service error.
-     */
-    OPENDAL_UNEXPECTED,
-    /*
-     Underlying service doesn't support this operation.
-     */
-    OPENDAL_UNSUPPORTED,
-    /*
-     The config for backend is invalid.
-     */
-    OPENDAL_CONFIG_INVALID,
-    /*
-     The given path is not found.
-     */
-    OPENDAL_NOT_FOUND,
-    /*
-     The given path doesn't have enough permission for this operation
-     */
-    OPENDAL_PERMISSION_DENIED,
-    /*
-     The given path is a directory.
-     */
-    OPENDAL_IS_A_DIRECTORY,
-    /*
-     The given path is not a directory.
-     */
-    OPENDAL_NOT_A_DIRECTORY,
-    /*
-     The given path already exists thus we failed to the specified operation on
-     it.
-     */
-    OPENDAL_ALREADY_EXISTS,
-    /*
-     Requests that sent to this path is over the limit, please slow down.
-     */
-    OPENDAL_RATE_LIMITED,
-    /*
-     The given file paths are same.
-     */
-    OPENDAL_IS_SAME_FILE,
+  /*
+   All is well
+   */
+  OPENDAL_OK,
+  /*
+   General error
+   */
+  OPENDAL_ERROR,
+  /*
+   returning it back. For example, s3 returns an internal service error.
+   */
+  OPENDAL_UNEXPECTED,
+  /*
+   Underlying service doesn't support this operation.
+   */
+  OPENDAL_UNSUPPORTED,
+  /*
+   The config for backend is invalid.
+   */
+  OPENDAL_CONFIG_INVALID,
+  /*
+   The given path is not found.
+   */
+  OPENDAL_NOT_FOUND,
+  /*
+   The given path doesn't have enough permission for this operation
+   */
+  OPENDAL_PERMISSION_DENIED,
+  /*
+   The given path is a directory.
+   */
+  OPENDAL_IS_A_DIRECTORY,
+  /*
+   The given path is not a directory.
+   */
+  OPENDAL_NOT_A_DIRECTORY,
+  /*
+   The given path already exists thus we failed to the specified operation on it.
+   */
+  OPENDAL_ALREADY_EXISTS,
+  /*
+   Requests that sent to this path is over the limit, please slow down.
+   */
+  OPENDAL_RATE_LIMITED,
+  /*
+   The given file paths are same.
+   */
+  OPENDAL_IS_SAME_FILE,
 } opendal_code;
 
 /*
@@ -121,7 +121,7 @@ typedef struct BlockingOperator BlockingOperator;
  to check its validity by native boolean operator.
  e.g. you could check by (!ptr) on a [`opendal_operator_ptr`]
  */
-typedef const struct BlockingOperator* opendal_operator_ptr;
+typedef const struct BlockingOperator *opendal_operator_ptr;
 
 /*
  The [`opendal_bytes`] type is a C-compatible substitute for [`Vec`]
@@ -130,8 +130,8 @@ typedef const struct BlockingOperator* opendal_operator_ptr;
  to free the heap memory to avoid memory leak.
  */
 typedef struct opendal_bytes {
-    const uint8_t* data;
-    uintptr_t len;
+  const uint8_t *data;
+  uintptr_t len;
 } opendal_bytes;
 
 /*
@@ -141,8 +141,8 @@ typedef struct opendal_bytes {
  and the error code is NOT OPENDAL_OK.
  */
 typedef struct opendal_result_read {
-    struct opendal_bytes* data;
-    enum opendal_code code;
+  struct opendal_bytes *data;
+  enum opendal_code code;
 } opendal_result_read;
 
 /*
@@ -151,8 +151,8 @@ typedef struct opendal_result_read {
  corresponding error code.
  */
 typedef struct opendal_result_is_exist {
-    bool is_exist;
-    enum opendal_code code;
+  bool is_exist;
+  enum opendal_code code;
 } opendal_result_is_exist;
 
 #ifdef __cplusplus
@@ -160,19 +160,17 @@ extern "C" {
 #endif // __cplusplus
 
 /*
- Returns a result type [`opendal_result_op`], with operator_ptr. If the
- construction succeeds the error is nullptr, otherwise it contains the error
- information.
+ Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
+ the error is nullptr, otherwise it contains the error information.
 
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `scheme` must contain a valid nul terminator at the
- end of the string.
- * The `scheme` points to NULL, this function simply returns you a null
- opendal_operator_ptr
+ * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
+   the string.
+ * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
  */
-opendal_operator_ptr opendal_operator_new(const char* scheme);
+opendal_operator_ptr opendal_operator_new(const char *scheme);
 
 /*
  Free the allocated operator pointed by [`opendal_operator_ptr`]
@@ -180,22 +178,22 @@ opendal_operator_ptr opendal_operator_new(const char* scheme);
 void opendal_operator_free(opendal_operator_ptr op_ptr);
 
 /*
- Write the data into the path blockingly by operator, returns the error code
- OPENDAL_OK if succeeds, others otherwise
+ Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
+ if succeeds, others otherwise
 
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `path` must contain a valid nul terminator at the
- end of the string.
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
 
  # Panic
 
  * If the `path` points to NULL, this function panics
  */
 enum opendal_code opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
-    const char* path,
-    struct opendal_bytes bytes);
+                                                  const char *path,
+                                                  struct opendal_bytes bytes);
 
 /*
  Read the data out from path into a [`Bytes`] blockingly by operator, returns
@@ -205,15 +203,15 @@ enum opendal_code opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `path` must contain a valid nul terminator at the
- end of the string.
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
 
  # Panic
 
  * If the `path` points to NULL, this function panics
  */
-struct opendal_result_read opendal_operator_blocking_read(
-    opendal_operator_ptr op_ptr, const char* path);
+struct opendal_result_read opendal_operator_blocking_read(opendal_operator_ptr op_ptr,
+                                                          const char *path);
 
 /*
  Check whether the path exists.
@@ -226,20 +224,20 @@ struct opendal_result_read opendal_operator_blocking_read(
  # Safety
 
  It is [safe] under two cases below
- * The memory pointed to by `path` must contain a valid nul terminator at the
- end of the string.
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
 
  # Panic
 
  * If the `path` points to NULL, this function panics
  */
-struct opendal_result_is_exist opendal_operator_is_exist(
-    opendal_operator_ptr op_ptr, const char* path);
+struct opendal_result_is_exist opendal_operator_is_exist(opendal_operator_ptr op_ptr,
+                                                         const char *path);
 
 /*
  Frees the heap memory used by the [`opendal_bytes`]
  */
-void opendal_bytes_free(const struct opendal_bytes* self);
+void opendal_bytes_free(const struct opendal_bytes *self);
 
 #ifdef __cplusplus
 } // extern "C"

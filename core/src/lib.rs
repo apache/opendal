@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenDAL is the Open Data Access Layer to **freely**, **painlessly**, and **efficiently** access data.
+//! OpenDAL is the Open Data Access Layer to **freely** access data.
 //!
 //! - Documentation: All docs are carried byself, visit [`docs`] for more.
 //! - Services: All supported services could be found at [`services`].

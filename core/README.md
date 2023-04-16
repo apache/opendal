@@ -8,7 +8,7 @@
 [chat]: https://img.shields.io/discord/1081052318650339399
 [discord]: https://discord.gg/XQy8yGR2dg
 
-**Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
+**Open** **D**ata **A**ccess **L**ayer: access data freely.
 
 - Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.apache.org/docs/rust/opendal/)
 - [Release notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)

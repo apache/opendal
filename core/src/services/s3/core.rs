@@ -24,11 +24,11 @@ use std::time::Duration;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
-use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::{HeaderName, IF_NONE_MATCH};
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -215,7 +215,7 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let req = req
@@ -265,7 +265,7 @@ impl S3Core {
         }
 
         if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         // Set SSE headers.

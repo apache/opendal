@@ -388,7 +388,10 @@ impl Accessor for OssBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.oss_get_object(path, args.range()).await?;
+        let resp = self
+            .core
+            .oss_get_object(path, args.range(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -437,13 +440,16 @@ impl Accessor for OssBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         if path == "/" {
             let m = Metadata::new(EntryMode::DIR);
             return Ok(RpStat::new(m));
         }
 
-        let resp = self.core.oss_head_object(path).await?;
+        let resp = self
+            .core
+            .oss_head_object(path, args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -487,8 +493,11 @@ impl Accessor for OssBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.core.oss_head_object_request(path, true)?,
-            PresignOperation::Read(v) => self.core.oss_get_object_request(path, v.range(), true)?,
+            PresignOperation::Stat(_) => self.core.oss_head_object_request(path, true, None)?,
+            PresignOperation::Read(v) => {
+                self.core
+                    .oss_get_object_request(path, v.range(), true, None)?
+            }
             PresignOperation::Write(v) => self.core.oss_put_object_request(
                 path,
                 None,

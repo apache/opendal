@@ -51,7 +51,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test fs -- --show-output
+        run: cargo test services_fs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

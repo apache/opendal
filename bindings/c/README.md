@@ -4,6 +4,7 @@
 
 ```bash
 make
+make format
 make build
 make test
 ```

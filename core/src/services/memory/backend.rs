@@ -26,7 +26,7 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// In memory service support. (HashMap Based)
+/// In memory service support. (BTreeMap Based)
 ///
 /// # Capabilities
 ///

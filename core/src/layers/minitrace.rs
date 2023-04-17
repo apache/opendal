@@ -166,6 +166,16 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
             .await
     }
 
+    #[trace("copy", enter_on_poll = true)]
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().copy(from, to, args).await
+    }
+
+    #[trace("rename", enter_on_poll = true)]
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().rename(from, to, args).await
+    }
+
     #[trace("stat", enter_on_poll = true)]
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await
@@ -225,6 +235,16 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
                 MinitraceWrapper::new(Span::enter_with_parent("WriteOperation", &span), r),
             )
         })
+    }
+
+    #[trace("blocking_copy")]
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().blocking_copy(from, to, args)
+    }
+
+    #[trace("blocking_rename")]
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().blocking_rename(from, to, args)
     }
 
     #[trace("blocking_stat")]

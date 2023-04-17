@@ -34,7 +34,6 @@ pub struct WasabiWriter {
     path: String,
 
     upload_id: Option<String>,
-    parts: Vec<CompleteMultipartUploadRequestPart>,
 }
 
 impl WasabiWriter {
@@ -50,7 +49,6 @@ impl WasabiWriter {
             op,
             path,
             upload_id,
-            parts: vec![],
         }
     }
 }
@@ -63,7 +61,8 @@ impl oio::Write for WasabiWriter {
             "Writer initiated with upload id, but users trying to call write, must be buggy"
         );
 
-        let resp = self.core
+        let resp = self
+            .core
             .put_object(
                 &self.path,
                 Some(bs.len()),

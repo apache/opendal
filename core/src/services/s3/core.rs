@@ -379,6 +379,42 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
+        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
+                ),
+                v,
+            )
+        }
+
         let mut req = req
             .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
             .body(AsyncBody::Empty)

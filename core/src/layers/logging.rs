@@ -322,46 +322,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.scheme,
-            Operation::Append,
-            path
-        );
-
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, w)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> start appending",
-                    self.scheme,
-                    Operation::Append,
-                    path,
-                );
-                let w =
-                    LoggingWriter::new(self.scheme, Operation::Append, path, w, self.failure_level);
-                (rp, w)
-            })
-            .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
-                        Operation::Append,
-                        path,
-                        self.err_status(&err)
-                    )
-                };
-                err
-            })
-    }
-
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         debug!(
             target: LOGGING_TARGET,

@@ -53,7 +53,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: oio::BlockingRead;
-    /// Writer is the associated writer the could return in `write` or `append` operation.
+    /// Writer is the associated writer the could return in `write` operation.
     type Writer: oio::Write;
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
@@ -123,23 +123,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check mode.
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `append` operation on the specified path, returns a
-    /// [`Writer`][oio::Writer] if operate successful.
-    ///
-    /// Require [`AccessorCapability::Append`]
-    ///
-    /// # Behavior
-    ///
-    /// - Input path MUST be file path, DON'T NEED to check mode.
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -445,10 +428,6 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().write(path, args).await
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        self.as_ref().append(path, args).await
-    }
-
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.as_ref().copy(from, to, args).await
     }
@@ -639,8 +618,6 @@ flags! {
         Blocking,
         /// Add this capability if service supports `batch`
         Batch,
-        /// Add this capability if service supports `append`
-        Append,
     }
 }
 

@@ -166,14 +166,6 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
             .await
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        let span = Span::enter_with_local_parent("append");
-        self.inner
-            .append(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(span, r))))
-            .await
-    }
-
     #[trace("stat", enter_on_poll = true)]
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await

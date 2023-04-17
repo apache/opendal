@@ -172,14 +172,6 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await
     }

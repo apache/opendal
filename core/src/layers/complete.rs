@@ -387,10 +387,6 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         self.complete_blocking_scan(path, args)
     }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        self.inner.append(path, args).await
-    }
 }
 
 pub enum CompleteReader<A: Accessor, R> {

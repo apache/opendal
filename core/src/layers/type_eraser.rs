@@ -85,13 +85,6 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
             .map(|(rp, w)| (rp, Box::new(w) as oio::Writer))
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, w)| (rp, Box::new(w) as oio::Writer))
-    }
-
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.inner
             .blocking_write(path, args)

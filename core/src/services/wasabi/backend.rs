@@ -67,7 +67,6 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// - [x] scan
 /// - [x] presign
 /// - [x] rename
-/// - [x] append
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -906,7 +905,7 @@ impl Accessor for WasabiBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy | Rename | Append)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy | Rename)
             .set_hints(ReadStreamable);
 
         am
@@ -950,44 +949,9 @@ impl Accessor for WasabiBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let upload_id = if args.append() {
-            let resp = self
-                .core
-                .initiate_multipart_upload(
-                    path,
-                    args.content_type(),
-                    args.content_disposition(),
-                    args.cache_control(),
-                )
-                .await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
-
-                    let result: InitiateMultipartUploadResult =
-                        quick_xml::de::from_reader(bs.reader())
-                            .map_err(new_xml_deserialize_error)?;
-
-                    Some(result.upload_id)
-                }
-                _ => return Err(parse_error(resp).await?),
-            }
-        } else {
-            None
-        };
-
         Ok((
             RpWrite::default(),
-            WasabiWriter::new(
-                self.core.clone(),
-                args,
-                OpAppend::default(),
-                path.to_string(),
-                upload_id,
-            ),
+            WasabiWriter::new(self.core.clone(), args, path.to_string(), None),
         ))
     }
 
@@ -1134,26 +1098,6 @@ impl Accessor for WasabiBackend {
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        if args.enabled() {
-            Ok((
-                RpAppend::default(),
-                WasabiWriter::new(
-                    self.core.clone(),
-                    OpWrite::default(),
-                    args,
-                    path.to_string(),
-                    None,
-                ),
-            ))
-        } else {
-            Err(
-                Error::new(ErrorKind::Unexpected, "invalid parameter for operation")
-                    .with_operation(Operation::Append),
-            )
         }
     }
 }

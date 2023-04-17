@@ -91,9 +91,4 @@ impl OperatorInfo {
     pub fn can_blocking(&self) -> bool {
         self.0.capabilities().contains(AccessorCapability::Blocking)
     }
-
-    /// Check if current backend supports [`Accessor::append`] or not.
-    pub fn can_append(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Append)
-    }
 }

@@ -1144,50 +1144,6 @@ impl Operator {
 
         Ok(Lister::new(pager))
     }
-
-    /// Append bytes into path.
-    ///
-    /// # Notes
-    ///
-    /// - Append will make sure all bytes has been written, or err will be returned.
-    /// - The `path` must be a file path and must exist first, or err will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// # use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// #   op.append("path/to/file", vec![0; 4096]).await?;
-    /// #   Ok(())
-    /// # }
-    /// ```
-    pub async fn append(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "append path is a directory")
-                    .with_operation(Operation::Append)
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
-
-        let (_, mut w) = self
-            .inner()
-            .append(&path, OpAppend::default().with_enabled())
-            .await?;
-        w.write(bs.into()).await?;
-        w.close().await?;
-
-        Ok(())
-    }
 }
 
 /// Operator presign API.

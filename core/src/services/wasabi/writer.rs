@@ -23,18 +23,14 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::ops::{OpAppend, OpWrite};
+use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct WasabiWriter {
     core: Arc<WasabiCore>,
 
-    op_write: OpWrite,
-    // the `enabled` field in `OpAppend` is used to differentiate
-    // direct write controlled by `OpWrite` (regardless of single upload or multipart upload,
-    // indicated by `append` field in `OpWrite`) from append write
-    op_append: OpAppend,
+    op: OpWrite,
     path: String,
 
     upload_id: Option<String>,
@@ -44,16 +40,14 @@ pub struct WasabiWriter {
 impl WasabiWriter {
     pub fn new(
         core: Arc<WasabiCore>,
-        op_write: OpWrite,
-        op_append: OpAppend,
+        op: OpWrite,
         path: String,
         upload_id: Option<String>,
     ) -> Self {
         WasabiWriter {
             core,
 
-            op_write,
-            op_append,
+            op,
             path,
             upload_id,
             parts: vec![],
@@ -69,22 +63,31 @@ impl oio::Write for WasabiWriter {
             "Writer initiated with upload id, but users trying to call write, must be buggy"
         );
 
-        let resp = if self.op_append.enabled() {
-            self.core
-                .append_object(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))
-                .await?
-        } else {
-            self.core
-                .put_object(
-                    &self.path,
-                    Some(bs.len()),
-                    self.op_write.content_type(),
-                    self.op_write.content_disposition(),
-                    self.op_write.cache_control(),
-                    AsyncBody::Bytes(bs),
-                )
-                .await?
-        };
+        let resp = self.core
+            .put_object(
+                &self.path,
+                Some(bs.len()),
+                self.op.content_type(),
+                self.op.content_disposition(),
+                self.op.cache_control(),
+                AsyncBody::Bytes(bs),
+            )
+            .await?;
+
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let resp = self
+            .core
+            .append_object(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))
+            .await?;
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
@@ -95,90 +98,11 @@ impl oio::Write for WasabiWriter {
         }
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let upload_id = self.upload_id.as_ref().expect(
-            "Writer doesn't have upload id, but users trying to call append, must be buggy",
-        );
-        // AWS S3 requires part number must between [1..=10000]
-        let part_number = self.parts.len() + 1;
-
-        let mut req = self.core.upload_part_request(
-            &self.path,
-            upload_id,
-            part_number,
-            Some(bs.len() as u64),
-            AsyncBody::Bytes(bs),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let etag = parse_etag(resp.headers())?
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "ETag not present in returning response",
-                        )
-                    })?
-                    .to_string();
-
-                resp.into_body().consume().await?;
-
-                self.parts
-                    .push(CompleteMultipartUploadRequestPart { part_number, etag });
-
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn abort(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
-
-        let resp = self
-            .core
-            .s3_abort_multipart_upload(&self.path, upload_id)
-            .await?;
-        match resp.status() {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
-
-        let resp = self
-            .core
-            .complete_multipart_upload(&self.path, upload_id, &self.parts)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok(())
     }
 }

@@ -221,10 +221,6 @@ impl RpRename {
     }
 }
 
-/// Reply for `append` operation.
-#[derive(Debug, Clone, Default)]
-pub struct RpAppend {}
-
 #[cfg(test)]
 mod tests {
     use anyhow::Result;

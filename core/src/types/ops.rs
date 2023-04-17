@@ -383,22 +383,3 @@ impl OpRename {
         Self::default()
     }
 }
-
-/// Args for `append` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpAppend {
-    enabled: bool,
-}
-
-impl OpAppend {
-    /// Enable append operation
-    pub(crate) fn with_enabled(mut self) -> Self {
-        self.enabled = true;
-        self
-    }
-
-    /// Get enabled status
-    pub fn enabled(&self) -> bool {
-        self.enabled
-    }
-}

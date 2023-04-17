@@ -159,8 +159,6 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)>;
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)>;
-
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().copy(from, to, args).await
     }
@@ -241,10 +239,6 @@ impl<L: LayeredAccessor> Accessor for L {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         (self as &L).write(path, args).await
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Writer)> {
-        (self as &L).append(path, args).await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {

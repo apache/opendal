@@ -319,16 +319,10 @@ impl Accessor for AzdfsBackend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let resource = match args.mode() {
-            EntryMode::FILE => "file",
-            EntryMode::DIR => "directory",
-            _ => unimplemented!("not supported object mode"),
-        };
-
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut req =
             self.core
-                .azdfs_create_request(path, resource, None, None, AsyncBody::Empty)?;
+                .azdfs_create_request(path, "directory", None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 

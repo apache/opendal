@@ -201,7 +201,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         &self.inner
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.stats
             .requests_total
             .with_label_values(&[&self.scheme])
@@ -210,14 +210,14 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         let timer = self
             .stats
             .requests_duration_seconds
-            .with_label_values(&[&self.scheme, Operation::Create.into_static()])
+            .with_label_values(&[&self.scheme, Operation::CreateDir.into_static()])
             .start_timer();
-        let create_res = self.inner.create(path, args).await;
+        let create_res = self.inner.create_dir(path, args).await;
 
         timer.observe_duration();
         create_res.map_err(|e| {
             self.stats
-                .increment_errors_total(Operation::Create, e.kind());
+                .increment_errors_total(Operation::CreateDir, e.kind());
             e
         })
     }
@@ -428,24 +428,24 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.stats
             .requests_total
-            .with_label_values(&[&self.scheme, Operation::BlockingCreate.into_static()])
+            .with_label_values(&[&self.scheme, Operation::BlockingCreateDir.into_static()])
             .inc();
 
         let timer = self
             .stats
             .requests_duration_seconds
-            .with_label_values(&[&self.scheme, Operation::BlockingCreate.into_static()])
+            .with_label_values(&[&self.scheme, Operation::BlockingCreateDir.into_static()])
             .start_timer();
-        let result = self.inner.blocking_create(path, args);
+        let result = self.inner.blocking_create_dir(path, args);
 
         timer.observe_duration();
 
         result.map_err(|e| {
             self.stats
-                .increment_errors_total(Operation::BlockingCreate, e.kind());
+                .increment_errors_total(Operation::BlockingCreateDir, e.kind());
             e
         })
     }

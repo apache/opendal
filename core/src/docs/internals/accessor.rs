@@ -54,7 +54,7 @@
 //!
 //! ```ignore
 //! pub trait Accessor {
-//!     async fn create(&self, path: &str) -> Result<()>;
+//!     async fn create_dir(&self, path: &str) -> Result<()>;
 //! }
 //! ```
 //!

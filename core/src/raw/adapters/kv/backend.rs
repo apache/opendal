@@ -68,13 +68,13 @@ impl<S: Adapter> Accessor for Backend<S> {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = build_abs_path(&self.root, path);
         self.kv.set(&p, &[]).await?;
         Ok(RpCreate::default())
     }
 
-    fn blocking_create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = build_abs_path(&self.root, path);
         self.kv.blocking_set(&p, &[])?;
 

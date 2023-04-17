@@ -172,6 +172,16 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().copy(from, to, args).await
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().rename(from, to, args).await
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await
     }
@@ -224,6 +234,16 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
         self.inner
             .blocking_write(path, args)
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().blocking_copy(from, to, args)
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().blocking_rename(from, to, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

@@ -53,7 +53,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: oio::BlockingRead;
-    /// Reader is the associated writer the could return in `write` operation.
+    /// Writer is the associated writer the could return in `write` operation.
     type Writer: oio::Write;
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.

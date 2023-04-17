@@ -137,7 +137,8 @@ impl oio::Write for S3Writer {
             .s3_abort_multipart_upload(&self.path, upload_id)
             .await?;
         match resp.status() {
-            StatusCode::OK => {
+            // s3 returns code 204 if abort succeeds.
+            StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
                 Ok(())
             }

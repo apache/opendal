@@ -98,6 +98,7 @@ macro_rules! behavior_write_tests {
                 test_delete_not_existing,
                 test_delete_stream,
                 test_append,
+                test_abort_writer,
             );
         )*
     };
@@ -575,6 +576,25 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+// Delete existing file should succeed.
+pub async fn test_abort_writer(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    let mut writer = op.writer(&path).await.unwrap();
+    if let Err(e) = writer.append(content).await {
+        assert_eq!(e.kind(), ErrorKind::Unsupported);
+    }
+
+    if let Err(e) = writer.abort().await {
+        assert_eq!(e.kind(), ErrorKind::Unsupported);
+    }
+
+    // Aborted writer should not write actual file.
+    assert!(!op.is_exist(&path).await?);
     Ok(())
 }
 

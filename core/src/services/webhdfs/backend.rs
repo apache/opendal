@@ -444,7 +444,7 @@ impl WebhdfsBackend {
                 }
             }
             StatusCode::NOT_FOUND => {
-                self.create("/", OpCreate::new(EntryMode::DIR)).await?;
+                self.create_dir("/", OpCreate::new()).await?;
             }
             _ => return Err(parse_error(resp).await?),
         }
@@ -473,7 +473,7 @@ impl Accessor for WebhdfsBackend {
     }
 
     /// Create a file or directory
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let req = self
             .webhdfs_create_object_request(path, Some(0), None, AsyncBody::Empty)
             .await?;

@@ -81,12 +81,8 @@ impl Accessor for IpmfsBackend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let resp = match args.mode() {
-            EntryMode::DIR => self.ipmfs_mkdir(path).await?,
-            EntryMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
-            _ => unreachable!(),
-        };
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let resp = self.ipmfs_mkdir(path).await?;
 
         let status = resp.status();
 

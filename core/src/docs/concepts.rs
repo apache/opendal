@@ -19,7 +19,7 @@
 //!
 //! OpenDAL provides a unified abstraction for all storage services.
 //!
-//! There are three core concepts in OpenDAL:
+//! There are two core concepts in OpenDAL:
 //!
 //! - [`Builder`]: Build an instance of underlying services.
 //! - [`Operator`]: A bridge between underlying implementation detail and unified abstraction.

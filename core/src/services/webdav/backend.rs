@@ -278,7 +278,7 @@ impl Accessor for WebdavBackend {
         ma
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         self.ensure_parent_path(path).await?;
 
         let abs_path = build_abs_path(&self.root, path);

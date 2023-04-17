@@ -243,43 +243,12 @@ impl Accessor for HdfsBackend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        match args.mode() {
-            EntryMode::FILE => {
-                let parent = PathBuf::from(&p)
-                    .parent()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "path should have parent but not, it must be malformed",
-                        )
-                        .with_context("input", &p)
-                    })?
-                    .to_path_buf();
+        self.client.create_dir(&p).map_err(parse_io_error)?;
 
-                self.client
-                    .create_dir(&parent.to_string_lossy())
-                    .map_err(parse_io_error)?;
-
-                self.client
-                    .open_file()
-                    .create(true)
-                    .write(true)
-                    .truncate(true)
-                    .open(&p)
-                    .map_err(parse_io_error)?;
-
-                Ok(RpCreate::default())
-            }
-            EntryMode::DIR => {
-                self.client.create_dir(&p).map_err(parse_io_error)?;
-
-                Ok(RpCreate::default())
-            }
-            EntryMode::Unknown => unreachable!(),
-        }
+        Ok(RpCreate::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -412,43 +381,12 @@ impl Accessor for HdfsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        match args.mode() {
-            EntryMode::FILE => {
-                let parent = PathBuf::from(&p)
-                    .parent()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "path should have parent but not, it must be malformed",
-                        )
-                        .with_context("input", &p)
-                    })?
-                    .to_path_buf();
+        self.client.create_dir(&p).map_err(parse_io_error)?;
 
-                self.client
-                    .create_dir(&parent.to_string_lossy())
-                    .map_err(parse_io_error)?;
-
-                self.client
-                    .open_file()
-                    .create(true)
-                    .write(true)
-                    .truncate(true)
-                    .open(&p)
-                    .map_err(parse_io_error)?;
-
-                Ok(RpCreate::default())
-            }
-            EntryMode::DIR => {
-                self.client.create_dir(&p).map_err(parse_io_error)?;
-
-                Ok(RpCreate::default())
-            }
-            EntryMode::Unknown => unreachable!(),
-        }
+        Ok(RpCreate::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

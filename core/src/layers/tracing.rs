@@ -151,8 +151,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.create(path, args).await
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.create_dir(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -208,8 +208,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.blocking_create(path, args)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.blocking_create_dir(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

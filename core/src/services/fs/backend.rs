@@ -313,41 +313,12 @@ impl Accessor for FsBackend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        if args.mode() == EntryMode::FILE {
-            let parent = p
-                .parent()
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "path should have parent but not, it must be malformed",
-                    )
-                    .with_context("input", p.to_string_lossy())
-                })?
-                .to_path_buf();
+        fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
-            fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
-
-            fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(&p)
-                .await
-                .map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        if args.mode() == EntryMode::DIR {
-            fs::create_dir_all(&p).await.map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        unreachable!()
+        Ok(RpCreate::default())
     }
 
     /// # Notes
@@ -540,39 +511,12 @@ impl Accessor for FsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        if args.mode() == EntryMode::FILE {
-            let parent = p
-                .parent()
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "path should have parent but not, it must be malformed",
-                    )
-                    .with_context("input", p.to_string_lossy())
-                })?
-                .to_path_buf();
+        std::fs::create_dir_all(p).map_err(parse_io_error)?;
 
-            std::fs::create_dir_all(parent).map_err(parse_io_error)?;
-
-            std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(&p)
-                .map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        if args.mode() == EntryMode::DIR {
-            std::fs::create_dir_all(&p).map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        unreachable!()
+        Ok(RpCreate::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

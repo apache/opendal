@@ -17,7 +17,7 @@
 
 extern crate cbindgen;
 
-use std::path::Path;
+use std::{path::Path, process::Command};
 
 fn main() {
     let header_file = Path::new("include").join("opendal.h");
@@ -25,4 +25,12 @@ fn main() {
     cbindgen::generate(".")
         .expect("Unable to generate bindings")
         .write_to_file(header_file);
+
+    Command::new("clang-format")
+        .arg("--style=WebKit")
+        .arg("--verbose")
+        .arg("-i")
+        .arg("include/opendal.h")
+        .spawn()
+        .expect("clang-format must succeed");
 }

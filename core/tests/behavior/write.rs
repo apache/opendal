@@ -584,13 +584,22 @@ pub async fn test_abort_writer(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 
-    let mut writer = op.writer(&path).await.unwrap();
+    let mut writer = match op.writer(&path).await {
+        Ok(writer) => writer,
+        Err(e) => {
+            assert_eq!(e.kind(), ErrorKind::Unsupported);
+            return Ok(());
+        }
+    };
+
     if let Err(e) = writer.append(content).await {
         assert_eq!(e.kind(), ErrorKind::Unsupported);
+        return Ok(());
     }
 
     if let Err(e) = writer.abort().await {
         assert_eq!(e.kind(), ErrorKind::Unsupported);
+        return Ok(());
     }
 
     // Aborted writer should not write actual file.

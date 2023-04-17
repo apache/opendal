@@ -115,8 +115,8 @@ impl ObsCore {
         path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
-        body: AsyncBody,
         if_match: Option<&str>,
+        body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 

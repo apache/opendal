@@ -47,8 +47,8 @@ impl oio::Write for ObsWriter {
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
-            AsyncBody::Bytes(bs),
             self.op.if_match(),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;

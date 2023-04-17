@@ -17,6 +17,7 @@
 
 extern crate cbindgen;
 
+use std::io::ErrorKind;
 use std::{path::Path, process::Command};
 
 fn main() {
@@ -26,11 +27,17 @@ fn main() {
         .expect("Unable to generate bindings")
         .write_to_file(header_file);
 
-    Command::new("clang-format")
+    if let Err(e) = Command::new("clang-format")
         .arg("--style=WebKit")
         .arg("--verbose")
         .arg("-i")
         .arg("include/opendal.h")
         .spawn()
-        .expect("clang-format must succeed");
+    {
+        if e.kind() == ErrorKind::NotFound {
+            panic!("\x1b[31mclang-format\x1b[0m not found, please install it through package manager first");
+        } else {
+            panic!("Failed to run build.rs: {}", e)
+        }
+    }
 }

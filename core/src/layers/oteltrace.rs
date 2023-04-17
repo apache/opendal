@@ -36,15 +36,17 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     fn metadata(&self) -> AccessorInfo {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("metadata");
-        let accessor_info = self.inner.info();
+        let ret = self.inner.info();
         span.end();
-        accessor_info
+        ret
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let tracer = global::tracer("opendal");
         let span = tracer.start("create");
-        let cx = Context::current_with_value(span);
+        span.set_attribute("path", path);
+        span.set_attribute("args", args);
+        let cx = Context::current_with_span(span);
         self.inner.create(path, args).with_context(cx).await
     }
 
@@ -57,18 +59,40 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let tracer = global::tracer("opendal");
+        let span = tracer.start("copy");
+        span.set_attribute("from", from);
+        span.set_attribute("to", to);
+        span.set_attribute("args", args);
+        let cx = Context::current_with_span(span);
         self.inner().copy(from, to, args).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let tracer = global::tracer("opendal");
+        let span = tracer.start("rename");
+        span.set_attribute("from", from);
+        span.set_attribute("to", to);
+        span.set_attribute("args", args);
+        let cx = Context::current_with_span(span);
         self.inner().rename(from, to, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let tracer = global::tracer("opendal");
+        let span = tracer.start("stat");
+        span.set_attribute("path", path);
+        span.set_attribute("args", args);
+        let cx = Context::current_with_span(span);
         self.inner().stat(path, args).await
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let tracer = global::tracer("opendal");
+        let span = tracer.start("delete");
+        span.set_attribute("path", path);
+        span.set_attribute("args", args);
+        let cx = Context::current_with_span(span);
         self.inner().delete(path, args).await
     }
 
@@ -81,15 +105,30 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let tracer = global::tracer("opendal");
+        let span = tracer.start("batch");
+        span.set_attribute("args", args);
+        let cx = Context::current_with_span(span);
         self.inner().batch(args).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let tracer = global::tracer("opendal");
+        let span = tracer.start("presign");
+        span.set_attribute("path", path);
+        span.set_attribute("args", args);
+        let cx = Context::current_with_span(span);
         self.inner().presign(path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner().blocking_create(path, args)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("blocking_create_dir");
+        span.set_attribute("path", path);
+        span.set_attribute("args", args);
+        let ret = self.inner().blocking_create(path, args);
+        span.end();
+        ret
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -101,19 +140,45 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner().blocking_copy(from, to, args)
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("blocking_copy");
+        span.set_attribute("from", from);
+        span.set_attribute("to", to);
+        span.set_attribute("args", args);
+        let ret = self.inner().blocking_copy(from, to, args);
+        span.end();
+        ret
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        self.inner().blocking_rename(from, to, args)
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("blocking_rename");
+        span.set_attribute("from", from);
+        span.set_attribute("to", to);
+        span.set_attribute("args", args);
+        let ret = self.inner().blocking_rename(from, to, args);
+        span.end();
+        ret
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner().blocking_stat(path, args)
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("blocking_rename");
+        span.set_attribute("path", path);
+        span.set_attribute("args", args);
+        let ret = self.inner().blocking_stat(path, args);
+        span.end();
+        ret
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner().blocking_delete(path, args)
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("blocking_delete");
+        span.set_attribute("path", path);
+        span.set_attribute("args", args);
+        let ret = self.inner().blocking_delete(path, args);
+        span.end();
+        ret
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
@@ -218,21 +283,5 @@ impl<R: oio::Page> oio::Page for OtelTraceWrapper<R> {
 impl<R: oio::BlockingPage> oio::BlockingPage for OtelTraceWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         todo!()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_trace() {
-        let _tracer = init_tracer();
-    }
-
-    fn init_tracer() -> impl Tracer {
-        stdout::new_pipeline()
-            .with_trace_config(trace::config().with_sampler(Sampler::AlwaysOn))
-            .install_simple()
     }
 }

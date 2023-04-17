@@ -91,14 +91,6 @@ async function main() {
 }
 ```
 
-
-## Build
-To compile OpenDAL from source code, you'll need:
-- Rust toolchain: the easiest way to install Rust is [rustup](https://rustup.rs/), which will check our rust-toolchain.toml file and install the correct Rust version for you.
-- C/C++ Toolchain: provides basic tools for compiling and linking OpenDAL C binding.
-  - This is available as `build-essential` on Ubuntu and similar names on other platforms. 
-  - `clang-format`: OpenDAL uses clang-format to keep C binding code base clean.
-
 ## Projects
 
 - [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.

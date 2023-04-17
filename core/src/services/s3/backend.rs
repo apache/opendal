@@ -921,7 +921,7 @@ impl Accessor for S3Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut req =
             self.core
                 .s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;

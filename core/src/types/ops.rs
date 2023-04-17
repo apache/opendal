@@ -22,25 +22,17 @@
 use std::time::Duration;
 
 use crate::raw::*;
-use crate::*;
 
 /// Args for `create` operation.
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct OpCreate {
-    mode: EntryMode,
-}
+pub struct OpCreate {}
 
 impl OpCreate {
     /// Create a new `OpCreate`.
-    pub fn new(mode: EntryMode) -> Self {
-        Self { mode }
-    }
-
-    /// Get mode from option.
-    pub fn mode(&self) -> EntryMode {
-        self.mode
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

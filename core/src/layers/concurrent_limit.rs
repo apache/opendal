@@ -94,14 +94,14 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         &self.inner
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let _permit = self
             .semaphore
             .acquire()
             .await
             .expect("semaphore must be valid");
 
-        self.inner.create(path, args).await
+        self.inner.create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -190,13 +190,13 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         self.inner.batch(args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let _permit = self
             .semaphore
             .try_acquire()
             .expect("semaphore must be valid");
 
-        self.inner.blocking_create(path, args)
+        self.inner.blocking_create_dir(path, args)
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

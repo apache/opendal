@@ -22,6 +22,7 @@ use crate::raw::*;
 use crate::*;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::IF_MATCH;
 use http::Request;
 use http::Response;
 use reqsign::HuaweicloudObsCredential;
@@ -84,12 +85,17 @@ impl ObsCore {
         &self,
         path: &str,
         range: BytesRange,
+        if_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header())
@@ -110,12 +116,17 @@ impl ObsCore {
         size: Option<usize>,
         content_type: Option<&str>,
         body: AsyncBody,
+        if_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -130,7 +141,11 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_get_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn obs_get_head_object(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -138,7 +153,11 @@ impl ObsCore {
         // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0084.html
 
-        let req = Request::head(&url);
+        let mut req = Request::head(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
 
         let mut req = req
             .body(AsyncBody::Empty)

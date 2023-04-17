@@ -222,6 +222,7 @@ pub struct OpRead {
     br: BytesRange,
     override_content_disposition: Option<String>,
     override_cache_control: Option<String>,
+    if_match: Option<String>,
     if_none_match: Option<String>,
 }
 
@@ -265,6 +266,17 @@ impl OpRead {
         self.override_cache_control.as_deref()
     }
 
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, if_match: &str) -> Self {
+        self.if_match = Some(if_match.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
+
     /// Set the If-None-Match of the option
     pub fn with_if_none_match(mut self, if_none_match: &str) -> Self {
         self.if_none_match = Some(if_none_match.to_string());
@@ -280,6 +292,7 @@ impl OpRead {
 /// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {
+    if_match: Option<String>,
     if_none_match: Option<String>,
 }
 
@@ -287,6 +300,17 @@ impl OpStat {
     /// Create a new `OpStat`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, if_match: &str) -> Self {
+        self.if_match = Some(if_match.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
     }
 
     /// Set the If-None-Match of the option
@@ -309,6 +333,7 @@ pub struct OpWrite {
     content_type: Option<String>,
     content_disposition: Option<String>,
     cache_control: Option<String>,
+    if_match: Option<String>,
 }
 
 impl OpWrite {
@@ -359,6 +384,17 @@ impl OpWrite {
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
         self
+    }
+
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, if_match: &str) -> Self {
+        self.if_match = Some(if_match.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
     }
 }
 

@@ -1018,7 +1018,10 @@ impl Accessor for S3Backend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.s3_head_object(path, args.if_none_match(), args.if_match()).await?;
+        let resp = self
+            .core
+            .s3_head_object(path, args.if_none_match(), args.if_match())
+            .await?;
 
         let status = resp.status();
 
@@ -1060,7 +1063,8 @@ impl Accessor for S3Backend {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => {
-                self.core.s3_head_object_request(path, v.if_none_match(), v.if_match())?
+                self.core
+                    .s3_head_object_request(path, v.if_none_match(), v.if_match())?
             }
             PresignOperation::Read(v) => self.core.s3_get_object_request(
                 path,

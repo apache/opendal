@@ -29,8 +29,8 @@ use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::header::IF_NONE_MATCH;
 use http::header::IF_MATCH;
+use http::header::IF_NONE_MATCH;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -279,8 +279,6 @@ impl S3Core {
         if let Some(if_match) = if_match {
             req = req.header(IF_MATCH, if_match);
         }
-
-
         // Set SSE headers.
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);

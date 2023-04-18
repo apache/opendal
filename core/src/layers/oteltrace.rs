@@ -336,19 +336,19 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 #[async_trait]
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.write(bs).with_context(cx).await
+        self.inner.write(bs).await
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).with_context(cx).await
+        self.inner.append(bs).await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().with_context(cx).await
+        self.inner.abort().await
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.inner.close().with_context(cx).await
+        self.inner.close().await
     }
 }
 

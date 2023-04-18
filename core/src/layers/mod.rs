@@ -73,4 +73,4 @@ pub use self::madsim::MadsimLayer;
 
 #[cfg(feature = "layers-madsim")]
 #[cfg(madsim)]
-pub use self::madsim::SimServer;
+pub use self::madsim::MadsimServer;

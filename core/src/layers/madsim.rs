@@ -17,6 +17,7 @@
 
 use crate::ops::{OpList, OpRead, OpScan, OpWrite};
 use crate::raw::oio::Entry;
+use crate::raw::AccessorCapability;
 use crate::raw::AccessorInfo;
 use crate::raw::{oio, Accessor, Layer, LayeredAccessor, RpList, RpRead, RpScan, RpWrite};
 use crate::types::Error;
@@ -57,12 +58,12 @@ use std::task::{Context, Poll};
 ///     let handle = Handle::current();
 ///     let ip1 = "10.0.0.1".parse().unwrap();
 ///     let ip2 = "10.0.0.2".parse().unwrap();
-///     let sim_server_socket = "10.0.0.1:2379".parse().unwrap();
+///     let server_addr = "10.0.0.1:2379".parse().unwrap();
 ///     let server = handle.create_node().name("server").ip(ip1).build();
 ///     let client = handle.create_node().name("client").ip(ip2).build();
 ///
 ///     server.spawn(async move {
-///          SimServer::serve(sim_server_socket).await.unwrap();
+///          SimServer::serve(server_addr).await.unwrap();
 ///     });
 ///     sleep(Duration::from_secs(1)).await;
 ///
@@ -71,7 +72,7 @@ use std::task::{Context, Poll};
 ///     builder.root(".");
 ///     let op = Operator::new(builder)
 ///         .unwrap()
-///         .layer(MadsimLayer::new(sim_server_socket))
+///         .layer(MadsimLayer::new(server_addr))
 ///         .finish();
 ///
 ///          let path = "hello.txt";
@@ -129,6 +130,7 @@ impl LayeredAccessor for MadsimAccessor {
     fn metadata(&self) -> AccessorInfo {
         let mut info = AccessorInfo::default();
         info.set_name("madsim");
+        info.set_capabilities(AccessorCapability::Read | AccessorCapability::Write);
         info
     }
 
@@ -164,7 +166,7 @@ impl LayeredAccessor for MadsimAccessor {
             MadsimWriter {
                 path: path.to_string(),
                 args,
-                sim_server_socket: self.addr,
+                addr: self.addr,
             },
         ))
     }
@@ -261,26 +263,17 @@ impl oio::Read for MadsimReader {
 pub struct MadsimWriter {
     path: String,
     args: OpWrite,
-    sim_server_socket: SocketAddr,
+    addr: SocketAddr,
 }
 
 #[async_trait]
 impl oio::Write for MadsimWriter {
     async fn write(&mut self, bs: Bytes) -> crate::Result<()> {
         let req = Request::Write(self.path.to_string(), bs);
-        let ep = Endpoint::connect(self.sim_server_socket)
-            .await
-            .expect("fail to connect to sim server");
-        let (tx, mut rx) = ep
-            .connect1(self.sim_server_socket)
-            .await
-            .expect("fail to connect1 to sim server");
-        tx.send(Box::new(req))
-            .await
-            .expect("fail to send request to sim server");
-        rx.recv()
-            .await
-            .expect("fail to recv response from sim server");
+        let ep = Endpoint::connect(self.addr).await?;
+        let (tx, mut rx) = ep.connect1(self.addr).await?;
+        tx.send(Box::new(req)).await?;
+        rx.recv().await?;
         Ok(())
     }
 
@@ -312,6 +305,12 @@ impl oio::Page for MadsimPager {
             ErrorKind::Unsupported,
             "will be supported in the future",
         ))
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Error::new(ErrorKind::Unexpected, "madsim error")
     }
 }
 
@@ -391,12 +390,12 @@ mod test {
         let handle = Handle::current();
         let ip1 = "10.0.0.1".parse().unwrap();
         let ip2 = "10.0.0.2".parse().unwrap();
-        let sim_server_socket = "10.0.0.1:2379";
+        let server_addr = "10.0.0.1:2379";
         let server = handle.create_node().name("server").ip(ip1).build();
         let client = handle.create_node().name("client").ip(ip2).build();
 
         server.spawn(async move {
-            SimServer::serve(sim_server_socket.parse().unwrap())
+            MadsimServer::serve(server_addr.parse().unwrap())
                 .await
                 .unwrap();
         });
@@ -407,7 +406,7 @@ mod test {
             builder.root(".");
             let op = Operator::new(builder)
                 .unwrap()
-                .layer(MadsimLayer::new(sim_server_socket))
+                .layer(MadsimLayer::new(server_addr))
                 .finish();
 
             let path = "hello.txt";

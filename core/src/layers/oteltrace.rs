@@ -75,10 +75,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     fn metadata(&self) -> AccessorInfo {
         let tracer = global::tracer("opendal");
-        let mut span = tracer.start("metadata");
-        let ret = self.inner.info();
-        span.end();
-        ret
+        tracer.in_span("metadata", |_cx| self.inner.info())
     }
 
     async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -191,12 +188,12 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_create_dir");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let ret = self.inner().blocking_create_dir(path, args);
-        span.end();
-        ret
+        tracer.in_span("blocking_create_dir", |cx| {
+            let span = cx.span(); // let mut span = cx.();
+            span.set_attribute(KeyValue::new("path", path.to_string()));
+            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+            self.inner().blocking_create_dir(path, args)
+        })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -221,44 +218,44 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_copy");
-        span.set_attribute(KeyValue::new("from", from.to_string()));
-        span.set_attribute(KeyValue::new("to", to.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let ret = self.inner().blocking_copy(from, to, args);
-        span.end();
-        ret
+        tracer.in_span("blocking_copy", |cx| {
+            let span = cx.span();
+            span.set_attribute(KeyValue::new("from", from.to_string()));
+            span.set_attribute(KeyValue::new("to", to.to_string()));
+            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+            self.inner().blocking_copy(from, to, args)
+        })
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_rename");
-        span.set_attribute(KeyValue::new("from", from.to_string()));
-        span.set_attribute(KeyValue::new("to", to.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let ret = self.inner().blocking_rename(from, to, args);
-        span.end();
-        ret
+        tracer.in_span("blocking_rename", |cx| {
+            let span = cx.span();
+            span.set_attribute(KeyValue::new("from", from.to_string()));
+            span.set_attribute(KeyValue::new("to", to.to_string()));
+            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+            self.inner().blocking_rename(from, to, args)
+        })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_rename");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let ret = self.inner().blocking_stat(path, args);
-        span.end();
-        ret
+        tracer.in_span("blocking_stat", |cx| {
+            let span = cx.span();
+            span.set_attribute(KeyValue::new("path", path.to_string()));
+            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+            self.inner().blocking_stat(path, args)
+        })
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_delete");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let ret = self.inner().blocking_delete(path, args);
-        span.end();
-        ret
+        tracer.in_span("blocking_delete", |cx| {
+            let span = cx.span();
+            span.set_attribute(KeyValue::new("path", path.to_string()));
+            span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+            self.inner().blocking_delete(path, args)
+        })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {

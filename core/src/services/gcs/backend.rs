@@ -410,16 +410,32 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "append write is not supported",
-            ));
-        }
+        let upload_location = if args.append() {
+            let resp = self.core.gcs_initiate_resumable_upload(path).await?;
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK => {
+                    let bs = parse_location(resp.headers())
+                        .expect("Failed to retrieve location of resumable upload");
+                    if let Some(location) = bs {
+                        Some(String::from(location))
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::NotFound,
+                            "location is not in the response header",
+                        ));
+                    }
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
+        } else {
+            None
+        };
 
         Ok((
             RpWrite::default(),
-            GcsWriter::new(self.core.clone(), args, path.to_string()),
+            GcsWriter::new(self.core.clone(), args, path.to_string(), upload_location),
         ))
     }
 

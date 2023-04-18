@@ -311,6 +311,8 @@ impl Builder for OssBuilder {
         debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
         let mut cfg = AliyunConfig::default();
+        // Load cfg from env first.
+        cfg = cfg.from_env();
 
         if let Some(v) = self.access_key_id.take() {
             cfg.access_key_id = Some(v);

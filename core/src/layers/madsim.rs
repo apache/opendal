@@ -15,17 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::ops::{OpList, OpRead, OpScan, OpWrite};
-use crate::raw::oio::Entry;
-use crate::raw::AccessorCapability;
-use crate::raw::AccessorInfo;
-use crate::raw::{oio, Accessor, Layer, LayeredAccessor, RpList, RpRead, RpScan, RpWrite};
-use crate::types::Error;
-use crate::types::ErrorKind;
-use async_trait::async_trait;
-use bytes::Bytes;
-use madsim::net::Endpoint;
-use madsim::net::Payload;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Result;
@@ -33,7 +22,19 @@ use std::io::SeekFrom;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
+
+use async_trait::async_trait;
+use bytes::Bytes;
+use madsim::net::Endpoint;
+use madsim::net::Payload;
+
+use crate::ops::*;
+use crate::raw::oio;
+use crate::raw::oio::Entry;
+use crate::raw::*;
+use crate::*;
 
 /// Add deterministic simulation for async operations, powered by [`madsim`](https://docs.rs/madsim/latest/madsim/).
 ///
@@ -45,16 +46,19 @@ use std::task::{Context, Poll};
 /// # Examples
 ///
 /// ```
-/// use opendal::Operator;
-/// use opendal::services;
+/// use std::time::Duration;
+///
+/// use madsim::net::NetSim;
+/// use madsim::runtime::Handle;
+/// use madsim::time::sleep;
 /// use opendal::layers::MadsimLayer;
 /// use opendal::layers::MadsimServer;
-/// use madsim::{net::NetSim, runtime::Handle, time::sleep};
-/// use std::time::Duration;
+/// use opendal::services;
+/// use opendal::Operator;
 ///
 /// #[cfg(madsim)]
 /// #[madsim::test]
-/// async fn deterministic_simulation_test(){
+/// async fn deterministic_simulation_test() {
 ///     let handle = Handle::current();
 ///     let ip1 = "10.0.0.1".parse().unwrap();
 ///     let ip2 = "10.0.0.2".parse().unwrap();
@@ -63,24 +67,24 @@ use std::task::{Context, Poll};
 ///     let client = handle.create_node().name("client").ip(ip2).build();
 ///
 ///     server.spawn(async move {
-///          SimServer::serve(server_addr).await.unwrap();
+///         SimServer::serve(server_addr).await.unwrap();
 ///     });
 ///     sleep(Duration::from_secs(1)).await;
 ///
 ///     let handle = client.spawn(async move {
-///     let mut builder = services::Fs::default();
-///     builder.root(".");
-///     let op = Operator::new(builder)
-///         .unwrap()
-///         .layer(MadsimLayer::new(server_addr))
-///         .finish();
+///         let mut builder = services::Fs::default();
+///         builder.root(".");
+///         let op = Operator::new(builder)
+///             .unwrap()
+///             .layer(MadsimLayer::new(server_addr))
+///             .finish();
 ///
-///          let path = "hello.txt";
-///          let data = "Hello, World!";
-///          op.write(path, data).await.unwrap();
-///          assert_eq!(data.as_bytes(), op.read(path).await.unwrap());
-///      });
-///      handle.await.unwrap();
+///         let path = "hello.txt";
+///         let data = "Hello, World!";
+///         op.write(path, data).await.unwrap();
+///         assert_eq!(data.as_bytes(), op.read(path).await.unwrap());
+///     });
+///     handle.await.unwrap();
 /// }
 /// ```
 /// To enable logging output, please set `RUSTFLAGS="--cfg madsim"`:
@@ -380,10 +384,14 @@ struct WriteResponse {}
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::{services, Operator};
-    use madsim::{runtime::Handle, time::sleep};
     use std::time::Duration;
+
+    use madsim::runtime::Handle;
+    use madsim::time::sleep;
+
+    use super::*;
+    use crate::services;
+    use crate::Operator;
 
     #[madsim::test]
     async fn test_madsim_layer() {

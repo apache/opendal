@@ -482,7 +482,9 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.range_read_with("path/to/file", 1024..2048, OpRead::new()).await?;
+    /// let bs = op
+    ///     .range_read_with("path/to/file", 1024..2048, OpRead::new())
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```

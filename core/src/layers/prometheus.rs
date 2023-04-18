@@ -27,14 +27,14 @@ use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
-
+use prometheus::core::AtomicU64;
 use prometheus::core::GenericCounterVec;
 use prometheus::exponential_buckets;
 use prometheus::histogram_opts;
 use prometheus::register_histogram_vec_with_registry;
 use prometheus::register_int_counter_vec_with_registry;
+use prometheus::HistogramVec;
 use prometheus::Registry;
-use prometheus::{core::AtomicU64, HistogramVec};
 
 use crate::ops::*;
 use crate::raw::Accessor;
@@ -47,11 +47,10 @@ use crate::*;
 /// ```
 /// use log::debug;
 /// use log::info;
+/// use opendal::layers::PrometheusLayer;
 /// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Result;
-///
-/// use opendal::layers::PrometheusLayer;
 /// use prometheus::Encoder;
 ///
 /// /// Visit [`opendal::services`] for more service related config.

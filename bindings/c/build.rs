@@ -18,7 +18,8 @@
 extern crate cbindgen;
 
 use std::io::ErrorKind;
-use std::{path::Path, process::Command};
+use std::path::Path;
+use std::process::Command;
 
 fn main() {
     let header_file = Path::new("include").join("opendal.h");

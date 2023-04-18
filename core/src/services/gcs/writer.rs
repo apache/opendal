@@ -32,10 +32,10 @@ pub struct GcsWriter {
 
     op: OpWrite,
     path: String,
-    upload_location: Option<String>,
-    already_uploaded_chunk: u64,
-    last_chunk_uploaded: bool,
-    prev_upload_chunk: Option<Bytes>,
+    location: Option<String>,
+    written_bytes: u64,
+    is_last_part_written: bool,
+    last: Option<Bytes>,
 }
 
 impl GcsWriter {
@@ -49,10 +49,10 @@ impl GcsWriter {
             core,
             op,
             path,
-            upload_location,
-            already_uploaded_chunk: 0,
-            last_chunk_uploaded: false,
-            prev_upload_chunk: None,
+            location: upload_location,
+            written_bytes: 0,
+            is_last_part_written: false,
+            last: None,
         }
     }
 }
@@ -83,41 +83,47 @@ impl oio::Write for GcsWriter {
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let upload_location = if let Some(upload_location) = &self.upload_location {
-            upload_location
+        let location = if let Some(location) = &self.location {
+            location
         } else {
             return Ok(());
         };
 
-        let copied = bs.slice(0..bs.len());
-        let chunk_size = bs.len() as u64;
-        let is_last_chunk = chunk_size / 256 / 1024 == 0;
-        let mut req = self.core.gcs_upload_chunks_in_resumable_upload(
-            upload_location,
-            chunk_size,
-            self.already_uploaded_chunk,
-            is_last_chunk,
-            AsyncBody::Bytes(bs),
-        )?;
+        let result = if let Some(last) = &self.last {
+            let bytes_to_upload = last.slice(0..last.len());
+            let part_size = bytes_to_upload.len() as u64;
+            let is_last_part = part_size % (256 * 1024) != 0;
+            let mut req = self.core.gcs_upload_in_resumable_upload(
+                location,
+                part_size,
+                self.written_bytes,
+                is_last_part,
+                AsyncBody::Bytes(bytes_to_upload),
+            )?;
 
-        self.core.sign(&mut req).await?;
+            self.core.sign(&mut req).await?;
 
-        let resp = self.core.send(req).await?;
+            let resp = self.core.send(req).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK | StatusCode::PERMANENT_REDIRECT => {
-                if is_last_chunk {
-                    self.last_chunk_uploaded = true
-                } else {
-                    self.already_uploaded_chunk += chunk_size;
-                    self.prev_upload_chunk = Some(copied);
+            match status {
+                StatusCode::OK | StatusCode::PERMANENT_REDIRECT => {
+                    if is_last_part {
+                        self.is_last_part_written = true
+                    } else {
+                        self.written_bytes += part_size;
+                    }
+                    Ok(())
                 }
-                Ok(())
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        } else {
+            Ok(())
+        };
+
+        self.last = Some(bs.slice(0..bs.len()));
+        return result;
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -125,30 +131,24 @@ impl oio::Write for GcsWriter {
     }
 
     async fn close(&mut self) -> Result<()> {
-        if self.last_chunk_uploaded {
+        if self.is_last_part_written {
             return Ok(());
         }
 
-        let upload_location = if let Some(upload_location) = &self.upload_location {
-            upload_location
+        let location = if let Some(location) = &self.location {
+            location
         } else {
             return Ok(());
         };
 
         let bs = self
-            .prev_upload_chunk
+            .last
             .as_ref()
-            .expect("failed to get the previously uploaded chunk");
-
-        let copied_prev_chunk = bs.slice(0..bs.len());
+            .expect("failed to get the previously uploaded part");
 
         let resp = self
             .core
-            .gcs_complete_resumable_upload(
-                upload_location,
-                self.already_uploaded_chunk,
-                copied_prev_chunk,
-            )
+            .gcs_complete_resumable_upload(location, self.written_bytes, bs.slice(0..bs.len()))
             .await?;
 
         let status = resp.status();
@@ -156,7 +156,6 @@ impl oio::Write for GcsWriter {
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
-
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),

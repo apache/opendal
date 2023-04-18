@@ -318,29 +318,25 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub fn gcs_upload_chunks_in_resumable_upload(
+    pub fn gcs_upload_in_resumable_upload(
         &self,
-        upload_location: &str,
+        location: &str,
         size: u64,
-        already_sent_bytes: u64,
-        is_last_chunk: bool,
+        written_bytes: u64,
+        is_last_part: bool,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
-        let mut req = Request::put(upload_location);
+        let mut req = Request::put(location);
 
-        let range_header = if is_last_chunk {
+        let range_header = if is_last_part {
             format!(
                 "bytes {}-{}/{}",
-                already_sent_bytes,
-                already_sent_bytes + size - 1,
-                already_sent_bytes + size
+                written_bytes,
+                written_bytes + size - 1,
+                written_bytes + size
             )
         } else {
-            format!(
-                "bytes {}-{}/*",
-                already_sent_bytes,
-                already_sent_bytes + size - 1
-            )
+            format!("bytes {}-{}/*", written_bytes, written_bytes + size - 1)
         };
 
         req = req
@@ -355,22 +351,23 @@ impl GcsCore {
 
     pub async fn gcs_complete_resumable_upload(
         &self,
-        upload_location: &str,
-        already_uploaded_chunk: u64,
-        prev_upload_chunk: Bytes,
+        location: &str,
+        written_bytes: u64,
+        bs: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::post(upload_location)
-            .header(CONTENT_LENGTH, prev_upload_chunk.len())
+        let size = bs.len() as u64;
+        let mut req = Request::post(location)
+            .header(CONTENT_LENGTH, size)
             .header(
                 CONTENT_RANGE,
                 format!(
                     "bytes {}-{}/{}",
-                    already_uploaded_chunk - prev_upload_chunk.len() as u64,
-                    already_uploaded_chunk - 1,
-                    already_uploaded_chunk
+                    written_bytes,
+                    written_bytes + size - 1,
+                    written_bytes + size
                 ),
             )
-            .body(AsyncBody::Bytes(prev_upload_chunk))
+            .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

@@ -37,7 +37,6 @@ use super::writer::GcsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
-use serde::Serialize;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
@@ -417,16 +416,16 @@ impl Accessor for GcsBackend {
 
             match status {
                 StatusCode::OK => {
-                    let bs = resp
-                        .headers()
-                        .into_iter()
-                        .filter(|&x| x.0.as_str().to_ascii_lowercase().eq("location"))
-                        .next()
+                    let bs = parse_location(resp.headers())
                         .expect("Failed to retrieve location of resumable upload");
-                    Some(
-                        String::from_utf8(bs.1.as_bytes().to_vec())
-                            .expect("failed to convert location to string"),
-                    )
+                    if let Some(location) = bs {
+                        Some(String::from(location))
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::NotFound,
+                            "location is not in the response header",
+                        ));
+                    }
                 }
                 _ => return Err(parse_error(resp).await?),
             }
@@ -544,23 +543,6 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
-}
-
-#[derive(Clone, Default, Debug, Serialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct CompleteMultipartUploadRequestPart {
-    #[serde(rename = "PartNumber")]
-    pub part_number: usize,
-    /// # TODO same issue as the one in s3
-    #[serde(rename = "ETag")]
-    pub etag: String,
-}
-
-/// Request of CompleteMultipartUploadRequest
-#[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
-struct CompleteMultipartUploadRequest {
-    part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
 #[cfg(test)]

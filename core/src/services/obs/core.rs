@@ -18,8 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use crate::raw::*;
-use crate::*;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -28,6 +26,9 @@ use http::Response;
 use reqsign::HuaweicloudObsCredential;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
+
+use crate::raw::*;
+use crate::*;
 
 pub struct ObsCore {
     pub bucket: String,

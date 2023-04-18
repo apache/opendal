@@ -64,3 +64,4 @@ mod complete;
 pub(crate) use complete::CompleteLayer;
 
 mod oteltrace;
+pub use self::oteltrace::OtelTraceLayer;

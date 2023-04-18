@@ -47,7 +47,7 @@ use std::task::{Context, Poll};
 /// use opendal::Operator;
 /// use opendal::services;
 /// use opendal::layers::MadsimLayer;
-/// use opendal::layers::SimServer;
+/// use opendal::layers::MadsimServer;
 /// use madsim::{net::NetSim, runtime::Handle, time::sleep};
 /// use std::time::Duration;
 ///
@@ -317,9 +317,9 @@ impl oio::Page for MadsimPager {
 
 /// A simulated server.This an experimental feature, docs are not ready yet.
 #[derive(Default, Clone)]
-pub struct SimServer;
+pub struct MadsimServer;
 
-impl SimServer {
+impl MadsimServer {
     pub async fn serve(addr: SocketAddr) -> Result<()> {
         let ep = Endpoint::bind(addr).await?;
         let service = Arc::new(SimService::default());

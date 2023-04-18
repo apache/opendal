@@ -450,7 +450,7 @@ impl Accessor for OssBackend {
 
         let resp = self
             .core
-            .oss_head_object(path, args.if_none_match())
+            .oss_head_object(path, args.if_match(), args.if_none_match())
             .await?;
 
         let status = resp.status();
@@ -495,7 +495,9 @@ impl Accessor for OssBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.core.oss_head_object_request(path, true, None)?,
+            PresignOperation::Stat(_) => {
+                self.core.oss_head_object_request(path, true, None, None)?
+            }
             PresignOperation::Read(v) => {
                 self.core
                     .oss_get_object_request(path, v.range(), true, None)?

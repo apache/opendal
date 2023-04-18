@@ -24,6 +24,7 @@ use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
 use http::Request;
@@ -192,6 +193,7 @@ impl OssCore {
         &self,
         path: &str,
         is_presign: bool,
+        if_match: Option<&str>,
         if_none_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -199,6 +201,9 @@ impl OssCore {
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match)
+        }
         if let Some(if_none_match) = if_none_match {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
@@ -250,9 +255,10 @@ impl OssCore {
     pub async fn oss_head_object(
         &self,
         path: &str,
+        if_match: Option<&str>,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_head_object_request(path, false, if_none_match)?;
+        let mut req = self.oss_head_object_request(path, false, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

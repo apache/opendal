@@ -65,7 +65,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("path", path));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
-        self.inner.create(path, args).with_context(cx).await
+        self.inner.create_dir(path, args).with_context(cx).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -144,7 +144,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("blocking_create_dir");
         span.set_attribute(KeyValue::new("path", path));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let ret = self.inner().blocking_create(path, args);
+        let ret = self.inner().blocking_create_dir(path, args);
         span.end();
         ret
     }

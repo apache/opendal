@@ -29,6 +29,7 @@ use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::HeaderValue;
 use http::Request;
@@ -206,6 +207,7 @@ impl S3Core {
         &self,
         path: &str,
         if_none_match: Option<&str>,
+        if_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -217,6 +219,10 @@ impl S3Core {
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
         }
 
         let req = req
@@ -233,6 +239,7 @@ impl S3Core {
         override_content_disposition: Option<&str>,
         override_cache_control: Option<&str>,
         if_none_match: Option<&str>,
+        if_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -269,6 +276,9 @@ impl S3Core {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
         // Set SSE headers.
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
@@ -285,8 +295,10 @@ impl S3Core {
         path: &str,
         range: BytesRange,
         if_none_match: Option<&str>,
+        if_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, range, None, None, if_none_match)?;
+        let mut req =
+            self.s3_get_object_request(path, range, None, None, if_none_match, if_match)?;
 
         self.sign(&mut req).await?;
 
@@ -342,8 +354,9 @@ impl S3Core {
         &self,
         path: &str,
         if_none_match: Option<&str>,
+        if_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_head_object_request(path, if_none_match)?;
+        let mut req = self.s3_head_object_request(path, if_none_match, if_match)?;
 
         self.sign(&mut req).await?;
 
@@ -476,6 +489,7 @@ impl S3Core {
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
+        if_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -493,6 +507,10 @@ impl S3Core {
 
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match)
         }
 
         // Set storage class header

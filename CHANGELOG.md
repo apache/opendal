@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - feat: add if-match support for obs (#2023)
 - feat: Add missing functions for trace layers (#2025)
 - feat(layer): add madsim layer (#2006)
+- feat(gcs): add support for gcs append (#1801)
 
 ### Changed
 

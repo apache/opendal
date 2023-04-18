@@ -73,3 +73,8 @@ pub use self::madsim::MadsimLayer;
 #[cfg(feature = "layers-madsim")]
 #[cfg(madsim)]
 pub use self::madsim::MadsimServer;
+
+#[cfg(feature = "layers-otel-trace")]
+mod oteltrace;
+#[cfg(feature = "layers-otel-trace")]
+pub use self::oteltrace::OtelTraceLayer;

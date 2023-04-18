@@ -88,6 +88,8 @@ layers-madsim = ["dep:madsim"]
 layers-minitrace = ["dep:minitrace"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
+# Enable layers oteltrace support.
+layers-otel-trace = ["dep:opentelemetry"]
 
 services-azblob = [
   "dep:reqsign",
@@ -172,6 +174,7 @@ metrics = { version = "0.20", optional = true }
 minitrace = { version = "0.4.0", optional = true }
 moka = { version = "0.10", optional = true, features = ["future"] }
 once_cell = "1"
+opentelemetry = { version = "0.19.0", optional = true }
 parking_lot = "0.12"
 percent-encoding = "2"
 pin-project = "1"

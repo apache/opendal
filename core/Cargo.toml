@@ -82,12 +82,12 @@ layers-chaos = ["dep:rand"]
 layers-metrics = ["dep:metrics"]
 # Enable layers prometheus support
 layers-prometheus = ["dep:prometheus"]
+# Enable layers madsim support
+layers-madsim = ["dep:madsim"]
 # Enable layers minitrace support.
 layers-minitrace = ["dep:minitrace"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
-# Enable layers madsim support
-layers-madsim = ["dep:madsim"]
 
 services-azblob = [
   "dep:reqsign",
@@ -161,7 +161,7 @@ http = "0.2.5"
 hyper = "0.14"
 lazy-regex = { version = "2.5.0", optional = true }
 log = "0.4"
-madsim = {version = "0.2.19", optional = true }
+madsim = {version = "0.2.21", optional = true }
 md-5 = "0.10"
 metrics = { version = "0.20", optional = true }
 minitrace = { version = "0.4.0", optional = true }

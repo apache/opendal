@@ -390,9 +390,7 @@ impl Operator {
             .with_context("path", &path));
         }
 
-        self.inner()
-            .create(&path, OpCreate::new(EntryMode::DIR))
-            .await?;
+        self.inner().create_dir(&path, OpCreate::new()).await?;
 
         Ok(())
     }
@@ -484,7 +482,9 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.range_read_with("path/to/file", 1024..2048, OpRead::new()).await?;
+    /// let bs = op
+    ///     .range_read_with("path/to/file", 1024..2048, OpRead::new())
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -606,7 +606,7 @@ impl Operator {
             );
         }
 
-        Reader::create(self.inner().clone(), &path, args).await
+        Reader::create_dir(self.inner().clone(), &path, args).await
     }
 
     /// Write bytes into path.
@@ -817,7 +817,7 @@ impl Operator {
             );
         }
 
-        Writer::create(self.inner().clone(), &path, args.with_append()).await
+        Writer::create_dir(self.inner().clone(), &path, args.with_append()).await
     }
 
     /// Write data with extra options.

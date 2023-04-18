@@ -15,30 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-extern crate cbindgen;
+mod backend;
+pub use backend::WasabiBuilder as Wasabi;
 
-use std::io::ErrorKind;
-use std::path::Path;
-use std::process::Command;
-
-fn main() {
-    let header_file = Path::new("include").join("opendal.h");
-
-    cbindgen::generate(".")
-        .expect("Unable to generate bindings")
-        .write_to_file(header_file);
-
-    if let Err(e) = Command::new("clang-format")
-        .arg("--style=WebKit")
-        .arg("--verbose")
-        .arg("-i")
-        .arg("include/opendal.h")
-        .spawn()
-    {
-        if e.kind() == ErrorKind::NotFound {
-            panic!("\x1b[31mclang-format\x1b[0m not found, please install it through package manager first");
-        } else {
-            panic!("Failed to run build.rs: {}", e)
-        }
-    }
-}
+mod core;
+mod error;
+mod pager;
+mod writer;

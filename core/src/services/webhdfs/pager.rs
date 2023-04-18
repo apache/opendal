@@ -17,7 +17,8 @@
 
 use async_trait::async_trait;
 
-use super::message::{FileStatus, FileStatusType};
+use super::message::FileStatus;
+use super::message::FileStatusType;
 use crate::raw::*;
 use crate::*;
 

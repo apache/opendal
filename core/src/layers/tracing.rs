@@ -151,8 +151,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.create(path, args).await
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.create_dir(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -169,6 +169,16 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().copy(from, to, args).await
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().rename(from, to, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -208,8 +218,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.blocking_create(path, args)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.blocking_create_dir(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -224,6 +234,16 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
         self.inner
             .blocking_write(path, args)
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().blocking_copy(from, to, args)
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().blocking_rename(from, to, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

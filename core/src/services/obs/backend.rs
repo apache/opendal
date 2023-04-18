@@ -314,10 +314,10 @@ impl Accessor for ObsBackend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self
-            .core
-            .obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let mut req =
+            self.core
+                .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -335,7 +335,10 @@ impl Accessor for ObsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.obs_get_object(path, args.range()).await?;
+        let resp = self
+            .core
+            .obs_get_object(path, args.range(), args.if_match())
+            .await?;
 
         let status = resp.status();
 
@@ -376,13 +379,13 @@ impl Accessor for ObsBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.obs_get_head_object(path).await?;
+        let resp = self.core.obs_get_head_object(path, args.if_match()).await?;
 
         let status = resp.status();
 

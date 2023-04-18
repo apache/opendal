@@ -29,7 +29,6 @@ use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::header::IF_NONE_MATCH;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -57,21 +56,27 @@ mod constants {
         "x-amz-server-side-encryption-aws-kms-key-id";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
+    #[allow(dead_code)]
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
         "x-amz-copy-source-server-side-encryption-customer-algorithm";
+    #[allow(dead_code)]
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
         "x-amz-copy-source-server-side-encryption-customer-key";
+    #[allow(dead_code)]
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
         "x-amz-copy-source-server-side-encryption-customer-key-md5";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
+
+    pub const DESTINATION: &str = "Destination";
+    pub const OVERWRITE: &str = "Overwrite";
 }
 
 static BACKOFF: Lazy<ExponentialBuilder> =
     Lazy::new(|| ExponentialBuilder::default().with_jitter());
 
-pub struct S3Core {
+pub struct WasabiCore {
     pub bucket: String,
     pub endpoint: String,
     pub root: String,
@@ -87,9 +92,9 @@ pub struct S3Core {
     pub client: HttpClient,
 }
 
-impl Debug for S3Core {
+impl Debug for WasabiCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("S3Core")
+        f.debug_struct("WasabiCore")
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
@@ -97,7 +102,7 @@ impl Debug for S3Core {
     }
 }
 
-impl S3Core {
+impl WasabiCore {
     /// If credential is not found, we will not sign the request.
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
         let cred = { || self.loader.load() }
@@ -142,7 +147,7 @@ impl S3Core {
     /// # Note
     ///
     /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
-    //  get or stat.
+    /// get or stat.
     pub fn insert_sse_headers(
         &self,
         mut req: http::request::Builder,
@@ -201,8 +206,8 @@ impl S3Core {
     }
 }
 
-impl S3Core {
-    pub fn s3_head_object_request(
+impl WasabiCore {
+    pub fn head_object_request(
         &self,
         path: &str,
         if_none_match: Option<&str>,
@@ -216,7 +221,7 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         if let Some(if_none_match) = if_none_match {
-            req = req.header(IF_NONE_MATCH, if_none_match);
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
         }
 
         let req = req
@@ -226,7 +231,7 @@ impl S3Core {
         Ok(req)
     }
 
-    pub fn s3_get_object_request(
+    pub fn get_object_request(
         &self,
         path: &str,
         range: BytesRange,
@@ -266,7 +271,7 @@ impl S3Core {
         }
 
         if let Some(if_none_match) = if_none_match {
-            req = req.header(IF_NONE_MATCH, if_none_match);
+            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
         }
 
         // Set SSE headers.
@@ -280,20 +285,20 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_get_object(
+    pub async fn get_object(
         &self,
         path: &str,
         range: BytesRange,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, range, None, None, if_none_match)?;
+        let mut req = self.get_object_request(path, range, None, None, if_none_match)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub fn s3_put_object_request(
+    pub fn put_object_request(
         &self,
         path: &str,
         size: Option<usize>,
@@ -338,19 +343,19 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_head_object(
+    pub async fn head_object(
         &self,
         path: &str,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_head_object_request(path, if_none_match)?;
+        let mut req = self.head_object_request(path, if_none_match)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub async fn s3_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -364,11 +369,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn copy_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -428,7 +429,7 @@ impl S3Core {
 
     /// Make this functions as `pub(suber)` because `DirStream` depends
     /// on this.
-    pub async fn s3_list_objects(
+    pub async fn list_objects(
         &self,
         path: &str,
         continuation_token: &str,
@@ -467,7 +468,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_initiate_multipart_upload(
+    pub async fn initiate_multipart_upload(
         &self,
         path: &str,
         content_type: Option<&str>,
@@ -509,7 +510,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub fn s3_upload_part_request(
+    pub fn upload_part_request(
         &self,
         path: &str,
         upload_id: &str,
@@ -542,7 +543,7 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_complete_multipart_upload(
+    pub async fn complete_multipart_upload(
         &self,
         path: &str,
         upload_id: &str,
@@ -581,7 +582,7 @@ impl S3Core {
     }
 
     /// Abort an on-going multipart upload.
-    pub async fn s3_abort_multipart_upload(
+    pub async fn abort_multipart_upload(
         &self,
         path: &str,
         upload_id: &str,
@@ -602,10 +603,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_delete_objects(
-        &self,
-        paths: Vec<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
@@ -630,6 +628,82 @@ impl S3Core {
         let mut req = req
             .body(AsyncBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn put_object(
+        &self,
+        path: &str,
+        size: Option<usize>,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        cache_control: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.put_object_request(
+            path,
+            size,
+            content_type,
+            content_disposition,
+            cache_control,
+            body,
+        )?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn rename_object(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+        let from = percent_encode_path(build_abs_path(&self.root, from).as_str());
+        let to = percent_encode_path(build_abs_path(&self.root, to).as_str());
+
+        let url = format!("{}/{}", self.endpoint, from);
+
+        let mut req = Request::builder().method("MOVE").uri(url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        let mut req = req
+            .header(constants::DESTINATION, to)
+            .header(constants::OVERWRITE, "true")
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn append_object(
+        &self,
+        path: &str,
+        size: Option<usize>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}?append", self.endpoint, percent_encode_path(&p));
+
+        let mut req = Request::put(&url);
+
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
+        }
+
+        // Set storage class header
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
+        }
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        let mut req = req.body(body).map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 

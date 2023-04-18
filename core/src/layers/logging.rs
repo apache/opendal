@@ -198,24 +198,24 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         result
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
-            Operation::Create,
+            Operation::CreateDir,
             path
         );
 
         self.inner
-            .create(path, args)
+            .create_dir(path, args)
             .await
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
-                    Operation::Create,
+                    Operation::CreateDir,
                     path
                 );
                 v
@@ -227,7 +227,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         lvl,
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::Create,
+                        Operation::CreateDir,
                         path,
                         self.err_status(&err)
                     )
@@ -654,23 +654,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
-            Operation::BlockingCreate,
+            Operation::BlockingCreateDir,
             path
         );
 
         self.inner
-            .blocking_create(path, args)
+            .blocking_create_dir(path, args)
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
-                    Operation::BlockingCreate,
+                    Operation::BlockingCreateDir,
                     path
                 );
                 v
@@ -682,7 +682,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         lvl,
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::BlockingCreate,
+                        Operation::BlockingCreateDir,
                         path,
                         self.err_status(&err)
                     );

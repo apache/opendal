@@ -37,8 +37,8 @@ use reqsign::AwsV4Signer;
 
 use super::core::*;
 use super::error::parse_error;
-use super::pager::S3Pager;
-use super::writer::S3Writer;
+use super::pager::WasabiPager;
+use super::writer::WasabiWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -48,13 +48,13 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     let mut m = HashMap::new();
     // AWS S3 Service.
     m.insert(
-        "https://s3.amazonaws.com",
-        "https://s3.{region}.amazonaws.com",
+        "https://s3.wasabisys.com",
+        "https://s3.{region}.wasabisys.com",
     );
     m
 });
 
-/// Aws S3 and compatible services (including minio, digitalocean space and so on) support
+/// Wasabi (an aws S3 compatible service) support
 ///
 /// # Capabilities
 ///
@@ -66,6 +66,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
+/// - [x] rename
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -86,7 +87,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// - `disable_config_load`: Disable aws config load from env
 /// - `enable_virtual_host_style`: Enable virtual host style.
 ///
-/// Refer to [`S3Builder`]'s public API docs for more information.
+/// Refer to [`WasabiBuilder`]'s public API docs for more information.
 ///
 /// # Temporary security credentials
 ///
@@ -133,13 +134,13 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// use std::sync::Arc;
 ///
 /// use anyhow::Result;
-/// use opendal::services::S3;
+/// use opendal::services::Wasabi;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Create s3 backend builder.
-///     let mut builder = S3::default();
+///     let mut builder = Wasabi::default();
 ///     // Set the root for s3, all operations will happen under this root.
 ///     //
 ///     // NOTE: the root must be absolute path.
@@ -149,13 +150,13 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 ///     // Set the endpoint.
 ///     //
 ///     // For examples:
-///     // - "https://s3.amazonaws.com"
+///     // - "https://s3.wasabisys.com"
 ///     // - "http://127.0.0.1:9000"
 ///     // - "https://oss-ap-northeast-1.aliyuncs.com"
 ///     // - "https://cos.ap-seoul.myqcloud.com"
 ///     //
-///     // Default to "https://s3.amazonaws.com"
-///     builder.endpoint("https://s3.amazonaws.com");
+///     // Default to "https://s3.wasabisys.com"
+///     builder.endpoint("https://s3.wasabisys.com");
 ///     // Set the access_key_id and secret_access_key.
 ///     //
 ///     // OpenDAL will try load credential from the env.
@@ -170,17 +171,17 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// }
 /// ```
 ///
-/// ## S3 with SSE-C
+/// ## Wasabi with SSE-C
 ///
 /// ```no_run
 /// use anyhow::Result;
 /// use log::info;
-/// use opendal::services::S3;
+/// use opendal::services::Wasabi;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
+///     let mut builder = Wasabi::default();
 ///
 ///     // Setup builders
 ///
@@ -196,17 +197,17 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// }
 /// ```
 ///
-/// ## S3 with SSE-KMS and aws managed kms key
+/// ## Wasabi with SSE-KMS and aws managed kms key
 ///
 /// ```no_run
 /// use anyhow::Result;
 /// use log::info;
-/// use opendal::services::S3;
+/// use opendal::services::Wasabi;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
+///     let mut builder = Wasabi::default();
 ///
 ///     // Setup builders
 ///
@@ -222,17 +223,17 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// }
 /// ```
 ///
-/// ## S3 with SSE-KMS and customer managed kms key
+/// ## Wasabi with SSE-KMS and customer managed kms key
 ///
 /// ```no_run
 /// use anyhow::Result;
 /// use log::info;
-/// use opendal::services::S3;
+/// use opendal::services::Wasabi;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
+///     let mut builder = Wasabi::default();
 ///
 ///     // Setup builders
 ///
@@ -248,17 +249,17 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 /// }
 /// ```
 ///
-/// ## S3 with SSE-S3
+/// ## Wasabi with SSE-S3
 ///
 /// ```no_run
 /// use anyhow::Result;
 /// use log::info;
-/// use opendal::services::S3;
+/// use opendal::services::Wasabi;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
+///     let mut builder = Wasabi::default();
 ///
 ///     // Setup builders
 ///
@@ -273,11 +274,8 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 ///     Ok(())
 /// }
 /// ```
-///
-/// # Compatible Services
-#[doc = include_str!("compatible_services.md")]
 #[derive(Default)]
-pub struct S3Builder {
+pub struct WasabiBuilder {
     root: Option<String>,
 
     bucket: String,
@@ -305,7 +303,7 @@ pub struct S3Builder {
     customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
 }
 
-impl Debug for S3Builder {
+impl Debug for WasabiBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("Builder");
 
@@ -318,7 +316,7 @@ impl Debug for S3Builder {
     }
 }
 
-impl S3Builder {
+impl WasabiBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -343,12 +341,9 @@ impl S3Builder {
     ///
     /// Endpoint must be full uri, e.g.
     ///
-    /// - AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com`
-    /// - Aliyun OSS: `https://{region}.aliyuncs.com`
-    /// - Tencent COS: `https://cos.{region}.myqcloud.com`
-    /// - Minio: `http://127.0.0.1:9000`
+    /// - `https://s3.wasabisys.com` or `https://s3.{region}.wasabisys.com`
     ///
-    /// If user inputs endpoint without scheme like "s3.amazonaws.com", we
+    /// If user inputs endpoint without scheme like "s3.wasabisys.com", we
     /// will prepend "https://" before it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
@@ -362,7 +357,7 @@ impl S3Builder {
     /// Region represent the signing region of this endpoint.
     ///
     /// - If region is set, we will take user's input first.
-    /// - If not, we will use `us-east-1` as default.
+    /// - If not, the default `us-east-1` will be used.
     pub fn region(&mut self, region: &str) -> &mut Self {
         if !region.is_empty() {
             self.region = Some(region.to_string())
@@ -414,17 +409,12 @@ impl S3Builder {
     }
 
     /// Set default storage_class for this backend.
+    /// Unlike S3, wasabi only supports one single storage class,
+    /// which is most like standard S3 storage class,
+    /// check `https://docs.wasabi.com/docs/operations-on-objects` for more details.
     ///
     /// Available values:
-    /// - `DEEP_ARCHIVE`
-    /// - `GLACIER`
-    /// - `GLACIER_IR`
-    /// - `INTELLIGENT_TIERING`
-    /// - `ONEZONE_IA`
-    /// - `OUTPOSTS`
-    /// - `REDUCED_REDUNDANCY`
     /// - `STANDARD`
-    /// - `STANDARD_IA`
     pub fn default_storage_class(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.default_storage_class = Some(v.to_string())
@@ -586,7 +576,7 @@ impl S3Builder {
         self
     }
 
-    /// Set temporary credential used in AWS S3 connections
+    /// Set temporary credential used in service connections
     ///
     /// # Warning
     ///
@@ -622,8 +612,8 @@ impl S3Builder {
     /// Enable virtual host style so that opendal will send API requests
     /// in virtual host style instead of path style.
     ///
-    /// - By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
-    /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
+    /// - By default, opendal will send API to `https://s3.us-east-1.wasabisys.com/bucket_name`
+    /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.wasabisys.com`
     pub fn enable_virtual_host_style(&mut self) -> &mut Self {
         self.enable_virtual_host_style = true;
         self
@@ -679,7 +669,7 @@ impl S3Builder {
                     format!("https://{endpoint}")
                 }
             }
-            None => "https://s3.amazonaws.com".to_string(),
+            None => "https://s3.wasabisys.com".to_string(),
         };
 
         // If endpoint contains bucket name, we should trim them.
@@ -705,12 +695,12 @@ impl S3Builder {
     }
 }
 
-impl Builder for S3Builder {
-    const SCHEME: Scheme = Scheme::S3;
-    type Accessor = S3Backend;
+impl Builder for WasabiBuilder {
+    const SCHEME: Scheme = Scheme::Wasabi;
+    type Accessor = WasabiBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = S3Builder::default();
+        let mut builder = WasabiBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("bucket").map(|v| builder.bucket(v));
@@ -872,8 +862,8 @@ impl Builder for S3Builder {
         let signer = AwsV4Signer::new("s3", &region);
 
         debug!("backend build finished");
-        Ok(S3Backend {
-            core: Arc::new(S3Core {
+        Ok(WasabiBackend {
+            core: Arc::new(WasabiCore {
                 bucket: bucket.to_string(),
                 endpoint,
                 root,
@@ -891,19 +881,19 @@ impl Builder for S3Builder {
     }
 }
 
-/// Backend for s3 services.
+/// Backend for wasabi service.
 #[derive(Debug, Clone)]
-pub struct S3Backend {
-    core: Arc<S3Core>,
+pub struct WasabiBackend {
+    core: Arc<WasabiCore>,
 }
 
 #[async_trait]
-impl Accessor for S3Backend {
+impl Accessor for WasabiBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = S3Writer;
+    type Writer = WasabiWriter;
     type BlockingWriter = ();
-    type Pager = S3Pager;
+    type Pager = WasabiPager;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -911,11 +901,11 @@ impl Accessor for S3Backend {
         use AccessorHint::*;
 
         let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::S3)
+        am.set_scheme(Scheme::Wasabi)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy | Rename)
             .set_hints(ReadStreamable);
 
         am
@@ -924,7 +914,7 @@ impl Accessor for S3Backend {
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut req =
             self.core
-                .s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+                .put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -944,7 +934,7 @@ impl Accessor for S3Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .s3_get_object(path, args.range(), args.if_none_match())
+            .get_object(path, args.range(), args.if_none_match())
             .await?;
 
         let status = resp.status();
@@ -959,43 +949,14 @@ impl Accessor for S3Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let upload_id = if args.append() {
-            let resp = self
-                .core
-                .s3_initiate_multipart_upload(
-                    path,
-                    args.content_type(),
-                    args.content_disposition(),
-                    args.cache_control(),
-                )
-                .await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
-
-                    let result: InitiateMultipartUploadResult =
-                        quick_xml::de::from_reader(bs.reader())
-                            .map_err(new_xml_deserialize_error)?;
-
-                    Some(result.upload_id)
-                }
-                _ => return Err(parse_error(resp).await?),
-            }
-        } else {
-            None
-        };
-
         Ok((
             RpWrite::default(),
-            S3Writer::new(self.core.clone(), args, path.to_string(), upload_id),
+            WasabiWriter::new(self.core.clone(), args, path.to_string(), None),
         ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.s3_copy_object(from, to).await?;
+        let resp = self.core.copy_object(from, to).await?;
 
         let status = resp.status();
 
@@ -1017,7 +978,7 @@ impl Accessor for S3Backend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.s3_head_object(path, args.if_none_match()).await?;
+        let resp = self.core.head_object(path, args.if_none_match()).await?;
 
         let status = resp.status();
 
@@ -1031,7 +992,7 @@ impl Accessor for S3Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.s3_delete_object(path).await?;
+        let resp = self.core.delete_object(path).await?;
 
         let status = resp.status();
 
@@ -1044,24 +1005,22 @@ impl Accessor for S3Backend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            S3Pager::new(self.core.clone(), path, "/", args.limit()),
+            WasabiPager::new(self.core.clone(), path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit()),
+            WasabiPager::new(self.core.clone(), path, "", args.limit()),
         ))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core.s3_head_object_request(path, v.if_none_match())?
-            }
-            PresignOperation::Read(v) => self.core.s3_get_object_request(
+            PresignOperation::Stat(v) => self.core.head_object_request(path, v.if_none_match())?,
+            PresignOperation::Read(v) => self.core.get_object_request(
                 path,
                 v.range(),
                 v.override_content_disposition(),
@@ -1070,7 +1029,7 @@ impl Accessor for S3Backend {
             )?,
             PresignOperation::Write(_) => {
                 self.core
-                    .s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
+                    .put_object_request(path, None, None, None, None, AsyncBody::Empty)?
             }
         };
 
@@ -1098,7 +1057,7 @@ impl Accessor for S3Backend {
 
         let paths = ops.into_iter().map(|(p, _)| p).collect();
 
-        let resp = self.core.s3_delete_objects(paths).await?;
+        let resp = self.core.delete_objects(paths).await?;
 
         let status = resp.status();
 
@@ -1128,6 +1087,19 @@ impl Accessor for S3Backend {
             Err(parse_error(resp).await?)
         }
     }
+
+    /// Execute rename API call
+    /// Wasabi will auto-create missing path for destination `to` if any
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let resp = self.core.rename_object(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(RpRename::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1146,7 +1118,7 @@ mod tests {
         ];
 
         for (bucket, enable_virtual_host_style, expected) in bucket_cases {
-            let mut b = S3Builder::default();
+            let mut b = WasabiBuilder::default();
             b.bucket(bucket);
             if enable_virtual_host_style {
                 b.enable_virtual_host_style();
@@ -1160,25 +1132,25 @@ mod tests {
         let _ = env_logger::try_init();
 
         let endpoint_cases = vec![
-            Some("s3.amazonaws.com"),
-            Some("https://s3.amazonaws.com"),
+            Some("s3.wasabisys.com"),
+            Some("https://s3.wasabisys.com"),
             Some("https://s3.us-east-2.amazonaws.com"),
             None,
         ];
 
         for endpoint in &endpoint_cases {
-            let mut b = S3Builder::default();
+            let mut b = WasabiBuilder::default();
             b.bucket("test");
             if let Some(endpoint) = endpoint {
                 b.endpoint(endpoint);
             }
 
             let endpoint = b.build_endpoint("us-east-2");
-            assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com/test");
+            assert_eq!(endpoint, "https://s3.us-east-2.wasabisys.com/test");
         }
 
         for endpoint in &endpoint_cases {
-            let mut b = S3Builder::default();
+            let mut b = WasabiBuilder::default();
             b.bucket("test");
             b.enable_virtual_host_style();
             if let Some(endpoint) = endpoint {
@@ -1186,7 +1158,7 @@ mod tests {
             }
 
             let endpoint = b.build_endpoint("us-east-2");
-            assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
+            assert_eq!(endpoint, "https://test.s3.us-east-2.wasabisys.com");
         }
     }
 }

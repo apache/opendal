@@ -119,6 +119,11 @@ mod sled;
 #[cfg(feature = "services-sled")]
 pub use self::sled::Sled;
 
+#[cfg(feature = "services-wasabi")]
+mod wasabi;
+#[cfg(feature = "services-wasabi")]
+pub use wasabi::Wasabi;
+
 #[cfg(feature = "services-webdav")]
 mod webdav;
 #[cfg(feature = "services-webdav")]

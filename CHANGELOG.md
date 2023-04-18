@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.31.1] - 2023-04-17
+
+### Added
+
+- feat(services/azdfs): support rename (#1929)
+- test: Increate copy/move nested path test depth (#1932)
+- feat(layers): add a basic minitrace layer (#1931)
+- feat: add Writer::abort method (#1937)
+- feat(services/gcs): Allow setting PredefinedAcl (#1989)
+- feat(services/oss): add oss cache-control header support (#1986)
+- feat: Add PreconditionFailed Error so users can handle them (#1993)
+- feat: add http if_none_match support (#1995)
+- feat: add oss if-none-match support (#1997)
+- feat(services/gcs): Allow setting default storage_class (#1996)
+- feat(binding/C): add clang-format for c binding (#2003)
+
+### Changed
+
+- refactor: Polish the behavior of scan (#1926)
+- refactor: Polish the implementation of webhdfs (#1935)
+
+### Fixed
+
+- fix: sled should not be enabled by default (#1923)
+- fix: kv adapter's writer implementation fixed to honour empty writes (#193
+4)
+- fix(services/azblob): fix copy missing content-length (#2000)
+
+### Docs
+
+- docs: Adding docs link to python binding (#1921)
+- docs(bindings/python): fix wrong doc link (#1928)
+- docs: Add contributing for OpenDAL (#1984)
+- docs: Add explanation in contributing (#1985)
+- docs: Feel relax in community and don't hurry (#1987)
+- docs: update contributing (#1998)
+- docs(services/memory): Fix wrong explanation (#2002)
+- docs: Add OpenDAL VISION (#2007)
+- docs: update VISION and behavior tests doc (#2009)
+
+### CI
+
+- ci(bindings/nodejs): Access should be set to public before publish (#1919)
+- ci: Re-enable webhdfs test (#1925)
+- chore: add .editorconfig (#1988)
+- ci: Fix format after adding editorconfig (#1990)
+
 ## [v0.31.0] - 2023-04-12
 
 ### Added
@@ -1840,6 +1887,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.31.1]: https://github.com/apache/incubator-opendal/compare/v0.31.0...v0.31.1
 [v0.31.0]: https://github.com/apache/incubator-opendal/compare/v0.30.5...v0.31.0
 [v0.30.5]: https://github.com/apache/incubator-opendal/compare/v0.30.4...v0.30.5
 [v0.30.4]: https://github.com/apache/incubator-opendal/compare/v0.30.3...v0.30.4

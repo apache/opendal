@@ -26,7 +26,9 @@ use futures::FutureExt;
 use minitrace::prelude::*;
 
 use crate::ops::*;
-use crate::raw::oio::{PageOperation, ReadOperation, WriteOperation};
+use crate::raw::oio::PageOperation;
+use crate::raw::oio::ReadOperation;
+use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -146,8 +148,8 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     }
 
     #[trace("create", enter_on_poll = true)]
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.create(path, args).await
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -164,6 +166,16 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
             .write(path, args)
             .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(span, r))))
             .await
+    }
+
+    #[trace("copy", enter_on_poll = true)]
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().copy(from, to, args).await
+    }
+
+    #[trace("rename", enter_on_poll = true)]
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().rename(from, to, args).await
     }
 
     #[trace("stat", enter_on_poll = true)]
@@ -203,8 +215,8 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     }
 
     #[trace("blocking_create")]
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.blocking_create(path, args)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.blocking_create_dir(path, args)
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -225,6 +237,16 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
                 MinitraceWrapper::new(Span::enter_with_parent("WriteOperation", &span), r),
             )
         })
+    }
+
+    #[trace("blocking_copy")]
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().blocking_copy(from, to, args)
+    }
+
+    #[trace("blocking_rename")]
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().blocking_rename(from, to, args)
     }
 
     #[trace("blocking_stat")]

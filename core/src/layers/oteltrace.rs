@@ -24,11 +24,11 @@ use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
 use opentelemetry::Context;
+use opentelemetry::KeyValue;
 
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
-use opentelemetry::KeyValue;
 
 pub struct OtelTraceLayer;
 
@@ -61,8 +61,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let tracer = global::tracer("opendal");
-        let span = tracer.start("create");
-        span.set_attribute(KeyValue::new("path", path));
+        let mut span = tracer.start("create");
+        span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
         self.inner.create_dir(path, args).with_context(cx).await
@@ -78,9 +78,9 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let tracer = global::tracer("opendal");
-        let span = tracer.start("copy");
-        span.set_attribute(KeyValue::new("from", from));
-        span.set_attribute(KeyValue::new("to", to));
+        let mut span = tracer.start("copy");
+        span.set_attribute(KeyValue::new("from", from.to_string()));
+        span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
         self.inner().copy(from, to, args).await
@@ -88,9 +88,9 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let tracer = global::tracer("opendal");
-        let span = tracer.start("rename");
-        span.set_attribute(KeyValue::new("from", from));
-        span.set_attribute(KeyValue::new("to", to));
+        let mut span = tracer.start("rename");
+        span.set_attribute(KeyValue::new("from", from.to_string()));
+        span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
         self.inner().rename(from, to, args).await
@@ -98,8 +98,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let tracer = global::tracer("opendal");
-        let span = tracer.start("stat");
-        span.set_attribute("path", path);
+        let mut span = tracer.start("stat");
+        span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
         self.inner().stat(path, args).await
@@ -107,8 +107,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let tracer = global::tracer("opendal");
-        let span = tracer.start("delete");
-        span.set_attribute(KeyValue::new("path", path));
+        let mut span = tracer.start("delete");
+        span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
         self.inner().delete(path, args).await
@@ -124,7 +124,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let tracer = global::tracer("opendal");
-        let span = tracer.start("batch");
+        let mut span = tracer.start("batch");
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
         self.inner().batch(args).await
@@ -132,8 +132,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let tracer = global::tracer("opendal");
-        let span = tracer.start("presign");
-        span.set_attribute(KeyValue::new("path", path));
+        let mut span = tracer.start("presign");
+        span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let cx = Context::current_with_span(span);
         self.inner().presign(path, args).await
@@ -142,7 +142,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("blocking_create_dir");
-        span.set_attribute(KeyValue::new("path", path));
+        span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let ret = self.inner().blocking_create_dir(path, args);
         span.end();
@@ -160,8 +160,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("blocking_copy");
-        span.set_attribute(KeyValue::new("from", from));
-        span.set_attribute(KeyValue::new("to", to));
+        span.set_attribute(KeyValue::new("from", from.to_string()));
+        span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let ret = self.inner().blocking_copy(from, to, args);
         span.end();
@@ -171,8 +171,8 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("blocking_rename");
-        span.set_attribute(KeyValue::new("from", from));
-        span.set_attribute(KeyValue::new("to", to));
+        span.set_attribute(KeyValue::new("from", from.to_string()));
+        span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let ret = self.inner().blocking_rename(from, to, args);
         span.end();
@@ -182,7 +182,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("blocking_rename");
-        span.set_attribute(KeyValue::new("path", path));
+        span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let ret = self.inner().blocking_stat(path, args);
         span.end();
@@ -192,7 +192,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("blocking_delete");
-        span.set_attribute(KeyValue::new("path", path));
+        span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         let ret = self.inner().blocking_delete(path, args);
         span.end();

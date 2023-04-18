@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.32.0] - 2023-04-18
+
+### Added
+
+- feat: Add wasabi service implementation (#2004)
+- feat: improve the readability of oli command line error output (#2016)
+- feat: add If-Match Support for OpRead, OpWrite, OpStat (#2017)
+- feat: add behavioral test for Write::abort (#2018)
+- feat: add if-match support for obs (#2023)
+- feat: Add missing functions for trace layers (#2025)
+- feat(layer): add madsim layer (#2006)
+
+### Changed
+
+- refactor: Rename `Create` to `CreateDir` for its behavior changed (#2019)
+
+### Fixed
+
+- fix: Cargo lock not updated (#2027)
+- fix(services/s3): Ignore empty query to make it more compatible (#2028)
+- fix(services/oss): Fix env not loaded for oss signer (#2029)
+
+### Docs
+
+- docs: fix some typos (#2022)
+- docs: add dev dependency section (#2021)
+
 ## [v0.31.1] - 2023-04-17
 
 ### Added
@@ -1887,6 +1914,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.32.0]: https://github.com/apache/incubator-opendal/compare/v0.31.1...v0.32.0
 [v0.31.1]: https://github.com/apache/incubator-opendal/compare/v0.31.0...v0.31.1
 [v0.31.0]: https://github.com/apache/incubator-opendal/compare/v0.30.5...v0.31.0
 [v0.30.5]: https://github.com/apache/incubator-opendal/compare/v0.30.4...v0.30.5

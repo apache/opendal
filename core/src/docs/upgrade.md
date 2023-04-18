@@ -1,3 +1,9 @@
+# Upgrade to v0.32
+
+OpenDAL 0.32 doesn't have much breaking changes.
+
+We changed `Accessor::create` into `Accessor::create_dir`. Only users who implement `Layer` need to change.
+
 # Upgrade to v0.31
 
 In version v0.31 of OpenDAL, we made some internal refactoring to improve its compatibility with the ecosystem.

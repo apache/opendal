@@ -55,10 +55,10 @@ use crate::*;
 pub struct OtelTraceLayer;
 
 impl<A: Accessor> Layer<A> for OtelTraceLayer {
-    type LayeredAccessor = OtelTraceLayer<A>;
+    type LayeredAccessor = OtelTraceAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        OtelTraceLayer { inner }
+        OtelTraceAccessor { inner }
     }
 }
 

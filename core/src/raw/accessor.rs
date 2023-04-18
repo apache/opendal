@@ -53,7 +53,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: oio::BlockingRead;
-    /// Reader is the associated writer the could return in `write` operation.
+    /// Writer is the associated writer the could return in `write` operation.
     type Writer: oio::Write;
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
@@ -86,8 +86,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST match with EntryMode, DON'T NEED to check mode.
     /// - Create on existing dir SHOULD succeed.
-    /// - Create on existing file SHOULD overwrite and truncate.
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -256,7 +255,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// This operation is the blocking version of [`Accessor::create`]
     ///
     /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -417,8 +416,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().info()
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().create(path, args).await
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.as_ref().create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -457,8 +456,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().presign(path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().blocking_create(path, args)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.as_ref().blocking_create_dir(path, args)
     }
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.as_ref().blocking_read(path, args)

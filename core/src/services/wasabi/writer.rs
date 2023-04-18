@@ -21,43 +21,59 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::core::ObsCore;
+use super::core::*;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
-pub struct ObsWriter {
-    core: Arc<ObsCore>,
+pub struct WasabiWriter {
+    core: Arc<WasabiCore>,
 
     op: OpWrite,
     path: String,
+
+    upload_id: Option<String>,
 }
 
-impl ObsWriter {
-    pub fn new(core: Arc<ObsCore>, op: OpWrite, path: String) -> Self {
-        ObsWriter { core, op, path }
+impl WasabiWriter {
+    pub fn new(
+        core: Arc<WasabiCore>,
+        op: OpWrite,
+        path: String,
+        upload_id: Option<String>,
+    ) -> Self {
+        WasabiWriter {
+            core,
+
+            op,
+            path,
+            upload_id,
+        }
     }
 }
 
 #[async_trait]
-impl oio::Write for ObsWriter {
+impl oio::Write for WasabiWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut req = self.core.obs_put_object_request(
-            &self.path,
-            Some(bs.len()),
-            self.op.content_type(),
-            self.op.if_match(),
-            AsyncBody::Bytes(bs),
-        )?;
+        debug_assert!(
+            self.upload_id.is_none(),
+            "Writer initiated with upload id, but users trying to call write, must be buggy"
+        );
 
-        self.core.sign(&mut req).await?;
+        let resp = self
+            .core
+            .put_object(
+                &self.path,
+                Some(bs.len()),
+                self.op.content_type(),
+                self.op.content_disposition(),
+                self.op.cache_control(),
+                AsyncBody::Bytes(bs),
+            )
+            .await?;
 
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
+        match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(())
@@ -67,12 +83,18 @@ impl oio::Write for ObsWriter {
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _ = bs;
+        let resp = self
+            .core
+            .append_object(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))
+            .await?;
 
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support append",
-        ))
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -323,8 +323,8 @@ impl Accessor for FtpBackend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let mut ftp_stream = self.ftp_connect(Operation::CreateDir).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
 

@@ -305,7 +305,7 @@ impl Accessor for GhacBackend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         // ignore creation of dir.
         if path.ends_with('/') {
             return Ok(RpCreate::default());

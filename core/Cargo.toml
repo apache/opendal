@@ -133,6 +133,11 @@ services-s3 = [
   "reqsign?/reqwest_request",
 ]
 services-sled = ["dep:sled"]
+services-wasabi = [
+  "dep:reqsign",
+  "reqsign?/services-aws",
+  "reqsign?/reqwest_request",
+]
 services-webdav = []
 services-webhdfs = []
 

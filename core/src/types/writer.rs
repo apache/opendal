@@ -28,6 +28,7 @@ use futures::AsyncWrite;
 use futures::FutureExt;
 
 use crate::ops::OpWrite;
+use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
 
@@ -51,7 +52,7 @@ impl Writer {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
+    pub(crate) async fn create_dir(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.write(path, op).await?;
 
         Ok(Writer {
@@ -70,6 +71,18 @@ impl Writer {
         } else {
             unreachable!(
                 "writer state invalid while append, expect Idle, actual {}",
+                self.state
+            );
+        }
+    }
+
+    /// Abort inner writer.
+    pub async fn abort(&mut self) -> Result<()> {
+        if let State::Idle(Some(w)) = &mut self.state {
+            w.abort().await
+        } else {
+            unreachable!(
+                "writer state invalid while abort, expect Idle, actual {}",
                 self.state
             );
         }
@@ -185,7 +198,7 @@ impl BlockingWriter {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
+    pub(crate) fn create_dir(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.blocking_write(path, op)?;
 
         Ok(BlockingWriter { inner: w })

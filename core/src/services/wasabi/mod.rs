@@ -15,16 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Compare opendal with other projects to find out the differences and areas that opendal can improve.
-//!
-//! All documents listed should be treated as highly biased. Because:
-//!
-//! - OpenDAL's maintainers and contributors write them.
-//! - Writers may not be familiar with the compared projects (at least not as familiar with OpenDAL)
-//!
-//! Let's see OpenDAL:
-//!
-//! - [vs `object_store`][`vs_object_store`]
+mod backend;
+pub use backend::WasabiBuilder as Wasabi;
 
-#[doc = include_str!("vs_object_store.md")]
-pub mod vs_object_store {}
+mod core;
+mod error;
+mod pager;
+mod writer;

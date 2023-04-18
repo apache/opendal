@@ -303,8 +303,7 @@ impl BlockingOperator {
             .with_context("path", &path));
         }
 
-        self.inner()
-            .blocking_create(&path, OpCreate::new(EntryMode::DIR))?;
+        self.inner().blocking_create_dir(&path, OpCreate::new())?;
 
         Ok(())
     }
@@ -420,7 +419,7 @@ impl BlockingOperator {
 
         let op = OpRead::new().with_range(range.into());
 
-        BlockingReader::create(self.inner().clone(), &path, op)
+        BlockingReader::create_dir(self.inner().clone(), &path, op)
     }
 
     /// Write bytes into given path.
@@ -638,7 +637,7 @@ impl BlockingOperator {
         }
 
         let op = OpWrite::default().with_append();
-        BlockingWriter::create(self.inner().clone(), &path, op)
+        BlockingWriter::create_dir(self.inner().clone(), &path, op)
     }
 
     /// Delete given path.

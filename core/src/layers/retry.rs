@@ -168,15 +168,15 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         &self.inner
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        { || self.inner.create(path, args.clone()) }
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        { || self.inner.create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
-                    Operation::Create, dur.as_secs_f64(), err)
+                    Operation::CreateDir, dur.as_secs_f64(), err)
             })
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
@@ -322,15 +322,15 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        { || self.inner.blocking_create(path, args.clone()) }
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        { || self.inner.blocking_create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
-                    Operation::BlockingCreate, dur.as_secs_f64(), err)
+                    Operation::BlockingCreateDir, dur.as_secs_f64(), err)
             })
             .call()
             .map_err(|e| e.set_persistent())

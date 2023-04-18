@@ -175,15 +175,15 @@ impl oio::Read for MadsimReader {
 
 impl oio::BlockingRead for MadsimReader {
     fn read(&mut self, buf: &mut [u8]) -> crate::Result<usize> {
-        todo!()
+        panic!("blocking_read is not supported in MadsimLayer");
     }
 
     fn seek(&mut self, pos: SeekFrom) -> crate::Result<u64> {
-        todo!()
+        panic!("blocking_read is not supported in MadsimLayer");
     }
 
     fn next(&mut self) -> Option<crate::Result<Bytes>> {
-        todo!()
+        panic!("blocking_read is not supported in MadsimLayer");
     }
 }
 
@@ -195,15 +195,15 @@ pub struct MadsimWriter {
 
 impl oio::BlockingWrite for MadsimWriter {
     fn write(&mut self, bs: Bytes) -> crate::Result<()> {
-        todo!()
+        panic!("blocking_write is not supported in MadsimLayer");
     }
 
     fn append(&mut self, bs: Bytes) -> crate::Result<()> {
-        todo!()
+        panic!("blocking_write is not supported in MadsimLayer");
     }
 
     fn close(&mut self) -> crate::Result<()> {
-        todo!()
+        panic!("blocking_write is not supported in MadsimLayer");
     }
 }
 
@@ -251,7 +251,7 @@ impl oio::Page for MadsimPager {
 
 impl oio::BlockingPage for MadsimPager {
     fn next(&mut self) -> crate::Result<Option<Vec<Entry>>> {
-        todo!()
+        panic!("blocking_page is not supported in MadsimLayer");
     }
 }
 

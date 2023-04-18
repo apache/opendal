@@ -287,13 +287,13 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
 }
 
 pub struct OtelTraceWrapper<R> {
-    span: BoxedSpan,
+    _span: BoxedSpan,
     inner: R,
 }
 
 impl<R> OtelTraceWrapper<R> {
-    fn new(span: BoxedSpan, inner: R) -> Self {
-        Self { span, inner }
+    fn new(_span: BoxedSpan, inner: R) -> Self {
+        Self { _span, inner }
     }
 }
 
@@ -303,9 +303,6 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
         cx: &mut task::Context<'_>,
         buf: &mut [u8],
     ) -> task::Poll<Result<usize>> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("poll_read", &parent_cx);
         self.inner.poll_read(cx, buf)
     }
 
@@ -314,39 +311,24 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
         cx: &mut task::Context<'_>,
         pos: io::SeekFrom,
     ) -> task::Poll<Result<u64>> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("poll_seek", &parent_cx);
         self.inner.poll_seek(cx, pos)
     }
 
     fn poll_next(&mut self, cx: &mut task::Context<'_>) -> task::Poll<Option<Result<Bytes>>> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("poll_next", &parent_cx);
         self.inner.poll_next(cx)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("read", &parent_cx);
         self.inner.read(buf)
     }
 
     fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("seek", &parent_cx);
         self.inner.seek(pos)
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("next", &parent_cx);
         self.inner.next()
     }
 }
@@ -354,57 +336,32 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 #[async_trait]
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let child = tracer.start_with_context("write", &parent_cx);
-        let cx = Context::current_with_span(child);
         self.inner.write(bs).with_context(cx).await
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let child = tracer.start_with_context("append", &parent_cx);
-        let cx = Context::current_with_span(child);
         self.inner.append(bs).with_context(cx).await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let child = tracer.start_with_context("abort", &parent_cx);
-        let cx = Context::current_with_span(child);
         self.inner.abort().with_context(cx).await
     }
 
     async fn close(&mut self) -> Result<()> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let child = tracer.start_with_context("close", &parent_cx);
-        let cx = Context::current_with_span(child);
         self.inner.close().with_context(cx).await
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("write", &parent_cx);
         self.inner.write(bs)
     }
 
     fn append(&mut self, bs: Bytes) -> Result<()> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("append", &parent_cx);
         self.inner.append(bs)
     }
 
     fn close(&mut self) -> Result<()> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("close", &parent_cx);
         self.inner.close()
     }
 }
@@ -412,19 +369,12 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
 #[async_trait]
 impl<R: oio::Page> oio::Page for OtelTraceWrapper<R> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let child = tracer.start_with_context("next", &parent_cx);
-        let cx = Context::current_with_span(child);
         self.inner.next().await
     }
 }
 
 impl<R: oio::BlockingPage> oio::BlockingPage for OtelTraceWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let tracer = global::tracer("opendal");
-        let parent_cx = Context::current_with_span(self.span);
-        let _child = tracer.start_with_context("next", &parent_cx);
         self.inner.next()
     }
 }

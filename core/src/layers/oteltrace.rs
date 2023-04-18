@@ -29,7 +29,6 @@ use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
 use opentelemetry::Context;
 use opentelemetry::KeyValue;
-use tracing::Instrument;
 
 use crate::ops::*;
 use crate::raw::*;

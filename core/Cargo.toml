@@ -89,7 +89,7 @@ layers-minitrace = ["dep:minitrace"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
 # Enable layers oteltrace support.
-layers-oteltrace = ["dep:opentelemetry"]
+layers-otel-trace = ["dep:opentelemetry"]
 
 services-azblob = [
   "dep:reqsign",

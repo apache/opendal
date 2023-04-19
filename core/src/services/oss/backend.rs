@@ -395,6 +395,7 @@ impl Accessor for OssBackend {
             .oss_get_object(
                 path,
                 args.range(),
+                args.if_match(),
                 args.if_none_match(),
                 args.override_content_disposition(),
             )
@@ -439,7 +440,7 @@ impl Accessor for OssBackend {
 
         let resp = self
             .core
-            .oss_head_object(path, args.if_none_match())
+            .oss_head_object(path, args.if_match(), args.if_none_match())
             .await?;
 
         let status = resp.status();
@@ -484,12 +485,16 @@ impl Accessor for OssBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.core.oss_head_object_request(path, true, None)?,
+            PresignOperation::Stat(v) => {
+                self.core
+                    .oss_head_object_request(path, true, v.if_match(), v.if_none_match())?
+            }
             PresignOperation::Read(v) => self.core.oss_get_object_request(
                 path,
                 v.range(),
                 true,
-                None,
+                v.if_match(),
+                v.if_none_match(),
                 v.override_content_disposition(),
             )?,
             PresignOperation::Write(v) => self.core.oss_put_object_request(

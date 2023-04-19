@@ -56,7 +56,7 @@ pub enum Operation {
     /// Operation for [`crate::raw::Accessor::blocking_copy`]
     BlockingCopy,
     /// Operation for [`crate::raw::Accessor::blocking_rename`]
-    BlockingMove,
+    BlockingRename,
     /// Operation for [`crate::raw::Accessor::blocking_stat`]
     BlockingStat,
     /// Operation for [`crate::raw::Accessor::blocking_delete`]
@@ -99,7 +99,7 @@ impl From<Operation> for &'static str {
             Operation::BlockingRead => "blocking_read",
             Operation::BlockingWrite => "blocking_write",
             Operation::BlockingCopy => "blocking_copy",
-            Operation::BlockingMove => "blocking_rename",
+            Operation::BlockingRename => "blocking_rename",
             Operation::BlockingStat => "blocking_stat",
             Operation::BlockingDelete => "blocking_delete",
             Operation::BlockingList => "blocking_list",

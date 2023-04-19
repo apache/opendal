@@ -759,9 +759,7 @@ impl Operator {
 
     /// Write multiple bytes into path.
     ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// Refer to [`Writer`] for more details.
     ///
     /// # Examples
     ///
@@ -787,9 +785,7 @@ impl Operator {
 
     /// Write multiple bytes into path with extra options.
     ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// Refer to [`Writer`] for more details.
     ///
     /// # Examples
     ///

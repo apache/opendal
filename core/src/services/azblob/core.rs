@@ -192,7 +192,7 @@ impl AzblobCore {
         let mut req = Request::head(&url);
 
         if let Some(etag) = if_none_match {
-           req = req.header(IF_NONE_MATCH, etag);
+            req = req.header(IF_NONE_MATCH, etag);
         }
 
         let mut req = req

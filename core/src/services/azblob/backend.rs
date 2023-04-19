@@ -482,7 +482,10 @@ impl Accessor for AzblobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azblob_get_blob(path, args.range(), args.if_none_match()).await?;
+        let resp = self
+            .core
+            .azblob_get_blob(path, args.range(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -530,7 +533,10 @@ impl Accessor for AzblobBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.azblob_get_blob_properties(path, args.if_none_match()).await?;
+        let resp = self
+            .core
+            .azblob_get_blob_properties(path, args.if_none_match())
+            .await?;
 
         let status = resp.status();
 

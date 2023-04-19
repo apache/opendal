@@ -392,7 +392,7 @@ impl Accessor for OssBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .oss_get_object(path, args.range(), args.if_none_match())
+            .oss_get_object(path, args.range(), args.if_match(), args.if_none_match())
             .await?;
 
         let status = resp.status();
@@ -484,7 +484,7 @@ impl Accessor for OssBackend {
             }
             PresignOperation::Read(v) => {
                 self.core
-                    .oss_get_object_request(path, v.range(), true, None)?
+                    .oss_get_object_request(path, v.range(), true, None, None)?
             }
             PresignOperation::Write(v) => self.core.oss_put_object_request(
                 path,

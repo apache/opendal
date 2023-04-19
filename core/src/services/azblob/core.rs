@@ -128,8 +128,8 @@ impl AzblobCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        if let Some(etag) = if_none_match {
-            req = req.header(IF_NONE_MATCH, etag);
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let mut req = req
@@ -191,8 +191,8 @@ impl AzblobCore {
 
         let mut req = Request::head(&url);
 
-        if let Some(etag) = if_none_match {
-            req = req.header(IF_NONE_MATCH, etag);
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let mut req = req

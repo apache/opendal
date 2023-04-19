@@ -155,7 +155,7 @@ impl oio::Write for GcsWriter {
             return Ok(());
         }
 
-        let bs = self.buffer.peak(self.buffer_size);
+        let bs = self.buffer.peak_exact(self.buffer_size);
 
         match self.write_part(location, bs).await {
             Ok(_) => {
@@ -184,7 +184,7 @@ impl oio::Write for GcsWriter {
             return Ok(());
         };
 
-        let bs = self.buffer.peak(self.buffer.len());
+        let bs = self.buffer.peak_exact(self.buffer.len());
 
         let resp = self
             .core

@@ -165,7 +165,7 @@ impl VectorCursor {
 
     /// Returns `true` if current vector is empty.
     pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
+        self.size == 0
     }
 
     /// Return current bytes size of current vector.
@@ -191,8 +191,11 @@ impl VectorCursor {
         self.size = 0;
     }
 
-    /// Peak will read and copy n bytes from current cursor without
-    /// change it's content.
+    /// Peak will read and copy exactly n bytes from current cursor
+    /// without change it's content.
+    ///
+    /// This function is useful if you want to read a fixed size
+    /// content to make sure it aligned.
     ///
     /// # Panics
     ///
@@ -201,12 +204,46 @@ impl VectorCursor {
     /// # TODO
     ///
     /// Optimize to avoid data copy.
-    pub fn peak(&self, n: usize) -> Bytes {
-        assert!(n <= self.size, "peak size must smamller than current size");
+    pub fn peak_exact(&self, n: usize) -> Bytes {
+        assert!(n <= self.size, "peak size must smaller than current size");
 
         // Avoid data copy if n is smaller than first chunk.
         if self.inner[0].len() >= n {
             return self.inner[0].slice(..n);
+        }
+
+        let mut bs = BytesMut::with_capacity(n);
+        let mut n = n;
+        for b in &self.inner {
+            if n == 0 {
+                break;
+            }
+            let len = b.len().min(n);
+            bs.extend_from_slice(&b[..len]);
+            n -= len;
+        }
+        bs.freeze()
+    }
+
+    /// peak_at_least will read and copy at least n bytes from current
+    /// cursor without change it's content.
+    ///
+    /// This function is useful if you only want to make sure the
+    /// returning bytes is larger.
+    ///
+    /// # Panics
+    ///
+    /// Panics if n is larger than current size.
+    ///
+    /// # TODO
+    ///
+    /// Optimize to avoid data copy.
+    pub fn peak_at_least(&self, n: usize) -> Bytes {
+        assert!(n <= self.size, "peak size must smaller than current size");
+
+        // Avoid data copy if n is smaller than first chunk.
+        if self.inner[0].len() >= n {
+            return self.inner[0].clone();
         }
 
         let mut bs = BytesMut::with_capacity(n);
@@ -259,17 +296,17 @@ mod tests {
         vc.push(Bytes::from("hello"));
         vc.push(Bytes::from("world"));
 
-        assert_eq!(vc.peak(1), Bytes::from("h"));
-        assert_eq!(vc.peak(1), Bytes::from("h"));
-        assert_eq!(vc.peak(4), Bytes::from("hell"));
-        assert_eq!(vc.peak(6), Bytes::from("hellow"));
-        assert_eq!(vc.peak(10), Bytes::from("helloworld"));
+        assert_eq!(vc.peak_exact(1), Bytes::from("h"));
+        assert_eq!(vc.peak_exact(1), Bytes::from("h"));
+        assert_eq!(vc.peak_exact(4), Bytes::from("hell"));
+        assert_eq!(vc.peak_exact(6), Bytes::from("hellow"));
+        assert_eq!(vc.peak_exact(10), Bytes::from("helloworld"));
 
         vc.take(1);
-        assert_eq!(vc.peak(1), Bytes::from("e"));
+        assert_eq!(vc.peak_exact(1), Bytes::from("e"));
         vc.take(1);
-        assert_eq!(vc.peak(1), Bytes::from("l"));
+        assert_eq!(vc.peak_exact(1), Bytes::from("l"));
         vc.take(5);
-        assert_eq!(vc.peak(1), Bytes::from("r"));
+        assert_eq!(vc.peak_exact(1), Bytes::from("r"));
     }
 }

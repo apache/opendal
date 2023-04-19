@@ -161,11 +161,12 @@ impl oio::Write for OssWriter {
             return Ok(());
         }
 
-        let bs = self.buffer.peak(self.buffer_size);
+        let bs = self.buffer.peak_at_least(self.buffer_size);
+        let size = bs.len();
 
         match self.write_part(upload_id, bs).await {
             Ok(part) => {
-                self.buffer.take(self.buffer_size);
+                self.buffer.take(size);
                 self.parts.push(part);
                 Ok(())
             }
@@ -192,6 +193,21 @@ impl oio::Write for OssWriter {
         } else {
             return Ok(());
         };
+
+        // Make sure internal buffer has been flushed.
+        if !self.buffer.is_empty() {
+            let bs = self.buffer.peak_exact(self.buffer.len());
+
+            match self.write_part(upload_id, bs).await {
+                Ok(part) => {
+                    self.buffer.clear();
+                    self.parts.push(part);
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
+        }
 
         let resp = self
             .core

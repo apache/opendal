@@ -744,7 +744,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
-    assert_eq!(meta.content_length(), (size * 2) as u64);
+    assert_eq!(meta.content_length(), size as u64);
 
     let bs = op.read(&path).await?;
     assert_eq!(bs.len(), size, "read size");

@@ -399,7 +399,10 @@ impl Accessor for GcsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gcs_get_object(path, args.range()).await?;
+        let resp = self
+            .core
+            .gcs_get_object(path, args.range(), args.if_match(), args.if_none_match())
+            .await?;
 
         if resp.status().is_success() {
             let meta = parse_into_metadata(path, resp.headers())?;

@@ -443,7 +443,12 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        self.write_with(path, OpWrite::new(), bs)
+        let bs = bs.into();
+        self.write_with(
+            path,
+            OpWrite::new().with_content_length(bs.len() as u64),
+            bs,
+        )
     }
 
     /// Copy a file from `from` to `to`.
@@ -594,8 +599,11 @@ impl BlockingOperator {
             );
         }
 
-        let (_, mut w) = self.inner().blocking_write(&path, args)?;
-        w.write(bs.into())?;
+        let bs = bs.into();
+        let (_, mut w) = self
+            .inner()
+            .blocking_write(&path, args.with_content_length(bs.len() as u64))?;
+        w.write(bs)?;
         w.close()?;
 
         Ok(())
@@ -636,8 +644,8 @@ impl BlockingOperator {
             );
         }
 
-        let op = OpWrite::default().with_append();
-        BlockingWriter::create_dir(self.inner().clone(), &path, op)
+        let op = OpWrite::default();
+        BlockingWriter::create(self.inner().clone(), &path, op)
     }
 
     /// Delete given path.

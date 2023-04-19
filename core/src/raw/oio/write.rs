@@ -76,23 +76,33 @@ impl From<WriteOperation> for &'static str {
 pub type Writer = Box<dyn Write>;
 
 /// Write is the trait that OpenDAL returns to callers.
+///
+/// # Notes
+///
+/// There are two possible two cases:
+///
+/// - Sized: The total size of the object is known in advance.
+/// - Unsized: The total size of the object is unknown in advance.
+///
+/// And it's possible that the given bs length is less than the total
+/// content length. Users will call write multiple times to write
+/// the whole data.
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
-    /// Write whole content at once.
+    /// Write given into writer.
     ///
-    /// To append multiple bytes together, use `append` instead.
+    /// # Notes
+    ///
+    /// It's possible that the given bs length is less than the total
+    /// content length. And users will call write multiple times.
+    ///
+    /// Please make sure `write` is safe to re-enter.
     async fn write(&mut self, bs: Bytes) -> Result<()>;
 
     /// Append bytes to the writer.
-    ///
-    /// It is highly recommended to align the length of the input bytes
-    /// into blocks of 4MiB (except the last block) for better performance
-    /// and compatibility.
     async fn append(&mut self, bs: Bytes) -> Result<()>;
 
-    /// Abort the pending appendable writer.
-    /// #note
-    /// This method is only applicable to writers opened in append mode.
+    /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
 
     /// Close the writer and make sure all data has been flushed.

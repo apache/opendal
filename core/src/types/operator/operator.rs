@@ -631,7 +631,13 @@ impl Operator {
     /// # }
     /// ```
     pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        self.write_with(path, OpWrite::new(), bs).await
+        let bs = bs.into();
+        self.write_with(
+            path,
+            OpWrite::new().with_content_length(bs.len() as u64),
+            bs,
+        )
+        .await
     }
 
     /// Copy a file from `from` to `to`.
@@ -817,7 +823,7 @@ impl Operator {
             );
         }
 
-        Writer::create_dir(self.inner().clone(), &path, args.with_append()).await
+        Writer::create(self.inner().clone(), &path, args).await
     }
 
     /// Write data with extra options.
@@ -854,8 +860,12 @@ impl Operator {
             );
         }
 
-        let (_, mut w) = self.inner().write(&path, args).await?;
-        w.write(bs.into()).await?;
+        let bs = bs.into();
+        let (_, mut w) = self
+            .inner()
+            .write(&path, args.with_content_length(bs.len() as u64))
+            .await?;
+        w.write(bs).await?;
         w.close().await?;
 
         Ok(())

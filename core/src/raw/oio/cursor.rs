@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
 use std::io::Read;
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Buf;
 use bytes::Bytes;
+use bytes::BytesMut;
 
 use crate::raw::*;
 use crate::*;
@@ -136,5 +139,131 @@ impl oio::BlockingRead for Cursor {
             self.pos += bs.len() as u64;
             Some(Ok(bs))
         }
+    }
+}
+
+/// VectorCursor is the cursor for [`Vec<Bytes>`] that implements [`oio::Read`]
+pub struct VectorCursor {
+    inner: VecDeque<Bytes>,
+    size: usize,
+}
+
+impl VectorCursor {
+    /// Create a new vector cursor.
+    pub fn new() -> Self {
+        Self {
+            inner: VecDeque::new(),
+            size: 0,
+        }
+    }
+
+    /// Returns `true` if current vector is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Return current bytes size of current vector.
+    pub fn len(&self) -> usize {
+        self.size
+    }
+
+    /// Push a new bytes into vector cursor.
+    pub fn push(&mut self, bs: Bytes) {
+        self.size += bs.len();
+        self.inner.push_back(bs);
+    }
+
+    /// Pop a bytes from vector cursor.
+    pub fn pop(&mut self) {
+        let bs = self.inner.pop_back();
+        self.size -= bs.expect("poped bytes must exist").len()
+    }
+
+    /// Clear the entire vector.
+    pub fn clear(&mut self) {
+        self.inner.clear();
+        self.size = 0;
+    }
+
+    /// Peak will read and copy n bytes from current cursor without
+    /// change it's content.
+    ///
+    /// # Panics
+    ///
+    /// Panics if n is larger than current size.
+    ///
+    /// # TODO
+    ///
+    /// Optimize to avoid data copy.
+    pub fn peak(&self, n: usize) -> Bytes {
+        assert!(n <= self.size, "peak size must smamller than current size");
+
+        // Avoid data copy if n is smaller than first chunk.
+        if self.inner[0].len() >= n {
+            return self.inner[0].slice(..n);
+        }
+
+        let mut bs = BytesMut::with_capacity(n);
+        let mut n = n;
+        for b in &self.inner {
+            if n == 0 {
+                break;
+            }
+            let len = b.len().min(n);
+            bs.extend_from_slice(&b[..len]);
+            n -= len;
+        }
+        bs.freeze()
+    }
+
+    /// Take will consume n bytes from current cursor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if n is larger than current size.
+    pub fn take(&mut self, n: usize) {
+        assert!(n <= self.size, "take size must smamller than current size");
+
+        // Update current size
+        self.size -= n;
+
+        let mut n = n;
+        while n > 0 {
+            assert!(!self.inner.is_empty(), "inner must not be empty");
+
+            if self.inner[0].len() <= n {
+                n -= self.inner[0].len();
+                self.inner.pop_front();
+            } else {
+                self.inner[0].advance(n);
+                n = 0;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vector_cursor() {
+        let mut vc = VectorCursor::new();
+
+        vc.push(Bytes::from("hello"));
+        vc.push(Bytes::from("world"));
+
+        assert_eq!(vc.peak(1), Bytes::from("h"));
+        assert_eq!(vc.peak(1), Bytes::from("h"));
+        assert_eq!(vc.peak(4), Bytes::from("hell"));
+        assert_eq!(vc.peak(6), Bytes::from("hellow"));
+        assert_eq!(vc.peak(10), Bytes::from("helloworld"));
+
+        vc.take(1);
+        assert_eq!(vc.peak(1), Bytes::from("e"));
+        vc.take(1);
+        assert_eq!(vc.peak(1), Bytes::from("l"));
+        vc.take(5);
+        assert_eq!(vc.peak(1), Bytes::from("r"));
     }
 }

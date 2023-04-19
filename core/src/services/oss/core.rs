@@ -39,6 +39,10 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
+mod constants {
+    pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+}
+
 pub struct OssCore {
     pub root: String,
     pub bucket: String,
@@ -151,10 +155,25 @@ impl OssCore {
         is_presign: bool,
         if_match: Option<&str>,
         if_none_match: Option<&str>,
+        override_content_disposition: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+        let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
+
+        // Add query arguments to the URL based on response overrides
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = override_content_disposition {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::get(&url);
         req = req.header(CONTENT_TYPE, "application/octet-stream");
@@ -250,9 +269,16 @@ impl OssCore {
         range: BytesRange,
         if_match: Option<&str>,
         if_none_match: Option<&str>,
+        override_content_disposition: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_get_object_request(path, range, false, if_match, if_none_match)?;
-
+        let mut req = self.oss_get_object_request(
+            path,
+            range,
+            false,
+            if_match,
+            if_none_match,
+            override_content_disposition,
+        )?;
         self.sign(&mut req).await?;
         self.send(req).await
     }

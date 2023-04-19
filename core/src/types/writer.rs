@@ -47,7 +47,7 @@ use crate::*;
 /// be written in one request.
 ///
 /// Some services also supports `unsized` writer. They MAY buffer part of the data
-/// and flush them into storage at needs. And finally, the file will be avaliable
+/// and flush them into storage at needs. And finally, the file will be available
 /// after `close` has been called.
 pub struct Writer {
     state: State,

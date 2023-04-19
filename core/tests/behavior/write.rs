@@ -97,8 +97,9 @@ macro_rules! behavior_write_tests {
                 test_delete_with_special_chars,
                 test_delete_not_existing,
                 test_delete_stream,
-                test_append,
-                test_abort_writer,
+                test_writer_write,
+                test_writer_abort,
+                test_writer_futures_copy,
             );
         )*
     };
@@ -580,7 +581,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
 }
 
 // Delete existing file should succeed.
-pub async fn test_abort_writer(op: Operator) -> Result<()> {
+pub async fn test_writer_abort(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 
@@ -685,8 +686,8 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Append write
-pub async fn test_append(op: Operator) -> Result<()> {
+// Append data into writer
+pub async fn test_writer_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
@@ -718,6 +719,39 @@ pub async fn test_append(op: Operator) -> Result<()> {
         format!("{:x}", Sha256::digest(&bs[size..])),
         format!("{:x}", Sha256::digest(content_b)),
         "read content b"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+// copy data from reader to writer
+pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, size): (Vec<u8>, usize) =
+        gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
+
+    let mut w = match op.writer(&path).await {
+        Ok(w) => w,
+        Err(err) if err.kind() == ErrorKind::Unsupported => {
+            warn!("service doesn't support write with append");
+            return Ok(());
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    futures::io::copy(&mut content.as_slice(), &mut w).await?;
+    w.close().await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), (size * 2) as u64);
+
+    let bs = op.read(&path).await?;
+    assert_eq!(bs.len(), size, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", Sha256::digest(content)),
+        "read content"
     );
 
     op.delete(&path).await.expect("delete must succeed");

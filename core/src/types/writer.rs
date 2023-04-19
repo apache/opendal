@@ -180,6 +180,72 @@ impl AsyncWrite for Writer {
     }
 }
 
+impl tokio::io::AsyncWrite for Writer {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        loop {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let mut w = w
+                        .take()
+                        .expect("invalid state of writer: Idle state with empty write");
+                    let bs = Bytes::from(buf.to_vec());
+                    let size = bs.len();
+                    let fut = async move {
+                        w.write(bs).await?;
+                        Ok((size, w))
+                    };
+                    self.state = State::Write(Box::pin(fut));
+                }
+                State::Write(fut) => match ready!(fut.poll_unpin(cx)) {
+                    Ok((size, w)) => {
+                        self.state = State::Idle(Some(w));
+                        return Poll::Ready(Ok(size));
+                    }
+                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                },
+                State::Close(_) => {
+                    unreachable!("invalid state of writer: poll_write with State::Close")
+                }
+            };
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        loop {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let mut w = w
+                        .take()
+                        .expect("invalid state of writer: Idle state with empty write");
+                    let fut = async move {
+                        w.close().await?;
+                        Ok(w)
+                    };
+                    self.state = State::Close(Box::pin(fut));
+                }
+                State::Write(_) => {
+                    unreachable!("invalid state of writer: poll_close with State::Write")
+                }
+                State::Close(fut) => match ready!(fut.poll_unpin(cx)) {
+                    Ok(w) => {
+                        self.state = State::Idle(Some(w));
+                        return Poll::Ready(Ok(()));
+                    }
+                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                },
+            }
+        }
+    }
+}
+
 /// BlockingWriter is designed to write data into given path in an blocking
 /// manner.
 pub struct BlockingWriter {

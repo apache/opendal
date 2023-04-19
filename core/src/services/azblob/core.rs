@@ -153,7 +153,6 @@ impl AzblobCore {
         size: Option<usize>,
         content_type: Option<&str>,
         body: AsyncBody,
-        if_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -172,10 +171,6 @@ impl AzblobCore {
 
         if let Some(ty) = content_type {
             req = req.header(CONTENT_TYPE, ty)
-        }
-
-        if let Some(if_match) = if_match {
-            req = req.header(IF_MATCH, if_match);
         }
 
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");

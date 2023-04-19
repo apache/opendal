@@ -320,12 +320,10 @@ impl OpStat {
 /// Args for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
-    append: bool,
-
+    content_length: Option<u64>,
     content_type: Option<String>,
     content_disposition: Option<String>,
     cache_control: Option<String>,
-    if_match: Option<String>,
 }
 
 impl OpWrite {
@@ -336,13 +334,20 @@ impl OpWrite {
         Self::default()
     }
 
-    pub(crate) fn with_append(mut self) -> Self {
-        self.append = true;
-        self
+    /// Get the content length from op.
+    ///
+    /// The content length is the total length of the data to be written.
+    pub fn content_length(&self) -> Option<u64> {
+        self.content_length
     }
 
-    pub(crate) fn append(&self) -> bool {
-        self.append
+    /// Set the content length of op.
+    ///
+    /// If the content length is not set, the content length will be
+    /// calculated automatically by buffering part of data.
+    pub fn with_content_length(mut self, content_length: u64) -> Self {
+        self.content_length = Some(content_length);
+        self
     }
 
     /// Get the content type from option
@@ -376,17 +381,6 @@ impl OpWrite {
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
         self
-    }
-
-    /// Set the If-Match of the option
-    pub fn with_if_match(mut self, if_match: &str) -> Self {
-        self.if_match = Some(if_match.to_string());
-        self
-    }
-
-    /// Get If-Match from option
-    pub fn if_match(&self) -> Option<&str> {
-        self.if_match.as_deref()
     }
 }
 

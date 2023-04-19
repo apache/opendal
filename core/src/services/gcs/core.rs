@@ -322,7 +322,7 @@ impl GcsCore {
         &self,
         location: &str,
         size: u64,
-        written_bytes: u64,
+        written: u64,
         is_last_part: bool,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
@@ -331,12 +331,12 @@ impl GcsCore {
         let range_header = if is_last_part {
             format!(
                 "bytes {}-{}/{}",
-                written_bytes,
-                written_bytes + size - 1,
-                written_bytes + size
+                written,
+                written + size - 1,
+                written + size
             )
         } else {
-            format!("bytes {}-{}/*", written_bytes, written_bytes + size - 1)
+            format!("bytes {}-{}/*", written, written + size - 1)
         };
 
         req = req

@@ -53,15 +53,6 @@ impl oio::Write for FtpWriter {
         Ok(())
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _ = bs;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support append",
-        ))
-    }
-
     async fn abort(&mut self) -> Result<()> {
         Ok(())
     }

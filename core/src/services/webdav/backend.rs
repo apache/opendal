@@ -300,10 +300,10 @@ impl Accessor for WebdavBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
+        if args.content_length().is_none() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "append write is not supported",
+                "write without content length is not supported",
             ));
         }
 

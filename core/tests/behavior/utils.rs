@@ -25,6 +25,7 @@ use log::debug;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::*;
+use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
@@ -82,6 +83,16 @@ pub fn gen_bytes() -> (Vec<u8>, usize) {
     let mut rng = thread_rng();
 
     let size = rng.gen_range(1..4 * 1024 * 1024);
+    let mut content = vec![0; size];
+    rng.fill_bytes(&mut content);
+
+    (content, size)
+}
+
+pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
+    let mut rng = thread_rng();
+
+    let size = rng.gen_range(range);
     let mut content = vec![0; size];
     rng.fill_bytes(&mut content);
 

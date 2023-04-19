@@ -1386,39 +1386,6 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        match self.inner.append(bs).await {
-            Ok(_) => {
-                self.written += size as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
-                    self.scheme,
-                    WriteOperation::Append,
-                    self.path,
-                    self.written,
-                    size
-                );
-                Ok(())
-            }
-            Err(err) => {
-                if let Some(lvl) = self.failure_level {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
-                        self.scheme,
-                        WriteOperation::Append,
-                        self.path,
-                        self.written,
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
     async fn abort(&mut self) -> Result<()> {
         match self.inner.abort().await {
             Ok(_) => {
@@ -1495,39 +1462,6 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                         "service={} operation={} path={} written={} -> data write failed: {err:?}",
                         self.scheme,
                         WriteOperation::BlockingWrite,
-                        self.path,
-                        self.written,
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        match self.inner.append(bs) {
-            Ok(_) => {
-                self.written += size as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
-                    self.scheme,
-                    WriteOperation::BlockingAppend,
-                    self.path,
-                    self.written,
-                    size
-                );
-                Ok(())
-            }
-            Err(err) => {
-                if let Some(lvl) = self.failure_level {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
-                        self.scheme,
-                        WriteOperation::BlockingAppend,
                         self.path,
                         self.written,
                     )

@@ -925,18 +925,6 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
             })
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        self.inner
-            .append(bs)
-            .await
-            .map(|_| self.bytes += size as u64)
-            .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
-                err
-            })
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());
@@ -957,17 +945,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
         let size = bs.len();
         self.inner
             .write(bs)
-            .map(|_| self.bytes += size as u64)
-            .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
-                err
-            })
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        self.inner
-            .append(bs)
             .map(|_| self.bytes += size as u64)
             .map_err(|err| {
                 self.handle.increment_errors_total(self.op, err.kind());

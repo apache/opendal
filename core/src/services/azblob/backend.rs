@@ -462,9 +462,9 @@ impl Accessor for AzblobBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self
-            .core
-            .azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty, None)?;
+        let mut req =
+            self.core
+                .azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty, None)?;
 
         self.core.sign(&mut req).await?;
 

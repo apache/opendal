@@ -2292,6 +2292,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "oay"
+version = "0.32.0"
+dependencies = [
+ "anyhow",
+ "clap 4.1.11",
+ "dirs",
+ "env_logger",
+ "futures",
+ "log",
+ "opendal",
+ "serde",
+ "tokio",
+ "toml 0.7.3",
+ "url",
+]
+
+[[package]]
 name = "object_store"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

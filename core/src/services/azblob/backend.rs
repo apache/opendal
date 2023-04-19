@@ -464,7 +464,7 @@ impl Accessor for AzblobBackend {
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut req = self
             .core
-            .azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty)?;
+            .azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty, None)?;
 
         self.core.sign(&mut req).await?;
 
@@ -484,7 +484,7 @@ impl Accessor for AzblobBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .azblob_get_blob(path, args.range(), args.if_none_match())
+            .azblob_get_blob(path, args.range(), args.if_none_match(), args.if_match())
             .await?;
 
         let status = resp.status();
@@ -535,7 +535,7 @@ impl Accessor for AzblobBackend {
 
         let resp = self
             .core
-            .azblob_get_blob_properties(path, args.if_none_match())
+            .azblob_get_blob_properties(path, args.if_none_match(), args.if_match())
             .await?;
 
         let status = resp.status();

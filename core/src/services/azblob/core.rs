@@ -24,6 +24,7 @@ use std::str::FromStr;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
@@ -102,6 +103,7 @@ impl AzblobCore {
         path: &str,
         range: BytesRange,
         if_none_match: Option<&str>,
+        if_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -132,6 +134,10 @@ impl AzblobCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
         let mut req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -147,6 +153,7 @@ impl AzblobCore {
         size: Option<usize>,
         content_type: Option<&str>,
         body: AsyncBody,
+        if_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -167,6 +174,10 @@ impl AzblobCore {
             req = req.header(CONTENT_TYPE, ty)
         }
 
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
@@ -179,6 +190,7 @@ impl AzblobCore {
         &self,
         path: &str,
         if_none_match: Option<&str>,
+        if_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -193,6 +205,10 @@ impl AzblobCore {
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
         }
 
         let mut req = req

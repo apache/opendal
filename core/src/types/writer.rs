@@ -60,17 +60,13 @@ impl Writer {
         })
     }
 
-    /// Append data into writer.
-    ///
-    /// It is highly recommended to align the length of the input bytes
-    /// into blocks of 4MiB (except the last block) for better performance
-    /// and compatibility.
-    pub async fn append(&mut self, bs: impl Into<Bytes>) -> Result<()> {
+    /// Write into inner writer.
+    pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
-            w.append(bs.into()).await
+            w.write(bs.into()).await
         } else {
             unreachable!(
-                "writer state invalid while append, expect Idle, actual {}",
+                "writer state invalid while abort, expect Idle, actual {}",
                 self.state
             );
         }
@@ -132,7 +128,7 @@ impl AsyncWrite for Writer {
                     let bs = Bytes::from(buf.to_vec());
                     let size = bs.len();
                     let fut = async move {
-                        w.append(bs).await?;
+                        w.write(bs).await?;
                         Ok((size, w))
                     };
                     self.state = State::Write(Box::pin(fut));
@@ -204,15 +200,6 @@ impl BlockingWriter {
         Ok(BlockingWriter { inner: w })
     }
 
-    /// Append data into writer.
-    ///
-    /// It is highly recommended to align the length of the input bytes
-    /// into blocks of 4MiB (except the last block) for better performance
-    /// and compatibility.
-    pub fn append(&mut self, bs: impl Into<Bytes>) -> Result<()> {
-        self.inner.append(bs.into())
-    }
-
     /// Close the writer and make sure all data have been stored.
     pub fn close(&mut self) -> Result<()> {
         self.inner.close()
@@ -222,7 +209,8 @@ impl BlockingWriter {
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let size = buf.len();
-        self.append(Bytes::from(buf.to_vec()))
+        self.inner
+            .write(Bytes::from(buf.to_vec()))
             .map(|_| size)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }

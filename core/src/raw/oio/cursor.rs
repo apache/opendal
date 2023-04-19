@@ -148,6 +148,12 @@ pub struct VectorCursor {
     size: usize,
 }
 
+impl Default for VectorCursor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VectorCursor {
     /// Create a new vector cursor.
     pub fn new() -> Self {

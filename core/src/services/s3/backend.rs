@@ -961,7 +961,7 @@ impl Accessor for S3Backend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            S3Writer::new(self.core.clone(), &path, args),
+            S3Writer::new(self.core.clone(), path, args),
         ))
     }
 

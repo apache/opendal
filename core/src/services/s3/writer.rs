@@ -106,7 +106,7 @@ impl S3Writer {
 
                 Ok(result.upload_id)
             }
-            _ => return Err(parse_error(resp).await?),
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -162,14 +162,14 @@ impl oio::Write for S3Writer {
                     return self.write_oneshot(bs).await;
                 } else {
                     let upload_id = self.initiate_upload().await?;
-                    self.upload_id = Some(upload_id.clone());
+                    self.upload_id = Some(upload_id);
                     self.upload_id.as_deref().unwrap()
                 }
             }
         };
 
         // Ignore empty bytes
-        if bs.len() == 0 {
+        if bs.is_empty() {
             return Ok(());
         }
 
@@ -194,10 +194,6 @@ impl oio::Write for S3Writer {
                 Err(e)
             }
         }
-    }
-
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        todo!()
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -411,14 +411,6 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         })
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).await.map_err(|err| {
-            err.with_operation(WriteOperation::Append)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-        })
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
             err.with_operation(WriteOperation::Append)
@@ -440,14 +432,6 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs).map_err(|err| {
             err.with_operation(WriteOperation::BlockingWrite)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-        })
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).map_err(|err| {
-            err.with_operation(WriteOperation::BlockingAppend)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

@@ -138,14 +138,14 @@ impl oio::Write for GcsWriter {
                     return self.write_oneshot(bs).await;
                 } else {
                     let location = self.initiate_upload().await?;
-                    self.location = Some(location.clone());
+                    self.location = Some(location);
                     self.location.as_deref().unwrap()
                 }
             }
         };
 
         // Ignore empty bytes
-        if bs.len() == 0 {
+        if bs.is_empty() {
             return Ok(());
         }
 
@@ -170,10 +170,6 @@ impl oio::Write for GcsWriter {
                 Err(e)
             }
         }
-    }
-
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.write(bs).await
     }
 
     // TODO: we can cancel the upload by sending a DELETE request to the location

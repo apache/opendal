@@ -409,7 +409,7 @@ impl Accessor for OssBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            OssWriter::new(self.core.clone(), &path, args),
+            OssWriter::new(self.core.clone(), path, args),
         ))
     }
 

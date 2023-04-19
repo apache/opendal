@@ -651,27 +651,6 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
         }
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let mut backoff = self.builder.build();
-
-        loop {
-            match self.inner.append(bs.clone()).await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
-                    Some(dur) => {
-                        warn!(target: "opendal::service",
-                              "operation={} path={} -> pager retry after {}s: error={:?}",
-                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
-                        tokio::time::sleep(dur).await;
-                        continue;
-                    }
-                },
-            }
-        }
-    }
-
     async fn abort(&mut self) -> Result<()> {
         let mut backoff = self.builder.build();
 
@@ -725,20 +704,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for RetryWrapper<R> {
                 target: "opendal::service",
                 "operation={} -> pager retry after {}s: error={:?}",
                 WriteOperation::BlockingWrite, dur.as_secs_f64(), err)
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        { || self.inner.append(bs.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(move |err, dur| {
-                warn!(
-                target: "opendal::service",
-                "operation={} -> pager retry after {}s: error={:?}",
-                WriteOperation::BlockingAppend, dur.as_secs_f64(), err)
             })
             .call()
             .map_err(|e| e.set_persistent())

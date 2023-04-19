@@ -592,7 +592,7 @@ pub async fn test_abort_writer(op: Operator) -> Result<()> {
         }
     };
 
-    if let Err(e) = writer.append(content).await {
+    if let Err(e) = writer.write(content).await {
         assert_eq!(e.kind(), ErrorKind::Unsupported);
         return Ok(());
     }
@@ -700,8 +700,8 @@ pub async fn test_append(op: Operator) -> Result<()> {
         }
         Err(err) => return Err(err.into()),
     };
-    w.append(content_a.clone()).await?;
-    w.append(content_b.clone()).await?;
+    w.write(content_a.clone()).await?;
+    w.write(content_b.clone()).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

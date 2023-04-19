@@ -337,16 +337,6 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
             .await
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner
-            .append(bs)
-            .in_span(Span::enter_with_parent(
-                WriteOperation::Append.into_static(),
-                &self.span,
-            ))
-            .await
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner
             .abort()
@@ -373,12 +363,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
         let _span =
             Span::enter_with_parent(WriteOperation::BlockingWrite.into_static(), &self.span);
         self.inner.write(bs)
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _span =
-            Span::enter_with_parent(WriteOperation::BlockingAppend.into_static(), &self.span);
-        self.inner.append(bs)
     }
 
     fn close(&mut self) -> Result<()> {

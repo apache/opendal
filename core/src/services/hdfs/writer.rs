@@ -47,20 +47,6 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     /// we write the same content.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.f
-            .seek(SeekFrom::Start(0))
-            .await
-            .map_err(parse_io_error)?;
-        self.f.write_all(&bs).await.map_err(parse_io_error)?;
-
-        Ok(())
-    }
-
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.f
             .seek(SeekFrom::Start(self.pos))
             .await
             .map_err(parse_io_error)?;
@@ -90,17 +76,6 @@ impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f.rewind().map_err(parse_io_error)?;
-        self.f.write_all(&bs).map_err(parse_io_error)?;
-
-        Ok(())
-    }
-
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
-    fn append(&mut self, bs: Bytes) -> Result<()> {
         self.f
             .seek(SeekFrom::Start(self.pos))
             .map_err(parse_io_error)?;

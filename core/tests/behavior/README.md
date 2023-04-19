@@ -38,7 +38,7 @@ Test specific backend(such as `fs`).
 cargo test services_fs
 ```
 
-As `cargo test` only run tests containing the following string in their names, we use `services-fs` to run all tests under `services::fs`.
+As `cargo test` only run tests containing the following string in their names, we use `services_fs` to run all tests under `services::fs`.
 
 To run all tests under `tests/behavior/write.rs` for `fs`, we use `services_fs_write`.
 

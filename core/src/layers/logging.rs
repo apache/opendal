@@ -827,7 +827,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             target: LOGGING_TARGET,
             "service={} operation={} from={} to={} -> started",
             self.scheme,
-            Operation::BlockingMove,
+            Operation::BlockingRename,
             from,
             to,
         );
@@ -839,7 +839,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     target: LOGGING_TARGET,
                     "service={} operation={} from={} to={} -> finished",
                     self.scheme,
-                    Operation::BlockingMove,
+                    Operation::BlockingRename,
                     from,
                     to,
                 );
@@ -852,7 +852,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         lvl,
                         "service={} operation={} from={} to={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::BlockingMove,
+                        Operation::BlockingRename,
                         from,
                         to,
                         self.err_status(&err)

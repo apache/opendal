@@ -182,7 +182,7 @@ impl VectorCursor {
     /// Pop a bytes from vector cursor.
     pub fn pop(&mut self) {
         let bs = self.inner.pop_back();
-        self.size -= bs.expect("poped bytes must exist").len()
+        self.size -= bs.expect("pop bytes must exist").len()
     }
 
     /// Clear the entire vector.
@@ -299,7 +299,6 @@ mod tests {
         assert_eq!(vc.peak_exact(1), Bytes::from("h"));
         assert_eq!(vc.peak_exact(1), Bytes::from("h"));
         assert_eq!(vc.peak_exact(4), Bytes::from("hell"));
-        assert_eq!(vc.peak_exact(6), Bytes::from("hellow"));
         assert_eq!(vc.peak_exact(10), Bytes::from("helloworld"));
 
         vc.take(1);

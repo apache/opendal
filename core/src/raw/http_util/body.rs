@@ -144,11 +144,11 @@ impl IncomingAsyncBody {
         match actual.cmp(&expect) {
             Ordering::Equal => Ok(()),
             Ordering::Less => Err(Error::new(
-                ErrorKind::Unexpected,
+                ErrorKind::ContentIncomplete,
                 &format!("reader got too less data, expect: {expect}, actual: {actual}"),
             )),
             Ordering::Greater => Err(Error::new(
-                ErrorKind::Unexpected,
+                ErrorKind::ContentTruncated,
                 &format!("reader got too much data, expect: {expect}, actual: {actual}"),
             )),
         }

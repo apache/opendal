@@ -35,11 +35,20 @@ use crate::*;
 /// Writer is designed to write data into given path in an asynchronous
 /// manner.
 ///
-/// # Notes
+/// ## Notes
 ///
-/// Writer is designed for appending multiple blocks which could
-/// lead to much requests. If only want to send all data in single chunk,
-/// please use [`Operator::write`] instead.
+/// Writer can be used in two ways:
+///
+/// - Sized: write data with a known size by specify the content length.
+/// - Unsized: write data with an unknown size, also known as streaming.
+///
+/// All services will support `sized` writer and provide special optimization if
+/// the given data size is the same as the content length, allowing them to
+/// be written in one request.
+///
+/// Some services also supports `unsized` writer. They MAY buffer part of the data
+/// and flush them into storage at needs. And finally, the file will be avaliable
+/// after `close` has been called.
 pub struct Writer {
     state: State,
 }

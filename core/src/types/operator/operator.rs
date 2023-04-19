@@ -631,7 +631,13 @@ impl Operator {
     /// # }
     /// ```
     pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        self.write_with(path, OpWrite::new(), bs).await
+        let bs = bs.into();
+        self.write_with(
+            path,
+            OpWrite::new().with_content_length(bs.len() as u64),
+            bs,
+        )
+        .await
     }
 
     /// Copy a file from `from` to `to`.
@@ -753,9 +759,7 @@ impl Operator {
 
     /// Write multiple bytes into path.
     ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// Refer to [`Writer`] for more details.
     ///
     /// # Examples
     ///
@@ -769,8 +773,8 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op.writer("path/to/file").await?;
-    /// w.append(vec![0; 4096]).await?;
-    /// w.append(vec![1; 4096]).await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;
     /// # Ok(())
     /// # }
@@ -781,9 +785,7 @@ impl Operator {
 
     /// Write multiple bytes into path with extra options.
     ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// Refer to [`Writer`] for more details.
     ///
     /// # Examples
     ///
@@ -799,8 +801,8 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let args = OpWrite::new().with_content_type("application/octet-stream");
     /// let mut w = op.writer_with("path/to/file", args).await?;
-    /// w.append(vec![0; 4096]).await?;
-    /// w.append(vec![1; 4096]).await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;
     /// # Ok(())
     /// # }
@@ -817,7 +819,7 @@ impl Operator {
             );
         }
 
-        Writer::create_dir(self.inner().clone(), &path, args.with_append()).await
+        Writer::create(self.inner().clone(), &path, args).await
     }
 
     /// Write data with extra options.
@@ -854,8 +856,12 @@ impl Operator {
             );
         }
 
-        let (_, mut w) = self.inner().write(&path, args).await?;
-        w.write(bs.into()).await?;
+        let bs = bs.into();
+        let (_, mut w) = self
+            .inner()
+            .write(&path, args.with_content_length(bs.len() as u64))
+            .await?;
+        w.write(bs).await?;
         w.close().await?;
 
         Ok(())

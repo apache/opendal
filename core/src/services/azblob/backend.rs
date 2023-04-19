@@ -482,7 +482,10 @@ impl Accessor for AzblobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azblob_get_blob(path, args.range()).await?;
+        let resp = self
+            .core
+            .azblob_get_blob(path, args.range(), args.if_none_match(), args.if_match())
+            .await?;
 
         let status = resp.status();
 
@@ -497,10 +500,10 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
+        if args.content_length().is_none() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "append write is not supported",
+                "write without content length is not supported",
             ));
         }
 
@@ -524,13 +527,16 @@ impl Accessor for AzblobBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.azblob_get_blob_properties(path).await?;
+        let resp = self
+            .core
+            .azblob_get_blob_properties(path, args.if_none_match(), args.if_match())
+            .await?;
 
         let status = resp.status();
 

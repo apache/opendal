@@ -32,68 +32,50 @@ pub struct WasabiWriter {
 
     op: OpWrite,
     path: String,
-
-    upload_id: Option<String>,
 }
 
 impl WasabiWriter {
-    pub fn new(
-        core: Arc<WasabiCore>,
-        op: OpWrite,
-        path: String,
-        upload_id: Option<String>,
-    ) -> Self {
-        WasabiWriter {
-            core,
-
-            op,
-            path,
-            upload_id,
-        }
+    pub fn new(core: Arc<WasabiCore>, op: OpWrite, path: String) -> Self {
+        WasabiWriter { core, op, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for WasabiWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        debug_assert!(
-            self.upload_id.is_none(),
-            "Writer initiated with upload id, but users trying to call write, must be buggy"
-        );
+        if self.op.content_length().unwrap_or_default() == bs.len() as u64 {
+            let resp = self
+                .core
+                .put_object(
+                    &self.path,
+                    Some(bs.len()),
+                    self.op.content_type(),
+                    self.op.content_disposition(),
+                    self.op.cache_control(),
+                    AsyncBody::Bytes(bs),
+                )
+                .await?;
 
-        let resp = self
-            .core
-            .put_object(
-                &self.path,
-                Some(bs.len()),
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
-                AsyncBody::Bytes(bs),
-            )
-            .await?;
-
-        match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
+            match resp.status() {
+                StatusCode::CREATED | StatusCode::OK => {
+                    resp.into_body().consume().await?;
+                    Ok(())
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
+        } else {
+            let resp = self
+                .core
+                .append_object(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))
+                .await?;
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let resp = self
-            .core
-            .append_object(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))
-            .await?;
-
-        match resp.status() {
-            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(())
+            match resp.status() {
+                StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
+                    resp.into_body().consume().await?;
+                    Ok(())
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
         }
     }
 

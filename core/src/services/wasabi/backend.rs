@@ -951,7 +951,7 @@ impl Accessor for WasabiBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            WasabiWriter::new(self.core.clone(), args, path.to_string(), None),
+            WasabiWriter::new(self.core.clone(), args, path.to_string()),
         ))
     }
 

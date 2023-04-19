@@ -407,25 +407,9 @@ impl Accessor for OssBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let upload_id = if args.append() {
-            let resp = self.core.oss_initiate_upload(path, &args).await?;
-            match resp.status() {
-                StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
-                    let result: InitiateMultipartUploadResult =
-                        quick_xml::de::from_reader(bs.reader())
-                            .map_err(new_xml_deserialize_error)?;
-                    Some(result.upload_id)
-                }
-                _ => return Err(parse_error(resp).await?),
-            }
-        } else {
-            None
-        };
-
         Ok((
             RpWrite::default(),
-            OssWriter::new(self.core.clone(), args, path.to_string(), upload_id),
+            OssWriter::new(self.core.clone(), path, args),
         ))
     }
 

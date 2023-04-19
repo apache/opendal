@@ -339,10 +339,6 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
         self.inner.write(bs).await
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).await
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await
     }
@@ -355,10 +351,6 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs)
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs)
     }
 
     fn close(&mut self) -> Result<()> {

@@ -399,7 +399,10 @@ impl Accessor for GcsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gcs_get_object(path, args.range()).await?;
+        let resp = self
+            .core
+            .gcs_get_object(path, args.range(), args.if_match(), args.if_none_match())
+            .await?;
 
         if resp.status().is_success() {
             let meta = parse_into_metadata(path, resp.headers())?;
@@ -410,32 +413,9 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let upload_location = if args.append() {
-            let resp = self.core.gcs_initiate_resumable_upload(path).await?;
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => {
-                    let bs = parse_location(resp.headers())
-                        .expect("Failed to retrieve location of resumable upload");
-                    if let Some(location) = bs {
-                        Some(String::from(location))
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::NotFound,
-                            "location is not in the response header",
-                        ));
-                    }
-                }
-                _ => return Err(parse_error(resp).await?),
-            }
-        } else {
-            None
-        };
-
         Ok((
             RpWrite::default(),
-            GcsWriter::new(self.core.clone(), args, path.to_string(), upload_location),
+            GcsWriter::new(self.core.clone(), path, args),
         ))
     }
 

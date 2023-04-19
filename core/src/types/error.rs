@@ -75,6 +75,24 @@ pub enum ErrorKind {
     /// For example, reading a file with If-Match header but the file's ETag
     /// is not match.
     PreconditionFailed,
+    /// The content is truncated.
+    ///
+    /// This error kind means there are more content to come but been truncated.
+    ///
+    /// For examples:
+    ///
+    /// - Users expected to read 1024 bytes, but service returned more bytes.
+    /// - Service expected to write 1024 bytes, but users write more bytes.
+    ContentTruncated,
+    /// The content is incomplete.
+    ///
+    /// This error kind means expect content length is not reached.
+    ///
+    /// For examples:
+    ///
+    /// - Users expected to read 1024 bytes, but service returned less bytes.
+    /// - Service expected to write 1024 bytes, but users write less bytes.
+    ContentIncomplete,
 }
 
 impl ErrorKind {
@@ -104,6 +122,8 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::RateLimited => "RateLimited",
             ErrorKind::IsSameFile => "IsSameFile",
             ErrorKind::PreconditionFailed => "PreconditionFailed",
+            ErrorKind::ContentTruncated => "ContentTruncated",
+            ErrorKind::ContentIncomplete => "ContentIncomplete",
         }
     }
 }

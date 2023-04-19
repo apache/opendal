@@ -15,14 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write;
-
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::{Bytes, BytesMut};
 use http::header::CONTENT_TYPE;
+use http::header::IF_MATCH;
+use http::header::IF_NONE_MATCH;
 use http::header::{CONTENT_LENGTH, CONTENT_RANGE};
 use http::Request;
 use http::Response;
@@ -31,6 +29,9 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
@@ -97,6 +98,8 @@ impl GcsCore {
         &self,
         path: &str,
         range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -109,6 +112,12 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
         }
@@ -124,8 +133,10 @@ impl GcsCore {
         &self,
         path: &str,
         range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_get_object_request(path, range)?;
+        let mut req = self.gcs_get_object_request(path, range, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -322,7 +333,7 @@ impl GcsCore {
         &self,
         location: &str,
         size: u64,
-        written_bytes: u64,
+        written: u64,
         is_last_part: bool,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
@@ -331,12 +342,12 @@ impl GcsCore {
         let range_header = if is_last_part {
             format!(
                 "bytes {}-{}/{}",
-                written_bytes,
-                written_bytes + size - 1,
-                written_bytes + size
+                written,
+                written + size - 1,
+                written + size
             )
         } else {
-            format!("bytes {}-{}/*", written_bytes, written_bytes + size - 1)
+            format!("bytes {}-{}/*", written, written + size - 1)
         };
 
         req = req

@@ -35,11 +35,20 @@ use crate::*;
 /// Writer is designed to write data into given path in an asynchronous
 /// manner.
 ///
-/// # Notes
+/// ## Notes
 ///
-/// Writer is designed for appending multiple blocks which could
-/// lead to much requests. If only want to send all data in single chunk,
-/// please use [`Operator::write`] instead.
+/// Writer can be used in two ways:
+///
+/// - Sized: write data with a known size by specify the content length.
+/// - Unsized: write data with an unknown size, also known as streaming.
+///
+/// All services will support `sized` writer and provide special optimization if
+/// the given data size is the same as the content length, allowing them to
+/// be written in one request.
+///
+/// Some services also supports `unsized` writer. They MAY buffer part of the data
+/// and flush them into storage at needs. And finally, the file will be available
+/// after `close` has been called.
 pub struct Writer {
     state: State,
 }
@@ -52,7 +61,7 @@ impl Writer {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) async fn create_dir(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
+    pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.write(path, op).await?;
 
         Ok(Writer {
@@ -60,17 +69,13 @@ impl Writer {
         })
     }
 
-    /// Append data into writer.
-    ///
-    /// It is highly recommended to align the length of the input bytes
-    /// into blocks of 4MiB (except the last block) for better performance
-    /// and compatibility.
-    pub async fn append(&mut self, bs: impl Into<Bytes>) -> Result<()> {
+    /// Write into inner writer.
+    pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
-            w.append(bs.into()).await
+            w.write(bs.into()).await
         } else {
             unreachable!(
-                "writer state invalid while append, expect Idle, actual {}",
+                "writer state invalid while write, expect Idle, actual {}",
                 self.state
             );
         }
@@ -132,7 +137,7 @@ impl AsyncWrite for Writer {
                     let bs = Bytes::from(buf.to_vec());
                     let size = bs.len();
                     let fut = async move {
-                        w.append(bs).await?;
+                        w.write(bs).await?;
                         Ok((size, w))
                     };
                     self.state = State::Write(Box::pin(fut));
@@ -184,6 +189,72 @@ impl AsyncWrite for Writer {
     }
 }
 
+impl tokio::io::AsyncWrite for Writer {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        loop {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let mut w = w
+                        .take()
+                        .expect("invalid state of writer: Idle state with empty write");
+                    let bs = Bytes::from(buf.to_vec());
+                    let size = bs.len();
+                    let fut = async move {
+                        w.write(bs).await?;
+                        Ok((size, w))
+                    };
+                    self.state = State::Write(Box::pin(fut));
+                }
+                State::Write(fut) => match ready!(fut.poll_unpin(cx)) {
+                    Ok((size, w)) => {
+                        self.state = State::Idle(Some(w));
+                        return Poll::Ready(Ok(size));
+                    }
+                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                },
+                State::Close(_) => {
+                    unreachable!("invalid state of writer: poll_write with State::Close")
+                }
+            };
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        loop {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let mut w = w
+                        .take()
+                        .expect("invalid state of writer: Idle state with empty write");
+                    let fut = async move {
+                        w.close().await?;
+                        Ok(w)
+                    };
+                    self.state = State::Close(Box::pin(fut));
+                }
+                State::Write(_) => {
+                    unreachable!("invalid state of writer: poll_close with State::Write")
+                }
+                State::Close(fut) => match ready!(fut.poll_unpin(cx)) {
+                    Ok(w) => {
+                        self.state = State::Idle(Some(w));
+                        return Poll::Ready(Ok(()));
+                    }
+                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                },
+            }
+        }
+    }
+}
+
 /// BlockingWriter is designed to write data into given path in an blocking
 /// manner.
 pub struct BlockingWriter {
@@ -198,19 +269,15 @@ impl BlockingWriter {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn create_dir(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
+    pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.blocking_write(path, op)?;
 
         Ok(BlockingWriter { inner: w })
     }
 
-    /// Append data into writer.
-    ///
-    /// It is highly recommended to align the length of the input bytes
-    /// into blocks of 4MiB (except the last block) for better performance
-    /// and compatibility.
-    pub fn append(&mut self, bs: impl Into<Bytes>) -> Result<()> {
-        self.inner.append(bs.into())
+    /// Write into inner writer.
+    pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
+        self.inner.write(bs.into())
     }
 
     /// Close the writer and make sure all data have been stored.
@@ -222,7 +289,8 @@ impl BlockingWriter {
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let size = buf.len();
-        self.append(Bytes::from(buf.to_vec()))
+        self.inner
+            .write(Bytes::from(buf.to_vec()))
             .map(|_| size)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }

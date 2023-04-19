@@ -489,7 +489,6 @@ impl S3Core {
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
-        if_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -507,10 +506,6 @@ impl S3Core {
 
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
-        }
-
-        if let Some(if_match) = if_match {
-            req = req.header(IF_MATCH, if_match)
         }
 
         // Set storage class header

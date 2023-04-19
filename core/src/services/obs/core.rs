@@ -116,7 +116,6 @@ impl ObsCore {
         path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
-        if_match: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -124,10 +123,6 @@ impl ObsCore {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
-
-        if let Some(if_match) = if_match {
-            req = req.header(IF_MATCH, if_match);
-        }
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)

@@ -107,13 +107,27 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok((RpRead::new(bs.len() as u64), oio::Cursor::from(bs)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
     }
 
-    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
@@ -264,32 +278,14 @@ impl<S> KvWriter<S> {
             buf: None,
         }
     }
-
-    fn extend_buf(&mut self, bs: Bytes) {
-        if let Some(buf) = self.buf.as_mut() {
-            buf.extend(bs);
-        } else {
-            self.buf = Some(bs.into())
-        }
-    }
 }
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
+    // TODO: we need to support append in the future.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.buf = Some(bs.into());
 
-        Ok(())
-    }
-
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        if let Err(e) = self.kv.append(&self.path, bs.to_vec().as_slice()).await {
-            if e.kind() == ErrorKind::Unsupported {
-                self.extend_buf(bs);
-            } else {
-                return Err(e);
-            }
-        }
         Ok(())
     }
 
@@ -312,12 +308,6 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.buf = Some(bs.into());
-
-        Ok(())
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.extend_buf(bs);
 
         Ok(())
     }

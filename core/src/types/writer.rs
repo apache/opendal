@@ -66,7 +66,7 @@ impl Writer {
             w.write(bs.into()).await
         } else {
             unreachable!(
-                "writer state invalid while abort, expect Idle, actual {}",
+                "writer state invalid while write, expect Idle, actual {}",
                 self.state
             );
         }
@@ -264,6 +264,11 @@ impl BlockingWriter {
         let (_, w) = acc.blocking_write(path, op)?;
 
         Ok(BlockingWriter { inner: w })
+    }
+
+    /// Write into inner writer.
+    pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
+        self.inner.write(bs.into())
     }
 
     /// Close the writer and make sure all data have been stored.

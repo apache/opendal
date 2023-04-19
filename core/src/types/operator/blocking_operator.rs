@@ -626,8 +626,8 @@ impl BlockingOperator {
     ///
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let mut w = op.writer("path/to/file")?;
-    /// w.append(vec![0; 4096])?;
-    /// w.append(vec![1; 4096])?;
+    /// w.write(vec![0; 4096])?;
+    /// w.write(vec![1; 4096])?;
     /// w.close()?;
     /// # Ok(())
     /// # }

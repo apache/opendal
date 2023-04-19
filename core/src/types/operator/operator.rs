@@ -775,8 +775,8 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op.writer("path/to/file").await?;
-    /// w.append(vec![0; 4096]).await?;
-    /// w.append(vec![1; 4096]).await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;
     /// # Ok(())
     /// # }
@@ -805,8 +805,8 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let args = OpWrite::new().with_content_type("application/octet-stream");
     /// let mut w = op.writer_with("path/to/file", args).await?;
-    /// w.append(vec![0; 4096]).await?;
-    /// w.append(vec![1; 4096]).await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;
     /// # Ok(())
     /// # }

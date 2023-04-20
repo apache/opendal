@@ -315,9 +315,9 @@ impl Accessor for ObsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self
-            .core
-            .obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req =
+            self.core
+                .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 

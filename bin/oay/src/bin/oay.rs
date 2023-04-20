@@ -16,10 +16,37 @@
 // under the License.
 
 use anyhow::Result;
+use oay::services::S3Service;
+use oay::Config;
+use opendal::services::Memory;
+use opendal::Operator;
+use std::sync::Arc;
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("Hello, world!");
+    tracing_subscriber::registry()
+        .with(fmt::layer().pretty())
+        .with(EnvFilter::from_default_env())
+        .init();
+
+    let cfg: Config = Config {
+        backend: oay::BackendConfig {
+            typ: "memory".to_string(),
+        },
+        frontends: oay::FrontendsConfig {
+            s3: oay::S3Config {
+                enable: true,
+                addr: "127.0.0.1:3000".to_string(),
+            },
+        },
+    };
+
+    let op = Operator::new(Memory::default())?.finish();
+
+    let s3 = S3Service::new(Arc::new(cfg), op);
+
+    s3.serve().await?;
 
     Ok(())
 }

@@ -286,7 +286,9 @@ impl Accessor for HttpBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.http_head(path, args.if_match() ,args.if_none_match()).await?;
+        let resp = self
+            .http_head(path, args.if_match(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 

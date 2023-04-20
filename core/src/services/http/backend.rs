@@ -286,7 +286,9 @@ impl Accessor for HttpBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.http_head(path, args.if_none_match()).await?;
+        let resp = self
+            .http_head(path, args.if_match(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -342,6 +344,7 @@ impl HttpBackend {
     async fn http_head(
         &self,
         path: &str,
+        if_match: Option<&str>,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
@@ -349,6 +352,10 @@ impl HttpBackend {
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(IF_NONE_MATCH, if_none_match);

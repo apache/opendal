@@ -74,7 +74,6 @@ layers-all = [
   "layers-prometheus",
   "layers-tracing",
   "layers-minitrace",
-  "layers-madsim",
 ]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]

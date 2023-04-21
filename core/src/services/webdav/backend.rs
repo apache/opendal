@@ -271,7 +271,6 @@ impl Accessor for WebdavBackend {
                 read_can_next: true,
                 write: true,
                 list: true,
-                scan: true,
                 copy: true,
                 rename: true,
                 ..Default::default()

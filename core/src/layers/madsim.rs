@@ -15,6 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+// This module requires to be work under `cfg(madsim)` so we will allow
+// dead code and unused variables.
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
+use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Result;
@@ -27,7 +34,9 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+#[cfg(madsim)]
 use madsim::net::Endpoint;
+#[cfg(madsim)]
 use madsim::net::Payload;
 
 use crate::ops::*;
@@ -93,13 +102,22 @@ use crate::*;
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct MadsimLayer {
+    #[cfg(madsim)]
     addr: SocketAddr,
 }
 
 impl MadsimLayer {
+    /// Create new madsim layer
     pub fn new(endpoint: &str) -> Self {
-        Self {
-            addr: endpoint.parse().unwrap(),
+        #[cfg(madsim)]
+        {
+            Self {
+                addr: endpoint.parse().unwrap(),
+            }
+        }
+        #[cfg(not(madsim))]
+        {
+            unreachable!("madsim is not enabled")
         }
     }
 }
@@ -108,12 +126,20 @@ impl<A: Accessor> Layer<A> for MadsimLayer {
     type LayeredAccessor = MadsimAccessor;
 
     fn layer(&self, _: A) -> Self::LayeredAccessor {
-        MadsimAccessor { addr: self.addr }
+        #[cfg(madsim)]
+        {
+            MadsimAccessor { addr: self.addr }
+        }
+        #[cfg(not(madsim))]
+        {
+            unreachable!("madsim is not enabled")
+        }
     }
 }
 
 #[derive(Debug)]
 pub struct MadsimAccessor {
+    #[cfg(madsim)]
     addr: SocketAddr,
 }
 
@@ -134,45 +160,65 @@ impl LayeredAccessor for MadsimAccessor {
     fn metadata(&self) -> AccessorInfo {
         let mut info = AccessorInfo::default();
         info.set_name("madsim");
-        info.set_capability(AccessorCapability::Read | AccessorCapability::Write);
+
+        info.set_capability(Capability {
+            read: true,
+            write: true,
+            ..Default::default()
+        });
+
         info
     }
 
     async fn read(&self, path: &str, args: OpRead) -> crate::Result<(RpRead, Self::Reader)> {
-        let req = Request::Read(path.to_string(), args);
-        let ep = Endpoint::connect(self.addr)
-            .await
-            .expect("fail to connect to sim server");
-        let (tx, mut rx) = ep
-            .connect1(self.addr)
-            .await
-            .expect("fail to connect1 to sim server");
-        tx.send(Box::new(req))
-            .await
-            .expect("fail to send request to sim server");
-        let resp = rx
-            .recv()
-            .await
-            .expect("fail to recv response from sim server");
-        let resp = resp
-            .downcast::<ReadResponse>()
-            .expect("fail to downcast response to ReadResponse");
-        let content_length = resp.data.as_ref().map(|b| b.len()).unwrap_or(0);
-        Ok((
-            RpRead::new(content_length as u64),
-            MadsimReader { data: resp.data },
-        ))
+        #[cfg(madsim)]
+        {
+            let req = Request::Read(path.to_string(), args);
+            let ep = Endpoint::connect(self.addr)
+                .await
+                .expect("fail to connect to sim server");
+            let (tx, mut rx) = ep
+                .connect1(self.addr)
+                .await
+                .expect("fail to connect1 to sim server");
+            tx.send(Box::new(req))
+                .await
+                .expect("fail to send request to sim server");
+            let resp = rx
+                .recv()
+                .await
+                .expect("fail to recv response from sim server");
+            let resp = resp
+                .downcast::<ReadResponse>()
+                .expect("fail to downcast response to ReadResponse");
+            let content_length = resp.data.as_ref().map(|b| b.len()).unwrap_or(0);
+            Ok((
+                RpRead::new(content_length as u64),
+                MadsimReader { data: resp.data },
+            ))
+        }
+        #[cfg(not(madsim))]
+        {
+            unreachable!("madsim is not enabled")
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> crate::Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            MadsimWriter {
-                path: path.to_string(),
-                args,
-                addr: self.addr,
-            },
-        ))
+        #[cfg(madsim)]
+        {
+            Ok((
+                RpWrite::default(),
+                MadsimWriter {
+                    path: path.to_string(),
+                    args,
+                    addr: self.addr,
+                },
+            ))
+        }
+        #[cfg(not(madsim))]
+        {
+            unreachable!("madsim is not enabled")
+        }
     }
 
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Pager)> {
@@ -239,7 +285,7 @@ pub struct MadsimReader {
 }
 
 impl oio::Read for MadsimReader {
-    fn poll_read(&mut self, _cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
+    fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<crate::Result<usize>> {
         if let Some(ref data) = self.data {
             let len = data.len();
             buf[..len].copy_from_slice(data);
@@ -249,14 +295,14 @@ impl oio::Read for MadsimReader {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<crate::Result<u64>> {
+    fn poll_seek(&mut self, _: &mut Context<'_>, _: SeekFrom) -> Poll<crate::Result<u64>> {
         Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
         )))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         Poll::Ready(Some(Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
@@ -265,27 +311,30 @@ impl oio::Read for MadsimReader {
 }
 
 pub struct MadsimWriter {
+    #[cfg(madsim)]
     path: String,
+    #[cfg(madsim)]
     args: OpWrite,
+    #[cfg(madsim)]
     addr: SocketAddr,
 }
 
 #[async_trait]
 impl oio::Write for MadsimWriter {
     async fn write(&mut self, bs: Bytes) -> crate::Result<()> {
-        let req = Request::Write(self.path.to_string(), bs);
-        let ep = Endpoint::connect(self.addr).await?;
-        let (tx, mut rx) = ep.connect1(self.addr).await?;
-        tx.send(Box::new(req)).await?;
-        rx.recv().await?;
-        Ok(())
-    }
-
-    async fn append(&mut self, bs: Bytes) -> crate::Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "will be supported in the future",
-        ))
+        #[cfg(madsim)]
+        {
+            let req = Request::Write(self.path.to_string(), bs);
+            let ep = Endpoint::bind(self.addr).await?;
+            let (tx, mut rx) = ep.connect1(self.addr).await?;
+            tx.send(Box::new(req)).await?;
+            rx.recv().await?;
+            Ok(())
+        }
+        #[cfg(not(madsim))]
+        {
+            unreachable!("madsim is not enabled")
+        }
     }
 
     async fn abort(&mut self) -> crate::Result<()> {
@@ -323,29 +372,37 @@ impl From<std::io::Error> for Error {
 pub struct MadsimServer;
 
 impl MadsimServer {
+    /// Start serving as madsim server.
     pub async fn serve(addr: SocketAddr) -> Result<()> {
-        let ep = Endpoint::bind(addr).await?;
-        let service = Arc::new(SimService::default());
-        loop {
-            let (tx, mut rx, _) = ep.accept1().await?;
-            let service = service.clone();
-            madsim::task::spawn(async move {
-                let request = *rx
-                    .recv()
-                    .await?
-                    .downcast::<Request>()
-                    .expect("invalid request");
-                let response = match request {
-                    Request::Read(path, args) => {
-                        Box::new(service.read(&path, args).await) as Payload
-                    }
-                    Request::Write(path, args) => {
-                        Box::new(service.write(&path, args).await) as Payload
-                    }
-                };
-                tx.send(response).await?;
-                Ok(()) as Result<()>
-            });
+        #[cfg(madsim)]
+        {
+            let ep = Endpoint::bind(addr).await?;
+            let service = Arc::new(SimService::default());
+            loop {
+                let (tx, mut rx, _) = ep.accept1().await?;
+                let service = service.clone();
+                madsim::task::spawn(async move {
+                    let request = *rx
+                        .recv()
+                        .await?
+                        .downcast::<Request>()
+                        .expect("invalid request");
+                    let response = match request {
+                        Request::Read(path, args) => {
+                            Box::new(service.read(&path, args).await) as Payload
+                        }
+                        Request::Write(path, args) => {
+                            Box::new(service.write(&path, args).await) as Payload
+                        }
+                    };
+                    tx.send(response).await?;
+                    Ok(()) as Result<()>
+                });
+            }
+        }
+        #[cfg(not(madsim))]
+        {
+            unreachable!("madsim is not enabled")
         }
     }
 }
@@ -383,6 +440,7 @@ struct ReadResponse {
 struct WriteResponse {}
 
 #[cfg(test)]
+#[cfg(madsim)]
 mod test {
     use std::time::Duration;
 

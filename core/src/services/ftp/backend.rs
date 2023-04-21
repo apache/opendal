@@ -316,9 +316,12 @@ impl Accessor for FtpBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            .set_capability(Capability {
+                read: true,
+                write: true,
+                list: true,
+                ..Default::default()
+            });
 
         am
     }

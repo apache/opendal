@@ -25,7 +25,6 @@ use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::*;
 
 /// [moka](https://github.com/moka-rs/moka) backend support.
@@ -200,7 +199,12 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Moka,
             self.inner.name().unwrap_or("moka"),
-            AccessorCapability::Read | AccessorCapability::Write,
+            Capability {
+                read: true,
+                write: true,
+
+                ..Default::default()
+            },
         )
     }
 

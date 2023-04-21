@@ -663,7 +663,7 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
                     Some(dur) => {
                         warn!(target: "opendal::service",
                               "operation={} path={} -> pager retry after {}s: error={:?}",
-                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
+                              WriteOperation::Abort, self.path, dur.as_secs_f64(), e);
                         tokio::time::sleep(dur).await;
                         continue;
                     }
@@ -816,8 +816,11 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capabilities(AccessorCapability::List | AccessorCapability::Batch);
-            am.set_hints(AccessorHint::ReadStreamable);
+            am.set_capability(Capability {
+                list: true,
+                batch: true,
+                ..Default::default()
+            });
 
             am
         }

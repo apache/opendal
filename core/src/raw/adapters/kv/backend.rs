@@ -62,8 +62,19 @@ impl<S: Adapter> Accessor for Backend<S> {
 
     fn info(&self) -> AccessorInfo {
         let mut am: AccessorInfo = self.kv.metadata().into();
-        am.set_root(&self.root)
-            .set_hints(AccessorHint::ReadStreamable | AccessorHint::ReadSeekable);
+        am.set_root(&self.root);
+
+        let cap = am.capability_mut();
+        if cap.read {
+            cap.read_can_seek = true;
+            cap.read_can_next = true;
+            cap.stat = true;
+        }
+
+        if cap.write {
+            cap.create_dir = true;
+            cap.delete = true;
+        }
 
         am
     }

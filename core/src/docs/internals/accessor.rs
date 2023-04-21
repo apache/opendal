@@ -114,20 +114,23 @@
 //!
 //! Every API of [`Accessor`] follows the same style:
 //!
-//! - All APIs have a unique [`Operation`] and [`AccessorCapability`]
+//! - All APIs have a unique [`Operation`] and [`Capability`]
 //! - All APIs are orthogonal and do not overlap with each other
 //! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
-//! [`Accessor`] can declare their capabilities via [`AccessorInfo`]'s `set_capabilities`:
+//! [`Accessor`] can declare their capabilities via [`AccessorInfo`]'s `set_capability`:
 //!
 //! ```ignore
 //! impl Accessor for MyBackend {
 //!     fn metadata(&self) -> AccessorInfo {
-//!        use AccessorCapability::*;
-//!
-//!        let mut am = AccessorInfo::default();
-//!        am.set_capabilities(Read | Write | List | Scan | Presign | Batch);
+//!         let mut am = AccessorInfo::default();
+//!         am.set_capability(
+//!             Capability {
+//!                 read: true,
+//!                 write: true,
+//!                 ..Default::default()
+//!         });
 //!
 //!         am
 //!     }
@@ -291,13 +294,14 @@
 //!     type BlockingPager = ();
 //!
 //!     fn metadata(&self) -> AccessorInfo {
-//!         use AccessorCapability::*;
-//!         use AccessorHint::*;
-//!
 //!         let mut am = AccessorInfo::default();
 //!         am.set_scheme(Scheme::Duck)
 //!             .set_root(&self.root)
-//!             .set_capabilities(Read);
+//!             .set_capability(
+//!                 Capability {
+//!                     read: true,
+//!                     ..Default::default()
+//!             });
 //!
 //!         am
 //!     }
@@ -317,7 +321,7 @@
 //!
 //! [`Accessor`]: crate::raw::Accessor
 //! [`Operation`]: crate::raw::Operation
-//! [`AccessorCapability`]: crate::raw::AccessorCapability
+//! [`Capability`]: crate::Capability
 //! [`AccessorInfo`]: crate::raw::AccessorInfo
 //! [`Scheme`]: crate::Scheme
 //! [`Builder`]: crate::Builder

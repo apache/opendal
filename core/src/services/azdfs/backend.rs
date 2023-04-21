@@ -308,13 +308,14 @@ impl Accessor for AzdfsBackend {
         am.set_scheme(Scheme::Azdfs)
             .set_root(&self.core.root)
             .set_name(&self.core.filesystem)
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::Rename
-                    | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                write: true,
+                rename: true,
+                list: true,
+                ..Default::default()
+            });
 
         am
     }

@@ -73,10 +73,13 @@ impl Accessor for IpmfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                write: true,
+
+                ..Default::default()
+            });
 
         am
     }

@@ -663,7 +663,7 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
                     Some(dur) => {
                         warn!(target: "opendal::service",
                               "operation={} path={} -> pager retry after {}s: error={:?}",
-                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
+                              WriteOperation::Abort, self.path, dur.as_secs_f64(), e);
                         tokio::time::sleep(dur).await;
                         continue;
                     }

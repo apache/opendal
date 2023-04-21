@@ -107,7 +107,7 @@ pub struct MadsimLayer {
 }
 
 impl MadsimLayer {
-    /// Createa new madsim layer
+    /// Create new madsim layer
     pub fn new(endpoint: &str) -> Self {
         #[cfg(madsim)]
         {

@@ -294,13 +294,14 @@
 //!     type BlockingPager = ();
 //!
 //!     fn metadata(&self) -> AccessorInfo {
-//!         use AccessorCapability::*;
-//!         use AccessorHint::*;
-//!
 //!         let mut am = AccessorInfo::default();
 //!         am.set_scheme(Scheme::Duck)
 //!             .set_root(&self.root)
-//!             .set_capability(Read);
+//!             .set_capability(
+//!                 Capability {
+//!                     read: true,
+//!                     ..Default::default()
+//!             });
 //!
 //!         am
 //!     }

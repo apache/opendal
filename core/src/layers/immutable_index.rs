@@ -149,10 +149,10 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     /// Add list capabilities for underlying storage services.
     fn metadata(&self) -> AccessorInfo {
         let mut meta = self.inner.info();
-        meta.set_capabilities(
-            meta.capabilities() | AccessorCapability::List | AccessorCapability::Scan,
-        );
-        meta.set_hints(meta.hints());
+
+        let cap = meta.capability_mut();
+        cap.list = true;
+        cap.scan = true;
 
         meta
     }

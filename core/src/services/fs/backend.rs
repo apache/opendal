@@ -300,15 +300,17 @@ impl Accessor for FsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root.to_string_lossy())
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::Copy
-                    | AccessorCapability::Rename
-                    | AccessorCapability::List
-                    | AccessorCapability::Blocking,
-            )
-            .set_hints(AccessorHint::ReadSeekable);
+            .set_capability(Capability {
+                read: true,
+                read_can_seek: true,
+                write: true,
+                create_dir: true,
+                list: true,
+                copy: true,
+                rename: true,
+                blocking: true,
+                ..Default::default()
+            });
 
         am
     }

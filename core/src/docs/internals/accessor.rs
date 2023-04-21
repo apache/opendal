@@ -119,7 +119,7 @@
 //! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
-//! [`Accessor`] can declare their capabilities via [`AccessorInfo`]'s `set_capabilities`:
+//! [`Accessor`] can declare their capabilities via [`AccessorInfo`]'s `set_capability`:
 //!
 //! ```ignore
 //! impl Accessor for MyBackend {
@@ -127,7 +127,7 @@
 //!        use AccessorCapability::*;
 //!
 //!        let mut am = AccessorInfo::default();
-//!        am.set_capabilities(Read | Write | List | Scan | Presign | Batch);
+//!        am.set_capability(Read | Write | List | Scan | Presign | Batch);
 //!
 //!         am
 //!     }
@@ -297,7 +297,7 @@
 //!         let mut am = AccessorInfo::default();
 //!         am.set_scheme(Scheme::Duck)
 //!             .set_root(&self.root)
-//!             .set_capabilities(Read);
+//!             .set_capability(Read);
 //!
 //!         am
 //!     }

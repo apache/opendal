@@ -23,7 +23,6 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::*;
 
 /// In memory service support. (BTreeMap Based)
@@ -86,7 +85,14 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Memory,
             &format!("{:?}", &self.inner as *const _),
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::Scan,
+            Capability {
+                read: true,
+                write: true,
+                create_dir: true,
+                scan: true,
+
+                ..Default::default()
+            },
         )
     }
 
@@ -144,6 +150,7 @@ impl kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::raw::*;
 
     #[test]
     fn test_accessor_metadata_name() {

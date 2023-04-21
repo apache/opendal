@@ -24,7 +24,6 @@ use async_trait::async_trait;
 use rocksdb::DB;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::Result;
 use crate::*;
 
@@ -160,7 +159,11 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Rocksdb,
             &self.db.path().to_string_lossy(),
-            AccessorCapability::Read | AccessorCapability::Write,
+            Capability {
+                read: true,
+                write: true,
+                ..Default::default()
+            },
         )
     }
 

@@ -258,8 +258,12 @@ impl Accessor for HttpBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Read)
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+
+                ..Default::default()
+            });
 
         ma
     }

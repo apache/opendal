@@ -816,8 +816,11 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capabilities(AccessorCapability::List | AccessorCapability::Batch);
-            am.set_hints(AccessorHint::ReadStreamable);
+            am.set_capability(Capability {
+                list: true,
+                batch: true,
+                ..Default::default()
+            });
 
             am
         }

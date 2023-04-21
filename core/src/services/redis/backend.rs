@@ -316,7 +316,13 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Redis,
             &self.client.get_connection_info().addr.to_string(),
-            AccessorCapability::Read | AccessorCapability::Write,
+            Capability {
+                read: true,
+                write: true,
+                create_dir: true,
+
+                ..Default::default()
+            },
         )
     }
 

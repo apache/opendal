@@ -19,8 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use flagset::flags;
-use flagset::FlagSet;
 
 use crate::ops::*;
 use crate::raw::*;
@@ -394,9 +392,7 @@ impl Accessor for () {
             scheme: Scheme::Custom("dummy"),
             root: "".to_string(),
             name: "dummy".to_string(),
-            max_batch_operations: None,
-            capabilities: None.into(),
-            hints: None.into(),
+            capability: Capability::default(),
         }
     }
 }
@@ -507,11 +503,8 @@ pub struct AccessorInfo {
     scheme: Scheme,
     root: String,
     name: String,
-    /// limit of batch operation
-    /// only meaningful when accessor supports batch operation
-    max_batch_operations: Option<usize>,
-    capabilities: FlagSet<AccessorCapability>,
-    hints: FlagSet<AccessorHint>,
+
+    capability: Capability,
 }
 
 impl AccessorInfo {
@@ -555,85 +548,19 @@ impl AccessorInfo {
         self
     }
 
-    /// backend's number limitation of operations in a single batch.
-    ///
-    /// # Note
-    /// - Got Some(x): limitation is x
-    /// - Got None: no limitation
-    pub(crate) fn max_batch_operations(&self) -> Option<usize> {
-        self.max_batch_operations
-    }
-
-    /// Set batch size limit for backend.
-    pub(crate) fn set_max_batch_operations(&mut self, limit: usize) -> &mut Self {
-        self.max_batch_operations = Some(limit);
-        self
+    /// Get backend's capabilities.
+    pub fn capability(&self) -> Capability {
+        self.capability
     }
 
     /// Get backend's capabilities.
-    pub fn capabilities(&self) -> FlagSet<AccessorCapability> {
-        self.capabilities
+    pub fn capability_mut(&mut self) -> &mut Capability {
+        &mut self.capability
     }
 
     /// Set capabilities for backend.
-    pub fn set_capabilities(
-        &mut self,
-        capabilities: impl Into<FlagSet<AccessorCapability>>,
-    ) -> &mut Self {
-        self.capabilities = capabilities.into();
+    pub fn set_capability(&mut self, capability: Capability) -> &mut Self {
+        self.capability = capability;
         self
-    }
-
-    /// Get backend's hints.
-    pub fn hints(&self) -> FlagSet<AccessorHint> {
-        self.hints
-    }
-
-    /// Set hints for backend.
-    pub fn set_hints(&mut self, hints: impl Into<FlagSet<AccessorHint>>) -> &mut Self {
-        self.hints = hints.into();
-        self
-    }
-}
-
-flags! {
-    /// AccessorCapability describes accessor's advanced capability.
-    pub enum AccessorCapability: u32 {
-        /// Add this capability if service supports `read` and `stat`
-        Read,
-        /// Add this capability if service supports `write` and `delete`
-        Write,
-        /// Add this capability if service supports `copy`
-        Copy,
-        /// Add this capability if service supports `rename`
-        Rename,
-        /// Add this capability if service supports `list`
-        List,
-        /// Add this capability if service supports `scan`
-        Scan,
-        /// Add this capability if service supports `presign`
-        Presign,
-        /// Add this capability if service supports `blocking`
-        Blocking,
-        /// Add this capability if service supports `batch`
-        Batch,
-    }
-}
-
-flags! {
-    /// AccessorHint describes accessor's hint.
-    ///
-    /// Hint means developers can do optimize for this accessor.
-    ///
-    /// All hints are internal used only and will not be exposed to users.
-    pub enum AccessorHint: u64 {
-        /// Read seekable means the underlying read is seekable.
-        ///
-        /// We can reuse the same reader instead of always creating new one.
-        ReadSeekable,
-        /// Read streamable means the underlying read is streamable.
-        ///
-        /// It's better to use stream to reading data.
-        ReadStreamable,
     }
 }

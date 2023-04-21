@@ -212,10 +212,10 @@ impl BatchOperation {
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     br: BytesRange,
-    override_content_disposition: Option<String>,
-    override_cache_control: Option<String>,
     if_match: Option<String>,
     if_none_match: Option<String>,
+    override_cache_control: Option<String>,
+    override_content_disposition: Option<String>,
 }
 
 impl OpRead {

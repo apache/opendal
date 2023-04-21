@@ -49,46 +49,46 @@ impl OperatorInfo {
 
     /// Check if current backend supports [`Accessor::read`] or not.
     pub fn can_read(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Read)
+        self.0.capability().read
     }
 
     /// Check if current backend supports [`Accessor::write`] or not.
     pub fn can_write(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Write)
+        self.0.capability().write
     }
 
     /// Check if current backend supports [`Accessor::copy`] or not.
     pub fn can_copy(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Copy)
+        self.0.capability().copy
     }
 
     /// Check if current backend supports [`Accessor::rename`] or not.
     pub fn can_rename(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Rename)
+        self.0.capability().rename
     }
 
     /// Check if current backend supports [`Accessor::list`] or not.
     pub fn can_list(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::List)
+        self.0.capability().list
     }
 
     /// Check if current backend supports [`Accessor::scan`] or not.
     pub fn can_scan(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Scan)
+        self.0.capability().scan
     }
 
     /// Check if current backend supports [`Accessor::presign`] or not.
     pub fn can_presign(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Presign)
+        self.0.capability().presign
     }
 
     /// Check if current backend supports batch operations or not.
     pub fn can_batch(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Batch)
+        self.0.capability().batch
     }
 
     /// Check if current backend supports blocking operations or not.
     pub fn can_blocking(&self) -> bool {
-        self.0.capabilities().contains(AccessorCapability::Blocking)
+        self.0.capability().blocking
     }
 }

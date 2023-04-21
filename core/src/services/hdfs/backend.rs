@@ -232,13 +232,14 @@ impl Accessor for HdfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Hdfs)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::List
-                    | AccessorCapability::Blocking,
-            )
-            .set_hints(AccessorHint::ReadSeekable);
+            .set_capability(Capability {
+                read: true,
+                read_can_seek: true,
+                write: true,
+                list: true,
+                blocking: true,
+                ..Default::default()
+            });
 
         am
     }

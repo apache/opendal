@@ -897,16 +897,22 @@ impl Accessor for WasabiBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Wasabi)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy | Rename)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                write: true,
+                list: true,
+                scan: true,
+                copy: true,
+                presign: true,
+                batch: true,
+                rename: true,
+                ..Default::default()
+            });
 
         am
     }

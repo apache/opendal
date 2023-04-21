@@ -152,10 +152,9 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
-        let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadSeekable),
-            self.meta.hints().contains(AccessorHint::ReadStreamable),
-        );
+        let capability = self.meta.capability();
+        let seekable = capability.read_can_seek;
+        let streamable = capability.read_can_next;
 
         let range = args.range();
         let (rp, r) = self.inner.read(path, args).await?;
@@ -202,10 +201,9 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
-        let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadSeekable),
-            self.meta.hints().contains(AccessorHint::ReadStreamable),
-        );
+        let capability = self.meta.capability();
+        let seekable = capability.read_can_seek;
+        let streamable = capability.read_can_next;
 
         let (rp, r) = self.inner.blocking_read(path, args)?;
 
@@ -227,10 +225,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_list {
             let (rp, p) = self.inner.list(path, args).await?;
@@ -253,10 +249,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_list {
             let (rp, p) = self.inner.blocking_list(path, args)?;
@@ -279,10 +273,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpScan,
     ) -> Result<(RpScan, CompletePager<A, A::Pager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_scan {
             let (rp, p) = self.inner.scan(path, args).await?;
@@ -304,10 +296,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpScan,
     ) -> Result<(RpScan, CompletePager<A, A::BlockingPager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_scan {
             let (rp, p) = self.inner.blocking_scan(path, args)?;

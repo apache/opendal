@@ -447,16 +447,30 @@ impl Accessor for AzblobBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.core.root)
             .set_name(&self.core.container)
-            .set_max_batch_operations(AZBLOB_BATCH_LIMIT)
-            .set_capabilities(Read | Write | List | Scan | Batch | Copy)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+                write: true,
+                write_with_content_type: true,
+                write_with_cache_control: true,
+                delete: true,
+                create_dir: true,
+                list: true,
+                scan: true,
+                copy: true,
+                batch: true,
+                batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+                ..Default::default()
+            });
 
         am
     }

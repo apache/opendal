@@ -18,7 +18,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;

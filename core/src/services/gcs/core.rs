@@ -15,13 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
+
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
+use bytes::BytesMut;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::header::{CONTENT_LENGTH, CONTENT_RANGE};
 use http::Request;
 use http::Response;
 use once_cell::sync::Lazy;
@@ -29,9 +35,6 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Write;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;

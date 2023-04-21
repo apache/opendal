@@ -369,15 +369,19 @@ impl Accessor for GcsBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capabilities(Read | Write | List | Scan | Copy)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                write: true,
+                list: true,
+                scan: true,
+                copy: true,
+                ..Default::default()
+            });
         am
     }
 

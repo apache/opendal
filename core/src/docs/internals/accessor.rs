@@ -114,7 +114,7 @@
 //!
 //! Every API of [`Accessor`] follows the same style:
 //!
-//! - All APIs have a unique [`Operation`] and [`AccessorCapability`]
+//! - All APIs have a unique [`Operation`] and [`Capability`]
 //! - All APIs are orthogonal and do not overlap with each other
 //! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
@@ -321,7 +321,7 @@
 //!
 //! [`Accessor`]: crate::raw::Accessor
 //! [`Operation`]: crate::raw::Operation
-//! [`AccessorCapability`]: crate::raw::AccessorCapability
+//! [`Capability`]: crate::Capability
 //! [`AccessorInfo`]: crate::raw::AccessorInfo
 //! [`Scheme`]: crate::Scheme
 //! [`Builder`]: crate::Builder

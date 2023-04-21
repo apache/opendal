@@ -136,6 +136,13 @@ impl LayeredAccessor for MadsimAccessor {
     fn metadata(&self) -> AccessorInfo {
         let mut info = AccessorInfo::default();
         info.set_name("madsim");
+
+        info.set_capability(Capability {
+            read: true,
+            write: true,
+            ..Default::default()
+        });
+
         info
     }
 

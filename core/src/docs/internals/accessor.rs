@@ -124,10 +124,13 @@
 //! ```ignore
 //! impl Accessor for MyBackend {
 //!     fn metadata(&self) -> AccessorInfo {
-//!        use AccessorCapability::*;
-//!
-//!        let mut am = AccessorInfo::default();
-//!        am.set_capability(Read | Write | List | Scan | Presign | Batch);
+//!         let mut am = AccessorInfo::default();
+//!         am.set_capability(
+//!             Capability {
+//!                 read: true,
+//!                 write: true,
+//!                 ..Default::default()
+//!         });
 //!
 //!         am
 //!     }

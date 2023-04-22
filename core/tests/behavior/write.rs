@@ -41,13 +41,13 @@ macro_rules! behavior_write_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             $(
-                #[tokio::test]
+                #[test]
                 $(
                     #[$meta]
                 )*
-                async fn [<write_ $test >]() -> anyhow::Result<()> {
+                fn [<write_ $test >]() -> anyhow::Result<()> {
                     match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read() && op.info().can_write() => $crate::write::$test(op.clone()).await,
+                        Some(op) if op.info().can_read() && op.info().can_write() => RUNTIME.block_on($crate::write::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
                             Ok(())

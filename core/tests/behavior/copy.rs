@@ -30,15 +30,15 @@ macro_rules! behavior_copy_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             $(
-                #[tokio::test]
+                #[test]
                 $(
                     #[$meta]
                 )*
-                async fn [<copy_ $test >]() -> anyhow::Result<()> {
+                fn [<copy_ $test >]() -> anyhow::Result<()> {
                     match OPERATOR.as_ref() {
                         Some(op) if op.info().can_read()
                             && op.info().can_write()
-                            && op.info().can_copy() => $crate::copy::$test(op.clone()).await,
+                            && op.info().can_copy() => RUNTIME.block_on($crate::copy::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support copy, ignored", opendal::Scheme::$service);
                             Ok(())

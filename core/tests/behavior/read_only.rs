@@ -31,13 +31,13 @@ macro_rules! behavior_read_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             $(
-                #[tokio::test]
+                #[test]
                 $(
                     #[$meta]
                 )*
-                async fn [<read_only_ $test >]() -> anyhow::Result<()> {
+                fn [<read_only_ $test >]() -> anyhow::Result<()> {
                     match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read() && !op.info().can_write() => $crate::read_only::$test(op.clone()).await,
+                        Some(op) if op.info().can_read() && !op.info().can_write() => RUNTIME.block_on($crate::read_only::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support read_only, ignored", opendal::Scheme::$service);
                             Ok(())

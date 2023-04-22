@@ -30,13 +30,13 @@ macro_rules! behavior_list_only_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             $(
-                #[tokio::test]
+                #[test]
                 $(
                     #[$meta]
                 )*
-                async fn [<list_only_ $test >]() -> anyhow::Result<()> {
+                fn [<list_only_ $test >]() -> anyhow::Result<()> {
                     match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_list() && !op.info().can_write() => $crate::list_only::$test(op.clone()).await,
+                        Some(op) if op.info().can_list() && !op.info().can_write() => RUNTIME.block_on($crate::list_only::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
                             Ok(())

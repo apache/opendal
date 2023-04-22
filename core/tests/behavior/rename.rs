@@ -30,15 +30,15 @@ macro_rules! behavior_rename_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             $(
-                #[tokio::test]
+                #[test]
                 $(
                     #[$meta]
                 )*
-                async fn [<rename_ $test >]() -> anyhow::Result<()> {
+                fn [<rename_ $test >]() -> anyhow::Result<()> {
                     match OPERATOR.as_ref() {
                         Some(op) if op.info().can_read()
                             && op.info().can_write()
-                            && op.info().can_rename() => $crate::rename::$test(op.clone()).await,
+                            && op.info().can_rename() => RUNTIME.block_on($crate::rename::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support rename, ignored", opendal::Scheme::$service);
                             Ok(())

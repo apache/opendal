@@ -38,16 +38,16 @@ macro_rules! behavior_list_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             $(
-                #[tokio::test]
+                #[test]
                 $(
                     #[$meta]
                 )*
-                async fn [<list_ $test >]() -> anyhow::Result<()> {
+                fn [<list_ $test >]() -> anyhow::Result<()> {
                     match OPERATOR.as_ref() {
                         Some(op) if op.info().can_read()
                             && op.info().can_write()
                             && (op.info().can_list()
-                                || op.info().can_scan()) => $crate::list::$test(op.clone()).await,
+                                || op.info().can_scan()) => RUNTIME.block_on($crate::list::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
                             Ok(())

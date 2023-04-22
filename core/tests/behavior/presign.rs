@@ -38,13 +38,13 @@ macro_rules! behavior_presign_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             $(
-                #[tokio::test]
+                #[test]
                 $(
                     #[$meta]
                 )*
-                async fn [<presign_ $test >]() -> anyhow::Result<()> {
+                fn [<presign_ $test >]() -> anyhow::Result<()> {
                     match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => $crate::presign::$test(op.clone()).await,
+                        Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => RUNTIME.block_on($crate::presign::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support presign, ignored", opendal::Scheme::$service);
                             Ok(())

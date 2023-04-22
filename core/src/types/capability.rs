@@ -17,6 +17,8 @@
 
 use std::fmt::Debug;
 
+use crate::raw::Operation;
+
 /// Capability is used to describe what operations are supported
 /// by current Operator.
 ///
@@ -135,37 +137,37 @@ impl Debug for Capability {
         let mut d = f.debug_tuple("Capability");
 
         if self.read {
-            d.field(&"READ");
+            d.field(&Operation::Read);
         }
         if self.stat {
-            d.field(&"STAT");
+            d.field(&Operation::Stat);
         }
         if self.write {
-            d.field(&"WRITE");
+            d.field(&Operation::Write);
         }
         if self.create_dir {
-            d.field(&"CREATE_DIR");
+            d.field(&Operation::CreateDir);
         }
         if self.delete {
-            d.field(&"DELETE");
+            d.field(&Operation::Delete);
         }
         if self.list {
-            d.field(&"LIST");
+            d.field(&Operation::List);
         }
         if self.scan {
-            d.field(&"SCAN");
+            d.field(&Operation::Scan);
         }
         if self.copy {
-            d.field(&"COPY");
+            d.field(&Operation::Copy);
         }
         if self.rename {
-            d.field(&"RENAME");
+            d.field(&Operation::Rename);
         }
         if self.presign {
-            d.field(&"PRESIGN");
+            d.field(&Operation::Presign);
         }
         if self.batch {
-            d.field(&"BATCH");
+            d.field(&Operation::Batch);
         }
         if self.blocking {
             d.field(&"BLOCKING");

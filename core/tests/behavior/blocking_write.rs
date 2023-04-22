@@ -36,30 +36,27 @@ use super::utils::*;
 macro_rules! behavior_blocking_write_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _blocking_write>] {
+            $(
+                #[test]
                 $(
-                    #[test]
-                    $(
-                        #[$meta]
-                    )*
-                    fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
-                        match op {
-                            Some(op) if op.info().can_read()
-                                && op.info().can_write()
-                                && op.info().can_blocking() => $crate::blocking_write::$test(op.blocking()),
-                            Some(_) => {
-                                log::warn!("service {} doesn't support blocking_write, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                fn [<blocking_write_ $test >]() -> anyhow::Result<()> {
+                    match OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read()
+                            && op.info().can_write()
+                            && op.info().can_blocking() => $crate::blocking_write::$test(op.blocking()),
+                        Some(_) => {
+                            log::warn!("service {} doesn't support blocking_write, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }

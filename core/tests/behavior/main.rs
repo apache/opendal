@@ -46,32 +46,43 @@ mod utils;
 /// Update function list while changed.
 macro_rules! behavior_tests {
     ($($service:ident),*) => {
-        $(
-            // can_read && !can_write
-            behavior_read_tests!($service);
-            // can_read && !can_write && can_blocking
-            behavior_blocking_read_tests!($service);
-            // can_read && can_write
-            behavior_write_tests!($service);
-            // can_read && can_write && can_blocking
-            behavior_blocking_write_tests!($service);
-            // can_read && can_write && can_copy
-            behavior_copy_tests!($service);
-            // can read && can_write && can_blocking && can_copy
-            behavior_blocking_copy_tests!($service);
-            // can_read && can_write && can_move
-            behavior_rename_tests!($service);
-            // can_read && can_write && can_blocking && can_move
-            behavior_blocking_rename_tests!($service);
-            // can_read && can_write && can_list
-            behavior_list_tests!($service);
-            // can_read && can_write && can_presign
-            behavior_presign_tests!($service);
-            // can_read && can_write && can_blocking && can_list
-            behavior_blocking_list_tests!($service);
-            // can_list && !can_write
-            behavior_list_only_tests!($service);
-        )*
+        paste::item! {
+            $(
+                mod [<services_ $service:lower>] {
+                    static OPERATOR: once_cell::sync::Lazy<Option<opendal::Operator>> = once_cell::sync::Lazy::new(||
+                        $crate::utils::init_service::<opendal::services::$service>(true)
+                    );
+                    static READ_ONLY_OPERATOR: once_cell::sync::Lazy<Option<opendal::Operator>> = once_cell::sync::Lazy::new(||
+                        $crate::utils::init_service::<opendal::services::$service>(false)
+                    );
+
+                    // can_read && !can_write
+                    behavior_read_tests!($service);
+                    // can_read && !can_write && can_blocking
+                    behavior_blocking_read_tests!($service);
+                    // can_read && can_write
+                    behavior_write_tests!($service);
+                    // can_read && can_write && can_blocking
+                    behavior_blocking_write_tests!($service);
+                    // can_read && can_write && can_copy
+                    behavior_copy_tests!($service);
+                    // can read && can_write && can_blocking && can_copy
+                    behavior_blocking_copy_tests!($service);
+                    // can_read && can_write && can_move
+                    behavior_rename_tests!($service);
+                    // can_read && can_write && can_blocking && can_move
+                    behavior_blocking_rename_tests!($service);
+                    // can_read && can_write && can_list
+                    behavior_list_tests!($service);
+                    // can_read && can_write && can_presign
+                    behavior_presign_tests!($service);
+                    // can_read && can_write && can_blocking && can_list
+                    behavior_blocking_list_tests!($service);
+                    // can_list && !can_write
+                    behavior_list_only_tests!($service);
+                }
+         )*
+        }
     };
 }
 

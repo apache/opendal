@@ -37,28 +37,25 @@ use super::utils::*;
 macro_rules! behavior_presign_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _presign>] {
+            $(
+                #[tokio::test]
                 $(
-                    #[tokio::test]
-                    $(
-                        #[$meta]
-                    )*
-                    async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
-                        match op {
-                            Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => $crate::presign::$test(op).await,
-                            Some(_) => {
-                                log::warn!("service {} doesn't support presign, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                async fn [<presign_ $test >]() -> anyhow::Result<()> {
+                    match OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => $crate::presign::$test(op.clone()).await,
+                        Some(_) => {
+                            log::warn!("service {} doesn't support presign, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }

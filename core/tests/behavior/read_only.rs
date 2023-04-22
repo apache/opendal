@@ -30,28 +30,25 @@ use sha2::Sha256;
 macro_rules! behavior_read_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _read_only>] {
+            $(
+                #[tokio::test]
                 $(
-                    #[tokio::test]
-                    $(
-                        #[$meta]
-                    )*
-                    async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(false);
-                        match op {
-                            Some(op) if op.info().can_read() && !op.info().can_write() => $crate::read_only::$test(op).await,
-                            Some(_) => {
-                                log::warn!("service {} doesn't support read_only, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                async fn [<read_only_ $test >]() -> anyhow::Result<()> {
+                    match READ_ONLY_OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read() && !op.info().can_write() => $crate::read_only::$test(op.clone()).await,
+                        Some(_) => {
+                            log::warn!("service {} doesn't support read_only, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }

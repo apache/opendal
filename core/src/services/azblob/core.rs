@@ -41,8 +41,6 @@ use crate::*;
 mod constants {
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
-
-    pub const RESPONSE_CONTENT_DISPOSITION: &str = "rscd";
 }
 
 pub struct AzblobCore {
@@ -123,8 +121,7 @@ impl AzblobCore {
         let mut query_args = Vec::new();
         if let Some(override_content_disposition) = override_content_disposition {
             query_args.push(format!(
-                "{}={}",
-                constants::RESPONSE_CONTENT_DISPOSITION,
+                "rscd={}",
                 percent_encode_path(override_content_disposition)
             ))
         }

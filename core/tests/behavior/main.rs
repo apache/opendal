@@ -49,13 +49,15 @@ macro_rules! behavior_tests {
         paste::item! {
             $(
                 mod [<services_ $service:lower>] {
-                    static RUNTIME: once_cell::sync::Lazy<tokio::runtime::Runtime> = once_cell::sync::Lazy::new(|| {
+                    use once_cell::sync::Lazy;
+
+                    static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
                        tokio::runtime::Builder::new_multi_thread()
                             .enable_all()
                             .build()
                             .unwrap()
                     });
-                    static OPERATOR: once_cell::sync::Lazy<Option<opendal::Operator>> = once_cell::sync::Lazy::new(||
+                    static OPERATOR: Lazy<Option<opendal::Operator>> = Lazy::new(||
                         $crate::utils::init_service::<opendal::services::$service>()
                     );
 

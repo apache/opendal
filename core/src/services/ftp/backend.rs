@@ -335,22 +335,16 @@ impl Accessor for FtpBackend {
 
         for path in paths {
             curr_path.push_str(path);
-            // try to create directory
-            if curr_path.ends_with('/') {
-                match ftp_stream.mkdir(&curr_path).await {
-                    // Do nothing if status is FileUnavailable or OK(()) is return.
-                    Err(FtpError::UnexpectedResponse(Response {
-                        status: Status::FileUnavailable,
-                        ..
-                    }))
-                    | Ok(()) => (),
-                    Err(e) => {
-                        return Err(e.into());
-                    }
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(e.into());
                 }
-            } else {
-                // else, create file
-                ftp_stream.put_file(&curr_path, &mut "".as_bytes()).await?;
             }
         }
 
@@ -396,6 +390,28 @@ impl Accessor for FtpBackend {
                 ErrorKind::Unsupported,
                 "write without content length is not supported",
             ));
+        }
+
+        // Ensure the parent dir exists.
+        let parent = get_parent(path);
+        let paths: Vec<&str> = parent.split('/').collect();
+
+        // TODO: we can optimize this by checking dir existence first.
+        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+        let mut curr_path = String::new();
+        for path in paths {
+            curr_path.push_str(path);
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
         }
 
         Ok((

@@ -119,14 +119,16 @@ pub fn test_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
 
 // Walk top down should output as expected
 pub fn test_scan(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
     let expected = vec![
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
         if path.ends_with('/') {
-            op.create_dir(path)?;
+            op.create_dir(&format!("{parent}/{path}"))?;
         } else {
-            op.write(path, "test_scan")?;
+            op.write(&format!("{parent}/{path}"), "test_scan")?;
         }
     }
 
@@ -134,7 +136,13 @@ pub fn test_scan(op: BlockingOperator) -> Result<()> {
     let actual = w
         .collect::<Vec<_>>()
         .into_iter()
-        .map(|v| v.unwrap().path().to_string())
+        .map(|v| {
+            v.unwrap()
+                .path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
         .collect::<HashSet<_>>();
 
     debug!("walk top down: {:?}", actual);

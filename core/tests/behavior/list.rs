@@ -293,23 +293,30 @@ pub async fn test_scan_root(op: Operator) -> Result<()> {
 
 // Walk top down should output as expected
 pub async fn test_scan(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
     let expected = vec![
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
         if path.ends_with('/') {
-            op.create_dir(path).await?;
+            op.create_dir(&format!("{parent}/{path}")).await?;
         } else {
-            op.write(path, "test_scan").await?;
+            op.write(&format!("{parent}/{path}"), "test_scan").await?;
         }
     }
 
-    let w = op.scan("x/").await?;
+    let w = op.scan(&format!("{parent}/x/")).await?;
     let actual = w
         .try_collect::<Vec<_>>()
         .await?
         .into_iter()
-        .map(|v| v.path().to_string())
+        .map(|v| {
+            v.path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
         .collect::<HashSet<_>>();
 
     debug!("walk top down: {:?}", actual);
@@ -322,24 +329,29 @@ pub async fn test_scan(op: Operator) -> Result<()> {
 
 // Remove all should remove all in this path.
 pub async fn test_remove_all(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
     let expected = vec![
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
         if path.ends_with('/') {
-            op.create_dir(path).await?;
+            op.create_dir(&format!("{parent}/{path}")).await?;
         } else {
-            op.write(path, "test_remove_all").await?;
+            op.write(&format!("{parent}/{path}"), "test_scan").await?;
         }
     }
 
-    op.remove_all("x/").await?;
+    op.remove_all(&format!("{parent}/x/")).await?;
 
     for path in expected.iter() {
         if path.ends_with('/') {
             continue;
         }
-        assert!(!op.is_exist(path).await?, "{path} should be removed")
+        assert!(
+            !op.is_exist(&format!("{parent}/{path}")).await?,
+            "{parent}/{path} should be removed"
+        )
     }
     Ok(())
 }

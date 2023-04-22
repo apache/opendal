@@ -38,8 +38,10 @@ use super::batch::BatchDeleteRequestBuilder;
 use crate::raw::*;
 use crate::*;
 
-const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
-const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+mod constants {
+    pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
+    pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+}
 
 pub struct AzblobCore {
     pub container: String,
@@ -105,15 +107,28 @@ impl AzblobCore {
         range: BytesRange,
         if_none_match: Option<&str>,
         if_match: Option<&str>,
+        override_content_disposition: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
+        let mut url = format!(
             "{}/{}/{}",
             self.endpoint,
             self.container,
             percent_encode_path(&p)
         );
+
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = override_content_disposition {
+            query_args.push(format!(
+                "rscd={}",
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::get(&url);
 
@@ -177,7 +192,10 @@ impl AzblobCore {
             req = req.header(CONTENT_TYPE, ty)
         }
 
-        req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "BlockBlob",
+        );
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -260,7 +278,7 @@ impl AzblobCore {
         );
 
         let mut req = Request::put(&target)
-            .header(X_MS_COPY_SOURCE, source)
+            .header(constants::X_MS_COPY_SOURCE, source)
             .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;

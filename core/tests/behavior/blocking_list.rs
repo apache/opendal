@@ -132,7 +132,7 @@ pub fn test_scan(op: BlockingOperator) -> Result<()> {
         }
     }
 
-    let w = op.scan("x/")?;
+    let w = op.scan(&format!("{parent}/x/"))?;
     let actual = w
         .collect::<Vec<_>>()
         .into_iter()

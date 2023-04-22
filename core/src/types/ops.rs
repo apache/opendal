@@ -55,6 +55,10 @@ pub struct OpList {
     /// The limit passed to underlying service to specify the max results
     /// that could return.
     limit: Option<usize>,
+
+    /// The start_after passes to underlying service to specify the specified key
+    /// to start listing from.
+    start_after: Option<String>,
 }
 
 impl OpList {
@@ -72,6 +76,17 @@ impl OpList {
     /// Get the limit of list operation.
     pub fn limit(&self) -> Option<usize> {
         self.limit
+    }
+
+    /// Change the start_after of this list operation.
+    pub fn with_start_after(mut self, start_after: &str) -> Self {
+        self.start_after = Some(start_after.into());
+        self
+    }
+
+    /// Get the start_after of list operation.
+    pub fn start_after(&self) -> Option<&str> {
+        self.start_after.as_deref()
     }
 }
 

@@ -1082,6 +1082,45 @@ impl Operator {
     /// # }
     /// ```
     pub async fn list(&self, path: &str) -> Result<Lister> {
+        self.list_with(path, OpList::new()).await
+    }
+
+    /// List given path with OpList.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// use opendal::ops::OpList;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let option = OpList::new().with_limit(10).with_start_after("start");
+    /// let mut ds = op.list_with("path/to/dir/", option).await?;
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list_with(&self, path: &str, op: OpList) -> Result<Lister> {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::DIR) {
@@ -1094,7 +1133,7 @@ impl Operator {
             .with_context("path", &path));
         }
 
-        let (_, pager) = self.inner().list(&path, OpList::new()).await?;
+        let (_, pager) = self.inner().list(&path, op).await?;
 
         Ok(Lister::new(pager))
     }

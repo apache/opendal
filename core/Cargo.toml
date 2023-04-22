@@ -134,6 +134,7 @@ services-s3 = [
   "reqsign?/reqwest_request",
 ]
 services-sled = ["dep:sled"]
+services-supabase = []
 services-wasabi = [
   "dep:reqsign",
   "reqsign?/services-aws",

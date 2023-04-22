@@ -912,8 +912,16 @@ impl Accessor for S3Backend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+                read_with_override_content_disposition: true,
+
                 write: true,
                 list: true,
                 scan: true,
@@ -951,7 +959,13 @@ impl Accessor for S3Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .s3_get_object(path, args.range(), args.if_none_match(), args.if_match())
+            .s3_get_object(
+                path,
+                args.range(),
+                args.if_none_match(),
+                args.if_match(),
+                args.override_content_disposition(),
+            )
             .await?;
 
         let status = resp.status();

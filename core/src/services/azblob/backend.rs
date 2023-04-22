@@ -452,16 +452,20 @@ impl Accessor for AzblobBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.container)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
-                stat: true,
-                stat_with_if_match: true,
-                stat_with_if_none_match: true,
+                read_with_override_content_disposition: true,
+
                 write: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
+
                 delete: true,
                 create_dir: true,
                 list: true,

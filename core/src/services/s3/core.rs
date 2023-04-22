@@ -296,9 +296,16 @@ impl S3Core {
         range: BytesRange,
         if_none_match: Option<&str>,
         if_match: Option<&str>,
+        override_content_disposition: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req =
-            self.s3_get_object_request(path, range, None, None, if_none_match, if_match)?;
+        let mut req = self.s3_get_object_request(
+            path,
+            range,
+            override_content_disposition,
+            None,
+            if_none_match,
+            if_match,
+        )?;
 
         self.sign(&mut req).await?;
 

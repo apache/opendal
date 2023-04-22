@@ -46,6 +46,13 @@ use std::fmt::Debug;
 /// - Operation with limtations should be named like `batch_max_operations`.
 #[derive(Copy, Clone, Default)]
 pub struct Capability {
+    /// If operator supports stat natively, it will be true.
+    pub stat: bool,
+    /// If operator supports stat with if match natively, it will be true.
+    pub stat_with_if_match: bool,
+    /// If operator supports stat with if none match natively, it will be true.
+    pub stat_with_if_none_match: bool,
+
     /// If operator supports read natively, it will be true.
     pub read: bool,
     /// If operator supports seek on returning reader natively, it will
@@ -64,13 +71,6 @@ pub struct Capability {
     pub read_with_override_cache_control: bool,
     /// if operator supports read with override content disposition natively, it will be true.
     pub read_with_override_content_disposition: bool,
-
-    /// If operator supports stat natively, it will be true.
-    pub stat: bool,
-    /// If operator supports stat with if match natively, it will be true.
-    pub stat_with_if_match: bool,
-    /// If operator supports stat with if none match natively, it will be true.
-    pub stat_with_if_none_match: bool,
 
     /// If operator supports write natively, it will be true.
     pub write: bool,
@@ -96,6 +96,8 @@ pub struct Capability {
     pub list: bool,
     /// If backend supports list with limit, it will be true.
     pub list_with_limit: bool,
+    /// If backend supports list with start after, it will be true.
+    pub list_with_start_after: bool,
 
     /// If operator supports scan natively, it will be true.
     pub scan: bool,

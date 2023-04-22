@@ -38,8 +38,11 @@ use super::batch::BatchDeleteRequestBuilder;
 use crate::raw::*;
 use crate::*;
 
-const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
-const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+mod constants {
+    pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
+    pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+    pub const X_MS_BLOB_CONTENT_DISPOSITION: &str = "x-ms-blob-content-disposition";
+}
 
 pub struct AzblobCore {
     pub container: String,
@@ -105,6 +108,7 @@ impl AzblobCore {
         range: BytesRange,
         if_none_match: Option<&str>,
         if_match: Option<&str>,
+        override_content_disposition: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -137,6 +141,13 @@ impl AzblobCore {
 
         if let Some(if_match) = if_match {
             req = req.header(IF_MATCH, if_match);
+        }
+
+        if let Some(override_content_disposition) = override_content_disposition {
+            req = req.header(
+                constants::X_MS_BLOB_CONTENT_DISPOSITION,
+                override_content_disposition,
+            );
         }
 
         let mut req = req
@@ -177,7 +188,10 @@ impl AzblobCore {
             req = req.header(CONTENT_TYPE, ty)
         }
 
-        req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "BlockBlob",
+        );
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -260,7 +274,7 @@ impl AzblobCore {
         );
 
         let mut req = Request::put(&target)
-            .header(X_MS_COPY_SOURCE, source)
+            .header(constants::X_MS_COPY_SOURCE, source)
             .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;

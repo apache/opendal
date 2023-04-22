@@ -54,12 +54,13 @@ impl oio::Page for WebdavPager {
             .into_iter()
             .filter_map(|de| {
                 let path = de.href;
-                let normalized_path = if self.root != path {
-                    build_rel_path(&self.root, &path)
-                } else {
-                    path
-                };
 
+                // Ignore the root path itself.
+                if self.root == path {
+                    return None;
+                }
+
+                let normalized_path = build_rel_path(&self.root, &path);
                 if normalized_path == self.path {
                     // WebDav server may return the current path as an entry.
                     return None;

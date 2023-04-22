@@ -21,16 +21,25 @@ use std::env;
 use crate::raw::*;
 use crate::*;
 
-/// Builder is used to build a storage accessor used by [`Operator`].
+/// Builder is used to set up a real underlying service, i.e. storage accessor.
+///
+/// One builder is usually used by [`Operator`] during its initialization.
+/// It can be created by accepting several k-v pairs from one HashMap, one iterator and specific environment variables.
+///
+/// By default each builder of underlying service must support deriving from one HashMap.
+/// Besides that, according to the implementation, each builder may have its own special methods
+/// to control the behavior of initialization of the underlying service.
+/// It often provides semantic interface instead of using one dynamic k-v strings.
+/// So during the usage, developer needs to read related doc of builder.
 ///
 /// It's recommended to use [`Operator::new`] to avoid use `Builder` trait directly.
 pub trait Builder: Default {
-    /// Associated scheme for this builder.
+    /// Associated scheme for this builder. It indicates what underlying service is.
     const SCHEME: Scheme;
     /// The accessor that built by this builder.
     type Accessor: Accessor;
 
-    /// Construct a builder from given map.
+    /// Construct a builder from given map which contains several parameters required by underlying service.
     fn from_map(map: HashMap<String, String>) -> Self;
 
     /// Construct a builder from given iterator.
@@ -41,7 +50,7 @@ pub trait Builder: Default {
         Self::from_map(iter.collect())
     }
 
-    /// Construct a builder from envs.
+    /// Construct a builder from envs. Please note that the env should begin with `opendal_{schema_name}_`.
     fn from_env() -> Self
     where
         Self: Sized,

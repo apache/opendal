@@ -17,8 +17,6 @@
 
 use std::fmt::Debug;
 
-use crate::raw::Operation;
-
 /// Capability is used to describe what operations are supported
 /// by current Operator.
 ///
@@ -134,45 +132,45 @@ pub struct Capability {
 
 impl Debug for Capability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_tuple("Capability");
+        let mut s = vec![];
 
         if self.read {
-            d.field(&Operation::Read);
+            s.push("Read");
         }
         if self.stat {
-            d.field(&Operation::Stat);
+            s.push("Stat");
         }
         if self.write {
-            d.field(&Operation::Write);
+            s.push("Write");
         }
         if self.create_dir {
-            d.field(&Operation::CreateDir);
+            s.push("CreateDir");
         }
         if self.delete {
-            d.field(&Operation::Delete);
+            s.push("Delete");
         }
         if self.list {
-            d.field(&Operation::List);
+            s.push("List");
         }
         if self.scan {
-            d.field(&Operation::Scan);
+            s.push("Scan");
         }
         if self.copy {
-            d.field(&Operation::Copy);
+            s.push("Copy");
         }
         if self.rename {
-            d.field(&Operation::Rename);
+            s.push("Rename");
         }
         if self.presign {
-            d.field(&Operation::Presign);
+            s.push("Presign");
         }
         if self.batch {
-            d.field(&Operation::Batch);
+            s.push("Batch");
         }
         if self.blocking {
-            d.field(&"BLOCKING");
+            s.push("Blocking");
         }
 
-        d.finish()
+        write!(f, "{{ {} }}", s.join(" | "))
     }
 }

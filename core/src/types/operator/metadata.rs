@@ -47,6 +47,11 @@ impl OperatorInfo {
         self.0.name()
     }
 
+    /// Get [`Capability`] of operator.
+    pub fn capability(&self) -> Capability {
+        self.0.capability()
+    }
+
     /// Check if current backend supports [`Accessor::read`] or not.
     pub fn can_read(&self) -> bool {
         self.0.capability().read

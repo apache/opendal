@@ -21,11 +21,15 @@ use futures::AsyncSeekExt;
 use futures::StreamExt;
 use log::debug;
 use log::warn;
+use opendal::ops::OpRead;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
+use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
+use std::str::FromStr;
+use std::time::Duration;
 
 use super::utils::*;
 
@@ -92,6 +96,7 @@ macro_rules! behavior_write_tests {
                 test_fuzz_part_reader,
                 test_read_with_dir_path,
                 test_read_with_special_chars,
+                test_read_with_override_content_disposition,
                 test_delete,
                 test_delete_empty_dir,
                 test_delete_with_special_chars,
@@ -577,6 +582,59 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+// Read file with override_content_disposition should succeed.
+pub async fn test_read_with_override_content_disposition(op: Operator) -> Result<()> {
+    if !(op
+        .info()
+        .capability()
+        .read_with_override_content_disposition
+        && op.info().can_presign())
+    {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_content_disposition = "attachment; filename=foo.txt";
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_override_content_disposition(target_content_disposition);
+
+    let signed_req = op
+        .presign_read_with(&path, op_read, Duration::from_secs(60))
+        .await
+        .expect("presign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), http::StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(http::header::CONTENT_DISPOSITION)
+            .unwrap(),
+        target_content_disposition
+    );
+    assert_eq!(resp.bytes().await?, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 

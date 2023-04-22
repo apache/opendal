@@ -41,7 +41,8 @@ use crate::*;
 mod constants {
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
-    pub const X_MS_BLOB_CONTENT_DISPOSITION: &str = "x-ms-blob-content-disposition";
+
+    pub const RESPONSE_CONTENT_DISPOSITION: &str = "rscd";
 }
 
 pub struct AzblobCore {
@@ -112,12 +113,25 @@ impl AzblobCore {
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
+        let mut url = format!(
             "{}/{}/{}",
             self.endpoint,
             self.container,
             percent_encode_path(&p)
         );
+
+        let mut query_args = Vec::new();
+        if let Some(override_content_disposition) = override_content_disposition {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::get(&url);
 
@@ -141,13 +155,6 @@ impl AzblobCore {
 
         if let Some(if_match) = if_match {
             req = req.header(IF_MATCH, if_match);
-        }
-
-        if let Some(override_content_disposition) = override_content_disposition {
-            req = req.header(
-                constants::X_MS_BLOB_CONTENT_DISPOSITION,
-                override_content_disposition,
-            );
         }
 
         let mut req = req

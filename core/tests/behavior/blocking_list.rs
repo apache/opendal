@@ -76,13 +76,14 @@ macro_rules! behavior_blocking_list_tests {
 
 /// List dir should return newly created file.
 pub fn test_list_dir(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let parent = uuid::Uuid::new_v4().to_string();
+    let path = format!("{parent}/{}", uuid::Uuid::new_v4().to_string());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).expect("write must succeed");
 
-    let obs = op.list("/")?;
+    let obs = op.list(&format!("{parent}/"))?;
     let mut found = false;
     for de in obs {
         let de = de?;

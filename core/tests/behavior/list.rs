@@ -95,13 +95,14 @@ pub async fn test_check(op: Operator) -> Result<()> {
 
 /// List dir should return newly created file.
 pub async fn test_list_dir(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let parent = uuid::Uuid::new_v4().to_string();
+    let path = format!("{parent}/{}", uuid::Uuid::new_v4().to_string());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).await.expect("write must succeed");
 
-    let mut obs = op.list("/").await?;
+    let mut obs = op.list(&format!("{parent}/")).await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
         let meta = op.stat(de.path()).await?;

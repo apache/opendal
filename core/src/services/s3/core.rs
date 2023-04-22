@@ -450,11 +450,11 @@ impl S3Core {
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!(
-            "{}?list-type=2&prefix={}",
-            self.endpoint,
-            percent_encode_path(&p)
-        );
+        let mut url = format!("{}?list-type=2", self.endpoint);
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(&p))
+                .expect("write into string must succeed");
+        }
         if !delimiter.is_empty() {
             write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
         }

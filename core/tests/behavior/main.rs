@@ -50,10 +50,7 @@ macro_rules! behavior_tests {
             $(
                 mod [<services_ $service:lower>] {
                     static OPERATOR: once_cell::sync::Lazy<Option<opendal::Operator>> = once_cell::sync::Lazy::new(||
-                        $crate::utils::init_service::<opendal::services::$service>(true)
-                    );
-                    static READ_ONLY_OPERATOR: once_cell::sync::Lazy<Option<opendal::Operator>> = once_cell::sync::Lazy::new(||
-                        $crate::utils::init_service::<opendal::services::$service>(false)
+                        $crate::utils::init_service::<opendal::services::$service>()
                     );
 
                     // can_read && !can_write

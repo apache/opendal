@@ -36,7 +36,7 @@ macro_rules! behavior_read_test {
                     #[$meta]
                 )*
                 async fn [<read_only_ $test >]() -> anyhow::Result<()> {
-                    match READ_ONLY_OPERATOR.as_ref() {
+                    match OPERATOR.as_ref() {
                         Some(op) if op.info().can_read() && !op.info().can_write() => $crate::read_only::$test(op.clone()).await,
                         Some(_) => {
                             log::warn!("service {} doesn't support read_only, ignored", opendal::Scheme::$service);

@@ -35,7 +35,7 @@ macro_rules! behavior_list_only_test {
                     #[$meta]
                 )*
                 async fn [<list_only_ $test >]() -> anyhow::Result<()> {
-                    match READ_ONLY_OPERATOR.as_ref() {
+                    match OPERATOR.as_ref() {
                         Some(op) if op.info().can_list() && !op.info().can_write() => $crate::list_only::$test(op.clone()).await,
                         Some(_) => {
                             log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);

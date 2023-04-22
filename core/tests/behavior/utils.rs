@@ -34,7 +34,7 @@ use sha2::Sha256;
 ///
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
-pub fn init_service<B: Builder>(random_root: bool) -> Option<Operator> {
+pub fn init_service<B: Builder>() -> Option<Operator> {
     let _ = env_logger::builder().is_test(true).try_init();
     let _ = dotenvy::dotenv();
 
@@ -54,7 +54,9 @@ pub fn init_service<B: Builder>(random_root: bool) -> Option<Operator> {
         return None;
     }
 
-    if random_root {
+    // Use random root unless OPENDAL_DISABLE_RANDOM_ROOT is set to true.
+    let disable_random_root = env::var("OPENDAL_DISABLE_RANDOM_ROOT").unwrap_or_default() == "true";
+    if !disable_random_root {
         let root = format!(
             "{}{}/",
             cfg.get("root").cloned().unwrap_or_else(|| "/".to_string()),

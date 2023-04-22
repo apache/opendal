@@ -77,7 +77,7 @@ macro_rules! behavior_blocking_list_tests {
 /// List dir should return newly created file.
 pub fn test_list_dir(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
-    let path = format!("{parent}/{}", uuid::Uuid::new_v4().to_string());
+    let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 

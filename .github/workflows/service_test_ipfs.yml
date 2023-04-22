@@ -63,6 +63,8 @@ jobs:
           OPENDAL_IPFS_TEST: on
           OPENDAL_IPFS_ROOT: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/
           OPENDAL_IPFS_ENDPOINT: "http://127.0.0.1:8080"
+          OPENDAL_DISABLE_RANDOM_ROOT: true
+
 #  # ipfs.io can't pass our test by now, we should address them in the future.
 #  ipfs-io:
 #    runs-on: ubuntu-latest

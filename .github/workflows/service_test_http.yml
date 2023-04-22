@@ -66,6 +66,7 @@ jobs:
           RUST_LOG: debug
           OPENDAL_HTTP_TEST: on
           OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080
+          OPENDAL_DISABLE_RANDOM_ROOT: true
 
   caddy:
     runs-on: ${{ matrix.os }}
@@ -102,3 +103,4 @@ jobs:
           RUST_LOG: debug
           OPENDAL_HTTP_TEST: on
           OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080
+          OPENDAL_DISABLE_RANDOM_ROOT: true

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+
 /// Capability is used to describe what operations are supported
 /// by current Operator.
 ///
@@ -42,7 +44,7 @@
 /// - Operation with variants should be named like `read_can_seek`.
 /// - Operation with arguments should be named like `read_with_range`.
 /// - Operation with limtations should be named like `batch_max_operations`.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Default)]
 pub struct Capability {
     /// If operator supports read natively, it will be true.
     pub read: bool,
@@ -124,4 +126,49 @@ pub struct Capability {
 
     /// If operator supports blocking natively, it will be true.
     pub blocking: bool,
+}
+
+impl Debug for Capability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_tuple("Capability");
+
+        if self.read {
+            d.field(&"READ");
+        }
+        if self.stat {
+            d.field(&"STAT");
+        }
+        if self.write {
+            d.field(&"WRITE");
+        }
+        if self.create_dir {
+            d.field(&"CREATE_DIR");
+        }
+        if self.delete {
+            d.field(&"DELETE");
+        }
+        if self.list {
+            d.field(&"LIST");
+        }
+        if self.scan {
+            d.field(&"SCAN");
+        }
+        if self.copy {
+            d.field(&"COPY");
+        }
+        if self.rename {
+            d.field(&"RENAME");
+        }
+        if self.presign {
+            d.field(&"PRESIGN");
+        }
+        if self.batch {
+            d.field(&"BATCH");
+        }
+        if self.blocking {
+            d.field(&"BLOCKING");
+        }
+
+        d.finish()
+    }
 }

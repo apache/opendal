@@ -1,3 +1,12 @@
+# Upgrade to v0.33
+
+OpenDAL 0.33 redesigned the `Writer` API.
+
+- All `writer.append()` should be replaced by `writer.write()` instead
+- All `Writer` should handle `content_length` correctly
+
+Also, OpenDAL 0.33 adds a new concept `Capability` to replace `AccessorCapability`.
+
 # Upgrade to v0.32
 
 OpenDAL 0.32 doesn't have much breaking changes.

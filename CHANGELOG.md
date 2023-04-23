@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.33.0] - 2023-04-23
+
+### Added
+
+- feat: Add OpenTelemetry Trace Layer (#2001)
+- feat: add if_none_match support for azblob (#2035)
+- feat: add if_none_match/if_match for gcs (#2039)
+- feat: Add size check for sized writer (#2038)
+- feat(services/azblob): Add if-match support (#2037)
+- feat(core): add copy&rename to error_context layer (#2040)
+- feat: add if-match support for OSS (#2034)
+- feat: Bootstrap new (old) project oay (#2041)
+- feat(services/OSS): Add override_content_disposition support (#2043)
+- feat: add IF_MATCH for http (#2044)
+- feat: add IF_MATCH for http HEAD request (#2047)
+- feat: add cache control header for azblob and obs (#2049)
+- feat: Add capability for operation's variant and args (#2057)
+- feat(azblob): Add override_content_disposition support (#2065)
+- feat(core): test for read_with_override_content_composition (#2067)
+- feat(core): Add `start-after` support for list (#2071)
+
+### Changed
+
+- refactor: Polish Writer API by merging append and write together (#2036)
+- refactor(raw/http_util): Add url in error context (#2066)
+- refactor: Allow reusing the same operator to speed up tests (#2068)
+
+### Fixed
+
+- fix(bindings/ruby): use rb_sys_env to help find ruby for building (#2051)
+- fix: MadsimLayer should be able to built without cfg (#2059)
+- fix(services/s3): Ignore prefix if it's empty (#2064)
+
+### Docs
+
+- docs(bindings/python): ipynb examples for users (#2061)
+
+### CI
+
+- ci(bindings/nodejs): publish support `--provenance` (#2046)
+- ci: upgrade typos to 1.14.8 (#2055)
+- chore(bindings/C): ignore the formatting of auto-generated opendal.h (#2056)
+
 ## [v0.32.0] - 2023-04-18
 
 ### Added

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+
 /// Capability is used to describe what operations are supported
 /// by current Operator.
 ///
@@ -42,7 +44,7 @@
 /// - Operation with variants should be named like `read_can_seek`.
 /// - Operation with arguments should be named like `read_with_range`.
 /// - Operation with limtations should be named like `batch_max_operations`.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Default)]
 pub struct Capability {
     /// If operator supports stat natively, it will be true.
     pub stat: bool,
@@ -126,4 +128,49 @@ pub struct Capability {
 
     /// If operator supports blocking natively, it will be true.
     pub blocking: bool,
+}
+
+impl Debug for Capability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = vec![];
+
+        if self.read {
+            s.push("Read");
+        }
+        if self.stat {
+            s.push("Stat");
+        }
+        if self.write {
+            s.push("Write");
+        }
+        if self.create_dir {
+            s.push("CreateDir");
+        }
+        if self.delete {
+            s.push("Delete");
+        }
+        if self.list {
+            s.push("List");
+        }
+        if self.scan {
+            s.push("Scan");
+        }
+        if self.copy {
+            s.push("Copy");
+        }
+        if self.rename {
+            s.push("Rename");
+        }
+        if self.presign {
+            s.push("Presign");
+        }
+        if self.batch {
+            s.push("Batch");
+        }
+        if self.blocking {
+            s.push("Blocking");
+        }
+
+        write!(f, "{{ {} }}", s.join(" | "))
+    }
 }

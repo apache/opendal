@@ -648,6 +648,10 @@ impl WebdavBackend {
     }
 
     async fn ensure_parent_path(&self, path: &str) -> Result<()> {
+        if path == "/" {
+            return Ok(());
+        }
+
         // create dir recursively, split path by `/` and create each dir except the last one
         let abs_path = build_abs_path(&self.root, path);
         let abs_path = abs_path.as_str();

@@ -40,28 +40,25 @@ use super::utils::*;
 macro_rules! behavior_write_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _write>] {
+            $(
+                #[test]
                 $(
-                    #[tokio::test]
-                    $(
-                        #[$meta]
-                    )*
-                    async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
-                        match op {
-                            Some(op) if op.info().can_read() && op.info().can_write() => $crate::write::$test(op).await,
-                            Some(_) => {
-                                log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                fn [<write_ $test >]() -> anyhow::Result<()> {
+                    match OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read() && op.info().can_write() => RUNTIME.block_on($crate::write::$test(op.clone())),
+                        Some(_) => {
+                            log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }

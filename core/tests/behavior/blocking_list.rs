@@ -34,30 +34,27 @@ use super::utils::*;
 macro_rules! behavior_blocking_list_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _blocking_list>] {
+            $(
+                #[test]
                 $(
-                    #[test]
-                    $(
-                        #[$meta]
-                    )*
-                    fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
-                        match op {
-                            Some(op) if op.info().can_read()
-                                && op.info().can_write()
-                                && op.info().can_blocking() && (op.info().can_list()||op.info().can_scan()) => $crate::blocking_list::$test(op.blocking()),
-                            Some(_) => {
-                                log::warn!("service {} doesn't support blocking_list, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                fn [<blocking_list_ $test >]() -> anyhow::Result<()> {
+                    match OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read()
+                            && op.info().can_write()
+                            && op.info().can_blocking() && (op.info().can_list()||op.info().can_scan()) => $crate::blocking_list::$test(op.blocking()),
+                        Some(_) => {
+                            log::warn!("service {} doesn't support blocking_list, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }
@@ -79,13 +76,14 @@ macro_rules! behavior_blocking_list_tests {
 
 /// List dir should return newly created file.
 pub fn test_list_dir(op: BlockingOperator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let parent = uuid::Uuid::new_v4().to_string();
+    let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).expect("write must succeed");
 
-    let obs = op.list("/")?;
+    let obs = op.list(&format!("{parent}/"))?;
     let mut found = false;
     for de in obs {
         let de = de?;
@@ -122,22 +120,30 @@ pub fn test_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
 
 // Walk top down should output as expected
 pub fn test_scan(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
     let expected = vec![
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
         if path.ends_with('/') {
-            op.create_dir(path)?;
+            op.create_dir(&format!("{parent}/{path}"))?;
         } else {
-            op.write(path, "test_scan")?;
+            op.write(&format!("{parent}/{path}"), "test_scan")?;
         }
     }
 
-    let w = op.scan("x/")?;
+    let w = op.scan(&format!("{parent}/x/"))?;
     let actual = w
         .collect::<Vec<_>>()
         .into_iter()
-        .map(|v| v.unwrap().path().to_string())
+        .map(|v| {
+            v.unwrap()
+                .path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
         .collect::<HashSet<_>>();
 
     debug!("walk top down: {:?}", actual);

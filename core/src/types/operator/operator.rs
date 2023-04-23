@@ -33,7 +33,10 @@ use crate::raw::*;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.
+/// Developer should manipulate the data from storage service through Operator only by right.
 ///
+/// We will usually do some general checks and data transformations in this layer,
+/// like normalizing path from input, checking whether the path refers to one file or one directory, and so on.
 /// Read [`concepts`][docs::concepts] for know more about [`Operator`].
 ///
 /// # Examples
@@ -61,8 +64,10 @@ use crate::*;
 /// ```
 #[derive(Clone, Debug)]
 pub struct Operator {
+    // accessor is what Operator delegates for
     accessor: FusedAccessor,
 
+    // limit is usually the maximum size of data that operator will handle in one operation
     limit: usize,
 }
 
@@ -85,7 +90,8 @@ impl Operator {
         self.accessor
     }
 
-    /// Get current operator's limit
+    /// Get current operator's limit.
+    /// Limit is usually the maximum size of data that operator will handle in one operation.
     pub fn limit(&self) -> usize {
         self.limit
     }

@@ -26,6 +26,16 @@ use crate::*;
 
 /// Underlying trait of all backends for implementors.
 ///
+/// The actual data access of storage service happens in Accessor layer.
+/// Every storage supported by OpenDAL must implement [`Accessor`] but not all
+/// methods of [`Accessor`] will be implemented according to how the storage service is.
+///
+/// For example, user can not modify the content from one HTTP file server directly.
+/// So [`Http`][crate::services::Http] implements and provides only read related actions.
+///
+/// [`Accessor`] gives default implementation for all methods which will raise [`ErrorKind::Unsupported`] error.
+/// And what action this [`Accessor`] supports will be pointed out in [`AccessorInfo`].
+///
 /// # Note
 ///
 /// Visit [`internals`][crate::docs::internals] for more tutorials.

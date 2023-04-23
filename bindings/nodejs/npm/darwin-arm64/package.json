@@ -1,6 +1,6 @@
 {
   "name": "@opendal/lib-darwin-arm64",
-  "version": "0.32.0",
+  "version": "0.33.0",
   "os": [
     "darwin"
   ],

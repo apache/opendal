@@ -17,23 +17,22 @@
  * under the License.
  */
 
-import { Operator } from "opendal"
+import { Operator } from 'opendal'
 
 async function main() {
-  const op = new Operator(
-    "s3", {
-    root: "/test_opendal",
-    bucket: "your bucket name",
-    region: "your bucket region",
-    endpoint: "your endpoint",
-    access_key_id: "your access key id",
-    secret_access_key: "your secret access key",
+  const op = new Operator('s3', {
+    root: '/test_opendal',
+    bucket: 'your bucket name',
+    region: 'your bucket region',
+    endpoint: 'your endpoint',
+    access_key_id: 'your access key id',
+    secret_access_key: 'your secret access key',
   })
 
-  await op.write("test", "Hello, World!")
-  const bs = await op.read("test")
+  await op.write('test', 'Hello, World!')
+  const bs = await op.read('test')
   console.log(new TextDecoder().decode(bs))
-  const meta = await op.stat("test")
+  const meta = await op.stat('test')
   console.log(`contentLength: ${meta.contentLength}`)
 }
 

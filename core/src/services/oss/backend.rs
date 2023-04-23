@@ -114,6 +114,10 @@ pub struct OssBuilder {
     presign_endpoint: Option<String>,
     bucket: String,
 
+    // sse options
+    server_side_encryption: Option<String>,
+    server_side_encryption_key_id: Option<String>,
+
     // authenticate options
     access_key_id: Option<String>,
     access_key_secret: Option<String>,
@@ -253,6 +257,28 @@ impl OssBuilder {
         };
         Ok((endpoint, host))
     }
+
+    /// Set server_side_encryption for this backend.
+    ///
+    /// Available values: `AES256`, `KMS`.
+    pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.server_side_encryption = Some(v.to_string())
+        }
+        self
+    }
+
+    /// Set server_side_encryption_key_id for this backend.
+    ///
+    /// # Notes
+    ///
+    /// This option only takes effect when server_side_encryption equals to KMS.
+    pub fn server_side_encryption_key_id(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.server_side_encryption_key_id = Some(v.to_string())
+        }
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -270,7 +296,10 @@ impl Builder for OssBuilder {
         map.get("access_key_id").map(|v| builder.access_key_id(v));
         map.get("access_key_secret")
             .map(|v| builder.access_key_secret(v));
-
+        map.get("server_side_encryption")
+            .map(|v| builder.server_side_encryption(v));
+        map.get("server_side_encryption_key_id")
+            .map(|v| builder.server_side_encryption_key_id(v));
         builder
     }
 
@@ -310,6 +339,22 @@ impl Builder for OssBuilder {
         };
         debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
+        let server_side_encryption = match &self.server_side_encryption {
+            None => None,
+            Some(v) => Some(
+                build_header_value(v)
+                    .map_err(|err| err.with_context("key", "server_side_encryption"))?,
+            ),
+        };
+
+        let server_side_encryption_key_id = match &self.server_side_encryption_key_id {
+            None => None,
+            Some(v) => Some(
+                build_header_value(v)
+                    .map_err(|err| err.with_context("key", "server_side_encryption_key_id"))?,
+            ),
+        };
+
         let mut cfg = AliyunConfig::default();
         // Load cfg from env first.
         cfg = cfg.from_env();
@@ -338,6 +383,8 @@ impl Builder for OssBuilder {
                 signer,
                 loader,
                 client,
+                server_side_encryption,
+                server_side_encryption_key_id,
             }),
         })
     }

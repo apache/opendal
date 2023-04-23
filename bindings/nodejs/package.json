@@ -6,7 +6,10 @@
   "main": "index.js",
   "types": "index.d.ts",
   "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
-  "repository": "git@github.com/apache/incubator-opendal.git",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/apache/incubator-opendal.git"
+  },
   "napi": {
     "name": "opendal",
     "package": {

@@ -2,8 +2,14 @@
 
 OpenDAL 0.33 redesigned the `Writer` API.
 
-- All `writer.append()` should be replaced by `writer.write()` instead
-- All `Writer` should handle `content_length` correctly
+- All `writer.append()` should be replaced by `writer.write()` instead.
+
+Please refer to [`Writer`](crate::Writer) for more details.
+
+And internally, services should handle `OpWrite::content_length` correctly.
+
+- If writer doesn't support upload unsized data, please return `NotSupported` if `content_length` is `None`.
+- Otherwise, please keep writing data until `close` has been called.
 
 Also, OpenDAL 0.33 adds a new concept `Capability` to replace `AccessorCapability`.
 

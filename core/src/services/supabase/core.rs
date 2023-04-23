@@ -126,7 +126,7 @@ impl SupabaseCore {
         req
     }
 
-    pub fn supabase_get_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>>> {
+    pub fn supabase_get_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/object/public/{}/{}",
@@ -139,7 +139,7 @@ impl SupabaseCore {
         req
     }
 
-    pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>>> {
+    pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/object/authenticated/{}/{}",

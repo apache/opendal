@@ -107,7 +107,8 @@ impl Accessor for SupabaseBackend {
     type BlockingReader = ();
     type Writer = SupabaseWriter;
     type BlockingWriter = ();
-    type Pager = SupabasePager;
+    // todo: implement Pager to support list and scan
+    type Pager = ();
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {

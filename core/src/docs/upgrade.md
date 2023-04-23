@@ -9,7 +9,7 @@ Please refer to [`Writer`](crate::Writer) for more details.
 And internally, services should handle `OpWrite::content_length` correctly.
 
 - If writer doesn't support upload unsized data, please return `NotSupported` if `content_length` is `None`.
-- Otherwise, please keep writing data until `close` has been called.
+- Otherwise, please keep writing data until `close` or `abort` has been called.
 
 Also, OpenDAL 0.33 adds a new concept `Capability` to replace `AccessorCapability`.
 

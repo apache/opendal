@@ -23,6 +23,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
+use opendal::ops::OpList;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -78,6 +79,7 @@ macro_rules! behavior_list_tests {
                 test_list_sub_dir,
                 test_list_nested_dir,
                 test_list_dir_with_file_path,
+                test_list_with_start_after,
                 test_scan,
                 test_scan_root,
                 test_remove_all,
@@ -274,6 +276,48 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     let obs = op.list(&parent).await.map(|_| ());
     assert!(obs.is_err());
     assert_eq!(obs.unwrap_err().kind(), ErrorKind::NotADirectory);
+
+    Ok(())
+}
+
+/// List with start after should start listing after the specified key
+pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
+    if !op.info().capability().list_with_start_after {
+        return Ok(());
+    }
+
+    let dir = &format!("{}/", uuid::Uuid::new_v4());
+    op.create_dir(dir).await?;
+
+    let given: Vec<String> = vec!["file-0", "file-1", "file-2", "file-3", "file-4", "file-5"]
+        .iter()
+        .map(|name| format!("{dir}{name}-{}", uuid::Uuid::new_v4()))
+        .collect();
+
+    given
+        .iter()
+        .map(|name| async {
+            op.write(name, "content")
+                .await
+                .expect("create must succeed");
+        })
+        .collect::<FuturesUnordered<_>>()
+        .collect::<Vec<_>>()
+        .await;
+
+    let option = OpList::new().with_start_after(&given[2]);
+    let mut objects = op.list_with(dir, option).await?;
+    let mut actual = vec![];
+    while let Some(o) = objects.try_next().await? {
+        let path = o.path().to_string();
+        actual.push(path)
+    }
+
+    let expected: Vec<String> = given.into_iter().skip(3).collect();
+
+    assert_eq!(expected, actual);
+
+    op.remove_all(dir).await?;
 
     Ok(())
 }

@@ -73,7 +73,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - scheme: declare the scheme of backend.
     /// - capabilities: declare the capabilities of current backend.
-    /// - hints: declare the hints of current backend
     fn info(&self) -> AccessorInfo;
 
     /// Invoke the `create` operation on the specified path
@@ -487,7 +486,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
 }
 
-/// FusedAccessor is the type erased accessor with `Box<dyn Read>`.
+/// FusedAccessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type FusedAccessor = Arc<
     dyn Accessor<
         Reader = oio::Reader,

@@ -15,5 +15,114 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use super::core::*;
+use super::pager::*;
+use super::writer::*;
+use crate::ops::*;
+use crate::raw::*;
+use crate::*;
+
 #[derive(Default)]
-pub struct SupaBaseBuilder {}
+pub struct SupabaseBuilder {
+    root: Option<String>,
+
+    bucket: String,
+    endpoint: Option<String>,
+
+    http_client: Option<HttpClient>,
+}
+
+impl Debug for SupabaseBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SupabaseBuilder")
+            .field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
+    }
+}
+
+impl SupabaseBuilder {
+    pub fn root(&mut self, root: &str) -> &mut Self {
+        self.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
+        self.bucket = bucket.to_string();
+        self
+    }
+
+    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+        self.endpoint = if endpoint.is_empty() {
+            None
+        } else {
+            Some(endpoint.to_string())
+        };
+
+        self
+    }
+
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+}
+
+impl Builder for SupabaseBuilder {
+    const SCHEME: Scheme = Scheme::Supabase;
+    type Accessor = SupabaseBackend;
+
+    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
+        unimplemented!()
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub struct SupabaseBackend {
+    core: Arc<SupabaseCore>,
+}
+
+#[async_trait]
+impl Accessor for SupabaseBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+    type Writer = SupabaseWriter;
+    type BlockingWriter = ();
+    type Pager = SupabasePager;
+    type BlockingPager = ();
+
+    fn info(&self) -> AccessorInfo {
+        unimplemented!()
+    }
+
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        unimplemented!()
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        unimplemented!()
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        unimplemented!()
+    }
+
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        unimplemented!()
+    }
+}

@@ -15,8 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SupabaseBuilder as Supabase;
-mod core;
-mod pager;
-mod writer;
+use std::fmt::Debug;
+
+use crate::raw::*;
+
+pub struct SupabaseCore {
+    pub root: String,
+    pub bucket: String,
+    pub endpoint: String,
+
+    pub http_client: HttpClient,
+}
+
+impl Debug for SupabaseCore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SupabaseCore")
+            .field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
+    }
+}

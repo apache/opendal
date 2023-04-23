@@ -15,8 +15,40 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SupabaseBuilder as Supabase;
-mod core;
-mod pager;
-mod writer;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use super::core::*;
+use crate::raw::*;
+use crate::*;
+
+pub struct SupabasePager {
+    core: Arc<SupabaseCore>,
+
+    path: String,
+    delimiter: String,
+    limit: Option<usize>,
+
+    done: bool,
+}
+
+impl SupabasePager {
+    pub fn new(core: Arc<SupabaseCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
+        Self {
+            core,
+            path: path.to_string(),
+            delimiter: delimiter.to_string(),
+            limit,
+
+            done: false,
+        }
+    }
+}
+
+#[async_trait]
+impl oio::Page for SupabasePager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        unimplemented!()
+    }
+}

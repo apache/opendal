@@ -45,6 +45,8 @@ use crate::*;
 ///   - `finished`: the operation is successful.
 ///   - `errored`: the operation returns an expected error like `NotFound`.
 ///   - `failed`: the operation returns an unexpected error.
+/// - The default log level while expected error happened is `Warn`.
+/// - The default log level while unexpected failure happened is `Error`.
 ///
 /// # Todo
 ///

@@ -54,7 +54,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
-/// Aws S3 and compatible services (including minio, digitalocean space and so on) support
+/// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support
 ///
 /// # Capabilities
 ///

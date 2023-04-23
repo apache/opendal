@@ -34,6 +34,10 @@ pub struct SupabaseBuilder {
     bucket: String,
     endpoint: Option<String>,
 
+    // todo: optional public, currently true always
+    // todo: optional file_size_limit, currently 0
+    // todo: optional allowed_mime_types, currently only string
+
     http_client: Option<HttpClient>,
 }
 
@@ -123,6 +127,6 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        unimplemented!()
+        unimplemented!( )
     }
 }

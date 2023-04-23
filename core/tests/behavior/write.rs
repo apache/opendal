@@ -80,6 +80,7 @@ macro_rules! behavior_write_tests {
                 test_stat_with_special_chars,
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
+                test_stat_with_if_match,
                 test_stat_root,
                 test_read_full,
                 test_read_range,
@@ -88,6 +89,7 @@ macro_rules! behavior_write_tests {
                 test_reader_from,
                 test_reader_tail,
                 test_read_not_exist,
+                test_read_with_if_match,
                 test_fuzz_range_reader,
                 test_fuzz_offset_reader,
                 test_fuzz_part_reader,
@@ -267,7 +269,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     op_stat = op_stat.with_if_match("invalid_etag");
 
     let res = op.stat_with(&path, op_stat).await;
-    assert_eq!(res.is_err());
+    assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::PreconditionFailed);
 
     let mut op_stat = OpStat::default();
@@ -488,13 +490,16 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
     op_if_match = op_if_match.with_if_match("invalid_etag");
 
     let res = op.read_with(&path, op_if_match).await;
-    assert_eq!(res.is_err());
+    assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::PreconditionFailed);
 
     let mut op_if_match = OpRead::default();
     op_if_match = op_if_match.with_if_match(meta.etag().expect("etag must exist"));
 
-    let bs = op.read_with(&path, op_if_match).await.expect("read must succeed");
+    let bs = op
+        .read_with(&path, op_if_match)
+        .await
+        .expect("read must succeed");
     assert_eq!(bs, content);
 
     op.delete(&path).await.expect("delete must succeed");

@@ -104,6 +104,7 @@ macro_rules! behavior_write_tests {
                 test_writer_write,
                 test_writer_abort,
                 test_writer_futures_copy,
+                test_fuzz_unsized_writer,
             );
         )*
     };
@@ -881,6 +882,33 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
         format!("{:x}", Sha256::digest(content)),
         "read content"
     );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Add test for unsized writer
+pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
+    if !op.info().capability().write_without_content_length {
+        warn!("{op:?} doesn't support write without content length, test skip");
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
+
+    let mut w = op.writer(&path).await?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectWriterAction::Write(bs) => w.write(bs).await?,
+        }
+    }
+    w.close().await?;
+
+    let content = op.read(&path).await?;
+    fuzzer.check(&content);
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

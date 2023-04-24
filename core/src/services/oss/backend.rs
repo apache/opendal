@@ -367,6 +367,7 @@ impl Accessor for OssBackend {
                 read: true,
                 read_can_next: true,
                 write: true,
+                write_without_content_length: true,
                 list: true,
                 scan: true,
                 copy: true,

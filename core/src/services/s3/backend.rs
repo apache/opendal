@@ -924,6 +924,8 @@ impl Accessor for S3Backend {
                 read_with_override_content_disposition: true,
 
                 write: true,
+                write_without_content_length: true,
+
                 list: true,
                 scan: true,
                 copy: true,

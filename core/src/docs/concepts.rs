@@ -26,7 +26,6 @@
 //! - [`Operator`]: Developer can access underlying storage services with manipulating one Operator.
 //! The Operator is a delegate for underlying implementation detail, and provides one unified access interface,
 //! including `read`, `write`, `list` and so on.
-//! Through Operators, OpenDAL standardizes the access methods of different storage services into access to a file system-like interface.
 //!
 //! If you are interested in internal implementation details, please have a look at [`internals`][super::internals].
 //!

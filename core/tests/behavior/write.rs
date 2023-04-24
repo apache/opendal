@@ -248,7 +248,7 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Stat with if_match should succeed, else get a 412(PreconditionFailed) error.
+/// Stat with if_match should succeed, else get a ConditionNotMatch error.
 pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     if !op.info().capability().stat_with_if_match {
         return Ok(());
@@ -271,7 +271,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
 
     let res = op.stat_with(&path, op_stat).await;
     assert!(res.is_err());
-    assert_eq!(res.unwrap_err().kind(), ErrorKind::PreconditionFailed);
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     let mut op_stat = OpStat::default();
     op_stat = op_stat.with_if_match(meta.etag().expect("etag must exist"));
@@ -471,7 +471,7 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Read with if_match should match, else get a 412(Precondition Failed) error.
+// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
     if !op.info().capability().read_with_if_match {
         return Ok(());
@@ -492,7 +492,7 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 
     let res = op.read_with(&path, op_if_match).await;
     assert!(res.is_err());
-    assert_eq!(res.unwrap_err().kind(), ErrorKind::PreconditionFailed);
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     let mut op_if_match = OpRead::default();
     op_if_match = op_if_match.with_if_match(meta.etag().expect("etag must exist"));

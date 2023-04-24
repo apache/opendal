@@ -27,6 +27,8 @@ use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::header::RANGE;
+use http::HeaderName;
+use http::HeaderValue;
 use http::Request;
 use http::Response;
 use reqsign::AliyunCredential;
@@ -40,6 +42,10 @@ use crate::raw::*;
 use crate::*;
 
 mod constants {
+    pub const X_OSS_SERVER_SIDE_ENCRYPTION: &str = "x-oss-server-side-encryption";
+
+    pub const X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID: &str = "x-oss-server-side-encryption-key-id";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 }
 
@@ -52,6 +58,9 @@ pub struct OssCore {
     pub host: String,
     pub endpoint: String,
     pub presign_endpoint: String,
+
+    pub server_side_encryption: Option<HeaderValue>,
+    pub server_side_encryption_key_id: Option<HeaderValue>,
 
     pub client: HttpClient,
     pub loader: AliyunLoader,
@@ -110,6 +119,31 @@ impl OssCore {
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         self.client.send(req).await
     }
+
+    /// Set sse headers
+    /// # Note
+    /// According to the OSS documentation, only PutObject, CopyObject, and InitiateMultipartUpload may require to be set.
+    pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
+        if let Some(v) = &self.server_side_encryption {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_OSS_SERVER_SIDE_ENCRYPTION),
+                v,
+            )
+        }
+        if let Some(v) = &self.server_side_encryption_key_id {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_OSS_SERVER_SIDE_ENCRYPTION_KEY_ID),
+                v,
+            )
+        }
+        req
+    }
 }
 
 impl OssCore {
@@ -143,6 +177,9 @@ impl OssCore {
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
         }
+
+        // set sse headers
+        req = self.insert_sse_headers(req);
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
@@ -333,8 +370,13 @@ impl OssCore {
         );
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
 
-        let mut req = Request::put(&url)
-            .header("x-oss-copy-source", source)
+        let mut req = Request::put(&url);
+
+        req = self.insert_sse_headers(req);
+
+        req = req.header("x-oss-copy-source", source);
+
+        let mut req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -438,7 +480,7 @@ impl OssCore {
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control);
         }
-
+        req = self.insert_sse_headers(req);
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         Ok(req)

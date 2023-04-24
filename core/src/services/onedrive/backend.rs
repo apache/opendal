@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::fmt::Debug;
 
-use crate::raw::{Accessor, AccessorCapability, AccessorHint, AccessorInfo, IncomingAsyncBody};
+use crate::raw::{Accessor, AccessorInfo, IncomingAsyncBody};
 
 #[derive(Clone)]
 pub struct OneDriveBackend {
@@ -31,13 +31,15 @@ impl Accessor for OneDriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(crate::Scheme::Onedrive)
             .set_root(&self.root)
-            .set_capability(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::Copy
-                    | AccessorCapability::Rename
-                    | AccessorCapability::List,
-            );
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                write: true,
+                list: true,
+                copy: true,
+                rename: true,
+                ..Default::default()
+            });
 
         ma
     }

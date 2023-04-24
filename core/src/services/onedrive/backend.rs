@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::fmt::Debug;
 
-use crate::raw::{Accessor, AccessorInfo, IncomingAsyncBody};
+use crate::{raw::{Accessor, AccessorInfo, IncomingAsyncBody}, Capability};
 
 #[derive(Clone)]
 pub struct OneDriveBackend {

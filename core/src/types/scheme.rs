@@ -160,7 +160,6 @@ impl From<Scheme> for &'static str {
             Scheme::Moka => "moka",
             Scheme::Obs => "obs",
             Scheme::Onedrive => "onedrive",
-            #[cfg(feature = "services-redis")]
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",

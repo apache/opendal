@@ -341,7 +341,7 @@ impl Accessor for ObsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .obs_get_object(path, args.range(), args.if_match())
+            .obs_get_object(path, args.range(), args.if_match(), args.if_none_match())
             .await?;
 
         let status = resp.status();
@@ -389,7 +389,10 @@ impl Accessor for ObsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.obs_get_head_object(path, args.if_match()).await?;
+        let resp = self
+            .core
+            .obs_get_head_object(path, args.if_match(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 

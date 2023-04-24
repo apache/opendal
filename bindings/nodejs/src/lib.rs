@@ -258,6 +258,36 @@ impl Operator {
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
 
+    /// Create a writer for given path.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const writer = await op.writer("path/to/file");
+    /// await writer.write(Buffer.from("hello world"));
+    /// await writer.close();
+    /// ```
+    #[napi]
+    pub async fn writer(&self, path: String) -> Result<Writer> {
+        Ok(Writer(
+            self.0.writer(&path).await.map_err(format_napi_error)?,
+        ))
+    }
+
+    /// Create a synchronous writer for given path.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// const writer = op.writerSync("path/to/file");
+    /// writer.write(Buffer.from("hello world"));
+    /// writer.close();
+    /// ```
+    #[napi]
+    pub fn writer_sync(&self, path: String) -> Result<BlockingWriter> {
+        Ok(BlockingWriter(
+            self.0.blocking().writer(&path).map_err(format_napi_error)?,
+        ))
+    }
+
     /// Copy file according to given `from` and `to` path.
     ///
     /// ### Example
@@ -646,6 +676,62 @@ impl BlockingLister {
             Some(Err(e)) => Err(format_napi_error(e)),
             None => Ok(None),
         }
+    }
+}
+
+#[napi]
+pub struct Writer(opendal::Writer);
+
+#[napi]
+impl Writer {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    #[napi]
+    pub async unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+        let c = match content {
+            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::B(s) => s.into_bytes(),
+        };
+        self.0.write(c).await.map_err(format_napi_error)?;
+        Ok(())
+    }
+
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    #[napi]
+    pub async unsafe fn close(&mut self) -> Result<()> {
+        self.0.close().await.map_err(format_napi_error)?;
+        Ok(())
+    }
+}
+
+#[napi]
+pub struct BlockingWriter(opendal::BlockingWriter);
+
+#[napi]
+impl BlockingWriter {
+    #[napi]
+    pub fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+        let c = match content {
+            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::B(s) => s.into_bytes(),
+        };
+        self.0.write(c).map_err(format_napi_error)?;
+        Ok(())
+    }
+
+    #[napi]
+    pub fn close(&mut self) -> Result<()> {
+        self.0.close().map_err(format_napi_error)?;
+        Ok(())
     }
 }
 

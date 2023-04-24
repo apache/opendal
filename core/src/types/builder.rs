@@ -27,10 +27,13 @@ use crate::*;
 /// It can be created by accepting several k-v pairs from one HashMap, one iterator and specific environment variables.
 ///
 /// By default each builder of underlying service must support deriving from one HashMap.
-/// Besides that, according to the implementation, each builder may have its own special methods
+/// Besides that, according to the implementation, each builder will have its own special methods
 /// to control the behavior of initialization of the underlying service.
-/// It often provides semantic interface instead of using one dynamic k-v strings.
-/// So during the usage, developer needs to read related doc of builder.
+/// It often provides semantic interface instead of using dynamic k-v strings directly.
+/// Because the latter way is obscure and hard to remember how many parameters it will have.
+///
+/// So it is recommended that developer should read related doc of builder carefully when you are working with one service.
+/// We also promise that every public API will provide detailed documentation.
 ///
 /// It's recommended to use [`Operator::new`] to avoid use `Builder` trait directly.
 pub trait Builder: Default {

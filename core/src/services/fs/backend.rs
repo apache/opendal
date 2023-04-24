@@ -304,6 +304,7 @@ impl Accessor for FsBackend {
                 read: true,
                 read_can_seek: true,
                 write: true,
+                write_without_content_length: true,
                 create_dir: true,
                 list: true,
                 copy: true,

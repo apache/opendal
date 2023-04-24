@@ -37,6 +37,11 @@ use crate::*;
 ///
 /// ## Notes
 ///
+/// Please make sure either `close` or `abort` has been called before
+/// dropping the writer otherwise the data could be lost.
+///
+/// ## Notes
+///
 /// Writer can be used in two ways:
 ///
 /// - Sized: write data with a known size by specify the content length.
@@ -81,7 +86,12 @@ impl Writer {
         }
     }
 
-    /// Abort inner writer.
+    /// Abort the writer and clean up all written data.
+    ///
+    /// ## Notes
+    ///
+    /// Abort should only be called when the writer is not closed or
+    /// aborted, otherwise an unexpected error could be returned.
     pub async fn abort(&mut self) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
             w.abort().await
@@ -93,7 +103,12 @@ impl Writer {
         }
     }
 
-    /// Close the writer and make sure all data have been stored.
+    /// Close the writer and make sure all data have been committed.
+    ///
+    /// ## Notes
+    ///
+    /// Close should only be called when the writer is not closed or
+    /// aborted, otherwise an unexpected error could be returned.
     pub async fn close(&mut self) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
             w.close().await

@@ -67,14 +67,13 @@
 //! which is the reason why we say the Operator is the delegate of one Service.
 //!
 //! ```text
-//!                          ┌─────────────────────────────┐
-//!                          │          Operator           │
-//! ┌───────────────┐ accept │              │              │
-//! │               │◄───────┤              │delegate      │
-//! │    Builder    │        │              ▼              │
-//! │               ├────────┼───────►┌────────────┐       │
-//! └───────────────┘  build │        │  Service   │       │
-//!                          └────────┴────────────┴───────┘
+//!                   ┌────────────────────┐
+//!                   │      Operator      │
+//!                   │         │delegate  │
+//! ┌─────────┐ build │         ▼          │ rely on ┌─────────────────────┐
+//! │ Builder ├───────┼──►┌────────────┐   │◄────────┤ business logic code │
+//! └─────────┘       │   │  Service   │   │         └─────────────────────┘
+//!                   └───┴────────────┴───┘
 //! ```
 //!
 //! `Operator` can be built from `Builder`:

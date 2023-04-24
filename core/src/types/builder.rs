@@ -42,7 +42,7 @@ pub trait Builder: Default {
     /// The accessor that built by this builder.
     type Accessor: Accessor;
 
-    /// Construct a builder from given map which contains several parameters required by underlying service.
+    /// Construct a builder from given map which contains several parameters needed by underlying service.
     fn from_map(map: HashMap<String, String>) -> Self;
 
     /// Construct a builder from given iterator.

@@ -45,6 +45,8 @@ use crate::*;
 ///   - `finished`: the operation is successful.
 ///   - `errored`: the operation returns an expected error like `NotFound`.
 ///   - `failed`: the operation returns an unexpected error.
+/// - The default log level while expected error happened is `Warn`.
+/// - The default log level while unexpected failure happened is `Error`.
 ///
 /// # Todo
 ///
@@ -198,24 +200,24 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         result
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
-            Operation::Create,
+            Operation::CreateDir,
             path
         );
 
         self.inner
-            .create(path, args)
+            .create_dir(path, args)
             .await
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
-                    Operation::Create,
+                    Operation::CreateDir,
                     path
                 );
                 v
@@ -227,7 +229,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         lvl,
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::Create,
+                        Operation::CreateDir,
                         path,
                         self.err_status(&err)
                     )
@@ -576,7 +578,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -587,6 +589,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         self.inner
             .presign(path, args)
+            .await
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
@@ -653,23 +656,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
-            Operation::BlockingCreate,
+            Operation::BlockingCreateDir,
             path
         );
 
         self.inner
-            .blocking_create(path, args)
+            .blocking_create_dir(path, args)
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
-                    Operation::BlockingCreate,
+                    Operation::BlockingCreateDir,
                     path
                 );
                 v
@@ -681,7 +684,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         lvl,
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::BlockingCreate,
+                        Operation::BlockingCreateDir,
                         path,
                         self.err_status(&err)
                     );
@@ -826,7 +829,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             target: LOGGING_TARGET,
             "service={} operation={} from={} to={} -> started",
             self.scheme,
-            Operation::BlockingMove,
+            Operation::BlockingRename,
             from,
             to,
         );
@@ -838,7 +841,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     target: LOGGING_TARGET,
                     "service={} operation={} from={} to={} -> finished",
                     self.scheme,
-                    Operation::BlockingMove,
+                    Operation::BlockingRename,
                     from,
                     to,
                 );
@@ -851,7 +854,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         lvl,
                         "service={} operation={} from={} to={} -> {}: {err:?}",
                         self.scheme,
-                        Operation::BlockingMove,
+                        Operation::BlockingRename,
                         from,
                         to,
                         self.err_status(&err)
@@ -1337,19 +1340,6 @@ impl<W> LoggingWriter<W> {
     }
 }
 
-impl<W> Drop for LoggingWriter<W> {
-    fn drop(&mut self) {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} written={} -> data written finished",
-            self.scheme,
-            self.op,
-            self.path,
-            self.written
-        );
-    }
-}
-
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
@@ -1385,19 +1375,16 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        match self.inner.append(bs).await {
+    async fn abort(&mut self) -> Result<()> {
+        match self.inner.abort().await {
             Ok(_) => {
-                self.written += size as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
+                    "service={} operation={} path={} written={} -> abort writer",
                     self.scheme,
-                    WriteOperation::Append,
+                    WriteOperation::Abort,
                     self.path,
                     self.written,
-                    size
                 );
                 Ok(())
             }
@@ -1406,9 +1393,9 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
+                        "service={} operation={} path={} written={} -> abort writer failed: {err:?}",
                         self.scheme,
-                        WriteOperation::Append,
+                        WriteOperation::Abort,
                         self.path,
                         self.written,
                     )
@@ -1420,7 +1407,17 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 
     async fn close(&mut self) -> Result<()> {
         match self.inner.close().await {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data written finished",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.written
+                );
+                Ok(())
+            }
             Err(err) => {
                 if let Some(lvl) = self.failure_level {
                     log!(
@@ -1473,42 +1470,19 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
         }
     }
 
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        match self.inner.append(bs) {
+    fn close(&mut self) -> Result<()> {
+        match self.inner.close() {
             Ok(_) => {
-                self.written += size as u64;
-                trace!(
+                debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
+                    "service={} operation={} path={} written={} -> data written finished",
                     self.scheme,
-                    WriteOperation::BlockingAppend,
+                    self.op,
                     self.path,
-                    self.written,
-                    size
+                    self.written
                 );
                 Ok(())
             }
-            Err(err) => {
-                if let Some(lvl) = self.failure_level {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
-                        self.scheme,
-                        WriteOperation::BlockingAppend,
-                        self.path,
-                        self.written,
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
-    fn close(&mut self) -> Result<()> {
-        match self.inner.close() {
-            Ok(_) => Ok(()),
             Err(err) => {
                 if let Some(lvl) = self.failure_level {
                     log!(

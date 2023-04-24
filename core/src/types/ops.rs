@@ -19,28 +19,20 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use time::Duration;
+use std::time::Duration;
 
 use crate::raw::*;
-use crate::*;
 
 /// Args for `create` operation.
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct OpCreate {
-    mode: EntryMode,
-}
+pub struct OpCreate {}
 
 impl OpCreate {
     /// Create a new `OpCreate`.
-    pub fn new(mode: EntryMode) -> Self {
-        Self { mode }
-    }
-
-    /// Get mode from option.
-    pub fn mode(&self) -> EntryMode {
-        self.mode
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -63,6 +55,10 @@ pub struct OpList {
     /// The limit passed to underlying service to specify the max results
     /// that could return.
     limit: Option<usize>,
+
+    /// The start_after passes to underlying service to specify the specified key
+    /// to start listing from.
+    start_after: Option<String>,
 }
 
 impl OpList {
@@ -80,6 +76,17 @@ impl OpList {
     /// Get the limit of list operation.
     pub fn limit(&self) -> Option<usize> {
         self.limit
+    }
+
+    /// Change the start_after of this list operation.
+    pub fn with_start_after(mut self, start_after: &str) -> Self {
+        self.start_after = Some(start_after.into());
+        self
+    }
+
+    /// Get the start_after of list operation.
+    pub fn start_after(&self) -> Option<&str> {
+        self.start_after.as_deref()
     }
 }
 
@@ -220,9 +227,10 @@ impl BatchOperation {
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     br: BytesRange,
-    override_content_disposition: Option<String>,
-    override_cache_control: Option<String>,
+    if_match: Option<String>,
     if_none_match: Option<String>,
+    override_cache_control: Option<String>,
+    override_content_disposition: Option<String>,
 }
 
 impl OpRead {
@@ -265,6 +273,17 @@ impl OpRead {
         self.override_cache_control.as_deref()
     }
 
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, if_match: &str) -> Self {
+        self.if_match = Some(if_match.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
+
     /// Set the If-None-Match of the option
     pub fn with_if_none_match(mut self, if_none_match: &str) -> Self {
         self.if_none_match = Some(if_none_match.to_string());
@@ -280,6 +299,7 @@ impl OpRead {
 /// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {
+    if_match: Option<String>,
     if_none_match: Option<String>,
 }
 
@@ -287,6 +307,17 @@ impl OpStat {
     /// Create a new `OpStat`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, if_match: &str) -> Self {
+        self.if_match = Some(if_match.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
     }
 
     /// Set the If-None-Match of the option
@@ -304,8 +335,7 @@ impl OpStat {
 /// Args for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
-    append: bool,
-
+    content_length: Option<u64>,
     content_type: Option<String>,
     content_disposition: Option<String>,
     cache_control: Option<String>,
@@ -319,13 +349,20 @@ impl OpWrite {
         Self::default()
     }
 
-    pub(crate) fn with_append(mut self) -> Self {
-        self.append = true;
-        self
+    /// Get the content length from op.
+    ///
+    /// The content length is the total length of the data to be written.
+    pub fn content_length(&self) -> Option<u64> {
+        self.content_length
     }
 
-    pub(crate) fn append(&self) -> bool {
-        self.append
+    /// Set the content length of op.
+    ///
+    /// If the content length is not set, the content length will be
+    /// calculated automatically by buffering part of data.
+    pub fn with_content_length(mut self, content_length: u64) -> Self {
+        self.content_length = Some(content_length);
+        self
     }
 
     /// Get the content type from option

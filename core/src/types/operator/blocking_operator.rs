@@ -70,7 +70,11 @@ impl BlockingOperator {
     /// # Note
     /// default batch limit is 1000.
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
-        let limit = accessor.info().max_batch_operations().unwrap_or(1000);
+        let limit = accessor
+            .info()
+            .capability()
+            .batch_max_operations
+            .unwrap_or(1000);
         Self { accessor, limit }
     }
 
@@ -303,8 +307,7 @@ impl BlockingOperator {
             .with_context("path", &path));
         }
 
-        self.inner()
-            .blocking_create(&path, OpCreate::new(EntryMode::DIR))?;
+        self.inner().blocking_create_dir(&path, OpCreate::new())?;
 
         Ok(())
     }
@@ -444,7 +447,12 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        self.write_with(path, OpWrite::new(), bs)
+        let bs = bs.into();
+        self.write_with(
+            path,
+            OpWrite::new().with_content_length(bs.len() as u64),
+            bs,
+        )
     }
 
     /// Copy a file from `from` to `to`.
@@ -595,8 +603,11 @@ impl BlockingOperator {
             );
         }
 
-        let (_, mut w) = self.inner().blocking_write(&path, args)?;
-        w.write(bs.into())?;
+        let bs = bs.into();
+        let (_, mut w) = self
+            .inner()
+            .blocking_write(&path, args.with_content_length(bs.len() as u64))?;
+        w.write(bs)?;
         w.close()?;
 
         Ok(())
@@ -619,8 +630,8 @@ impl BlockingOperator {
     ///
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let mut w = op.writer("path/to/file")?;
-    /// w.append(vec![0; 4096])?;
-    /// w.append(vec![1; 4096])?;
+    /// w.write(vec![0; 4096])?;
+    /// w.write(vec![1; 4096])?;
     /// w.close()?;
     /// # Ok(())
     /// # }
@@ -637,7 +648,7 @@ impl BlockingOperator {
             );
         }
 
-        let op = OpWrite::default().with_append();
+        let op = OpWrite::default();
         BlockingWriter::create(self.inner().clone(), &path, op)
     }
 
@@ -718,9 +729,13 @@ impl BlockingOperator {
 
     /// List dir in flat way.
     ///
-    /// This function will create a new handle to list entries.
+    /// Also, this function can be used to list a prefix.
     ///
     /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Notes
+    ///
+    /// - `scan` will not return the prefix itself.
     ///
     /// # Examples
     ///

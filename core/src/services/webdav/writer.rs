@@ -63,13 +63,8 @@ impl oio::Write for WebdavWriter {
         }
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _ = bs;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support append",
-        ))
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

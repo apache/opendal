@@ -15,45 +15,45 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::AzblobBackend;
+use super::core::AzblobCore;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct AzblobWriter {
-    backend: AzblobBackend,
+    core: Arc<AzblobCore>,
 
     op: OpWrite,
     path: String,
 }
 
 impl AzblobWriter {
-    pub fn new(backend: AzblobBackend, op: OpWrite, path: String) -> Self {
-        AzblobWriter { backend, op, path }
+    pub fn new(core: Arc<AzblobCore>, op: OpWrite, path: String) -> Self {
+        AzblobWriter { core, op, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for AzblobWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut req = self.backend.azblob_put_blob_request(
+        let mut req = self.core.azblob_put_blob_request(
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
+            self.op.cache_control(),
             AsyncBody::Bytes(bs),
         )?;
 
-        self.backend
-            .signer
-            .sign(&mut req)
-            .map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.backend.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -66,13 +66,8 @@ impl oio::Write for AzblobWriter {
         }
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let _ = bs;
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support append",
-        ))
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

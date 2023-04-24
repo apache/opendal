@@ -23,6 +23,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
+use opendal::ops::OpList;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -37,31 +38,28 @@ use super::utils::*;
 macro_rules! behavior_list_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _list>] {
+            $(
+                #[test]
                 $(
-                    #[tokio::test]
-                    $(
-                        #[$meta]
-                    )*
-                    async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
-                        match op {
-                            Some(op) if op.info().can_read()
-                                && op.info().can_write()
-                                && (op.info().can_list()
-                                    || op.info().can_scan()) => $crate::list::$test(op).await,
-                            Some(_) => {
-                                log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                fn [<list_ $test >]() -> anyhow::Result<()> {
+                    match OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read()
+                            && op.info().can_write()
+                            && (op.info().can_list()
+                                || op.info().can_scan()) => RUNTIME.block_on($crate::list::$test(op.clone())),
+                        Some(_) => {
+                            log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }
@@ -81,7 +79,9 @@ macro_rules! behavior_list_tests {
                 test_list_sub_dir,
                 test_list_nested_dir,
                 test_list_dir_with_file_path,
+                test_list_with_start_after,
                 test_scan,
+                test_scan_root,
                 test_remove_all,
             );
         )*
@@ -97,13 +97,14 @@ pub async fn test_check(op: Operator) -> Result<()> {
 
 /// List dir should return newly created file.
 pub async fn test_list_dir(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let parent = uuid::Uuid::new_v4().to_string();
+    let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).await.expect("write must succeed");
 
-    let mut obs = op.list("/").await?;
+    let mut obs = op.list(&format!("{parent}/")).await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
         let meta = op.stat(de.path()).await?;
@@ -279,25 +280,88 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Walk top down should output as expected
-pub async fn test_scan(op: Operator) -> Result<()> {
-    let expected = vec![
-        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-    ];
-    for path in expected.iter() {
-        if path.ends_with('/') {
-            op.create_dir(path).await?;
-        } else {
-            op.write(path, "test_scan").await?;
-        }
+/// List with start after should start listing after the specified key
+pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
+    if !op.info().capability().list_with_start_after {
+        return Ok(());
     }
 
-    let w = op.scan("x/").await?;
+    let dir = &format!("{}/", uuid::Uuid::new_v4());
+    op.create_dir(dir).await?;
+
+    let given: Vec<String> = vec!["file-0", "file-1", "file-2", "file-3", "file-4", "file-5"]
+        .iter()
+        .map(|name| format!("{dir}{name}-{}", uuid::Uuid::new_v4()))
+        .collect();
+
+    given
+        .iter()
+        .map(|name| async {
+            op.write(name, "content")
+                .await
+                .expect("create must succeed");
+        })
+        .collect::<FuturesUnordered<_>>()
+        .collect::<Vec<_>>()
+        .await;
+
+    let option = OpList::new().with_start_after(&given[2]);
+    let mut objects = op.list_with(dir, option).await?;
+    let mut actual = vec![];
+    while let Some(o) = objects.try_next().await? {
+        let path = o.path().to_string();
+        actual.push(path)
+    }
+
+    let expected: Vec<String> = given.into_iter().skip(3).collect();
+
+    assert_eq!(expected, actual);
+
+    op.remove_all(dir).await?;
+
+    Ok(())
+}
+
+pub async fn test_scan_root(op: Operator) -> Result<()> {
+    let w = op.scan("").await?;
     let actual = w
         .try_collect::<Vec<_>>()
         .await?
         .into_iter()
         .map(|v| v.path().to_string())
+        .collect::<HashSet<_>>();
+
+    assert!(!actual.contains("/"), "empty root should return itself");
+    assert!(!actual.contains(""), "empty root should return empty");
+    Ok(())
+}
+
+// Walk top down should output as expected
+pub async fn test_scan(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
+    let expected = vec![
+        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+    ];
+    for path in expected.iter() {
+        if path.ends_with('/') {
+            op.create_dir(&format!("{parent}/{path}")).await?;
+        } else {
+            op.write(&format!("{parent}/{path}"), "test_scan").await?;
+        }
+    }
+
+    let w = op.scan(&format!("{parent}/x/")).await?;
+    let actual = w
+        .try_collect::<Vec<_>>()
+        .await?
+        .into_iter()
+        .map(|v| {
+            v.path()
+                .strip_prefix(&format!("{parent}/"))
+                .unwrap()
+                .to_string()
+        })
         .collect::<HashSet<_>>();
 
     debug!("walk top down: {:?}", actual);
@@ -310,24 +374,29 @@ pub async fn test_scan(op: Operator) -> Result<()> {
 
 // Remove all should remove all in this path.
 pub async fn test_remove_all(op: Operator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
     let expected = vec![
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
         if path.ends_with('/') {
-            op.create_dir(path).await?;
+            op.create_dir(&format!("{parent}/{path}")).await?;
         } else {
-            op.write(path, "test_remove_all").await?;
+            op.write(&format!("{parent}/{path}"), "test_scan").await?;
         }
     }
 
-    op.remove_all("x/").await?;
+    op.remove_all(&format!("{parent}/x/")).await?;
 
     for path in expected.iter() {
         if path.ends_with('/') {
             continue;
         }
-        assert!(!op.is_exist(path).await?, "{path} should be removed")
+        assert!(
+            !op.is_exist(&format!("{parent}/{path}")).await?,
+            "{parent}/{path} should be removed"
+        )
     }
     Ok(())
 }

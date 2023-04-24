@@ -30,10 +30,9 @@ version.workspace = true
 [dependencies]
 async-trait = "0.1"
 bytes = "1"
-chrono = "0.4.23"
 futures = "0.3"
 object_store = "0.5"
-opendal = { version = "0.30", path = "../../core" }
+opendal.workspace = true
 tokio = "1"
 
 [dev-dependencies]

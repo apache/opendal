@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenDAL is the Open Data Access Layer to **freely**, **painlessly**, and **efficiently** access data.
+//! OpenDAL is the Open Data Access Layer to **freely** access data.
 //!
 //! - Documentation: All docs are carried byself, visit [`docs`] for more.
 //! - Services: All supported services could be found at [`services`].
@@ -81,7 +81,6 @@ mod tests {
     use std::mem::size_of;
 
     use super::*;
-    use crate::raw::*;
 
     /// This is not a real test case.
     ///
@@ -89,7 +88,6 @@ mod tests {
     /// unexpected struct/enum size change.
     #[test]
     fn assert_size() {
-        assert_eq!(104, size_of::<AccessorInfo>());
         assert_eq!(24, size_of::<Operator>());
         assert_eq!(216, size_of::<Entry>());
         assert_eq!(192, size_of::<Metadata>());

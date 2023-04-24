@@ -16,6 +16,7 @@
 // under the License.
 
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Result;
 use http::header;
@@ -25,7 +26,6 @@ use opendal::Operator;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
-use time::Duration;
 
 use super::utils::*;
 
@@ -37,28 +37,25 @@ use super::utils::*;
 macro_rules! behavior_presign_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _presign>] {
+            $(
+                #[test]
                 $(
-                    #[tokio::test]
-                    $(
-                        #[$meta]
-                    )*
-                    async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
-                        match op {
-                            Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => $crate::presign::$test(op).await,
-                            Some(_) => {
-                                log::warn!("service {} doesn't support presign, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                fn [<presign_ $test >]() -> anyhow::Result<()> {
+                    match OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => RUNTIME.block_on($crate::presign::$test(op.clone())),
+                        Some(_) => {
+                            log::warn!("service {} doesn't support presign, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }
@@ -84,7 +81,7 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let signed_req = op.presign_write(&path, Duration::hours(1))?;
+    let signed_req = op.presign_write(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
 
     let client = reqwest::Client::new();
@@ -118,7 +115,7 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
     op.write(&path, content.clone())
         .await
         .expect("write must succeed");
-    let signed_req = op.presign_stat(&path, Duration::hours(1))?;
+    let signed_req = op.presign_stat(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
     let client = reqwest::Client::new();
     let mut req = client.request(
@@ -150,7 +147,7 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let signed_req = op.presign_read(&path, Duration::hours(1))?;
+    let signed_req = op.presign_read(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
 
     let client = reqwest::Client::new();

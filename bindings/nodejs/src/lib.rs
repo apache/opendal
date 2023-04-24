@@ -20,11 +20,10 @@ extern crate napi_derive;
 
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Duration;
 
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use time::format_description::well_known::Rfc3339;
-use time::Duration;
 
 fn build_operator(
     scheme: opendal::Scheme,
@@ -477,17 +476,18 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignRead(path, parseInt(expires));
+    /// const req = await op.presignRead(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_read(&path, Duration::seconds(expires as i64))
+            .presign_read(&path, Duration::from_secs(expires as u64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -499,17 +499,18 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignWrite(path, parseInt(expires));
+    /// const req = await op.presignWrite(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_write(&path, Duration::seconds(expires as i64))
+            .presign_write(&path, Duration::from_secs(expires as u64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -521,17 +522,18 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = op.presignStat(path, parseInt(expires));
+    /// const req = await op.presignStat(path, parseInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
         let res = self
             .0
-            .presign_stat(&path, Duration::seconds(expires as i64))
+            .presign_stat(&path, Duration::from_secs(expires as u64))
+            .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
@@ -596,12 +598,12 @@ impl Metadata {
         self.0.etag().map(|s| s.to_string())
     }
 
-    /// Last Modified of this object.(UTC)
+    /// Last Modified of this object.
+    ///
+    /// We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
-        self.0
-            .last_modified()
-            .map(|ta| ta.format(&Rfc3339).unwrap())
+        self.0.last_modified().map(|ta| ta.to_rfc3339())
     }
 }
 

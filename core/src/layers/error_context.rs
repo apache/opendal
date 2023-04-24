@@ -82,11 +82,11 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.meta.clone()
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner
-            .create(path, args)
+            .create_dir(path, args)
             .map_err(|err| {
-                err.with_operation(Operation::Create)
+                err.with_operation(Operation::CreateDir)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -134,6 +134,30 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 err.with_operation(Operation::Write)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
+            })
+            .await
+    }
+
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner
+            .copy(from, to, args)
+            .map_err(|err| {
+                err.with_operation(Operation::Copy)
+                    .with_context("service", self.meta.scheme())
+                    .with_context("from", from)
+                    .with_context("to", to)
+            })
+            .await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner
+            .rename(from, to, args)
+            .map_err(|err| {
+                err.with_operation(Operation::Rename)
+                    .with_context("service", self.meta.scheme())
+                    .with_context("from", from)
+                    .with_context("to", to)
             })
             .await
     }
@@ -202,8 +226,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args).map_err(|err| {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner.presign(path, args).await.map_err(|err| {
             err.with_operation(Operation::Presign)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
@@ -236,9 +260,9 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.blocking_create(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingCreate)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.blocking_create_dir(path, args).map_err(|err| {
+            err.with_operation(Operation::BlockingCreateDir)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })
@@ -282,6 +306,24 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner.blocking_copy(from, to, args).map_err(|err| {
+            err.with_operation(Operation::BlockingCopy)
+                .with_context("service", self.meta.scheme())
+                .with_context("from", from)
+                .with_context("to", to)
+        })
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner.blocking_rename(from, to, args).map_err(|err| {
+            err.with_operation(Operation::BlockingRename)
+                .with_context("service", self.meta.scheme())
+                .with_context("from", from)
+                .with_context("to", to)
+        })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -411,9 +453,9 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         })
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).await.map_err(|err| {
-            err.with_operation(WriteOperation::Append)
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
+            err.with_operation(WriteOperation::Abort)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })
@@ -432,14 +474,6 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs).map_err(|err| {
             err.with_operation(WriteOperation::BlockingWrite)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-        })
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).map_err(|err| {
-            err.with_operation(WriteOperation::BlockingAppend)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

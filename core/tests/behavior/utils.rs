@@ -17,6 +17,9 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::io::SeekFrom;
 use std::usize;
 
@@ -25,6 +28,7 @@ use log::debug;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::*;
+use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
@@ -33,7 +37,7 @@ use sha2::Sha256;
 ///
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
-pub fn init_service<B: Builder>(random_root: bool) -> Option<Operator> {
+pub fn init_service<B: Builder>() -> Option<Operator> {
     let _ = env_logger::builder().is_test(true).try_init();
     let _ = dotenvy::dotenv();
 
@@ -53,7 +57,9 @@ pub fn init_service<B: Builder>(random_root: bool) -> Option<Operator> {
         return None;
     }
 
-    if random_root {
+    // Use random root unless OPENDAL_DISABLE_RANDOM_ROOT is set to true.
+    let disable_random_root = env::var("OPENDAL_DISABLE_RANDOM_ROOT").unwrap_or_default() == "true";
+    if !disable_random_root {
         let root = format!(
             "{}{}/",
             cfg.get("root").cloned().unwrap_or_else(|| "/".to_string()),
@@ -82,6 +88,16 @@ pub fn gen_bytes() -> (Vec<u8>, usize) {
     let mut rng = thread_rng();
 
     let size = rng.gen_range(1..4 * 1024 * 1024);
+    let mut content = vec![0; size];
+    rng.fill_bytes(&mut content);
+
+    (content, size)
+}
+
+pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
+    let mut rng = thread_rng();
+
+    let size = rng.gen_range(range);
     let mut content = vec![0; size];
     rng.fill_bytes(&mut content);
 
@@ -264,5 +280,98 @@ impl ObjectReaderFuzzer {
                 self.actions
             )
         }
+    }
+}
+
+/// ObjectWriterFuzzer is the fuzzer for object writer.
+///
+/// We will generate random write operations to operate on object
+/// write to check if the output is expected.
+///
+/// # TODO
+///
+/// This fuzzer only generate valid operations.
+///
+/// In the future, we need to generate invalid operations to check if we
+/// handled correctly.
+pub struct ObjectWriterFuzzer {
+    name: String,
+    bs: Vec<u8>,
+
+    size: Option<usize>,
+    cur: usize,
+    rng: ThreadRng,
+    actions: Vec<ObjectWriterAction>,
+}
+
+#[derive(Clone)]
+pub enum ObjectWriterAction {
+    Write(Bytes),
+}
+
+impl Debug for ObjectWriterAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ObjectWriterAction::Write(bs) => write!(f, "Write({})", bs.len()),
+        }
+    }
+}
+
+impl ObjectWriterFuzzer {
+    /// Create a new fuzzer.
+    pub fn new(name: &str, size: Option<usize>) -> Self {
+        Self {
+            name: name.to_string(),
+            bs: Vec::new(),
+
+            size,
+            cur: 0,
+
+            rng: thread_rng(),
+            actions: vec![],
+        }
+    }
+
+    /// Generate a new action.
+    pub fn fuzz(&mut self) -> ObjectWriterAction {
+        let max = if let Some(size) = self.size {
+            size - self.cur
+        } else {
+            // Set max to 1MiB
+            1024 * 1024
+        };
+
+        let size = self.rng.gen_range(0..max);
+
+        let mut bs = vec![0; size];
+        self.rng.fill_bytes(&mut bs);
+
+        let bs = Bytes::from(bs);
+        self.bs.extend_from_slice(&bs);
+        self.cur += bs.len();
+
+        let action = ObjectWriterAction::Write(bs);
+        debug!("{} perform fuzz action: {:?}", self.name, action);
+
+        self.actions.push(action.clone());
+
+        action
+    }
+
+    /// Check if read operation is expected.
+    pub fn check(&mut self, actual_bs: &[u8]) {
+        assert_eq!(
+            self.bs.len(),
+            actual_bs.len(),
+            "check failed: expected len is different with actual len, actions: {:?}",
+            self.actions
+        );
+
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&self.bs)),
+            format!("{:x}", Sha256::digest(actual_bs)),
+            "check failed: expected bs is different with actual bs, actions: {:?}",
+            self.actions,
+        );
     }
 }

@@ -21,7 +21,14 @@
 #include "opendal.h"
 #include "stdio.h"
 
-void test_operator_rw(opendal_operator_ptr ptr) {
+// Tests the basic IO operations work as expected
+//
+// Asserts:
+// * A valid ptr is given
+// * The blocking write operation is successful
+// * The blocking read operation is successful and works as expected
+void test_operator_rw(opendal_operator_ptr ptr)
+{
     // have to be valid ptr
     assert(ptr);
 
@@ -30,7 +37,7 @@ void test_operator_rw(opendal_operator_ptr ptr) {
     char content[] = "Hello World";
     const opendal_bytes data = {
         .len = sizeof(content) - 1,
-        .data = (uint8_t *)content,
+        .data = (uint8_t*)content,
     };
     opendal_code code = opendal_operator_blocking_write(ptr, path, data);
     assert(code == OPENDAL_OK);
@@ -48,12 +55,17 @@ void test_operator_rw(opendal_operator_ptr ptr) {
     opendal_bytes_free(r.data);
 }
 
-int main(int argc, char *argv[]) {
-    // test memory operator
+int main(int argc, char* argv[])
+{
+    // construct the memory operator
     char scheme1[] = "memory";
     opendal_operator_ptr p1 = opendal_operator_new(scheme1);
     assert(p1);
+
     test_operator_rw(p1);
+
+    // free the operator
+    opendal_operator_free(p1);
 
     return 0;
 }

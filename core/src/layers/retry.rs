@@ -168,15 +168,15 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         &self.inner
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        { || self.inner.create(path, args.clone()) }
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        { || self.inner.create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
-                    Operation::Create, dur.as_secs_f64(), err)
+                    Operation::CreateDir, dur.as_secs_f64(), err)
             })
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
@@ -242,6 +242,34 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Delete, dur.as_secs_f64(), err)
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
+    }
+
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        { || self.inner.copy(from, to, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Copy, dur.as_secs_f64(), err)
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        { || self.inner.rename(from, to, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Rename, dur.as_secs_f64(), err)
             })
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
@@ -322,15 +350,15 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        { || self.inner.blocking_create(path, args.clone()) }
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        { || self.inner.blocking_create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
-                    Operation::BlockingCreate, dur.as_secs_f64(), err)
+                    Operation::BlockingCreateDir, dur.as_secs_f64(), err)
             })
             .call()
             .map_err(|e| e.set_persistent())
@@ -651,11 +679,11 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
         }
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
+    async fn abort(&mut self) -> Result<()> {
         let mut backoff = self.builder.build();
 
         loop {
-            match self.inner.append(bs.clone()).await {
+            match self.inner.abort().await {
                 Ok(v) => return Ok(v),
                 Err(e) if !e.is_temporary() => return Err(e),
                 Err(e) => match backoff.next() {
@@ -663,7 +691,7 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
                     Some(dur) => {
                         warn!(target: "opendal::service",
                               "operation={} path={} -> pager retry after {}s: error={:?}",
-                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
+                              WriteOperation::Abort, self.path, dur.as_secs_f64(), e);
                         tokio::time::sleep(dur).await;
                         continue;
                     }
@@ -704,20 +732,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for RetryWrapper<R> {
                 target: "opendal::service",
                 "operation={} -> pager retry after {}s: error={:?}",
                 WriteOperation::BlockingWrite, dur.as_secs_f64(), err)
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        { || self.inner.append(bs.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(move |err, dur| {
-                warn!(
-                target: "opendal::service",
-                "operation={} -> pager retry after {}s: error={:?}",
-                WriteOperation::BlockingAppend, dur.as_secs_f64(), err)
             })
             .call()
             .map_err(|e| e.set_persistent())
@@ -830,8 +844,11 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capabilities(AccessorCapability::List | AccessorCapability::Batch);
-            am.set_hints(AccessorHint::ReadStreamable);
+            am.set_capability(Capability {
+                list: true,
+                batch: true,
+                ..Default::default()
+            });
 
             am
         }

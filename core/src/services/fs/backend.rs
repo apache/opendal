@@ -24,8 +24,8 @@ use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
+use chrono::DateTime;
 use log::debug;
-use time::OffsetDateTime;
 use tokio::fs;
 use uuid::Uuid;
 
@@ -300,54 +300,28 @@ impl Accessor for FsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root.to_string_lossy())
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::Copy
-                    | AccessorCapability::Rename
-                    | AccessorCapability::List
-                    | AccessorCapability::Blocking,
-            )
-            .set_hints(AccessorHint::ReadSeekable);
+            .set_capability(Capability {
+                read: true,
+                read_can_seek: true,
+                write: true,
+                write_without_content_length: true,
+                create_dir: true,
+                list: true,
+                copy: true,
+                rename: true,
+                blocking: true,
+                ..Default::default()
+            });
 
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        if args.mode() == EntryMode::FILE {
-            let parent = p
-                .parent()
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "path should have parent but not, it must be malformed",
-                    )
-                    .with_context("input", p.to_string_lossy())
-                })?
-                .to_path_buf();
+        fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
-            fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
-
-            fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(&p)
-                .await
-                .map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        if args.mode() == EntryMode::DIR {
-            fs::create_dir_all(&p).await.map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        unreachable!()
+        Ok(RpCreate::default())
     }
 
     /// # Notes
@@ -494,7 +468,7 @@ impl Accessor for FsBackend {
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
-                    .map(OffsetDateTime::from)
+                    .map(DateTime::from)
                     .map_err(parse_io_error)?,
             );
 
@@ -540,39 +514,12 @@ impl Accessor for FsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        if args.mode() == EntryMode::FILE {
-            let parent = p
-                .parent()
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "path should have parent but not, it must be malformed",
-                    )
-                    .with_context("input", p.to_string_lossy())
-                })?
-                .to_path_buf();
+        std::fs::create_dir_all(p).map_err(parse_io_error)?;
 
-            std::fs::create_dir_all(parent).map_err(parse_io_error)?;
-
-            std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(&p)
-                .map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        if args.mode() == EntryMode::DIR {
-            std::fs::create_dir_all(&p).map_err(parse_io_error)?;
-
-            return Ok(RpCreate::default());
-        }
-
-        unreachable!()
+        Ok(RpCreate::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -706,7 +653,7 @@ impl Accessor for FsBackend {
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
-                    .map(OffsetDateTime::from)
+                    .map(DateTime::from)
                     .map_err(parse_io_error)?,
             );
 

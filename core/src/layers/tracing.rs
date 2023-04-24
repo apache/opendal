@@ -151,8 +151,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.create(path, args).await
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.create_dir(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -169,6 +169,16 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().copy(from, to, args).await
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().rename(from, to, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -198,8 +208,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args)
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner.presign(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -208,8 +218,8 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.blocking_create(path, args)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.blocking_create_dir(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -224,6 +234,16 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
         self.inner
             .blocking_write(path, args)
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner().blocking_copy(from, to, args)
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner().blocking_rename(from, to, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -328,8 +348,8 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).await
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 
     #[tracing::instrument(
@@ -348,14 +368,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
         skip_all)]
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs)
-    }
-
-    #[tracing::instrument(
-        parent = &self.span,
-        level = "trace",
-        skip_all)]
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs)
     }
 
     #[tracing::instrument(

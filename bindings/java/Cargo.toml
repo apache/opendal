@@ -33,4 +33,4 @@ doc = false
 
 [dependencies]
 jni = "0.21.1"
-opendal = { version = "0.30", path = "../../core" }
+opendal.workspace = true

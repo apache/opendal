@@ -316,7 +316,13 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Redis,
             &self.client.get_connection_info().addr.to_string(),
-            AccessorCapability::Read | AccessorCapability::Write,
+            Capability {
+                read: true,
+                write: true,
+                create_dir: true,
+
+                ..Default::default()
+            },
         )
     }
 
@@ -350,6 +356,8 @@ impl kv::Adapter for Adapter {
 
 impl From<RedisError> for Error {
     fn from(e: RedisError) -> Self {
-        Error::new(ErrorKind::Unexpected, e.category()).set_source(e)
+        Error::new(ErrorKind::Unexpected, e.category())
+            .set_source(e)
+            .set_temporary()
     }
 }

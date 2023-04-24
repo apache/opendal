@@ -36,6 +36,11 @@ mod metrics;
 #[cfg(feature = "layers-metrics")]
 pub use self::metrics::MetricsLayer;
 
+#[cfg(feature = "layers-prometheus")]
+mod prometheus;
+#[cfg(feature = "layers-prometheus")]
+pub use self::prometheus::PrometheusLayer;
+
 mod retry;
 pub use self::retry::RetryLayer;
 
@@ -43,6 +48,11 @@ pub use self::retry::RetryLayer;
 mod tracing;
 #[cfg(feature = "layers-tracing")]
 pub use self::tracing::TracingLayer;
+
+#[cfg(feature = "layers-minitrace")]
+mod minitrace;
+#[cfg(feature = "layers-minitrace")]
+pub use self::minitrace::MinitraceLayer;
 
 mod type_eraser;
 pub(crate) use type_eraser::TypeEraseLayer;
@@ -52,3 +62,16 @@ pub(crate) use error_context::ErrorContextLayer;
 
 mod complete;
 pub(crate) use complete::CompleteLayer;
+
+#[cfg(feature = "layers-madsim")]
+mod madsim;
+
+#[cfg(feature = "layers-madsim")]
+pub use self::madsim::MadsimLayer;
+#[cfg(feature = "layers-madsim")]
+pub use self::madsim::MadsimServer;
+
+#[cfg(feature = "layers-otel-trace")]
+mod oteltrace;
+#[cfg(feature = "layers-otel-trace")]
+pub use self::oteltrace::OtelTraceLayer;

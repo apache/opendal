@@ -19,14 +19,22 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use flagset::flags;
-use flagset::FlagSet;
 
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 /// Underlying trait of all backends for implementors.
+///
+/// The actual data access of storage service happens in Accessor layer.
+/// Every storage supported by OpenDAL must implement [`Accessor`] but not all
+/// methods of [`Accessor`] will be implemented according to how the storage service is.
+///
+/// For example, user can not modify the content from one HTTP file server directly.
+/// So [`Http`][crate::services::Http] implements and provides only read related actions.
+///
+/// [`Accessor`] gives default implementation for all methods which will raise [`ErrorKind::Unsupported`] error.
+/// And what action this [`Accessor`] supports will be pointed out in [`AccessorInfo`].
 ///
 /// # Note
 ///
@@ -53,7 +61,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: oio::BlockingRead;
-    /// Reader is the associated writer the could return in `write` operation.
+    /// Writer is the associated writer the could return in `write` operation.
     type Writer: oio::Write;
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
@@ -75,19 +83,17 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - scheme: declare the scheme of backend.
     /// - capabilities: declare the capabilities of current backend.
-    /// - hints: declare the hints of current backend
     fn info(&self) -> AccessorInfo;
 
     /// Invoke the `create` operation on the specified path
     ///
-    /// Require [`AccessorCapability::Write`]
+    /// Require [`Capability::create_dir`]
     ///
     /// # Behavior
     ///
     /// - Input path MUST match with EntryMode, DON'T NEED to check mode.
     /// - Create on existing dir SHOULD succeed.
-    /// - Create on existing file SHOULD overwrite and truncate.
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -99,7 +105,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Invoke the `read` operation on the specified path, returns a
     /// [`Reader`][crate::Reader] if operate successful.
     ///
-    /// Require [`AccessorCapability::Read`]
+    /// Require [`Capability::read`]
     ///
     /// # Behavior
     ///
@@ -117,7 +123,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Invoke the `write` operation on the specified path, returns a
     /// written size if operate successful.
     ///
-    /// Require [`AccessorCapability::Write`]
+    /// Require [`Capability::write`]
     ///
     /// # Behavior
     ///
@@ -133,7 +139,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `copy` operation on the specified `from` path and `to` path.
     ///
-    /// Require [AccessorCapability::Copy]
+    /// Require [Capability::copy]
     ///
     /// # Behaviour
     ///
@@ -151,7 +157,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `rename` operation on the specified `from` path and `to` path.
     ///
-    /// Require [AccessorCapability::Rename]
+    /// Require [Capability::rename]
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let (_, _, _) = (from, to, args);
 
@@ -163,7 +169,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `stat` operation on the specified path.
     ///
-    /// Require [`AccessorCapability::Read`]
+    /// Require [`Capability::stat`]
     ///
     /// # Behavior
     ///
@@ -181,7 +187,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `delete` operation on the specified path.
     ///
-    /// Require [`AccessorCapability::Write`]
+    /// Require [`Capability::delete`]
     ///
     /// # Behavior
     ///
@@ -198,7 +204,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `list` operation on the specified path.
     ///
-    /// Require [`AccessorCapability::List`]
+    /// Require [`Capability::list`]
     ///
     /// # Behavior
     ///
@@ -215,7 +221,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `scan` operation on the specified path.
     ///
-    /// Require [`AccessorCapability::Scan`]
+    /// Require [`Capability::scan`]
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         let (_, _) = (path, args);
 
@@ -227,12 +233,12 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `presign` operation on the specified path.
     ///
-    /// Require [`AccessorCapability::Presign`]
+    /// Require [`Capability::presign`]
     ///
     /// # Behavior
     ///
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -242,6 +248,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `batch` operations.
+    ///
+    /// Require [`Capability::batch`]
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let _ = args;
 
@@ -253,10 +261,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `blocking_create` operation on the specified path.
     ///
-    /// This operation is the blocking version of [`Accessor::create`]
+    /// This operation is the blocking version of [`Accessor::create_dir`]
     ///
-    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    /// Require [`Capability::create_dir`] and [`Capability::blocking`]
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -269,7 +277,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::read`]
     ///
-    /// Require [`AccessorCapability::Read`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::read`] and [`Capability::blocking`]
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let (_, _) = (path, args);
 
@@ -283,7 +291,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::write`]
     ///
-    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::write`] and [`Capability::blocking`]
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let (_, _) = (path, args);
 
@@ -297,7 +305,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::copy`]
     ///
-    /// Require [`AccessorCapability::Copy`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::copy`] and [`Capability::blocking`]
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let (_, _, _) = (from, to, args);
 
@@ -311,7 +319,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::rename`]
     ///
-    /// Require [`AccessorCapability::Rename`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::rename`] and [`Capability::blocking`]
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let (_, _, _) = (from, to, args);
 
@@ -325,7 +333,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::stat`]
     ///
-    /// Require [`AccessorCapability::Read`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::stat`] and [`Capability::blocking`]
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let (_, _) = (path, args);
 
@@ -339,7 +347,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::delete`]
     ///
-    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::write`] and [`Capability::blocking`]
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let (_, _) = (path, args);
 
@@ -353,7 +361,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::list`]
     ///
-    /// Require [`AccessorCapability::List`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::list`] and [`Capability::blocking`]
     ///
     /// # Behavior
     ///
@@ -369,7 +377,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `blocking_scan` operation on the specified path.
     ///
-    /// Require [`AccessorCapability::Scan`] and [`AccessorCapability::Blocking`]
+    /// Require [`Capability::scan`] and [`Capability::blocking`]
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         let (_, _) = (path, args);
 
@@ -395,9 +403,7 @@ impl Accessor for () {
             scheme: Scheme::Custom("dummy"),
             root: "".to_string(),
             name: "dummy".to_string(),
-            max_batch_operations: None,
-            capabilities: None.into(),
-            hints: None.into(),
+            capability: Capability::default(),
         }
     }
 }
@@ -417,8 +423,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().info()
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().create(path, args).await
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.as_ref().create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -453,12 +459,12 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().batch(args).await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.as_ref().presign(path, args)
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.as_ref().presign(path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().blocking_create(path, args)
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.as_ref().blocking_create_dir(path, args)
     }
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.as_ref().blocking_read(path, args)
@@ -490,7 +496,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
 }
 
-/// FusedAccessor is the type erased accessor with `Box<dyn Read>`.
+/// FusedAccessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type FusedAccessor = Arc<
     dyn Accessor<
         Reader = oio::Reader,
@@ -508,11 +514,8 @@ pub struct AccessorInfo {
     scheme: Scheme,
     root: String,
     name: String,
-    /// limit of batch operation
-    /// only meaningful when accessor supports batch operation
-    max_batch_operations: Option<usize>,
-    capabilities: FlagSet<AccessorCapability>,
-    hints: FlagSet<AccessorHint>,
+
+    capability: Capability,
 }
 
 impl AccessorInfo {
@@ -556,85 +559,19 @@ impl AccessorInfo {
         self
     }
 
-    /// backend's number limitation of operations in a single batch.
-    ///
-    /// # Note
-    /// - Got Some(x): limitation is x
-    /// - Got None: no limitation
-    pub(crate) fn max_batch_operations(&self) -> Option<usize> {
-        self.max_batch_operations
-    }
-
-    /// Set batch size limit for backend.
-    pub(crate) fn set_max_batch_operations(&mut self, limit: usize) -> &mut Self {
-        self.max_batch_operations = Some(limit);
-        self
+    /// Get backend's capabilities.
+    pub fn capability(&self) -> Capability {
+        self.capability
     }
 
     /// Get backend's capabilities.
-    pub fn capabilities(&self) -> FlagSet<AccessorCapability> {
-        self.capabilities
+    pub fn capability_mut(&mut self) -> &mut Capability {
+        &mut self.capability
     }
 
     /// Set capabilities for backend.
-    pub fn set_capabilities(
-        &mut self,
-        capabilities: impl Into<FlagSet<AccessorCapability>>,
-    ) -> &mut Self {
-        self.capabilities = capabilities.into();
+    pub fn set_capability(&mut self, capability: Capability) -> &mut Self {
+        self.capability = capability;
         self
-    }
-
-    /// Get backend's hints.
-    pub fn hints(&self) -> FlagSet<AccessorHint> {
-        self.hints
-    }
-
-    /// Set hints for backend.
-    pub fn set_hints(&mut self, hints: impl Into<FlagSet<AccessorHint>>) -> &mut Self {
-        self.hints = hints.into();
-        self
-    }
-}
-
-flags! {
-    /// AccessorCapability describes accessor's advanced capability.
-    pub enum AccessorCapability: u32 {
-        /// Add this capability if service supports `read` and `stat`
-        Read,
-        /// Add this capability if service supports `write` and `delete`
-        Write,
-        /// Add this capability if service supports `copy`
-        Copy,
-        /// Add this capability if service supports `rename`
-        Rename,
-        /// Add this capability if service supports `list`
-        List,
-        /// Add this capability if service supports `scan`
-        Scan,
-        /// Add this capability if service supports `presign`
-        Presign,
-        /// Add this capability if service supports `blocking`
-        Blocking,
-        /// Add this capability if service supports `batch`
-        Batch,
-    }
-}
-
-flags! {
-    /// AccessorHint describes accessor's hint.
-    ///
-    /// Hint means developers can do optimize for this accessor.
-    ///
-    /// All hints are internal used only and will not be exposed to users.
-    pub enum AccessorHint: u64 {
-        /// Read seekable means the underlying read is seekable.
-        ///
-        /// We can reuse the same reader instead of always creating new one.
-        ReadSeekable,
-        /// Read streamable means the underlying read is streamable.
-        ///
-        /// It's better to use stream to reading data.
-        ReadStreamable,
     }
 }

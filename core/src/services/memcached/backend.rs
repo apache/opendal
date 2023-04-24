@@ -231,7 +231,13 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Memcached,
             "memcached",
-            AccessorCapability::Read | AccessorCapability::Write,
+            Capability {
+                read: true,
+                write: true,
+                create_dir: true,
+
+                ..Default::default()
+            },
         )
     }
 

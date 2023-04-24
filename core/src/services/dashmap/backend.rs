@@ -22,7 +22,6 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -38,20 +37,35 @@ use crate::*;
 /// - [ ] ~~presign~~
 /// - [x] blocking
 #[derive(Default)]
-pub struct DashmapBuilder {}
+pub struct DashmapBuilder {
+    root: Option<String>,
+}
+
+impl DashmapBuilder {
+    /// Set the root for dashmap.
+    pub fn root(&mut self, path: &str) -> &mut Self {
+        self.root = Some(path.into());
+        self
+    }
+}
 
 impl Builder for DashmapBuilder {
     const SCHEME: Scheme = Scheme::Dashmap;
     type Accessor = DashmapBackend;
 
-    fn from_map(_: HashMap<String, String>) -> Self {
-        Self::default()
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Self::default();
+
+        map.get("root").map(|v| builder.root(v));
+
+        builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         Ok(DashmapBackend::new(Adapter {
             inner: DashMap::default(),
-        }))
+        })
+        .with_root(self.root.as_deref().unwrap_or_default()))
     }
 }
 
@@ -69,7 +83,12 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Dashmap,
             &format!("{:?}", &self.inner as *const _),
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::Scan,
+            Capability {
+                read: true,
+                write: true,
+                scan: true,
+                ..Default::default()
+            },
         )
     }
 
@@ -121,6 +140,7 @@ impl kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::raw::*;
 
     #[test]
     fn test_accessor_metadata_name() {

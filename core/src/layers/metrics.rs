@@ -213,12 +213,12 @@ impl MetricsHandler {
             requests_total_create: register_counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::Create.into_static(),
+                LABEL_OPERATION => Operation::CreateDir.into_static(),
             ),
             requests_duration_seconds_create: register_histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::Create.into_static(),
+                LABEL_OPERATION => Operation::CreateDir.into_static(),
             ),
 
             requests_total_read: register_counter!(
@@ -322,12 +322,12 @@ impl MetricsHandler {
             requests_total_blocking_create: register_counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+                LABEL_OPERATION => Operation::BlockingCreateDir.into_static(),
             ),
             requests_duration_seconds_blocking_create: register_histogram!(
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+                LABEL_OPERATION => Operation::BlockingCreateDir.into_static(),
             ),
 
             requests_total_blocking_read: register_counter!(
@@ -460,13 +460,13 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         result
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.handle.requests_total_create.increment(1);
 
         let start = Instant::now();
 
         self.inner
-            .create(path, args)
+            .create_dir(path, args)
             .map(|v| {
                 let dur = start.elapsed().as_secs_f64();
 
@@ -474,7 +474,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
 
                 v.map_err(|e| {
                     self.handle
-                        .increment_errors_total(Operation::Create, e.kind());
+                        .increment_errors_total(Operation::CreateDir, e.kind());
                     e
                 })
             })
@@ -630,11 +630,11 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.handle.requests_total_presign.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.presign(path, args);
+        let result = self.inner.presign(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         self.handle.requests_duration_seconds_presign.record(dur);
@@ -646,11 +646,11 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.handle.requests_total_blocking_create.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.blocking_create(path, args);
+        let result = self.inner.blocking_create_dir(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         self.handle
@@ -659,7 +659,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
 
         result.map_err(|e| {
             self.handle
-                .increment_errors_total(Operation::BlockingCreate, e.kind());
+                .increment_errors_total(Operation::BlockingCreateDir, e.kind());
             e
         })
     }
@@ -925,16 +925,11 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
             })
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        self.inner
-            .append(bs)
-            .await
-            .map(|_| self.bytes += size as u64)
-            .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
-                err
-            })
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
+            self.handle.increment_errors_total(self.op, err.kind());
+            err
+        })
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -950,17 +945,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
         let size = bs.len();
         self.inner
             .write(bs)
-            .map(|_| self.bytes += size as u64)
-            .map_err(|err| {
-                self.handle.increment_errors_total(self.op, err.kind());
-                err
-            })
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        self.inner
-            .append(bs)
             .map(|_| self.bytes += size as u64)
             .map_err(|err| {
                 self.handle.increment_errors_total(self.op, err.kind());

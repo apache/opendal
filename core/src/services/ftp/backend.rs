@@ -36,7 +36,6 @@ use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
-use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 
 use super::pager::FtpPager;
@@ -317,15 +316,18 @@ impl Accessor for FtpBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            .set_capability(Capability {
+                read: true,
+                write: true,
+                list: true,
+                ..Default::default()
+            });
 
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let mut ftp_stream = self.ftp_connect(Operation::CreateDir).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
 
@@ -333,22 +335,16 @@ impl Accessor for FtpBackend {
 
         for path in paths {
             curr_path.push_str(path);
-            // try to create directory
-            if curr_path.ends_with('/') {
-                match ftp_stream.mkdir(&curr_path).await {
-                    // Do nothing if status is FileUnavailable or OK(()) is return.
-                    Err(FtpError::UnexpectedResponse(Response {
-                        status: Status::FileUnavailable,
-                        ..
-                    }))
-                    | Ok(()) => (),
-                    Err(e) => {
-                        return Err(e.into());
-                    }
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(e.into());
                 }
-            } else {
-                // else, create file
-                ftp_stream.put_file(&curr_path, &mut "".as_bytes()).await?;
             }
         }
 
@@ -389,11 +385,33 @@ impl Accessor for FtpBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
+        if args.content_length().is_none() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "append write is not supported",
+                "write without content length is not supported",
             ));
+        }
+
+        // Ensure the parent dir exists.
+        let parent = get_parent(path);
+        let paths: Vec<&str> = parent.split('/').collect();
+
+        // TODO: we can optimize this by checking dir existence first.
+        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+        let mut curr_path = String::new();
+        for path in paths {
+            curr_path.push_str(path);
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
         }
 
         Ok((
@@ -419,7 +437,7 @@ impl Accessor for FtpBackend {
         };
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(OffsetDateTime::from(file.modified()));
+        meta.set_last_modified(file.modified().into());
 
         Ok(RpStat::new(meta))
     }

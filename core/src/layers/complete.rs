@@ -23,6 +23,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 
 use crate::ops::*;
 use crate::raw::oio::into_reader::RangeReader;
@@ -151,10 +152,9 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
-        let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadSeekable),
-            self.meta.hints().contains(AccessorHint::ReadStreamable),
-        );
+        let capability = self.meta.capability();
+        let seekable = capability.read_can_seek;
+        let streamable = capability.read_can_next;
 
         let range = args.range();
         let (rp, r) = self.inner.read(path, args).await?;
@@ -201,10 +201,9 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
-        let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadSeekable),
-            self.meta.hints().contains(AccessorHint::ReadStreamable),
-        );
+        let capability = self.meta.capability();
+        let seekable = capability.read_can_seek;
+        let streamable = capability.read_can_next;
 
         let (rp, r) = self.inner.blocking_read(path, args)?;
 
@@ -226,10 +225,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_list {
             let (rp, p) = self.inner.list(path, args).await?;
@@ -252,10 +249,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_list {
             let (rp, p) = self.inner.blocking_list(path, args)?;
@@ -278,10 +273,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpScan,
     ) -> Result<(RpScan, CompletePager<A, A::Pager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_scan {
             let (rp, p) = self.inner.scan(path, args).await?;
@@ -303,10 +296,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpScan,
     ) -> Result<(RpScan, CompletePager<A, A::BlockingPager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_scan {
             let (rp, p) = self.inner.blocking_scan(path, args)?;
@@ -329,8 +320,8 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
+    type Writer = CompleteWriter<A::Writer>;
+    type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Pager = CompletePager<A, A::Pager>;
     type BlockingPager = CompletePager<A, A::BlockingPager>;
 
@@ -365,11 +356,18 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args).await
+        let size = args.content_length();
+        self.inner
+            .write(path, args)
+            .await
+            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args)
+        let size = args.content_length();
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
@@ -423,7 +421,7 @@ where
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         use CompleteReader::*;
 
         match self {
@@ -460,7 +458,7 @@ where
         }
     }
 
-    fn next(&mut self) -> Option<Result<bytes::Bytes>> {
+    fn next(&mut self) -> Option<Result<Bytes>> {
         use CompleteReader::*;
 
         match self {
@@ -507,5 +505,147 @@ where
             NeedFlat(p) => p.next(),
             NeedHierarchy(p) => p.next(),
         }
+    }
+}
+
+pub struct CompleteWriter<W> {
+    inner: Option<W>,
+    size: Option<u64>,
+    written: u64,
+}
+
+impl<W> CompleteWriter<W> {
+    pub fn new(inner: W, size: Option<u64>) -> CompleteWriter<W> {
+        CompleteWriter {
+            inner: Some(inner),
+            size,
+            written: 0,
+        }
+    }
+}
+
+/// Check if the writer has been closed or aborted while debug_assertions
+/// enabled. This code will never be executed in release mode.
+#[cfg(debug_assertions)]
+impl<W> Drop for CompleteWriter<W> {
+    fn drop(&mut self) {
+        if self.inner.is_some() {
+            // Do we need to panic here?
+            log::warn!("writer has not been closed or aborted, must be a bug")
+        }
+    }
+}
+
+#[async_trait]
+impl<W> oio::Write for CompleteWriter<W>
+where
+    W: oio::Write,
+{
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        let n = bs.len();
+
+        if let Some(size) = self.size {
+            if self.written + n as u64 > size {
+                return Err(Error::new(
+                    ErrorKind::ContentTruncated,
+                    &format!(
+                        "writer got too much data, expect: {size}, actual: {}",
+                        self.written + n as u64
+                    ),
+                ));
+            }
+        }
+
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        w.write(bs).await?;
+        self.written += n as u64;
+        Ok(())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.abort().await?;
+        self.inner = None;
+
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        if let Some(size) = self.size {
+            if self.written < size {
+                return Err(Error::new(
+                    ErrorKind::ContentIncomplete,
+                    &format!(
+                        "writer got too less data, expect: {size}, actual: {}",
+                        self.written
+                    ),
+                ));
+            }
+        }
+
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.close().await?;
+        self.inner = None;
+
+        Ok(())
+    }
+}
+
+impl<W> oio::BlockingWrite for CompleteWriter<W>
+where
+    W: oio::BlockingWrite,
+{
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        let n = bs.len();
+
+        if let Some(size) = self.size {
+            if self.written + n as u64 > size {
+                return Err(Error::new(
+                    ErrorKind::ContentTruncated,
+                    &format!(
+                        "writer got too much data, expect: {size}, actual: {}",
+                        self.written + n as u64
+                    ),
+                ));
+            }
+        }
+
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.write(bs)?;
+        self.written += n as u64;
+        Ok(())
+    }
+
+    fn close(&mut self) -> Result<()> {
+        if let Some(size) = self.size {
+            if self.written < size {
+                return Err(Error::new(
+                    ErrorKind::ContentIncomplete,
+                    &format!(
+                        "writer got too less data, expect: {size}, actual: {}",
+                        self.written
+                    ),
+                ));
+            }
+        }
+
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.close()?;
+        self.inner = None;
+        Ok(())
     }
 }

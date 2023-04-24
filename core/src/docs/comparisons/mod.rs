@@ -20,7 +20,7 @@
 //! All documents listed should be treated as highly biased. Because:
 //!
 //! - OpenDAL's maintainers and contributors write them.
-//! - Writers may not be familiar with the compared projects (at least not as //!familiar as with OpenDAL)
+//! - Writers may not be familiar with the compared projects (at least not as familiar with OpenDAL)
 //!
 //! Let's see OpenDAL:
 //!

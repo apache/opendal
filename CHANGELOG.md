@@ -5,6 +5,206 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.33.0] - 2023-04-23
+
+### Added
+
+- feat: Add OpenTelemetry Trace Layer (#2001)
+- feat: add if_none_match support for azblob (#2035)
+- feat: add if_none_match/if_match for gcs (#2039)
+- feat: Add size check for sized writer (#2038)
+- feat(services/azblob): Add if-match support (#2037)
+- feat(core): add copy&rename to error_context layer (#2040)
+- feat: add if-match support for OSS (#2034)
+- feat: Bootstrap new (old) project oay (#2041)
+- feat(services/OSS): Add override_content_disposition support (#2043)
+- feat: add IF_MATCH for http (#2044)
+- feat: add IF_MATCH for http HEAD request (#2047)
+- feat: add cache control header for azblob and obs (#2049)
+- feat: Add capability for operation's variant and args (#2057)
+- feat(azblob): Add override_content_disposition support (#2065)
+- feat(core): test for read_with_override_content_composition (#2067)
+- feat(core): Add `start-after` support for list (#2071)
+
+### Changed
+
+- refactor: Polish Writer API by merging append and write together (#2036)
+- refactor(raw/http_util): Add url in error context (#2066)
+- refactor: Allow reusing the same operator to speed up tests (#2068)
+
+### Fixed
+
+- fix(bindings/ruby): use rb_sys_env to help find ruby for building (#2051)
+- fix: MadsimLayer should be able to built without cfg (#2059)
+- fix(services/s3): Ignore prefix if it's empty (#2064)
+
+### Docs
+
+- docs(bindings/python): ipynb examples for users (#2061)
+
+### CI
+
+- ci(bindings/nodejs): publish support `--provenance` (#2046)
+- ci: upgrade typos to 1.14.8 (#2055)
+- chore(bindings/C): ignore the formatting of auto-generated opendal.h (#2056)
+
+## [v0.32.0] - 2023-04-18
+
+### Added
+
+- feat: Add wasabi service implementation (#2004)
+- feat: improve the readability of oli command line error output (#2016)
+- feat: add If-Match Support for OpRead, OpWrite, OpStat (#2017)
+- feat: add behavioral test for Write::abort (#2018)
+- feat: add if-match support for obs (#2023)
+- feat: Add missing functions for trace layers (#2025)
+- feat(layer): add madsim layer (#2006)
+- feat(gcs): add support for gcs append (#1801)
+
+### Changed
+
+- refactor: Rename `Create` to `CreateDir` for its behavior changed (#2019)
+
+### Fixed
+
+- fix: Cargo lock not updated (#2027)
+- fix(services/s3): Ignore empty query to make it more compatible (#2028)
+- fix(services/oss): Fix env not loaded for oss signer (#2029)
+
+### Docs
+
+- docs: fix some typos (#2022)
+- docs: add dev dependency section (#2021)
+
+## [v0.31.1] - 2023-04-17
+
+### Added
+
+- feat(services/azdfs): support rename (#1929)
+- test: Increate copy/move nested path test depth (#1932)
+- feat(layers): add a basic minitrace layer (#1931)
+- feat: add Writer::abort method (#1937)
+- feat(services/gcs): Allow setting PredefinedAcl (#1989)
+- feat(services/oss): add oss cache-control header support (#1986)
+- feat: Add PreconditionFailed Error so users can handle them (#1993)
+- feat: add http if_none_match support (#1995)
+- feat: add oss if-none-match support (#1997)
+- feat(services/gcs): Allow setting default storage_class (#1996)
+- feat(binding/C): add clang-format for c binding (#2003)
+
+### Changed
+
+- refactor: Polish the behavior of scan (#1926)
+- refactor: Polish the implementation of webhdfs (#1935)
+
+### Fixed
+
+- fix: sled should not be enabled by default (#1923)
+- fix: kv adapter's writer implementation fixed to honour empty writes (#193
+4)
+- fix(services/azblob): fix copy missing content-length (#2000)
+
+### Docs
+
+- docs: Adding docs link to python binding (#1921)
+- docs(bindings/python): fix wrong doc link (#1928)
+- docs: Add contributing for OpenDAL (#1984)
+- docs: Add explanation in contributing (#1985)
+- docs: Feel relax in community and don't hurry (#1987)
+- docs: update contributing (#1998)
+- docs(services/memory): Fix wrong explanation (#2002)
+- docs: Add OpenDAL VISION (#2007)
+- docs: update VISION and behavior tests doc (#2009)
+
+### CI
+
+- ci(bindings/nodejs): Access should be set to public before publish (#1919)
+- ci: Re-enable webhdfs test (#1925)
+- chore: add .editorconfig (#1988)
+- ci: Fix format after adding editorconfig (#1990)
+
+## [v0.31.0] - 2023-04-12
+
+### Added
+
+- feat(bindings/java): add cucumber test (#1809)
+- feat(bindings/java): setup Java CI (#1823)
+- feat: add if_none_match support (#1832)
+- feat: Retry when some of batch operations are failing (#1840)
+- feat: add writer support for aliyun oss (#1842)
+- feat(core): Add Copy Support (#1841)
+- feat(bindings/c): fix c bindings makefile (#1849)
+- feat(core): add behavior tests for copy & blocking_copy (#1852)
+- feat(s3): allow users to specify storage_class (#1854)
+- feat(s3): Support copy (#1856)
+- Add check for s3 bucket name (#1857)
+- feat(core): Support rename (#1862)
+- feat(bindings/nodejs): add `copy` and `rename` (#1866)
+- feat(azblob): Support copy (#1868)
+- feat(gcs): copy support for GCS (#1869)
+- feat(bindings/c): framework of add basic io and init logics (#1861)
+- feat(webdav): support copy (#1870)
+- feat(services/oss): Add Copy Support (#1874)
+- feat(services/obs): Add Copy Support (#1876)
+- feat(services/webdav): Support Rename (#1878)
+- binding/c: parse opendal to use typed BlockingOperator (#1881)
+- binding/c: clean up comments and type assertion for BlockingOperator (#1883)
+- binding(python): Support python binding benchmark for opendal (#1882)
+- feat(bindings/c): add support for free heap-allocated operator (#1890)
+- feat(binding/c): add is_exist to operator (#1892)
+- feat(bindings/java): add Stat support (#1894)
+- feat(services/gcs): Add customed token loader support (#1908)
+- feat(services/oss): remove unused builder prop allow_anonymous (#1913)
+- feat: Add feature flag for all services (#1915)
+
+### Changed
+
+- refactor(core): Simplify the usage of BatchOperation and BatchResults (#1843)
+- refactor: Use reqwest blocking client instead of ureq (#1853)
+- refactor: Bump MSRV to 1.64 (#1864)
+- refactor: Remove not used blocking http client (#1895)
+- refactor: Change presign to async for future refactor (#1900)
+- refactor(services/gcs): Migrate to async reqsign (#1906)
+- refactor(services/azdfs): Migrate to async reqsign (#1903)
+- refactor(services/azblob): Adopt new reqsign  (#1902)
+- refactor(services/s3): Migrate to async reqsign (#1909)
+- refactor(services/oss): Migrate to async reqsign (#1911)
+- refactor: Use chrono instead of time to work well with ecosystem (#1912)
+- refactor(service/obs): Migrate obs to async reqsign (#1914)
+
+### Fixed
+
+- fix: podling website check (#1838)
+- fix(website): copyright update (#1839)
+- fix(core): Add checks before doing copy (#1845)
+- fix(core): S3 Copy should set SSE headers (#1860)
+- fix: Fix presign related unit tests (#1910)
+
+### Docs
+
+- docs(bindings/nodejs): fix build failed (#1819)
+- docs: fix several typos in the documentation (#1846)
+- doc(bindings/nodejs): update presign example in doc (#1901)
+
+### CI
+
+- ci: Fix build for nodejs binding on macos (#1813)
+- binding/c: build: add phony to makefile, and some improve (#1850)
+- ci: upgrade hawkeye action (#1834)
+
+### Chore
+
+- chore(bindings/nodejs): add deno benchmark (#1814)
+- chore: Add CODEOWNERS (#1817)
+- chore(deps): bump opentelemetry-jaeger from 0.16.0 to 0.18.0 (#1829)
+- chore(deps): bump opentelemetry from 0.17.0 to 0.19.0 (#1830)
+- chore(deps): bump tokio from 1.26.0 to 1.27.0 (#1828)
+- chore(deps): bump napi-derive from 2.12.1 to 2.12.2 (#1827)
+- chore(deps): bump async-trait from 0.1.67 to 0.1.68 (#1826)
+- chore: Cleanup code for oss writer (#1847)
+- chore: Make clippy happy (#1865)
+- binding(python): Format python code in binding (#1885)
+
 ## [v0.30.5] - 2023-03-31
 
 ### Added
@@ -1758,6 +1958,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.33.0]: https://github.com/apache/incubator-opendal/compare/v0.32.0...v0.33.0
+[v0.32.0]: https://github.com/apache/incubator-opendal/compare/v0.31.1...v0.32.0
+[v0.31.1]: https://github.com/apache/incubator-opendal/compare/v0.31.0...v0.31.1
+[v0.31.0]: https://github.com/apache/incubator-opendal/compare/v0.30.5...v0.31.0
 [v0.30.5]: https://github.com/apache/incubator-opendal/compare/v0.30.4...v0.30.5
 [v0.30.4]: https://github.com/apache/incubator-opendal/compare/v0.30.3...v0.30.4
 [v0.30.3]: https://github.com/apache/incubator-opendal/compare/v0.30.2...v0.30.3

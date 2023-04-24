@@ -219,8 +219,13 @@ impl Accessor for IpfsBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Read | AccessorCapability::List)
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                list: true,
+
+                ..Default::default()
+            });
 
         ma
     }
@@ -414,7 +419,7 @@ impl IpfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn ipfs_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -428,7 +433,7 @@ impl IpfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn ipfs_list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -448,7 +453,7 @@ impl IpfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

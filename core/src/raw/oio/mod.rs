@@ -43,6 +43,7 @@ pub use write::Writer;
 
 mod cursor;
 pub use cursor::Cursor;
+pub use cursor::VectorCursor;
 
 mod into_streamable;
 pub use into_streamable::into_streamable_reader;

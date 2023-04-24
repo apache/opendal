@@ -25,7 +25,13 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Backend of kv service.
+/// Backend of kv service. If the storage service is one k-v-like service, it should implement this kv [`Backend`] by right.
+///
+/// `Backend` implements one general logic on how to read, write, scan the data from one kv store efficiently.
+/// And the [`Adapter`] held by `Backend` will handle how to communicate with one k-v-like service really and provides
+/// a series of basic operation for this service.
+///
+/// OpenDAL developer can implement one new k-v store backend easily with help of this Backend.
 #[derive(Debug, Clone)]
 pub struct Backend<S: Adapter> {
     kv: Arc<S>,
@@ -62,19 +68,30 @@ impl<S: Adapter> Accessor for Backend<S> {
 
     fn info(&self) -> AccessorInfo {
         let mut am: AccessorInfo = self.kv.metadata().into();
-        am.set_root(&self.root)
-            .set_hints(AccessorHint::ReadStreamable | AccessorHint::ReadSeekable);
+        am.set_root(&self.root);
+
+        let cap = am.capability_mut();
+        if cap.read {
+            cap.read_can_seek = true;
+            cap.read_can_next = true;
+            cap.stat = true;
+        }
+
+        if cap.write {
+            cap.create_dir = true;
+            cap.delete = true;
+        }
 
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = build_abs_path(&self.root, path);
         self.kv.set(&p, &[]).await?;
         Ok(RpCreate::default())
     }
 
-    fn blocking_create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let p = build_abs_path(&self.root, path);
         self.kv.blocking_set(&p, &[])?;
 
@@ -107,13 +124,27 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok((RpRead::new(bs.len() as u64), oio::Cursor::from(bs)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
     }
 
-    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
@@ -209,14 +240,8 @@ pub struct KvPager {
 
 impl KvPager {
     fn new(root: &str, inner: Vec<String>) -> Self {
-        let root = if root == "/" {
-            "".to_string()
-        } else {
-            root.to_string()
-        };
-
         Self {
-            root,
+            root: root.to_string(),
             inner: Some(inner),
         }
     }
@@ -233,11 +258,7 @@ impl KvPager {
                     EntryMode::FILE
                 };
 
-                oio::Entry::new(
-                    v.strip_prefix(&self.root)
-                        .expect("key must start with root"),
-                    Metadata::new(mode),
-                )
+                oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
             })
             .collect();
 
@@ -263,7 +284,7 @@ pub struct KvWriter<S> {
     path: String,
 
     /// TODO: if kv supports append, we can use them directly.
-    buf: Vec<u8>,
+    buf: Option<Vec<u8>>,
 }
 
 impl<S> KvWriter<S> {
@@ -271,33 +292,30 @@ impl<S> KvWriter<S> {
         KvWriter {
             kv,
             path,
-            buf: Vec::new(),
+            buf: None,
         }
     }
 }
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
+    // TODO: we need to support append in the future.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf = bs.into();
+        self.buf = Some(bs.into());
 
         Ok(())
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        if let Err(e) = self.kv.append(&self.path, bs.to_vec().as_slice()).await {
-            if e.kind() == ErrorKind::Unsupported {
-                self.buf.extend(bs);
-            } else {
-                return Err(e);
-            }
-        }
-        Ok(())
+    async fn abort(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
+        ))
     }
 
     async fn close(&mut self) -> Result<()> {
-        if !self.buf.is_empty() {
-            self.kv.set(&self.path, &self.buf).await?;
+        if let Some(buf) = self.buf.as_deref() {
+            self.kv.set(&self.path, buf).await?;
         }
 
         Ok(())
@@ -306,19 +324,15 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf = bs.into();
-
-        Ok(())
-    }
-
-    fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.buf.extend(bs);
+        self.buf = Some(bs.into());
 
         Ok(())
     }
 
     fn close(&mut self) -> Result<()> {
-        self.kv.blocking_set(&self.path, &self.buf)?;
+        if let Some(buf) = self.buf.as_deref() {
+            self.kv.blocking_set(&self.path, buf)?;
+        }
 
         Ok(())
     }

@@ -112,24 +112,22 @@ typedef enum opendal_code {
 typedef struct BlockingOperator BlockingOperator;
 
 /*
- The [`OperatorPtr`] owns a pointer to a [`od::BlockingOperator`].
+ The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
  It is also the key struct that OpenDAL's APIs access the real
  operator's memory. The use of OperatorPtr is zero cost, it
  only returns a reference of the underlying Operator.
 
- The [`OperatorPtr`] also has a transparent layout, allowing you
+ The [`opendal_operator_ptr`] also has a transparent layout, allowing you
  to check its validity by native boolean operator.
- e.g. you could check by (!ptr) on a opendal_operator_ptr type
+ e.g. you could check by (!ptr) on a [`opendal_operator_ptr`]
  */
 typedef const struct BlockingOperator *opendal_operator_ptr;
 
 /*
- The [`Bytes`] type is a C-compatible substitute for [`Bytes`]
+ The [`opendal_bytes`] type is a C-compatible substitute for [`Vec`]
  in Rust, it will not be deallocated automatically like what
  has been done in Rust. Instead, you have to call [`opendal_free_bytes`]
  to free the heap memory to avoid memory leak.
- The field `data` should not be modified since it might causes
- the reallocation of the Vector.
  */
 typedef struct opendal_bytes {
   const uint8_t *data;
@@ -146,6 +144,16 @@ typedef struct opendal_result_read {
   struct opendal_bytes *data;
   enum opendal_code code;
 } opendal_result_read;
+
+/*
+ The result type for [`opendal_operator_is_exist()`], the field `is_exist`
+ contains whether the path exists, and the field `code` contains the
+ corresponding error code.
+ */
+typedef struct opendal_result_is_exist {
+  bool is_exist;
+  enum opendal_code code;
+} opendal_result_is_exist;
 
 #ifdef __cplusplus
 extern "C" {
@@ -165,6 +173,11 @@ extern "C" {
 opendal_operator_ptr opendal_operator_new(const char *scheme);
 
 /*
+ Free the allocated operator pointed by [`opendal_operator_ptr`]
+ */
+void opendal_operator_free(opendal_operator_ptr op_ptr);
+
+/*
  Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
  if succeeds, others otherwise
 
@@ -173,7 +186,10 @@ opendal_operator_ptr opendal_operator_new(const char *scheme);
  It is [safe] under two cases below
  * The memory pointed to by `path` must contain a valid nul terminator at the end of
    the string.
- * The `path` points to NULL, this function simply returns you false
+
+ # Panic
+
+ * If the `path` points to NULL, this function panics
  */
 enum opendal_code opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
                                                   const char *path,
@@ -189,15 +205,39 @@ enum opendal_code opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
  It is [safe] under two cases below
  * The memory pointed to by `path` must contain a valid nul terminator at the end of
    the string.
- * The `path` points to NULL, this function simply returns you a nullptr
+
+ # Panic
+
+ * If the `path` points to NULL, this function panics
  */
 struct opendal_result_read opendal_operator_blocking_read(opendal_operator_ptr op_ptr,
                                                           const char *path);
 
 /*
- Frees the heap memory used by the [`Bytes`]
+ Check whether the path exists.
+
+ If the operation succeeds, no matter the path exists or not,
+ the error code should be opendal_code::OPENDAL_OK. Otherwise,
+ the field `is_exist` is filled with false, and the error code
+ is set correspondingly.
+
+ # Safety
+
+ It is [safe] under two cases below
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
+
+ # Panic
+
+ * If the `path` points to NULL, this function panics
  */
-void opendal_bytes_free(const struct opendal_bytes *vec);
+struct opendal_result_is_exist opendal_operator_is_exist(opendal_operator_ptr op_ptr,
+                                                         const char *path);
+
+/*
+ Frees the heap memory used by the [`opendal_bytes`]
+ */
+void opendal_bytes_free(const struct opendal_bytes *self);
 
 #ifdef __cplusplus
 } // extern "C"

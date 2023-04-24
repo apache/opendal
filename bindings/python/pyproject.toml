@@ -44,7 +44,7 @@ docs = ["pdoc"]
 test = ["behave"]
 
 [project.urls]
-Documentation = "https://docs.rs/opendal/"
+Documentation = "https://opendal.apache.org/docs/python/opendal.html"
 Homepage = "https://opendal.apache.org/"
 Repository = "https://github.com/apache/incubator-opendal"
 

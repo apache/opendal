@@ -67,7 +67,7 @@ impl Reader {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
+    pub(crate) async fn create_dir(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
         let (_, r) = acc.read(path, op).await?;
 
         Ok(Reader {
@@ -195,7 +195,7 @@ impl BlockingReader {
     pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
         let acc_meta = acc.info();
 
-        let r = if acc_meta.hints().contains(AccessorHint::ReadSeekable) {
+        let r = if acc_meta.capability().read_can_seek {
             let (_, r) = acc.blocking_read(path, op)?;
             r
         } else {
@@ -205,7 +205,7 @@ impl BlockingReader {
             ));
         };
 
-        let r = if acc_meta.hints().contains(AccessorHint::ReadStreamable) {
+        let r = if acc_meta.capability().read_can_next {
             r
         } else {
             // Make this capacity configurable.

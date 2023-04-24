@@ -21,11 +21,15 @@ use futures::AsyncSeekExt;
 use futures::StreamExt;
 use log::debug;
 use log::warn;
+use opendal::ops::{OpRead, OpStat};
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
+use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
+use std::str::FromStr;
+use std::time::Duration;
 
 use super::utils::*;
 
@@ -36,28 +40,25 @@ use super::utils::*;
 macro_rules! behavior_write_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _write>] {
+            $(
+                #[test]
                 $(
-                    #[tokio::test]
-                    $(
-                        #[$meta]
-                    )*
-                    async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
-                        match op {
-                            Some(op) if op.info().can_read() && op.info().can_write() => $crate::write::$test(op).await,
-                            Some(_) => {
-                                log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            },
-                            None => {
-                                log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
-                                Ok(())
-                            }
+                    #[$meta]
+                )*
+                fn [<write_ $test >]() -> anyhow::Result<()> {
+                    match OPERATOR.as_ref() {
+                        Some(op) if op.info().can_read() && op.info().can_write() => RUNTIME.block_on($crate::write::$test(op.clone())),
+                        Some(_) => {
+                            log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
+                            Ok(())
+                        },
+                        None => {
+                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
+                            Ok(())
                         }
                     }
-                )*
-            }
+                }
+            )*
         }
     };
 }
@@ -79,6 +80,7 @@ macro_rules! behavior_write_tests {
                 test_stat_with_special_chars,
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
+                test_stat_with_if_match,
                 test_stat_root,
                 test_read_full,
                 test_read_range,
@@ -87,17 +89,22 @@ macro_rules! behavior_write_tests {
                 test_reader_from,
                 test_reader_tail,
                 test_read_not_exist,
+                test_read_with_if_match,
                 test_fuzz_range_reader,
                 test_fuzz_offset_reader,
                 test_fuzz_part_reader,
                 test_read_with_dir_path,
                 test_read_with_special_chars,
+                test_read_with_override_content_disposition,
                 test_delete,
                 test_delete_empty_dir,
                 test_delete_with_special_chars,
                 test_delete_not_existing,
                 test_delete_stream,
-                test_append,
+                test_writer_write,
+                test_writer_abort,
+                test_writer_futures_copy,
+                test_fuzz_unsized_writer,
             );
         )*
     };
@@ -238,6 +245,41 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
+    Ok(())
+}
+
+/// Stat with if_match should succeed, else get a ConditionNotMatch error.
+pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
+    if !op.info().capability().stat_with_if_match {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), size as u64);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_match("invalid_etag");
+
+    let res = op.stat_with(&path, op_stat).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_match(meta.etag().expect("etag must exist"));
+
+    let result = op.stat_with(&path, op_stat).await;
+    assert!(result.is_ok());
+
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -429,6 +471,42 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     Ok(())
 }
 
+// Read with if_match should match, else get a ConditionNotMatch error.
+pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_if_match {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+
+    let mut op_if_match = OpRead::default();
+    op_if_match = op_if_match.with_if_match("invalid_etag");
+
+    let res = op.read_with(&path, op_if_match).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_if_match = OpRead::default();
+    op_if_match = op_if_match.with_if_match(meta.etag().expect("etag must exist"));
+
+    let bs = op
+        .read_with(&path, op_if_match)
+        .await
+        .expect("read must succeed");
+    assert_eq!(bs, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
 pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
@@ -578,6 +656,87 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     Ok(())
 }
 
+// Read file with override_content_disposition should succeed.
+pub async fn test_read_with_override_content_disposition(op: Operator) -> Result<()> {
+    if !(op
+        .info()
+        .capability()
+        .read_with_override_content_disposition
+        && op.info().can_presign())
+    {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_content_disposition = "attachment; filename=foo.txt";
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_override_content_disposition(target_content_disposition);
+
+    let signed_req = op
+        .presign_read_with(&path, op_read, Duration::from_secs(60))
+        .await
+        .expect("presign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), http::StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(http::header::CONTENT_DISPOSITION)
+            .unwrap(),
+        target_content_disposition
+    );
+    assert_eq!(resp.bytes().await?, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+
+    Ok(())
+}
+
+// Delete existing file should succeed.
+pub async fn test_writer_abort(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    let mut writer = match op.writer(&path).await {
+        Ok(writer) => writer,
+        Err(e) => {
+            assert_eq!(e.kind(), ErrorKind::Unsupported);
+            return Ok(());
+        }
+    };
+
+    if let Err(e) = writer.write(content).await {
+        assert_eq!(e.kind(), ErrorKind::Unsupported);
+        return Ok(());
+    }
+
+    if let Err(e) = writer.abort().await {
+        assert_eq!(e.kind(), ErrorKind::Unsupported);
+        return Ok(());
+    }
+
+    // Aborted writer should not write actual file.
+    assert!(!op.is_exist(&path).await?);
+    Ok(())
+}
+
 // Delete existing file should succeed.
 pub async fn test_delete(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
@@ -656,8 +815,8 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Append write
-pub async fn test_append(op: Operator) -> Result<()> {
+// Append data into writer
+pub async fn test_writer_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
@@ -671,8 +830,8 @@ pub async fn test_append(op: Operator) -> Result<()> {
         }
         Err(err) => return Err(err.into()),
     };
-    w.append(content_a.clone()).await?;
-    w.append(content_b.clone()).await?;
+    w.write(content_a.clone()).await?;
+    w.write(content_b.clone()).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
@@ -690,6 +849,66 @@ pub async fn test_append(op: Operator) -> Result<()> {
         format!("{:x}", Sha256::digest(content_b)),
         "read content b"
     );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+// copy data from reader to writer
+pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, size): (Vec<u8>, usize) =
+        gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
+
+    let mut w = match op.writer(&path).await {
+        Ok(w) => w,
+        Err(err) if err.kind() == ErrorKind::Unsupported => {
+            warn!("service doesn't support write with append");
+            return Ok(());
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    futures::io::copy(&mut content.as_slice(), &mut w).await?;
+    w.close().await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
+
+    let bs = op.read(&path).await?;
+    assert_eq!(bs.len(), size, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", Sha256::digest(content)),
+        "read content"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Add test for unsized writer
+pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
+    if !op.info().capability().write_without_content_length {
+        warn!("{op:?} doesn't support write without content length, test skip");
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
+
+    let mut w = op.writer(&path).await?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectWriterAction::Write(bs) => w.write(bs).await?,
+        }
+    }
+    w.close().await?;
+
+    let content = op.read(&path).await?;
+    fuzzer.check(&content);
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

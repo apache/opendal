@@ -56,7 +56,7 @@ dirs = "5.0.0"
 env_logger = "0.10"
 futures = "0.3"
 log = "0.4"
-opendal = { version = "0.30", path = "../../core" }
+opendal.workspace = true
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.27", features = [
   "fs",

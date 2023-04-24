@@ -30,11 +30,11 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
     {
         let meta = acc.info();
         debug_assert!(
-            !meta.capabilities().contains(AccessorCapability::Scan),
+            !meta.capability().scan,
             "service already supports scan, call to_flat_pager must be a mistake"
         );
         debug_assert!(
-            meta.capabilities().contains(AccessorCapability::List),
+            meta.capability().list,
             "service doesn't support list hierarchy, it must be a bug"
         );
     }
@@ -42,6 +42,7 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
     ToFlatPager {
         acc,
         size,
+        root: path.to_string(),
         dirs: VecDeque::from([oio::Entry::new(path, Metadata::new(EntryMode::DIR))]),
         pagers: vec![],
         res: Vec::with_capacity(size),
@@ -87,6 +88,7 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
 pub struct ToFlatPager<A: Accessor, P> {
     acc: A,
     size: usize,
+    root: String,
     dirs: VecDeque<oio::Entry>,
     pagers: Vec<(P, oio::Entry, Vec<oio::Entry>)>,
     res: Vec<oio::Entry>,
@@ -121,7 +123,10 @@ where
                         buf = v;
                     }
                     None => {
-                        self.res.push(de);
+                        // Only push entry if it's not root dir
+                        if de.path() != self.root {
+                            self.res.push(de);
+                        }
                         continue;
                     }
                 }
@@ -178,7 +183,10 @@ where
                         buf = v;
                     }
                     None => {
-                        self.res.push(de);
+                        // Only push entry if it's not root dir
+                        if de.path() != self.root {
+                            self.res.push(de);
+                        }
                         continue;
                     }
                 }
@@ -250,7 +258,7 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capabilities(AccessorCapability::List);
+            am.capability_mut().list = true;
 
             am
         }

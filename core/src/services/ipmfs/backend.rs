@@ -73,20 +73,19 @@ impl Accessor for IpmfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                write: true,
+
+                ..Default::default()
+            });
 
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let resp = match args.mode() {
-            EntryMode::DIR => self.ipmfs_mkdir(path).await?,
-            EntryMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
-            _ => unreachable!(),
-        };
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let resp = self.ipmfs_mkdir(path).await?;
 
         let status = resp.status();
 
@@ -114,10 +113,10 @@ impl Accessor for IpmfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
+        if args.content_length().is_none() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "append write is not supported",
+                "write without content length is not supported",
             ));
         }
 
@@ -196,7 +195,7 @@ impl IpmfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn ipmfs_read(
@@ -224,7 +223,7 @@ impl IpmfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn ipmfs_rm(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -241,7 +240,7 @@ impl IpmfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -258,7 +257,7 @@ impl IpmfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -275,7 +274,7 @@ impl IpmfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
     /// Support write from reader.
@@ -296,7 +295,7 @@ impl IpmfsBackend {
 
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 

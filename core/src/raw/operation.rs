@@ -25,8 +25,8 @@ pub enum Operation {
     /// Operation for [`crate::raw::Accessor::info`]
     #[default]
     Info,
-    /// Operation for [`crate::raw::Accessor::create`]
-    Create,
+    /// Operation for [`crate::raw::Accessor::create_dir`]
+    CreateDir,
     /// Operation for [`crate::raw::Accessor::read`]
     Read,
     /// Operation for [`crate::raw::Accessor::write`]
@@ -47,8 +47,8 @@ pub enum Operation {
     Batch,
     /// Operation for [`crate::raw::Accessor::presign`]
     Presign,
-    /// Operation for [`crate::raw::Accessor::blocking_create`]
-    BlockingCreate,
+    /// Operation for [`crate::raw::Accessor::blocking_create_dir`]
+    BlockingCreateDir,
     /// Operation for [`crate::raw::Accessor::blocking_read`]
     BlockingRead,
     /// Operation for [`crate::raw::Accessor::blocking_write`]
@@ -56,7 +56,7 @@ pub enum Operation {
     /// Operation for [`crate::raw::Accessor::blocking_copy`]
     BlockingCopy,
     /// Operation for [`crate::raw::Accessor::blocking_rename`]
-    BlockingMove,
+    BlockingRename,
     /// Operation for [`crate::raw::Accessor::blocking_stat`]
     BlockingStat,
     /// Operation for [`crate::raw::Accessor::blocking_delete`]
@@ -84,7 +84,7 @@ impl From<Operation> for &'static str {
     fn from(v: Operation) -> &'static str {
         match v {
             Operation::Info => "metadata",
-            Operation::Create => "create",
+            Operation::CreateDir => "create_dir",
             Operation::Read => "read",
             Operation::Write => "write",
             Operation::Copy => "copy",
@@ -95,11 +95,11 @@ impl From<Operation> for &'static str {
             Operation::Scan => "scan",
             Operation::Presign => "presign",
             Operation::Batch => "batch",
-            Operation::BlockingCreate => "blocking_create",
+            Operation::BlockingCreateDir => "blocking_create_dir",
             Operation::BlockingRead => "blocking_read",
             Operation::BlockingWrite => "blocking_write",
             Operation::BlockingCopy => "blocking_copy",
-            Operation::BlockingMove => "blocking_rename",
+            Operation::BlockingRename => "blocking_rename",
             Operation::BlockingStat => "blocking_stat",
             Operation::BlockingDelete => "blocking_delete",
             Operation::BlockingList => "blocking_list",

@@ -17,7 +17,7 @@
 
 # NOTE: All configurations could be found here: https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
 github:
-  description: "Apache OpenDAL: Access data freely, painlessly, and efficiently."
+  description: "Apache OpenDAL: access data freely."
   homepage: https://opendal.apache.org
   labels:
     - rust

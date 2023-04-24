@@ -70,6 +70,35 @@ pub enum ErrorKind {
     RateLimited,
     /// The given file paths are same.
     IsSameFile,
+    /// The condition of this operation is not match.
+    ///
+    /// The `condition` itself is context based.
+    ///
+    /// For example, in S3, the `condition` can be:
+    /// 1. writing a file with If-Match header but the file's ETag is not match (will get a 412 Precondition Failed).
+    /// 2. reading a file with If-None-Match header but the file's ETag is match (will get a 304 Not Modified).
+    ///
+    /// As OpenDAL cannot handle the `condition not match` error, it will always return this error to users.
+    /// So users could to handle this error by themselves.
+    ConditionNotMatch,
+    /// The content is truncated.
+    ///
+    /// This error kind means there are more content to come but been truncated.
+    ///
+    /// For examples:
+    ///
+    /// - Users expected to read 1024 bytes, but service returned more bytes.
+    /// - Service expected to write 1024 bytes, but users write more bytes.
+    ContentTruncated,
+    /// The content is incomplete.
+    ///
+    /// This error kind means expect content length is not reached.
+    ///
+    /// For examples:
+    ///
+    /// - Users expected to read 1024 bytes, but service returned less bytes.
+    /// - Service expected to write 1024 bytes, but users write less bytes.
+    ContentIncomplete,
 }
 
 impl ErrorKind {
@@ -98,6 +127,9 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::AlreadyExists => "AlreadyExists",
             ErrorKind::RateLimited => "RateLimited",
             ErrorKind::IsSameFile => "IsSameFile",
+            ErrorKind::ConditionNotMatch => "ConditionNotMatch",
+            ErrorKind::ContentTruncated => "ContentTruncated",
+            ErrorKind::ContentIncomplete => "ContentIncomplete",
         }
     }
 }

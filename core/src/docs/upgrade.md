@@ -1,3 +1,54 @@
+# Upgrade to v0.33
+
+## Public API
+
+OpenDAL 0.33 has redesigned the `Writer` API, replacing all instances of `writer.append()` with `writer.write()`. For more information, please refer to [`Writer`](crate::Writer).
+
+## Raw API
+
+In addition to the redesign of the `Writer` API, we have removed `append` from `oio::Write`. Therefore, users who implement services and layers should also remove it.
+
+After v0.33 landing, services should handle `OpWrite::content_length` correctly by following these guidelines:
+
+- If the writer does not support uploading unsized data, return a response of `NotSupported` if content length is `None`.
+- Otherwise, continue writing data until either `close` or `abort` has been called.
+
+Furthermore, OpenDAL 0.33 introduces a new concept called `Capability` which replaces `AccessorCapability`. Services must adapt to this change.
+
+# Upgrade to v0.32
+
+OpenDAL 0.32 doesn't have much breaking changes.
+
+We changed `Accessor::create` into `Accessor::create_dir`. Only users who implement `Layer` need to change.
+
+# Upgrade to v0.31
+
+In version v0.31 of OpenDAL, we made some internal refactoring to improve its compatibility with the ecosystem.
+
+## MSRV Bump
+
+We increased the MSRV to 1.64 from v0.31 onwards. Although it is still possible to build OpenDAL under older rustc versions, we cannot guarantee that any issues related to them will be fixed.
+
+## Accept `std::time::Duration` instead
+
+Previously, OpenDAL accepted `time::Duration` as input for `presign_xxx`. However, since v0.31, we have changed this to accept `std::time::Duration` so that users do not need to depend on `time`. Internally, we migrated from `time` to `chrono` for better integration with other parts of the ecosystem.
+
+## `disable_ec2_metadata` for services s3
+
+We have added a new configuration option called `disable_ec2_metadata` for the S3 service in response to a mistake where it was mixed up with another option called `disable_config_load`. Users who want to disable loading credentials from EC2 metadata should set this option instead.
+
+## Services Feature Flag
+
+Starting from v0.31, all services in OpenDAL are split into different feature flags. To enable only S3 support, use the following TOML configuration:
+
+```toml
+opendal = {
+    version = "0.31",
+    default-features = false,
+    features = ["services-s3"]
+}
+```
+
 # Upgrade to v0.30
 
 In version 0.30, we made significant breaking changes by removing objects. Our goal in doing so was to provide our users with APIs that are easier to understand and maintain.

@@ -18,33 +18,25 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fmt::Write;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::header::HeaderName;
-use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::Request;
-use http::Response;
 use http::StatusCode;
-use http::Uri;
 use log::debug;
+use reqsign::AzureStorageConfig;
+use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::batch::parse_batch_delete_response;
-use super::batch::BatchDeleteRequestBuilder;
 use super::error::parse_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
 use crate::ops::*;
 use crate::raw::*;
+use crate::services::azblob::core::AzblobCore;
 use crate::types::Metadata;
 use crate::*;
-
-const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
-const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
 
 /// Known endpoint suffix Azure Storage Blob services resource URI syntax.
 /// Azure public cloud: https://accountname.blob.core.windows.net
@@ -385,64 +377,43 @@ impl Builder for AzblobBuilder {
             })?
         };
 
-        let mut signer_builder = AzureStorageSigner::builder();
-        let mut account_name: Option<String> = None;
-        if let Some(sas_token) = &self.sas_token {
-            signer_builder.security_token(sas_token);
-            match &self.account_name {
-                Some(name) => account_name = Some(name.clone()),
-                None => {
-                    account_name = infer_storage_name_from_endpoint(endpoint.as_str());
-                }
-            }
-        } else if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
-            account_name = Some(name.clone());
-            signer_builder.account_name(name).account_key(key);
-        } else if let Some(key) = &self.account_key {
-            account_name = infer_storage_name_from_endpoint(endpoint.as_str());
-            signer_builder
-                .account_name(account_name.as_ref().unwrap_or(&String::new()))
-                .account_key(key);
-        }
+        let config_loader = AzureStorageConfig {
+            account_name: self
+                .account_name
+                .clone()
+                .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
+            account_key: self.account_key.clone(),
+            sas_token: self.sas_token.clone(),
+        };
 
-        let signer = signer_builder.clone().build().map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)
-                .with_context("endpoint", &endpoint)
-                .with_context("container", container.as_str())
-                .set_source(e)
-        })?;
-        signer_builder.omit_service_version();
-        let sub_req_signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "build AzureStorageSigner")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)
-                .with_context("endpoint", &endpoint)
-                .with_context("container", container.as_str())
-                .set_source(e)
-        })?;
+        let cred_loader = AzureStorageLoader::new(config_loader);
+
+        let signer = AzureStorageSigner::new();
+        let batch_signer = AzureStorageSigner::new().omit_service_version();
 
         debug!("backend build finished: {:?}", &self);
         Ok(AzblobBackend {
-            root,
-            endpoint,
-            signer: Arc::new(signer),
-            batch_signer: Arc::new(sub_req_signer),
-            container: self.container.clone(),
-            client,
-            _account_name: account_name.unwrap_or_default(),
+            core: Arc::new(AzblobCore {
+                root,
+                endpoint,
+                container: self.container.clone(),
+
+                client,
+                loader: cred_loader,
+                signer,
+                batch_signer,
+            }),
         })
     }
 }
 
 fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let _endpoint: &str = endpoint
+    let endpoint: &str = endpoint
         .strip_prefix("http://")
         .or_else(|| endpoint.strip_prefix("https://"))
         .unwrap_or(endpoint);
 
-    let mut parts = _endpoint.splitn(2, '.');
+    let mut parts = endpoint.splitn(2, '.');
     let storage_name = parts.next();
     let endpoint_suffix = parts
         .next()
@@ -463,14 +434,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
-    container: String,
-    // TODO: remove pub after https://github.com/apache/incubator-opendal/issues/1427
-    pub client: HttpClient,
-    root: String, // root will be "/" or /abc/
-    endpoint: String,
-    pub signer: Arc<AzureStorageSigner>,
-    pub batch_signer: Arc<AzureStorageSigner>,
-    _account_name: String,
+    core: Arc<AzblobCore>,
 }
 
 #[async_trait]
@@ -483,26 +447,46 @@ impl Accessor for AzblobBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azblob)
-            .set_root(&self.root)
-            .set_name(&self.container)
-            .set_max_batch_operations(AZBLOB_BATCH_LIMIT)
-            .set_capabilities(Read | Write | List | Scan | Batch | Copy)
-            .set_hints(ReadStreamable);
+            .set_root(&self.core.root)
+            .set_name(&self.core.container)
+            .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
+                read: true,
+                read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+                read_with_override_content_disposition: true,
+
+                write: true,
+                write_with_content_type: true,
+                write_with_cache_control: true,
+
+                delete: true,
+                create_dir: true,
+                list: true,
+                scan: true,
+                copy: true,
+                batch: true,
+                batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+                ..Default::default()
+            });
 
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty)?;
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let mut req =
+            self.core
+                .azblob_put_blob_request(path, Some(0), None, None, AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.core.sign(&mut req).await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
@@ -516,7 +500,16 @@ impl Accessor for AzblobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.azblob_get_blob(path, args.range()).await?;
+        let resp = self
+            .core
+            .azblob_get_blob(
+                path,
+                args.range(),
+                args.if_none_match(),
+                args.if_match(),
+                args.override_content_disposition(),
+            )
+            .await?;
 
         let status = resp.status();
 
@@ -531,21 +524,21 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.append() {
+        if args.content_length().is_none() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "append write is not supported",
+                "write without content length is not supported",
             ));
         }
 
         Ok((
             RpWrite::default(),
-            AzblobWriter::new(self.clone(), args, path.to_string()),
+            AzblobWriter::new(self.core.clone(), args, path.to_string()),
         ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.azblob_copy_blob(from, to).await?;
+        let resp = self.core.azblob_copy_blob(from, to).await?;
 
         let status = resp.status();
 
@@ -558,13 +551,16 @@ impl Accessor for AzblobBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.azblob_get_blob_properties(path).await?;
+        let resp = self
+            .core
+            .azblob_get_blob_properties(path, args.if_none_match(), args.if_match())
+            .await?;
 
         let status = resp.status();
 
@@ -578,7 +574,7 @@ impl Accessor for AzblobBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.azblob_delete_blob(path).await?;
+        let resp = self.core.azblob_delete_blob(path).await?;
 
         let status = resp.status();
 
@@ -590,8 +586,7 @@ impl Accessor for AzblobBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let op = AzblobPager::new(
-            Arc::new(self.clone()),
-            self.root.clone(),
+            self.core.clone(),
             path.to_string(),
             "/".to_string(),
             args.limit(),
@@ -602,8 +597,7 @@ impl Accessor for AzblobBackend {
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         let op = AzblobPager::new(
-            Arc::new(self.clone()),
-            self.root.clone(),
+            self.core.clone(),
             path.to_string(),
             "".to_string(),
             args.limit(),
@@ -622,7 +616,7 @@ impl Accessor for AzblobBackend {
             ));
         }
         // construct and complete batch request
-        let resp = self.azblob_batch_delete(&paths).await?;
+        let resp = self.core.azblob_batch_delete(&paths).await?;
 
         // check response status
         if resp.status() != StatusCode::ACCEPTED {
@@ -669,222 +663,6 @@ impl Accessor for AzblobBackend {
     }
 }
 
-impl AzblobBackend {
-    async fn azblob_get_blob(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.container,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::get(&url);
-
-        if !range.is_full() {
-            // azblob doesn't support read with suffix range.
-            //
-            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
-            if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "azblob doesn't support read with suffix range",
-                ));
-            }
-
-            req = req.header(http::header::RANGE, range.to_header());
-        }
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    pub fn azblob_put_blob_request(
-        &self,
-        path: &str,
-        size: Option<usize>,
-        content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.container,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::put(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
-
-        if let Some(ty) = content_type {
-            req = req.header(CONTENT_TYPE, ty)
-        }
-
-        req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
-
-        // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn azblob_get_blob_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.container,
-            percent_encode_path(&p)
-        );
-
-        let req = Request::head(&url);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    async fn azblob_delete_blob(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.container,
-            percent_encode_path(&p)
-        );
-
-        let req = Request::delete(&url);
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
-
-        let source = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.container,
-            percent_encode_path(&source)
-        );
-        let target = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.container,
-            percent_encode_path(&target)
-        );
-
-        let mut req = Request::put(&target)
-            .header(X_MS_COPY_SOURCE, source)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    pub(crate) async fn azblob_list_blobs(
-        &self,
-        path: &str,
-        next_marker: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut url = format!(
-            "{}/{}?restype=container&comp=list",
-            self.endpoint, self.container
-        );
-        if !p.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
-        }
-        if let Some(limit) = limit {
-            write!(url, "&maxresults={limit}").expect("write into string must succeed");
-        }
-        if !delimiter.is_empty() {
-            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
-        }
-        if !next_marker.is_empty() {
-            write!(url, "&marker={next_marker}").expect("write into string must succeed");
-        }
-
-        let mut req = Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
-    async fn azblob_batch_delete(&self, paths: &[String]) -> Result<Response<IncomingAsyncBody>> {
-        // init batch request
-        let url = format!(
-            "{}/{}?restype=container&comp=batch",
-            self.endpoint, self.container
-        );
-        let mut batch_delete_req_builder = BatchDeleteRequestBuilder::new(&url);
-
-        for path in paths.iter() {
-            // build sub requests
-            let p = build_abs_path(&self.root, path);
-            let encoded_path = percent_encode_path(&p);
-
-            let url = Uri::from_str(&format!(
-                "{}/{}/{}",
-                self.endpoint, self.container, encoded_path
-            ))
-            .unwrap();
-
-            let mut sub_req = Request::delete(&url.to_string())
-                .header(CONTENT_LENGTH, 0)
-                .body(AsyncBody::Empty)
-                .map_err(new_request_build_error)?;
-            self.batch_signer
-                .sign(&mut sub_req)
-                .map_err(new_request_sign_error)?;
-
-            batch_delete_req_builder.append(sub_req);
-        }
-
-        let mut req = batch_delete_req_builder.try_into_req()?;
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::AzblobBuilder;
@@ -916,13 +694,11 @@ mod tests {
             .expect("build azblob should be succeeded.");
 
         assert_eq!(
-            azblob.endpoint,
+            azblob.core.endpoint,
             "https://storagesample.blob.core.chinacloudapi.cn"
         );
 
-        assert_eq!(azblob._account_name, "storagesample".to_string());
-
-        assert_eq!(azblob.container, "container".to_string());
+        assert_eq!(azblob.core.container, "container".to_string());
 
         assert_eq!(
             azblob_builder.account_key.unwrap(),
@@ -940,13 +716,11 @@ mod tests {
             .expect("build azblob should be succeeded.");
 
         assert_eq!(
-            azblob.endpoint,
+            azblob.core.endpoint,
             "https://storagesample.blob.core.windows.net"
         );
 
-        assert_eq!(azblob._account_name, "".to_string());
-
-        assert_eq!(azblob.container, "container".to_string());
+        assert_eq!(azblob.core.container, "container".to_string());
 
         assert_eq!(azblob_builder.account_key, None);
     }
@@ -964,13 +738,11 @@ mod tests {
             .expect("build azblob should be succeeded.");
 
         assert_eq!(
-            azblob.endpoint,
+            azblob.core.endpoint,
             "https://storagesample.blob.core.usgovcloudapi.net"
         );
 
-        assert_eq!(azblob._account_name, "storagesample".to_string());
-
-        assert_eq!(azblob.container, "container".to_string());
+        assert_eq!(azblob.core.container, "container".to_string());
 
         assert_eq!(
             azblob_builder.account_key.unwrap(),

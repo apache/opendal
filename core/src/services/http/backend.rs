@@ -21,6 +21,8 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use http::header;
+use http::header::IF_MATCH;
+use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -256,14 +258,20 @@ impl Accessor for HttpBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Read)
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+
+                ..Default::default()
+            });
 
         ma
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.http_get(path, args.range()).await?;
+        let resp = self
+            .http_get(path, args.range(), args.if_match(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -276,13 +284,15 @@ impl Accessor for HttpBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.http_head(path).await?;
+        let resp = self
+            .http_head(path, args.if_match(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -299,12 +309,26 @@ impl Accessor for HttpBackend {
 }
 
 impl HttpBackend {
-    async fn http_get(&self, path: &str, range: BytesRange) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_get(
+        &self,
+        path: &str,
+        range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
@@ -318,15 +342,28 @@ impl HttpBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 
-    async fn http_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_head(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
@@ -336,7 +373,7 @@ impl HttpBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_async(req).await
+        self.client.send(req).await
     }
 }
 
@@ -345,6 +382,7 @@ mod tests {
     use anyhow::Result;
     use wiremock::matchers::basic_auth;
     use wiremock::matchers::bearer_token;
+    use wiremock::matchers::headers;
     use wiremock::matchers::method;
     use wiremock::matchers::path;
     use wiremock::Mock;
@@ -456,6 +494,60 @@ mod tests {
         builder.root("/");
         let op = Operator::new(builder)?.finish();
         let bs = op.stat("hello").await?;
+
+        assert_eq!(bs.mode(), EntryMode::FILE);
+        assert_eq!(bs.content_length(), 128);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_with() -> Result<()> {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .and(headers("if-none-match", vec!["*"]))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "13")
+                    .set_body_string("Hello, World!"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let mut builder = HttpBuilder::default();
+        builder.endpoint(&mock_server.uri());
+        builder.root("/");
+        let op = Operator::new(builder)?.finish();
+
+        let match_bs = op
+            .read_with("hello", OpRead::new().with_if_none_match("*"))
+            .await?;
+        assert_eq!(match_bs, b"Hello, World!");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stat_with() -> Result<()> {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("HEAD"))
+            .and(path("/hello"))
+            .and(headers("if-none-match", vec!["*"]))
+            .respond_with(ResponseTemplate::new(200).insert_header("content-length", "128"))
+            .mount(&mock_server)
+            .await;
+
+        let mut builder = HttpBuilder::default();
+        builder.endpoint(&mock_server.uri());
+        builder.root("/");
+        let op = Operator::new(builder)?.finish();
+        let bs = op
+            .stat_with("hello", OpStat::new().with_if_none_match("*"))
+            .await?;
 
         assert_eq!(bs.mode(), EntryMode::FILE);
         assert_eq!(bs.content_length(), 128);

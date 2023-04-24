@@ -22,7 +22,6 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -55,7 +54,6 @@ use crate::*;
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Sled;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -64,7 +62,6 @@ use crate::*;
 ///     builder.datadir("/tmp/opendal/sled");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }
 /// ```
@@ -72,12 +69,19 @@ use crate::*;
 pub struct SledBuilder {
     /// That path to the sled data directory.
     datadir: Option<String>,
+    root: Option<String>,
 }
 
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
     pub fn datadir(&mut self, path: &str) -> &mut Self {
         self.datadir = Some(path.into());
+        self
+    }
+
+    /// Set the root for sled.
+    pub fn root(&mut self, path: &str) -> &mut Self {
+        self.root = Some(path.into());
         self
     }
 }
@@ -90,6 +94,7 @@ impl Builder for SledBuilder {
         let mut builder = SledBuilder::default();
 
         map.get("datadir").map(|v| builder.datadir(v));
+        map.get("root").map(|v| builder.root(v));
 
         builder
     }
@@ -110,7 +115,8 @@ impl Builder for SledBuilder {
         Ok(SledBackend::new(Adapter {
             datadir: datadir_path,
             db,
-        }))
+        })
+        .with_root(self.root.as_deref().unwrap_or_default()))
     }
 }
 
@@ -134,8 +140,17 @@ impl Debug for Adapter {
 #[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
-        use AccessorCapability::*;
-        kv::Metadata::new(Scheme::Sled, &self.datadir, Read | Write | Scan | Blocking)
+        kv::Metadata::new(
+            Scheme::Sled,
+            &self.datadir,
+            Capability {
+                read: true,
+                write: true,
+                scan: true,
+                blocking: true,
+                ..Default::default()
+            },
+        )
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
@@ -176,6 +191,7 @@ impl kv::Adapter for Adapter {
 
         for i in it {
             let bs = i.map_err(parse_error)?.to_vec();
+
             res.push(String::from_utf8(bs).map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)

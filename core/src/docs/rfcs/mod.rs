@@ -133,3 +133,6 @@ pub mod rfc_1477_remove_object_concept {}
 
 #[doc = include_str!("1735_operation_extension.md")]
 pub mod rfc_1735_operation_extension {}
+
+#[doc = include_str!("2083_writer_sink_api.md")]
+pub mod rfc_2083_writer_sink_api {}

@@ -46,13 +46,15 @@ public class Operator {
 
     private native long getOperator(String type, Map<String, String> params);
 
-    private native void freeOperator(long ptr);
+    protected native void freeOperator(long ptr);
 
     private native void write(long ptr, String fileName, String content);
 
     private native String read(long ptr, String fileName);
 
     private native void delete(long ptr, String fileName);
+
+    private native long stat(long ptr, String file);
 
 
     public void write(String fileName, String content) {
@@ -65,6 +67,11 @@ public class Operator {
 
     public void delete(String s) {
         delete(this.ptr, s);
+    }
+
+    public Metadata stat(String fileName) {
+        long statPtr = stat(this.ptr, fileName);
+        return new Metadata(statPtr);
     }
 
     @Override

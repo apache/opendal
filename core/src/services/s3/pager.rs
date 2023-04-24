@@ -21,24 +21,21 @@ use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
 use serde::Deserialize;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 
-use super::backend::S3Backend;
+use super::core::S3Core;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::EntryMode;
-use crate::Error;
-use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 
 pub struct S3Pager {
-    backend: Arc<S3Backend>,
-    root: String,
+    core: Arc<S3Core>,
+
     path: String,
     delimiter: String,
     limit: Option<usize>,
+    start_after: Option<String>,
 
     token: String,
     done: bool,
@@ -46,18 +43,19 @@ pub struct S3Pager {
 
 impl S3Pager {
     pub fn new(
-        backend: Arc<S3Backend>,
-        root: &str,
+        core: Arc<S3Core>,
         path: &str,
         delimiter: &str,
         limit: Option<usize>,
+        start_after: Option<&str>,
     ) -> Self {
         Self {
-            backend,
-            root: root.to_string(),
+            core,
+
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
+            start_after: start_after.map(String::from),
 
             token: "".to_string(),
             done: false,
@@ -73,8 +71,14 @@ impl oio::Page for S3Pager {
         }
 
         let resp = self
-            .backend
-            .s3_list_objects(&self.path, &self.token, &self.delimiter, self.limit)
+            .core
+            .s3_list_objects(
+                &self.path,
+                &self.token,
+                &self.delimiter,
+                self.limit,
+                self.start_after.clone(),
+            )
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -103,7 +107,7 @@ impl oio::Page for S3Pager {
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.root, &prefix.prefix),
+                &build_rel_path(&self.core.root, &prefix.prefix),
                 Metadata::new(EntryMode::DIR),
             );
 
@@ -126,21 +130,9 @@ impl oio::Page for S3Pager {
 
             // object.last_modified provides more precious time that contains
             // nanosecond, let's trim them.
-            let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
-                .map(|v| {
-                    v.replace_nanosecond(0)
-                        .expect("replace nanosecond of last modified must succeed")
-                })
-                .map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "parse last modified RFC3339 datetime",
-                    )
-                    .set_source(e)
-                })?;
-            meta.set_last_modified(dt);
+            meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 
-            let de = oio::Entry::new(&build_rel_path(&self.root, &object.key), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.key), meta);
 
             entries.push(de);
         }

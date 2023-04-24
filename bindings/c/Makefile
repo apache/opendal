@@ -16,13 +16,17 @@
 # under the License.
 
 RPATH=$(PWD)/../../target/debug
-CFLAGS = -I./include
-LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
-LIBS = -lopendal_c
+CFLAGS=-I./include
+LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
+LIBS=-lopendal_c
 OBJ_DIR=./build
 
 .PHONY: all
 all: build test
+
+.PHONY: format
+format:
+	find . -name '*.c' -exec clang-format -i --style=WebKit --verbose {} \;
 
 .PHONY: build
 build:

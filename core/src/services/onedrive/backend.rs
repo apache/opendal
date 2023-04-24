@@ -31,14 +31,13 @@ impl Accessor for OneDriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(crate::Scheme::Onedrive)
             .set_root(&self.root)
-            .set_capabilities(
+            .set_capability(
                 AccessorCapability::Read
                     | AccessorCapability::Write
                     | AccessorCapability::Copy
                     | AccessorCapability::Rename
                     | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadStreamable);
+            );
 
         ma
     }

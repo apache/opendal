@@ -261,6 +261,19 @@ impl OssBuilder {
     /// Set server_side_encryption for this backend.
     ///
     /// Available values: `AES256`, `KMS`.
+    ///
+    /// Reference: <https://www.alibabacloud.com/help/en/object-storage-service/latest/server-side-encryption-5>
+    /// Brief explanation:
+    /// There are two server-side encryption methods available:
+    /// SSE-AES256:
+    ///     1. Configure the bucket encryption mode as OSS-managed and specify the encryption algorithm as AES256.
+    ///     2. Include the `x-oss-server-side-encryption` parameter in the request and set its value to AES256.
+    /// SSE-KMS:
+    ///     1. To use this service, you need to first enable KMS.
+    ///     2. Configure the bucket encryption mode as KMS, and specify the specific CMK ID for BYOK (Bring Your Own Key)
+    ///        or not specify the specific CMK ID for OSS-managed KMS key.
+    ///     3. Include the `x-oss-server-side-encryption` parameter in the request and set its value to KMS.
+    ///     4. If a specific CMK ID is specified, include the `x-oss-server-side-encryption-key-id` parameter in the request, and set its value to the specified CMK ID.
     pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.server_side_encryption = Some(v.to_string())

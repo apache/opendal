@@ -35,6 +35,7 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
+use serde::{Deserialize, Serialize};
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
@@ -62,6 +63,41 @@ impl Debug for GcsCore {
             .field("root", &self.root)
             .finish_non_exhaustive()
     }
+}
+
+/// Request of DeleteObjects.
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "Delete", rename_all = "PascalCase")]
+pub struct DeleteObjectsRequest {
+    pub object: Vec<DeleteObjectsRequestObject>,
+}
+
+#[derive(Default, Debug, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct DeleteObjectsRequestObject {
+    pub key: String,
+}
+
+/// Result of DeleteObjects.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
+pub struct DeleteObjectsResult {
+    pub deleted: Vec<DeleteObjectsResultDeleted>,
+    pub error: Vec<DeleteObjectsResultError>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct DeleteObjectsResultDeleted {
+    pub key: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct DeleteObjectsResultError {
+    pub code: String,
+    pub key: String,
+    pub message: String,
 }
 
 static BACKOFF: Lazy<ExponentialBuilder> =
@@ -243,6 +279,40 @@ impl GcsCore {
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn gcs_delete_objects(
+        &self,
+        paths: Vec<String>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = format!("{}/?delete", self.endpoint);
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&DeleteObjectsRequest {
+            object: paths
+                .into_iter()
+                .map(|path| DeleteObjectsRequestObject {
+                    key: build_abs_path(&self.root, &path),
+                })
+                .collect(),
+        })
+        .map_err(new_xml_deserialize_error)?;
+
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+        // Set content-md5 as required by API.
+        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
+
+        let mut req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

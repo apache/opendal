@@ -530,7 +530,8 @@ impl<W> CompleteWriter<W> {
 impl<W> Drop for CompleteWriter<W> {
     fn drop(&mut self) {
         if self.inner.is_some() {
-            panic!("writer has not been closed or aborted, must be a bug",)
+            // Do we need to panic here?
+            log::warn!("writer has not been closed or aborted, must be a bug")
         }
     }
 }

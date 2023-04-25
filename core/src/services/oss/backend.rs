@@ -424,16 +424,23 @@ impl Accessor for OssBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
+
                 write: true,
                 write_without_content_length: true,
+
                 list: true,
                 scan: true,
                 copy: true,
                 presign: true,
                 batch: true,
                 batch_max_operations: Some(1000),
+
                 ..Default::default()
             });
 

@@ -214,7 +214,12 @@ impl GcsCore {
         }
     }
 
-    pub async fn gcs_get_object_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn gcs_get_object_metadata(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -224,7 +229,15 @@ impl GcsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::get(&url);
+        let mut req = Request::get(&url);
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
 
         let mut req = req
             .body(AsyncBody::Empty)

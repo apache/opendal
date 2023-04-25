@@ -95,4 +95,5 @@ jobs:
             -e OPENDAL_HDFS_TEST=on \
             -e OPENDAL_HDFS_ROOT=/ \
             -e OPENDAL_HDFS_NAME_NODE=hdfs://localhost:9000 \
+            -e LD_LIBRARY_PATH=/usr/lib/jvm/java-8-openjdk-amd64/include \
             namenode bash -c "cd /root && ./behavior services_hdfs"

@@ -272,15 +272,17 @@ impl Accessor for SupabaseBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Supabase)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capabilities(Read | Write)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                stat: true,
+                read: true,
+                write: true,
+
+                ..Default::default()
+            });
 
         am
     }

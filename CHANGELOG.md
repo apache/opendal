@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - feat(services/oss): Add server side encryption support for oss (#2092)
 - feat(core): update errorKind `PreconditionFailed` to `ConditionNotMatch` (#2104)
 - feat(services/s3): Add `start-after` support for list (#2096)
+- feat: gcs support cache control (#2116)
 
 ### Fixed
 

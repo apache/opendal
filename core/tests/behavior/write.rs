@@ -81,7 +81,7 @@ macro_rules! behavior_write_tests {
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
                 test_stat_with_if_match,
-                test_stat_with_if_not_match,
+                test_stat_with_if_none_match,
                 test_stat_root,
                 test_read_full,
                 test_read_range,
@@ -284,8 +284,8 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Stat with if_not_match should succeed, else get a ConditionNotMatch.
-pub async fn test_stat_with_if_not_match(op: Operator) -> Result<()> {
+/// Stat with if_none_match should succeed, else get a ConditionNotMatch.
+pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     if !op.info().capability().stat_with_if_none_match {
         return Ok(());
     }

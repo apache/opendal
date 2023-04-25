@@ -17,6 +17,7 @@
 
 use anyhow::Result;
 use futures::AsyncReadExt;
+use opendal::ops::OpStat;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -64,6 +65,8 @@ macro_rules! behavior_read_tests {
                 test_stat_special_chars,
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
+                test_stat_with_if_match,
+                test_stat_with_if_none_match,
                 test_stat_root,
                 test_read_full,
                 test_read_full_with_special_chars,
@@ -119,6 +122,57 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
 
+    Ok(())
+}
+
+/// Stat with if_match should succeed, else get a ConditionNotMatch error.
+pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
+    let path = "normal_file";
+
+    let meta = op.stat(path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), 262144);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_match("invalid_etag");
+
+    let res = op.stat_with(path, op_stat).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_match(meta.etag().expect("etag must exist"));
+
+    let result = op.stat_with(path, op_stat).await;
+    assert!(result.is_ok());
+
+    op.delete(path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat with if_none_match should succeed, else get a ConditionNotMatch.
+pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
+    let path = "normal_file";
+
+    let meta = op.stat(path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), 262144);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_none_match(meta.etag().expect("etag must exist"));
+
+    let res = op.stat_with(path, op_stat).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_none_match("invalid_etag");
+
+    let res = op.stat_with(path, op_stat).await?;
+    assert_eq!(res.mode(), meta.mode());
+    assert_eq!(res.content_length(), meta.content_length());
+
+    op.delete(path).await.expect("delete must succeed");
     Ok(())
 }
 

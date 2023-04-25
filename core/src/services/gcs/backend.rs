@@ -374,13 +374,20 @@ impl Accessor for GcsBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
+
                 write: true,
                 write_without_content_length: true,
+
                 list: true,
                 scan: true,
                 copy: true,
+
                 ..Default::default()
             });
         am
@@ -435,13 +442,16 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.gcs_get_object_metadata(path).await?;
+        let resp = self
+            .core
+            .gcs_get_object_metadata(path, args.if_match(), args.if_none_match())
+            .await?;
 
         if resp.status().is_success() {
             // read http response body

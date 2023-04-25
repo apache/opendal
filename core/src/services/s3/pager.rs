@@ -35,6 +35,8 @@ pub struct S3Pager {
     path: String,
     delimiter: String,
     limit: Option<usize>,
+
+    /// Amazon S3 starts listing **after** this specified key
     start_after: Option<String>,
 
     token: String,

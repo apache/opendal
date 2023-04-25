@@ -374,22 +374,31 @@ impl Accessor for GcsBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
+
                 write: true,
                 write_without_content_length: true,
+
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 scan: true,
                 copy: true,
+
                 ..Default::default()
             });
         am
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self
-            .core
-            .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req =
+            self.core
+                .gcs_insert_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -435,13 +444,16 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.gcs_get_object_metadata(path).await?;
+        let resp = self
+            .core
+            .gcs_get_object_metadata(path, args.if_match(), args.if_none_match())
+            .await?;
 
         if resp.status().is_success() {
             // read http response body
@@ -492,14 +504,20 @@ impl Accessor for GcsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            GcsPager::new(self.core.clone(), path, "/", args.limit()),
+            GcsPager::new(
+                self.core.clone(),
+                path,
+                "/",
+                args.limit(),
+                args.start_after(),
+            ),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            GcsPager::new(self.core.clone(), path, "", args.limit()),
+            GcsPager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 }

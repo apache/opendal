@@ -70,6 +70,10 @@ jobs:
 
       - name: Build
         run: yarn build:debug
+
+      - name: Check diff
+        run: git diff --exit-code
+
       - name: Test bindings
         run: yarn test
 

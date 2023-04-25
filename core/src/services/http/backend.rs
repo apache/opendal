@@ -259,6 +259,10 @@ impl Accessor for HttpBackend {
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
 

@@ -385,6 +385,8 @@ impl Accessor for GcsBackend {
                 write_without_content_length: true,
 
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 scan: true,
                 copy: true,
 
@@ -502,14 +504,20 @@ impl Accessor for GcsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            GcsPager::new(self.core.clone(), path, "/", args.limit()),
+            GcsPager::new(
+                self.core.clone(),
+                path,
+                "/",
+                args.limit(),
+                args.start_after(),
+            ),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            GcsPager::new(self.core.clone(), path, "", args.limit()),
+            GcsPager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 }

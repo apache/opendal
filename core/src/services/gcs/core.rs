@@ -298,6 +298,7 @@ impl GcsCore {
         page_token: &str,
         delimiter: &str,
         limit: Option<usize>,
+        start_after: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -313,6 +314,12 @@ impl GcsCore {
         if let Some(limit) = limit {
             write!(url, "&maxResults={limit}").expect("write into string must succeed");
         }
+        if let Some(start_after) = start_after {
+            let start_after = build_abs_path(&self.root, &start_after);
+            write!(url, "&startOffset={}", percent_encode_path(&start_after))
+                .expect("write into string must succeed");
+        }
+
         if !page_token.is_empty() {
             // NOTE:
             //

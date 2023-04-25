@@ -172,9 +172,7 @@ impl GcsCore {
 
         let mut req = Request::post(&url);
 
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(storage_class) = &self.default_storage_class {
             req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
@@ -325,9 +323,12 @@ impl GcsCore {
             "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
             self.endpoint, self.bucket, p
         );
+
         let mut req = Request::post(&url)
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
         self.sign(&mut req).await?;
         self.send(req).await
     }

@@ -123,5 +123,5 @@ jobs:
           HADOOP_HOME: "/home/runner/hadoop-3.1.3"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           OPENDAL_HDFS_TEST: on
-          OPENDAL_HDFS_ROOT: /
+          OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020

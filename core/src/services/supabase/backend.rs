@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use http::HeaderValue;
 use http::StatusCode;
 use log::debug;
 
@@ -35,6 +36,9 @@ pub struct SupabaseBuilder {
 
     bucket: String,
     endpoint: Option<String>,
+
+    service_key: Option<String>,
+    anon_key: Option<String>,
 
     // todo: optional public, currently true always
     // todo: optional file_size_limit, currently 0
@@ -78,6 +82,16 @@ impl SupabaseBuilder {
         self
     }
 
+    pub fn service_key(&mut self, service_key: &str) -> &mut Self {
+        self.service_key = Some(service_key.to_string());
+        self
+    }
+
+    pub fn anon_key(&mut self, anon_key: &str) -> &mut Self {
+        self.anon_key = Some(anon_key.to_string());
+        self
+    }
+
     pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
         self.http_client = Some(client);
         self
@@ -109,15 +123,34 @@ impl Builder for SupabaseBuilder {
             })?
         };
 
+        // priority:
+        //  if the service key is loaded, it is used. Else
+        //  if the anon key is loaded, it is used. Else
+        //  the key should be loaded from the environment variable
+        let (auth_key, auth) = if let Some(k) = &self.service_key {
+            (Some(k), true)
+        } else if let Some(k) = &self.anon_key {
+            (Some(k), false)
+        } else {
+            (None, false)
+        };
+
+        let auth_key = if let Some(k) = auth_key {
+            Some(HeaderValue::from_str(k).unwrap())
+        } else {
+            None
+        };
+
         let mut core = SupabaseCore {
             root,
             bucket: bucket.to_owned(),
             endpoint,
-            auth_key: None,
+            auth_key,
+            auth,
             http_client,
         };
 
-        core.load_auth_key("OPENDAL_SUPABASE_AUTH_KEY");
+        core.load_auth_key();
 
         let core = Arc::new(core);
 
@@ -154,28 +187,19 @@ impl Accessor for SupabaseBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, _path: &str, _: OpCreate) -> Result<RpCreate> {
         unimplemented!()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.supabase_get_object_public(path).await?;
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = if self.core.auth {
+            self.core.supabase_get_object_auth(path).await?
+        } else {
+            self.core.supabase_get_object_public(path).await?
+        };
 
         let status = resp.status();
 
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                return Ok((RpRead::with_metadata(meta), resp.into_body()));
-            }
-            _ => {}
-        }
-
-        // if the public requesting is not working, try authorized request
-        let resp = self.core.supabase_get_object_auth(path).await?;
-        let status = resp.status();
-
-        // if both is not working, then the read request has failed
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
@@ -198,7 +222,11 @@ impl Accessor for SupabaseBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.supabase_get_object_info_public(path).await?;
+        let resp = if self.core.auth {
+            self.core.supabase_get_object_info_auth(path).await?
+        } else {
+            self.core.supabase_get_object_info_public(path).await?
+        };
 
         let status = resp.status();
 

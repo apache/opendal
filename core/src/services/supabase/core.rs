@@ -30,7 +30,9 @@ use crate::raw::*;
 use crate::*;
 
 mod constants {
-    pub const AUTH_HEADER_KEY: &str = "authorization";
+    pub const AUTH_HTTP_HEADER_KEY: &str = "authorization";
+    pub const SUPABASE_AUTH_ANON_KEY: &str = "OPENDAL_SUPABASE_AUTH_ANON_KEY";
+    pub const SUPABASE_AUTH_SERVICE_KEY: &str = "OPENDAL_SUPABASE_AUTH_SERVICE_KEY";
 }
 
 pub struct SupabaseCore {
@@ -41,6 +43,8 @@ pub struct SupabaseCore {
     /// The key used for authorization, initialized by environment variable you designated.
     /// Normally it is rather an anon_key(Client key) or an service_role_key(Secret Key)
     pub auth_key: Option<HeaderValue>,
+    /// This is true if the service_role_key is loaded, false if the anon_key is loaded
+    pub auth: bool,
 
     pub http_client: HttpClient,
 }
@@ -62,20 +66,43 @@ impl SupabaseCore {
             bucket: bucket.to_string(),
             endpoint: endpoint.to_string(),
             auth_key: None,
+            auth: false,
             http_client: client,
         }
     }
 
-    pub fn load_auth_key(&mut self, env: &str) {
-        if let Ok(v) = std::env::var(env) {
-            self.auth_key = Some(HeaderValue::from_str(&v).unwrap());
+    pub fn load_auth_key(&mut self) {
+        // if set by user, return directly
+        if self.auth_key.is_some() {
+            return;
         }
+
+        // load secret key first
+        if let Ok(v) = std::env::var(constants::SUPABASE_AUTH_SERVICE_KEY) {
+            self.auth_key = Some(HeaderValue::from_str(&v).unwrap());
+            self.auth = true;
+            return;
+        }
+
+        // if not loaded, load anon key then
+        if let Ok(v) = std::env::var(constants::SUPABASE_AUTH_ANON_KEY) {
+            self.auth_key = Some(HeaderValue::from_str(&v).unwrap());
+            self.auth = false;
+            return;
+        }
+
+        // the key should always be loaded
+        unreachable!(
+            "The authorization key is not set, you may set it in your builder or through environment variable {} or {}",
+            constants::SUPABASE_AUTH_ANON_KEY,
+            constants::SUPABASE_AUTH_SERVICE_KEY,
+        )
     }
 
     pub fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         if let Some(k) = &self.auth_key {
             let v = HeaderValue::from_str(&format!("Bearer {}", k.to_str().unwrap())).unwrap();
-            req.headers_mut().insert(constants::AUTH_HEADER_KEY, v);
+            req.headers_mut().insert(constants::AUTH_HTTP_HEADER_KEY, v);
             Ok(())
         } else {
             Err(new_request_sign_error(anyhow!(

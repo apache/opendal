@@ -81,6 +81,7 @@ macro_rules! behavior_write_tests {
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
                 test_stat_with_if_match,
+                test_stat_with_if_not_match,
                 test_stat_root,
                 test_read_full,
                 test_read_range,
@@ -278,6 +279,42 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
 
     let result = op.stat_with(&path, op_stat).await;
     assert!(result.is_ok());
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat with if_not_match should succeed, else get a ConditionNotMatch.
+pub async fn test_stat_with_if_not_match(op: Operator) -> Result<()> {
+    if !op.info().capability().stat_with_if_none_match {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), size as u64);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_none_match(meta.etag().expect("etag must exist"));
+
+    let res = op.stat_with(&path, op_stat).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_none_match("invalid_etag");
+
+    let res = op.stat_with(&path, op_stat).await?;
+    assert_eq!(res.mode(), meta.mode());
+    assert_eq!(res.content_length(), meta.content_length());
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

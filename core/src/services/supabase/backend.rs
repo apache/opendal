@@ -30,6 +30,85 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
+/// Supabase service
+///
+/// # Capabilities
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] copy
+/// - [ ] list
+/// - [ ] scan
+/// - [ ] presign
+/// - [ ] blocking
+///
+/// # Configuration
+///
+/// - `root`: Set the work dir for backend.
+/// - `bucket`: Set the container name for backend.
+/// - `endpoint`: Set the endpoint for backend.
+/// - `service_key`: Set the secret key for the backend, this is prioritized over the client key
+/// - `anon_key`: Set the client key for the backend, this cannot access non-public resources
+///
+/// ## Authorization key setup
+///
+/// There are two types of key in the Supabase, one is anon_key(Client key), another one is
+/// service_role_key(Secret key). The former one can only access public resources while the latter one
+/// can access all resources.
+///
+/// There exists a priority of setting up the authorization keys.
+/// The key set up by builder takes precedence over environment variable, and the service_key
+/// takes precedence over anon_key.
+///
+/// There are two ways of setting up the authorization key, i.e., environment variable and builder.
+/// - The environment variable OPENDAL_SUPABASE_AUTH_ANON_KEY sets up the anon_key.
+/// - The environment variable OPENDAL_SUPABASE_AUTH_SERVICE_KEY sets up the service_role_key.
+///
+/// # Example
+///
+/// ## Basic Setup
+///
+/// ### Using Environment Variable
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Supabase;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // suppose the environment variable is set
+///     let mut builder = services::Supabase::default();
+///     builder.root("/");
+///     builder.bucket("test_bucket");
+///     builder.endpoint("http://127.0.0.1:54321");
+///
+///     let op: Operator = Operator::new(builder)?.finish();
+///    
+///     Ok(())
+/// }
+/// ```
+///
+/// ### Using Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Supabase;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = services::Supabase::default();
+///     builder.root("/");
+///     builder.bucket("test_bucket");
+///     builder.endpoint("http://127.0.0.1:54321");
+///     // this sets up the anon_key, which means this operator can only access public resource
+///     builder.anon_key("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0");
+///
+///     let op: Operator = Operator::new(builder)?.finish();
+///    
+///     Ok(())
+/// }
+/// ```
 #[derive(Default)]
 pub struct SupabaseBuilder {
     root: Option<String>,
@@ -57,6 +136,9 @@ impl Debug for SupabaseBuilder {
 }
 
 impl SupabaseBuilder {
+    /// Set root of this backend.
+    ///
+    /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
             None
@@ -67,31 +149,43 @@ impl SupabaseBuilder {
         self
     }
 
+    /// Set bucket name of this backend.
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.bucket = bucket.to_string();
         self
     }
 
+    /// Set endpoint of this backend.
+    ///
+    /// Endpoint must be full uri
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
             None
         } else {
-            Some(endpoint.to_string())
+            Some(endpoint.trim_end_matches('/').to_string())
         };
 
         self
     }
 
+    /// Set the service_role_key for this backend
     pub fn service_key(&mut self, service_key: &str) -> &mut Self {
         self.service_key = Some(service_key.to_string());
         self
     }
 
+    /// Set the anon_key for this backend
     pub fn anon_key(&mut self, anon_key: &str) -> &mut Self {
         self.anon_key = Some(anon_key.to_string());
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
     pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
         self.http_client = Some(client);
         self
@@ -103,7 +197,15 @@ impl Builder for SupabaseBuilder {
     type Accessor = SupabaseBackend;
 
     fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        unimplemented!()
+        let mut builder = SupabaseBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("anon_key").map(|v| builder.anon_key(v));
+        map.get("service_key").map(|v| builder.service_key(v));
+
+        builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -124,9 +226,9 @@ impl Builder for SupabaseBuilder {
         };
 
         // priority:
-        //  if the service key is loaded, it is used. Else
-        //  if the anon key is loaded, it is used. Else
-        //  the key should be loaded from the environment variable
+        //  if the service key is loaded, it is used.
+        //  Else if the anon key is loaded, it is used.
+        //  Else the key should be loaded from the environment variable
         let (auth_key, auth) = if let Some(k) = &self.service_key {
             (Some(k), true)
         } else if let Some(k) = &self.anon_key {
@@ -135,11 +237,7 @@ impl Builder for SupabaseBuilder {
             (None, false)
         };
 
-        let auth_key = if let Some(k) = auth_key {
-            Some(HeaderValue::from_str(k).unwrap())
-        } else {
-            None
-        };
+        let auth_key = auth_key.map(|k| HeaderValue::from_str(k).unwrap());
 
         let mut core = SupabaseCore {
             root,
@@ -187,6 +285,7 @@ impl Accessor for SupabaseBackend {
         am
     }
 
+    // todo: implement create_dir
     async fn create_dir(&self, _path: &str, _: OpCreate) -> Result<RpCreate> {
         unimplemented!()
     }

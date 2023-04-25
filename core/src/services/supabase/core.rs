@@ -71,6 +71,9 @@ impl SupabaseCore {
         }
     }
 
+    /// load auth key tries to load the authorization key from the environment variable
+    /// - if the key is set by user using Builder, this return directly
+    /// - if the key is not set by user, this will try to load the service key first, then the anon key
     pub fn load_auth_key(&mut self) {
         // if set by user, return directly
         if self.auth_key.is_some() {
@@ -115,13 +118,13 @@ impl SupabaseCore {
 // requests
 impl SupabaseCore {
     // ?: this defaults the bucket id to be the bucket name
-    pub fn supabase_create_bucket_request(&self) -> Result<Request<AsyncBody>> {
+    pub fn supabase_create_bucket_request(&self, public: bool) -> Result<Request<AsyncBody>> {
         let url = format!("{}/bucket/", self.endpoint);
         let req = Request::post(&url);
         let body = json!({
             "name": self.bucket,
             "id": self.bucket,
-            "public": true,
+            "public": public,
             "file_size_limit": 0,
             "allowed_mime_types": [
                 "string"
@@ -195,10 +198,9 @@ impl SupabaseCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::get(&url)
+        Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(new_request_build_error);
-        req
+            .map_err(new_request_build_error)
     }
 
     fn supabase_get_object_info_request(
@@ -215,10 +217,9 @@ impl SupabaseCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::get(&url)
+        Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(new_request_build_error);
-        req
+            .map_err(new_request_build_error)
     }
 }
 
@@ -228,8 +229,11 @@ impl SupabaseCore {
         self.http_client.send(req).await
     }
 
-    pub async fn supabase_create_bucket(&self) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_create_bucket_request()?;
+    pub async fn supabase_create_bucket(
+        &self,
+        public: bool,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_create_bucket_request(public)?;
 
         self.sign(&mut req)?;
 

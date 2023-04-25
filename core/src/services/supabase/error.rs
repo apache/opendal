@@ -25,12 +25,14 @@ use crate::{raw::*, Error, ErrorKind, Result};
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+/// The error returned by Supabase
 struct SupabaseError {
     status_code: String,
     error: String,
     message: String,
 }
 
+/// Parse the supabase error type to the OpenDAL error type
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
@@ -47,7 +49,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, supabase_err) = from_reader::<_, SupabaseError>(bs.clone().reader())
+    let (message, _) = from_reader::<_, SupabaseError>(bs.clone().reader())
         .map(|sb_err| (format!("{sb_err:?}"), Some(sb_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 

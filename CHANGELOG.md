@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.33.1] - 2023-04-25
+
+### Added
+
+- feat: Add behavior test for read_with_if_match & stat_with_if_match (#2088)
+- feat(tests): Add fuzz test for writer without content length (#2100)
+- feat: add if_none_match support for obs (#2103)
+- feat(services/oss): Add server side encryption support for oss (#2092)
+- feat(core): update errorKind `PreconditionFailed` to `ConditionNotMatch` (#2104)
+- feat(services/s3): Add `start-after` support for list (#2096)
+
+### Fixed
+
+- fix(services/gcs): set `content length=0` for gcs initiate_resumable_upload (#2110)
+- fix(bindings/nodejs): Fix index.d.ts not updated (#2117)
+
+### Docs
+
+- chore: improve LoggingLayer docs and pub use log::Level (#2089)
+- docs(refactor): Add more detailed description of operator, accessor, and builder (#2094)
+
+### CI
+
+- chore(bindings/nodejs): update `package.json` repository info (#2078)
+- ci: Bring hdfs test back (#2114)
+
 ## [v0.33.0] - 2023-04-23
 
 ### Added

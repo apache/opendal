@@ -67,7 +67,7 @@ jobs:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           OPENDAL_HDFS_TEST: on
-          OPENDAL_HDFS_ROOT: /tmp/opendal
+          OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: default
 
   hdfs-cluster:

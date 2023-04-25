@@ -15,13 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Seek;
-use std::io::SeekFrom;
 use std::io::Write;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
 
 use super::error::parse_io_error;
@@ -30,7 +27,10 @@ use crate::*;
 
 pub struct HdfsWriter<F> {
     f: F,
-    pos: u64,
+    /// The position of current wirtten bytes in the buffer.
+    ///
+    /// We will maintain the posstion in pos to make sure the buffer is written correctly.
+    pos: usize,
 }
 
 impl<F> HdfsWriter<F> {
@@ -41,17 +41,17 @@ impl<F> HdfsWriter<F> {
 
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f
-            .seek(SeekFrom::Start(self.pos))
-            .await
-            .map_err(parse_io_error)?;
-        self.f.write_all(&bs).await.map_err(parse_io_error)?;
-        self.pos += bs.len() as u64;
+        while self.pos < bs.len() {
+            let n = self
+                .f
+                .write(&bs[self.pos..])
+                .await
+                .map_err(parse_io_error)?;
+            self.pos += n;
+        }
+        // Reset pos to 0 for next write.
+        self.pos = 0;
 
         Ok(())
     }
@@ -71,16 +71,13 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f
-            .seek(SeekFrom::Start(self.pos))
-            .map_err(parse_io_error)?;
-        self.f.write_all(&bs).map_err(parse_io_error)?;
-        self.pos += bs.len() as u64;
+        while self.pos < bs.len() {
+            let n = self.f.write(&bs[self.pos..]).map_err(parse_io_error)?;
+            self.pos += n;
+        }
+        // Reset pos to 0 for next write.
+        self.pos = 0;
 
         Ok(())
     }

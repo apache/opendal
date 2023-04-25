@@ -85,6 +85,7 @@ jobs:
             -e CLUSTER_NAME=test \
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
+            -e HDFS_CONF_dfs_permissions_enabled=false \
             bde2020/hadoop-namenode:2.0.0-hadoop3.1.3-java8
 
           docker run -d \
@@ -93,6 +94,7 @@ jobs:
             -e CLUSTER_NAME=test \
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
+            -e HDFS_CONF_dfs_permissions_enabled=false \
             bde2020/hadoop-datanode:2.0.0-hadoop3.1.3-java8
 
           curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870

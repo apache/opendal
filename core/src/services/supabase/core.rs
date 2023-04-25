@@ -140,10 +140,30 @@ impl SupabaseCore {
     }
 
     pub fn supabase_get_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+        self.supabase_get_object_request(path, false)
+    }
+
+    pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+        self.supabase_get_object_request(path, true)
+    }
+
+    pub fn supabase_get_object_info_public_request(
+        &self,
+        path: &str,
+    ) -> Result<Request<AsyncBody>> {
+        self.supabase_get_object_info_request(path, false)
+    }
+
+    pub fn supabase_get_object_info_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+        self.supabase_get_object_info_request(path, true)
+    }
+
+    fn supabase_get_object_request(&self, path: &str, auth: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/storage/v1/object/public/{}/{}",
+            "{}/storage/v1/object/{}/{}/{}",
             self.endpoint,
+            if auth { "authenticated" } else { "public" },
             self.bucket,
             percent_encode_path(&p)
         );
@@ -154,11 +174,16 @@ impl SupabaseCore {
         req
     }
 
-    pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn supabase_get_object_info_request(
+        &self,
+        path: &str,
+        auth: bool,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/storage/v1/object/authenticated/{}/{}",
+            "{}/storage/v1/object/info/{}/{}/{}",
             self.endpoint,
+            if auth { "authenticated" } else { "public" },
             self.bucket,
             percent_encode_path(&p)
         );
@@ -176,33 +201,59 @@ impl SupabaseCore {
         self.http_client.send(req).await
     }
 
-    pub async fn supabase_get_object_public(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_public_request(path)?;
+    pub async fn supabase_create_bucket(&self) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_create_bucket_request()?;
 
         self.sign(&mut req)?;
 
         self.send(req).await
+    }
+
+    pub async fn supabase_get_object_public(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        self.supabase_get_object(path, false).await
     }
 
     pub async fn supabase_get_object_auth(
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_auth_request(path)?;
+        self.supabase_get_object(path, true).await
+    }
 
+    pub async fn supabase_get_object_info_public(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        self.supabase_get_object_info(path, false).await
+    }
+
+    pub async fn supabase_get_object_info_auth(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        self.supabase_get_object_info(path, true).await
+    }
+
+    async fn supabase_get_object(
+        &self,
+        path: &str,
+        auth: bool,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_get_object_request(path, auth)?;
         self.sign(&mut req)?;
-
         self.send(req).await
     }
 
-    pub async fn supabase_create_bucket(&self) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_create_bucket_request()?;
-
+    async fn supabase_get_object_info(
+        &self,
+        path: &str,
+        auth: bool,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_get_object_info_request(path, auth)?;
         self.sign(&mut req)?;
-
         self.send(req).await
     }
 }

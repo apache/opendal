@@ -171,9 +171,11 @@ impl Accessor for SupabaseBackend {
             _ => {}
         }
 
+        // if the public requesting is not working, try authorized request
         let resp = self.core.supabase_get_object_auth(path).await?;
         let status = resp.status();
 
+        // if both is not working, then the read request has failed
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
@@ -190,7 +192,22 @@ impl Accessor for SupabaseBackend {
         ))
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        unimplemented!()
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        let resp = self.core.supabase_get_object_info_public(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

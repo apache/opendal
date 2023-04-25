@@ -40,7 +40,8 @@ struct ParentReference {
 #[derive(Debug, Serialize, Deserialize)]
 struct FileSystemInfo {
     createdDateTime: String,
-    lastModifiedDateTime: String,
+    #[serde[rename = "lastModifiedDateTime"]]
+    last_modified_date_time: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

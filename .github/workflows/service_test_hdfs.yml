@@ -67,33 +67,25 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      # Setup java env
-      - name: Checkout java env
+      - name: Setup java env
         uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: "11"
+      - name: Setup hadoop env
+        shell: bash
+        run:
+          curl -sSL https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz -O hadoop-3.3.5.tar.gz
+          tar -xzf hadoop-3.3.5.tar.gz
+          echo "export HADOOP_HOME=$(pwd)/hadoop-3.3.5" >> $GITHUB_ENV
 
-      - name: Build
+      - name: Test
         shell: bash
         working-directory: core
-        run: cargo test behavior -p opendal --features services-hdfs --no-run
+        run: cargo test behavior -p opendal --features services-hdfs
         env:
           RUST_BACKTRACE: full
-          RUST_LOG: debug
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-
-      - name: Run
-        shell: bash
-        working-directory: core
-        run: |
-          ls ../target/debug/deps/behavior-* | grep -v '\.d$' | xargs -I {} docker cp {} namenode:/root/behavior
-
-          docker exec \
-            -e RUST_BACKTRACE=full \
-            -e RUST_LOG=debug \
-            -e OPENDAL_HDFS_TEST=on \
-            -e OPENDAL_HDFS_ROOT=/ \
-            -e OPENDAL_HDFS_NAME_NODE=hdfs://localhost:9000 \
-            -e LD_LIBRARY_PATH=/usr/lib/jvm/java-8-openjdk-amd64/jre/lib/amd64/server \
-            namenode bash -c "cd /root && ./behavior services_hdfs"
+          OPENDAL_HDFS_TEST: on
+          OPENDAL_HDFS_ROOT: /
+          OPENDAL_HDFS_NAME_NODE: hdfs://localhost:9000

@@ -45,31 +45,57 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
+      - name: Configure Hdfs
+        # namenode will use ports: 9870 and 9000
+        # datanode will use ports: 9864
+        run: |
+          docker run -d \
+            --name namenode \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            bde2020/hadoop-namenode:2.0.0-hadoop3.1.3-java8
+
+          docker run -d \
+            --name datanode \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            bde2020/hadoop-datanode:2.0.0-hadoop3.1.3-java8
+
+          curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      # Setup java env
       - name: Checkout java env
         uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: "11"
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: ${{ matrix.hdfs-version }}
 
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - name: Test
+      - name: Build
         shell: bash
         working-directory: core
-        continue-on-error: true
-        run: cargo test hdfs --features services-hdfs -- --show-output
+        run: cargo test behavior -p opendal --features services-hdfs --no-run
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_HDFS_TEST: on
-          OPENDAL_HDFS_ROOT: /
-          OPENDAL_HDFS_NAME_NODE: hdfs://${{ env.HDFS_NAMENODE_ADDR }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
+      - name: Run
+        shell: bash
+        working-directory: core
+        run: |
+          ls ../target/debug/deps/behavior-* | grep -v '\.d$' | xargs -I {} docker cp {} namenode:/root/behavior
+
+          docker exec namenode \
+            -e RUST_BACKTRACE: full
+            -e RUST_LOG: debug
+            -e OPENDAL_HDFS_TEST=on \
+            -e OPENDAL_HDFS_ROOT=/ \
+            -e OPENDAL_HDFS_NAME_NODE=hdfs://localhost:9000 \
+            bash -c "cd /root && ./behavior services_hdfs"

@@ -127,6 +127,10 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Stat with if_match should succeed, else get a ConditionNotMatch error.
 pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
+    if !op.info().capability().stat_with_if_match {
+        return Ok(());
+    }
+
     let path = "normal_file";
 
     let meta = op.stat(path).await?;
@@ -151,6 +155,10 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
 
 /// Stat with if_none_match should succeed, else get a ConditionNotMatch.
 pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
+    if !op.info().capability().stat_with_if_none_match {
+        return Ok(());
+    }
+
     let path = "normal_file";
 
     let meta = op.stat(path).await?;

@@ -19,9 +19,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use http::StatusCode;
+use log::debug;
 
 use super::core::*;
-use super::pager::*;
+use super::error::parse_error;
 use super::writer::*;
 use crate::ops::*;
 use crate::raw::*;
@@ -37,7 +39,6 @@ pub struct SupabaseBuilder {
     // todo: optional public, currently true always
     // todo: optional file_size_limit, currently 0
     // todo: optional allowed_mime_types, currently only string
-
     http_client: Option<HttpClient>,
 }
 
@@ -92,7 +93,35 @@ impl Builder for SupabaseBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        unimplemented!()
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        debug!("backend use root {}", &root);
+
+        let bucket = &self.bucket;
+
+        let endpoint = self.endpoint.take().unwrap_or_default();
+
+        let http_client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::S3)
+            })?
+        };
+
+        let mut core = SupabaseCore {
+            root,
+            bucket: bucket.to_owned(),
+            endpoint,
+            auth_key: None,
+            http_client,
+        };
+
+        core.load_auth_key("OPENDAL_SUPABASE_AUTH_KEY");
+
+        let core = Arc::new(core);
+
+        Ok(SupabaseBackend { core })
     }
 }
 
@@ -112,7 +141,17 @@ impl Accessor for SupabaseBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        unimplemented!()
+        use AccessorCapability::*;
+        use AccessorHint::*;
+
+        let mut am = AccessorInfo::default();
+        am.set_scheme(Scheme::Supabase)
+            .set_root(&self.core.root)
+            .set_name(&self.core.bucket)
+            .set_capabilities(Read | Write)
+            .set_hints(ReadStreamable);
+
+        am
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
@@ -120,14 +159,38 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        unimplemented!()
+        let resp = self.core.supabase_get_object_public(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                return Ok((RpRead::with_metadata(meta), resp.into_body()));
+            }
+            _ => {}
+        }
+
+        let resp = self.core.supabase_get_object_auth(path).await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        unimplemented!()
+        Ok((
+            RpWrite::default(),
+            SupabaseWriter::new(self.core.clone(), path, args),
+        ))
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        unimplemented!( )
+        unimplemented!()
     }
 }

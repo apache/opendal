@@ -49,8 +49,12 @@ impl SupabaseWriter {
     }
 
     pub async fn upload(&self, bytes: Bytes) -> Result<()> {
-        let body = AsyncBody::Bytes(bytes);
-        let mut req = self.core.supabase_upload_object_request(&self.path, body)?;
+        let mut req = self.core.supabase_upload_object_request(
+            &self.path,
+            Some(bytes.len()),
+            self.op.content_type(),
+            AsyncBody::Bytes(bytes),
+        )?;
 
         self.core.sign(&mut req)?;
 
@@ -63,7 +67,6 @@ impl SupabaseWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-
     }
 }
 
@@ -110,9 +113,7 @@ impl oio::Write for SupabaseWriter {
                 self.buffer.clear();
                 Ok(())
             }
-            Err(e) => {
-                return Err(e)
-            }
+            Err(e) => return Err(e),
         }
     }
 }

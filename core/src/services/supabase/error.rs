@@ -46,7 +46,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
-    
+
     let (message, supabase_err) = from_reader::<_, SupabaseError>(bs.clone().reader())
         .map(|sb_err| (format!("{sb_err:?}"), Some(sb_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));

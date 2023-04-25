@@ -18,5 +18,5 @@
 mod backend;
 pub use backend::SupabaseBuilder as Supabase;
 mod core;
-mod writer;
 mod error;
+mod writer;

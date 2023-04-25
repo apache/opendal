@@ -19,6 +19,8 @@ use std::fmt::Debug;
 
 use anyhow::anyhow;
 use bytes::Bytes;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -64,7 +66,7 @@ impl SupabaseCore {
         }
     }
 
-    pub fn load_auth_key(&self, env: &str) {
+    pub fn load_auth_key(&mut self, env: &str) {
         if let Ok(v) = std::env::var(env) {
             self.auth_key = Some(HeaderValue::from_str(&v).unwrap());
         }
@@ -72,7 +74,7 @@ impl SupabaseCore {
 
     pub fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         if let Some(k) = &self.auth_key {
-            let v = HeaderValue::from_str(&format!("Bearer {}", k.to_str().unwrap()));
+            let v = HeaderValue::from_str(&format!("Bearer {}", k.to_str().unwrap())).unwrap();
             req.headers_mut().insert(constants::AUTH_HEADER_KEY, v);
             Ok(())
         } else {
@@ -88,7 +90,7 @@ impl SupabaseCore {
     // ?: this defaults the bucket id to be the bucket name
     pub fn supabase_create_bucket_request(&self) -> Result<Request<AsyncBody>> {
         let url = format!("{}/bucket/", self.endpoint);
-        let mut req = Request::post(&url);
+        let req = Request::post(&url);
         let body = json!({
             "name": self.bucket,
             "id": self.bucket,
@@ -100,7 +102,7 @@ impl SupabaseCore {
         })
         .to_string();
 
-        let mut req = req
+        let req = req
             .body(AsyncBody::Bytes(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
@@ -110,45 +112,60 @@ impl SupabaseCore {
     pub fn supabase_upload_object_request(
         &self,
         path: &str,
+        size: Option<usize>,
+        content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/object/{}/{}",
+            "{}/storage/v1/object/{}/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
 
-        let req = Request::post(&url)
-            .body(body)
-            .map_err(new_request_build_error);
-        req
+        let mut req = Request::post(&url);
+
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
     }
 
     pub fn supabase_get_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/object/public/{}/{}",
+            "{}/storage/v1/object/public/{}/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
 
-        let req = Request::get(&url).body(AsyncBody::Empty).map_err(new_request_build_error);
+        let req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error);
         req
     }
 
     pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/object/authenticated/{}/{}",
+            "{}/storage/v1/object/authenticated/{}/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
 
-        let req = Request::get(&url).body(AsyncBody::Empty).map_err(new_request_build_error);
+        let req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error);
         req
     }
 }
@@ -157,5 +174,35 @@ impl SupabaseCore {
 impl SupabaseCore {
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         self.http_client.send(req).await
+    }
+
+    pub async fn supabase_get_object_public(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_get_object_public_request(path)?;
+
+        self.sign(&mut req)?;
+
+        self.send(req).await
+    }
+
+    pub async fn supabase_get_object_auth(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_get_object_auth_request(path)?;
+
+        self.sign(&mut req)?;
+
+        self.send(req).await
+    }
+
+    pub async fn supabase_create_bucket(&self) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_create_bucket_request()?;
+
+        self.sign(&mut req)?;
+
+        self.send(req).await
     }
 }

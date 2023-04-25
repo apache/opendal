@@ -61,7 +61,7 @@ const AZBLOB_BATCH_LIMIT: usize = 256;
 /// - [x] copy
 /// - [x] list
 /// - [x] scan
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -471,6 +471,7 @@ impl Accessor for AzblobBackend {
                 list: true,
                 scan: true,
                 copy: true,
+                presign: true,
                 batch: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
                 ..Default::default()
@@ -604,6 +605,36 @@ impl Accessor for AzblobBackend {
         );
 
         Ok((RpScan::default(), op))
+    }
+
+        async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => {
+                self.core
+                    .azblob_head_blob_request(path, v.if_none_match(), v.if_match())?
+            }
+            PresignOperation::Read(v) => self.core.azblob_get_blob_request(
+                path,
+                v.range(),
+                v.if_none_match(),
+                v.if_match(),
+                v.override_content_disposition(),
+            )?,
+            PresignOperation::Write(_) => {
+                self.core
+                    .azblob_put_blob_request(path, None, None, None, AsyncBody::Empty)?
+            }
+        };
+
+        self.core.sign(&mut req).await?;
+
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {

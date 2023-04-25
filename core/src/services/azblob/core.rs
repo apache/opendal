@@ -101,14 +101,14 @@ impl AzblobCore {
 }
 
 impl AzblobCore {
-    pub async fn azblob_get_blob(
+    pub fn azblob_get_blob_request(
         &self,
         path: &str,
         range: BytesRange,
         if_none_match: Option<&str>,
         if_match: Option<&str>,
         override_content_disposition: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -154,9 +154,28 @@ impl AzblobCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let mut req = req
+        let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_get_blob(
+        &self,
+        path: &str,
+        range: BytesRange,
+        if_none_match: Option<&str>,
+        if_match: Option<&str>,
+        override_content_disposition: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.azblob_get_blob_request(
+            path,
+            range,
+            if_none_match,
+            if_match,
+            override_content_disposition,
+        )?;
 
         self.sign(&mut req).await?;
 
@@ -203,12 +222,12 @@ impl AzblobCore {
         Ok(req)
     }
 
-    pub async fn azblob_get_blob_properties(
+    pub fn azblob_head_blob_request(
         &self,
         path: &str,
         if_none_match: Option<&str>,
         if_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -228,9 +247,20 @@ impl AzblobCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let mut req = req
+        let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn azblob_get_blob_properties(
+        &self,
+        path: &str,
+        if_none_match: Option<&str>,
+        if_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.azblob_head_blob_request(path, if_none_match, if_match)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

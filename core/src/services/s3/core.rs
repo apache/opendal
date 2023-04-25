@@ -446,8 +446,6 @@ impl S3Core {
         self.send(req).await
     }
 
-    /// Make this functions as `pub(super)` because `DirStream` depends
-    /// on this.
     pub async fn s3_list_objects(
         &self,
         path: &str,

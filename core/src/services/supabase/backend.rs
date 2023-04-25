@@ -50,42 +50,16 @@ use crate::*;
 /// - `service_key`: Set the secret key for the backend, this is prioritized over the client key
 /// - `anon_key`: Set the client key for the backend, this cannot access non-public resources
 ///
-/// ## Authorization key setup
+/// ## Authorization keys
 ///
 /// There are two types of key in the Supabase, one is anon_key(Client key), another one is
 /// service_role_key(Secret key). The former one can only access public resources while the latter one
 /// can access all resources.
 ///
-/// There exists a priority of setting up the authorization keys.
-/// The key set up by builder takes precedence over environment variable, and the service_key
-/// takes precedence over anon_key.
-///
-/// There are two ways of setting up the authorization key, i.e., environment variable and builder.
-/// - The environment variable OPENDAL_SUPABASE_AUTH_ANON_KEY sets up the anon_key.
-/// - The environment variable OPENDAL_SUPABASE_AUTH_SERVICE_KEY sets up the service_role_key.
-///
 /// # Example
 ///
 /// ## Basic Setup
 ///
-/// ### Using Environment Variable
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Supabase;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // suppose the environment variable is set
-///     let mut builder = services::Supabase::default();
-///     builder.root("/");
-///     builder.bucket("test_bucket");
-///     builder.endpoint("http://127.0.0.1:54321");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///    
-///     Ok(())
-/// }
 /// ```
 ///
 /// ### Using Builder
@@ -221,14 +195,13 @@ impl Builder for SupabaseBuilder {
         } else {
             HttpClient::new().map_err(|err| {
                 err.with_operation("Builder::build")
-                    .with_context("service", Scheme::S3)
+                    .with_context("service", Scheme::Supabase)
             })?
         };
 
         // priority:
         //  if the service key is loaded, it is used.
         //  Else if the anon key is loaded, it is used.
-        //  Else the key should be loaded from the environment variable
         let (auth_key, auth) = if let Some(k) = &self.service_key {
             (Some(k), true)
         } else if let Some(k) = &self.anon_key {
@@ -239,16 +212,7 @@ impl Builder for SupabaseBuilder {
 
         let auth_key = auth_key.map(|k| HeaderValue::from_str(k).unwrap());
 
-        let mut core = SupabaseCore {
-            root,
-            bucket: bucket.to_owned(),
-            endpoint,
-            auth_key,
-            auth,
-            http_client,
-        };
-
-        core.load_auth_key();
+        let core = SupabaseCore::new(&root, bucket, &endpoint, auth_key, auth, http_client);
 
         let core = Arc::new(core);
 
@@ -285,11 +249,6 @@ impl Accessor for SupabaseBackend {
             });
 
         am
-    }
-
-    // todo: implement create_dir
-    async fn create_dir(&self, _path: &str, _: OpCreate) -> Result<RpCreate> {
-        unimplemented!()
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {

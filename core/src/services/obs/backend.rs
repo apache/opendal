@@ -306,12 +306,18 @@ impl Accessor for ObsBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
+
                 write: true,
                 list: true,
                 scan: true,
                 copy: true,
+
                 ..Default::default()
             });
 

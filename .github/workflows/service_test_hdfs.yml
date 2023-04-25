@@ -108,7 +108,7 @@ jobs:
       - name: Setup hadoop env
         shell: bash
         run: |
-          curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
+          curl -LsSf https://archive.apache.org/dist/hadoop/common/hadoop-3.1.3/hadoop-3.1.3.tar.gz | tar zxf - -C /home/runner
 
       - name: Test
         shell: bash
@@ -120,7 +120,7 @@ jobs:
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          HADOOP_HOME: "/home/runner/hadoop-3.3.5"
+          HADOOP_HOME: "/home/runner/hadoop-3.1.3"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           OPENDAL_HDFS_TEST: on
           OPENDAL_HDFS_ROOT: /

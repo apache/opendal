@@ -60,7 +60,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test behavior -p opendal --features services-hdfs
+        run: cargo test hdfs --features services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
@@ -113,7 +113,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test behavior -p opendal --features services-hdfs
+        run: cargo test hdfs --features services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

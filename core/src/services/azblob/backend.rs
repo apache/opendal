@@ -607,7 +607,7 @@ impl Accessor for AzblobBackend {
         Ok((RpScan::default(), op))
     }
 
-        async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => {
                 self.core

@@ -37,39 +37,93 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  hdfs:
+  hdfs-default:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        hdfs-version: ["2.10.1", "3.2.3", "3.3.2"]
     steps:
       - uses: actions/checkout@v3
 
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-      - name: Checkout java env
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup java env
         uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: "11"
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: ${{ matrix.hdfs-version }}
+      - name: Setup hadoop env
+        shell: bash
+        run: |
+          curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz | tar zxf - -C /home/runner
 
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
       - name: Test
         shell: bash
         working-directory: core
-        continue-on-error: true
-        run: cargo test hdfs --features services-hdfs -- --show-output
+        run: |
+          export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
+          cargo test services_hdfs --features services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_HDFS_TEST: on
-          OPENDAL_HDFS_ROOT: /
-          OPENDAL_HDFS_NAME_NODE: hdfs://${{ env.HDFS_NAMENODE_ADDR }}
+          HADOOP_HOME: "/home/runner/hadoop-3.3.5"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          OPENDAL_HDFS_TEST: on
+          OPENDAL_HDFS_ROOT: /tmp/opendal/
+          OPENDAL_HDFS_NAME_NODE: default
+
+  hdfs-cluster:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure Hdfs
+        # namenode will use ports: 9870, 9000, 8020
+        # datanode will use ports: 9864
+        run: |
+          docker run -d \
+            --name namenode \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            -e HDFS_CONF_dfs_permissions_enabled=false \
+            bde2020/hadoop-namenode:2.0.0-hadoop3.1.3-java8
+
+          docker run -d \
+            --name datanode \
+            --network host \
+            -e CLUSTER_NAME=test \
+            -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
+            -e CORE_CONF_hadoop_http_staticuser_user=root \
+            -e HDFS_CONF_dfs_permissions_enabled=false \
+            bde2020/hadoop-datanode:2.0.0-hadoop3.1.3-java8
+
+          curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Setup hadoop env
+        shell: bash
+        run: |
+          curl -LsSf https://archive.apache.org/dist/hadoop/common/hadoop-3.1.3/hadoop-3.1.3.tar.gz | tar zxf - -C /home/runner
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: |
+          export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
+
+          cargo test services_hdfs --features services-hdfs -- --show-output
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          HADOOP_HOME: "/home/runner/hadoop-3.1.3"
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          OPENDAL_HDFS_TEST: on
+          OPENDAL_HDFS_ROOT: /tmp/opendal/
+          OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020

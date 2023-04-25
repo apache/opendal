@@ -754,7 +754,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|(rp, w)| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> written",
+                    "service={} operation={} path={} -> start writing",
                     self.scheme,
                     Operation::BlockingWrite,
                     path,

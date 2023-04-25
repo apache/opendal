@@ -52,7 +52,7 @@ jobs:
           java-version: "11"
       - name: Setup hadoop env
         shell: bash
-        run:
+        run: |
           curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz -o hadoop-3.3.5.tar.gz
           tar -xzf hadoop-3.3.5.tar.gz
           echo "export HADOOP_HOME=$(pwd)/hadoop-3.3.5" >> $GITHUB_ENV
@@ -105,7 +105,7 @@ jobs:
           java-version: "11"
       - name: Setup hadoop env
         shell: bash
-        run:
+        run: |
           curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz -o hadoop-3.3.5.tar.gz
           tar -xzf hadoop-3.3.5.tar.gz
           echo "export HADOOP_HOME=$(pwd)/hadoop-3.3.5" >> $GITHUB_ENV

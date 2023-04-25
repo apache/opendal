@@ -146,7 +146,6 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     let result = op.stat_with(path, op_stat).await;
     assert!(result.is_ok());
 
-    op.delete(path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -172,7 +171,6 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(res.mode(), meta.mode());
     assert_eq!(res.content_length(), meta.content_length());
 
-    op.delete(path).await.expect("delete must succeed");
     Ok(())
 }
 

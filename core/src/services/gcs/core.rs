@@ -172,9 +172,7 @@ impl GcsCore {
 
         let mut req = Request::post(&url);
 
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(storage_class) = &self.default_storage_class {
             req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");

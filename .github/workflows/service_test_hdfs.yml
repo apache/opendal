@@ -124,4 +124,4 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           OPENDAL_HDFS_TEST: on
           OPENDAL_HDFS_ROOT: /
-          OPENDAL_HDFS_NAME_NODE: hdfs://localhost:9000
+          OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020

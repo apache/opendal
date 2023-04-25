@@ -37,7 +37,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  hdfs:
+  hdfs-default:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Setup hadoop env
+        shell: bash
+        run:
+          curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz -o hadoop-3.3.5.tar.gz
+          tar -xzf hadoop-3.3.5.tar.gz
+          echo "export HADOOP_HOME=$(pwd)/hadoop-3.3.5" >> $GITHUB_ENV
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo test behavior -p opendal --features services-hdfs
+        env:
+          RUST_BACKTRACE: full
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          OPENDAL_HDFS_TEST: on
+          OPENDAL_HDFS_ROOT: /
+          OPENDAL_HDFS_NAME_NODE: default
+
+  hdfs-cluster:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -75,7 +106,7 @@ jobs:
       - name: Setup hadoop env
         shell: bash
         run:
-          curl -sSL https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz -O hadoop-3.3.5.tar.gz
+          curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.3.5/hadoop-3.3.5.tar.gz -o hadoop-3.3.5.tar.gz
           tar -xzf hadoop-3.3.5.tar.gz
           echo "export HADOOP_HOME=$(pwd)/hadoop-3.3.5" >> $GITHUB_ENV
 

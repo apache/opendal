@@ -89,10 +89,10 @@ jobs:
         run: |
           ls ../target/debug/deps/behavior-* | grep -v '\.d$' | xargs -I {} docker cp {} namenode:/root/behavior
 
-          docker exec namenode \
+          docker exec \
             -e RUST_BACKTRACE=full \
             -e RUST_LOG=debug \
             -e OPENDAL_HDFS_TEST=on \
             -e OPENDAL_HDFS_ROOT=/ \
             -e OPENDAL_HDFS_NAME_NODE=hdfs://localhost:9000 \
-            bash -c "cd /root && ./behavior services_hdfs"
+            namenode bash -c "cd /root && ./behavior services_hdfs"

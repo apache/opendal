@@ -471,7 +471,7 @@ impl Accessor for AzblobBackend {
                 list: true,
                 scan: true,
                 copy: true,
-                presign: true,
+                presign: false,
                 batch: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
                 ..Default::default()

@@ -27,7 +27,7 @@ use crate::*;
 
 pub struct HdfsWriter<F> {
     f: F,
-    /// The position of current wirtten bytes in the buffer.
+    /// The position of current written bytes in the buffer.
     ///
     /// We will maintain the posstion in pos to make sure the buffer is written correctly.
     pos: usize,

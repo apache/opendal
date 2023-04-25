@@ -76,7 +76,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Configure Hdfs
-        # namenode will use ports: 9870 and 9000
+        # namenode will use ports: 9870, 9000, 8020
         # datanode will use ports: 9864
         run: |
           docker run -d \

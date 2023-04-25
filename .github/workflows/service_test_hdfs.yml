@@ -39,9 +39,6 @@ concurrency:
 jobs:
   hdfs:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        hdfs-version: ["2.10.1", "3.2.3", "3.3.2"]
     steps:
       - uses: actions/checkout@v3
 

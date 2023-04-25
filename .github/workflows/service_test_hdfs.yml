@@ -58,14 +58,16 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test services_hdfs --features services-hdfs -- --show-output
+        run: |
+          export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
+          cargo test services_hdfs --features services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           OPENDAL_HDFS_TEST: on
-          OPENDAL_HDFS_ROOT: /
+          OPENDAL_HDFS_ROOT: /tmp/opendal
           OPENDAL_HDFS_NAME_NODE: default
 
   hdfs-cluster:
@@ -111,7 +113,10 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test services_hdfs --features services-hdfs -- --show-output
+        run: |
+          export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
+
+          cargo test services_hdfs --features services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

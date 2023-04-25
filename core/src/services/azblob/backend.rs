@@ -626,7 +626,7 @@ impl Accessor for AzblobBackend {
             }
         };
 
-        self.core.sign(&mut req).await?;
+        self.core.sign_query(&mut req).await?;
 
         let (parts, _) = req.into_parts();
 

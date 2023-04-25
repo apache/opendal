@@ -82,6 +82,14 @@ impl AzblobCore {
         }
     }
 
+    pub async fn sign_query<T>(&self, req: &mut Request<T>) -> Result<()> {
+        let cred = self.load_credential().await?;
+
+        self.signer
+            .sign_query(req, &cred)
+            .map_err(new_request_sign_error)
+    }
+
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_credential().await?;
         self.signer.sign(req, &cred).map_err(new_request_sign_error)

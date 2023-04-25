@@ -21,9 +21,8 @@
 package org.apache.opendal;
 
 import io.questdb.jar.jni.JarJniLoader;
-
 import java.util.Map;
-
+import java.util.concurrent.CompletableFuture;
 
 public class Operator {
 
@@ -39,9 +38,9 @@ public class Operator {
 
     static {
         JarJniLoader.loadLib(
-                Operator.class,
-                ORG_APACHE_OPENDAL_RUST_LIBS,
-                OPENDAL_JAVA);
+            Operator.class,
+            ORG_APACHE_OPENDAL_RUST_LIBS,
+            OPENDAL_JAVA);
     }
 
     private native long getOperator(String type, Map<String, String> params);
@@ -50,15 +49,22 @@ public class Operator {
 
     private native void write(long ptr, String fileName, String content);
 
+    private native void asyncWrite(long ptr, String fileName, String content, CompletableFuture<Boolean> future);
+
     private native String read(long ptr, String fileName);
 
     private native void delete(long ptr, String fileName);
 
     private native long stat(long ptr, String file);
 
-
     public void write(String fileName, String content) {
         write(this.ptr, fileName, content);
+    }
+
+    public CompletableFuture<Boolean> asyncWrite(String fileName, String content) {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        asyncWrite(this.ptr, fileName, content, future);
+        return future;
     }
 
     public String read(String s) {

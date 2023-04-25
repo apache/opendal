@@ -2445,7 +2445,9 @@ name = "opendal-java"
 version = "0.1.0"
 dependencies = [
  "jni",
+ "lazy_static",
  "opendal",
+ "tokio",
 ]
 
 [[package]]

@@ -60,7 +60,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test hdfs --features services-hdfs -- --show-output
+        run: cargo test services_hdfs --features services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -114,7 +114,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test hdfs --features services-hdfs -- --show-output
+        run: cargo test services_hdfs --features services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

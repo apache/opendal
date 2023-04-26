@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::mem::transmute;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -52,7 +53,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - [x] list
 /// - [x] scan
 /// - [x] copy
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -390,6 +391,7 @@ impl Accessor for GcsBackend {
                 list_with_start_after: true,
                 scan: true,
                 copy: true,
+                presign: true,
 
                 ..Default::default()
             });

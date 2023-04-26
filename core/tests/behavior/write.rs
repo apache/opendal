@@ -197,7 +197,7 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
     op.write_with(&path, op_write, content.clone()).await?;
 
     let signed_req = op
-        .presign_read(&path, Duration::from_secs(60))
+        .presign_stat(&path, Duration::from_secs(60))
         .await
         .expect("presign must succeed");
 
@@ -217,7 +217,6 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
         resp.headers().get(http::header::CACHE_CONTROL).unwrap(),
         target_cache_control
     );
-    assert_eq!(resp.bytes().await?, content);
 
     op.delete(&path).await.expect("delete must succeed");
 

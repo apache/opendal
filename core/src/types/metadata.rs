@@ -36,6 +36,7 @@ pub struct Metadata {
 
     mode: EntryMode,
 
+    cache_control: Option<String>,
     content_disposition: Option<String>,
     content_length: Option<u64>,
     content_md5: Option<String>,
@@ -49,7 +50,7 @@ impl Metadata {
     /// Create a new metadata
     pub fn new(mode: EntryMode) -> Self {
         // Mode is required to be set for metadata.
-        let mut bit = Metakey::Mode.into();
+        let mut bit: FlagSet<Metakey> = Metakey::Mode.into();
         // If mode is dir, we should always mark it as complete.
         if mode.is_dir() {
             bit |= Metakey::Complete
@@ -57,8 +58,10 @@ impl Metadata {
 
         Self {
             bit,
+
             mode,
 
+            cache_control: None,
             content_length: None,
             content_md5: None,
             content_type: None,
@@ -111,6 +114,38 @@ impl Metadata {
     pub fn with_mode(mut self, mode: EntryMode) -> Self {
         self.mode = mode;
         self.bit |= Metakey::Mode;
+        self
+    }
+
+    /// Cache control of this entry.
+    /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
+    /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    pub fn cache_control(&self) -> Option<&str> {
+        debug_assert!(
+            self.bit.contains(Metakey::CacheControl) || self.bit.contains(Metakey::Complete),
+            "visiting not set metadata: cache_control, maybe a bug"
+        );
+
+        self.cache_control.as_deref()
+    }
+
+    /// Set cache control of this entry.
+    ///
+    /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
+    /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    pub fn set_cache_control(&mut self, cache_control: &str) -> &mut Self {
+        self.cache_control = Some(cache_control.to_string());
+        self.bit |= Metakey::CacheControl;
+        self
+    }
+
+    /// Set cache control of this entry.
+    /// 
+    /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
+    /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    pub fn with_cache_control(mut self, cache_control: String) -> Self {
+        self.cache_control = Some(cache_control);
+        self.bit |= Metakey::CacheControl;
         self
     }
 
@@ -196,8 +231,8 @@ impl Metadata {
     /// Set Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
-    pub fn set_content_type(&mut self, v: &str) -> &mut Self {
-        self.content_type = Some(v.to_string());
+    pub fn set_content_type(&mut self, content_type: &str) -> &mut Self {
+        self.content_type = Some(content_type.to_string());
         self.bit |= Metakey::ContentType;
         self
     }
@@ -205,8 +240,8 @@ impl Metadata {
     /// Set Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
-    pub fn with_content_type(mut self, v: String) -> Self {
-        self.content_type = Some(v);
+    pub fn with_content_type(mut self, content_type: String) -> Self {
+        self.content_type = Some(content_type);
         self.bit |= Metakey::ContentType;
         self
     }
@@ -226,8 +261,8 @@ impl Metadata {
     /// Set Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
-    pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
-        self.content_range = Some(v);
+    pub fn set_content_range(&mut self, content_range: BytesContentRange) -> &mut Self {
+        self.content_range = Some(content_range);
         self.bit |= Metakey::ContentRange;
         self
     }
@@ -235,8 +270,8 @@ impl Metadata {
     /// Set Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
-    pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
-        self.content_range = Some(v);
+    pub fn with_content_range(mut self, content_range: BytesContentRange) -> Self {
+        self.content_range = Some(content_range);
         self.bit |= Metakey::ContentRange;
         self
     }
@@ -406,6 +441,8 @@ flags! {
 
         /// Key for mode.
         Mode,
+        /// Key for cache control.
+        CacheControl,
         /// Key for content disposition.
         ContentDisposition,
         /// Key for content length.

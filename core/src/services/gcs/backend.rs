@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use http::header::HOST;
 use http::StatusCode;
 use log::debug;
 use reqsign::GoogleCredentialLoader;
@@ -544,7 +545,14 @@ impl Accessor for GcsBackend {
         self.core.sign_query(&mut req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
-        let (parts, _) = req.into_parts();
+        let (mut parts, _) = req.into_parts();
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        parts.headers.remove(HOST);
 
         Ok(RpPresign::new(PresignedRequest::new(
             parts.method,

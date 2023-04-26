@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 
-use anyhow::anyhow;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
@@ -32,11 +31,10 @@ pub struct SupabaseCore {
     pub bucket: String,
     pub endpoint: String,
 
-    /// The key used for authorization. Normally it is rather an anon_key(Client key)
-    /// or an service_role_key(Secret Key)
+    /// The key used for authorization
+    /// If loaded, the read operation will always access the nonpublic resources.
+    /// If you want to read the public resources, please do not set the key.
     pub auth_key: Option<HeaderValue>,
-    /// This is true if the service_role_key is loaded, false if the anon_key is loaded
-    pub auth: bool,
 
     pub http_client: HttpClient,
 }
@@ -57,7 +55,6 @@ impl SupabaseCore {
         bucket: &str,
         endpoint: &str,
         auth_key: Option<HeaderValue>,
-        auth: bool,
         client: HttpClient,
     ) -> Self {
         Self {
@@ -65,7 +62,6 @@ impl SupabaseCore {
             bucket: bucket.to_string(),
             endpoint: endpoint.to_string(),
             auth_key,
-            auth,
             http_client: client,
         }
     }
@@ -74,12 +70,8 @@ impl SupabaseCore {
         if let Some(k) = &self.auth_key {
             let v = HeaderValue::from_str(&format!("Bearer {}", k.to_str().unwrap())).unwrap();
             req.headers_mut().insert(http::header::AUTHORIZATION, v);
-            Ok(())
-        } else {
-            Err(new_request_sign_error(anyhow!(
-                "The anon key is not loaded"
-            )))
         }
+        Ok(())
     }
 }
 

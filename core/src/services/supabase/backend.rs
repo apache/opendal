@@ -53,8 +53,8 @@ use crate::*;
 /// ## Authorization keys
 ///
 /// There are two types of key in the Supabase, one is anon_key(Client key), another one is
-/// service_role_key(Secret key). The former one can only access public resources while the latter one
-/// can access all resources.
+/// service_role_key(Secret key). The former one can only write public resources while the latter one
+/// can access all resources. Note that if you want to read public resources, do not set the key.
 ///
 /// # Example
 ///
@@ -75,8 +75,8 @@ use crate::*;
 ///     builder.root("/");
 ///     builder.bucket("test_bucket");
 ///     builder.endpoint("http://127.0.0.1:54321");
-///     // this sets up the anon_key, which means this operator can only access public resource
-///     builder.anon_key("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0");
+///     // this sets up the anon_key, which means this operator can only write public resource
+///     builder.key("some_anon_key");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///    
@@ -90,8 +90,7 @@ pub struct SupabaseBuilder {
     bucket: String,
     endpoint: Option<String>,
 
-    service_key: Option<String>,
-    anon_key: Option<String>,
+    auth_key: Option<String>,
 
     // todo: optional public, currently true always
     // todo: optional file_size_limit, currently 0
@@ -142,15 +141,10 @@ impl SupabaseBuilder {
         self
     }
 
-    /// Set the service_role_key for this backend
-    pub fn service_key(&mut self, service_key: &str) -> &mut Self {
-        self.service_key = Some(service_key.to_string());
-        self
-    }
-
-    /// Set the anon_key for this backend
-    pub fn anon_key(&mut self, anon_key: &str) -> &mut Self {
-        self.anon_key = Some(anon_key.to_string());
+    /// Set the authorization key for this backend
+    /// Do not set this key if you want to read public bucket
+    pub fn key(&mut self, key: &str) -> &mut Self {
+        self.auth_key = Some(key.to_string());
         self
     }
 
@@ -176,8 +170,7 @@ impl Builder for SupabaseBuilder {
         map.get("root").map(|v| builder.root(v));
         map.get("bucket").map(|v| builder.bucket(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("anon_key").map(|v| builder.anon_key(v));
-        map.get("service_key").map(|v| builder.service_key(v));
+        map.get("key").map(|v| builder.key(v));
 
         builder
     }
@@ -199,20 +192,12 @@ impl Builder for SupabaseBuilder {
             })?
         };
 
-        // priority:
-        //  if the service key is loaded, it is used.
-        //  Else if the anon key is loaded, it is used.
-        let (auth_key, auth) = if let Some(k) = &self.service_key {
-            (Some(k), true)
-        } else if let Some(k) = &self.anon_key {
-            (Some(k), false)
-        } else {
-            (None, false)
-        };
+        let auth_key = self
+            .auth_key
+            .as_ref()
+            .map(|k| HeaderValue::from_str(k).unwrap());
 
-        let auth_key = auth_key.map(|k| HeaderValue::from_str(k).unwrap());
-
-        let core = SupabaseCore::new(&root, bucket, &endpoint, auth_key, auth, http_client);
+        let core = SupabaseCore::new(&root, bucket, &endpoint, auth_key, http_client);
 
         let core = Arc::new(core);
 
@@ -252,7 +237,7 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = if self.core.auth {
+        let resp = if self.core.auth_key.is_some() {
             self.core.supabase_get_object_auth(path).await?
         } else {
             self.core.supabase_get_object_public(path).await?
@@ -282,7 +267,7 @@ impl Accessor for SupabaseBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = if self.core.auth {
+        let resp = if self.core.auth_key.is_some() {
             self.core.supabase_get_object_info_auth(path).await?
         } else {
             self.core.supabase_get_object_info_public(path).await?

@@ -398,9 +398,9 @@ impl Accessor for GcsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req =
-            self.core
-                .gcs_insert_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self
+            .core
+            .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -460,6 +460,7 @@ impl Accessor for GcsBackend {
         if resp.status().is_success() {
             // read http response body
             let slc = resp.into_body().bytes().await?;
+
             let meta: GetObjectJsonResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
@@ -538,7 +539,7 @@ impl Accessor for GcsBackend {
             )?,
             PresignOperation::Write(_) => {
                 self.core
-                    .gcs_insert_object_xml_request(path, None, None, AsyncBody::Empty)?
+                    .gcs_insert_object_xml_request(path, None, AsyncBody::Empty)?
             }
         };
 

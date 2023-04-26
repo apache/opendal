@@ -465,8 +465,8 @@ impl Accessor for AzblobBackend {
                 read_with_override_content_disposition: true,
 
                 write: true,
-                write_with_content_type: true,
                 write_with_cache_control: true,
+                write_with_content_type: true,
 
                 delete: true,
                 create_dir: true,

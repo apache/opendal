@@ -21,7 +21,7 @@ use futures::AsyncSeekExt;
 use futures::StreamExt;
 use log::debug;
 use log::warn;
-use opendal::ops::{OpRead, OpStat};
+use opendal::ops::{OpRead, OpStat, OpWrite};
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -75,6 +75,7 @@ macro_rules! behavior_write_tests {
                 test_write,
                 test_write_with_dir_path,
                 test_write_with_special_chars,
+                test_write_with_cache_control,
                 test_stat,
                 test_stat_dir,
                 test_stat_with_special_chars,
@@ -176,6 +177,34 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+// Write a single file with cache control should succeed.
+pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
+    if !op.info().capability().write_with_cache_control {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    let target_cache_control = "no-cache, no-store, max-age=300";
+
+    let mut op_write = OpWrite::default();
+    op_write = op_write.with_cache_control(target_cache_control);
+
+    op.write_with(&path, op_write, content).await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(
+        meta.cache_control().expect("cache control must exist"),
+        target_cache_control
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 

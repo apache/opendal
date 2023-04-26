@@ -189,7 +189,7 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 
-    let target_cache_control = "public, max-age=3200";
+    let target_cache_control = "no-cache, no-store, max-age=300";
 
     let mut op_write = OpWrite::default();
     op_write = op_write.with_cache_control(target_cache_control);

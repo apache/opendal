@@ -66,7 +66,7 @@ impl Accessor for OneDriveBackend {
         ma
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.onedrive_get(path).await?;
 
         let status = resp.status();

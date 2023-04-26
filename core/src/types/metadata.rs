@@ -36,6 +36,7 @@ pub struct Metadata {
 
     mode: EntryMode,
 
+    cache_control: Option<String>,
     content_disposition: Option<String>,
     content_length: Option<u64>,
     content_md5: Option<String>,
@@ -49,7 +50,7 @@ impl Metadata {
     /// Create a new metadata
     pub fn new(mode: EntryMode) -> Self {
         // Mode is required to be set for metadata.
-        let mut bit = Metakey::Mode.into();
+        let mut bit: FlagSet<Metakey> = Metakey::Mode.into();
         // If mode is dir, we should always mark it as complete.
         if mode.is_dir() {
             bit |= Metakey::Complete
@@ -57,8 +58,10 @@ impl Metadata {
 
         Self {
             bit,
+
             mode,
 
+            cache_control: None,
             content_length: None,
             content_md5: None,
             content_type: None,
@@ -101,16 +104,48 @@ impl Metadata {
     }
 
     /// Set mode for entry.
-    pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
-        self.mode = mode;
+    pub fn set_mode(&mut self, v: EntryMode) -> &mut Self {
+        self.mode = v;
         self.bit |= Metakey::Mode;
         self
     }
 
     /// Set mode for entry.
-    pub fn with_mode(mut self, mode: EntryMode) -> Self {
-        self.mode = mode;
+    pub fn with_mode(mut self, v: EntryMode) -> Self {
+        self.mode = v;
         self.bit |= Metakey::Mode;
+        self
+    }
+
+    /// Cache control of this entry.
+    /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
+    /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    pub fn cache_control(&self) -> Option<&str> {
+        debug_assert!(
+            self.bit.contains(Metakey::CacheControl) || self.bit.contains(Metakey::Complete),
+            "visiting not set metadata: cache_control, maybe a bug"
+        );
+
+        self.cache_control.as_deref()
+    }
+
+    /// Set cache control of this entry.
+    ///
+    /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
+    /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    pub fn set_cache_control(&mut self, v: &str) -> &mut Self {
+        self.cache_control = Some(v.to_string());
+        self.bit |= Metakey::CacheControl;
+        self
+    }
+
+    /// Set cache control of this entry.
+    ///
+    /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
+    /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
+    pub fn with_cache_control(mut self, v: String) -> Self {
+        self.cache_control = Some(v);
+        self.bit |= Metakey::CacheControl;
         self
     }
 
@@ -133,15 +168,15 @@ impl Metadata {
     }
 
     /// Set content length of this entry.
-    pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
-        self.content_length = Some(content_length);
+    pub fn set_content_length(&mut self, v: u64) -> &mut Self {
+        self.content_length = Some(v);
         self.bit |= Metakey::ContentLength;
         self
     }
 
     /// Set content length of this entry.
-    pub fn with_content_length(mut self, content_length: u64) -> Self {
-        self.content_length = Some(content_length);
+    pub fn with_content_length(mut self, v: u64) -> Self {
+        self.content_length = Some(v);
         self.bit |= Metakey::ContentLength;
         self
     }
@@ -165,8 +200,8 @@ impl Metadata {
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
-    pub fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
-        self.content_md5 = Some(content_md5.to_string());
+    pub fn set_content_md5(&mut self, v: &str) -> &mut Self {
+        self.content_md5 = Some(v.to_string());
         self.bit |= Metakey::ContentMd5;
         self
     }
@@ -175,8 +210,8 @@ impl Metadata {
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
-    pub fn with_content_md5(mut self, content_md5: String) -> Self {
-        self.content_md5 = Some(content_md5);
+    pub fn with_content_md5(mut self, v: String) -> Self {
+        self.content_md5 = Some(v);
         self.bit |= Metakey::ContentMd5;
         self
     }
@@ -260,8 +295,8 @@ impl Metadata {
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    pub fn set_last_modified(&mut self, last_modified: DateTime<Utc>) -> &mut Self {
-        self.last_modified = Some(last_modified);
+    pub fn set_last_modified(&mut self, v: DateTime<Utc>) -> &mut Self {
+        self.last_modified = Some(v);
         self.bit |= Metakey::LastModified;
         self
     }
@@ -270,8 +305,8 @@ impl Metadata {
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    pub fn with_last_modified(mut self, last_modified: DateTime<Utc>) -> Self {
-        self.last_modified = Some(last_modified);
+    pub fn with_last_modified(mut self, v: DateTime<Utc>) -> Self {
+        self.last_modified = Some(v);
         self.bit |= Metakey::LastModified;
         self
     }
@@ -307,8 +342,8 @@ impl Metadata {
     /// - `W/"0815"`
     ///
     /// `"` is part of etag, don't trim it before setting.
-    pub fn set_etag(&mut self, etag: &str) -> &mut Self {
-        self.etag = Some(etag.to_string());
+    pub fn set_etag(&mut self, v: &str) -> &mut Self {
+        self.etag = Some(v.to_string());
         self.bit |= Metakey::Etag;
         self
     }
@@ -324,8 +359,8 @@ impl Metadata {
     /// - `W/"0815"`
     ///
     /// `"` is part of etag, don't trim it before setting.
-    pub fn with_etag(mut self, etag: String) -> Self {
-        self.etag = Some(etag);
+    pub fn with_etag(mut self, v: String) -> Self {
+        self.etag = Some(v);
         self.bit |= Metakey::Etag;
         self
     }
@@ -361,8 +396,8 @@ impl Metadata {
     /// - "inline"
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
-    pub fn with_content_disposition(mut self, content_disposition: String) -> Self {
-        self.content_disposition = Some(content_disposition);
+    pub fn with_content_disposition(mut self, v: String) -> Self {
+        self.content_disposition = Some(v);
         self.bit |= Metakey::ContentDisposition;
         self
     }
@@ -378,8 +413,8 @@ impl Metadata {
     /// - "inline"
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
-    pub fn set_content_disposition(&mut self, content_disposition: &str) -> &mut Self {
-        self.content_disposition = Some(content_disposition.to_string());
+    pub fn set_content_disposition(&mut self, v: &str) -> &mut Self {
+        self.content_disposition = Some(v.to_string());
         self.bit |= Metakey::ContentDisposition;
         self
     }
@@ -406,6 +441,8 @@ flags! {
 
         /// Key for mode.
         Mode,
+        /// Key for cache control.
+        CacheControl,
         /// Key for content disposition.
         ContentDisposition,
         /// Key for content length.

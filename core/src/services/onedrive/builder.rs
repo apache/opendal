@@ -4,7 +4,7 @@ use std::fmt::{Debug, Formatter};
 use log::debug;
 
 use super::backend::OneDriveBackend;
-use crate::raw::normalize_root;
+use crate::raw::{normalize_root, HttpClient};
 use crate::Scheme;
 use crate::*;
 
@@ -12,6 +12,7 @@ use crate::*;
 pub struct OneDriveBuilder {
     access_token: Option<String>,
     root: Option<String>,
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for OneDriveBuilder {
@@ -23,10 +24,6 @@ impl Debug for OneDriveBuilder {
 }
 
 impl OneDriveBuilder {
-    fn new() -> Self {
-        Self::default()
-    }
-
     fn access_token(&mut self, access_token: &str) -> &mut Self {
         self.access_token = Some(access_token.to_string());
         self
@@ -36,6 +33,11 @@ impl OneDriveBuilder {
         self.root = Some(root.to_string());
         self
     }
+
+    fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
+        self.http_client = Some(http_client);
+        self
+    }
 }
 
 impl Builder for OneDriveBuilder {
@@ -43,8 +45,17 @@ impl Builder for OneDriveBuilder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Onedrive)
+            })?
+        };
+
         match self.access_token.clone() {
-            Some(access_token) => Ok(OneDriveBackend::new(root, access_token)),
+            Some(access_token) => Ok(OneDriveBackend::new(root, access_token, client)),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }
     }

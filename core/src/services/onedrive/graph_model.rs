@@ -37,15 +37,18 @@ struct OneDriveItem {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ParentReference {
-    driveId: String,
-    driveType: String,
+    #[serde(rename = "driveId")]
+    drive_id: String,
+    #[serde(rename = "driveType")]
+    drive_type: String,
     id: String,
     path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct FileSystemInfo {
-    createdDateTime: String,
+    #[serde(rename = "createdDateTime")]
+    created_date_time: String,
     #[serde[rename = "lastModifiedDateTime"]]
     last_modified_date_time: String,
 }

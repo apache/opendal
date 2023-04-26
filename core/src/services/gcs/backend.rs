@@ -382,7 +382,6 @@ impl Accessor for GcsBackend {
                 read_can_next: true,
 
                 write: true,
-                write_with_cache_control: true,
                 write_without_content_length: true,
 
                 list: true,
@@ -398,9 +397,9 @@ impl Accessor for GcsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req =
-            self.core
-                .gcs_insert_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self
+            .core
+            .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -461,16 +460,6 @@ impl Accessor for GcsBackend {
             // read http response body
             let slc = resp.into_body().bytes().await?;
 
-            debug!(
-                "header cache control: {}",
-                resp.headers()
-                    .get("Cache-Control")
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default()
-            );
-            debug!("stat: {}", String::from_utf8_lossy(&slc));
-
             let meta: GetObjectJsonResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
@@ -494,8 +483,6 @@ impl Accessor for GcsBackend {
             }
 
             m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
-
-            m.set_cache_control(&meta.cache_control);
 
             Ok(RpStat::new(m))
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
@@ -551,7 +538,7 @@ impl Accessor for GcsBackend {
             )?,
             PresignOperation::Write(_) => {
                 self.core
-                    .gcs_insert_object_xml_request(path, None, None, AsyncBody::Empty)?
+                    .gcs_insert_object_xml_request(path, None, AsyncBody::Empty)?
             }
         };
 
@@ -592,9 +579,6 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
-    /// Cache control of this object.
-    /// For example: `"cacheControl": "public, max-age=3600"`
-    cache_control: String,
 }
 
 #[cfg(test)]
@@ -613,7 +597,6 @@ mod tests {
   "generation": "1660563214863653",
   "metageneration": "1",
   "contentType": "image/png",
-  "cacheControl": "public, max-age=3600",
   "storageClass": "STANDARD",
   "size": "56535",
   "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
@@ -632,6 +615,5 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
-        assert_eq!(meta.cache_control, "public, max-age=3600");
     }
 }

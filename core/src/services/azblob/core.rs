@@ -22,7 +22,6 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use http::header::HeaderName;
-use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -37,7 +36,6 @@ use reqsign::AzureStorageSigner;
 use super::batch::BatchDeleteRequestBuilder;
 use crate::raw::*;
 use crate::*;
-use crate::services::azblob::core::constants::X_MS_BLOB_CACHE_CONTROL;
 
 mod constants {
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
@@ -211,7 +209,7 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
         if let Some(cache_control) = cache_control {
-            req = req.header(X_MS_BLOB_CACHE_CONTROL, cache_control);
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)

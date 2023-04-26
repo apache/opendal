@@ -39,6 +39,7 @@ concurrency:
 jobs:
   ghac:
     runs-on: ubuntu-latest
+    if: ${{ secrets.OPENDAL_GHAC_TEST }}
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain

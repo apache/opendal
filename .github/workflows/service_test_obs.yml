@@ -39,6 +39,7 @@ concurrency:
 jobs:
   obs:
     runs-on: ubuntu-latest
+    if: ${{ secrets.OPENDAL_OBS_TEST }}
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain

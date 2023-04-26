@@ -39,7 +39,7 @@ concurrency:
 jobs:
   azure_azdfs:
     runs-on: ubuntu-latest
-
+    if: ${{ secrets.OPENDAL_AZDFS_TEST }}
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain

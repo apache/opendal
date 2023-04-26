@@ -389,7 +389,6 @@ impl Accessor for GcsBackend {
                 list_with_start_after: true,
                 scan: true,
                 copy: true,
-                presign: true,
 
                 ..Default::default()
             });

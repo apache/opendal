@@ -42,6 +42,7 @@ thread_local! {
     static JENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
 }
 
+#[allow(dead_code)]
 fn get_system_property(env: &mut JNIEnv, key: &str) -> Result<String, jni::errors::Error> {
     let system_class = env.find_class("java/lang/System")?;
     let key = env.new_string(key)?;

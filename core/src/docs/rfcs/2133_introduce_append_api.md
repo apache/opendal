@@ -1,6 +1,6 @@
 - Proposal Name: `introduce_append_api`
 - Start Date: 2023-04-26
-- RFC PR: 
+- RFC PR: https://github.com/apache/incubator-opendal/pull/2133
 - Tracking Issue: 
 
 # Summary

@@ -62,11 +62,8 @@ fn get_system_property(env: &mut JNIEnv, key: &str) -> Result<String, jni::error
 /// This function could be only called by java vm when load this lib.
 #[no_mangle]
 pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
-    let mut env = vm.get_env().unwrap();
-    let thread_count = match get_system_property(&mut env, "opendal.thread.count") {
-        Ok(count) => count.parse().unwrap_or(num_cpus::get()),
-        Err(_) => num_cpus::get(),
-    };
+    // TODO: make this configurable in the future
+    let thread_count = num_cpus::get();
 
     let java_vm = Arc::new(vm);
     let runtime = Builder::new_multi_thread()

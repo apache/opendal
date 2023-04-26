@@ -24,17 +24,17 @@ impl Debug for OneDriveBuilder {
 }
 
 impl OneDriveBuilder {
-    fn access_token(&mut self, access_token: &str) -> &mut Self {
+    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
         self.access_token = Some(access_token.to_string());
         self
     }
 
-    fn root(&mut self, root: &str) -> &mut Self {
+    pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = Some(root.to_string());
         self
     }
 
-    fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
+    pub fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
         self.http_client = Some(http_client);
         self
     }

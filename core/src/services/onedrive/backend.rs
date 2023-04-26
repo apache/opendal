@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use http::{header, Request, Response, StatusCode};
-use hyper::server::conn::Http;
 use std::fmt::Debug;
 
 use crate::{

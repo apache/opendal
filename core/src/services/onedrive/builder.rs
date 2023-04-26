@@ -37,12 +37,9 @@ impl Builder for OneDriveBuilder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        match self.access_token {
-            Some(access_token) => Ok(OneDriveBackend {
-                access_token: access_token,
-                root: root,
-            }),
-            None => Err(Error::NoAccessToken),
+        match self.access_token.clone() {
+            Some(access_token) => Ok(OneDriveBackend::new(root, access_token)),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }
     }
 

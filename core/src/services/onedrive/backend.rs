@@ -1,12 +1,21 @@
 use async_trait::async_trait;
 use std::fmt::Debug;
 
-use crate::{raw::{Accessor, AccessorInfo, IncomingAsyncBody}, Capability};
+use crate::{
+    raw::{Accessor, AccessorInfo, IncomingAsyncBody},
+    Capability,
+};
 
 #[derive(Clone)]
 pub struct OneDriveBackend {
     root: String,
     access_token: String,
+}
+
+impl OneDriveBackend {
+    pub(crate) fn new(root: String, access_token: String) -> Self {
+        Self { root, access_token }
+    }
 }
 
 impl Debug for OneDriveBackend {

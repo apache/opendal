@@ -171,7 +171,7 @@ impl OneDriveBackend {
         let url = format!(
             "{}{}{}",
             OneDriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
-            percent_encode_path(&path),
+            percent_encode_path(path),
             OneDriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
         );
 

@@ -135,7 +135,7 @@ mod webhdfs;
 #[cfg(feature = "services-onedrive")]
 mod onedrive;
 #[cfg(feature = "services-onedrive")]
-pub use onedrive::OneDrive;
+pub use onedrive::Onedrive;
 
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;

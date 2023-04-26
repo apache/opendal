@@ -2,5 +2,5 @@ mod backend;
 mod builder;
 mod error;
 
-pub use builder::OneDriveBuilder as OneDrive;
+pub use builder::OnedriveBuilder as Onedrive;
 mod writer;

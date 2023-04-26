@@ -19,21 +19,21 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::OneDriveBackend;
+use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct OneDriveWriter {
-    backend: OneDriveBackend,
+    backend: OnedriveBackend,
 
     op: OpWrite,
     path: String,
 }
 
 impl OneDriveWriter {
-    pub fn new(backend: OneDriveBackend, op: OpWrite, path: String) -> Self {
+    pub fn new(backend: OnedriveBackend, op: OpWrite, path: String) -> Self {
         OneDriveWriter { backend, op, path }
     }
 }

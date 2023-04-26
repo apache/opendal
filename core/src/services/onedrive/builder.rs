@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter};
 
 use log::debug;
 
-use super::backend::OneDriveBackend;
+use super::backend::OnedriveBackend;
 use crate::raw::{normalize_root, HttpClient};
 use crate::Scheme;
 use crate::*;
@@ -41,13 +41,13 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::OneDrive;
+/// use opendal::services::Onedrive;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // create backend builder
-///     let mut builder = OneDrive::default();
+///     let mut builder = Onedrive::default();
 ///
 ///     builder
 ///         .access_token("xxx")
@@ -58,13 +58,13 @@ use crate::*;
 /// }
 /// ```
 #[derive(Default)]
-pub struct OneDriveBuilder {
+pub struct OnedriveBuilder {
     access_token: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
 
-impl Debug for OneDriveBuilder {
+impl Debug for OnedriveBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("Builder");
         de.field("endpoint", &self.access_token);
@@ -72,7 +72,7 @@ impl Debug for OneDriveBuilder {
     }
 }
 
-impl OneDriveBuilder {
+impl OnedriveBuilder {
     /// set the bearer access token for OneDrive
     ///
     /// default: no access token, which leads to failure
@@ -99,7 +99,7 @@ impl OneDriveBuilder {
     }
 }
 
-impl Builder for OneDriveBuilder {
+impl Builder for OnedriveBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
@@ -114,14 +114,14 @@ impl Builder for OneDriveBuilder {
         };
 
         match self.access_token.clone() {
-            Some(access_token) => Ok(OneDriveBackend::new(root, access_token, client)),
+            Some(access_token) => Ok(OnedriveBackend::new(root, access_token, client)),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }
     }
 
     const SCHEME: Scheme = Scheme::Onedrive;
 
-    type Accessor = OneDriveBackend;
+    type Accessor = OnedriveBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = Self::default();

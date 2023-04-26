@@ -15,13 +15,13 @@ use crate::{
 use super::{error::parse_error, writer::OneDriveWriter};
 
 #[derive(Clone)]
-pub struct OneDriveBackend {
+pub struct OnedriveBackend {
     root: String,
     access_token: String,
     client: HttpClient,
 }
 
-impl OneDriveBackend {
+impl OnedriveBackend {
     pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
         Self {
             root,
@@ -31,7 +31,7 @@ impl OneDriveBackend {
     }
 }
 
-impl Debug for OneDriveBackend {
+impl Debug for OnedriveBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("OneDriveBackend");
         de.field("root", &self.root);
@@ -41,7 +41,7 @@ impl Debug for OneDriveBackend {
 }
 
 #[async_trait]
-impl Accessor for OneDriveBackend {
+impl Accessor for OnedriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
     type Writer = OneDriveWriter;
@@ -121,7 +121,7 @@ impl Accessor for OneDriveBackend {
     }
 }
 
-impl OneDriveBackend {
+impl OnedriveBackend {
     const ONEDRIVE_ENDPOINT_PREFIX: &'static str =
         "https://graph.microsoft.com/v1.0/me/drive/root:";
     const ONEDRIVE_ENDPOINT_SUFFIX: &'static str = ":/content";
@@ -131,9 +131,9 @@ impl OneDriveBackend {
 
         let url: String = format!(
             "{}{}{}",
-            OneDriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
+            OnedriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
             percent_encode_path(&path),
-            OneDriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
+            OnedriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
         );
 
         let mut req = Request::get(&url);
@@ -170,9 +170,9 @@ impl OneDriveBackend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
             "{}{}{}",
-            OneDriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
+            OnedriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
             percent_encode_path(path),
-            OneDriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
+            OnedriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
         );
 
         let mut req = Request::put(&url);

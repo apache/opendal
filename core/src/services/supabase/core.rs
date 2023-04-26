@@ -66,6 +66,8 @@ impl SupabaseCore {
         }
     }
 
+    /// Add authorization header to the request if the key is set. Otherwise leave
+    /// the request as-is.
     pub fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         if let Some(k) = &self.auth_key {
             let v = HeaderValue::from_str(&format!("Bearer {}", k.to_str().unwrap())).unwrap();
@@ -125,40 +127,6 @@ impl SupabaseCore {
     pub fn supabase_get_object_info_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         self.supabase_get_object_info_request(path, true)
     }
-
-    fn supabase_get_object_request(&self, path: &str, auth: bool) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/storage/v1/object/{}/{}/{}",
-            self.endpoint,
-            if auth { "authenticated" } else { "public" },
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
-    }
-
-    fn supabase_get_object_info_request(
-        &self,
-        path: &str,
-        auth: bool,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/storage/v1/object/info/{}/{}/{}",
-            self.endpoint,
-            if auth { "authenticated" } else { "public" },
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
-    }
 }
 
 // core utils
@@ -213,5 +181,42 @@ impl SupabaseCore {
         let mut req = self.supabase_get_object_info_request(path, auth)?;
         self.sign(&mut req)?;
         self.send(req).await
+    }
+}
+
+// inner functions
+impl SupabaseCore {
+    fn supabase_get_object_request(&self, path: &str, auth: bool) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/storage/v1/object/{}/{}/{}",
+            self.endpoint,
+            if auth { "authenticated" } else { "public" },
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
+    }
+
+    fn supabase_get_object_info_request(
+        &self,
+        path: &str,
+        auth: bool,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/storage/v1/object/info/{}/{}/{}",
+            self.endpoint,
+            if auth { "authenticated" } else { "public" },
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
     }
 }

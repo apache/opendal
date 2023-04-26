@@ -49,9 +49,21 @@ impl SupabaseWriter {
     }
 
     pub async fn upload(&self, bytes: Bytes) -> Result<()> {
+        let size = bytes.len();
+
+        // the content length should match
+        if let Some(l) = self.op.content_length() {
+            if l as usize != size {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "The content length does not match the bytes' length",
+                ));
+            }
+        }
+
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
-            Some(bytes.len()),
+            Some(size),
             self.op.content_type(),
             AsyncBody::Bytes(bytes),
         )?;

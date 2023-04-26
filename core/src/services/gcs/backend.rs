@@ -52,7 +52,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - [x] list
 /// - [x] scan
 /// - [x] copy
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -389,6 +389,7 @@ impl Accessor for GcsBackend {
                 list_with_start_after: true,
                 scan: true,
                 copy: true,
+                presign: true,
 
                 ..Default::default()
             });
@@ -519,6 +520,37 @@ impl Accessor for GcsBackend {
             RpScan::default(),
             GcsPager::new(self.core.clone(), path, "", args.limit(), None),
         ))
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        // We will not send this request out, just for signing.
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => {
+                self.core
+                    .gcs_head_object_request(path, v.if_match(), v.if_none_match())?
+            }
+            PresignOperation::Read(v) => self.core.gcs_get_object_request(
+                path,
+                v.range(),
+                v.if_match(),
+                v.if_none_match(),
+            )?,
+            PresignOperation::Write(_) => {
+                self.core
+                    .gcs_insert_object_request(path, None, None, None, AsyncBody::Empty)?
+            }
+        };
+
+        self.core.sign_query(&mut req, args.expire()).await?;
+
+        // We don't need this request anymore, consume it directly.
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 }
 

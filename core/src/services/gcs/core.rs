@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
@@ -32,6 +33,7 @@ use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
 use once_cell::sync::Lazy;
+use reqsign::GoogleCredential;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
@@ -85,10 +87,34 @@ impl GcsCore {
         }
     }
 
+    fn load_credential(&self) -> Result<GoogleCredential> {
+        let cred = self
+            .credential_loader
+            .load()
+            .map_err(new_request_credential_error)?;
+
+        if let Some(cred) = cred {
+            Ok(cred)
+        } else {
+            Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "no valid credential found",
+            ))
+        }
+    }
+
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_token().await?;
 
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
+    }
+
+    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        let cred = self.load_credential()?;
+
+        self.signer
+            .sign_query(req, duration, &cred)
+            .map_err(new_request_sign_error)
     }
 
     #[inline]
@@ -214,12 +240,12 @@ impl GcsCore {
         }
     }
 
-    pub async fn gcs_get_object_metadata(
+    pub fn gcs_head_object_request(
         &self,
         path: &str,
         if_match: Option<&str>,
         if_none_match: Option<&str>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -239,9 +265,20 @@ impl GcsCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let mut req = req
+        let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn gcs_get_object_metadata(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.gcs_head_object_request(path, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
 

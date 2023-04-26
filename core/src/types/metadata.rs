@@ -140,7 +140,7 @@ impl Metadata {
     }
 
     /// Set cache control of this entry.
-    /// 
+    ///
     /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
     pub fn with_cache_control(mut self, cache_control: String) -> Self {

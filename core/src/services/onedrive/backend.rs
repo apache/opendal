@@ -9,7 +9,7 @@ use crate::{
         Accessor, AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody, RpRead,
     },
     types::Result,
-    Capability,
+    Capability, Error, ErrorKind,
 };
 
 use super::error::parse_error;
@@ -71,12 +71,36 @@ impl Accessor for OneDriveBackend {
 
         let status = resp.status();
 
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+        if status.is_redirection() {
+            let location = resp
+                .headers()
+                .get(header::LOCATION)
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ContentIncomplete,
+                        "redirect location not found in response",
+                    )
+                })?
+                .to_str()
+                .map_err(|e| {
+                    Error::new(
+                        ErrorKind::ContentIncomplete,
+                        "redirect location is not valid utf-8",
+                    )
+                })?;
+
+            let resp = self.onedrive_get_redirection(location).await?;
+            let meta = parse_into_metadata(path, resp.headers())?;
+            Ok((RpRead::with_metadata(meta), resp.into_body()))
+        } else {
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                    let meta = parse_into_metadata(path, resp.headers())?;
+                    Ok((RpRead::with_metadata(meta), resp.into_body()))
+                }
+
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
         }
     }
 }
@@ -97,6 +121,19 @@ impl OneDriveBackend {
         );
 
         let mut req = Request::get(&url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    async fn onedrive_get_redirection(&self, url: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = Request::get(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);

@@ -159,6 +159,42 @@ impl GcsCore {
         Ok(req)
     }
 
+    // It's for presign operation. Gcs only supports query sign over XML API.
+    pub fn gcs_get_object_xml_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::get(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
     pub async fn gcs_get_object(
         &self,
         path: &str,
@@ -240,6 +276,49 @@ impl GcsCore {
         }
     }
 
+    // It's for presign operation. Gcs only supports query sign over XML API.
+    pub fn gcs_insert_object_xml_request(
+        &self,
+        path: &str,
+        size: Option<usize>,
+        content_type: Option<&str>,
+        cache_control: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::put(&url);
+
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
+
+        if let Some(content_type) = content_type {
+            req = req.header(CONTENT_TYPE, content_type);
+        }
+
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        if let Some(acl) = &self.predefined_acl {
+            req = req.header("x-goog-acl", acl);
+        }
+
+        if let Some(storage_class) = &self.default_storage_class {
+            req = req.header("x-goog-storage-class", storage_class);
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
     pub fn gcs_head_object_request(
         &self,
         path: &str,
@@ -256,6 +335,39 @@ impl GcsCore {
         );
 
         let mut req = Request::get(&url);
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    // It's for presign operation. Gcs only supports query sign over XML API.
+    pub fn gcs_head_object_xml_request(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::head(&url);
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(IF_NONE_MATCH, if_none_match);

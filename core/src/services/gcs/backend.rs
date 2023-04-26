@@ -527,9 +527,9 @@ impl Accessor for GcsBackend {
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => {
                 self.core
-                    .gcs_head_object_request(path, v.if_match(), v.if_none_match())?
+                    .gcs_head_object_xml_request(path, v.if_match(), v.if_none_match())?
             }
-            PresignOperation::Read(v) => self.core.gcs_get_object_request(
+            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(
                 path,
                 v.range(),
                 v.if_match(),
@@ -537,7 +537,7 @@ impl Accessor for GcsBackend {
             )?,
             PresignOperation::Write(_) => {
                 self.core
-                    .gcs_insert_object_request(path, None, None, None, AsyncBody::Empty)?
+                    .gcs_insert_object_xml_request(path, None, None, None, AsyncBody::Empty)?
             }
         };
 

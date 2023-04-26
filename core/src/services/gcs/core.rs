@@ -419,6 +419,7 @@ impl GcsCore {
         );
 
         let mut req = Request::post(req_uri)
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

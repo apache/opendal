@@ -1,8 +1,16 @@
 use std::fmt::{Debug, Formatter};
 
+use log::debug;
+
+use super::backend::OneDriveBackend;
+use crate::raw::normalize_root;
+use crate::Scheme;
+use crate::*;
+
 #[derive(Default)]
 pub struct OneDriveBuilder {
     access_token: Option<String>,
+    root: Option<String>,
 }
 
 impl Debug for OneDriveBuilder {
@@ -14,18 +22,35 @@ impl Debug for OneDriveBuilder {
 }
 
 impl OneDriveBuilder {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self::default()
     }
 
-    pub fn access_token(mut self, access_token: &str) -> Self {
+    fn access_token(mut self, access_token: &str) -> Self {
         self.access_token = Some(access_token.to_string());
         self
     }
+}
 
-    // pub fn build(self) -> OneDrive {
-    //     OneDrive {
-    //         access_token: self.access_token,
-    //     }
-    // }
+impl Builder for OneDriveBuilder {
+    fn build(&mut self) -> Result<Self::Accessor> {
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        debug!("backend use root {}", root);
+
+        match self.access_token {
+            Some(access_token) => Ok(OneDriveBackend {
+                access_token: access_token,
+                root: root,
+            }),
+            None => Err(Error::NoAccessToken),
+        }
+    }
+
+    const SCHEME: Scheme = Scheme::Onedrive;
+
+    type Accessor = OneDriveBackend;
+
+    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
+        todo!()
+    }
 }

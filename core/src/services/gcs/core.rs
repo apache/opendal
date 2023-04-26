@@ -233,10 +233,6 @@ impl GcsCore {
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
-
         if let Some(storage_class) = &self.default_storage_class {
             req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
 
@@ -253,6 +249,10 @@ impl GcsCore {
                 write!(&mut req_body, "Content-Type: application/octet-stream\n\n").unwrap();
             }
 
+            if let Some(cache_control) = cache_control {
+                write!(&mut req_body, "cacheControl: {}\n\n", cache_control).unwrap();
+            }
+
             if let AsyncBody::Bytes(bytes) = body {
                 req_body.extend_from_slice(&bytes);
             }
@@ -264,6 +264,10 @@ impl GcsCore {
         } else {
             if let Some(content_type) = content_type {
                 req = req.header(CONTENT_TYPE, content_type);
+            }
+
+            if let Some(cache_control) = cache_control {
+                req = req.header(CACHE_CONTROL, cache_control)
             }
 
             let req = req.body(body).map_err(new_request_build_error)?;

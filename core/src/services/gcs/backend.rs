@@ -484,6 +484,8 @@ impl Accessor for GcsBackend {
 
             m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
 
+            m.set_cache_control(&meta.cache_control);
+
             Ok(RpStat::new(m))
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
             Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
@@ -579,6 +581,9 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
+    /// Cache control of this object.
+    /// For example: `"cacheControl": "public, max-age=3600"`
+    cache_control: String,
 }
 
 #[cfg(test)]
@@ -597,6 +602,7 @@ mod tests {
   "generation": "1660563214863653",
   "metageneration": "1",
   "contentType": "image/png",
+  "cacheControl": "public, max-age=3600",
   "storageClass": "STANDARD",
   "size": "56535",
   "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
@@ -615,5 +621,6 @@ mod tests {
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
         assert_eq!(meta.content_type, "image/png");
+        assert_eq!(meta.cache_control, "public, max-age=3600");
     }
 }

@@ -460,6 +460,17 @@ impl Accessor for GcsBackend {
         if resp.status().is_success() {
             // read http response body
             let slc = resp.into_body().bytes().await?;
+
+            debug!(
+                "header cache control: {}",
+                resp.headers()
+                    .get("Cache-Control")
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default()
+            );
+            debug!("stat: {}", String::from_utf8_lossy(&slc));
+
             let meta: GetObjectJsonResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 

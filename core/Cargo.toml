@@ -122,6 +122,7 @@ services-obs = [
   "reqsign?/services-huaweicloud",
   "reqsign?/reqwest_request",
 ]
+services-onedrive = []
 services-oss = [
   "dep:reqsign",
   "reqsign?/services-aliyun",

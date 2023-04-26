@@ -275,7 +275,6 @@ impl GcsCore {
     pub fn gcs_insert_object_xml_request(
         &self,
         path: &str,
-        size: Option<usize>,
         content_type: Option<&str>,
         cache_control: Option<&str>,
         body: AsyncBody,
@@ -285,8 +284,6 @@ impl GcsCore {
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::put(&url);
-
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(content_type) = content_type {
             req = req.header(CONTENT_TYPE, content_type);

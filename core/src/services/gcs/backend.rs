@@ -537,7 +537,7 @@ impl Accessor for GcsBackend {
             )?,
             PresignOperation::Write(_) => {
                 self.core
-                    .gcs_insert_object_xml_request(path, None, None, None, AsyncBody::Empty)?
+                    .gcs_insert_object_xml_request(path, None, None, AsyncBody::Empty)?
             }
         };
 

@@ -2445,7 +2445,10 @@ name = "opendal-java"
 version = "0.1.0"
 dependencies = [
  "jni",
+ "num_cpus",
+ "once_cell",
  "opendal",
+ "tokio",
 ]
 
 [[package]]

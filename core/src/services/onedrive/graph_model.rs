@@ -17,29 +17,38 @@ struct GraphApiOneDriveResponse {
 struct OneDriveItem {
     #[serde(rename = "createdDateTime")]
     created_date_time: String,
-    eTag: String,
+    #[serde(rename = "eTag")]
+    e_tag: String,
     id: String,
-    lastModifiedDateTime: String,
+    #[serde(rename = "lastModifiedDateTime")]
+    last_modified_date_time: String,
     name: String,
+
     size: usize,
-    webUrl: String,
-    parentReference: ParentReference,
-    fileSystemInfo: FileSystemInfo,
+    #[serde(rename = "webUrl")]
+    web_url: String,
+    #[serde(rename = "parentReference")]
+    parent_reference: ParentReference,
+    #[serde(rename = "fileSystemInfo")]
+    file_system_info: FileSystemInfo,
     #[serde(flatten)]
     item_type: ItemType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ParentReference {
-    driveId: String,
-    driveType: String,
+    #[serde(rename = "driveId")]
+    drive_id: String,
+    #[serde(rename = "driveType")]
+    drive_type: String,
     id: String,
     path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct FileSystemInfo {
-    createdDateTime: String,
+    #[serde(rename = "createdDateTime")]
+    created_date_time: String,
     #[serde[rename = "lastModifiedDateTime"]]
     last_modified_date_time: String,
 }
@@ -151,12 +160,12 @@ fn test_parse_one_drive_json() {
     assert_eq!(response.value.len(), 2);
     let item = &response.value[0];
     assert_eq!(item.created_date_time, "2020-01-01T00:00:00Z");
-    assert_eq!(item.eTag, "eTag");
+    assert_eq!(item.e_tag, "eTag");
     assert_eq!(item.id, "id");
-    assert_eq!(item.lastModifiedDateTime, "2020-01-01T00:00:00Z");
+    assert_eq!(item.last_modified_date_time, "2020-01-01T00:00:00Z");
     assert_eq!(item.name, "name");
     assert_eq!(item.size, 0);
-    assert_eq!(item.webUrl, "webUrl");
+    assert_eq!(item.web_url, "webUrl");
     assert_eq!(
         item.item_type,
         ItemType::Folder {

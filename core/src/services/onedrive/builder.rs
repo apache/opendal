@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
 use log::debug;
@@ -26,8 +27,13 @@ impl OneDriveBuilder {
         Self::default()
     }
 
-    fn access_token(mut self, access_token: &str) -> Self {
+    fn access_token(&mut self, access_token: &str) -> &mut Self {
         self.access_token = Some(access_token.to_string());
+        self
+    }
+
+    fn root(&mut self, root: &str) -> &mut Self {
+        self.root = Some(root.to_string());
         self
     }
 }
@@ -47,7 +53,12 @@ impl Builder for OneDriveBuilder {
 
     type Accessor = OneDriveBackend;
 
-    fn from_map(map: std::collections::HashMap<String, String>) -> Self {
-        todo!()
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Self::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("access_token").map(|v| builder.access_token(v));
+
+        builder
     }
 }

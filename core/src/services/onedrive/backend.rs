@@ -3,16 +3,16 @@ use http::{header, Request, Response, StatusCode};
 use std::fmt::Debug;
 
 use crate::{
-    ops::OpRead,
+    ops::{OpRead, OpWrite},
     raw::{
         build_rooted_abs_path, new_request_build_error, parse_into_metadata, percent_encode_path,
-        Accessor, AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody, RpRead,
+        Accessor, AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody, RpRead, RpWrite,
     },
     types::Result,
     Capability, Error, ErrorKind,
 };
 
-use super::error::parse_error;
+use super::{error::parse_error, writer::OneDriveWriter};
 
 #[derive(Clone)]
 pub struct OneDriveBackend {
@@ -44,7 +44,7 @@ impl Debug for OneDriveBackend {
 impl Accessor for OneDriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = ();
+    type Writer = OneDriveWriter;
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
@@ -103,6 +103,22 @@ impl Accessor for OneDriveBackend {
             }
         }
     }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
+        let path = build_rooted_abs_path(&self.root, path);
+
+        Ok((
+            RpWrite::default(),
+            OneDriveWriter::new(self.clone(), args, path),
+        ))
+    }
 }
 
 impl OneDriveBackend {
@@ -141,6 +157,38 @@ impl OneDriveBackend {
         let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub async fn onedrive_put(
+        &self,
+        path: &str,
+        size: Option<usize>,
+        content_type: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = format!(
+            "{}{}{}",
+            OneDriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
+            percent_encode_path(&path),
+            OneDriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
+        );
+
+        let mut req = Request::put(&url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        if let Some(size) = size {
+            req = req.header(header::CONTENT_LENGTH, size)
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(header::CONTENT_TYPE, mime)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

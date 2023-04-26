@@ -21,7 +21,7 @@ use futures::AsyncSeekExt;
 use futures::StreamExt;
 use log::debug;
 use log::warn;
-use opendal::ops::{OpRead, OpStat};
+use opendal::ops::{OpRead, OpStat, OpWrite};
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -75,6 +75,7 @@ macro_rules! behavior_write_tests {
                 test_write,
                 test_write_with_dir_path,
                 test_write_with_special_chars,
+                test_write_with_cache_control,
                 test_stat,
                 test_stat_dir,
                 test_stat_with_special_chars,
@@ -176,6 +177,50 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+// Write a single file with cache control should succeed.
+pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
+    if !(op.info().can_presign() && op.info().capability().write_with_cache_control) {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    let target_cache_control = "max-age=3600";
+
+    let mut op_write = OpWrite::default();
+    op_write = op_write.with_cache_control(target_cache_control);
+
+    op.write_with(&path, op_write, content.clone()).await?;
+
+    let signed_req = op
+        .presign_read(&path, Duration::from_secs(60))
+        .await
+        .expect("presign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), http::StatusCode::OK);
+    assert_eq!(
+        resp.headers().get(http::header::CACHE_CONTROL).unwrap(),
+        target_cache_control
+    );
+    assert_eq!(resp.bytes().await?, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 

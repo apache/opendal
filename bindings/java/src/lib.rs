@@ -17,6 +17,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ffi::c_void;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -24,18 +25,85 @@ use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::{JClass, JValue};
-use jni::sys::jboolean;
-use jni::sys::jlong;
+use jni::sys::{jboolean, jint};
+use jni::sys::{jlong, JNI_VERSION_1_8};
 use jni::{JNIEnv, JavaVM};
+use once_cell::sync::OnceCell;
 use tokio::runtime::{Builder, Runtime};
 
 use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
 
+static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
+
 thread_local! {
     static JAVA_VM: RefCell<Option<Arc<JavaVM>>> = RefCell::new(None);
     static JENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
+}
+
+fn get_system_property(env: &mut JNIEnv, key: &str) -> Result<String, jni::errors::Error> {
+    let system_class = env.find_class("java/lang/System")?;
+    let key = env.new_string(key)?;
+    let value = env.call_static_method(
+        system_class,
+        "getProperty",
+        "(Ljava/lang/String;)Ljava/lang/String;",
+        &[JValue::Object(key.as_ref())],
+    )?;
+
+    Ok(env
+        .get_string(JString::from(value.l().unwrap()).as_ref())?
+        .into())
+}
+
+/// # Safety
+///
+/// This function could be only called by java vm when load this lib.
+#[no_mangle]
+pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
+    let mut env = vm.get_env().unwrap();
+    let thread_count = match get_system_property(&mut env, "opendal.thread.count") {
+        Ok(count) => count.parse().unwrap_or(num_cpus::get()),
+        Err(_) => num_cpus::get(),
+    };
+
+    let java_vm = Arc::new(vm);
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(thread_count)
+        .on_thread_start(move || {
+            JENV.with(|cell| {
+                let env = java_vm.attach_current_thread_as_daemon().unwrap();
+                *cell.borrow_mut() = Some(env.get_raw());
+            });
+            JAVA_VM.with(|cell| {
+                *cell.borrow_mut() = Some(java_vm.clone());
+            });
+        })
+        .on_thread_stop(move || {
+            JENV.with(|cell| {
+                *cell.borrow_mut() = None;
+            });
+            JAVA_VM.with(|cell| unsafe {
+                if let Some(vm) = cell.borrow_mut().take() {
+                    vm.detach_current_thread();
+                }
+            });
+        })
+        .build()
+        .unwrap();
+    RUNTIME.set(runtime).unwrap();
+    JNI_VERSION_1_8
+}
+
+/// # Safety
+///
+/// This function could be only called by java vm when unload this lib.
+#[no_mangle]
+pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
+    if let Some(runtime) = RUNTIME.take() {
+        runtime.shutdown_background();
+    }
 }
 
 #[no_mangle]
@@ -54,29 +122,7 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
 
     let map = convert_map(&mut env, &params);
     if let Ok(operator) = build_operator(scheme, map) {
-        let java_vm = Arc::new(env.get_java_vm().unwrap());
-        let runtime = Builder::new_multi_thread()
-            .worker_threads(1)
-            .on_thread_start(move || {
-                JENV.with(|cell| {
-                    let env = java_vm.attach_current_thread_as_daemon().unwrap();
-                    *cell.borrow_mut() = Some(env.get_raw());
-                });
-                JAVA_VM.with(|cell| {
-                    *cell.borrow_mut() = Some(java_vm.clone());
-                });
-            })
-            .on_thread_stop(move || {
-                JENV.with(|cell| {
-                    *cell.borrow_mut() = None;
-                });
-                JAVA_VM.with(|cell| unsafe {
-                    cell.borrow_mut().take().unwrap().detach_current_thread();
-                });
-            })
-            .build()
-            .unwrap();
-        Box::into_raw(Box::new((operator, runtime))) as jlong
+        Box::into_raw(Box::new(operator)) as jlong
     } else {
         env.exception_clear().expect("Couldn't clear exception");
         env.throw_new(
@@ -95,15 +141,17 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_asyncWrite(
     mut env: JNIEnv,
     _class: JClass,
-    ptr: *mut (Operator, Runtime),
+    ptr: *mut Operator,
     file: JString,
     content: JString,
     future: JObject,
 ) {
-    let (op, runtime) = &mut *ptr;
+    let op = &mut *ptr;
 
     let file: String = env.get_string(&file).unwrap().into();
     let content: String = env.get_string(&content).unwrap().into();
+    // keep the future alive, so that we can complete it later
+    // but this approach will be limited by global ref table size
     let future = env.new_global_ref(future).unwrap();
 
     let x = async move {
@@ -112,26 +160,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_asyncWrite(
             let env_ptr = cell.borrow().unwrap();
             let mut env = JNIEnv::from_raw(env_ptr).unwrap();
 
-            let system = env.find_class("java/lang/System").unwrap();
-            let out = env
-                .get_static_field(system, "out", "Ljava/io/PrintStream;")
-                .unwrap()
-                .l()
-                .unwrap();
-            let message = env.new_string("rust: write to file").unwrap();
-            env.call_method(
-                out.as_ref(),
-                "println",
-                "(Ljava/lang/String;)V",
-                &[JValue::Object(message.as_ref())],
-            )
-            .unwrap();
-
+            // build result
             let boolean_class = env.find_class("java/lang/Boolean").unwrap();
             let boolean = env
                 .get_static_field(boolean_class, "TRUE", "Ljava/lang/Boolean;")
                 .unwrap();
 
+            // complete the java future
             let _ = env
                 .call_method(
                     future,
@@ -140,18 +175,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_asyncWrite(
                     &[boolean.borrow()],
                 )
                 .unwrap();
-
-            let message = env.new_string("rust: complete java future").unwrap();
-            env.call_method(
-                out.as_ref(),
-                "println",
-                "(Ljava/lang/String;)V",
-                &[JValue::Object(message.as_ref())],
-            )
-            .unwrap();
         });
     };
-    runtime.spawn(x);
+    RUNTIME.get().unwrap().spawn(x);
 }
 
 /// # Safety

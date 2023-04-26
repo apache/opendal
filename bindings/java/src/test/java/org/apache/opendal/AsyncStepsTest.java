@@ -26,6 +26,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 public class AsyncStepsTest {
 
     Operator operator;
@@ -39,11 +41,9 @@ public class AsyncStepsTest {
 
     @When("Async write path {string} with content {string}")
     public void async_write_path_test_with_content_hello_world(String fileName, String content) {
-        System.out.println("java: async write file " + fileName + " with content " + content);
         CompletableFuture<Boolean> future = operator.asyncWrite(fileName, content);
-        System.out.println("java: start to wait for the future");
         Boolean result = future.join();
-        System.out.println("java: get the result: " + result);
+        assertTrue(result);
     }
 
     @Then("The async file {string} should exist")

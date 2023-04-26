@@ -26,6 +26,7 @@ use crate::*;
 /// # Notes
 ///
 /// Currently, only OneDrive Personal is supported.
+/// For uploading, only files under 4MB are supported via the Simple Upload API (<https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online>).
 ///
 /// # Configuration
 ///

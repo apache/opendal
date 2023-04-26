@@ -42,21 +42,6 @@ thread_local! {
     static JENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
 }
 
-fn get_system_property(env: &mut JNIEnv, key: &str) -> Result<String, jni::errors::Error> {
-    let system_class = env.find_class("java/lang/System")?;
-    let key = env.new_string(key)?;
-    let value = env.call_static_method(
-        system_class,
-        "getProperty",
-        "(Ljava/lang/String;)Ljava/lang/String;",
-        &[JValue::Object(key.as_ref())],
-    )?;
-
-    Ok(env
-        .get_string(JString::from(value.l().unwrap()).as_ref())?
-        .into())
-}
-
 /// # Safety
 ///
 /// This function could be only called by java vm when load this lib.

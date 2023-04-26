@@ -403,6 +403,7 @@ impl Builder for AzblobBuilder {
                 signer,
                 batch_signer,
             }),
+            has_sas_token: self.sas_token.is_some(),
         })
     }
 }
@@ -435,6 +436,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
     core: Arc<AzblobCore>,
+    has_sas_token: bool,
 }
 
 #[async_trait]
@@ -471,7 +473,7 @@ impl Accessor for AzblobBackend {
                 list: true,
                 scan: true,
                 copy: true,
-                presign: false,
+                presign: self.has_sas_token,
                 batch: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
                 ..Default::default()

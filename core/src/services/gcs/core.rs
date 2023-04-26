@@ -169,12 +169,7 @@ impl GcsCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::get(&url);
 
@@ -322,7 +317,12 @@ impl GcsCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/storage/v1/b/{}/o/{}", self.endpoint, self.bucket, p);
+        let url = format!(
+            "{}/storage/v1/b/{}/o/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
 
         let mut req = Request::get(&url);
 

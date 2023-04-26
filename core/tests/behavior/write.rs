@@ -182,19 +182,19 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
 
 // Write a single file with cache control should succeed.
 pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
-    if !(op.info().can_presign() && op.info().capability().write_with_cache_control) {
+    if !op.info().capability().write_with_cache_control {
         return Ok(());
     }
 
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 
-    let target_cache_control = "max-age=3600";
+    let target_cache_control = "public, max-age=3200";
 
     let mut op_write = OpWrite::default();
     op_write = op_write.with_cache_control(target_cache_control);
 
-    op.write_with(&path, op_write, content.clone()).await?;
+    op.write_with(&path, op_write, content).await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.mode(), EntryMode::FILE);

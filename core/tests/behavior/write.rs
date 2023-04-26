@@ -196,25 +196,10 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
 
     op.write_with(&path, op_write, content.clone()).await?;
 
-    let signed_req = op
-        .presign_stat(&path, Duration::from_secs(60))
-        .await
-        .expect("presign must succeed");
-
-    let client = reqwest::Client::new();
-    let mut req = client.request(
-        signed_req.method().clone(),
-        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
-    );
-    for (k, v) in signed_req.header() {
-        req = req.header(k, v);
-    }
-
-    let resp = req.send().await.expect("send must succeed");
-
-    assert_eq!(resp.status(), http::StatusCode::OK);
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(
-        resp.headers().get(http::header::CACHE_CONTROL).unwrap(),
+        meta.cache_control().expect("cache control must exist"),
         target_cache_control
     );
 

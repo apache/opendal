@@ -85,7 +85,7 @@ impl Accessor for OneDriveBackend {
                 .map_err(|e| {
                     Error::new(
                         ErrorKind::ContentIncomplete,
-                        "redirect location is not valid utf-8",
+                        format!("redirect location not valid utf8: {:?}", e).as_str(),
                     )
                 })?;
 

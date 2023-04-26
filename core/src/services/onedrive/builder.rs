@@ -8,6 +8,54 @@ use crate::raw::{normalize_root, HttpClient};
 use crate::Scheme;
 use crate::*;
 
+/// [OneDrive](https://onedrive.com) backend support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] copy
+/// - [ ] rename
+/// - [ ] list
+/// - [ ] ~~scan~~
+/// - [ ] ~~presign~~
+/// - [ ] blocking
+///
+/// # Notes
+///
+/// Currently, only OneDrive Personal is supported.
+///
+/// # Configuration
+///
+/// - `access_token`: set the access_token for Graph API
+/// - `root`: Set the work directory for backend
+///
+/// You can refer to [`OneDriveBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::OneDrive;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = OneDrive::default();
+///
+///     builder
+///         .access_token("xxx")
+///         .root("/path/to/root");
+///
+///     let op: Operator = Operator::new(builder)?.finish();
+///     Ok(())
+/// }
+/// ```
 #[derive(Default)]
 pub struct OneDriveBuilder {
     access_token: Option<String>,
@@ -24,16 +72,26 @@ impl Debug for OneDriveBuilder {
 }
 
 impl OneDriveBuilder {
+    /// set the bearer access token for OneDrive
+    ///
+    /// default: no access token, which leads to failure
     pub fn access_token(&mut self, access_token: &str) -> &mut Self {
         self.access_token = Some(access_token.to_string());
         self
     }
 
+    /// Set root path of OneDrive folder.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = Some(root.to_string());
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
     pub fn http_client(&mut self, http_client: HttpClient) -> &mut Self {
         self.http_client = Some(http_client);
         self

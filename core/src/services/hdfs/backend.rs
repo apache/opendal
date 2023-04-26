@@ -93,6 +93,11 @@ use crate::*;
 /// ```
 ///
 /// `CLASSPATH` is not set correctly or your hadoop installation is incorrect.
+///  
+/// To set `CLASSPATH`:
+/// ```shell
+/// export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':'):${CLASSPATH}
+/// ```
 ///
 /// # Example
 ///

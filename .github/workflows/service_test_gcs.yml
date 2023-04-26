@@ -47,10 +47,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        # Workaround
-        # gcs presign test failed for https://github.com/apache/incubator-opendal/issues/2125
-        # We should remove this feature until the issue is fixed.
-        run: cargo test gcs --features=native-tls -- --show-output
+        run: cargo test gcs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

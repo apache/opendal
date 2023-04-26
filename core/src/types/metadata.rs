@@ -104,15 +104,15 @@ impl Metadata {
     }
 
     /// Set mode for entry.
-    pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
-        self.mode = mode;
+    pub fn set_mode(&mut self, v: EntryMode) -> &mut Self {
+        self.mode = v;
         self.bit |= Metakey::Mode;
         self
     }
 
     /// Set mode for entry.
-    pub fn with_mode(mut self, mode: EntryMode) -> Self {
-        self.mode = mode;
+    pub fn with_mode(mut self, v: EntryMode) -> Self {
+        self.mode = v;
         self.bit |= Metakey::Mode;
         self
     }
@@ -133,8 +133,8 @@ impl Metadata {
     ///
     /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
-    pub fn set_cache_control(&mut self, cache_control: &str) -> &mut Self {
-        self.cache_control = Some(cache_control.to_string());
+    pub fn set_cache_control(&mut self, v: &str) -> &mut Self {
+        self.cache_control = Some(v.to_string());
         self.bit |= Metakey::CacheControl;
         self
     }
@@ -143,8 +143,8 @@ impl Metadata {
     ///
     /// Cache-Control is defined by [RFC 7234](https://httpwg.org/specs/rfc7234.html#header.cache-control)
     /// Refer to [MDN Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) for more information.
-    pub fn with_cache_control(mut self, cache_control: String) -> Self {
-        self.cache_control = Some(cache_control);
+    pub fn with_cache_control(mut self, v: String) -> Self {
+        self.cache_control = Some(v);
         self.bit |= Metakey::CacheControl;
         self
     }
@@ -168,15 +168,15 @@ impl Metadata {
     }
 
     /// Set content length of this entry.
-    pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
-        self.content_length = Some(content_length);
+    pub fn set_content_length(&mut self, v: u64) -> &mut Self {
+        self.content_length = Some(v);
         self.bit |= Metakey::ContentLength;
         self
     }
 
     /// Set content length of this entry.
-    pub fn with_content_length(mut self, content_length: u64) -> Self {
-        self.content_length = Some(content_length);
+    pub fn with_content_length(mut self, v: u64) -> Self {
+        self.content_length = Some(v);
         self.bit |= Metakey::ContentLength;
         self
     }
@@ -200,8 +200,8 @@ impl Metadata {
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
-    pub fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
-        self.content_md5 = Some(content_md5.to_string());
+    pub fn set_content_md5(&mut self, v: &str) -> &mut Self {
+        self.content_md5 = Some(v.to_string());
         self.bit |= Metakey::ContentMd5;
         self
     }
@@ -210,8 +210,8 @@ impl Metadata {
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
-    pub fn with_content_md5(mut self, content_md5: String) -> Self {
-        self.content_md5 = Some(content_md5);
+    pub fn with_content_md5(mut self, v: String) -> Self {
+        self.content_md5 = Some(v);
         self.bit |= Metakey::ContentMd5;
         self
     }
@@ -231,8 +231,8 @@ impl Metadata {
     /// Set Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
-    pub fn set_content_type(&mut self, content_type: &str) -> &mut Self {
-        self.content_type = Some(content_type.to_string());
+    pub fn set_content_type(&mut self, v: &str) -> &mut Self {
+        self.content_type = Some(v.to_string());
         self.bit |= Metakey::ContentType;
         self
     }
@@ -240,8 +240,8 @@ impl Metadata {
     /// Set Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
-    pub fn with_content_type(mut self, content_type: String) -> Self {
-        self.content_type = Some(content_type);
+    pub fn with_content_type(mut self, v: String) -> Self {
+        self.content_type = Some(v);
         self.bit |= Metakey::ContentType;
         self
     }
@@ -261,8 +261,8 @@ impl Metadata {
     /// Set Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
-    pub fn set_content_range(&mut self, content_range: BytesContentRange) -> &mut Self {
-        self.content_range = Some(content_range);
+    pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
+        self.content_range = Some(v);
         self.bit |= Metakey::ContentRange;
         self
     }
@@ -270,8 +270,8 @@ impl Metadata {
     /// Set Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
-    pub fn with_content_range(mut self, content_range: BytesContentRange) -> Self {
-        self.content_range = Some(content_range);
+    pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
+        self.content_range = Some(v);
         self.bit |= Metakey::ContentRange;
         self
     }
@@ -295,8 +295,8 @@ impl Metadata {
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    pub fn set_last_modified(&mut self, last_modified: DateTime<Utc>) -> &mut Self {
-        self.last_modified = Some(last_modified);
+    pub fn set_last_modified(&mut self, v: DateTime<Utc>) -> &mut Self {
+        self.last_modified = Some(v);
         self.bit |= Metakey::LastModified;
         self
     }
@@ -305,8 +305,8 @@ impl Metadata {
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    pub fn with_last_modified(mut self, last_modified: DateTime<Utc>) -> Self {
-        self.last_modified = Some(last_modified);
+    pub fn with_last_modified(mut self, v: DateTime<Utc>) -> Self {
+        self.last_modified = Some(v);
         self.bit |= Metakey::LastModified;
         self
     }
@@ -342,8 +342,8 @@ impl Metadata {
     /// - `W/"0815"`
     ///
     /// `"` is part of etag, don't trim it before setting.
-    pub fn set_etag(&mut self, etag: &str) -> &mut Self {
-        self.etag = Some(etag.to_string());
+    pub fn set_etag(&mut self, v: &str) -> &mut Self {
+        self.etag = Some(v.to_string());
         self.bit |= Metakey::Etag;
         self
     }
@@ -359,8 +359,8 @@ impl Metadata {
     /// - `W/"0815"`
     ///
     /// `"` is part of etag, don't trim it before setting.
-    pub fn with_etag(mut self, etag: String) -> Self {
-        self.etag = Some(etag);
+    pub fn with_etag(mut self, v: String) -> Self {
+        self.etag = Some(v);
         self.bit |= Metakey::Etag;
         self
     }
@@ -396,8 +396,8 @@ impl Metadata {
     /// - "inline"
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
-    pub fn with_content_disposition(mut self, content_disposition: String) -> Self {
-        self.content_disposition = Some(content_disposition);
+    pub fn with_content_disposition(mut self, v: String) -> Self {
+        self.content_disposition = Some(v);
         self.bit |= Metakey::ContentDisposition;
         self
     }
@@ -413,8 +413,8 @@ impl Metadata {
     /// - "inline"
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
-    pub fn set_content_disposition(&mut self, content_disposition: &str) -> &mut Self {
-        self.content_disposition = Some(content_disposition.to_string());
+    pub fn set_content_disposition(&mut self, v: &str) -> &mut Self {
+        self.content_disposition = Some(v.to_string());
         self.bit |= Metakey::ContentDisposition;
         self
     }

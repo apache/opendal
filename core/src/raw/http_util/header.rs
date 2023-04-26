@@ -20,6 +20,7 @@ use base64::Engine;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header::HeaderName;
+use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
@@ -63,7 +64,7 @@ pub fn parse_location(headers: &HeaderMap) -> Result<Option<&str>> {
 /// The returned value is the raw string of `cache-control` header,
 /// maybe `no-cache`, `max-age=3600`, etc.
 pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
-    match headers.get(HeaderName::from_static("cache-control")) {
+    match headers.get(CACHE_CONTROL) {
         None => Ok(None),
         Some(v) => Ok(Some(v.to_str().map_err(|e| {
             Error::new(

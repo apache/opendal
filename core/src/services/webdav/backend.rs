@@ -433,7 +433,7 @@ impl WebdavBackend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 

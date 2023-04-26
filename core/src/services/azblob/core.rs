@@ -37,10 +37,12 @@ use reqsign::AzureStorageSigner;
 use super::batch::BatchDeleteRequestBuilder;
 use crate::raw::*;
 use crate::*;
+use crate::services::azblob::core::constants::X_MS_BLOB_CACHE_CONTROL;
 
 mod constants {
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+    pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
 }
 
 pub struct AzblobCore {
@@ -209,7 +211,7 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
         if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control);
+            req = req.header(X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)

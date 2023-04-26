@@ -39,6 +39,7 @@ concurrency:
 jobs:
   gcs:
     runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'apache' }}
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain

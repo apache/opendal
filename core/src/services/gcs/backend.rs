@@ -382,6 +382,7 @@ impl Accessor for GcsBackend {
                 read_can_next: true,
 
                 write: true,
+                write_with_cache_control: true,
                 write_without_content_length: true,
 
                 list: true,

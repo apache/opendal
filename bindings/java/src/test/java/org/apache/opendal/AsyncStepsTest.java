@@ -29,7 +29,6 @@ import java.util.concurrent.CompletableFuture;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class AsyncStepsTest {
-
     Operator operator;
 
     @Given("A new OpenDAL Async Operator")
@@ -41,7 +40,7 @@ public class AsyncStepsTest {
 
     @When("Async write path {string} with content {string}")
     public void async_write_path_test_with_content_hello_world(String fileName, String content) {
-        CompletableFuture<Boolean> future = operator.asyncWrite(fileName, content);
+        CompletableFuture<Boolean> future = operator.writeAsync(fileName, content);
         Boolean result = future.join();
         assertTrue(result);
     }
@@ -60,5 +59,9 @@ public class AsyncStepsTest {
 
     @Then("The async file {string} must have content {string}")
     public void the_async_file_test_must_have_content_hello_world(String fileName, String content) {
+    }
+
+    @Then("The async file {string} should not exist after delete")
+    public void the_blocking_file_test_should_not_exist_after_delete(String fileName) {
     }
 }

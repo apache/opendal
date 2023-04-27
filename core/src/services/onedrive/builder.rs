@@ -117,6 +117,19 @@ impl OnedriveBuilder {
 }
 
 impl Builder for OnedriveBuilder {
+    const SCHEME: Scheme = Scheme::Onedrive;
+
+    type Accessor = OnedriveBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Self::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("access_token").map(|v| builder.access_token(v));
+
+        builder
+    }
+
     fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
@@ -134,18 +147,5 @@ impl Builder for OnedriveBuilder {
             Some(access_token) => Ok(OnedriveBackend::new(root, access_token, client)),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }
-    }
-
-    const SCHEME: Scheme = Scheme::Onedrive;
-
-    type Accessor = OnedriveBackend;
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Self::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("access_token").map(|v| builder.access_token(v));
-
-        builder
     }
 }

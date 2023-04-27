@@ -254,7 +254,7 @@ impl GcsCore {
         &self,
         paths: Vec<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let uri = "/batch/storage/v1/".to_string();
+        let uri = format!("{}/batch/storage/v1/", self.endpoint);
         let mut req = Request::post(&uri);
         req = req.header(
             CONTENT_TYPE,

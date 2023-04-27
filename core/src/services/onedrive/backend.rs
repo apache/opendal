@@ -1,3 +1,20 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 use async_trait::async_trait;
 use http::{header, Request, Response, StatusCode};
 use std::fmt::Debug;
@@ -15,13 +32,13 @@ use crate::{
 use super::{error::parse_error, writer::OneDriveWriter};
 
 #[derive(Clone)]
-pub struct OneDriveBackend {
+pub struct OnedriveBackend {
     root: String,
     access_token: String,
     client: HttpClient,
 }
 
-impl OneDriveBackend {
+impl OnedriveBackend {
     pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
         Self {
             root,
@@ -31,7 +48,7 @@ impl OneDriveBackend {
     }
 }
 
-impl Debug for OneDriveBackend {
+impl Debug for OnedriveBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("OneDriveBackend");
         de.field("root", &self.root);
@@ -41,7 +58,7 @@ impl Debug for OneDriveBackend {
 }
 
 #[async_trait]
-impl Accessor for OneDriveBackend {
+impl Accessor for OnedriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
     type Writer = OneDriveWriter;
@@ -85,7 +102,7 @@ impl Accessor for OneDriveBackend {
                 .map_err(|e| {
                     Error::new(
                         ErrorKind::ContentIncomplete,
-                        "redirect location is not valid utf-8",
+                        format!("redirect location not valid utf8: {:?}", e).as_str(),
                     )
                 })?;
 
@@ -121,7 +138,7 @@ impl Accessor for OneDriveBackend {
     }
 }
 
-impl OneDriveBackend {
+impl OnedriveBackend {
     const ONEDRIVE_ENDPOINT_PREFIX: &'static str =
         "https://graph.microsoft.com/v1.0/me/drive/root:";
     const ONEDRIVE_ENDPOINT_SUFFIX: &'static str = ":/content";
@@ -131,9 +148,9 @@ impl OneDriveBackend {
 
         let url: String = format!(
             "{}{}{}",
-            OneDriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
+            OnedriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
             percent_encode_path(&path),
-            OneDriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
+            OnedriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
         );
 
         let mut req = Request::get(&url);
@@ -170,9 +187,9 @@ impl OneDriveBackend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
             "{}{}{}",
-            OneDriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
-            percent_encode_path(&path),
-            OneDriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
+            OnedriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
+            percent_encode_path(path),
+            OnedriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
         );
 
         let mut req = Request::put(&url);

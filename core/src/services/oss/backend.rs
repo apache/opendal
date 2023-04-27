@@ -123,6 +123,7 @@ pub struct OssBuilder {
     access_key_secret: Option<String>,
 
     http_client: Option<HttpClient>,
+    write_buffer_size: Option<usize>,
 }
 
 impl Debug for OssBuilder {
@@ -292,6 +293,13 @@ impl OssBuilder {
         }
         self
     }
+
+    /// set the buffer size of unsized write.
+    pub fn write_buffer_size(&mut self, buffer_size: &str) -> &mut Self {
+        let buffer_size = buffer_size.parse::<usize>().unwrap();
+        self.write_buffer_size = Some(buffer_size);
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -313,6 +321,8 @@ impl Builder for OssBuilder {
             .map(|v| builder.server_side_encryption(v));
         map.get("server_side_encryption_key_id")
             .map(|v| builder.server_side_encryption_key_id(v));
+        map.get("write_buffer_size")
+            .map(|v| builder.write_buffer_size(v));
         builder
     }
 
@@ -398,6 +408,7 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
+                writer_buffer_size: self.write_buffer_size,
             }),
         })
     }
@@ -487,10 +498,13 @@ impl Accessor for OssBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            OssWriter::new(self.core.clone(), path, args),
-        ))
+        let oss_writer = match self.core.writer_buffer_size {
+            Some(buffer_size) => {
+                OssWriter::new_with_buffer_size(self.core.clone(), path, args, buffer_size)
+            }
+            None => OssWriter::new(self.core.clone(), path, args),
+        };
+        Ok((RpWrite::default(), oss_writer))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

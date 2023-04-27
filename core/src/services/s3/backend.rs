@@ -304,6 +304,8 @@ pub struct S3Builder {
 
     http_client: Option<HttpClient>,
     customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+
+    write_buffer_size: Option<usize>,
 }
 
 impl Debug for S3Builder {
@@ -704,6 +706,13 @@ impl S3Builder {
 
         endpoint
     }
+
+    /// set the buffer size of unsized write.
+    pub fn write_buffer_size(&mut self, buffer_size: &str) -> &mut Self {
+        let buffer_size = buffer_size.parse::<usize>().unwrap();
+        self.write_buffer_size = Some(buffer_size);
+        self
+    }
 }
 
 impl Builder for S3Builder {
@@ -871,7 +880,7 @@ impl Builder for S3Builder {
         }
 
         let signer = AwsV4Signer::new("s3", &region);
-
+        let write_buffer_size = self.write_buffer_size;
         debug!("backend build finished");
         Ok(S3Backend {
             core: Arc::new(S3Core {
@@ -887,6 +896,7 @@ impl Builder for S3Builder {
                 signer,
                 loader,
                 client,
+                write_buffer_size,
             }),
         })
     }
@@ -986,10 +996,13 @@ impl Accessor for S3Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            S3Writer::new(self.core.clone(), path, args),
-        ))
+        let s3_writer = match self.core.write_buffer_size {
+            Some(buffer_size) => {
+                S3Writer::new_with_buffer_size(self.core.clone(), path, args, buffer_size)
+            }
+            None => S3Writer::new(self.core.clone(), path, args),
+        };
+        Ok((RpWrite::default(), s3_writer))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

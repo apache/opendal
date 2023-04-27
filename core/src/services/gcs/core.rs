@@ -119,11 +119,6 @@ impl GcsCore {
             .map_err(new_request_sign_error)
     }
 
-    pub fn set_writer_buffer_size(&mut self, buffer_size: usize) -> &mut Self {
-        self.writer_buffer_size = Some(buffer_size);
-        self
-    }
-
     #[inline]
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         self.client.send(req).await

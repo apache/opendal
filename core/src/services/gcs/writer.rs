@@ -62,7 +62,7 @@ impl GcsWriter {
         }
     }
 
-    pub fn with_buffer_size(
+    pub fn new_with_buffer_size(
         core: Arc<GcsCore>,
         path: &str,
         op: OpWrite,

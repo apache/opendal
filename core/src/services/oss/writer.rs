@@ -60,6 +60,23 @@ impl OssWriter {
         }
     }
 
+    pub fn new_with_buffer_size(
+        core: Arc<OssCore>,
+        path: &str,
+        op: OpWrite,
+        buffer_size: usize,
+    ) -> Self {
+        OssWriter {
+            core,
+            path: path.to_string(),
+            op,
+
+            upload_id: None,
+            parts: vec![],
+            buffer: oio::VectorCursor::new(),
+            buffer_size,
+        }
+    }
     async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.oss_put_object_request(
             &self.path,

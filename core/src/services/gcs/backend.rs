@@ -239,7 +239,8 @@ impl GcsBuilder {
     }
 
     /// set the buffer size of unsized write.
-    pub fn write_buffer_size(&mut self, buffer_size: usize) -> &mut Self {
+    pub fn write_buffer_size(&mut self, buffer_size: &str) -> &mut Self {
+        let buffer_size = buffer_size.parse::<usize>().unwrap();
         self.write_buffer_size = Some(buffer_size);
         self
     }
@@ -438,7 +439,7 @@ impl Accessor for GcsBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let gcs_writer = match self.core.writer_buffer_size {
             Some(buffer_size) => {
-                GcsWriter::with_buffer_size(self.core.clone(), path, args, buffer_size)
+                GcsWriter::new_with_buffer_size(self.core.clone(), path, args, buffer_size)
             }
             None => GcsWriter::new(self.core.clone(), path, args),
         };

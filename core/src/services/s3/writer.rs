@@ -60,6 +60,24 @@ impl S3Writer {
         }
     }
 
+    pub fn new_with_buffer_size(
+        core: Arc<S3Core>,
+        path: &str,
+        op: OpWrite,
+        buffer_size: usize,
+    ) -> Self {
+        S3Writer {
+            core,
+            path: path.to_string(),
+            op,
+
+            upload_id: None,
+            parts: vec![],
+            buffer: oio::VectorCursor::new(),
+            buffer_size,
+        }
+    }
+
     async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.s3_put_object_request(
             &self.path,

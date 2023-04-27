@@ -437,13 +437,10 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let gcs_writer = match self.core.writer_buffer_size {
-            Some(buffer_size) => {
-                GcsWriter::new_with_buffer_size(self.core.clone(), path, args, buffer_size)
-            }
-            None => GcsWriter::new(self.core.clone(), path, args),
-        };
-        Ok((RpWrite::default(), gcs_writer))
+        Ok((
+            RpWrite::default(),
+            GcsWriter::new(self.core.clone(), path, args, self.core.writer_buffer_size),
+        ))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

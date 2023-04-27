@@ -41,7 +41,7 @@ pub struct OssWriter {
 }
 
 impl OssWriter {
-    pub fn new(core: Arc<OssCore>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<OssCore>, path: &str, op: OpWrite, buffer_size: Option<usize>) -> Self {
         OssWriter {
             core,
             path: path.to_string(),
@@ -55,28 +55,10 @@ impl OssWriter {
             //
             // We pick the default value as 8 MiB for better thoughput.
             //
-            // TODO: allow this value to be configured.
-            buffer_size: 8 * 1024 * 1024,
+            buffer_size: buffer_size.unwrap_or(8 * 1024 * 1024),
         }
     }
 
-    pub fn new_with_buffer_size(
-        core: Arc<OssCore>,
-        path: &str,
-        op: OpWrite,
-        buffer_size: usize,
-    ) -> Self {
-        OssWriter {
-            core,
-            path: path.to_string(),
-            op,
-
-            upload_id: None,
-            parts: vec![],
-            buffer: oio::VectorCursor::new(),
-            buffer_size,
-        }
-    }
     async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.oss_put_object_request(
             &self.path,

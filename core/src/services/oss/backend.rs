@@ -498,13 +498,10 @@ impl Accessor for OssBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let oss_writer = match self.core.writer_buffer_size {
-            Some(buffer_size) => {
-                OssWriter::new_with_buffer_size(self.core.clone(), path, args, buffer_size)
-            }
-            None => OssWriter::new(self.core.clone(), path, args),
-        };
-        Ok((RpWrite::default(), oss_writer))
+        Ok((
+            RpWrite::default(),
+            OssWriter::new(self.core.clone(), path, args, self.core.writer_buffer_size),
+        ))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

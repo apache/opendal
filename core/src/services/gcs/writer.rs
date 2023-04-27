@@ -39,7 +39,7 @@ pub struct GcsWriter {
 }
 
 impl GcsWriter {
-    pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite, buffer_size: Option<usize>) -> Self {
         GcsWriter {
             core,
             path: path.to_string(),
@@ -57,26 +57,7 @@ impl GcsWriter {
             // memory usage. It's recommended that you use at least
             // 8 MiB for the chunk size.
             //
-            // TODO: allow this value to be configured.
-            buffer_size: 8 * 1024 * 1024,
-        }
-    }
-
-    pub fn new_with_buffer_size(
-        core: Arc<GcsCore>,
-        path: &str,
-        op: OpWrite,
-        buffer_size: usize,
-    ) -> Self {
-        GcsWriter {
-            core,
-            path: path.to_string(),
-            op,
-
-            location: None,
-            written: 0,
-            buffer: oio::VectorCursor::new(),
-            buffer_size,
+            buffer_size: buffer_size.unwrap_or(8 * 1024 * 1024),
         }
     }
 

@@ -41,7 +41,7 @@ pub struct S3Writer {
 }
 
 impl S3Writer {
-    pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite, buffer_size: Option<usize>) -> Self {
         S3Writer {
             core,
             path: path.to_string(),
@@ -55,26 +55,7 @@ impl S3Writer {
             //
             // We pick the default value as 8 MiB for better thoughput.
             //
-            // TODO: allow this value to be configured.
-            buffer_size: 8 * 1024 * 1024,
-        }
-    }
-
-    pub fn new_with_buffer_size(
-        core: Arc<S3Core>,
-        path: &str,
-        op: OpWrite,
-        buffer_size: usize,
-    ) -> Self {
-        S3Writer {
-            core,
-            path: path.to_string(),
-            op,
-
-            upload_id: None,
-            parts: vec![],
-            buffer: oio::VectorCursor::new(),
-            buffer_size,
+            buffer_size: buffer_size.unwrap_or(8 * 1024 * 1024),
         }
     }
 

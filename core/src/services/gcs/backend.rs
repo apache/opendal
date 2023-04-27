@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
 use http::header::HOST;
 use http::StatusCode;
 use log::debug;
@@ -31,7 +32,7 @@ use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
 
-use super::core::GcsCore;
+use super::core::{DeleteObjectsResult, GcsCore};
 use super::error::parse_error;
 use super::pager::GcsPager;
 use super::writer::GcsWriter;
@@ -392,6 +393,8 @@ impl Accessor for GcsBackend {
                 list_with_limit: true,
                 list_with_start_after: true,
                 scan: true,
+                batch: true,
+                batch_max_operations: Some(1000),
                 copy: true,
                 presign: true,
 
@@ -526,7 +529,6 @@ impl Accessor for GcsBackend {
             GcsPager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
-
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
@@ -563,6 +565,47 @@ impl Accessor for GcsBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let ops = args.into_operation();
+        if ops.len() > 1000 {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "gcs services only allow delete up to 1000 keys at once",
+            )
+            .with_context("length", ops.len().to_string()));
+        }
+
+        let paths = ops.into_iter().map(|(p, _)| p).collect();
+
+        let resp = self.core.gcs_delete_objects(paths).await?;
+
+        let status = resp.status();
+
+        if let StatusCode::OK = status {
+            let bs = resp.into_body().bytes().await?;
+
+            let result: DeleteObjectsResult =
+                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+
+            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
+            for i in result.deleted {
+                let path = build_rel_path(&self.core.root, &i.key);
+                batched_result.push((path, Ok(RpDelete::default().into())));
+            }
+            for i in result.error {
+                let path = build_rel_path(&self.core.root, &i.key);
+
+                batched_result.push((
+                    path,
+                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
+                ));
+            }
+
+            Ok(RpBatch::new(batched_result))
+        } else {
+            Err(parse_error(resp).await?)
+        }
     }
 }
 

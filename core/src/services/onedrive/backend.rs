@@ -22,8 +22,9 @@ use std::fmt::Debug;
 use crate::{
     ops::{OpRead, OpWrite},
     raw::{
-        build_rooted_abs_path, new_request_build_error, parse_into_metadata, percent_encode_path,
-        Accessor, AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody, RpRead, RpWrite,
+        build_rooted_abs_path, new_request_build_error, parse_into_metadata, parse_location,
+        percent_encode_path, Accessor, AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody,
+        RpRead, RpWrite,
     },
     types::Result,
     Capability, Error, ErrorKind,
@@ -89,26 +90,22 @@ impl Accessor for OnedriveBackend {
         let status = resp.status();
 
         if status.is_redirection() {
-            let location = resp
-                .headers()
-                .get(header::LOCATION)
-                .ok_or_else(|| {
-                    Error::new(
+            let headers = resp.headers();
+            let location = parse_location(headers)?;
+
+            match location {
+                None => {
+                    return Err(Error::new(
                         ErrorKind::ContentIncomplete,
                         "redirect location not found in response",
-                    )
-                })?
-                .to_str()
-                .map_err(|e| {
-                    Error::new(
-                        ErrorKind::ContentIncomplete,
-                        format!("redirect location not valid utf8: {:?}", e).as_str(),
-                    )
-                })?;
-
-            let resp = self.onedrive_get_redirection(location).await?;
-            let meta = parse_into_metadata(path, resp.headers())?;
-            Ok((RpRead::with_metadata(meta), resp.into_body()))
+                    ));
+                }
+                Some(location) => {
+                    let resp = self.onedrive_get_redirection(location).await?;
+                    let meta = parse_into_metadata(path, resp.headers())?;
+                    Ok((RpRead::with_metadata(meta), resp.into_body()))
+                }
+            }
         } else {
             match status {
                 StatusCode::OK | StatusCode::PARTIAL_CONTENT => {

@@ -54,7 +54,9 @@ impl oio::Write for OneDriveWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
+            // Typical response code: 201 Created
+            // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
+            StatusCode::CREATED => {
                 resp.into_body().consume().await?;
                 Ok(())
             }

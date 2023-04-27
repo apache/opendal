@@ -505,7 +505,7 @@ impl Accessor for GcsBackend {
     }
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
-        if ops.len() > 99 {
+        if ops.len() > 100 {
             return Err(Error::new(
                 ErrorKind::Unsupported,
                 "gcs services only allow delete less than 100 keys at once",

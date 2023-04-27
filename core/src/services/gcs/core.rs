@@ -270,7 +270,7 @@ impl GcsCore {
                 &mut req_body,
                 "--\"---opendal-gcs-batch-delete-boundary---\"\n
                 Content-Type: application/http\n\n
-                DELETE {}/batch/storage/v1/b/{}/o/{}\n
+                DELETE {}/storage/v1/b/{}/o/{}\n   
                 Content-Length: 0\n\n",
                 self.endpoint,
                 self.bucket,

@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.33.2] - 2023-04-27
+
+### Added
+
+- feat(core): add test for `stat_with_if_none_match` (#2122)
+- feat(services/gcs): Add start-after support for list (#2107)
+- feat(services/azblob): Add supporting presign (#2120)
+- feat(services/gcs): Add supporting presign support (#2126)
+- feat(java): connect rust async/await with java future (#2112)
+- docs: add hdfs classpath related troubleshoot (#2130)
+- fix(clippy): suppress dead_code check (#2135)
+- feat(core): Add `cache-control` to Metadata (#2136)
+- fix(services/gcs): Remove HOST header to avoid gcs RESET connection (#2139)
+- test(core): test for `write_with_cache_control` (#2131)
+- test(core): test for `write_with_content_type` (#2140)
+- test(core): test for `read_with_if_none_match` (#2141)
+- feat(services/supabase): Add read/write/stat support for supabase (#2119)
+
+### Docs
+
+- docs: add hdfs classpath related troubleshoot (#2130)
+
+### CI
+
+-  ci: Mark job as skipped if owner is not apache (#2128)
+- ci: Enable native-tls to test gcs presign for workaround (#2138)
+
 ## [v0.33.1] - 2023-04-25
 
 ### Added
@@ -1985,6 +2012,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.33.2]: https://github.com/apache/incubator-opendal/compare/v0.33.1...v0.33.2
+[v0.33.1]: https://github.com/apache/incubator-opendal/compare/v0.33.0...v0.33.1
 [v0.33.0]: https://github.com/apache/incubator-opendal/compare/v0.32.0...v0.33.0
 [v0.32.0]: https://github.com/apache/incubator-opendal/compare/v0.31.1...v0.32.0
 [v0.31.1]: https://github.com/apache/incubator-opendal/compare/v0.31.0...v0.31.1

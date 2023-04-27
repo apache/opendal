@@ -392,11 +392,12 @@ impl GcsCore {
         &self,
         paths: Vec<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let uri = format!("{}/batch/storage/v1/", self.endpoint);
+        let uri = format!("{}/batch/storage/v1", self.endpoint);
         let mut req = Request::post(&uri);
+        // TODO: use random boundary instead.
         req = req.header(
             CONTENT_TYPE,
-            "multipart/mixed; boundary==\"---opendal-gcs-batch-delete-boundary---\"",
+            "multipart/mixed; boundary=\"===opendal-gcs-batch-delete-boundary===\"",
         );
 
         let mut batch_req_body = BytesMut::default();
@@ -406,10 +407,12 @@ impl GcsCore {
             let mut req_body = BytesMut::default();
             write!(
                 &mut req_body,
-                "--\"---opendal-gcs-batch-delete-boundary---\"\n
-                Content-Type: application/http\n\n
-                DELETE {}/storage/v1/b/{}/o/{}\n   
-                Content-Length: 0\n\n",
+                "--===opendal-gcs-batch-delete-boundary===
+Content-Type: application/http
+
+DELETE {}/storage/v1/b/{}/o/{}
+Content-Length: 0
+",
                 self.endpoint,
                 self.bucket,
                 percent_encode_path(&p)
@@ -419,12 +422,15 @@ impl GcsCore {
         }
         write!(
             &mut batch_req_body,
-            "\n--\"---opendal-gcs-batch-delete-boundary---\""
+            "--===opendal-gcs-batch-delete-boundary==="
         )
         .unwrap();
 
-        let req_body = AsyncBody::Bytes(batch_req_body.freeze());
-        let mut req = req.body(req_body).map_err(new_request_build_error)?;
+        let bs = batch_req_body.freeze();
+        let mut req = req
+            .header(CONTENT_LENGTH, bs.len())
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
         self.send(req).await

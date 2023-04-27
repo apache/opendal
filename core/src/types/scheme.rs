@@ -73,6 +73,8 @@ pub enum Scheme {
     S3,
     /// [sled][crate::services::Sled]: Sled services
     Sled,
+    /// [Supabase][crate::services::Supabase]: Supabase storage service
+    Supabase,
     /// [wasabi][crate::services::Wasabi]: Wasabi service
     Wasabi,
     /// [webdav][crate::services::Webdav]: WebDAV support.
@@ -132,6 +134,7 @@ impl FromStr for Scheme {
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
             "sled" => Ok(Scheme::Sled),
+            "supabase" => Ok(Scheme::Supabase),
             "oss" => Ok(Scheme::Oss),
             "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
@@ -164,6 +167,7 @@ impl From<Scheme> for &'static str {
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",
             Scheme::Sled => "sled",
+            Scheme::Supabase => "supabase",
             Scheme::Oss => "oss",
             Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",

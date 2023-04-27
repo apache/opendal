@@ -20,6 +20,7 @@ use base64::Engine;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header::HeaderName;
+use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
@@ -51,6 +52,26 @@ pub fn parse_location(headers: &HeaderMap) -> Result<Option<&str>> {
                 "header value has to be valid utf-8 string",
             )
             .with_operation("http_util::parse_location")
+            .set_source(e)
+        })?)),
+    }
+}
+
+/// Parse cache control from header map.
+///
+/// # Note
+///
+/// The returned value is the raw string of `cache-control` header,
+/// maybe `no-cache`, `max-age=3600`, etc.
+pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
+    match headers.get(CACHE_CONTROL) {
+        None => Ok(None),
+        Some(v) => Ok(Some(v.to_str().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "header value has to be valid utf-8 string",
+            )
+            .with_operation("http_util::parse_cache_control")
             .set_source(e)
         })?)),
     }
@@ -192,6 +213,10 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
         EntryMode::FILE
     };
     let mut m = Metadata::new(mode);
+
+    if let Some(v) = parse_cache_control(headers)? {
+        m.set_cache_control(v);
+    }
 
     if let Some(v) = parse_content_length(headers)? {
         m.set_content_length(v);

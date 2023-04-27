@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use http::header::HOST;
 use http::StatusCode;
 use log::debug;
 use reqsign::GoogleCredentialLoader;
@@ -380,8 +381,11 @@ impl Accessor for GcsBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
 
                 write: true,
+                write_with_content_type: true,
                 write_without_content_length: true,
 
                 list: true,
@@ -397,9 +401,9 @@ impl Accessor for GcsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req =
-            self.core
-                .gcs_insert_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self
+            .core
+            .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -459,6 +463,7 @@ impl Accessor for GcsBackend {
         if resp.status().is_success() {
             // read http response body
             let slc = resp.into_body().bytes().await?;
+
             let meta: GetObjectJsonResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
@@ -537,14 +542,21 @@ impl Accessor for GcsBackend {
             )?,
             PresignOperation::Write(_) => {
                 self.core
-                    .gcs_insert_object_xml_request(path, None, None, None, AsyncBody::Empty)?
+                    .gcs_insert_object_xml_request(path, None, AsyncBody::Empty)?
             }
         };
 
         self.core.sign_query(&mut req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
-        let (parts, _) = req.into_parts();
+        let (mut parts, _) = req.into_parts();
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        parts.headers.remove(HOST);
 
         Ok(RpPresign::new(PresignedRequest::new(
             parts.method,

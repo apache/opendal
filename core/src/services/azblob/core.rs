@@ -22,7 +22,6 @@ use std::fmt::Write;
 use std::str::FromStr;
 
 use http::header::HeaderName;
-use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -41,6 +40,7 @@ use crate::*;
 mod constants {
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+    pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
 }
 
 pub struct AzblobCore {
@@ -209,7 +209,7 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
         if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control);
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)

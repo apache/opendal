@@ -312,8 +312,13 @@ impl Accessor for ObsBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
 
                 write: true,
+                write_with_content_type: true,
+                write_with_cache_control: true,
+
                 list: true,
                 scan: true,
                 copy: true,

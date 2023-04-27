@@ -26,14 +26,6 @@ use http::Response;
 use crate::raw::*;
 use crate::*;
 
-mod supabase_urls {
-    pub const SUPABASE_UPLOAD_PREFIX: &str = "storage/v1/object";
-    pub const SUPABASE_GET_PUBLIC_PREFIX: &str = "storage/v1/object/public";
-    pub const SUPABASE_GET_AUTH_PREFIX: &str = "storage/v1/object/authenticated";
-    pub const SUPABASE_INFO_PUBLIC_PREFIX: &str = "storage/v1/object/info/public";
-    pub const SUPABASE_INFO_AUTH_PREFIX: &str = "storage/v1/object/info/authenticated";
-}
-
 pub struct SupabaseCore {
     pub root: String,
     pub bucket: String,
@@ -96,9 +88,8 @@ impl SupabaseCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/{}/{}/{}",
+            "{}/storage/v1/object/{}/{}",
             self.endpoint,
-            supabase_urls::SUPABASE_UPLOAD_PREFIX,
             self.bucket,
             percent_encode_path(&p)
         );
@@ -121,9 +112,8 @@ impl SupabaseCore {
     pub fn supabase_get_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/{}/{}/{}",
+            "{}/storage/v1/object/public/{}/{}",
             self.endpoint,
-            supabase_urls::SUPABASE_GET_PUBLIC_PREFIX,
             self.bucket,
             percent_encode_path(&p)
         );
@@ -136,9 +126,8 @@ impl SupabaseCore {
     pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/{}/{}/{}",
+            "{}/storage/v1/object/authenticated/{}/{}",
             self.endpoint,
-            supabase_urls::SUPABASE_GET_AUTH_PREFIX,
             self.bucket,
             percent_encode_path(&p)
         );
@@ -154,9 +143,8 @@ impl SupabaseCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/{}/{}/{}",
+            "{}/storage/v1/object/info/public/{}/{}",
             self.endpoint,
-            supabase_urls::SUPABASE_INFO_PUBLIC_PREFIX,
             self.bucket,
             percent_encode_path(&p)
         );
@@ -169,9 +157,8 @@ impl SupabaseCore {
     pub fn supabase_get_object_info_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/{}/{}/{}",
+            "{}/storage/v1/object/info/authenticated/{}/{}",
             self.endpoint,
-            supabase_urls::SUPABASE_INFO_AUTH_PREFIX,
             self.bucket,
             percent_encode_path(&p)
         );
@@ -188,38 +175,25 @@ impl SupabaseCore {
         self.http_client.send(req).await
     }
 
-    pub async fn supabase_get_object_public(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_public_request(path)?;
+    pub async fn supabase_get_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = if self.key.is_some() {
+            self.supabase_get_object_auth_request(path)?
+        } else {
+            self.supabase_get_object_public_request(path)?
+        };
         self.sign(&mut req)?;
         self.send(req).await
     }
 
-    pub async fn supabase_get_object_auth(
+    pub async fn supabase_get_object_info(
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_auth_request(path)?;
-        self.sign(&mut req)?;
-        self.send(req).await
-    }
-
-    pub async fn supabase_get_object_info_public(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_info_public_request(path)?;
-        self.sign(&mut req)?;
-        self.send(req).await
-    }
-
-    pub async fn supabase_get_object_info_auth(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_info_auth_request(path)?;
+        let mut req = if self.key.is_some() {
+            self.supabase_get_object_info_auth_request(path)?
+        } else {
+            self.supabase_get_object_info_public_request(path)?
+        };
         self.sign(&mut req)?;
         self.send(req).await
     }

@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
-use serde_json::from_reader;
+use serde_json::from_slice;
 
 use crate::{raw::*, Error, ErrorKind, Result};
 
@@ -51,7 +50,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, _) = from_reader::<_, SupabaseError>(bs.clone().reader())
+    let (message, _) = from_slice::<SupabaseError>(&bs)
         .map(|sb_err| (format!("{sb_err:?}"), Some(sb_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 

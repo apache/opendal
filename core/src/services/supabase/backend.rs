@@ -226,11 +226,7 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = if self.core.key.is_some() {
-            self.core.supabase_get_object_auth(path).await?
-        } else {
-            self.core.supabase_get_object_public(path).await?
-        };
+        let resp = self.core.supabase_get_object(path).await?;
 
         let status = resp.status();
 
@@ -263,11 +259,7 @@ impl Accessor for SupabaseBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = if self.core.key.is_some() {
-            self.core.supabase_get_object_info_auth(path).await?
-        } else {
-            self.core.supabase_get_object_info_public(path).await?
-        };
+        let resp = self.core.supabase_get_object_info(path).await?;
 
         let status = resp.status();
 

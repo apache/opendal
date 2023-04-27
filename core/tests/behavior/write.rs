@@ -21,7 +21,9 @@ use futures::AsyncSeekExt;
 use futures::StreamExt;
 use log::debug;
 use log::warn;
-use opendal::ops::{OpRead, OpStat, OpWrite};
+use opendal::ops::OpRead;
+use opendal::ops::OpStat;
+use opendal::ops::OpWrite;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -76,6 +78,7 @@ macro_rules! behavior_write_tests {
                 test_write_with_dir_path,
                 test_write_with_special_chars,
                 test_write_with_cache_control,
+                test_write_with_content_type,
                 test_stat,
                 test_stat_dir,
                 test_stat_with_special_chars,
@@ -180,7 +183,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Write a single file with cache control should succeed.
+/// Write a single file with cache control should succeed.
 pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
     if !op.info().capability().write_with_cache_control {
         return Ok(());
@@ -202,6 +205,35 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
         meta.cache_control().expect("cache control must exist"),
         target_cache_control
     );
+
+    op.delete(&path).await.expect("delete must succeed");
+
+    Ok(())
+}
+
+/// Write a single file with content type should succeed.
+pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
+    if !op.info().capability().write_with_content_type {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, size) = gen_bytes();
+
+    let target_content_type = "application/json";
+
+    let mut op_write = OpWrite::default();
+    op_write = op_write.with_content_type(target_content_type);
+
+    op.write_with(&path, op_write, content).await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(
+        meta.content_type().expect("content type must exist"),
+        target_content_type
+    );
+    assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
 
@@ -537,7 +569,7 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Read with if_match should match, else get a ConditionNotMatch error.
+/// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
     if !op.info().capability().read_with_if_match {
         return Ok(());
@@ -722,7 +754,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Read file with override_content_disposition should succeed.
+/// Read file with override_content_disposition should succeed.
 pub async fn test_read_with_override_content_disposition(op: Operator) -> Result<()> {
     if !(op
         .info()
@@ -775,7 +807,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
     Ok(())
 }
 
-// Delete existing file should succeed.
+/// Delete existing file should succeed.
 pub async fn test_writer_abort(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
@@ -803,7 +835,7 @@ pub async fn test_writer_abort(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Delete existing file should succeed.
+/// Delete existing file should succeed.
 pub async fn test_delete(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
@@ -818,7 +850,7 @@ pub async fn test_delete(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Delete empty dir should succeed.
+/// Delete empty dir should succeed.
 pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
@@ -829,7 +861,7 @@ pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Delete file with special chars should succeed.
+/// Delete file with special chars should succeed.
 pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
@@ -845,7 +877,7 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Delete not existing file should also succeed.
+/// Delete not existing file should also succeed.
 pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
@@ -854,7 +886,7 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Delete via stream.
+/// Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
     let dir = uuid::Uuid::new_v4().to_string();
     op.create_dir(&format!("{dir}/"))
@@ -881,7 +913,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Append data into writer
+/// Append data into writer
 pub async fn test_writer_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let size = 5 * 1024 * 1024; // write file with 5 MiB
@@ -920,7 +952,7 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// copy data from reader to writer
+/// Copy data from reader to writer
 pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size): (Vec<u8>, usize) =

@@ -925,6 +925,7 @@ impl Accessor for S3Backend {
 
                 write: true,
                 write_with_cache_control: true,
+                write_with_content_type: true,
                 write_without_content_length: true,
 
                 list: true,

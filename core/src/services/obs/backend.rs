@@ -314,6 +314,7 @@ impl Accessor for ObsBackend {
                 read_can_next: true,
 
                 write: true,
+                write_with_content_type: true,
                 write_with_cache_control: true,
 
                 list: true,

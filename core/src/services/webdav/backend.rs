@@ -267,12 +267,18 @@ impl Accessor for WebdavBackend {
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+
                 write: true,
                 list: true,
                 copy: true,
                 rename: true,
+
                 ..Default::default()
             });
 
@@ -287,7 +293,9 @@ impl Accessor for WebdavBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.webdav_get(path, args.range()).await?;
+        let resp = self
+            .webdav_get(path, args.range(), args.if_match(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -430,6 +438,8 @@ impl WebdavBackend {
         &self,
         path: &str,
         range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -443,6 +453,13 @@ impl WebdavBackend {
 
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
+        }
+
+        if let Some(etag) = if_match {
+            req = req.header(header::IF_MATCH, etag);
+        }
+        if let Some(etag) = if_none_match {
+            req = req.header(header::IF_NONE_MATCH, etag);
         }
 
         let req = req

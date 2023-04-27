@@ -32,9 +32,6 @@ pub struct SupabaseWriter {
 
     op: OpWrite,
     path: String,
-
-    buffer: oio::VectorCursor,
-    buffer_size: usize,
 }
 
 impl SupabaseWriter {
@@ -43,24 +40,11 @@ impl SupabaseWriter {
             core,
             op,
             path: path.to_string(),
-            buffer: oio::VectorCursor::new(),
-            buffer_size: 8 * 1024 * 1024,
         }
     }
 
     pub async fn upload(&self, bytes: Bytes) -> Result<()> {
         let size = bytes.len();
-
-        // the content length should match
-        if let Some(l) = self.op.content_length() {
-            if l as usize != size {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "The content length does not match the bytes' length",
-                ));
-            }
-        }
-
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
             Some(size),
@@ -89,43 +73,17 @@ impl oio::Write for SupabaseWriter {
             return Ok(());
         }
 
-        self.buffer.push(bs);
-        if self.buffer.len() <= self.buffer_size {
-            return Ok(());
-        }
-
-        let bs = self.buffer.peak_at_least(self.buffer_size);
-        let size = bs.len();
-
-        match self.upload(bs).await {
-            Ok(_) => {
-                self.buffer.take(size);
-                Ok(())
-            }
-            Err(e) => {
-                self.buffer.pop();
-                Err(e)
-            }
-        }
+        self.upload(bs).await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        unimplemented!()
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "The abort operation is not yet supported for Supabase backend",
+        ))
     }
 
     async fn close(&mut self) -> Result<()> {
-        if self.buffer.is_empty() {
-            return Ok(());
-        }
-
-        let bs = self.buffer.peak_exact(self.buffer.len());
-
-        match self.upload(bs).await {
-            Ok(_) => {
-                self.buffer.clear();
-                Ok(())
-            }
-            Err(e) => return Err(e),
-        }
+        Ok(())
     }
 }

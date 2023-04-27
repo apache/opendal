@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use http::HeaderValue;
 use http::StatusCode;
 use log::debug;
 
@@ -47,8 +46,7 @@ use crate::*;
 /// - `root`: Set the work dir for backend.
 /// - `bucket`: Set the container name for backend.
 /// - `endpoint`: Set the endpoint for backend.
-/// - `service_key`: Set the secret key for the backend, this is prioritized over the client key
-/// - `anon_key`: Set the client key for the backend, this cannot access non-public resources
+/// - `key`: Set the authorization key for the backend, do not set if you want to read public bucket
 ///
 /// ## Authorization keys
 ///
@@ -58,12 +56,6 @@ use crate::*;
 ///
 /// # Example
 ///
-/// ## Basic Setup
-///
-/// ```
-///
-/// ### Using Builder
-///
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Supabase;
@@ -71,7 +63,7 @@ use crate::*;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = services::Supabase::default();
+///     let mut builder = Supabase::default();
 ///     builder.root("/");
 ///     builder.bucket("test_bucket");
 ///     builder.endpoint("http://127.0.0.1:54321");
@@ -90,7 +82,7 @@ pub struct SupabaseBuilder {
     bucket: String,
     endpoint: Option<String>,
 
-    auth_key: Option<String>,
+    key: Option<String>,
 
     // todo: optional public, currently true always
     // todo: optional file_size_limit, currently 0
@@ -144,7 +136,7 @@ impl SupabaseBuilder {
     /// Set the authorization key for this backend
     /// Do not set this key if you want to read public bucket
     pub fn key(&mut self, key: &str) -> &mut Self {
-        self.auth_key = Some(key.to_string());
+        self.key = Some(key.to_string());
         self
     }
 
@@ -192,12 +184,9 @@ impl Builder for SupabaseBuilder {
             })?
         };
 
-        let auth_key = self
-            .auth_key
-            .as_ref()
-            .map(|k| HeaderValue::from_str(k).unwrap());
+        let key = self.key.as_ref().map(|k| k.to_owned());
 
-        let core = SupabaseCore::new(&root, bucket, &endpoint, auth_key, http_client);
+        let core = SupabaseCore::new(&root, bucket, &endpoint, key, http_client);
 
         let core = Arc::new(core);
 
@@ -237,7 +226,7 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = if self.core.auth_key.is_some() {
+        let resp = if self.core.key.is_some() {
             self.core.supabase_get_object_auth(path).await?
         } else {
             self.core.supabase_get_object_public(path).await?
@@ -255,6 +244,13 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
         Ok((
             RpWrite::default(),
             SupabaseWriter::new(self.core.clone(), path, args),
@@ -267,7 +263,7 @@ impl Accessor for SupabaseBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = if self.core.auth_key.is_some() {
+        let resp = if self.core.key.is_some() {
             self.core.supabase_get_object_info_auth(path).await?
         } else {
             self.core.supabase_get_object_info_public(path).await?

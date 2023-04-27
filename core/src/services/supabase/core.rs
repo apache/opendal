@@ -26,6 +26,14 @@ use http::Response;
 use crate::raw::*;
 use crate::*;
 
+mod supabase_urls {
+    pub const SUPABASE_UPLOAD_PREFIX: &str = "storage/v1/object";
+    pub const SUPABASE_GET_PUBLIC_PREFIX: &str = "storage/v1/object/public";
+    pub const SUPABASE_GET_AUTH_PREFIX: &str = "storage/v1/object/authenticated";
+    pub const SUPABASE_INFO_PUBLIC_PREFIX: &str = "storage/v1/object/info/public";
+    pub const SUPABASE_INFO_AUTH_PREFIX: &str = "storage/v1/object/info/authenticated";
+}
+
 pub struct SupabaseCore {
     pub root: String,
     pub bucket: String,
@@ -34,7 +42,7 @@ pub struct SupabaseCore {
     /// The key used for authorization
     /// If loaded, the read operation will always access the nonpublic resources.
     /// If you want to read the public resources, please do not set the key.
-    pub auth_key: Option<HeaderValue>,
+    pub key: Option<String>,
 
     pub http_client: HttpClient,
 }
@@ -54,14 +62,14 @@ impl SupabaseCore {
         root: &str,
         bucket: &str,
         endpoint: &str,
-        auth_key: Option<HeaderValue>,
+        key: Option<String>,
         client: HttpClient,
     ) -> Self {
         Self {
             root: root.to_string(),
             bucket: bucket.to_string(),
             endpoint: endpoint.to_string(),
-            auth_key,
+            key,
             http_client: client,
         }
     }
@@ -69,8 +77,8 @@ impl SupabaseCore {
     /// Add authorization header to the request if the key is set. Otherwise leave
     /// the request as-is.
     pub fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        if let Some(k) = &self.auth_key {
-            let v = HeaderValue::from_str(&format!("Bearer {}", k.to_str().unwrap())).unwrap();
+        if let Some(k) = &self.key {
+            let v = HeaderValue::from_str(&format!("Bearer {}", k)).unwrap();
             req.headers_mut().insert(http::header::AUTHORIZATION, v);
         }
         Ok(())
@@ -88,8 +96,9 @@ impl SupabaseCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
-            "{}/storage/v1/object/{}/{}",
+            "{}/{}/{}/{}",
             self.endpoint,
+            supabase_urls::SUPABASE_UPLOAD_PREFIX,
             self.bucket,
             percent_encode_path(&p)
         );
@@ -110,22 +119,66 @@ impl SupabaseCore {
     }
 
     pub fn supabase_get_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
-        self.supabase_get_object_request(path, false)
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}/{}/{}",
+            self.endpoint,
+            supabase_urls::SUPABASE_GET_PUBLIC_PREFIX,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
     }
 
     pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
-        self.supabase_get_object_request(path, true)
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}/{}/{}",
+            self.endpoint,
+            supabase_urls::SUPABASE_GET_AUTH_PREFIX,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
     }
 
     pub fn supabase_get_object_info_public_request(
         &self,
         path: &str,
     ) -> Result<Request<AsyncBody>> {
-        self.supabase_get_object_info_request(path, false)
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}/{}/{}",
+            self.endpoint,
+            supabase_urls::SUPABASE_INFO_PUBLIC_PREFIX,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
     }
 
     pub fn supabase_get_object_info_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
-        self.supabase_get_object_info_request(path, true)
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}/{}/{}",
+            self.endpoint,
+            supabase_urls::SUPABASE_INFO_AUTH_PREFIX,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
     }
 }
 
@@ -139,84 +192,35 @@ impl SupabaseCore {
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        self.supabase_get_object(path, false).await
+        let mut req = self.supabase_get_object_public_request(path)?;
+        self.sign(&mut req)?;
+        self.send(req).await
     }
 
     pub async fn supabase_get_object_auth(
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        self.supabase_get_object(path, true).await
+        let mut req = self.supabase_get_object_auth_request(path)?;
+        self.sign(&mut req)?;
+        self.send(req).await
     }
 
     pub async fn supabase_get_object_info_public(
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        self.supabase_get_object_info(path, false).await
+        let mut req = self.supabase_get_object_info_public_request(path)?;
+        self.sign(&mut req)?;
+        self.send(req).await
     }
 
     pub async fn supabase_get_object_info_auth(
         &self,
         path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        self.supabase_get_object_info(path, true).await
-    }
-
-    async fn supabase_get_object(
-        &self,
-        path: &str,
-        auth: bool,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_request(path, auth)?;
+        let mut req = self.supabase_get_object_info_auth_request(path)?;
         self.sign(&mut req)?;
         self.send(req).await
-    }
-
-    async fn supabase_get_object_info(
-        &self,
-        path: &str,
-        auth: bool,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.supabase_get_object_info_request(path, auth)?;
-        self.sign(&mut req)?;
-        self.send(req).await
-    }
-}
-
-// inner functions
-impl SupabaseCore {
-    fn supabase_get_object_request(&self, path: &str, auth: bool) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/storage/v1/object/{}/{}/{}",
-            self.endpoint,
-            if auth { "authenticated" } else { "public" },
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
-    }
-
-    fn supabase_get_object_info_request(
-        &self,
-        path: &str,
-        auth: bool,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/storage/v1/object/info/{}/{}/{}",
-            self.endpoint,
-            if auth { "authenticated" } else { "public" },
-            self.bucket,
-            percent_encode_path(&p)
-        );
-
-        Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
     }
 }

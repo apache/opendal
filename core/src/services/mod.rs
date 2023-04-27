@@ -119,9 +119,9 @@ mod sled;
 #[cfg(feature = "services-sled")]
 pub use self::sled::Sled;
 
-#[cfg(feature = "services-supabase")]
+// #[cfg(feature = "services-supabase")]
 mod supabase;
-#[cfg(feature = "services-supabase")]
+// #[cfg(feature = "services-supabase")]
 pub use supabase::Supabase;
 
 #[cfg(feature = "services-wasabi")]

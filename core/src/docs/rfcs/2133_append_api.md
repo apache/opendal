@@ -1,11 +1,11 @@
-- Proposal Name: `introduce_append_api`
+- Proposal Name: `append_api`
 - Start Date: 2023-04-26
-- RFC PR: https://github.com/apache/incubator-opendal/pull/2133
+- RFC PR: [apache/incubator-opendal#2133](https://github.com/apache/incubator-opendal/pull/2133)
 - Tracking Issue: 
 
 # Summary
 
-Separate append operations from the write operation.
+Introduce append operations for OpenDAL which allow users to add data to a file. And write operation will be not reentrant.
 
 # Motivation
 
@@ -14,7 +14,7 @@ OpenDAL has the write operation used to create a file and append data to it. Thi
 - Data could be lost and not readable before w.close() returned Ok(())
 - File can't be appended again after w.close() returned Ok(())
 
-To address these issues, I propose separating the write and append operations. The new write operation will not be reentrant, but users can create a writer that provides a reentrant append operation.
+To address these issues, I propose adding an append operation and modifying the write operation to verify consistency between content length and data size. The revised write operation will not be reentrant; however, users can create an appender that provides a reentrant append operation.
 
 # Guide-level explanation
 
@@ -30,6 +30,8 @@ async fn write_test(op: Operation) -> Result<()> {
   
     // Unless specified can overwrite
     let option = OpWrite::default().with_allow_overwrite(true);
+    // content length must be the same as the data size
+    option.with_content_length(bs.len() as u64);
     op.write_with("path_to_file", option, bs).await?;
 }
 ```
@@ -38,35 +40,32 @@ The files created by the append operation can be appended via multipart API or a
 
 ```rust
 async fn append_test(op: Operation) -> Result<()> {
-    // create writer
-    let writer = op.writer("path_to_file").await?;
-  
-    let bs = read_from_file();
-    writer.append(bs).await?;
-  
-    let bs = read_from_another_file();
-    writer.append(bs).await?;
-  
-    // close the file
-    // for multipart API, complete the upload and prevent writing after close
-    // for native append API, this is a no-op
-    writer.close().await?;
-  
-    // abort the operation and delete all uploaded data
-    writer.abort().await?;
+  // create writer
+  let appender = op.appender("path_to_file").await?;
+
+  let bs = read_from_file();
+  appender.append(bs).await?;
+
+  let bs = read_from_another_file();
+  appender.append(bs).await?;
+
+  // close the file
+  // for multipart API, complete the upload and prevent writing after close
+  // for native append API, this is a no-op
+  appender.close().await?;
+
+  // abort the operation and delete all uploaded data
+  appender.abort().await?;
 }
 ```
 
 # Reference-level explanation
 
-To implement this feature, we need to add a new API `append` into `oio::Writer`. And change the `oio::Writer::write` to be not reentrant.
+To implement this feature, we need to add a new API `append` into `oio::Append`. And remove useless function in `oio::Write`.
 
 ```rust
 #[async_trait]
-pub trait Write: Unpin + Send + Sync {
-    /// Write given into writer. This operation will overwrite the file if it is supported.
-    async fn write(&mut self, bs: Bytes) -> Result<()>;
-  
+pub trait Append: Unpin + Send + Sync {
     /// Append data to the end of file.
     /// Users will call `append` multiple times. Please make sure `append` is safe to re-enter.
     async fn append(&mut self, bs: Bytes) -> Result<()>;
@@ -76,6 +75,13 @@ pub trait Write: Unpin + Send + Sync {
 
     /// Close the writer and make sure all data has been flushed.
     async fn close(&mut self) -> Result<()>;
+}
+
+#[async_trait]
+pub trait Write: Unpin + Send + Sync {
+    /// Write given into writer
+    /// This operation will overwrite the existing file if supported.
+    async fn write(&mut self, bs: Bytes) -> Result<()>;
 }
 ```
 

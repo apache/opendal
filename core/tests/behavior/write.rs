@@ -95,6 +95,7 @@ macro_rules! behavior_write_tests {
                 test_reader_tail,
                 test_read_not_exist,
                 test_read_with_if_match,
+                test_read_with_if_none_match,
                 test_fuzz_range_reader,
                 test_fuzz_offset_reader,
                 test_fuzz_part_reader,
@@ -585,18 +586,54 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(&path).await?;
 
-    let mut op_if_match = OpRead::default();
-    op_if_match = op_if_match.with_if_match("invalid_etag");
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_match("invalid_etag");
 
-    let res = op.read_with(&path, op_if_match).await;
+    let res = op.read_with(&path, op_read).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_if_match = OpRead::default();
-    op_if_match = op_if_match.with_if_match(meta.etag().expect("etag must exist"));
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_match(meta.etag().expect("etag must exist"));
 
     let bs = op
-        .read_with(&path, op_if_match)
+        .read_with(&path, op_read)
+        .await
+        .expect("read must succeed");
+    assert_eq!(bs, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Read with if_none_match should match, else get a ConditionNotMatch error.
+pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_if_none_match {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_none_match(meta.etag().expect("etag must exist"));
+
+    let res = op.read_with(&path, op_read).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_none_match("invalid_etag");
+
+    let bs = op
+        .read_with(&path, op_read)
         .await
         .expect("read must succeed");
     assert_eq!(bs, content);

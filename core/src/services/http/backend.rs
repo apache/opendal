@@ -265,6 +265,8 @@ impl Accessor for HttpBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
 
                 ..Default::default()
             });

@@ -119,6 +119,7 @@ pub struct GcsBuilder {
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
     predefined_acl: Option<String>,
     default_storage_class: Option<String>,
+    write_buffer_size: Option<usize>,
 }
 
 impl GcsBuilder {
@@ -236,6 +237,12 @@ impl GcsBuilder {
         };
         self
     }
+
+    /// set the buffer size of unsized write.
+    pub fn write_buffer_size(&mut self, buffer_size: usize) -> &mut Self {
+        self.write_buffer_size = Some(buffer_size);
+        self
+    }
 }
 
 impl Debug for GcsBuilder {
@@ -346,6 +353,7 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.predefined_acl.clone(),
                 default_storage_class: self.default_storage_class.clone(),
+                writer_buffer_size: self.write_buffer_size,
             }),
         };
 
@@ -428,10 +436,13 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            GcsWriter::new(self.core.clone(), path, args),
-        ))
+        let gcs_writer = match self.core.writer_buffer_size {
+            Some(buffer_size) => {
+                GcsWriter::with_buffer_size(self.core.clone(), path, args, buffer_size)
+            }
+            None => GcsWriter::new(self.core.clone(), path, args),
+        };
+        Ok((RpWrite::default(), gcs_writer))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

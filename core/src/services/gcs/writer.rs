@@ -62,6 +62,24 @@ impl GcsWriter {
         }
     }
 
+    pub fn with_buffer_size(
+        core: Arc<GcsCore>,
+        path: &str,
+        op: OpWrite,
+        buffer_size: usize,
+    ) -> Self {
+        GcsWriter {
+            core,
+            path: path.to_string(),
+            op,
+
+            location: None,
+            written: 0,
+            buffer: oio::VectorCursor::new(),
+            buffer_size,
+        }
+    }
+
     async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),

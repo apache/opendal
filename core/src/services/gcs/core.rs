@@ -55,6 +55,8 @@ pub struct GcsCore {
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
+
+    pub writer_buffer_size: Option<usize>,
 }
 
 impl Debug for GcsCore {
@@ -115,6 +117,11 @@ impl GcsCore {
         self.signer
             .sign_query(req, duration, &cred)
             .map_err(new_request_sign_error)
+    }
+
+    pub fn set_writer_buffer_size(&mut self, buffer_size: usize) -> &mut Self {
+        self.writer_buffer_size = Some(buffer_size);
+        self
     }
 
     #[inline]

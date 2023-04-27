@@ -380,7 +380,7 @@ impl Accessor for GcsBackend {
                 list: true,
                 scan: true,
                 batch: true,
-                batch_max_operations: Some(1000),
+                batch_max_operations: Some(100),
                 copy: true,
                 ..Default::default()
             });

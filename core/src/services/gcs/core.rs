@@ -35,7 +35,6 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
-use serde::{Deserialize, Serialize};
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
@@ -63,41 +62,6 @@ impl Debug for GcsCore {
             .field("root", &self.root)
             .finish_non_exhaustive()
     }
-}
-
-/// Request of DeleteObjects.
-#[derive(Default, Debug, Serialize)]
-#[serde(default, rename = "Delete", rename_all = "PascalCase")]
-pub struct DeleteObjectsRequest {
-    pub object: Vec<DeleteObjectsRequestObject>,
-}
-
-#[derive(Default, Debug, Serialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsRequestObject {
-    pub key: String,
-}
-
-/// Result of DeleteObjects.
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
-pub struct DeleteObjectsResult {
-    pub deleted: Vec<DeleteObjectsResultDeleted>,
-    pub error: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsResultDeleted {
-    pub key: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct DeleteObjectsResultError {
-    pub code: String,
-    pub key: String,
-    pub message: String,
 }
 
 static BACKOFF: Lazy<ExponentialBuilder> =

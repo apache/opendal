@@ -148,7 +148,7 @@
 //!
 //! First of all, let's pick a good [`Scheme`] for our duck service. The
 //! scheme should be unique and easy to understand. Normally we should
-//! use it's formal name.
+//! use its formal name.
 //!
 //! For example, we will use `s3` for AWS S3 Compatible Storage Service
 //! instead of `aws` or `awss3`. This is because there are many storage

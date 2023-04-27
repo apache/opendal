@@ -18,11 +18,13 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
 use bytes::BytesMut;
+
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -31,6 +33,7 @@ use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
 use once_cell::sync::Lazy;
+use reqsign::GoogleCredential;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
@@ -84,10 +87,34 @@ impl GcsCore {
         }
     }
 
+    fn load_credential(&self) -> Result<GoogleCredential> {
+        let cred = self
+            .credential_loader
+            .load()
+            .map_err(new_request_credential_error)?;
+
+        if let Some(cred) = cred {
+            Ok(cred)
+        } else {
+            Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "no valid credential found",
+            ))
+        }
+    }
+
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_token().await?;
 
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
+    }
+
+    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        let cred = self.load_credential()?;
+
+        self.signer
+            .sign_query(req, duration, &cred)
+            .map_err(new_request_sign_error)
     }
 
     #[inline]
@@ -112,6 +139,37 @@ impl GcsCore {
             self.bucket,
             percent_encode_path(&p)
         );
+
+        let mut req = Request::get(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    // It's for presign operation. Gcs only supports query sign over XML API.
+    pub fn gcs_get_object_xml_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::get(&url);
 
@@ -172,9 +230,7 @@ impl GcsCore {
 
         let mut req = Request::post(&url);
 
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(storage_class) = &self.default_storage_class {
             req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
@@ -210,7 +266,42 @@ impl GcsCore {
         }
     }
 
-    pub async fn gcs_get_object_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    // It's for presign operation. Gcs only supports query sign over XML API.
+    pub fn gcs_insert_object_xml_request(
+        &self,
+        path: &str,
+        content_type: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+
+        let mut req = Request::put(&url);
+
+        if let Some(content_type) = content_type {
+            req = req.header(CONTENT_TYPE, content_type);
+        }
+
+        if let Some(acl) = &self.predefined_acl {
+            req = req.header("x-goog-acl", acl);
+        }
+
+        if let Some(storage_class) = &self.default_storage_class {
+            req = req.header("x-goog-storage-class", storage_class);
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub fn gcs_head_object_request(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -220,11 +311,58 @@ impl GcsCore {
             percent_encode_path(&p)
         );
 
-        let req = Request::get(&url);
+        let mut req = Request::get(&url);
 
-        let mut req = req
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    // It's for presign operation. Gcs only supports query sign over XML API.
+    pub fn gcs_head_object_xml_request(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+
+        let mut req = Request::head(&url);
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn gcs_get_object_metadata(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.gcs_head_object_request(path, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
 
@@ -310,6 +448,7 @@ impl GcsCore {
         );
 
         let mut req = Request::post(req_uri)
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -323,6 +462,7 @@ impl GcsCore {
         page_token: &str,
         delimiter: &str,
         limit: Option<usize>,
+        start_after: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -338,6 +478,12 @@ impl GcsCore {
         if let Some(limit) = limit {
             write!(url, "&maxResults={limit}").expect("write into string must succeed");
         }
+        if let Some(start_after) = start_after {
+            let start_after = build_abs_path(&self.root, &start_after);
+            write!(url, "&startOffset={}", percent_encode_path(&start_after))
+                .expect("write into string must succeed");
+        }
+
         if !page_token.is_empty() {
             // NOTE:
             //
@@ -367,9 +513,12 @@ impl GcsCore {
             "{}/upload/storage/v1/b/{}/o?uploadType=resumable&name={}",
             self.endpoint, self.bucket, p
         );
+
         let mut req = Request::post(&url)
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
         self.sign(&mut req).await?;
         self.send(req).await
     }

@@ -43,7 +43,7 @@ pub struct MemoryBuilder {
 }
 
 impl MemoryBuilder {
-    /// Set the root for dashmap.
+    /// Set the root for BTreeMap.
     pub fn root(&mut self, path: &str) -> &mut Self {
         self.root = Some(path.into());
         self

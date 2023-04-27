@@ -924,7 +924,14 @@ impl Accessor for S3Backend {
                 read_with_override_content_disposition: true,
 
                 write: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
+                write_without_content_length: true,
+
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
+
                 scan: true,
                 copy: true,
                 presign: true,
@@ -1040,14 +1047,20 @@ impl Accessor for S3Backend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            S3Pager::new(self.core.clone(), path, "/", args.limit()),
+            S3Pager::new(
+                self.core.clone(),
+                path,
+                "/",
+                args.limit(),
+                args.start_after(),
+            ),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit()),
+            S3Pager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 

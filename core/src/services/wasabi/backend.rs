@@ -902,8 +902,13 @@ impl Accessor for WasabiBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
+
                 write: true,
                 list: true,
                 scan: true,
@@ -911,6 +916,7 @@ impl Accessor for WasabiBackend {
                 presign: true,
                 batch: true,
                 rename: true,
+
                 ..Default::default()
             });
 
@@ -1056,7 +1062,7 @@ impl Accessor for WasabiBackend {
         if ops.len() > 1000 {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "s3 services only allow delete up to 1000 keys at once",
+                "wasabi services only allow delete up to 1000 keys at once",
             )
             .with_context("length", ops.len().to_string()));
         }

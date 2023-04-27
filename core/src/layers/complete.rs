@@ -509,7 +509,7 @@ where
 }
 
 pub struct CompleteWriter<W> {
-    inner: W,
+    inner: Option<W>,
     size: Option<u64>,
     written: u64,
 }
@@ -517,9 +517,21 @@ pub struct CompleteWriter<W> {
 impl<W> CompleteWriter<W> {
     pub fn new(inner: W, size: Option<u64>) -> CompleteWriter<W> {
         CompleteWriter {
-            inner,
+            inner: Some(inner),
             size,
             written: 0,
+        }
+    }
+}
+
+/// Check if the writer has been closed or aborted while debug_assertions
+/// enabled. This code will never be executed in release mode.
+#[cfg(debug_assertions)]
+impl<W> Drop for CompleteWriter<W> {
+    fn drop(&mut self) {
+        if self.inner.is_some() {
+            // Do we need to panic here?
+            log::warn!("writer has not been closed or aborted, must be a bug")
         }
     }
 }
@@ -544,13 +556,23 @@ where
             }
         }
 
-        self.inner.write(bs).await?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        w.write(bs).await?;
         self.written += n as u64;
         Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.abort().await?;
+        self.inner = None;
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -566,7 +588,13 @@ where
             }
         }
 
-        self.inner.close().await?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.close().await?;
+        self.inner = None;
+
         Ok(())
     }
 }
@@ -590,7 +618,11 @@ where
             }
         }
 
-        self.inner.write(bs)?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.write(bs)?;
         self.written += n as u64;
         Ok(())
     }
@@ -608,7 +640,12 @@ where
             }
         }
 
-        self.inner.close()?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.close()?;
+        self.inner = None;
         Ok(())
     }
 }

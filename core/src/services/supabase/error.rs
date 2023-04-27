@@ -18,42 +18,25 @@
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
-use serde_json::de;
+use serde_json::from_slice;
 
-use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::{raw::*, Error, ErrorKind, Result};
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-struct GcsErrorResponse {
-    error: GcsError,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct GcsError {
-    code: usize,
+/// The error returned by Supabase
+struct SupabaseError {
+    status_code: String,
+    error: String,
     message: String,
-    errors: Vec<GcsErrorDetail>,
 }
 
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct GcsErrorDetail {
-    domain: String,
-    location: String,
-    location_type: String,
-    message: String,
-    reason: String,
-}
-
-/// Parse error response into Error.
+/// Parse the supabase error type to the OpenDAL error type
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
+    // todo: the supabase error has status code 4XX, handle all that
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
@@ -67,10 +50,9 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match de::from_slice::<GcsErrorResponse>(&bs) {
-        Ok(gcs_err) => format!("{gcs_err:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-    };
+    let (message, _) = from_slice::<SupabaseError>(&bs)
+        .map(|sb_err| (format!("{sb_err:?}"), Some(sb_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
 
@@ -79,43 +61,4 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     }
 
     Ok(err)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_error() {
-        let bs = bytes::Bytes::from(
-            r#"
-{
-"error": {
- "errors": [
-  {
-   "domain": "global",
-   "reason": "required",
-   "message": "Login Required",
-   "locationType": "header",
-   "location": "Authorization"
-  }
- ],
- "code": 401,
- "message": "Login Required"
- }
-}
-"#,
-        );
-
-        let out: GcsErrorResponse = de::from_slice(&bs).expect("must success");
-        println!("{out:?}");
-
-        assert_eq!(out.error.code, 401);
-        assert_eq!(out.error.message, "Login Required");
-        assert_eq!(out.error.errors[0].domain, "global");
-        assert_eq!(out.error.errors[0].reason, "required");
-        assert_eq!(out.error.errors[0].message, "Login Required");
-        assert_eq!(out.error.errors[0].location_type, "header");
-        assert_eq!(out.error.errors[0].location, "Authorization");
-    }
 }

@@ -34,3 +34,9 @@ doc = false
 [dependencies]
 jni = "0.21.1"
 opendal.workspace = true
+
+tokio = { version = "1", features = ["full"] }
+once_cell = "1.17.1"
+
+num_cpus = "1.15.0"
+

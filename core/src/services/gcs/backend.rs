@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use http::header::HOST;
 use http::StatusCode;
 use log::debug;
 use reqsign::GoogleCredentialLoader;
@@ -52,7 +53,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - [x] list
 /// - [x] scan
 /// - [x] copy
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -374,14 +375,28 @@ impl Accessor for GcsBackend {
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
             .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
                 read: true,
                 read_can_next: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+
                 write: true,
+                write_with_content_type: true,
+                write_without_content_length: true,
+
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 scan: true,
                 batch: true,
                 batch_max_operations: Some(100),
                 copy: true,
+                presign: true,
+
                 ..Default::default()
             });
         am
@@ -436,17 +451,21 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.gcs_get_object_metadata(path).await?;
+        let resp = self
+            .core
+            .gcs_get_object_metadata(path, args.if_match(), args.if_none_match())
+            .await?;
 
         if resp.status().is_success() {
             // read http response body
             let slc = resp.into_body().bytes().await?;
+
             let meta: GetObjectJsonResponse =
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
@@ -493,14 +512,20 @@ impl Accessor for GcsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            GcsPager::new(self.core.clone(), path, "/", args.limit()),
+            GcsPager::new(
+                self.core.clone(),
+                path,
+                "/",
+                args.limit(),
+                args.start_after(),
+            ),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            GcsPager::new(self.core.clone(), path, "", args.limit()),
+            GcsPager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
@@ -548,6 +573,44 @@ impl Accessor for GcsBackend {
             // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
             Err(parse_error(resp).await?)
         }
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        // We will not send this request out, just for signing.
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => {
+                self.core
+                    .gcs_head_object_xml_request(path, v.if_match(), v.if_none_match())?
+            }
+            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(
+                path,
+                v.range(),
+                v.if_match(),
+                v.if_none_match(),
+            )?,
+            PresignOperation::Write(_) => {
+                self.core
+                    .gcs_insert_object_xml_request(path, None, AsyncBody::Empty)?
+            }
+        };
+
+        self.core.sign_query(&mut req, args.expire()).await?;
+
+        // We don't need this request anymore, consume it directly.
+        let (mut parts, _) = req.into_parts();
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        parts.headers.remove(HOST);
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 }
 

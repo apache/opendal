@@ -26,6 +26,16 @@ use crate::*;
 
 /// Underlying trait of all backends for implementors.
 ///
+/// The actual data access of storage service happens in Accessor layer.
+/// Every storage supported by OpenDAL must implement [`Accessor`] but not all
+/// methods of [`Accessor`] will be implemented according to how the storage service is.
+///
+/// For example, user can not modify the content from one HTTP file server directly.
+/// So [`Http`][crate::services::Http] implements and provides only read related actions.
+///
+/// [`Accessor`] gives default implementation for all methods which will raise [`ErrorKind::Unsupported`] error.
+/// And what action this [`Accessor`] supports will be pointed out in [`AccessorInfo`].
+///
 /// # Note
 ///
 /// Visit [`internals`][crate::docs::internals] for more tutorials.
@@ -73,7 +83,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - scheme: declare the scheme of backend.
     /// - capabilities: declare the capabilities of current backend.
-    /// - hints: declare the hints of current backend
     fn info(&self) -> AccessorInfo;
 
     /// Invoke the `create` operation on the specified path
@@ -487,7 +496,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
 }
 
-/// FusedAccessor is the type erased accessor with `Box<dyn Read>`.
+/// FusedAccessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type FusedAccessor = Arc<
     dyn Accessor<
         Reader = oio::Reader,

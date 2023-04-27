@@ -17,6 +17,8 @@
 
 use anyhow::Result;
 use futures::AsyncReadExt;
+use opendal::ops::OpRead;
+use opendal::ops::OpStat;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -64,6 +66,8 @@ macro_rules! behavior_read_tests {
                 test_stat_special_chars,
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
+                test_stat_with_if_match,
+                test_stat_with_if_none_match,
                 test_stat_root,
                 test_read_full,
                 test_read_full_with_special_chars,
@@ -73,6 +77,8 @@ macro_rules! behavior_read_tests {
                 test_reader_tail,
                 test_read_not_exist,
                 test_read_with_dir_path,
+                test_read_with_if_match,
+                test_read_with_if_none_match,
             );
         )*
     };
@@ -118,6 +124,63 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+
+    Ok(())
+}
+
+/// Stat with if_match should succeed, else get a ConditionNotMatch error.
+pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
+    if !op.info().capability().stat_with_if_match {
+        return Ok(());
+    }
+
+    let path = "normal_file";
+
+    let meta = op.stat(path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), 262144);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_match("invalid_etag");
+
+    let res = op.stat_with(path, op_stat).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_match(meta.etag().expect("etag must exist"));
+
+    let result = op.stat_with(path, op_stat).await;
+    assert!(result.is_ok());
+
+    Ok(())
+}
+
+/// Stat with if_none_match should succeed, else get a ConditionNotMatch.
+pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
+    if !op.info().capability().stat_with_if_none_match {
+        return Ok(());
+    }
+
+    let path = "normal_file";
+
+    let meta = op.stat(path).await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), 262144);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_none_match(meta.etag().expect("etag must exist"));
+
+    let res = op.stat_with(path, op_stat).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_stat = OpStat::default();
+    op_stat = op_stat.with_if_none_match("invalid_etag");
+
+    let res = op.stat_with(path, op_stat).await?;
+    assert_eq!(res.mode(), meta.mode());
+    assert_eq!(res.content_length(), meta.content_length());
 
     Ok(())
 }
@@ -241,6 +304,74 @@ pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let result = op.read(&path).await;
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
+
+    Ok(())
+}
+
+/// Read with if_match should match, else get a ConditionNotMatch error.
+pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_if_match {
+        return Ok(());
+    }
+
+    let path = "normal_file";
+
+    let meta = op.stat(path).await?;
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_match("invalid_etag");
+
+    let res = op.read_with(path, op_read).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_match(meta.etag().expect("etag must exist"));
+
+    let bs = op
+        .read_with(path, op_read)
+        .await
+        .expect("read must succeed");
+    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read with if_none_match should match, else get a ConditionNotMatch error.
+pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_if_none_match {
+        return Ok(());
+    }
+
+    let path = "normal_file";
+
+    let meta = op.stat(path).await?;
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_none_match(meta.etag().expect("etag must exist"));
+
+    let res = op.read_with(path, op_read).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_if_none_match("invalid_etag");
+
+    let bs = op
+        .read_with(path, op_read)
+        .await
+        .expect("read must succeed");
+    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "read content"
+    );
 
     Ok(())
 }

@@ -754,7 +754,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|(rp, w)| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> written",
+                    "service={} operation={} path={} -> start writing",
                     self.scheme,
                     Operation::BlockingWrite,
                     path,
@@ -1340,19 +1340,6 @@ impl<W> LoggingWriter<W> {
     }
 }
 
-impl<W> Drop for LoggingWriter<W> {
-    fn drop(&mut self) {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} written={} -> data written finished",
-            self.scheme,
-            self.op,
-            self.path,
-            self.written
-        );
-    }
-}
-
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
@@ -1420,7 +1407,17 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 
     async fn close(&mut self) -> Result<()> {
         match self.inner.close().await {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data written finished",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.written
+                );
+                Ok(())
+            }
             Err(err) => {
                 if let Some(lvl) = self.failure_level {
                     log!(
@@ -1475,7 +1472,17 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
 
     fn close(&mut self) -> Result<()> {
         match self.inner.close() {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data written finished",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.written
+                );
+                Ok(())
+            }
             Err(err) => {
                 if let Some(lvl) = self.failure_level {
                     log!(

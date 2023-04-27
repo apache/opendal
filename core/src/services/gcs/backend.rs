@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use http::StatusCode;
 use log::debug;
 use reqsign::GoogleCredentialLoader;
@@ -31,7 +30,7 @@ use reqsign::GoogleTokenLoader;
 use serde::Deserialize;
 use serde_json;
 
-use super::core::{DeleteObjectsResult, GcsCore};
+use super::core::GcsCore;
 use super::error::parse_error;
 use super::pager::GcsPager;
 use super::writer::GcsWriter;
@@ -506,42 +505,47 @@ impl Accessor for GcsBackend {
     }
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
-        if ops.len() > 1000 {
+        if ops.len() > 99 {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "gcs services only allow delete up to 1000 keys at once",
+                "gcs services only allow delete less than 100 keys at once",
             )
             .with_context("length", ops.len().to_string()));
         }
 
-        let paths = ops.into_iter().map(|(p, _)| p).collect();
-
+        let paths: Vec<String> = ops.into_iter().map(|(p, _)| p).collect();
+        let keys: Vec<String> = paths.clone();
         let resp = self.core.gcs_delete_objects(paths).await?;
 
         let status = resp.status();
 
         if let StatusCode::OK = status {
-            let bs = resp.into_body().bytes().await?;
+            let bs: bytes::Bytes = resp.into_body().bytes().await?;
+            let result: DeleteObjectsJsonResponse =
+                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
-            let result: DeleteObjectsResult =
-                quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-            let mut batched_result = Vec::with_capacity(result.deleted.len() + result.error.len());
-            for i in result.deleted {
-                let path = build_rel_path(&self.core.root, &i.key);
-                batched_result.push((path, Ok(RpDelete::default().into())));
-            }
-            for i in result.error {
-                let path = build_rel_path(&self.core.root, &i.key);
-
-                batched_result.push((
-                    path,
-                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                ));
+            let mut batched_result = Vec::with_capacity(result.delete_result.len());
+            assert_eq!(batched_result.len(), keys.len() + 1);
+            for (i, _) in keys.iter().enumerate().take(result.delete_result.len()) {
+                // deleting not existing objects is ok
+                if result.delete_result[i].status == "200"
+                    || result.delete_result[i].status == "404"
+                {
+                    let path = build_rel_path(&self.core.root, &keys[i]);
+                    batched_result.push((path, Ok(RpDelete::default().into())));
+                } else {
+                    let path = build_rel_path(&self.core.root, &keys[i]);
+                    batched_result.push((
+                        path,
+                        Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
+                    ));
+                }
             }
 
             Ok(RpBatch::new(batched_result))
         } else {
+            // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
+            // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
             Err(parse_error(resp).await?)
         }
     }
@@ -571,6 +575,19 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct DeleteObjectsJsonResponse {
+    delete_result: Vec<DeletetObjectJsonResponse>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct DeletetObjectJsonResponse {
+    status: String,
+    date: String,
 }
 
 #[cfg(test)]

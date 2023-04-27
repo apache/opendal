@@ -290,31 +290,39 @@ impl GcsCore {
         &self,
         paths: Vec<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("{}/?delete", self.endpoint);
+        let uri = "/batch/storage/v1/".to_string();
+        let mut req = Request::post(&uri);
+        req = req.header(
+            CONTENT_TYPE,
+            "multipart/mixed; boundary==\"---opendal-gcs-batch-delete-boundary---\"",
+        );
 
-        let req = Request::post(&url);
+        let mut batch_req_body = BytesMut::default();
 
-        let content = quick_xml::se::to_string(&DeleteObjectsRequest {
-            object: paths
-                .into_iter()
-                .map(|path| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
-                })
-                .collect(),
-        })
-        .map_err(new_xml_deserialize_error)?;
+        for path in paths {
+            let p = build_abs_path(&self.root, &path);
+            let mut req_body = BytesMut::default();
+            write!(
+                &mut req_body,
+                "--\"---opendal-gcs-batch-delete-boundary---\"\n
+                Content-Type: application/http\n\n
+                DELETE {}/batch/storage/v1/b/{}/o/{}\n
+                Content-Length: 0\n\n",
+                self.endpoint,
+                self.bucket,
+                percent_encode_path(&p)
+            )
+            .unwrap();
+            batch_req_body.extend_from_slice(&req_body);
+        }
+        write!(
+            &mut batch_req_body,
+            "\n--\"---opendal-gcs-batch-delete-boundary---\""
+        )
+        .unwrap();
 
-        // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
-        // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
-        // Set content-md5 as required by API.
-        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
-
-        let mut req = req
-            .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
+        let req_body = AsyncBody::Bytes(batch_req_body.freeze());
+        let mut req = req.body(req_body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
         self.send(req).await

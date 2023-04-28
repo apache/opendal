@@ -19,6 +19,7 @@ use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
+use http::StatusCode;
 use log::debug;
 use log::warn;
 use opendal::ops::OpRead;
@@ -101,6 +102,7 @@ macro_rules! behavior_write_tests {
                 test_fuzz_part_reader,
                 test_read_with_dir_path,
                 test_read_with_special_chars,
+                test_read_with_override_cache_control,
                 test_read_with_override_content_disposition,
                 test_delete,
                 test_delete_empty_dir,
@@ -791,6 +793,54 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Read file with override-cache-control should succeed.
+pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
+    if !(op.info().capability().read_with_override_cache_control && op.info().can_presign()) {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_cache_control = "no-cache, no-store, must-revalidate";
+
+    let mut op_read = OpRead::default();
+    op_read = op_read.with_override_cache_control(target_cache_control);
+
+    let signed_req = op
+        .presign_read_with(&path, op_read, Duration::from_secs(60))
+        .await
+        .expect("sign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("cache-control")
+            .expect("cache-control header must exist")
+            .to_str()
+            .expect("cache-control header must be string"),
+        target_cache_control
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
 /// Read file with override_content_disposition should succeed.
 pub async fn test_read_with_override_content_disposition(op: Operator) -> Result<()> {
     if !(op
@@ -830,11 +880,13 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
 
     let resp = req.send().await.expect("send must succeed");
 
-    assert_eq!(resp.status(), http::StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(
         resp.headers()
             .get(http::header::CONTENT_DISPOSITION)
-            .unwrap(),
+            .expect("content-disposition header must exist")
+            .to_str()
+            .expect("content-disposition header must be string"),
         target_content_disposition
     );
     assert_eq!(resp.bytes().await?, content);

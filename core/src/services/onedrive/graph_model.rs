@@ -20,18 +20,18 @@ use serde_json::Result;
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GraphApiOneDriveResponse {
+pub(crate) struct GraphApiOnedriveResponse {
     #[serde(rename = "@odata.context")]
     odata_context: String,
 
     #[serde(rename = "@odata.count")]
-    odata_count: usize,
+    pub(crate) odata_count: usize,
 
-    value: Vec<OneDriveItem>,
+    pub(crate) value: Vec<OneDriveItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct OneDriveItem {
+pub(crate) struct OneDriveItem {
     #[serde(rename = "createdDateTime")]
     created_date_time: String,
     #[serde(rename = "eTag")]
@@ -39,27 +39,27 @@ struct OneDriveItem {
     id: String,
     #[serde(rename = "lastModifiedDateTime")]
     last_modified_date_time: String,
-    name: String,
+    pub(crate) name: String,
 
     size: usize,
     #[serde(rename = "webUrl")]
     web_url: String,
     #[serde(rename = "parentReference")]
-    parent_reference: ParentReference,
+    pub(crate) parent_reference: ParentReference,
     #[serde(rename = "fileSystemInfo")]
     file_system_info: FileSystemInfo,
     #[serde(flatten)]
-    item_type: ItemType,
+    pub(crate) item_type: ItemType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct ParentReference {
+pub(crate) struct ParentReference {
     #[serde(rename = "driveId")]
     drive_id: String,
     #[serde(rename = "driveType")]
     drive_type: String,
     id: String,
-    path: String,
+    pub(crate) path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -72,7 +72,7 @@ struct FileSystemInfo {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
-enum ItemType {
+pub(crate) enum ItemType {
     Folder {
         folder: HashMap<String, serde_json::Value>,
         #[serde(rename = "specialFolder")]
@@ -83,8 +83,8 @@ enum ItemType {
     },
 }
 
-fn parse_one_drive_json(data: &str) -> Result<GraphApiOneDriveResponse> {
-    let response: GraphApiOneDriveResponse = serde_json::from_str(data)?;
+fn parse_one_drive_json(data: &str) -> Result<GraphApiOnedriveResponse> {
+    let response: GraphApiOnedriveResponse = serde_json::from_str(data)?;
     Ok(response)
 }
 

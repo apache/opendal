@@ -21,4 +21,5 @@ mod error;
 mod graph_model;
 
 pub use builder::OnedriveBuilder as Onedrive;
+mod pager;
 mod writer;

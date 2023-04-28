@@ -372,11 +372,13 @@ impl AzblobCore {
 
         let mut multipart = Multipart::new();
 
-        for path in paths.iter() {
+        for (idx, path) in paths.iter().enumerate() {
             let mut req = self.azblob_delete_blob_request(path)?;
 
             self.batch_sign(&mut req).await?;
-            multipart = multipart.part(MixedPart::from_request(req));
+            multipart = multipart.part(
+                MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
+            );
         }
 
         let req = Request::post(url);

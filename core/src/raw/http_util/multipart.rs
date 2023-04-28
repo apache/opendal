@@ -97,8 +97,6 @@ impl<T: Part> Multipart<T> {
         // Insert content length with calculated size.
         builder = builder.header(CONTENT_LENGTH, bs.len());
 
-        log::debug!("current body:\n{}", String::from_utf8_lossy(&bs));
-
         builder
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)
@@ -211,6 +209,10 @@ impl MixedPart {
     }
 
     /// Build a mixed part from a request.
+    ///
+    /// # Notes
+    ///
+    /// Mixed parts only takes the path from the request uri.
     pub fn from_request(req: Request<AsyncBody>) -> Self {
         let mut part_headers = HeaderMap::new();
         part_headers.insert(CONTENT_TYPE, "application/http".parse().unwrap());

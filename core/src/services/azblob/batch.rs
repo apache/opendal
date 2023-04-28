@@ -29,12 +29,12 @@ pub(super) fn parse_batch_delete_response(
     let mut reps = Vec::with_capacity(expect.len());
 
     let mut resp_packs: Vec<&str> = body.trim().split(&format!("--{boundary}")).collect();
-    // if resp_packs.len() != (expect.len() + 1) {
-    //     return Err(Error::new(
-    //         ErrorKind::Unexpected,
-    //         "invalid batch delete response",
-    //     ));
-    // }
+    if resp_packs.len() != (expect.len() + 2) {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "invalid batch delete response",
+        ));
+    }
     // drop the tail
     resp_packs.pop();
     for (resp_pack, name) in resp_packs[1..].iter().zip(expect.into_iter()) {

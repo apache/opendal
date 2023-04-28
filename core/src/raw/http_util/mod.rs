@@ -59,3 +59,7 @@ pub use bytes_range::BytesRange;
 
 mod bytes_content_range;
 pub use bytes_content_range::BytesContentRange;
+
+mod multipart;
+pub use multipart::Multipart;
+pub use multipart::Part;

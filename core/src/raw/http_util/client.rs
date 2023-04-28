@@ -21,6 +21,8 @@ use std::mem;
 use std::str::FromStr;
 
 use futures::TryStreamExt;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use reqwest::redirect::Policy;
@@ -94,14 +96,22 @@ impl HttpClient {
             .version(parts.version)
             .headers(parts.headers);
 
-        req_builder = if let AsyncBody::Multipart(field, r) = body {
-            let mut form = reqwest::multipart::Form::new();
-            let part = reqwest::multipart::Part::stream(AsyncBody::Bytes(r));
-            form = form.part(field, part);
+        req_builder = match body {
+            AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
+            AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
+            AsyncBody::Multipart(mp) => {
+                let (boundary, bs) = mp.build();
 
-            req_builder.multipart(form)
-        } else {
-            req_builder.body(body)
+                // Insert content type with correct boundary.
+                req_builder = req_builder.header(
+                    CONTENT_TYPE,
+                    format!("multipart/form-data; boundary={boundary}").as_str(),
+                );
+                // Insert content length with calculated size.
+                req_builder = req_builder.header(CONTENT_LENGTH, bs.len());
+
+                req_builder.body(reqwest::Body::from(bs))
+            }
         };
 
         let mut resp = req_builder.send().await.map_err(|err| {

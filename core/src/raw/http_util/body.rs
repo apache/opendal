@@ -33,6 +33,8 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
+use super::multipart::Multipart;
+
 /// Body used in async HTTP requests.
 #[derive(Default)]
 pub enum AsyncBody {
@@ -45,19 +47,7 @@ pub enum AsyncBody {
     ///
     /// If input with this field, we will goto the internal multipart
     /// handle logic.
-    Multipart(String, Bytes),
-}
-
-impl From<AsyncBody> for reqwest::Body {
-    fn from(v: AsyncBody) -> Self {
-        match v {
-            AsyncBody::Empty => reqwest::Body::from(""),
-            AsyncBody::Bytes(bs) => reqwest::Body::from(bs),
-            AsyncBody::Multipart(_, _) => {
-                unreachable!("reqwest multipart should not be constructed by body")
-            }
-        }
-    }
+    Multipart(Multipart),
 }
 
 type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>;

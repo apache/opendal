@@ -83,10 +83,7 @@ pub struct OnedriveBuilder {
 
 impl Debug for OnedriveBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
-            .field("access_token", &self.access_token)
-            .field("root", &self.root)
-            .finish()
+        f.debug_struct("Backend").field("root", &self.root).finish()
     }
 }
 

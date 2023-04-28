@@ -21,6 +21,7 @@ use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -281,7 +282,7 @@ impl IpmfsBackend {
     pub async fn ipmfs_write(
         &self,
         path: &str,
-        body: AsyncBody,
+        body: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -291,9 +292,10 @@ impl IpmfsBackend {
             percent_encode_path(&p)
         );
 
-        let req = Request::post(url);
+        let multipart = Multipart::new().part(FormDataPart::new("data").content(body));
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req: http::request::Builder = Request::post(url);
+        let req = multipart.apply(req)?;
 
         self.client.send(req).await
     }

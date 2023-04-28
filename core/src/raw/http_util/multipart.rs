@@ -17,26 +17,29 @@
 
 use std::str::FromStr;
 
+use crate::*;
 use bytes::{Bytes, BytesMut};
 use http::{
-    header::{CONTENT_DISPOSITION, CONTENT_TYPE},
+    header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE},
     HeaderMap, HeaderName, HeaderValue, Method, Request, Uri, Version,
 };
 
+use super::{new_request_build_error, AsyncBody};
+
 /// Multipart is a builder for multipart/form-data.
 #[derive(Debug)]
-pub struct Multipart<T> {
+pub struct Multipart<T: Part> {
     boundary: String,
     parts: Vec<T>,
 }
 
-impl<T> Default for Multipart<T> {
+impl<T: Part> Default for Multipart<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Multipart<T> {
+impl<T: Part> Multipart<T> {
     /// Create a new multipart with random boundary.
     pub fn new() -> Self {
         Multipart {
@@ -57,20 +60,18 @@ impl<T> Multipart<T> {
         self.parts.push(part);
         self
     }
-}
 
-impl<T: Into<Bytes>> Multipart<T> {
-    pub(crate) fn build(self) -> (String, Bytes) {
+    pub(crate) fn build(&self) -> Bytes {
         let mut bs = BytesMut::new();
 
         // Write headers.
-        for v in self.parts {
+        for v in self.parts.iter() {
             // Write the first boundary
             bs.extend_from_slice(b"--");
             bs.extend_from_slice(self.boundary.as_bytes());
             bs.extend_from_slice(b"\r\n");
 
-            bs.extend_from_slice(v.into().as_ref());
+            bs.extend_from_slice(v.build().as_ref());
         }
 
         // Write the last boundary
@@ -79,8 +80,40 @@ impl<T: Into<Bytes>> Multipart<T> {
         bs.extend_from_slice(b"--");
         bs.extend_from_slice(b"\r\n");
 
-        (self.boundary, bs.freeze())
+        bs.freeze()
     }
+
+    /// Consume the input and generate a request with multipart body.
+    ///
+    /// This founction will make sure content_type and content_length set correctly.
+    pub fn apply(self, mut builder: http::request::Builder) -> Result<Request<AsyncBody>> {
+        let bs = self.build();
+
+        // Insert content type with correct boundary.
+        builder = builder.header(
+            CONTENT_TYPE,
+            format!("multipart/{}; boundary={}", T::TYPE, self.boundary).as_str(),
+        );
+        // Insert content length with calculated size.
+        builder = builder.header(CONTENT_LENGTH, bs.len());
+
+        log::debug!("current body:\n{}", String::from_utf8_lossy(&bs));
+
+        builder
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)
+    }
+}
+
+/// Part is a trait for multipart part.
+pub trait Part {
+    /// TYPE is the type of multipart.
+    ///
+    /// Current available types are: `form-data` and `mixed`
+    const TYPE: &'static str;
+
+    /// Build will consume this part and generates the bytes.
+    fn build(&self) -> Bytes;
 }
 
 /// FormDataPart is a builder for multipart/form-data part.
@@ -121,8 +154,12 @@ impl FormDataPart {
         self.content = content.into();
         self
     }
+}
 
-    pub(crate) fn build(self) -> Bytes {
+impl Part for FormDataPart {
+    const TYPE: &'static str = "form-data";
+
+    fn build(&self) -> Bytes {
         let mut bs = BytesMut::new();
 
         // Write headers.
@@ -139,12 +176,6 @@ impl FormDataPart {
         bs.extend_from_slice(b"\r\n");
 
         bs.freeze()
-    }
-}
-
-impl From<FormDataPart> for Bytes {
-    fn from(val: FormDataPart) -> Bytes {
-        val.build()
     }
 }
 
@@ -180,12 +211,17 @@ impl MixedPart {
     }
 
     /// Build a mixed part from a request.
-    pub fn from_request(req: Request<Bytes>) -> Self {
+    pub fn from_request(req: Request<AsyncBody>) -> Self {
         let mut part_headers = HeaderMap::new();
         part_headers.insert(CONTENT_TYPE, "application/http".parse().unwrap());
         part_headers.insert("content-transfer-encoding", "binary".parse().unwrap());
 
         let (parts, body) = req.into_parts();
+
+        let content = match body {
+            AsyncBody::Empty => Bytes::new(),
+            AsyncBody::Bytes(bs) => bs,
+        };
 
         Self {
             part_headers,
@@ -195,7 +231,7 @@ impl MixedPart {
                 .expect("the uri used to build a mixed part must be valid"),
             version: parts.version,
             headers: parts.headers,
-            content: body,
+            content,
         }
     }
 
@@ -228,8 +264,12 @@ impl MixedPart {
         self.content = content.into();
         self
     }
+}
 
-    pub(crate) fn build(self) -> Bytes {
+impl Part for MixedPart {
+    const TYPE: &'static str = "mixed";
+
+    fn build(&self) -> Bytes {
         let mut bs = BytesMut::new();
 
         // Write parts headers.
@@ -268,12 +308,6 @@ impl MixedPart {
     }
 }
 
-impl From<MixedPart> for Bytes {
-    fn from(val: MixedPart) -> Bytes {
-        val.build()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,22 +318,21 @@ mod tests {
     #[test]
     fn test_multipart_formdata_basic() {
         let multipart = Multipart::new()
+            .with_boundary("lalala")
             .part(FormDataPart::new("foo").content(Bytes::from("bar")))
             .part(FormDataPart::new("hello").content(Bytes::from("world")));
 
-        let (boundary, body) = multipart.build();
+        let body = multipart.build();
 
-        let expected = format!(
-            "--{boundary}\r\n\
+        let expected = "--lalala\r\n\
              content-disposition: form-data; name=\"foo\"\r\n\
              \r\n\
              bar\r\n\
-             --{boundary}\r\n\
+             --lalala\r\n\
              content-disposition: form-data; name=\"hello\"\r\n\
              \r\n\
              world\r\n\
-             --{boundary}--\r\n",
-        );
+             --lalala--\r\n";
 
         assert_eq!(expected, String::from_utf8(body.to_vec()).unwrap());
     }
@@ -322,7 +355,7 @@ mod tests {
             .part(FormDataPart::new("Signature").content("0RavWzkygo6QX9caELEqKi9kDbU="))
             .part(FormDataPart::new("file").header(CONTENT_TYPE, "image/jpeg".parse().unwrap()).content("...file content...")).part(FormDataPart::new("submit").content("Upload to Amazon S3"));
 
-        let (_, body) = multipart.build();
+        let body = multipart.build();
 
         let expected = r#"--9431149156168
 content-disposition: form-data; name="key"
@@ -442,7 +475,7 @@ Upload to Amazon S3
                     .content(r#"{"metadata": {"type": "calico"}}"#),
             );
 
-        let (_, body) = multipart.build();
+        let body = multipart.build();
 
         let expected = r#"--===============7330845974216740156==
 content-type: application/http
@@ -544,7 +577,7 @@ content-length: 32
                     .header("content-length".parse().unwrap(), "0".parse().unwrap()),
             );
 
-        let (_, body) = multipart.build();
+        let body = multipart.build();
 
         let expected = r#"--batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
 content-type: application/http

@@ -33,8 +33,6 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-use super::multipart::Multipart;
-
 /// Body used in async HTTP requests.
 #[derive(Default)]
 pub enum AsyncBody {
@@ -43,10 +41,6 @@ pub enum AsyncBody {
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
-    /// Body with a multipart form-data.
-    MultipartFormData(Multipart<FormDataPart>),
-    /// Body with a multipart mixed.
-    MultipartMixed(Multipart<MixedPart>),
 }
 
 type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>;

@@ -64,3 +64,4 @@ mod multipart;
 pub use multipart::FormDataPart;
 pub use multipart::MixedPart;
 pub use multipart::Multipart;
+pub use multipart::Part;

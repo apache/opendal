@@ -648,6 +648,7 @@ impl Accessor for AzblobBackend {
                 "batch delete limit exceeded",
             ));
         }
+
         // construct and complete batch request
         let resp = self.core.azblob_batch_delete(&paths).await?;
 

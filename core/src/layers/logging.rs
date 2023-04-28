@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::io;
+use std::str::FromStr;
 use std::task::Context;
 use std::task::Poll;
 
@@ -105,8 +106,14 @@ impl LoggingLayer {
     /// For example: accessor returns NotFound.
     ///
     /// `None` means disable the log for error.
-    pub fn with_error_level(mut self, level: Option<Level>) -> Self {
-        self.error_level = level;
+    /// Rollback to default value (`Level::Warn`) when parsing fails.
+    pub fn with_error_level(mut self, level: Option<&str>) -> Self {
+        if let Some(level) = level {
+            let level = Level::from_str(level).map_or(Some(Level::Warn), |l| Some(l));
+            self.error_level = level;
+        } else {
+            self.error_level = None;
+        }
         self
     }
 
@@ -115,8 +122,14 @@ impl LoggingLayer {
     /// For example: accessor returns Unexpected network error.
     ///
     /// `None` means disable the log for failure.
-    pub fn with_failure_level(mut self, level: Option<Level>) -> Self {
-        self.failure_level = level;
+    /// Rollback to default value (`Level::Error`) when parsing fails.
+    pub fn with_failure_level(mut self, level: Option<&str>) -> Self {
+        if let Some(level) = level {
+            let level = Level::from_str(level).map_or(Some(Level::Error), |l| Some(l));
+            self.failure_level = level;
+        } else {
+            self.failure_level = None;
+        }
         self
     }
 }

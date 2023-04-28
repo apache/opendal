@@ -20,18 +20,18 @@ use http::{header::CONTENT_DISPOSITION, HeaderMap, HeaderName, HeaderValue};
 
 /// Multipart is a builder for multipart/form-data.
 #[derive(Debug)]
-pub struct Multipart {
+pub struct Multipart<T> {
     boundary: String,
-    parts: Vec<Part>,
+    parts: Vec<T>,
 }
 
-impl Default for Multipart {
+impl<T> Default for Multipart<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Multipart {
+impl<T> Multipart<T> {
     /// Create a new multipart with random boundary.
     pub fn new() -> Self {
         Multipart {
@@ -48,11 +48,13 @@ impl Multipart {
     }
 
     /// Insert a part into multipart.
-    pub fn part(mut self, part: Part) -> Self {
+    pub fn part(mut self, part: T) -> Self {
         self.parts.push(part);
         self
     }
+}
 
+impl<T: Into<Bytes>> Multipart<T> {
     pub(crate) fn build(self) -> (String, Bytes) {
         let mut bs = BytesMut::new();
 
@@ -63,7 +65,7 @@ impl Multipart {
             bs.extend_from_slice(self.boundary.as_bytes());
             bs.extend_from_slice(b"\r\n");
 
-            bs.extend_from_slice(&v.build());
+            bs.extend_from_slice(v.into().as_ref());
         }
 
         // Write the last boundary
@@ -76,14 +78,14 @@ impl Multipart {
     }
 }
 
-/// Part is a builder for multipart/form-data part.
+/// FormDataPart is a builder for multipart/form-data part.
 #[derive(Debug)]
-pub struct Part {
+pub struct FormDataPart {
     headers: HeaderMap,
     content: Bytes,
 }
 
-impl Part {
+impl FormDataPart {
     /// Create a new part builder
     ///
     /// # Panics
@@ -135,6 +137,12 @@ impl Part {
     }
 }
 
+impl From<FormDataPart> for Bytes {
+    fn from(val: FormDataPart) -> Bytes {
+        val.build()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,8 +153,8 @@ mod tests {
     #[test]
     fn test_multipart_basic() {
         let multipart = Multipart::new()
-            .part(Part::new("foo").content(Bytes::from("bar")))
-            .part(Part::new("hello").content(Bytes::from("world")));
+            .part(FormDataPart::new("foo").content(Bytes::from("bar")))
+            .part(FormDataPart::new("hello").content(Bytes::from("world")));
 
         let (boundary, body) = multipart.build();
 
@@ -170,18 +178,18 @@ mod tests {
     fn test_multipart_s3_form_upload() {
         let multipart = Multipart::new()
             .with_boundary("9431149156168")
-            .part(Part::new("key").content("user/eric/MyPicture.jpg"))
-            .part(Part::new("acl").content("public-read"))
-            .part(Part::new("success_action_redirect").content(
+            .part(FormDataPart::new("key").content("user/eric/MyPicture.jpg"))
+            .part(FormDataPart::new("acl").content("public-read"))
+            .part(FormDataPart::new("success_action_redirect").content(
                 "https://awsexamplebucket1.s3.us-west-1.amazonaws.com/successful_upload.html",
             ))
-            .part(Part::new("Content-Type").content("image/jpeg"))
-            .part(Part::new("x-amz-meta-uuid").content("14365123651274"))
-            .part(Part::new("x-amz-meta-tag").content("Some,Tag,For,Picture"))
-            .part(Part::new("AWSAccessKeyId").content("AKIAIOSFODNN7EXAMPLE"))
-            .part(Part::new("Policy").content("eyAiZXhwaXJhdGlvbiI6ICIyMDA3LTEyLTAxVDEyOjAwOjAwLjAwMFoiLAogICJjb25kaXRpb25zIjogWwogICAgeyJidWNrZXQiOiAiam9obnNtaXRoIn0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiRrZXkiLCAidXNlci9lcmljLyJdLAogICAgeyJhY2wiOiAicHVibGljLXJlYWQifSwKICAgIHsic3VjY2Vzc19hY3Rpb25fcmVkaXJlY3QiOiAiaHR0cDovL2pvaG5zbWl0aC5zMy5hbWF6b25hd3MuY29tL3N1Y2Nlc3NmdWxfdXBsb2FkLmh0bWwifSwKICAgIFsic3RhcnRzLXdpdGgiLCAiJENvbnRlbnQtVHlwZSIsICJpbWFnZS8iXSwKICAgIHsieC1hbXotbWV0YS11dWlkIjogIjE0MzY1MTIzNjUxMjc0In0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiR4LWFtei1tZXRhLXRhZyIsICIiXQogIF0KfQo="))
-            .part(Part::new("Signature").content("0RavWzkygo6QX9caELEqKi9kDbU="))
-            .part(Part::new("file").header(CONTENT_TYPE, "image/jpeg".parse().unwrap()).content("...file content...")).part(Part::new("submit").content("Upload to Amazon S3"));
+            .part(FormDataPart::new("Content-Type").content("image/jpeg"))
+            .part(FormDataPart::new("x-amz-meta-uuid").content("14365123651274"))
+            .part(FormDataPart::new("x-amz-meta-tag").content("Some,Tag,For,Picture"))
+            .part(FormDataPart::new("AWSAccessKeyId").content("AKIAIOSFODNN7EXAMPLE"))
+            .part(FormDataPart::new("Policy").content("eyAiZXhwaXJhdGlvbiI6ICIyMDA3LTEyLTAxVDEyOjAwOjAwLjAwMFoiLAogICJjb25kaXRpb25zIjogWwogICAgeyJidWNrZXQiOiAiam9obnNtaXRoIn0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiRrZXkiLCAidXNlci9lcmljLyJdLAogICAgeyJhY2wiOiAicHVibGljLXJlYWQifSwKICAgIHsic3VjY2Vzc19hY3Rpb25fcmVkaXJlY3QiOiAiaHR0cDovL2pvaG5zbWl0aC5zMy5hbWF6b25hd3MuY29tL3N1Y2Nlc3NmdWxfdXBsb2FkLmh0bWwifSwKICAgIFsic3RhcnRzLXdpdGgiLCAiJENvbnRlbnQtVHlwZSIsICJpbWFnZS8iXSwKICAgIHsieC1hbXotbWV0YS11dWlkIjogIjE0MzY1MTIzNjUxMjc0In0sCiAgICBbInN0YXJ0cy13aXRoIiwgIiR4LWFtei1tZXRhLXRhZyIsICIiXQogIF0KfQo="))
+            .part(FormDataPart::new("Signature").content("0RavWzkygo6QX9caELEqKi9kDbU="))
+            .part(FormDataPart::new("file").header(CONTENT_TYPE, "image/jpeg".parse().unwrap()).content("...file content...")).part(FormDataPart::new("submit").content("Upload to Amazon S3"));
 
         let (_, body) = multipart.build();
 

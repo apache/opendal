@@ -99,13 +99,26 @@ impl HttpClient {
         req_builder = match body {
             AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
             AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
-            AsyncBody::Multipart(mp) => {
+            AsyncBody::MultipartFormData(mp) => {
                 let (boundary, bs) = mp.build();
 
                 // Insert content type with correct boundary.
                 req_builder = req_builder.header(
                     CONTENT_TYPE,
                     format!("multipart/form-data; boundary={boundary}").as_str(),
+                );
+                // Insert content length with calculated size.
+                req_builder = req_builder.header(CONTENT_LENGTH, bs.len());
+
+                req_builder.body(reqwest::Body::from(bs))
+            }
+            AsyncBody::MultipartMixed(mp) => {
+                let (boundary, bs) = mp.build();
+
+                // Insert content type with correct boundary.
+                req_builder = req_builder.header(
+                    CONTENT_TYPE,
+                    format!("multipart/mixed; boundary={boundary}").as_str(),
                 );
                 // Insert content length with calculated size.
                 req_builder = req_builder.header(CONTENT_LENGTH, bs.len());

@@ -43,7 +43,9 @@ impl oio::Write for IpmfsWriter {
             .backend
             .ipmfs_write(
                 &self.path,
-                AsyncBody::Multipart(Multipart::new().part(FormDataPart::new("data").content(bs))),
+                AsyncBody::MultipartFormData(
+                    Multipart::new().part(FormDataPart::new("data").content(bs)),
+                ),
             )
             .await?;
 

@@ -43,11 +43,10 @@ pub enum AsyncBody {
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
-    /// Body with a multipart field.
-    ///
-    /// If input with this field, we will goto the internal multipart
-    /// handle logic.
-    Multipart(Multipart<FormDataPart>),
+    /// Body with a multipart form-data.
+    MultipartFormData(Multipart<FormDataPart>),
+    /// Body with a multipart mixed.
+    MultipartMixed(Multipart<MixedPart>),
 }
 
 type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>;

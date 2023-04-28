@@ -136,5 +136,11 @@ pub use webdav::Webdav;
 
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;
+
+#[cfg(feature = "services-onedrive")]
+mod onedrive;
+#[cfg(feature = "services-onedrive")]
+pub use onedrive::Onedrive;
+
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;

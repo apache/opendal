@@ -61,6 +61,8 @@ pub enum Scheme {
     Moka,
     /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
     Obs,
+    /// [onedrive][crate::services::Onedrive]: Microsoft OneDrive services.
+    Onedrive,
     /// [oss][crate::services::Oss]: Aliyun Object Storage Services
     Oss,
     /// [redis][crate::services::Redis]: Redis services
@@ -160,6 +162,7 @@ impl From<Scheme> for &'static str {
             Scheme::Memory => "memory",
             Scheme::Moka => "moka",
             Scheme::Obs => "obs",
+            Scheme::Onedrive => "onedrive",
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",

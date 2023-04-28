@@ -85,7 +85,7 @@ const config = {
       },
       navbar: {
         logo: {
-          alt: 'Apache OpenDAL Logo',
+          alt: 'Apache OpenDAL(incubating)',
           src: 'img/logo.svg',
           srcDark: 'img/logo_dark.svg',
           href: 'https://opendal.apache.org/',

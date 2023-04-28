@@ -1,4 +1,9 @@
-# OpenDAL &emsp; [![Build Status]][actions] [![chat]][discord]
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="website/static/img/logo_dark.svg">
+  <img alt="Apache OpenDAL(incubating)" src="website/static/img/logo.svg">
+</picture>
+
+[![Build Status]][actions] [![chat]][discord]
 
 [build status]: https://img.shields.io/github/actions/workflow/status/apache/incubator-opendal/ci.yml?branch=main
 [actions]: https://github.com/apache/incubator-opendal/actions?query=branch%3Amain

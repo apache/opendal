@@ -84,7 +84,14 @@ const config = {
         disableSwitch: true
       },
       navbar: {
-        title: 'OpenDAL (incubating)',
+        logo: {
+          alt: 'Apache OpenDAL Logo',
+          src: 'img/logo.svg',
+          srcDark: 'img/logo_dark.svg',
+          href: 'https://opendal.apache.org/',
+          target: '_self',
+          height: 32,
+        },
         items: [
           {
             position: 'right',

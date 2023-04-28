@@ -136,18 +136,11 @@ impl Accessor for OnedriveBackend {
 }
 
 impl OnedriveBackend {
-    const ONEDRIVE_ENDPOINT_PREFIX: &'static str =
-        "https://graph.microsoft.com/v1.0/me/drive/root:";
-    const ONEDRIVE_ENDPOINT_SUFFIX: &'static str = ":/content";
-
     async fn onedrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
-
         let url: String = format!(
-            "{}{}{}",
-            OnedriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
+            "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",
             percent_encode_path(&path),
-            OnedriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
         );
 
         let mut req = Request::get(&url);
@@ -183,10 +176,8 @@ impl OnedriveBackend {
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
-            "{}{}{}",
-            OnedriveBackend::ONEDRIVE_ENDPOINT_PREFIX,
-            percent_encode_path(path),
-            OnedriveBackend::ONEDRIVE_ENDPOINT_SUFFIX
+            "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",
+            percent_encode_path(path)
         );
 
         let mut req = Request::put(&url);

@@ -101,10 +101,14 @@ jobs:
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
         run: corepack enable
+      - name: Install ziglang
+        uses: goto-bus-stop/setup-zig@v1
+        with:
+          version: 0.10.0
       - name: Install dependencies
         run: yarn install
       - name: Build
-        run: yarn build
+        run: napi build --platform --target "${NAPI_TARGET:-}" --zig --zig-abi-suffix 2.11 --release --js generated.js && node ./scripts/header.js
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-linux

@@ -109,7 +109,7 @@ impl LoggingLayer {
     /// Rollback to default value (`Level::Warn`) when parsing fails.
     pub fn with_error_level(mut self, level: Option<&str>) -> Self {
         if let Some(level) = level {
-            let level = Level::from_str(level).map_or(Some(Level::Warn), |l| Some(l));
+            let level = Level::from_str(level).map_or(Some(Level::Warn), Some);
             self.error_level = level;
         } else {
             self.error_level = None;
@@ -125,7 +125,7 @@ impl LoggingLayer {
     /// Rollback to default value (`Level::Error`) when parsing fails.
     pub fn with_failure_level(mut self, level: Option<&str>) -> Self {
         if let Some(level) = level {
-            let level = Level::from_str(level).map_or(Some(Level::Error), |l| Some(l));
+            let level = Level::from_str(level).map_or(Some(Level::Error), Some);
             self.failure_level = level;
         } else {
             self.failure_level = None;

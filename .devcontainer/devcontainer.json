@@ -1,6 +1,7 @@
 {
 	"name": "OpenDAL",
 	"image": "mcr.microsoft.com/devcontainers/rust:bullseye",
+	"postCreateCommand": "sudo apt update && sudo apt install -y ruby-dev libclang-dev python3-dev",
 	"customizations": {
 		"vscode": {
 			"extensions": [

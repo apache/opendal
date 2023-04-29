@@ -21,7 +21,7 @@ Major components of the project include:
 - [Python Binding](bindings/python/README.md)
 - [C Binding](bindings/c) *working on*
 - [Java Binding](bindings/java) *working on*
-- [Ruby Binding](bindings/ruby): *working on*
+- [Ruby Binding](bindings/ruby) *working on*
 
 **Applications**
 

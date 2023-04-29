@@ -1,19 +1,10 @@
 {
 	"name": "OpenDAL",
-	"image": "ghcr.io/apache/opendal-devtools:latest",
-	"mounts": [
-		"source=${localEnv:HOME}/.cargo/registry,target=/opt/rust/cargo/registry,type=bind,consistency=cached"
-	],
-	"remoteUser": "builder",
-	"updateRemoteUserUID": true,
-	"postAttachCommand": "bash",
+	"image": "mcr.microsoft.com/devcontainers/rust:bullseye",
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"cschleiden.vscode-github-actions",
-				"rust-lang.rust-analyzer",
-				"serayuzgur.crates",
-				"vadimcn.vscode-lldb"
+				"rust-lang.rust-analyzer"
 			],
 			"settings": {
 				"editor.formatOnSave": true,

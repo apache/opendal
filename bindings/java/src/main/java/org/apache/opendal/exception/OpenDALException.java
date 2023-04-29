@@ -17,29 +17,17 @@
  * under the License.
  */
 
-package org.apache.opendal;
+package org.apache.opendal.exception;
 
-public class Metadata extends OpenDALObject {
-    public Metadata(long ptr) {
-        this.ptr = ptr;
+public class OpenDALException extends RuntimeException {
+    private final OpenDALErrorCode errorCode;
+
+    public OpenDALException(OpenDALErrorCode errorCode, String message) {
+        super(message);
+        this.errorCode = errorCode;
     }
 
-    public boolean isFile() {
-        return isFile(this.ptr);
+    public OpenDALErrorCode getErrorCode() {
+        return errorCode;
     }
-
-    public long getContentLength() {
-        return getContentLength(this.ptr);
-    }
-
-    @Override
-    public void close() {
-        freeMetadata(this.ptr);
-    }
-
-    private native void freeMetadata(long statPtr);
-
-    private native boolean isFile(long statPtr);
-
-    private native long getContentLength(long statPtr);
 }

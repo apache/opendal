@@ -16,13 +16,13 @@ OpenDAL must enable users to access various storage services ranging from `s3` t
 ### Examples
 
 We
-- Add support for [Google Drive](https://www.google.com/drive/): it allows users to access and manage their data on the [Google Drive](https://www.google.com/drive/).
-- Add support for [Object Storage Service (OSS)](https://www.alibabacloud.com/product/object-storage-service) via native API: users can utilize Aliyun's RAM support.
-- Add support for [supabase storage](https://supabase.com/docs/guides/storage): users can visit `supabase storage` now!
+- Add support for [Google Drive](https://www.google.com/drive/): It allows users to access and manage their data on the [Google Drive](https://www.google.com/drive/).
+- Add support for [Object Storage Service (OSS)](https://www.alibabacloud.com/product/object-storage-service) via native API: Users can utilize Aliyun's RAM support.
+- Add support for [supabase storage](https://supabase.com/docs/guides/storage): Users can visit `supabase storage` now!
 
 We don't
 - Add support for [Google Cloud Storage(GCS)](https://cloud.google.com/storage) via [XML API](https://cloud.google.com/storage/docs/xml-api/overview): [GCS](https://cloud.google.com/storage) has native [JSON API](https://cloud.google.com/storage/docs/json_api) which more powerful
-- Add support for `MySQL/PostgreSQL`: relational DBMS provides data types such as BLOB, but they are often not used as a storage service.
+- Add support for `MySQL/PostgreSQL`: Relational DBMS provides data types such as BLOB, but they are often not used as a storage service.
 
 ## 2. Free from implementations
 
@@ -31,12 +31,12 @@ OpenDAL needs to separate the various implementation details of services and ena
 ### Examples
 
 We
-- Add a new capability to indicate whether `presign` is supported: users can now write logic based on the `can_presign` option.
-- Add a `default_storage_class` configuration for the S3 service: configuration is specific to the S3 service.
-- Add an option for `content_type` in the `write` operation: it aligns with HTTP standards.
+- Add a new capability to indicate whether `presign` is supported: Users can now write logic based on the `can_presign` option.
+- Add a `default_storage_class` configuration for the S3 service: Configuration is specific to the S3 service.
+- Add an option for `content_type` in the `write` operation: It aligns with HTTP standards.
 
 We don't
-- Add a new option in read for `storage_class`: as different services could have varying values for this parameter.
+- Add a new option in read for `storage_class`: As different services could have varying values for this parameter.
 
 ## 3. Free to integrate
 
@@ -58,8 +58,8 @@ OpenDAL needs to implement features in zero cost way which means:
 ### Examples
 
 We
-- Add `layer` support: users can add logging/metrics/tracing in zero cost way.
-- Implement `seek` for Reader: users can't write better `seek` support, they all need to pay the same cost.
+- Add `layer` support: Users can add logging/metrics/tracing in zero cost way.
+- Implement `seek` for Reader: Users can't write better `seek` support, they all need to pay the same cost.
 
 We don't
-- Add `Arc` for metadata: users may only need to use metadata once and never clone it. For those who do want this feature, they can add `Arc` themselves.
+- Add `Arc` for metadata: Users may only need to use metadata once and never clone it. For those who do want this feature, they can add `Arc` themselves.

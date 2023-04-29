@@ -16,4 +16,4 @@ OpenDAL provides a pre-configured [devcontainer](https://containers.dev/) that c
 
 The fastest way is
 
-![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)

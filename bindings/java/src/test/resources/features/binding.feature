@@ -24,7 +24,7 @@ Feature: OpenDAL Java Binding
         Then The blocking file "test" entry mode must be file
         Then The blocking file "test" content length must be 13
         Then The blocking file "test" must have content "Hello, World!"
-        Then The blocking file "test" should not exist after delete
+        Then Exception should be thrown when read a blocking file "test" that does not exist
 
     Scenario: OpenDAL Async Operations
         Given A new OpenDAL Async Operator
@@ -33,4 +33,4 @@ Feature: OpenDAL Java Binding
         Then The async file "test" entry mode must be file
         Then The async file "test" content length must be 13
         Then The async file "test" must have content "Hello, World!"
-        Then The async file "test" should not exist after delete
+        Then Exception should be thrown when read a async file "test" that does not exist

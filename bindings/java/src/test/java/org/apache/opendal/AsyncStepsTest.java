@@ -61,7 +61,7 @@ public class AsyncStepsTest {
     public void the_async_file_test_must_have_content_hello_world(String fileName, String content) {
     }
 
-    @Then("The async file {string} should not exist after delete")
+    @Then("Exception should be thrown when read a async file {string} that does not exist")
     public void the_blocking_file_test_should_not_exist_after_delete(String fileName) {
     }
 }

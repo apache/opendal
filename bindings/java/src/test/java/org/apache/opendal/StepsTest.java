@@ -72,7 +72,7 @@ public class StepsTest {
         assertEquals(content, readContent);
     }
 
-    @Then("The blocking file {string} should not exist after delete")
+    @Then("Exception should be thrown when read a blocking file {string} that does not exist")
     public void the_blocking_file_test_should_not_exist_after_delete(String fileName) {
         this.operator.delete(fileName);
         OpenDALException exception = assertThrows(OpenDALException.class, () -> {

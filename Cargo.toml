@@ -33,7 +33,6 @@ members = [
   "bin/oli",
   "bin/oay",
 ]
-default-members = ["core"]
 
 [workspace.package]
 authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]

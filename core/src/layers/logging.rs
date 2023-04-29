@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::str::FromStr;
 use std::task::Context;
 use std::task::Poll;
 
@@ -107,12 +106,12 @@ impl LoggingLayer {
     ///
     /// `None` means disable the log for error.
     pub fn with_error_level(mut self, level: Option<&str>) -> Result<Self> {
-        if let Some(level) = level {
-            if let Ok(level) = Level::from_str(level) {
-                self.error_level = Some(level);
-                return Ok(self);
-            }
-            return Err(Error::new(ErrorKind::ConfigInvalid, "invalid log level"));
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.error_level = Some(level);
         } else {
             self.error_level = None;
         }
@@ -125,12 +124,12 @@ impl LoggingLayer {
     ///
     /// `None` means disable the log for failure.
     pub fn with_failure_level(mut self, level: Option<&str>) -> Result<Self> {
-        if let Some(level) = level {
-            if let Ok(level) = Level::from_str(level) {
-                self.failure_level = Some(level);
-                return Ok(self);
-            }
-            return Err(Error::new(ErrorKind::ConfigInvalid, "invalid log level"));
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.failure_level = Some(level);
         } else {
             self.failure_level = None;
         }

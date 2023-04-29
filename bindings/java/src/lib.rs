@@ -21,19 +21,24 @@ use std::ffi::c_void;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use jni::objects::JClass;
 use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::objects::{JClass, JThrowable, JValue};
-use jni::sys::{jboolean, jint};
-use jni::sys::{jlong, JNI_VERSION_1_8};
-use jni::{JNIEnv, JavaVM};
+use jni::objects::JThrowable;
+use jni::objects::JValue;
+use jni::sys::jboolean;
+use jni::sys::jint;
+use jni::sys::jlong;
+use jni::sys::JNI_VERSION_1_8;
+use jni::JNIEnv;
+use jni::JavaVM;
 use once_cell::sync::OnceCell;
-use tokio::runtime::{Builder, Runtime};
-
 use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
 

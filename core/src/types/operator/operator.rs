@@ -1103,10 +1103,10 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
+    /// use opendal::ops::OpList;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// use opendal::ops::OpList;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let option = OpList::new().with_limit(10).with_start_after("start");

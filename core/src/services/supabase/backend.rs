@@ -71,7 +71,7 @@ use crate::*;
 ///     builder.key("some_anon_key");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///    
+///
 ///     Ok(())
 /// }
 /// ```

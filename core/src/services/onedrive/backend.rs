@@ -15,22 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use http::{header, Request, Response, StatusCode};
 use std::fmt::Debug;
 
-use crate::{
-    ops::{OpRead, OpWrite},
-    raw::{
-        build_rooted_abs_path, new_request_build_error, parse_into_metadata, parse_location,
-        percent_encode_path, Accessor, AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody,
-        RpRead, RpWrite,
-    },
-    types::Result,
-    Capability, Error, ErrorKind,
-};
+use async_trait::async_trait;
+use http::header;
+use http::Request;
+use http::Response;
+use http::StatusCode;
 
-use super::{error::parse_error, writer::OneDriveWriter};
+use super::error::parse_error;
+use super::writer::OneDriveWriter;
+use crate::ops::OpRead;
+use crate::ops::OpWrite;
+use crate::raw::build_rooted_abs_path;
+use crate::raw::new_request_build_error;
+use crate::raw::parse_into_metadata;
+use crate::raw::parse_location;
+use crate::raw::percent_encode_path;
+use crate::raw::Accessor;
+use crate::raw::AccessorInfo;
+use crate::raw::AsyncBody;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::raw::RpRead;
+use crate::raw::RpWrite;
+use crate::types::Result;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
 
 #[derive(Clone)]
 pub struct OnedriveBackend {

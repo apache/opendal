@@ -64,7 +64,3 @@ Visiting **[DEVELOPING.md](DEVELOPING.md)** to prepare Everything necessary to d
 ## Code of Conduct
 
 We expect all community members to follow our [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
-
----
-
-*This document is highly inspired by [Vector](https://github.com/vectordotdev/vector/)*

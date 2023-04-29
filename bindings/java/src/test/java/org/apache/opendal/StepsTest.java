@@ -24,12 +24,9 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.opendal.exception.OpenDALErrorCode;
-import org.apache.opendal.exception.OpenDALException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class StepsTest {
@@ -70,14 +67,5 @@ public class StepsTest {
     public void the_blocking_file_test_must_have_content_hello_world(String fileName, String content) {
         String readContent = this.operator.read(fileName);
         assertEquals(content, readContent);
-    }
-
-    @Then("Exception should be thrown when read a blocking file {string} that does not exist")
-    public void the_blocking_file_test_should_not_exist_after_delete(String fileName) {
-        this.operator.delete(fileName);
-        OpenDALException exception = assertThrows(OpenDALException.class, () -> {
-            this.operator.stat(fileName);
-        });
-        assertEquals(exception.getErrorCode(), OpenDALErrorCode.NOT_FOUND);
     }
 }

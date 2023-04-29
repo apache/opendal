@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AsyncStepsTest {
     Operator operator;
@@ -59,9 +59,5 @@ public class AsyncStepsTest {
 
     @Then("The async file {string} must have content {string}")
     public void the_async_file_test_must_have_content_hello_world(String fileName, String content) {
-    }
-
-    @Then("Exception should be thrown when read a async file {string} that does not exist")
-    public void the_blocking_file_test_should_not_exist_after_delete(String fileName) {
     }
 }

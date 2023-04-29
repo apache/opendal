@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="website/static/img/logo_dark.svg">
-  <img alt="Apache OpenDAL(incubating)" src="website/static/img/logo.svg">
+  <img alt="Apache OpenDAL(incubating)" src="website/static/img/logo.svg" width="300px">
 </picture>
 
 [![Build Status]][actions] [![chat]][discord]

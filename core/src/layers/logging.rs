@@ -106,14 +106,14 @@ impl LoggingLayer {
     /// For example: accessor returns NotFound.
     ///
     /// `None` means disable the log for error.
-    pub fn with_error_level(mut self, level: Option<&str>) -> Self {
+    pub fn with_error_level(mut self, level: Option<&str>) -> Result<Self> {
         if let Some(level) = level {
             let level = Level::from_str(level).expect("parse level must succeed");
             self.error_level = Some(level);
         } else {
             self.error_level = None;
         }
-        self
+        Ok(self)
     }
 
     /// Setting the log level while unexpected failure happened.
@@ -121,14 +121,14 @@ impl LoggingLayer {
     /// For example: accessor returns Unexpected network error.
     ///
     /// `None` means disable the log for failure.
-    pub fn with_failure_level(mut self, level: Option<&str>) -> Self {
+    pub fn with_failure_level(mut self, level: Option<&str>) -> Result<Self> {
         if let Some(level) = level {
             let level = Level::from_str(level).expect("parse level must succeed");
             self.failure_level = Some(level);
         } else {
             self.failure_level = None;
         }
-        self
+        Ok(self)
     }
 }
 

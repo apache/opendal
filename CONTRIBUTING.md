@@ -51,7 +51,7 @@ All pull requests should be reviewed by at least one OpenDAL committers.
 
 #### Merge Style
 
-All pull requests are squashed and merged. We generally discourage large pull requests that are over 300-500 lines of diff. If you would like to propose a change that is larger we suggest coming onto our [Discussions](https://github.com/apache/incubator-opendal/discussions) and discuss it with us. This way we can talk through the solution and discuss if a change that large is even needed! This will produce a quicker response to the change and likely produce code that aligns better with our process.
+All pull requests are squash merged. We generally discourage large pull requests that are over 300-500 lines of diff. If you would like to propose a change that is larger we suggest coming onto our [Discussions](https://github.com/apache/incubator-opendal/discussions) and discuss it with us. This way we can talk through the solution and discuss if a change that large is even needed! This will produce a quicker response to the change and likely produce code that aligns better with our process.
 
 ### CI
 

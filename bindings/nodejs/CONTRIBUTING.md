@@ -12,7 +12,7 @@ Building `nodejs` bindings requires some extra setup.
 
 For small or first-time contributions, we recommend the dev container method. Prefer to do it yourself? That's fine too!
 
-### Using a devcontainer environment
+### Using a dev container environment
 
 OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
 

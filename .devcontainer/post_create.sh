@@ -30,7 +30,6 @@ sudo apt install -y python3-dev
 # Setup for nodejs binding
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs
 sudo corepack enable
-corepack prepare yarn@stable --activate
 
 # Setup for java binding
 sudo apt install -y default-jdk

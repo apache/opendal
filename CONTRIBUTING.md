@@ -47,7 +47,7 @@ refactor: Polish the implementation of webhdfs
 
 #### Reviews & Approvals
 
-All pull requests should be reviewed by at least one OpenDAL committers.
+All pull requests should be reviewed by at least one OpenDAL committer.
 
 #### Merge Style
 

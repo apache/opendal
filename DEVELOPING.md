@@ -8,7 +8,7 @@
 
 We're super excited to have you interested in working on OpenDAL! Before you start you should pick how you want to develop.
 
-For small or first-time contributions, we recommend the devcontainer method. Prefer to do it yourself? That's fine too!
+For small or first-time contributions, we recommend the dev container method. Prefer to do it yourself? That's fine too!
 
 ### Using a devcontainer environment
 

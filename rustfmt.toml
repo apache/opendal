@@ -17,9 +17,10 @@
 
 edition = "2021"
 reorder_imports = true
+
 # format_code_in_doc_comments = true
-# imports_granularity = "Item"
 # group_imports = "StdExternalCrate"
-# where_single_line = true
-# trailing_comma = "Vertical"
+# imports_granularity = "Item"
 # overflow_delimited_expr = true
+# trailing_comma = "Vertical"
+# where_single_line = true

@@ -17,14 +17,22 @@
 
 use std::str::FromStr;
 
-use crate::*;
-use bytes::{Bytes, BytesMut};
-use http::{
-    header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE},
-    HeaderMap, HeaderName, HeaderValue, Method, Request, Uri, Version,
-};
+use bytes::Bytes;
+use bytes::BytesMut;
+use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
+use http::HeaderMap;
+use http::HeaderName;
+use http::HeaderValue;
+use http::Method;
+use http::Request;
+use http::Uri;
+use http::Version;
 
-use super::{new_request_build_error, AsyncBody};
+use super::new_request_build_error;
+use super::AsyncBody;
+use crate::*;
 
 /// Multipart is a builder for multipart/form-data.
 #[derive(Debug)]
@@ -312,10 +320,10 @@ impl Part for MixedPart {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use http::header::CONTENT_TYPE;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_multipart_formdata_basic() {

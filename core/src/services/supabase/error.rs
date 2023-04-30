@@ -20,7 +20,10 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde_json::from_slice;
 
-use crate::{raw::*, Error, ErrorKind, Result};
+use crate::raw::*;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

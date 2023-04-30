@@ -20,17 +20,17 @@ use http::{header, Request, Response, StatusCode};
 use std::fmt::Debug;
 
 use crate::{
-    ops::{OpRead, OpWrite},
+    ops::{OpList, OpRead, OpWrite},
     raw::{
         build_rooted_abs_path, new_request_build_error, parse_into_metadata, parse_location,
         percent_encode_path, Accessor, AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody,
-        RpRead, RpWrite,
+        RpList, RpRead, RpWrite,
     },
     types::Result,
     Capability, Error, ErrorKind,
 };
 
-use super::{error::parse_error, writer::OneDriveWriter};
+use super::{error::parse_error, pager::OnedrivePager, writer::OneDriveWriter};
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
@@ -64,7 +64,7 @@ impl Accessor for OnedriveBackend {
     type BlockingReader = ();
     type Writer = OneDriveWriter;
     type BlockingWriter = ();
-    type Pager = ();
+    type Pager = OnedrivePager;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -73,11 +73,11 @@ impl Accessor for OnedriveBackend {
             .set_root(&self.root)
             .set_capability(Capability {
                 read: true,
-                read_can_next: true,
+                read_can_next: false,
                 write: true,
                 list: true,
                 copy: true,
-                rename: true,
+                rename: false,
                 ..Default::default()
             });
 
@@ -132,6 +132,37 @@ impl Accessor for OnedriveBackend {
             RpWrite::default(),
             OneDriveWriter::new(self.clone(), args, path),
         ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+        let resp = self.onedrive_get(path).await?;
+        let status = resp.status();
+
+        todo!();
+
+        // match status {
+        //     StatusCode::OK | StatusCode::MULTI_STATUS => {
+        //         let bs = resp.into_body().bytes().await?;
+        //         let result: Multistatus =
+        //             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+
+        //         Ok((
+        //             RpList::default(),
+        //             WebdavPager::new(&self.root, path, result),
+        //         ))
+        //     }
+        //     StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
+        //         RpList::default(),
+        //         WebdavPager::new(
+        //             &self.root,
+        //             path,
+        //             Multistatus {
+        //                 response: Vec::new(),
+        //             },
+        //         ),
+        //     )),
+        //     _ => Err(parse_error(resp).await?),
+        // }
     }
 }
 

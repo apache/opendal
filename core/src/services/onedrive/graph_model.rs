@@ -20,13 +20,13 @@ use serde_json::Result;
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct GraphApiOnedriveResponse {
+pub(crate) struct GraphApiOnedriveListResponse {
     #[serde(rename = "@odata.context")]
     odata_context: String,
-
     #[serde(rename = "@odata.count")]
     pub(crate) odata_count: usize,
-
+    #[serde(rename = "@odata.nextLink")]
+    pub(crate) next_link: Option<String>,
     pub(crate) value: Vec<OneDriveItem>,
 }
 
@@ -83,8 +83,8 @@ pub(crate) enum ItemType {
     },
 }
 
-fn parse_one_drive_json(data: &str) -> Result<GraphApiOnedriveResponse> {
-    let response: GraphApiOnedriveResponse = serde_json::from_str(data)?;
+fn parse_one_drive_json(data: &str) -> Result<GraphApiOnedriveListResponse> {
+    let response: GraphApiOnedriveListResponse = serde_json::from_str(data)?;
     Ok(response)
 }
 

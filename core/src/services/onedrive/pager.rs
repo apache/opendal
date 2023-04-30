@@ -15,34 +15,51 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem;
-
 use crate::{
     raw::{
-        build_rel_path,
+        build_rel_path, build_rooted_abs_path, new_json_deserialize_error, new_request_build_error,
         oio::{self},
+        percent_encode_path, AsyncBody, HttpClient, IncomingAsyncBody,
     },
     EntryMode, Metadata,
 };
 
-use super::graph_model::{GraphApiOnedriveResponse, ItemType};
+use super::graph_model::{GraphApiOnedriveListResponse, ItemType};
 use crate::Result;
 use async_trait::async_trait;
+use http::{header, Request, Response};
 
-pub(crate) struct OnedrivePager {
+#[async_trait]
+pub(crate) trait OnedrivePagerTokenProvider {
+    async fn get_access_token(&self) -> Result<String>;
+}
+
+pub struct OnedrivePager {
     root: String,
     path: String,
-    onedrive_response: GraphApiOnedriveResponse,
+    // weak token provider
+    token_provider: Box<dyn OnedrivePagerTokenProvider + Send + Sync>,
+    client: HttpClient,
+    next_link: Option<String>,
+    done: bool,
 }
 
 impl OnedrivePager {
     const DRIVE_ROOT_PREFIX: &'static str = "/drive/root:";
 
-    pub(crate) fn new(root: &str, path: &str, onedrive_response: GraphApiOnedriveResponse) -> Self {
+    pub(crate) fn new(
+        root: &str,
+        path: &str,
+        token_provider: Box<dyn OnedrivePagerTokenProvider + Send + Sync>,
+        client: HttpClient,
+    ) -> Self {
         Self {
             root: root.into(),
             path: path.into(),
-            onedrive_response,
+            token_provider,
+            client,
+            next_link: None,
+            done: false,
         }
     }
 }
@@ -51,16 +68,26 @@ impl OnedrivePager {
 
 impl oio::Page for OnedrivePager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.onedrive_response.value.is_empty() {
+        if self.done {
             return Ok(None);
-        };
-        let oes = mem::take(&mut self.onedrive_response.value);
+        }
+        let response = self.onedrive_get().await?;
+        let bytes = response.into_body().bytes().await?;
+        let decoded_response = serde_json::from_slice::<GraphApiOnedriveListResponse>(&bytes)
+            .map_err(new_json_deserialize_error)?;
 
-        let oes = oes
+        if let Some(next_link) = decoded_response.next_link {
+            self.next_link = Some(next_link);
+        } else {
+            self.done = true;
+        }
+
+        let entries = decoded_response
+            .value
             .into_iter()
-            .filter_map(|de| {
-                let name = de.name;
-                let parent_path = de.parent_reference.path;
+            .filter_map(|drive_item| {
+                let name = drive_item.name;
+                let parent_path = drive_item.parent_reference.path;
                 let parent_path = parent_path
                     .strip_prefix(Self::DRIVE_ROOT_PREFIX)
                     .unwrap_or("");
@@ -74,7 +101,7 @@ impl oio::Page for OnedrivePager {
 
                 let normalized_path = build_rel_path(&self.root, &path);
 
-                let entry = match de.item_type {
+                let entry = match drive_item.item_type {
                     ItemType::Folder { .. } => {
                         oio::Entry::new(&normalized_path, Metadata::new(EntryMode::DIR))
                     }
@@ -87,6 +114,43 @@ impl oio::Page for OnedrivePager {
             })
             .collect();
 
-        Ok(Some(oes))
+        Ok(Some(entries))
+    }
+}
+
+impl OnedrivePager {
+    async fn onedrive_get(&mut self) -> Result<Response<IncomingAsyncBody>> {
+        let request_url = if let Some(next_link) = &self.next_link {
+            let next_link_clone = next_link.clone();
+            self.next_link = None;
+            next_link_clone
+        } else {
+            self.build_request_url()
+        };
+
+        let mut req = Request::get(&request_url);
+
+        let token = self.token_provider.get_access_token().await?;
+        let auth_header_content = format!("Bearer {}", token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    fn build_request_url(&self) -> String {
+        let path = build_rooted_abs_path(&self.root, &self.path);
+        let url: String = if path == "." || path == "." {
+            "GET https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
+        } else {
+            format!(
+                "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",
+                percent_encode_path(&path),
+            )
+        };
+        url
     }
 }

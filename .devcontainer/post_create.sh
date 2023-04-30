@@ -35,3 +35,4 @@ corepack prepare yarn@stable --activate
 # Setup for java binding
 sudo apt install -y default-jdk
 echo "export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")" | sudo tee /etc/profile.d/java_home.sh
+sudo ln -s /usr/lib/jvm/default-java /usr/lib/jvm/default

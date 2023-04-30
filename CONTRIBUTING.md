@@ -55,7 +55,7 @@ All pull requests are squash merged. We generally discourage large pull requests
 
 ### CI
 
-Currently, Vector uses GitHub Actions to run tests. The workflows are defined in `.github/workflows`.
+Currently, OpenDAL uses GitHub Actions to run tests. The workflows are defined in `.github/workflows`.
 
 ## Next steps
 

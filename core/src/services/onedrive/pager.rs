@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use crate::{
     raw::{
         build_rel_path, build_rooted_abs_path, new_json_deserialize_error, new_request_build_error,
@@ -37,8 +39,7 @@ pub(crate) trait OnedrivePagerTokenProvider {
 pub struct OnedrivePager {
     root: String,
     path: String,
-    // weak token provider
-    token_provider: Box<dyn OnedrivePagerTokenProvider + Send + Sync>,
+    access_token: String,
     client: HttpClient,
     next_link: Option<String>,
     done: bool,
@@ -48,15 +49,15 @@ impl OnedrivePager {
     const DRIVE_ROOT_PREFIX: &'static str = "/drive/root:";
 
     pub(crate) fn new(
-        root: &str,
-        path: &str,
-        token_provider: Box<dyn OnedrivePagerTokenProvider + Send + Sync>,
+        root: String,
+        path: String,
+        access_token: String,
         client: HttpClient,
     ) -> Self {
         Self {
-            root: root.into(),
-            path: path.into(),
-            token_provider,
+            root: root,
+            path: path,
+            access_token: access_token,
             client,
             next_link: None,
             done: false,
@@ -130,8 +131,7 @@ impl OnedrivePager {
 
         let mut req = Request::get(&request_url);
 
-        let token = self.token_provider.get_access_token().await?;
-        let auth_header_content = format!("Bearer {}", token);
+        let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req = req

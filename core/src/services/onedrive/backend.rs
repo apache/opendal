@@ -30,7 +30,11 @@ use crate::{
     Capability, Error, ErrorKind,
 };
 
-use super::{error::parse_error, pager::OnedrivePager, writer::OneDriveWriter};
+use super::{
+    error::parse_error,
+    pager::{OnedrivePager, OnedrivePagerTokenProvider},
+    writer::OneDriveWriter,
+};
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
@@ -134,35 +138,15 @@ impl Accessor for OnedriveBackend {
         ))
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
-        let resp = self.onedrive_get(path).await?;
-        let status = resp.status();
+    async fn list(&self, path: &str, _op_list: OpList) -> Result<(RpList, Self::Pager)> {
+        let pager: OnedrivePager = OnedrivePager::new(
+            self.root.clone().into(),
+            path.into(),
+            self.access_token.clone(),
+            self.client.clone(),
+        );
 
-        todo!();
-
-        // match status {
-        //     StatusCode::OK | StatusCode::MULTI_STATUS => {
-        //         let bs = resp.into_body().bytes().await?;
-        //         let result: Multistatus =
-        //             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-        //         Ok((
-        //             RpList::default(),
-        //             WebdavPager::new(&self.root, path, result),
-        //         ))
-        //     }
-        //     StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
-        //         RpList::default(),
-        //         WebdavPager::new(
-        //             &self.root,
-        //             path,
-        //             Multistatus {
-        //                 response: Vec::new(),
-        //             },
-        //         ),
-        //     )),
-        //     _ => Err(parse_error(resp).await?),
-        // }
+        Ok((RpList::default(), pager))
     }
 }
 
@@ -227,5 +211,12 @@ impl OnedriveBackend {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
+    }
+}
+
+#[async_trait]
+impl OnedrivePagerTokenProvider for OnedriveBackend {
+    async fn get_access_token(&self) -> Result<String> {
+        Ok(self.access_token.clone())
     }
 }

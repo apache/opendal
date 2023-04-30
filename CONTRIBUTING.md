@@ -10,7 +10,9 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
     - [Reviews & Approvals](#reviews--approvals)
     - [Merge Style](#merge-style)
     - [CI](#ci)
-- [Next steps](#next-steps)
+- [Setup](#setup)
+  - [Using a devcontainer environment](#using-a-devcontainer-environment)
+  - [Bring your own toolbox](#bring-your-own-toolbox)
 - [Code of Conduct](#code-of-conduct)
 
 ## Your First Contribution
@@ -59,7 +61,40 @@ Currently, OpenDAL uses GitHub Actions to run tests. The workflows are defined i
 
 ## Next steps
 
-Visiting **[DEVELOPING.md](DEVELOPING.md)** to prepare everything necessary to develop.
+## Setup
+
+For small or first-time contributions, we recommend the dev container method. Prefer to do it yourself? That's fine too!
+
+### Using a devcontainer environment
+
+OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
+
+The fastest way is:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
+
+### Bring your own toolbox
+
+OpenDAL is primarily a Rust project. To build OpenDAL, you will need to set up Rust development first. We highly recommend using [rustup](https://rustup.rs/) for the setup process.
+
+For Linux or MacOS, use the following command:
+
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+For Windows, download `rustup-init.exe` from [here](https://win.rustup.rs/x86_64) instead.
+
+Rustup will read OpenDAL's `rust-toolchain.toml` and set up everything else automatically. To ensure that everything works correctly, run `cargo version` under OpenDAL's root directory:
+
+```shell
+:) cargo version
+cargo 1.69.0 (6e9a83356 2023-04-12)
+```
+
+Some components may require specific setup steps. Please refer to their respective `CONTRIBUTING` documentation for more details.
+
+- [core](core/CONTRIBUTING.md)
 
 ## Code of Conduct
 

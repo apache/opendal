@@ -15,32 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bytes::Bytes;
-use openssh_sftp_client::Sftp;
 
+use super::backend::Manager;
 use crate::raw::oio;
 use crate::Result;
-use super::backend::Manager;
 
 pub struct SftpWriter {
-    backend: PooledConnection<'static, Manager>,
+    conn: PooledConnection<'static, Manager>,
     path: String,
+    root: String,
 }
 
 impl<'a> SftpWriter {
-    pub fn new(backend: PooledConnection<'static, Manager>, path: String) -> Self {
-        SftpWriter { backend, path }
+    pub fn new(conn: PooledConnection<'static, Manager>, path: String, root: String) -> Self {
+        SftpWriter { conn, path, root }
     }
 }
 
 #[async_trait]
 impl oio::Write for SftpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.backend.fs().write(&self.path, bs.as_ref()).await?;
+        let mut fs = self.conn.sftp.fs();
+        fs.set_cwd(self.root.clone());
+        fs.write(&self.path, bs.as_ref()).await?;
 
         Ok(())
     }

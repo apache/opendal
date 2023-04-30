@@ -19,29 +19,24 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::SeekFrom;
-use std::sync::Arc;
 
-use async_compat::Compat;
 use async_trait::async_trait;
 use bb8::PooledConnection;
-use bb8::RunError;
-use futures::AsyncSeekExt;
+use futures::executor::block_on;
 use log::debug;
+use openssh::RemoteChild;
+use openssh::Session;
 use openssh::SessionBuilder;
 use openssh::Stdio;
-use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::Sftp;
+use owning_ref::OwningHandle;
 use tokio::sync::OnceCell;
 
-use super::error::parse_io_error;
 use super::error::SftpError;
+use super::pager::SftpPager;
 use super::utils::SftpReader;
-//use super::utils::SftpReader;
 use super::writer::SftpWriter;
 use crate::ops::*;
-use crate::raw::oio::into_reader::FdReader;
-use crate::raw::oio::ReadExt;
 use crate::raw::*;
 use crate::*;
 
@@ -199,14 +194,22 @@ impl Builder for SftpBuilder {
 #[derive(Clone)]
 pub struct Manager {
     endpoint: String,
-    root: String,
     user: String,
     key: Option<String>,
 }
 
+pub struct Connection {
+    // the remote child owns the ref to session, so we need to use owning handle
+    // safety explanation will be talked about deeply in the future
+    // todo: add safety explanation
+    // Related: https://stackoverflow.com/a/47260399
+    child: OwningHandle<Box<Session>, Box<RemoteChild<'static>>>,
+    pub sftp: Sftp,
+}
+
 #[async_trait]
 impl bb8::ManageConnection for Manager {
-    type Connection = Sftp;
+    type Connection = Connection;
     type Error = SftpError;
 
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
@@ -220,25 +223,33 @@ impl bb8::ManageConnection for Manager {
 
         let session = session.connect(self.endpoint.clone()).await?;
 
-        let mut child = session
-            .subsystem("sftp")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .await?;
+        let sess = Box::new(session);
+        let mut oref = OwningHandle::new_with_fn(sess, unsafe {
+            |x| {
+                Box::new(
+                    block_on(
+                        (*x).subsystem("sftp")
+                            .stdin(Stdio::piped())
+                            .stdout(Stdio::piped())
+                            .spawn(),
+                    )
+                    .unwrap(),
+                )
+            }
+        });
 
         let sftp = Sftp::new(
-            child.stdin().take().unwrap(),
-            child.stdout().take().unwrap(),
+            oref.stdin().take().unwrap(),
+            oref.stdout().take().unwrap(),
             Default::default(),
         )
         .await?;
 
-        Ok(sftp)
+        Ok(Connection { child: oref, sftp })
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
-        conn.fs().metadata(".").await?;
+        conn.child.session().check().await?;
         Ok(())
     }
 
@@ -263,25 +274,13 @@ impl Debug for SftpBackend {
     }
 }
 
-impl Clone for SftpBackend {
-    fn clone(&self) -> Self {
-        Self {
-            endpoint: self.endpoint.clone(),
-            root: self.root.clone(),
-            user: self.user.clone(),
-            key: self.key.clone(),
-            sftp: OnceCell::new(),
-        }
-    }
-}
-
 #[async_trait]
 impl Accessor for SftpBackend {
     type Reader = SftpReader;
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
-    type Pager = ();
+    type Pager = SftpPager;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -289,22 +288,41 @@ impl Accessor for SftpBackend {
         am.set_scheme(Scheme::Sftp)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
                 read: true,
                 write: true,
-                // list: true,
+                list: true,
+                list_with_limit: true,
+                
                 ..Default::default()
             });
 
         am
     }
 
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let client = self.sftp_connect().await?;
+
+        let mut fs = client.sftp.fs();
+        fs.set_cwd(self.root.clone());
+
+        fs.create_dir(path).await?;
+
+        return Ok(RpCreate::default());
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let client = self.sftp_connect().await?;
-        let mut file = client.open(path).await?;
+
+        let mut fs = client.sftp.fs();
+        fs.set_cwd(self.root.clone());
+        let path = fs.canonicalize(path).await?;
+
+        let mut file = client.sftp.open(path.as_path()).await?;
 
         let total_length = file.metadata().await?.len().ok_or(Error::new(
             ErrorKind::NotFound,
-            format!("file not found: {}", path).as_str(),
+            format!("file not found: {}", path.to_str().unwrap()).as_str(),
         ))?;
 
         let br = args.range();
@@ -326,7 +344,7 @@ impl Accessor for SftpBackend {
             (None, None) => (0, total_length),
         };
 
-        let mut r = SftpReader::new(self.clone(), path, start, end - start);
+        let r = SftpReader::new(self.sftp_connect().await?, path, start, end);
 
         Ok((RpRead::new(end - start), r))
     }
@@ -334,7 +352,51 @@ impl Accessor for SftpBackend {
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::new(),
-            SftpWriter::new(self.sftp_connect().await?, path.to_owned()),
+            SftpWriter::new(
+                self.sftp_connect().await?,
+                path.to_owned(),
+                self.root.clone(),
+            ),
+        ))
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let client = self.sftp_connect().await?;
+
+        let mut fs = client.sftp.fs();
+        fs.set_cwd(self.root.clone());
+
+        let meta = fs.metadata(path).await?;
+
+        Ok(RpStat::new(meta.into()))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let client = self.sftp_connect().await?;
+
+        let mut fs = client.sftp.fs();
+        fs.set_cwd(self.root.clone());
+
+        if path.ends_with('/') {
+            fs.remove_dir(path).await?
+        } else {
+            fs.remove_file(path).await?
+        };
+
+        Ok(RpDelete::default())
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let client = self.sftp_connect().await?;
+
+        let mut fs = client.sftp.fs();
+        fs.set_cwd(self.root.clone());
+
+        let dir = fs.open_dir(path).await?.read_dir().await?;
+
+        Ok((
+            RpList::default(),
+            SftpPager::new(dir, args.limit()),
         ))
     }
 }
@@ -346,7 +408,6 @@ impl SftpBackend {
             .get_or_try_init(|| async {
                 let manager = Manager {
                     endpoint: self.endpoint.clone(),
-                    root: self.root.clone(),
                     user: self.user.clone(),
                     key: self.key.clone(),
                 };
@@ -359,33 +420,4 @@ impl SftpBackend {
 
         Ok(conn)
     }
-    /*
-        async fn sftp_connect(&self) -> Result<Sftp> {
-            let mut session = SessionBuilder::default();
-
-            session.user(self.user.clone());
-
-            if let Some(key) = &self.key {
-                session.keyfile(key);
-            }
-
-            let session = session.connect(self.endpoint.clone()).await?;
-
-            let mut child = session
-                .subsystem("sftp")
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()
-                .await?;
-
-            let sftp = Sftp::new(
-                child.stdin().take().unwrap(),
-                child.stdout().take().unwrap(),
-                Default::default(),
-            )
-            .await?;
-
-            Ok(sftp)
-        }
-    */
 }

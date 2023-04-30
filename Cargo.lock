@@ -2540,6 +2540,7 @@ dependencies = [
  "openssh-sftp-client",
  "opentelemetry 0.19.0",
  "opentelemetry-jaeger",
+ "owning_ref",
  "parking_lot 0.12.1",
  "paste",
  "percent-encoding",
@@ -2890,6 +2891,15 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
+name = "owning_ref"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
+dependencies = [
+ "stable_deref_trait",
+]
 
 [[package]]
 name = "parking"

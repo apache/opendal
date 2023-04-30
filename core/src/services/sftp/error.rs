@@ -15,15 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
-
 use bb8::RunError;
 use openssh::Error as SshError;
 use openssh_sftp_client::Error as SftpClientError;
 
 use crate::{Error, ErrorKind};
-
-use super::backend::Manager;
 
 #[derive(Debug)]
 pub enum SftpError {
@@ -84,24 +80,4 @@ impl From<RunError<SftpError>> for Error {
             }
         }
     }
-}
-
-/// Parse all io related errors.
-pub fn parse_io_error(err: io::Error) -> Error {
-    use io::ErrorKind::*;
-
-    let (kind, retryable) = match err.kind() {
-        NotFound => (ErrorKind::NotFound, false),
-        PermissionDenied => (ErrorKind::PermissionDenied, false),
-        Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, true),
-    };
-
-    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
-
-    if retryable {
-        err = err.set_temporary();
-    }
-
-    err
 }

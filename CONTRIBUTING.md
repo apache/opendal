@@ -59,8 +59,6 @@ All pull requests are squash merged. We generally discourage large pull requests
 
 Currently, OpenDAL uses GitHub Actions to run tests. The workflows are defined in `.github/workflows`.
 
-## Next steps
-
 ## Setup
 
 For small or first-time contributions, we recommend the dev container method. Prefer to do it yourself? That's fine too!
@@ -94,7 +92,8 @@ cargo 1.69.0 (6e9a83356 2023-04-12)
 
 Some components may require specific setup steps. Please refer to their respective `CONTRIBUTING` documentation for more details.
 
-- [core](core/CONTRIBUTING.md)
+- [Core](core/CONTRIBUTING.md)
+- [Node.js Binding](bindings/nodejs/CONTRIBUTING.md)
 
 ## Code of Conduct
 

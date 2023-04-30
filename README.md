@@ -30,7 +30,7 @@ Major components of the project include:
 
 ## How to contribute OpenDAL
 
-- Start with [Contributing Guide](CONTRIBUTING.md)
+- Start with [Contributing Guide](CONTRIBUTING.md).
 - Submit [Issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or feature requests.
 - Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
 - Talk to community at [Discord](https://discord.gg/XQy8yGR2dg).

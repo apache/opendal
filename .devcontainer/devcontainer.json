@@ -1,18 +1,18 @@
 {
-	"name": "OpenDAL",
-	"image": "mcr.microsoft.com/devcontainers/rust:bullseye",
-	"postCreateCommand": "sudo apt update && sudo apt install -y ruby-dev libclang-dev python3-dev",
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"rust-lang.rust-analyzer"
-			],
-			"settings": {
-				"editor.formatOnSave": true,
-				"files.exclude": {
-					"**/LICENSE": true
-				}
-			}
-		}
-	}
+  "name": "OpenDAL",
+  "image": "mcr.microsoft.com/devcontainers/rust:bullseye",
+  "postCreateCommand": "bash .devcontainer/post_create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "files.exclude": {
+          "**/LICENSE": true
+        }
+      }
+    }
+  }
 }

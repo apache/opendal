@@ -59,7 +59,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     if let Some(s3_err) = s3_err {
-        (kind, retryable) = kind_and_retryable(s3_err.code.as_str()).unwrap_or((kind, retryable));
+        (kind, retryable) = parse_s3_error_code(s3_err.code.as_str()).unwrap_or((kind, retryable));
     }
 
     let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
@@ -73,7 +73,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
 /// Returns the Errorkind of this code and whether the error is retryable.
 /// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
-pub fn kind_and_retryable(code: &str) -> Option<(ErrorKind, bool)> {
+pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
         // > Your socket connection to the server was not read from
         // > or written to within the timeout period."
@@ -88,7 +88,7 @@ pub fn kind_and_retryable(code: &str) -> Option<(ErrorKind, bool)> {
         // > Please reduce your request rate.
         //
         // It's Ok to retry since later on the request rate may get reduced.
-        "SlowDown" => Some((ErrorKind::Unexpected, true)),
+        "SlowDown" => Some((ErrorKind::RateLimited, true)),
         // > Service is unable to handle request.
         //
         // ServiceUnavailable is considered a retryable error because it typically

@@ -36,6 +36,7 @@ use reqsign::AwsLoader;
 use reqsign::AwsV4Signer;
 
 use super::core::*;
+use super::error::kind_and_retryable;
 use super::error::parse_error;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
@@ -1129,10 +1130,15 @@ impl Accessor for S3Backend {
             for i in result.error {
                 let path = build_rel_path(&self.core.root, &i.key);
 
-                batched_result.push((
-                    path,
-                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                ));
+                // set the error kind and mark temporary if retryable
+                let (kind, retryable) =
+                    kind_and_retryable(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+                let mut err = Error::new(kind, &format!("{i:?}"));
+                if retryable {
+                    err = err.set_temporary();
+                }
+
+                batched_result.push((path, Err(err)));
             }
 
             Ok(RpBatch::new(batched_result))

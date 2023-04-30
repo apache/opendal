@@ -88,7 +88,7 @@ For Windows, download `rustup-init.exe` from [here](https://win.rustup.rs/x86_64
 Rustup will read OpenDAL's `rust-toolchain.toml` and set up everything else automatically. To ensure that everything works correctly, run `cargo version` under OpenDAL's root directory:
 
 ```shell
-:) cargo version
+$ cargo version
 cargo 1.69.0 (6e9a83356 2023-04-12)
 ```
 

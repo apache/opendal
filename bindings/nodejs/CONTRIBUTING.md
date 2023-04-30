@@ -44,7 +44,6 @@ Afterwards, you will need to enable `corepack` to ensure that `yarn` has been se
 
 ```shell
 > sudo corepack enable
-> corepack prepare yarn@stable --activate
 ```
 
 To verify that everything is working properly, run `yarn --version`:

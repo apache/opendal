@@ -59,7 +59,7 @@ Currently, OpenDAL uses GitHub Actions to run tests. The workflows are defined i
 
 ## Next steps
 
-Visiting **[DEVELOPING.md](DEVELOPING.md)** to prepare Everything necessary to develop.
+Visiting **[DEVELOPING.md](DEVELOPING.md)** to prepare everything necessary to develop.
 
 ## Code of Conduct
 

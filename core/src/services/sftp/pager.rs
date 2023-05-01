@@ -16,30 +16,64 @@
 // under the License.
 
 use async_trait::async_trait;
-use openssh_sftp_client::fs::{DirEntry, ReadDir};
+use openssh_sftp_client::fs::DirEntry;
 
 use crate::raw::oio;
 use crate::Result;
 
 pub struct SftpPager {
-    dir: ReadDir,
+    dir: Box<[DirEntry]>,
+    path: String,
     limit: Option<usize>,
+    complete: bool,
 }
 
 impl SftpPager {
-    pub fn new(dir: ReadDir, limit: Option<usize>) -> Self {
-        Self { dir, limit }
+    pub fn new(dir: Box<[DirEntry]>, path: String, limit: Option<usize>) -> Self {
+        Self {
+            dir,
+            path,
+            limit,
+            complete: false,
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            dir: Box::new([]),
+            path: String::new(),
+            limit: None,
+            complete: true,
+        }
     }
 }
 
 #[async_trait]
 impl oio::Page for SftpPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        if self.complete {
+            return Ok(None);
+        }
+
+        if self.path == "/" {
+            self.path = "".to_owned();
+        }
+
+        let iter = self
+            .dir
+            .iter()
+            .filter(|e| {
+                e.filename().to_str().unwrap() != "." && e.filename().to_str().unwrap() != ".."
+            })
+            .map(|e| map_entry(self.path.clone(), e.clone()));
+
         let v: Vec<oio::Entry> = if let Some(limit) = self.limit {
-            self.dir.clone().into_iter().map(|e| e.into()).take(limit).collect()
+            iter.take(limit).collect()
         } else {
-            self.dir.clone().into_iter().map(|e| e.into()).collect()
+            iter.collect()
         };
+
+        self.complete = true;
 
         if v.len() == 0 {
             Ok(None)
@@ -49,11 +83,23 @@ impl oio::Page for SftpPager {
     }
 }
 
-impl From<DirEntry> for oio::Entry {
-    fn from(value: DirEntry) -> Self {
-        oio::Entry::new(
-            value.filename().as_os_str().to_str().unwrap(),
-            value.metadata().into(),
-        )
+fn map_entry(prefix: String, value: DirEntry) -> oio::Entry {
+    if value.filename().to_str().unwrap() == "file-71" {
+        println!("map_entry: {:?}", value);
     }
+
+    oio::Entry::new(
+        format!(
+            "{}{}{}",
+            prefix,
+            value.filename().to_str().unwrap(),
+            if value.file_type().unwrap().is_dir() {
+                "/"
+            } else {
+                ""
+            }
+        )
+        .as_str(),
+        value.metadata().into(),
+    )
 }

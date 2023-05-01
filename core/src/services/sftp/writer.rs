@@ -21,32 +21,34 @@ use bytes::Bytes;
 
 use super::backend::Manager;
 use crate::raw::oio;
-use crate::Result;
+use crate::{Error, ErrorKind, Result};
 
 pub struct SftpWriter {
     conn: PooledConnection<'static, Manager>,
     path: String,
-    root: String,
 }
 
 impl<'a> SftpWriter {
-    pub fn new(conn: PooledConnection<'static, Manager>, path: String, root: String) -> Self {
-        SftpWriter { conn, path, root }
+    pub fn new(conn: PooledConnection<'static, Manager>, path: String) -> Self {
+        SftpWriter { conn, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for SftpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut fs = self.conn.sftp.fs();
-        fs.set_cwd(self.root.clone());
-        fs.write(&self.path, bs.as_ref()).await?;
+        let mut file = self.conn.sftp.create(&self.path).await?;
+
+        file.write_all(&bs).await?;
 
         Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        Ok(())
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "SFTP does not support aborting writes",
+        ))
     }
 
     async fn close(&mut self) -> Result<()> {

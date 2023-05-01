@@ -32,6 +32,8 @@ use openssh_sftp_client::Sftp;
 use owning_ref::OwningHandle;
 use tokio::sync::OnceCell;
 
+use super::error::is_not_found;
+use super::error::is_sftp_protocol_error;
 use super::error::SftpError;
 use super::pager::SftpPager;
 use super::utils::SftpReader;
@@ -56,7 +58,7 @@ use crate::*;
 /// # Configuration
 ///
 /// - `endpoint`: Set the endpoint for connection
-/// - `root`: Set the work directory for backend
+/// - `root`: Set the work directory for backend, default to `/home/$USER/`
 /// - `user`: Set the login user
 /// - `key`: Set the public key for login
 ///
@@ -157,16 +159,20 @@ impl Builder for SftpBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("sftp backend build started: {:?}", &self);
         let endpoint = match self.endpoint.clone() {
-            None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
             Some(v) => v,
+            None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
         };
 
-        let root = normalize_root(&self.root.clone().unwrap_or_default());
-
-        let user = match &self.user {
-            None => "".to_string(),
-            Some(v) => v.clone(),
+        let user = match self.user.clone() {
+            Some(v) => v,
+            None => return Err(Error::new(ErrorKind::ConfigInvalid, "user is empty")),
         };
+
+        let root = self
+            .root
+            .clone()
+            .map(|r| normalize_root(r.as_str()))
+            .unwrap_or(format!("/home/{}/", user));
 
         debug!("sftp backend finished: {:?}", &self);
 
@@ -285,15 +291,15 @@ impl Accessor for SftpBackend {
 
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
-        am.set_scheme(Scheme::Sftp)
-            .set_root(&self.root)
+        am.set_root(self.root.as_str())
+            .set_scheme(Scheme::Sftp)
             .set_capability(Capability {
                 stat: true,
                 read: true,
                 write: true,
                 list: true,
                 list_with_limit: true,
-                
+
                 ..Default::default()
             });
 
@@ -302,11 +308,26 @@ impl Accessor for SftpBackend {
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let client = self.sftp_connect().await?;
-
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
 
-        fs.create_dir(path).await?;
+        let paths: Vec<&str> = path.split_inclusive('/').collect();
+        let mut current = self.root.clone();
+        for p in paths {
+            if p.is_empty() {
+                continue;
+            }
+
+            current.push_str(p);
+            let res = fs.create_dir(p).await;
+
+            if let Err(e) = res {
+                if !is_sftp_protocol_error(&e) {
+                    return Err(e.into());
+                }
+            }
+            fs.set_cwd(current.clone());
+        }
 
         return Ok(RpCreate::default());
     }
@@ -344,25 +365,33 @@ impl Accessor for SftpBackend {
             (None, None) => (0, total_length),
         };
 
-        let r = SftpReader::new(self.sftp_connect().await?, path, start, end);
+        let r = SftpReader::new(self.sftp_connect_owned().await?, path, start, end).await?;
 
         Ok((RpRead::new(end - start), r))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
+        if let Some((dir, _)) = path.rsplit_once("/") {
+            self.create_dir(dir, OpCreate::default()).await?;
+        }
+
+        let path = format!("{}{}", self.root, path);
+
         Ok((
             RpWrite::new(),
-            SftpWriter::new(
-                self.sftp_connect().await?,
-                path.to_owned(),
-                self.root.clone(),
-            ),
+            SftpWriter::new(self.sftp_connect_owned().await?, path),
         ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let client = self.sftp_connect().await?;
-
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
 
@@ -378,9 +407,44 @@ impl Accessor for SftpBackend {
         fs.set_cwd(self.root.clone());
 
         if path.ends_with('/') {
-            fs.remove_dir(path).await?
+            let file_path = format!("./{}", path);
+            let dir = match fs.open_dir(file_path.clone()).await {
+                Ok(dir) => dir,
+                Err(e) => {
+                    if is_not_found(&e) {
+                        return Ok(RpDelete::default());
+                    } else {
+                        return Err(e.into());
+                    }
+                }
+            }
+            .read_dir()
+            .await?;
+
+            for file in &dir {
+                let file_name = file.filename().to_str().unwrap();
+                if file_name == "." || file_name == ".." {
+                    continue;
+                }
+                let file_path = format!("{}{}", path, file_name);
+                self.delete(file_path.as_str(), OpDelete::default()).await?;
+            }
+
+            if let Err(e) = fs.remove_dir(path).await {
+                if is_not_found(&e) {
+                    return Ok(RpDelete::default());
+                } else {
+                    return Err(e.into());
+                }
+            }
         } else {
-            fs.remove_file(path).await?
+            if let Err(e) = fs.remove_file(path).await {
+                if is_not_found(&e) {
+                    return Ok(RpDelete::default());
+                } else {
+                    return Err(e.into());
+                }
+            }
         };
 
         Ok(RpDelete::default())
@@ -388,21 +452,32 @@ impl Accessor for SftpBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let client = self.sftp_connect().await?;
-
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
 
-        let dir = fs.open_dir(path).await?.read_dir().await?;
+        let file_path = format!("./{}", path);
+
+        let mut dir = match fs.open_dir(file_path.clone()).await {
+            Ok(dir) => dir,
+            Err(e) => {
+                if is_not_found(&e) {
+                    return Ok((RpList::default(), SftpPager::empty()));
+                } else {
+                    return Err(e.into());
+                }
+            }
+        };
+        let dir = dir.read_dir().await?;
 
         Ok((
             RpList::default(),
-            SftpPager::new(dir, args.limit()),
+            SftpPager::new(dir.into_inner(), path.to_owned(), args.limit()),
         ))
     }
 }
 
 impl SftpBackend {
-    pub async fn sftp_connect(&self) -> Result<PooledConnection<'static, Manager>> {
+    async fn pool(&self) -> Result<&bb8::Pool<Manager>> {
         let pool = self
             .sftp
             .get_or_try_init(|| async {
@@ -416,7 +491,17 @@ impl SftpBackend {
             })
             .await?;
 
-        let conn = pool.get_owned().await?;
+        Ok(pool)
+    }
+
+    pub async fn sftp_connect(&self) -> Result<PooledConnection<'_, Manager>> {
+        let conn = self.pool().await?.get().await?;
+
+        Ok(conn)
+    }
+
+    pub async fn sftp_connect_owned(&self) -> Result<PooledConnection<'static, Manager>> {
+        let conn = self.pool().await?.get_owned().await?;
 
         Ok(conn)
     }

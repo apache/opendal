@@ -30,6 +30,8 @@ use owning_ref::OwningHandle;
 
 use super::backend::Manager;
 use crate::raw::oio;
+use crate::raw::oio::into_reader::FdReader;
+use crate::raw::oio::ReadExt;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
@@ -38,24 +40,26 @@ pub struct SftpReader {
     // todo: add safety explanation
     file: OwningHandle<
         Box<PooledConnection<'static, Manager>>,
-        Box<oio::into_reader::FdReader<Compat<TokioCompatFile<'static>>>>,
+        Box<FdReader<Compat<TokioCompatFile<'static>>>>,
     >,
 }
 
 impl SftpReader {
-    pub fn new(
+    pub async fn new(
         conn: PooledConnection<'static, Manager>,
         path: PathBuf,
         start: u64,
         end: u64,
-    ) -> Self {
-        let file = OwningHandle::new_with_fn(Box::new(conn), |conn| unsafe {
+    ) -> Result<Self> {
+        let mut file = OwningHandle::new_with_fn(Box::new(conn), |conn| unsafe {
             let file = block_on((*conn).sftp.open(path)).unwrap();
             let f = Compat::new(TokioCompatFile::from(file));
             Box::new(oio::into_reader::from_fd(f, start, end))
         });
 
-        SftpReader { file }
+        file.seek(SeekFrom::Start(0)).await?;
+
+        Ok(SftpReader { file })
     }
 }
 
@@ -89,6 +93,10 @@ impl From<SftpMeta> for Metadata {
             .unwrap_or(EntryMode::Unknown);
 
         let mut metadata = Metadata::new(mode);
+
+        if let Some(size) = meta.len() {
+            metadata.set_content_length(size);
+        }
 
         if let Some(modified) = meta.modified() {
             metadata.set_last_modified(modified.as_system_time().into());

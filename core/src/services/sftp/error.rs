@@ -17,7 +17,7 @@
 
 use bb8::RunError;
 use openssh::Error as SshError;
-use openssh_sftp_client::Error as SftpClientError;
+use openssh_sftp_client::{error::SftpErrorKind, Error as SftpClientError};
 
 use crate::{Error, ErrorKind};
 
@@ -29,8 +29,14 @@ pub enum SftpError {
 
 impl From<SftpClientError> for Error {
     fn from(e: SftpClientError) -> Self {
-        let kind = match e {
+        let kind = match &e {
             SftpClientError::UnsupportedSftpProtocol { version: _ } => ErrorKind::Unsupported,
+            SftpClientError::SftpError(kind, _msg) => match kind {
+                SftpErrorKind::NoSuchFile => ErrorKind::NotFound,
+                SftpErrorKind::PermDenied => ErrorKind::PermissionDenied,
+                SftpErrorKind::OpUnsupported => ErrorKind::Unsupported,
+                _ => ErrorKind::Unexpected,
+            },
             _ => ErrorKind::Unexpected,
         };
 
@@ -79,5 +85,22 @@ impl From<RunError<SftpError>> for Error {
                 Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
             }
         }
+    }
+}
+
+pub(super) fn is_not_found(e: &SftpClientError) -> bool {
+    match e {
+        SftpClientError::SftpError(kind, _msg) => match kind {
+            SftpErrorKind::NoSuchFile => true,
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+pub(super) fn is_sftp_protocol_error(e: &SftpClientError) -> bool {
+    match e {
+        SftpClientError::SftpError(_kind, _msg) => true,
+        _ => false,
     }
 }

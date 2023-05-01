@@ -71,6 +71,8 @@ pub enum Scheme {
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
     S3,
+    /// [sftp][crate::services::Sftp]: SFTP services
+    Sftp,
     /// [sled][crate::services::Sled]: Sled services
     Sled,
     /// [Supabase][crate::services::Supabase]: Supabase storage service
@@ -166,6 +168,7 @@ impl From<Scheme> for &'static str {
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",
+            Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
             Scheme::Supabase => "supabase",
             Scheme::Oss => "oss",

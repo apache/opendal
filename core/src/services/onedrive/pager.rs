@@ -33,6 +33,7 @@ use super::{
 use crate::Result;
 use async_trait::async_trait;
 use http::{header, Request, Response};
+use log::debug;
 
 #[async_trait]
 pub(crate) trait OnedrivePagerTokenProvider {
@@ -139,6 +140,8 @@ impl OnedrivePager {
             self.build_request_url()
         };
 
+        debug!("request_url: {}", request_url);
+        println!("request_url: {}", request_url);
         let mut req = Request::get(&request_url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -153,7 +156,7 @@ impl OnedrivePager {
 
     fn build_request_url(&self) -> String {
         let path = build_rooted_abs_path(&self.root, &self.path);
-        let url: String = if path == "." || path == "." {
+        let url: String = if path == "." || path == "/" {
             "GET https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
         } else {
             format!(

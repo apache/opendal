@@ -56,9 +56,9 @@ impl OnedrivePager {
         client: HttpClient,
     ) -> Self {
         Self {
-            root: root,
-            path: path,
-            access_token: access_token,
+            root,
+            path,
+            access_token,
             client,
             next_link: None,
             done: false,
@@ -91,10 +91,10 @@ impl oio::Page for OnedrivePager {
             self.done = true;
         }
 
-        let entries = decoded_response
+        let entries: Vec<oio::Entry> = decoded_response
             .value
             .into_iter()
-            .filter_map(|drive_item| {
+            .map(|drive_item| {
                 let name = drive_item.name;
                 let parent_path = drive_item.parent_reference.path;
                 let parent_path = parent_path
@@ -105,7 +105,7 @@ impl oio::Page for OnedrivePager {
 
                 let normalized_path = build_rel_path(&self.root, &path);
 
-                let entry = match drive_item.item_type {
+                let entry: oio::Entry = match drive_item.item_type {
                     ItemType::Folder { .. } => {
                         let normalized_path = format!("{}/", normalized_path);
                         oio::Entry::new(&normalized_path, Metadata::new(EntryMode::DIR))
@@ -114,8 +114,7 @@ impl oio::Page for OnedrivePager {
                         oio::Entry::new(&normalized_path, Metadata::new(EntryMode::FILE))
                     }
                 };
-
-                Some(entry)
+                entry
             })
             .collect();
 

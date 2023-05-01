@@ -50,6 +50,7 @@ default = [
   "services-webdav",
   "services-webhdfs",
   "services-onedrive",
+  "services-gdrive",
 ]
 
 # Build docs or not.
@@ -123,6 +124,7 @@ services-obs = [
   "reqsign?/reqwest_request",
 ]
 services-onedrive = []
+services-gdrive = []
 services-oss = [
   "dep:reqsign",
   "reqsign?/services-aliyun",

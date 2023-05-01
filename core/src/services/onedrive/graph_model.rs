@@ -16,7 +16,7 @@
 // under the License.
 
 use serde::{Deserialize, Serialize};
-use serde_json::Result;
+
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,8 +42,6 @@ pub(crate) struct OneDriveItem {
     pub(crate) name: String,
 
     size: usize,
-    #[serde(rename = "webUrl")]
-    web_url: String,
     #[serde(rename = "parentReference")]
     pub(crate) parent_reference: ParentReference,
     #[serde(rename = "fileSystemInfo")]
@@ -83,11 +81,6 @@ pub(crate) enum ItemType {
     },
 }
 
-fn parse_one_drive_json(data: &str) -> Result<GraphApiOnedriveListResponse> {
-    let response: GraphApiOnedriveListResponse = serde_json::from_str(data)?;
-    Ok(response)
-}
-
 #[test]
 fn test_parse_one_drive_json() {
     let data = r#"{
@@ -124,27 +117,25 @@ fn test_parse_one_drive_json() {
                 }
             },
             {
-                "@microsoft.graph.downloadUrl": "https://public.ch.files.1drv.com/y4mPh7u0QjYTl5j9aZDj77EoplXNhXFzSbakI4iYoUXMaGUOSmpx1d20AnCoU9G32nj6W2qsKNfecsgfmF6O8ZE89yUYj7qnhsIvfikcJjJ0_skDA12gl2cCScQ3opoza_RcG2Lb_Pa2jyqiqgruh0TJRcC1y7mtEw89wqXx2bgjOvmo0ozTAwopTtpti9yo43Zb7nBI1efm3IwWhFKcHUUKx7WlD_8VPXPB4Xffokz61NiXoxMeq0hbwrblcznywz2AcE71SprDyCi8E7kDRjwmiTNoyfZc_FuUMZDO29WUbA",
                 "createdDateTime": "2018-12-30T05:32:55.46Z",
-                "cTag": "aYzozMjIxN0ZDMTE1NEFFQzNEITEwMi4yNTc",
-                "eTag": "aMzIyMTdGQzExNTRBRUMzRCExMDIuMw",
-                "id": "32217FC1154AEC3D!102",
+                "cTag": "sample",
+                "eTag": "sample",
+                "id": "ID!102",
                 "lastModifiedDateTime": "2018-12-30T05:33:23.557Z",
                 "name": "Getting started with OneDrive.pdf",
                 "size": 1025867,
-                "webUrl": "https://1drv.ms/b/s!AD3sShXBfyEyZg",
                 "reactions": {
                     "commentCount": 0
                 },
                 "createdBy": {
                     "user": {
-                        "displayName": "Great Cat",
-                        "id": "32217fc1154aec3d"
+                        "displayName": "Foo bar",
+                        "id": "ID"
                     }
                 },
                 "lastModifiedBy": {
                     "user": {
-                        "displayName": "Great Cat",
+                        "displayName": "Foo bar",
                         "id": "32217fc1154aec3d"
                     }
                 },
@@ -157,8 +148,8 @@ fn test_parse_one_drive_json() {
                 "file": {
                     "mimeType": "application/pdf",
                     "hashes": {
-                        "quickXorHash": "NIfFZIvQVZH260260iUuQN5GscM=",
-                        "sha1Hash": "E8890F3D1CE6E3FCCE46D08B188275D6CAE3292C"
+                        "quickXorHash": "=",
+                        "sha1Hash": ""
                     }
                 },
                 "fileSystemInfo": {
@@ -168,7 +159,8 @@ fn test_parse_one_drive_json() {
             }
         ]
     }"#;
-    let response = parse_one_drive_json(data).unwrap();
+
+    let response: GraphApiOnedriveListResponse = serde_json::from_str(data).unwrap();
     assert_eq!(
         response.odata_context,
         "https://graph.microsoft.com/v1.0/$metadata#users('user_id')/drive/root/children"
@@ -182,7 +174,6 @@ fn test_parse_one_drive_json() {
     assert_eq!(item.last_modified_date_time, "2020-01-01T00:00:00Z");
     assert_eq!(item.name, "name");
     assert_eq!(item.size, 0);
-    assert_eq!(item.web_url, "webUrl");
     assert_eq!(
         item.item_type,
         ItemType::Folder {
@@ -211,14 +202,14 @@ fn test_parse_folder_single() {
         "@odata.count": 1,
         "value": [
           {
-            "createdDateTime": "2023-05-01T00:51:02.803Z",
-            "cTag": "adDozMjIxN0ZDMTE1NEFFQzNEITMwMDMuNjM4MTg0OTkwNzA3MDMwMDAw",
-            "eTag": "aMzIyMTdGQzExNTRBRUMzRCEzMDAzLjA",
-            "id": "32217FC1154AEC3D!3003",
-            "lastModifiedDateTime": "2023-05-01T00:51:10.703Z",
+            "createdDateTime": "2023-02-01T00:51:02.803Z",
+            "cTag": "sample",
+            "eTag": "sample",
+            "id": "ID!3003",
+            "lastModifiedDateTime": "2023-02-01T00:51:10.703Z",
             "name": "misc",
             "size": 1084627,
-            "webUrl": "https://1drv.ms/f/s!AD3sShXBfyEylzs",
+            "webUrl": "sample",
             "reactions": {
               "commentCount": 0
             },
@@ -228,8 +219,8 @@ fn test_parse_folder_single() {
                 "id": "481710a4"
               },
               "user": {
-                "displayName": "Great Cat",
-                "id": "32217fc1154aec3d"
+                "displayName": "Foo bar",
+                "id": "01"
               }
             },
             "lastModifiedBy": {
@@ -238,19 +229,19 @@ fn test_parse_folder_single() {
                 "id": "481710a4"
               },
               "user": {
-                "displayName": "Great Cat",
-                "id": "32217fc1154aec3d"
+                "displayName": "Foo bar",
+                "id": "02"
               }
             },
             "parentReference": {
-              "driveId": "32217fc1154aec3d",
+              "driveId": "ID",
               "driveType": "personal",
-              "id": "32217FC1154AEC3D!101",
+              "id": "ID!101",
               "path": "/drive/root:"
             },
             "fileSystemInfo": {
-              "createdDateTime": "2023-05-01T00:51:02.803Z",
-              "lastModifiedDateTime": "2023-05-01T00:51:02.803Z"
+              "createdDateTime": "2023-02-01T00:51:02.803Z",
+              "lastModifiedDateTime": "2023-02-01T00:51:02.803Z"
             },
             "folder": {
               "childCount": 9,
@@ -264,7 +255,7 @@ fn test_parse_folder_single() {
         ]
       }"#;
 
-    let response = parse_one_drive_json(response_json).unwrap();
+    let response: GraphApiOnedriveListResponse = serde_json::from_str(response_json).unwrap();
     assert_eq!(
         response.odata_context,
         "https://graph.microsoft.com/v1.0/$metadata#users('great.cat%40outlook.com')/drive/root/children"
@@ -272,7 +263,7 @@ fn test_parse_folder_single() {
     assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 1);
     let item = &response.value[0];
-    assert_eq!(item.created_date_time, "2023-05-01T00:51:02.803Z");
+    assert_eq!(item.created_date_time, "2023-02-01T00:51:02.803Z");
     if let ItemType::Folder { folder, .. } = &item.item_type {
         assert_eq!(folder["childCount"], serde_json::Value::Number(9.into()));
     } else {

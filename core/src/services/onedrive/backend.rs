@@ -140,7 +140,7 @@ impl Accessor for OnedriveBackend {
 
     async fn list(&self, path: &str, _op_list: OpList) -> Result<(RpList, Self::Pager)> {
         let pager: OnedrivePager = OnedrivePager::new(
-            self.root.clone().into(),
+            self.root.clone(),
             path.into(),
             self.access_token.clone(),
             self.client.clone(),

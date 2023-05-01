@@ -152,10 +152,10 @@ impl OnedrivePager {
         } else {
             // According to OneDrive API examples, the path should not end with a slash.
             // Reference: <https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_list_children?view=odsp-graph-online>
-            let path = path.strip_suffix("/").unwrap_or("");
+            let path = path.strip_suffix('/').unwrap_or("");
             format!(
                 "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
-                percent_encode_path(&path),
+                percent_encode_path(path),
             )
         };
         url

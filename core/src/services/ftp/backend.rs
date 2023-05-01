@@ -60,10 +60,10 @@ use crate::*;
 ///
 /// # Configuration
 ///
-/// - `endpoint`: set the endpoint for connection
+/// - `endpoint`: Set the endpoint for connection
 /// - `root`: Set the work directory for backend
-/// - `credential`:  login credentials
-/// - `tls`: tls mode
+/// - `user`: Set the login user
+/// - `password`: Set the login password
 ///
 /// You can refer to [`FtpBuilder`]'s docs for more information
 ///

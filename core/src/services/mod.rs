@@ -114,6 +114,11 @@ mod s3;
 #[cfg(feature = "services-s3")]
 pub use s3::S3;
 
+#[cfg(feature = "services-sftp")]
+mod sftp;
+#[cfg(feature = "services-sftp")]
+pub use sftp::Sftp;
+
 #[cfg(feature = "services-sled")]
 mod sled;
 #[cfg(feature = "services-sled")]

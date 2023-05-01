@@ -28,7 +28,7 @@ The `python` binding requires `Python` to be built. We recommend using the lates
 
 Most operating systems and distributions already have Python installed. If not, please install Python and its development tools first.
 
-For Ubuntu and Debain:
+For Ubuntu and Debian:
 
 ```shell
 sudo apt install -y python3-dev python3-pip python3-venv
@@ -38,7 +38,7 @@ sudo apt install -y python3-dev python3-pip python3-venv
 
 All operations were performed within a Python virtual environment (venv) to prevent conflicts with the system's Python environment or other project venvs.
 
-OpenDAL specify the `requires-python` in `pyproject.toml` as `>= 3.7`. You can use `python -m venv venv` to setup virtualenv to start developement.
+OpenDAL specify the `requires-python` in `pyproject.toml` as `>= 3.7`. You can use `python -m venv venv` to setup virtualenv to start development.
 
 After `venv` has been prepared, you can activate it by `source venv/bin/activate`.
 

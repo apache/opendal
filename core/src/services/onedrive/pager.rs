@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use crate::{
     raw::{
         build_rel_path, build_rooted_abs_path, new_json_deserialize_error, new_request_build_error,
@@ -142,6 +140,7 @@ impl OnedrivePager {
 
         debug!("request_url: {}", request_url);
         println!("request_url: {}", request_url);
+        dbg!(request_url.clone());
         let mut req = Request::get(&request_url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -157,7 +156,7 @@ impl OnedrivePager {
     fn build_request_url(&self) -> String {
         let path = build_rooted_abs_path(&self.root, &self.path);
         let url: String = if path == "." || path == "/" {
-            "GET https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
+            "https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
         } else {
             format!(
                 "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",

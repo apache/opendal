@@ -31,7 +31,6 @@ use super::{
 use crate::Result;
 use async_trait::async_trait;
 use http::{header, Request, Response};
-use log::debug;
 
 #[async_trait]
 pub(crate) trait OnedrivePagerTokenProvider {
@@ -101,18 +100,14 @@ impl oio::Page for OnedrivePager {
                 let parent_path = parent_path
                     .strip_prefix(Self::DRIVE_ROOT_PREFIX)
                     .unwrap_or("");
+
                 let path = format!("{}/{}", parent_path, name);
-                debug_assert!(
-                    path == self.path,
-                    "path: {} must equals self.path: {}",
-                    path,
-                    self.path
-                );
 
                 let normalized_path = build_rel_path(&self.root, &path);
 
                 let entry = match drive_item.item_type {
                     ItemType::Folder { .. } => {
+                        let normalized_path = format!("{}/", normalized_path);
                         oio::Entry::new(&normalized_path, Metadata::new(EntryMode::DIR))
                     }
                     ItemType::File { .. } => {
@@ -138,9 +133,6 @@ impl OnedrivePager {
             self.build_request_url()
         };
 
-        debug!("request_url: {}", request_url);
-        println!("request_url: {}", request_url);
-        dbg!(request_url.clone());
         let mut req = Request::get(&request_url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -158,8 +150,11 @@ impl OnedrivePager {
         let url: String = if path == "." || path == "/" {
             "https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
         } else {
+            // According to OneDrive API examples, the path should not end with a slash.
+            // Reference: <https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_list_children?view=odsp-graph-online>
+            let path = path.strip_suffix("/").unwrap_or("");
             format!(
-                "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",
+                "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
                 percent_encode_path(&path),
             )
         };

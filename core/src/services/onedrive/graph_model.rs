@@ -76,7 +76,7 @@ pub(crate) enum ItemType {
     Folder {
         folder: HashMap<String, serde_json::Value>,
         #[serde(rename = "specialFolder")]
-        special_folder: HashMap<String, String>,
+        special_folder: Option<HashMap<String, String>>,
     },
     File {
         file: HashMap<String, serde_json::Value>,
@@ -197,8 +197,85 @@ fn test_parse_one_drive_json() {
             special_folder: {
                 let mut map = HashMap::new();
                 map.insert("name".to_string(), "name".to_string());
-                map
+                Some(map)
             },
         }
     );
+}
+
+#[test]
+fn test_parse_folder_single() {
+    let response_json = r#"
+    {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('great.cat%40outlook.com')/drive/root/children",
+        "@odata.count": 1,
+        "value": [
+          {
+            "createdDateTime": "2023-05-01T00:51:02.803Z",
+            "cTag": "adDozMjIxN0ZDMTE1NEFFQzNEITMwMDMuNjM4MTg0OTkwNzA3MDMwMDAw",
+            "eTag": "aMzIyMTdGQzExNTRBRUMzRCEzMDAzLjA",
+            "id": "32217FC1154AEC3D!3003",
+            "lastModifiedDateTime": "2023-05-01T00:51:10.703Z",
+            "name": "misc",
+            "size": 1084627,
+            "webUrl": "https://1drv.ms/f/s!AD3sShXBfyEylzs",
+            "reactions": {
+              "commentCount": 0
+            },
+            "createdBy": {
+              "application": {
+                "displayName": "OneDrive",
+                "id": "481710a4"
+              },
+              "user": {
+                "displayName": "Great Cat",
+                "id": "32217fc1154aec3d"
+              }
+            },
+            "lastModifiedBy": {
+              "application": {
+                "displayName": "OneDrive",
+                "id": "481710a4"
+              },
+              "user": {
+                "displayName": "Great Cat",
+                "id": "32217fc1154aec3d"
+              }
+            },
+            "parentReference": {
+              "driveId": "32217fc1154aec3d",
+              "driveType": "personal",
+              "id": "32217FC1154AEC3D!101",
+              "path": "/drive/root:"
+            },
+            "fileSystemInfo": {
+              "createdDateTime": "2023-05-01T00:51:02.803Z",
+              "lastModifiedDateTime": "2023-05-01T00:51:02.803Z"
+            },
+            "folder": {
+              "childCount": 9,
+              "view": {
+                "viewType": "thumbnails",
+                "sortBy": "name",
+                "sortOrder": "ascending"
+              }
+            }
+          }
+        ]
+      }"#;
+
+    let response = parse_one_drive_json(response_json).unwrap();
+    assert_eq!(
+        response.odata_context,
+        "https://graph.microsoft.com/v1.0/$metadata#users('great.cat%40outlook.com')/drive/root/children"
+    );
+    assert_eq!(response.odata_count, 1);
+    assert_eq!(response.value.len(), 1);
+    let item = &response.value[0];
+    assert_eq!(item.created_date_time, "2023-05-01T00:51:02.803Z");
+    if let ItemType::Folder { folder, .. } = &item.item_type {
+        assert_eq!(folder["childCount"], serde_json::Value::Number(9.into()));
+    } else {
+        panic!("item_type is not folder");
+    }
 }

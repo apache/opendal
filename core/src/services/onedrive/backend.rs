@@ -88,11 +88,7 @@ impl Accessor for OnedriveBackend {
             .set_root(&self.root)
             .set_capability(Capability {
                 read: true,
-                read_can_next: false,
                 write: true,
-                list: true,
-                copy: true,
-                rename: false,
                 ..Default::default()
             });
 
@@ -107,7 +103,6 @@ impl Accessor for OnedriveBackend {
         if status.is_redirection() {
             let headers = resp.headers();
             let location = parse_location(headers)?;
-
             match location {
                 None => {
                     return Err(Error::new(

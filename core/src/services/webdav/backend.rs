@@ -27,6 +27,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use reqwest::Url;
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
@@ -199,7 +200,7 @@ impl Builder for WebdavBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Webdav))
+                    .with_context("service", Scheme::Webdav));
             }
         };
 
@@ -307,6 +308,42 @@ impl Accessor for WebdavBackend {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body()))
+            }
+            StatusCode::FOUND | StatusCode::TEMPORARY_REDIRECT => {
+                // if server returns redirect HTTP status, then redirect it
+                let url = parse_location(resp.headers())?
+                    // no location means invalid redirect response
+                    .ok_or(
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("no location header in redirect response."),
+                        ).with_operation(Operation::Read)
+                    )?;
+
+                // first the url in location should be valid
+                let redirected_url = Url::parse(url).map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("redirected url({url}) is not valid."),
+                    ).with_operation(Operation::Read).set_source(e)
+                })?;
+
+                let original_url = Url::parse(&self.endpoint).map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("original url({}) is not valid.", &self.endpoint),
+                    ).with_operation(Operation::Read).set_source(e)
+                })?;
+                // then the redirected url should have the same origin with original url
+                // this is basic security check
+                if original_url != redirected_url {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("origin of original url({}) doesn't match with redirect url({}).", &self.endpoint, url),
+                    ).with_operation(Operation::Read));
+                }
+                // if original_url
+                return self.read(redirected_url.path(), args).await;
             }
             _ => Err(parse_error(resp).await?),
         }

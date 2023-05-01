@@ -2430,7 +2430,7 @@ name = "oay"
 version = "0.33.2"
 dependencies = [
  "anyhow",
- "clap 4.1.11",
+ "clap 4.2.5",
  "dirs 5.0.0",
  "env_logger",
  "futures",
@@ -2480,7 +2480,7 @@ version = "0.33.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
- "clap 4.1.11",
+ "clap 4.2.5",
  "dirs 5.0.0",
  "env_logger",
  "futures",

@@ -94,6 +94,7 @@ Some components may require specific setup steps. Please refer to their respecti
 
 - [Core](core/CONTRIBUTING.md)
 - [Node.js Binding](bindings/nodejs/CONTRIBUTING.md)
+- [Python Binding](bindings/python/CONTRIBUTING.md)
 
 ## Code of Conduct
 

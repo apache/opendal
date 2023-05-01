@@ -40,19 +40,13 @@ impl From<SftpClientError> for Error {
             _ => ErrorKind::Unexpected,
         };
 
-        let err = Error::new(kind, "sftp error").set_source(e);
-
-        err
+        Error::new(kind, "sftp error").set_source(e)
     }
 }
 
 impl From<SshError> for Error {
     fn from(e: SshError) -> Self {
-        let kind = ErrorKind::Unexpected;
-
-        let err = Error::new(kind, "ssh error").set_source(e);
-
-        err
+        Error::new(ErrorKind::Unexpected, "ssh error").set_source(e)
     }
 }
 
@@ -89,18 +83,9 @@ impl From<RunError<SftpError>> for Error {
 }
 
 pub(super) fn is_not_found(e: &SftpClientError) -> bool {
-    match e {
-        SftpClientError::SftpError(kind, _msg) => match kind {
-            SftpErrorKind::NoSuchFile => true,
-            _ => false,
-        },
-        _ => false,
-    }
+    matches!(e, SftpClientError::SftpError(SftpErrorKind::NoSuchFile, _))
 }
 
 pub(super) fn is_sftp_protocol_error(e: &SftpClientError) -> bool {
-    match e {
-        SftpClientError::SftpError(_kind, _msg) => true,
-        _ => false,
-    }
+    matches!(e, SftpClientError::SftpError(_, _))
 }

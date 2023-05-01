@@ -77,7 +77,7 @@ impl oio::Page for SftpPager {
 
         self.complete = true;
 
-        if v.len() == 0 {
+        if v.is_empty() {
             Ok(None)
         } else {
             Ok(Some(v))

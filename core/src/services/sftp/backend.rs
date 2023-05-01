@@ -379,7 +379,7 @@ impl Accessor for SftpBackend {
             ));
         }
 
-        if let Some((dir, _)) = path.rsplit_once("/") {
+        if let Some((dir, _)) = path.rsplit_once('/') {
             self.create_dir(dir, OpCreate::default()).await?;
         }
 
@@ -431,20 +431,18 @@ impl Accessor for SftpBackend {
                 self.delete(file_path.as_str(), OpDelete::default()).await?;
             }
 
-            if let Err(e) = fs.remove_dir(path).await {
-                if is_not_found(&e) {
-                    return Ok(RpDelete::default());
-                } else {
+            match fs.remove_dir(path).await {
+                Err(e) if !is_not_found(&e) => {
                     return Err(e.into());
                 }
+                _ => {}
             }
         } else {
-            if let Err(e) = fs.remove_file(path).await {
-                if is_not_found(&e) {
-                    return Ok(RpDelete::default());
-                } else {
+            match fs.remove_file(path).await {
+                Err(e) if !is_not_found(&e) => {
                     return Err(e.into());
                 }
+                _ => {}
             }
         };
 

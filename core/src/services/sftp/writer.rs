@@ -28,7 +28,7 @@ pub struct SftpWriter {
     path: String,
 }
 
-impl<'a> SftpWriter {
+impl SftpWriter {
     pub fn new(conn: PooledConnection<'static, Manager>, path: String) -> Self {
         SftpWriter { conn, path }
     }

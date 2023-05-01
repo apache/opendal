@@ -18,7 +18,7 @@
 pub use backend::SftpBuilder as Sftp;
 
 mod backend;
-mod utils;
 mod error;
 mod pager;
+mod utils;
 mod writer;

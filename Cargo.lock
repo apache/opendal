@@ -2517,7 +2517,6 @@ dependencies = [
  "base64 0.21.0",
  "bb8",
  "bytes",
- "cfg-if",
  "chrono",
  "criterion",
  "dashmap",

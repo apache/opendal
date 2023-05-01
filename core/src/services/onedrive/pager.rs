@@ -26,7 +26,10 @@ use crate::{
     EntryMode, Metadata,
 };
 
-use super::graph_model::{GraphApiOnedriveListResponse, ItemType};
+use super::{
+    error::parse_error,
+    graph_model::{GraphApiOnedriveListResponse, ItemType},
+};
 use crate::Result;
 use async_trait::async_trait;
 use http::{header, Request, Response};
@@ -73,6 +76,13 @@ impl oio::Page for OnedrivePager {
             return Ok(None);
         }
         let response = self.onedrive_get().await?;
+
+        let status_code = response.status();
+        if !status_code.is_success() {
+            let error = parse_error(response).await?;
+            return Err(error);
+        }
+
         let bytes = response.into_body().bytes().await?;
         let decoded_response = serde_json::from_slice::<GraphApiOnedriveListResponse>(&bytes)
             .map_err(new_json_deserialize_error)?;

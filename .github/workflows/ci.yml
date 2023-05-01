@@ -47,7 +47,7 @@ jobs:
           cache-key: "-check"
 
       - name: Check license headers
-        uses: korandoru/hawkeye@v2.0.0
+        uses: korandoru/hawkeye@v2.1.0
 
       - name: Cargo format
         run: cargo fmt --all -- --check

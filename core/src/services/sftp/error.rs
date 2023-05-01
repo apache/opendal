@@ -48,7 +48,7 @@ impl From<SftpClientError> for Error {
 
 impl From<SshError> for Error {
     fn from(e: SshError) -> Self {
-        let kind = ErrorKind::Unexpected; // todo
+        let kind = ErrorKind::Unexpected;
 
         let err = Error::new(kind, "ssh error").set_source(e);
 

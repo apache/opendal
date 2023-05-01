@@ -37,7 +37,8 @@ use crate::Metadata;
 use crate::Result;
 
 pub struct SftpReader {
-    // todo: add safety explanation
+    // similar situation to connection struct
+    // We can make sure the file can live as long as the connection.
     file: OwningHandle<
         Box<PooledConnection<'static, Manager>>,
         Box<FdReader<Compat<TokioCompatFile<'static>>>>,

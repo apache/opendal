@@ -55,6 +55,7 @@ impl oio::Page for SftpPager {
             return Ok(None);
         }
 
+        // when listing the root directory, the prefix should be empty
         if self.path == "/" {
             self.path = "".to_owned();
         }
@@ -63,6 +64,7 @@ impl oio::Page for SftpPager {
             .dir
             .iter()
             .filter(|e| {
+                // filter out "." and ".."
                 e.filename().to_str().unwrap() != "." && e.filename().to_str().unwrap() != ".."
             })
             .map(|e| map_entry(self.path.clone(), e.clone()));
@@ -84,22 +86,16 @@ impl oio::Page for SftpPager {
 }
 
 fn map_entry(prefix: String, value: DirEntry) -> oio::Entry {
-    if value.filename().to_str().unwrap() == "file-71" {
-        println!("map_entry: {:?}", value);
-    }
+    let path = format!(
+        "{}{}{}",
+        prefix,
+        value.filename().to_str().unwrap(),
+        if value.file_type().unwrap().is_dir() {
+            "/"
+        } else {
+            ""
+        }
+    );
 
-    oio::Entry::new(
-        format!(
-            "{}{}{}",
-            prefix,
-            value.filename().to_str().unwrap(),
-            if value.file_type().unwrap().is_dir() {
-                "/"
-            } else {
-                ""
-            }
-        )
-        .as_str(),
-        value.metadata().into(),
-    )
+    oio::Entry::new(path.as_str(), value.metadata().into())
 }

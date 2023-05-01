@@ -206,8 +206,8 @@ pub struct Manager {
 
 pub struct Connection {
     // the remote child owns the ref to session, so we need to use owning handle
-    // safety explanation will be talked about deeply in the future
-    // todo: add safety explanation
+    // The session will only create one child, so we can make sure the child can live
+    // as long as the session. (the session will be dropped when the connection is dropped)
     // Related: https://stackoverflow.com/a/47260399
     child: OwningHandle<Box<Session>, Box<RemoteChild<'static>>>,
     pub sftp: Sftp,
@@ -322,6 +322,7 @@ impl Accessor for SftpBackend {
             let res = fs.create_dir(p).await;
 
             if let Err(e) = res {
+                // ignore error if dir already exists
                 if !is_sftp_protocol_error(&e) {
                     return Err(e.into());
                 }

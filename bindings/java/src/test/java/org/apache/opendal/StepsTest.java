@@ -22,14 +22,14 @@ package org.apache.opendal;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class StepsTest {
-
     Operator operator;
 
     @Given("A new OpenDAL Blocking Operator")
@@ -44,7 +44,6 @@ public class StepsTest {
         this.operator.write(fileName, content);
     }
 
-
     @Then("The blocking file {string} should exist")
     public void the_blocking_file_test_should_exist(String fileName) {
         Metadata metadata = this.operator.stat(fileName);
@@ -56,22 +55,17 @@ public class StepsTest {
     public void the_blocking_file_test_entry_mode_must_be_file(String fileName) {
         Metadata metadata = this.operator.stat(fileName);
         assertTrue(metadata.isFile());
-
     }
 
     @Then("The blocking file {string} content length must be {int}")
     public void the_blocking_file_test_content_length_must_be_13(String fileName, int length) {
         Metadata metadata = this.operator.stat(fileName);
-
         assertEquals(metadata.getContentLength(), length);
     }
 
     @Then("The blocking file {string} must have content {string}")
     public void the_blocking_file_test_must_have_content_hello_world(String fileName, String content) {
         String readContent = this.operator.read(fileName);
-
         assertEquals(content, readContent);
     }
-
-
 }

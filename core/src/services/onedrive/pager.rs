@@ -32,11 +32,6 @@ use crate::Result;
 use async_trait::async_trait;
 use http::{header, Request, Response};
 
-#[async_trait]
-pub(crate) trait OnedrivePagerTokenProvider {
-    async fn get_access_token(&self) -> Result<String>;
-}
-
 pub struct OnedrivePager {
     root: String,
     path: String,

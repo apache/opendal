@@ -105,9 +105,17 @@ impl LoggingLayer {
     /// For example: accessor returns NotFound.
     ///
     /// `None` means disable the log for error.
-    pub fn with_error_level(mut self, level: Option<Level>) -> Self {
-        self.error_level = level;
-        self
+    pub fn with_error_level(mut self, level: Option<&str>) -> Result<Self> {
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.error_level = Some(level);
+        } else {
+            self.error_level = None;
+        }
+        Ok(self)
     }
 
     /// Setting the log level while unexpected failure happened.
@@ -115,9 +123,17 @@ impl LoggingLayer {
     /// For example: accessor returns Unexpected network error.
     ///
     /// `None` means disable the log for failure.
-    pub fn with_failure_level(mut self, level: Option<Level>) -> Self {
-        self.failure_level = level;
-        self
+    pub fn with_failure_level(mut self, level: Option<&str>) -> Result<Self> {
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.failure_level = Some(level);
+        } else {
+            self.failure_level = None;
+        }
+        Ok(self)
     }
 }
 

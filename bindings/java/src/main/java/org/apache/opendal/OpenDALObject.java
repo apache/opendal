@@ -19,27 +19,19 @@
 
 package org.apache.opendal;
 
-public class Metadata extends OpenDALObject {
-    public Metadata(long ptr) {
-        this.ptr = ptr;
+import io.questdb.jar.jni.JarJniLoader;
+
+public abstract class OpenDALObject implements AutoCloseable {
+    private static final String ORG_APACHE_OPENDAL_RUST_LIBS = "/org/apache/opendal/rust/libs";
+
+    private static final String OPENDAL_JAVA = "opendal_java";
+
+    static {
+        JarJniLoader.loadLib(
+            Operator.class,
+            ORG_APACHE_OPENDAL_RUST_LIBS,
+            OPENDAL_JAVA);
     }
 
-    public boolean isFile() {
-        return isFile(this.ptr);
-    }
-
-    public long getContentLength() {
-        return getContentLength(this.ptr);
-    }
-
-    @Override
-    public void close() {
-        freeMetadata(this.ptr);
-    }
-
-    private native void freeMetadata(long statPtr);
-
-    private native boolean isFile(long statPtr);
-
-    private native long getContentLength(long statPtr);
+    long ptr;
 }

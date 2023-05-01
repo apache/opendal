@@ -94,14 +94,9 @@ impl HttpClient {
             .version(parts.version)
             .headers(parts.headers);
 
-        req_builder = if let AsyncBody::Multipart(field, r) = body {
-            let mut form = reqwest::multipart::Form::new();
-            let part = reqwest::multipart::Part::stream(AsyncBody::Bytes(r));
-            form = form.part(field, part);
-
-            req_builder.multipart(form)
-        } else {
-            req_builder.body(body)
+        req_builder = match body {
+            AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
+            AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
         };
 
         let mut resp = req_builder.send().await.map_err(|err| {

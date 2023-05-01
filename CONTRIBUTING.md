@@ -1,34 +1,100 @@
 # Contributing
 
-Hello, welcome to the OpenDAL Community! Thanks for your interest in the Apache OpenDAL project! This document will guide you on how to participate in our community and enjoy your time here. 
+First, thank you for contributing to OpenDAL! The goal of this document is to provide everything you need to start contributing to OpenDAL. The following TOC is sorted progressively, starting with the basics and expanding into more specifics.
+
+- [Your First Contribution](#your-first-contribution)
+- [Workflow](#workflow)
+  - [Git Branches](#git-branches)
+  - [GitHub Pull Requests](#github-pull-requests)
+    - [Title](#title)
+    - [Reviews & Approvals](#reviews--approvals)
+    - [Merge Style](#merge-style)
+    - [CI](#ci)
+- [Setup](#setup)
+  - [Using a devcontainer environment](#using-a-devcontainer-environment)
+  - [Bring your own toolbox](#bring-your-own-toolbox)
+- [Code of Conduct](#code-of-conduct)
+
+## Your First Contribution
+
+1. Ensure your change has an issue! Find an [existing issue](https://github.com/apache/incubator-opendal/issues) or [open a new issue](https://github.com/apache/incubator-opendal/issues/new).
+1. [Fork the OpenDAL repository](https://github.com/apache/incubator-opendal/fork) in your own GitHub account.
+1. [Create a new Git branch](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-and-deleting-branches-within-your-repository).
+1. Make your changes.
+1. [Submit the branch as a pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request-from-a-fork) to the main OpenDAL repo. An OpenDAL team member should comment and/or review your pull request within a few days. Although, depending on the circumstances, it may take longer.
+
+## Workflow
+
+### Git Branches
+
+*All* changes must be made in a branch and submitted as [pull requests](#github-pull-requests). OpenDAL does not adopt any type of branch naming style, but please use something descriptive of your changes.
+
+### GitHub Pull Requests
+
+Once your changes are ready you must submit your branch as a [pull request](https://github.com/apache/incubator-opendal/pulls).
+
+#### Title
+
+The pull request title must follow the format outlined in the [conventional commits spec](https://www.conventionalcommits.org). [Conventional commits](https://www.conventionalcommits.org) is a standardized format for commit messages. OpenDAL only requires this format for commits on the `main` branch. And because OpenDAL squashes commits before merging branches, this means that only the pull request title must conform to this format.
+
+The following are all good examples of pull request titles:
+
+```text
+feat(services/gcs): Add start-after support for list
+docs: add hdfs classpath related troubleshoot
+ci: Mark job as skipped if owner is not apache
+fix(services/s3): Ignore prefix if it's empty
+refactor: Polish the implementation of webhdfs
+```
+
+#### Reviews & Approvals
+
+All pull requests should be reviewed by at least one OpenDAL committer.
+
+#### Merge Style
+
+All pull requests are squash merged. We generally discourage large pull requests that are over 300-500 lines of diff. If you would like to propose a change that is larger we suggest coming onto our [Discussions](https://github.com/apache/incubator-opendal/discussions) and discuss it with us. This way we can talk through the solution and discuss if a change that large is even needed! This will produce a quicker response to the change and likely produce code that aligns better with our process.
+
+### CI
+
+Currently, OpenDAL uses GitHub Actions to run tests. The workflows are defined in `.github/workflows`.
+
+## Setup
+
+For small or first-time contributions, we recommend the dev container method. Prefer to do it yourself? That's fine too!
+
+### Using a devcontainer environment
+
+OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
+
+The fastest way is:
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
+
+### Bring your own toolbox
+
+OpenDAL is primarily a Rust project. To build OpenDAL, you will need to set up Rust development first. We highly recommend using [rustup](https://rustup.rs/) for the setup process.
+
+For Linux or MacOS, use the following command:
+
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+For Windows, download `rustup-init.exe` from [here](https://win.rustup.rs/x86_64) instead.
+
+Rustup will read OpenDAL's `rust-toolchain.toml` and set up everything else automatically. To ensure that everything works correctly, run `cargo version` under OpenDAL's root directory:
+
+```shell
+$ cargo version
+cargo 1.69.0 (6e9a83356 2023-04-12)
+```
+
+Some components may require specific setup steps. Please refer to their respective `CONTRIBUTING` documentation for more details.
+
+- [Core](core/CONTRIBUTING.md)
+- [Node.js Binding](bindings/nodejs/CONTRIBUTING.md)
 
 ## Code of Conduct
 
 We expect all community members to follow our [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
-
-## Communication
-
-We use [GitHub Discussions](https://github.com/apache/incubator-opendal/discussions) for general discussions and questions. Please use the `Q&A` category for questions and the `General` category for general discussions.
-
-We also use [GitHub Issues](https://github.com/apache/incubator-opendal/issues) for bug reports and feature requests.
-
-Otherwise, you can join our [Discord Channel](https://discord.gg/XQy8yGR2dg) for real-time discussions.
-
-## Taking Issues
-
-It is highly recommended to request an assignment before beginning work on any issues to avoid conflicts with other community members.
-
-It is encouraged to post your work progress in the issues comment so that the community can stay informed about ongoing developments and offer any necessary assistance.
-
-It is possible that your assignment has been removed after 14 days of no updates. Please note that this is not a punishment or dissatisfaction from the community. We understand that life can be challenging, and things may not always go as planned.
-
-By removing the assignment, we create space for other community members to take over. Additionally, we do not frequently check the assignment due date, so please communicate any stale issues through the issue tracker.
-
-## Sending PRs
-
-If you find an issue you would like to fix, open a pull request. For code changes, please refer to the particular component's development guide.
-
-We will try our best to review your PRs within 24 hours, and often within 8 hours.
-
-If a PR does not receive a response within 24 hours, it will be converted to draft status. To indicate that you are ready for review, please mark the PR as `ready for review`.
-

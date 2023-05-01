@@ -475,6 +475,7 @@ impl Accessor for AzblobBackend {
                 copy: true,
                 presign: self.has_sas_token,
                 batch: true,
+                batch_delete: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
                 ..Default::default()
             });
@@ -648,6 +649,7 @@ impl Accessor for AzblobBackend {
                 "batch delete limit exceeded",
             ));
         }
+
         // construct and complete batch request
         let resp = self.core.azblob_batch_delete(&paths).await?;
 

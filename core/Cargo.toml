@@ -110,6 +110,7 @@ services-gcs = [
   "reqsign?/services-google",
   "reqsign?/reqwest_request",
 ]
+services-gdrive = []
 services-ghac = []
 services-hdfs = ["dep:hdrs"]
 services-http = []
@@ -124,7 +125,6 @@ services-obs = [
   "reqsign?/reqwest_request",
 ]
 services-onedrive = []
-services-gdrive = []
 services-oss = [
   "dep:reqsign",
   "reqsign?/services-aliyun",
@@ -216,7 +216,6 @@ tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
-cfg-if = "1"
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 env_logger = "0.10"

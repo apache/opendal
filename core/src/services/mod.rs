@@ -124,9 +124,9 @@ mod sled;
 #[cfg(feature = "services-sled")]
 pub use self::sled::Sled;
 
-// #[cfg(feature = "services-supabase")]
+#[cfg(feature = "services-supabase")]
 mod supabase;
-// #[cfg(feature = "services-supabase")]
+#[cfg(feature = "services-supabase")]
 pub use supabase::Supabase;
 
 #[cfg(feature = "services-wasabi")]
@@ -154,3 +154,8 @@ pub use gdrive::Gdrive;
 
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;
+
+#[cfg(feature = "services-vercel-artifacts")]
+mod vercel_artifacts;
+#[cfg(feature = "services-vercel-artifacts")]
+pub use vercel_artifacts::VercelArtifacts;

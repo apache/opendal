@@ -46,7 +46,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Start sftp
         run: |
-          sudo ssh-keygen -A
+          sudo ssh-keygen -t rsa < /dev/null
           sudo mkdir -p /home/root/.ssh
           sudo cp core/tests/sftp/id_rsa.pub /home/root/.ssh/authorized_keys
           sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 & 

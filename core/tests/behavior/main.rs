@@ -48,7 +48,7 @@ macro_rules! behavior_tests {
     ($($service:ident),*) => {
         paste::item! {
             $(
-                mod [<services_ $service:lower>] {
+                mod [<services_ $service:snake>] {
                     use once_cell::sync::Lazy;
 
                     static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
@@ -133,6 +133,8 @@ behavior_tests!(S3);
 behavior_tests!(Sftp);
 #[cfg(feature = "services-sled")]
 behavior_tests!(Sled);
+#[cfg(feature = "services-vercel-artifacts")]
+behavior_tests!(VercelArtifacts);
 #[cfg(feature = "services-webdav")]
 behavior_tests!(Webdav);
 #[cfg(feature = "services-webhdfs")]

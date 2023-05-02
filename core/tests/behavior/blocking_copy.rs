@@ -46,7 +46,6 @@ macro_rules! behavior_blocking_copy_test {
                             Ok(())
                         },
                         None => {
-                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
                             Ok(())
                         }
                     }

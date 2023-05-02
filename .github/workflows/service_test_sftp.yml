@@ -49,6 +49,7 @@ jobs:
           cp ~/.ssh/keys/id_rsa.pub ./id_rsa.pub
           echo "Host 127.0.0.1\nStrictHostKeyChecking no\nUserKnownHostsFile=/dev/null" >> ~/.ssh/config
           docker run -v id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro -p 2222:22 -d atmoz/sftp foo::1001
+          ssh -vvv -p 2222 -i /home/runner/.ssh/keys/id_rsa foo@127.0.0.1 "uname"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Test

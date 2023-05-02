@@ -131,6 +131,8 @@ behavior_tests!(Oss);
 behavior_tests!(S3);
 #[cfg(feature = "services-sftp")]
 behavior_tests!(Sftp);
+#[cfg(feature = "services-supabase")]
+behavior_tests!(Supabase);
 #[cfg(feature = "services-sled")]
 behavior_tests!(Sled);
 #[cfg(feature = "services-vercel-artifacts")]

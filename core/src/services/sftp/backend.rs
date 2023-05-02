@@ -202,6 +202,7 @@ pub struct Manager {
     endpoint: String,
     user: String,
     key: Option<String>,
+    root: String,
 }
 
 pub struct Connection {
@@ -227,6 +228,9 @@ impl bb8::ManageConnection for Manager {
             session.keyfile(key);
         }
 
+        // set control directory to avoid temp files in root directory when panic
+        session.control_directory("/tmp");
+
         let session = session.connect(self.endpoint.clone()).await?;
 
         let sess = Box::new(session);
@@ -250,6 +254,27 @@ impl bb8::ManageConnection for Manager {
             Default::default(),
         )
         .await?;
+
+        let mut fs = sftp.fs();
+
+        let paths: Vec<&str> = self.root.split_inclusive('/').skip(1).collect();
+        let mut current = "/".to_owned();
+        for p in paths {
+            if p.is_empty() {
+                continue;
+            }
+
+            current.push_str(p);
+            let res = fs.create_dir(p).await;
+
+            if let Err(e) = res {
+                // ignore error if dir already exists
+                if !is_sftp_protocol_error(&e) {
+                    return Err(e.into());
+                }
+            }
+            fs.set_cwd(current.clone());
+        }
 
         Ok(Connection { child: oref, sftp })
     }
@@ -484,6 +509,7 @@ impl SftpBackend {
                     endpoint: self.endpoint.clone(),
                     user: self.user.clone(),
                     key: self.key.clone(),
+                    root: self.root.clone(),
                 };
 
                 bb8::Pool::builder().max_size(10).build(manager).await

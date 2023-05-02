@@ -47,9 +47,11 @@ jobs:
       - name: Start sftp
         run: |
           sudo mkdir -p ~/.ssh
-          sudo ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa <<<y >/dev/null 2>&1
+          sudo chmod 700 ~/.ssh
+          sudo ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa
           sudo cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-          sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 & 
+          sudo chmod 600 ~/.ssh/authorized_keys
+          sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 &
       - name: Test
         shell: bash
         working-directory: core
@@ -60,4 +62,4 @@ jobs:
           OPENDAL_SFTP_TEST: on
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
           OPENDAL_SFTP_ROOT: /tmp/sftp_test/
-          OPENDAL_SFTP_USER: root
+          OPENDAL_SFTP_USER: runner

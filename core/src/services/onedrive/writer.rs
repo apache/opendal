@@ -83,7 +83,7 @@ impl OneDriveWriter {
         match status {
             // Typical response code: 201 Created
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-            StatusCode::CREATED => {
+            StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(())
             }
@@ -94,7 +94,7 @@ impl OneDriveWriter {
     pub(crate) async fn write_chunked(&self, bs: Bytes) -> Result<()> {
         // Upload large files via sessions: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
         // 1. Create an upload session
-        // 2. Upload the bytes
+        // 2. Upload the bytes of each chunk
         // 3. Commit the session
 
         let session_response = self.create_upload_session().await?;

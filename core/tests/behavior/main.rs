@@ -91,26 +91,50 @@ macro_rules! behavior_tests {
     };
 }
 
+#[cfg(feature = "services-azblob")]
 behavior_tests!(Azblob);
+#[cfg(feature = "services-azdfs")]
 behavior_tests!(Azdfs);
-cfg_if::cfg_if! { if #[cfg(feature = "services-dashmap")] { behavior_tests!(Dashmap); }}
+#[cfg(feature = "services-dashmap")]
+behavior_tests!(Dashmap);
+#[cfg(feature = "services-fs")]
 behavior_tests!(Fs);
-cfg_if::cfg_if! { if #[cfg(feature = "services-ftp")] { behavior_tests!(Ftp); }}
-cfg_if::cfg_if! { if #[cfg(feature = "services-memcached")] { behavior_tests!(Memcached); }}
+#[cfg(feature = "services-ftp")]
+behavior_tests!(Ftp);
+#[cfg(feature = "services-memcached")]
+behavior_tests!(Memcached);
+#[cfg(feature = "services-memory")]
 behavior_tests!(Memory);
-cfg_if::cfg_if! { if #[cfg(feature = "services-moka")] { behavior_tests!(Moka); }}
+#[cfg(feature = "services-moka")]
+behavior_tests!(Moka);
+#[cfg(feature = "services-gcs")]
 behavior_tests!(Gcs);
+#[cfg(feature = "services-ghac")]
 behavior_tests!(Ghac);
-cfg_if::cfg_if! { if #[cfg(feature = "services-ipfs")] { behavior_tests!(Ipfs); }}
+#[cfg(feature = "services-ipfs")]
+behavior_tests!(Ipfs);
+#[cfg(feature = "services-ipmfs")]
 behavior_tests!(Ipmfs);
-cfg_if::cfg_if! { if #[cfg(feature = "services-hdfs")] { behavior_tests!(Hdfs); }}
-cfg_if::cfg_if! { if #[cfg(feature = "services-http")] { behavior_tests!(Http); }}
+#[cfg(feature = "services-hdfs")]
+behavior_tests!(Hdfs);
+#[cfg(feature = "services-http")]
+behavior_tests!(Http);
+#[cfg(feature = "services-obs")]
 behavior_tests!(Obs);
-cfg_if::cfg_if! { if #[cfg(feature = "services-redis")] { behavior_tests!(Redis); }}
-cfg_if::cfg_if! { if #[cfg(feature = "services-rocksdb")] { behavior_tests!(Rocksdb); }}
+#[cfg(feature = "services-redis")]
+behavior_tests!(Redis);
+#[cfg(feature = "services-rocksdb")]
+behavior_tests!(Rocksdb);
+#[cfg(feature = "services-oss")]
 behavior_tests!(Oss);
+#[cfg(feature = "services-s3")]
 behavior_tests!(S3);
-cfg_if::cfg_if! { if #[cfg(feature = "services-sled")] { behavior_tests!(Sled); }}
+#[cfg(feature = "services-sftp")]
+behavior_tests!(Sftp);
+#[cfg(feature = "services-sled")]
+behavior_tests!(Sled);
+#[cfg(feature = "services-webdav")]
 behavior_tests!(Webdav);
+#[cfg(feature = "services-webhdfs")]
 behavior_tests!(Webhdfs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-onedrive")] { behavior_tests!(Onedrive); }}

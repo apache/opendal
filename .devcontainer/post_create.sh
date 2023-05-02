@@ -25,7 +25,7 @@ sudo apt update
 sudo apt install -y ruby-dev libclang-dev
 
 # Setup for python binding
-sudo apt install -y python3-dev
+sudo apt install -y python3-dev python3-pip python3-venv
 
 # Setup for nodejs binding
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs

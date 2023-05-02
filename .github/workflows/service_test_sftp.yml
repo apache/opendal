@@ -46,12 +46,15 @@ jobs:
         uses: ./.github/actions/setup
       - name: Start sftp
         run: |
+          sudo systemctl enable ssh
+          sudo systemctl start ssh
           sudo mkdir -p ~/.ssh
           sudo chmod 700 ~/.ssh
           sudo ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa
           sudo cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
           sudo chmod 600 ~/.ssh/authorized_keys
-          sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 &
+          echo "NoHostAuthenticationForLocalhost yes" >> ~/.ssh/config
+          sudo systemctl restart ssh
       - name: Test
         shell: bash
         working-directory: core

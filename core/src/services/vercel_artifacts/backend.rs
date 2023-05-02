@@ -59,6 +59,7 @@ impl Accessor for VercelArtifactsBackend {
         ma.set_scheme(crate::Scheme::VercelArtifacts)
             .set_capability(Capability {
                 read: true,
+                read_can_next: true,
                 write: true,
                 ..Default::default()
             });
@@ -66,8 +67,8 @@ impl Accessor for VercelArtifactsBackend {
         ma
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.vercel_artifacts_get(path).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.vercel_artifacts_get(path, args).await?;
 
         let status = resp.status();
 
@@ -97,10 +98,18 @@ impl Accessor for VercelArtifactsBackend {
 }
 
 impl VercelArtifactsBackend {
-    async fn vercel_artifacts_get(&self, hash: &str) -> Result<Response<IncomingAsyncBody>> {
-        let url: String = format!("https://api.vercel.com/v8/artifacts/{}", hash);
+    async fn vercel_artifacts_get(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url: String = format!("https://api.vercel.com/v8/artifacts/{}", path);
 
         let mut req = Request::get(&url);
+
+        if !args.range().is_full() {
+            req = req.header(header::RANGE, args.range().to_header());
+        }
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -123,6 +132,8 @@ impl VercelArtifactsBackend {
         let mut req = Request::put(&url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
+        // Borrowed from [vercel/remote-cache](https://github.com/vercel/remote-cache/blob/46cbc71346c84ec6c3022ec660ade52a25a20013/packages/remote/src/artifact-request.ts#LL41C34-L41C58)
+        req = req.header(header::CONTENT_TYPE, "application/octet-stream");
         req = req.header(header::AUTHORIZATION, auth_header_content);
         req = req.header(header::CONTENT_LENGTH, size);
 

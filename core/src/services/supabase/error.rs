@@ -40,26 +40,11 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let bs = body.bytes().await?;
 
     // todo: the supabase error has status code 4XX, handle all that
-    let (mut kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
-            (ErrorKind::ConditionNotMatch, false)
-        }
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, false),
-    };
 
+    let (mut kind, mut retryable) = (ErrorKind::Unexpected, false);
     let (message, _) = from_slice::<SupabaseError>(&bs)
         .map(|sb_err| {
-            // http: CONFLICT, this means that the resource already exists
-            if sb_err.status_code == "409" && sb_err.error == "Duplicate" {
-                kind = ErrorKind::AlreadyExists;
-            }
-
+            (kind, retryable) = parse_supabase_error(&sb_err);
             (format!("{sb_err:?}"), Some(sb_err))
         })
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
@@ -71,4 +56,20 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     }
 
     Ok(err)
+}
+
+// Return the error kind and whether it is retryable
+fn parse_supabase_error(err: &SupabaseError) -> (ErrorKind, bool) {
+    let code = err.status_code.parse::<u16>().unwrap();
+    if code == StatusCode::CONFLICT.as_u16() && err.error == "Duplicate" {
+        (ErrorKind::AlreadyExists, false)
+    } else if code == StatusCode::NOT_FOUND.as_u16() {
+        (ErrorKind::NotFound, false)
+    } else if code == StatusCode::FORBIDDEN.as_u16() {
+        (ErrorKind::PermissionDenied, false)
+    } else if code == StatusCode::PRECONDITION_FAILED.as_u16() {
+        (ErrorKind::ConditionNotMatch, false)
+    } else {
+        (ErrorKind::Unexpected, false)
+    }
 }

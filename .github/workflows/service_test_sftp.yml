@@ -44,6 +44,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup sftp
         run: |
+          mkdir -p ~/.ssh/keys
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/keys/id_rsa -q -N ""
           cp ~/.ssh/keys/id_rsa.pub ./id_rsa.pub
           docker run -v id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro -p 2222:22 -d atmoz/sftp foo::1001

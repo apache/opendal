@@ -48,7 +48,7 @@ jobs:
         volumes:
           - id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro
           - ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
-        command: foo::1001
+        args: foo::1001
 
     steps:
       - uses: actions/checkout@v3

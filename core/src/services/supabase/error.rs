@@ -39,8 +39,6 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
-    // todo: the supabase error has status code 4XX, handle all that
-
     let (mut kind, mut retryable) = (ErrorKind::Unexpected, false);
     let (message, _) = from_slice::<SupabaseError>(&bs)
         .map(|sb_err| {

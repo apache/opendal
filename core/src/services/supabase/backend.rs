@@ -284,16 +284,22 @@ impl Accessor for SupabaseBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.supabase_get_object_info(path).await?;
+        // The get_object_info does not contain the file size. Therefore
+        // we first try the get the metadata through head, if we fail,
+        // we then use get_object_info to get the actual error info
+        let mut resp = self.core.supabase_head_object(path).await?;
 
-        let status = resp.status();
-
-        match status {
+        match resp.status() {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            _ => {
+                resp = self.core.supabase_get_object_info(path).await?;
+                match resp.status() {
+                    StatusCode::NOT_FOUND if path.ends_with('/') => {
+                        Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                    }
+                    _ => Err(parse_error(resp).await?),
+                }
             }
-            _ => Err(parse_error(resp).await?),
         }
     }
 

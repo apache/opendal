@@ -131,7 +131,7 @@ impl OneDriveWriter {
             match status {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-                StatusCode::ACCEPTED => {
+                StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK => {
                     resp.into_body().consume().await?;
                 }
                 _ => return Err(parse_error(resp).await?),

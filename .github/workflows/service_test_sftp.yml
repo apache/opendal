@@ -56,6 +56,9 @@ jobs:
               --ulimit nofile=65536:65536 \
               -p 2222:22 -d atmoz/sftp \
               foo::1001
+          sleep 10
+          echo "exit" | sftp -vvv -P 2222 -i target/ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null foo@127.0.0.1
+
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -70,4 +73,4 @@ jobs:
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
           OPENDAL_SFTP_ROOT: /tmp/sftp_test/
           OPENDAL_SFTP_USER: foo
-          OPENDAL_SFTP_KEY: target/ssh/.ssh/keys/id_rsa
+          OPENDAL_SFTP_KEY: target/ssh/id_rsa

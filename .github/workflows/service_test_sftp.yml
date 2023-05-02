@@ -40,24 +40,13 @@ jobs:
   sftp-test:
     runs-on: ubuntu-latest
 
-    services:
-      sftp:
-        image: atmoz/sftp
-        ports:
-          - 2222:22
-        volumes:
-          - id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro
-          - ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
-        options: foo::1001
-
     steps:
       - uses: actions/checkout@v3
       - name: Setup sftp
         run: |
           ssh-keygen -t rsa -b 4096 -f ~/.ssh/keys/id_rsa -q -N ""
-          ssh-keygen -t rsa -b 4096 -f ~/.ssh/keys/ssh_host_rsa_key -q -N ""
           cp ~/.ssh/keys/id_rsa.pub ./id_rsa.pub
-          cp ~/.ssh/keys/ssh_host_rsa_key ./ssh_host_rsa_key
+          docker run -v id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro -p 2222:22 -d atmoz/sftp foo::1001
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Test

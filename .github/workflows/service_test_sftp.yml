@@ -44,23 +44,12 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: install openssh
-        run: |
-          sudo apt-get update
-          sudo apt-get install openssh-server
       - name: Start sftp
         run: |
-          sudo mkdir -p /home/root/share
-          sudo chown root:root /home/root/share
-          sudo chmod 755 /home/root/share
-          sudo mkdir -p /home/root/.ssh
-          sudo chown root:root /home/root/.ssh
-          sudo chmod 700 /home/root/.ssh
-          sudo touch /home/root/.ssh/authorized_keys
-          sudo chown root:root /home/root/.ssh/authorized_keys
-          sudo chmod 600 /home/root/.ssh/authorized_keys
           sudo ssh-keygen -A
-          sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 &
+          sudo mkdir -p /home/root/.ssh
+          sudo cp core/tests/sftp/id_rsa.pub /home/root/.ssh/authorized_keys
+          sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 & 
       - name: Test
         shell: bash
         working-directory: core

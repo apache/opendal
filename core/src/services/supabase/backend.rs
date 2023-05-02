@@ -300,11 +300,16 @@ impl Accessor for SupabaseBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.supabase_delete_object(path).await?;
 
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
+        if resp.status().is_success() {
             Ok(RpDelete::default())
         } else {
-            Err(parse_error(resp).await?)
+            // deleting not existing objects is ok
+            let e = parse_error(resp).await?;
+            if e.kind() == ErrorKind::NotFound {
+                Ok(RpDelete::default())
+            } else {
+                Err(e)
+            }
         }
     }
 }

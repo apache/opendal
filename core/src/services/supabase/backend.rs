@@ -225,6 +225,31 @@ impl Accessor for SupabaseBackend {
         am
     }
 
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let mut req =
+            self.core
+                .supabase_upload_object_request(path, Some(0), None, AsyncBody::Empty)?;
+
+        self.core.sign(&mut req)?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        if status.is_success() {
+            resp.into_body().consume().await?;
+            Ok(RpCreate::default())
+        } else {
+            // create duplicate dir is ok
+            let e = parse_error(resp).await?;
+            if e.kind() == ErrorKind::AlreadyExists {
+                Ok(RpCreate::default())
+            } else {
+                Err(e)
+            }
+        }
+    }
+
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.core.supabase_get_object(path).await?;
 
@@ -269,6 +294,17 @@ impl Accessor for SupabaseBackend {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.core.supabase_delete_object(path).await?;
+
+        // deleting not existing objects is ok
+        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
+            Ok(RpDelete::default())
+        } else {
+            Err(parse_error(resp).await?)
         }
     }
 }

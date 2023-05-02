@@ -28,7 +28,7 @@ use crate::Result;
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 /// The error returned by Supabase
-struct SupabaseError {
+pub struct SupabaseError {
     status_code: String,
     error: String,
     message: String,
@@ -40,7 +40,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let bs = body.bytes().await?;
 
     // todo: the supabase error has status code 4XX, handle all that
-    let (kind, retryable) = match parts.status {
+    let (mut kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
@@ -54,7 +54,14 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     };
 
     let (message, _) = from_slice::<SupabaseError>(&bs)
-        .map(|sb_err| (format!("{sb_err:?}"), Some(sb_err)))
+        .map(|sb_err| {
+            // http: CONFLICT, this means that the resource already exists
+            if sb_err.status_code == "409" && sb_err.error == "Duplicate" {
+                kind = ErrorKind::AlreadyExists;
+            }
+
+            (format!("{sb_err:?}"), Some(sb_err))
+        })
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));

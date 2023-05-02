@@ -48,8 +48,6 @@ jobs:
           ssh-keygen -t ed25519 -f target/ssh/ssh_host_ed25519_key -q -N "" < /dev/null
           ssh-keygen -t rsa -b 4096 -f target/ssh/ssh_host_rsa_key -q -N "" < /dev/null
           ssh-keygen -t rsa -b 4096 -f target/ssh/id_rsa -q -N "" < /dev/null
-          cat target/ssh/ssh_host_rsa_key >> ~/.ssh/known_hosts
-          cat target/ssh/ssh_host_ed25519_key >> ~/.ssh/known_hosts
 
           docker run \
               -v `pwd`/target/ssh/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \

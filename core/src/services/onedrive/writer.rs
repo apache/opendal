@@ -144,17 +144,23 @@ impl OneDriveWriter {
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {
+        let file_name_from_path = self.path.split('/').last().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "connection string must have AccountName",
+            )
+        })?;
         let url = format!(
             "{}/drive/root:{}:/createUploadSession",
             OnedriveBackend::BASE_URL,
             percent_encode_path(&self.path)
         );
-        let body = OneDriveUploadSessionCreationRequestBody::new(self.path.clone());
+        let body = OneDriveUploadSessionCreationRequestBody::new(file_name_from_path.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let asyn_body = AsyncBody::Bytes(Bytes::from(body_bytes));
         let resp = self
             .backend
-            .onedrive_post(&self.path, asyn_body, None)
+            .onedrive_post(&url, asyn_body, Some("application/json"))
             .await?;
 
         let status = resp.status();

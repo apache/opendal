@@ -231,6 +231,8 @@ impl OnedriveBackend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = Request::put(url);
 
+        dbg!(url);
+
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 

@@ -53,7 +53,7 @@ impl oio::Write for VercelArtifactsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
+            StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
                 Ok(())
             }

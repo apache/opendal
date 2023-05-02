@@ -49,8 +49,6 @@ default = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
-  "services-onedrive",
-  "services-gdrive",
 ]
 
 # Build docs or not.

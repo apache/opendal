@@ -64,6 +64,7 @@ jobs:
         uses: ./.github/actions/setup
       - name: Test
         shell: bash
+        timeout-minutes: 10
         working-directory: core
         run: cargo test sftp --features services-sftp -- --show-output
         env:

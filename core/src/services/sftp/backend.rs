@@ -256,6 +256,7 @@ impl bb8::ManageConnection for Manager {
         .await?;
 
         let mut fs = sftp.fs();
+        fs.set_cwd("/");
 
         let paths: Vec<&str> = self.root.split_inclusive('/').skip(1).collect();
         let mut current = "/".to_owned();

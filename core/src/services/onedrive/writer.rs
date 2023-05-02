@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use bytes::{Buf, Bytes};
 use http::StatusCode;
@@ -35,10 +37,9 @@ pub struct OneDriveWriter {
 
 impl OneDriveWriter {
     const MAX_SIMPLE_SIZE: usize = 4 * 1024 * 1024;
-    const MAX_CHUNK_SIZE: usize = 60 * 1024 * 1024;
     // If your app splits a file into multiple byte ranges, the size of each byte range MUST be a multiple of 320 KiB (327,680 bytes). Using a fragment size that does not divide evenly by 320 KiB will result in errors committing some files.
     // https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
-    const MIN_CHUNK_SIZE_FACTOR: usize = 320 * 1024;
+    const CHUNK_SIZE_FACTOR: usize = 320 * 1024;
     pub fn new(backend: OnedriveBackend, op: OpWrite, path: String) -> Self {
         OneDriveWriter { backend, op, path }
     }
@@ -91,14 +92,55 @@ impl OneDriveWriter {
     }
 
     pub(crate) async fn write_chunked(&self, bs: Bytes) -> Result<()> {
-        // Upload large files via sessions: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession
+        // Upload large files via sessions: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
         // 1. Create an upload session
         // 2. Upload the bytes
         // 3. Commit the session
 
-        // 1. Create an upload session
         let session_response = self.create_upload_session().await?;
-        todo!()
+
+        let mut offset = 0;
+
+        let iter = bs.chunks(OneDriveWriter::CHUNK_SIZE_FACTOR);
+
+        for chunk in iter {
+            let mut end = offset + OneDriveWriter::CHUNK_SIZE_FACTOR;
+            if end > bs.len() {
+                end = bs.len();
+            }
+
+            let range = format!("bytes {}-{}/{}", offset, end - 1, bs.len());
+            let custom_header_hash_map = {
+                let mut map = HashMap::new();
+                map.insert("Content-Range".to_string(), range);
+                map
+            };
+            let resp = self
+                .backend
+                .onedrive_custom_put(
+                    &session_response.upload_url,
+                    Some(bs.len()),
+                    None,
+                    Some(custom_header_hash_map),
+                    AsyncBody::Bytes(Bytes::copy_from_slice(chunk)),
+                )
+                .await?;
+
+            let status = resp.status();
+
+            match status {
+                // Typical response code: 202 Accepted
+                // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
+                StatusCode::ACCEPTED => {
+                    resp.into_body().consume().await?;
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
+
+            offset += OneDriveWriter::CHUNK_SIZE_FACTOR;
+        }
+
+        Ok(())
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {

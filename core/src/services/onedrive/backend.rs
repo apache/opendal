@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -206,6 +207,38 @@ impl OnedriveBackend {
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        if let Some(size) = size {
+            req = req.header(header::CONTENT_LENGTH, size)
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(header::CONTENT_TYPE, mime)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub(crate) async fn onedrive_custom_put(
+        &self,
+        url: &str,
+        size: Option<usize>,
+        content_type: Option<&str>,
+        additional_headers: Option<HashMap<String, String>>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = Request::put(url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        if let Some(headers) = additional_headers {
+            for (key, value) in headers {
+                req = req.header(key, value);
+            }
+        }
 
         if let Some(size) = size {
             req = req.header(header::CONTENT_LENGTH, size)

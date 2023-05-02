@@ -48,7 +48,7 @@ jobs:
         run: |
           sudo mkdir -p ~/.ssh
           sudo ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa <<<y >/dev/null 2>&1
-          sudo cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
+          sudo cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
           sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 & 
       - name: Test
         shell: bash

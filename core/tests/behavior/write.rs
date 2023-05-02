@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::str::FromStr;
+use std::time::Duration;
+
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
@@ -31,8 +34,6 @@ use opendal::Operator;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
-use std::str::FromStr;
-use std::time::Duration;
 
 use super::utils::*;
 

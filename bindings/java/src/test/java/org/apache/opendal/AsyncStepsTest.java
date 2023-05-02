@@ -26,10 +26,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AsyncStepsTest {
-
     Operator operator;
 
     @Given("A new OpenDAL Async Operator")
@@ -41,7 +40,7 @@ public class AsyncStepsTest {
 
     @When("Async write path {string} with content {string}")
     public void async_write_path_test_with_content_hello_world(String fileName, String content) {
-        CompletableFuture<Boolean> future = operator.asyncWrite(fileName, content);
+        CompletableFuture<Boolean> future = operator.writeAsync(fileName, content);
         Boolean result = future.join();
         assertTrue(result);
     }

@@ -60,7 +60,7 @@ jobs:
           sudo chown root:root /home/root/.ssh/authorized_keys
           sudo chmod 600 /home/root/.ssh/authorized_keys
           sudo ssh-keygen -A
-          sudo /usr/sbin/sshd -D -e -p 2222
+          sudo nohup /usr/sbin/sshd -D -e -p 2222 2>&1 &
       - name: Test
         shell: bash
         working-directory: core

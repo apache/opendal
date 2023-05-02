@@ -75,7 +75,7 @@ pub enum Scheme {
     Sled,
     /// [Supabase][crate::services::Supabase]: Supabase storage service
     Supabase,
-    /// [VercelArtifacts][crate::services::VercelArtifacts]: VercelArtifacts storage service
+    /// [Vercel Artifacts][crate::services::vercel_artifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
     VercelArtifacts,
     /// [wasabi][crate::services::Wasabi]: Wasabi service
     Wasabi,

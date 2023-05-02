@@ -50,7 +50,7 @@ use crate::*;
 /// - `access_token`: set the access_token for Graph API
 /// - `root`: Set the work directory for backend
 ///
-/// You can refer to [`OneDriveBuilder`]'s docs for more information
+/// You can refer to [`OnedriveBuilder`]'s docs for more information
 ///
 /// # Example
 ///

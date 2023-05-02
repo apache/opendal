@@ -137,6 +137,7 @@ services-s3 = [
 ]
 services-sled = ["dep:sled"]
 services-supabase = []
+services-vercel-artifacts = []
 services-wasabi = [
   "dep:reqsign",
   "reqsign?/services-aws",

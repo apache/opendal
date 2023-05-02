@@ -53,7 +53,7 @@ jobs:
           sudo touch ~/.ssh/authorized_keys
           sudo chmod +w ~/.ssh/authorized_keys
           sudo ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa
-          sudo cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+          sudo cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
           sudo chmod 600 ~/.ssh/authorized_keys
           echo "NoHostAuthenticationForLocalhost yes" >> ~/.ssh/config
           sudo systemctl restart ssh

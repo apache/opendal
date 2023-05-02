@@ -157,6 +157,7 @@ impl Accessor for OnedriveBackend {
 }
 
 impl OnedriveBackend {
+    pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
     async fn onedrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
@@ -209,6 +210,26 @@ impl OnedriveBackend {
         if let Some(size) = size {
             req = req.header(header::CONTENT_LENGTH, size)
         }
+
+        if let Some(mime) = content_type {
+            req = req.header(header::CONTENT_TYPE, mime)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub(crate) async fn onedrive_post(
+        &self,
+        url: &str,
+        body: AsyncBody,
+        content_type: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = Request::post(url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
 
         if let Some(mime) = content_type {
             req = req.header(header::CONTENT_TYPE, mime)

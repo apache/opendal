@@ -144,3 +144,8 @@ pub use onedrive::Onedrive;
 
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;
+
+// #[cfg(feature = "services-vercel-artifacts")]
+mod vercel_artifacts;
+// #[cfg(feature = "services-vercel-artifacts")]
+pub use vercel_artifacts::VercelArtifacts;

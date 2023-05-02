@@ -75,6 +75,8 @@ pub enum Scheme {
     Sled,
     /// [Supabase][crate::services::Supabase]: Supabase storage service
     Supabase,
+    /// [VercelArtifacts][crate::services::VercelArtifacts]: VercelArtifacts storage service
+    VercelArtifacts,
     /// [wasabi][crate::services::Wasabi]: Wasabi service
     Wasabi,
     /// [webdav][crate::services::Webdav]: WebDAV support.
@@ -168,6 +170,7 @@ impl From<Scheme> for &'static str {
             Scheme::S3 => "s3",
             Scheme::Sled => "sled",
             Scheme::Supabase => "supabase",
+            Scheme::VercelArtifacts => "vercel_artifacts",
             Scheme::Oss => "oss",
             Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",

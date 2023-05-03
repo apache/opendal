@@ -59,6 +59,8 @@ jobs:
               -p 2222:22 -d atmoz/sftp \
               foo::::upload
 
+          echo "exit" | sftp -vvv -P 2222 -i target/ssh/id_rsa -o StrictHostKeyChecking=no foo@127.0.0.1
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Test

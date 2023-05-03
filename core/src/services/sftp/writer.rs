@@ -15,41 +15,40 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::time::Duration;
-
 use async_trait::async_trait;
 use bytes::Bytes;
-use tokio::time::sleep;
 
-use super::backend::Connection;
+use super::backend::SftpBackend;
 use crate::raw::oio;
 use crate::{Error, ErrorKind, Result};
 
 pub struct SftpWriter {
-    conn: Connection,
+    backend: SftpBackend,
     path: String,
 }
 
 impl SftpWriter {
-    pub fn new(conn: Connection, path: String) -> Self {
-        SftpWriter { conn, path }
+    pub fn new(backend: SftpBackend, path: String) -> Self {
+        SftpWriter { backend, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for SftpWriter {
+    /// TODO
+    ///
+    /// this implementation is wrong.
+    ///
+    /// We should hold the file until users call `close`.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut file = self.conn.sftp.create(&self.path).await?;
+        let conn = self.backend.connect().await?;
+        let mut file = conn.sftp.create(&self.path).await?;
 
-        tokio::select! {
-            _ = file.write_all(&bs) => {},
-            _ = sleep(Duration::from_secs(30)) => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "SFTP write timed out",
-                ));
-            },
-        };
+        file.write_all(&bs).await?;
+        file.close().await?;
+
+        let sftp = conn.into_sftp();
+        sftp.close().await?;
 
         Ok(())
     }

@@ -19,21 +19,13 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use futures::executor::block_on;
 use log::debug;
-use openssh::KnownHosts;
-use openssh::RemoteChild;
-use openssh::Session;
 use openssh::SessionBuilder;
 use openssh::Stdio;
 use openssh_sftp_client::Sftp;
-use owning_ref::OwningHandle;
-use tokio::sync::OwnedSemaphorePermit;
-use tokio::sync::Semaphore;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
@@ -87,7 +79,6 @@ use crate::*;
 ///     builder.endpoint("127.0.0.1").user("test").password("test");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
 ///     Ok(())
 /// }
 /// ```
@@ -98,7 +89,6 @@ pub struct SftpBuilder {
     root: Option<String>,
     user: Option<String>,
     key: Option<String>,
-    known_hosts_strategy: Option<String>,
 }
 
 impl Debug for SftpBuilder {
@@ -154,21 +144,6 @@ impl SftpBuilder {
 
         self
     }
-
-    /// set known_hosts strategy for sftp backend.
-    /// available values:
-    /// - Strict (default)
-    /// - Accept
-    /// - Add
-    pub fn known_hosts_strategy(&mut self, strategy: &str) -> &mut Self {
-        self.known_hosts_strategy = if strategy.is_empty() {
-            None
-        } else {
-            Some(strategy.to_string())
-        };
-
-        self
-    }
 }
 
 impl Builder for SftpBuilder {
@@ -193,25 +168,6 @@ impl Builder for SftpBuilder {
             .map(|r| normalize_root(r.as_str()))
             .unwrap_or(format!("/home/{}/", user));
 
-        let known_hosts_strategy = match self.known_hosts_strategy.clone() {
-            Some(v) => {
-                let v = v.to_lowercase();
-                if v == "strict" {
-                    KnownHosts::Strict
-                } else if v == "accept" {
-                    KnownHosts::Accept
-                } else if v == "add" {
-                    KnownHosts::Add
-                } else {
-                    return Err(Error::new(
-                        ErrorKind::ConfigInvalid,
-                        format!("unknown known_hosts strategy: {}", v).as_str(),
-                    ));
-                }
-            }
-            None => KnownHosts::Strict,
-        };
-
         debug!("sftp backend finished: {:?}", &self);
 
         Ok(SftpBackend {
@@ -219,8 +175,6 @@ impl Builder for SftpBuilder {
             root,
             user,
             key: self.key.clone(),
-            known_hosts_strategy,
-            cnt: Arc::new(Semaphore::new(10)),
         })
     }
 
@@ -231,31 +185,28 @@ impl Builder for SftpBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("user").map(|v| builder.user(v));
         map.get("key").map(|v| builder.key(v));
-        map.get("known_hosts_strategy")
-            .map(|v| builder.known_hosts_strategy(v));
 
         builder
     }
 }
 
 pub struct Connection {
-    // the remote child owns the ref to session, so we need to use owning handle
-    // The session will only create one child, so we can make sure the child can live
-    // as long as the session. (the session will be dropped when the connection is dropped)
-    // Related: https://stackoverflow.com/a/47260399
-    _child: OwningHandle<Box<Session>, Box<RemoteChild<'static>>>,
     pub sftp: Sftp,
-    _permit: OwnedSemaphorePermit,
+}
+
+impl Connection {
+    pub fn into_sftp(self) -> Sftp {
+        self.sftp
+    }
 }
 
 /// Backend is used to serve `Accessor` support for sftp.
+#[derive(Clone)]
 pub struct SftpBackend {
     endpoint: String,
     root: String,
     user: String,
     key: Option<String>,
-    known_hosts_strategy: KnownHosts,
-    cnt: Arc<Semaphore>,
 }
 
 impl Debug for SftpBackend {
@@ -369,7 +320,7 @@ impl Accessor for SftpBackend {
 
         let path = format!("{}{}", self.root, path);
 
-        Ok((RpWrite::new(), SftpWriter::new(self.connect().await?, path)))
+        Ok((RpWrite::new(), SftpWriter::new(self.clone(), path)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -457,7 +408,7 @@ impl Accessor for SftpBackend {
 }
 
 impl SftpBackend {
-    async fn connect(&self) -> std::result::Result<Connection, Error> {
+    pub async fn connect(&self) -> std::result::Result<Connection, Error> {
         let mut session = SessionBuilder::default();
 
         session.user(self.user.clone());
@@ -469,33 +420,19 @@ impl SftpBackend {
         // set control directory to avoid temp files in root directory when panic
         session.control_directory("/tmp");
         session.server_alive_interval(Duration::from_secs(5));
-        session.known_hosts_check(self.known_hosts_strategy.clone());
-
-        // when connection > 10, it will wait others to finish
-        let permit = self.cnt.clone().acquire_owned().await.map_err(|_| {
-            Error::new(ErrorKind::Unexpected, "failed to acquire connection permit")
-        })?;
 
         let session = session.connect(self.endpoint.clone()).await?;
 
-        let sess = Box::new(session);
-        let mut oref = OwningHandle::new_with_fn(sess, unsafe {
-            |x| {
-                Box::new(
-                    block_on(
-                        (*x).subsystem("sftp")
-                            .stdin(Stdio::piped())
-                            .stdout(Stdio::piped())
-                            .spawn(),
-                    )
-                    .unwrap(),
-                )
-            }
-        });
+        let mut child = session
+            .subsystem("sttp")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .await?;
 
         let sftp = Sftp::new(
-            oref.stdin().take().unwrap(),
-            oref.stdout().take().unwrap(),
+            child.stdin().take().unwrap(),
+            child.stdout().take().unwrap(),
             Default::default(),
         )
         .await?;
@@ -524,16 +461,6 @@ impl SftpBackend {
 
         debug!("sftp connection created: {}", self.root);
 
-        Ok(Connection {
-            _child: oref,
-            sftp,
-            _permit: permit,
-        })
-    }
-}
-
-impl Drop for Connection {
-    fn drop(&mut self) {
-        debug!("sftp connection dropped");
+        Ok(Connection { sftp })
     }
 }

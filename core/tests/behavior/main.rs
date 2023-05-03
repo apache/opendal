@@ -141,5 +141,3 @@ behavior_tests!(VercelArtifacts);
 behavior_tests!(Webdav);
 #[cfg(feature = "services-webhdfs")]
 behavior_tests!(Webhdfs);
-#[cfg(feature = "services-supabase")]
-behavior_tests!(Supabase);

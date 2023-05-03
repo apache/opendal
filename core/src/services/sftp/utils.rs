@@ -22,13 +22,12 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_compat::Compat;
-use bb8::PooledConnection;
 use futures::executor::block_on;
 use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::metadata::MetaData as SftpMeta;
 use owning_ref::OwningHandle;
 
-use super::backend::Manager;
+use super::backend::Connection;
 use crate::raw::oio;
 use crate::raw::oio::into_reader::FdReader;
 use crate::raw::oio::ReadExt;
@@ -39,19 +38,11 @@ use crate::Result;
 pub struct SftpReader {
     // similar situation to connection struct
     // We can make sure the file can live as long as the connection.
-    file: OwningHandle<
-        Box<PooledConnection<'static, Manager>>,
-        Box<FdReader<Compat<TokioCompatFile<'static>>>>,
-    >,
+    file: OwningHandle<Box<Connection>, Box<FdReader<Compat<TokioCompatFile<'static>>>>>,
 }
 
 impl SftpReader {
-    pub async fn new(
-        conn: PooledConnection<'static, Manager>,
-        path: PathBuf,
-        start: u64,
-        end: u64,
-    ) -> Result<Self> {
+    pub async fn new(conn: Connection, path: PathBuf, start: u64, end: u64) -> Result<Self> {
         let mut file = OwningHandle::new_with_fn(Box::new(conn), |conn| unsafe {
             let file = block_on((*conn).sftp.open(path)).unwrap();
             let f = Compat::new(TokioCompatFile::from(file));

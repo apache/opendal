@@ -19,9 +19,10 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
-use bb8::PooledConnection;
 use futures::executor::block_on;
 use log::debug;
 use openssh::RemoteChild;
@@ -30,11 +31,11 @@ use openssh::SessionBuilder;
 use openssh::Stdio;
 use openssh_sftp_client::Sftp;
 use owning_ref::OwningHandle;
-use tokio::sync::OnceCell;
+use tokio::sync::OwnedSemaphorePermit;
+use tokio::sync::Semaphore;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
-use super::error::SftpError;
 use super::pager::SftpPager;
 use super::utils::SftpReader;
 use super::writer::SftpWriter;
@@ -181,7 +182,7 @@ impl Builder for SftpBuilder {
             root,
             user,
             key: self.key.clone(),
-            sftp: OnceCell::new(),
+            cnt: Arc::new(Semaphore::new(10)),
         })
     }
 
@@ -197,98 +198,14 @@ impl Builder for SftpBuilder {
     }
 }
 
-#[derive(Clone)]
-pub struct Manager {
-    endpoint: String,
-    user: String,
-    key: Option<String>,
-    root: String,
-}
-
 pub struct Connection {
     // the remote child owns the ref to session, so we need to use owning handle
     // The session will only create one child, so we can make sure the child can live
     // as long as the session. (the session will be dropped when the connection is dropped)
     // Related: https://stackoverflow.com/a/47260399
-    child: OwningHandle<Box<Session>, Box<RemoteChild<'static>>>,
+    _child: OwningHandle<Box<Session>, Box<RemoteChild<'static>>>,
     pub sftp: Sftp,
-}
-
-#[async_trait]
-impl bb8::ManageConnection for Manager {
-    type Connection = Connection;
-    type Error = SftpError;
-
-    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let mut session = SessionBuilder::default();
-
-        session.user(self.user.clone());
-
-        if let Some(key) = &self.key {
-            session.keyfile(key);
-        }
-
-        // set control directory to avoid temp files in root directory when panic
-        session.control_directory("/tmp");
-
-        let session = session.connect(self.endpoint.clone()).await?;
-
-        let sess = Box::new(session);
-        let mut oref = OwningHandle::new_with_fn(sess, unsafe {
-            |x| {
-                Box::new(
-                    block_on(
-                        (*x).subsystem("sftp")
-                            .stdin(Stdio::piped())
-                            .stdout(Stdio::piped())
-                            .spawn(),
-                    )
-                    .unwrap(),
-                )
-            }
-        });
-
-        let sftp = Sftp::new(
-            oref.stdin().take().unwrap(),
-            oref.stdout().take().unwrap(),
-            Default::default(),
-        )
-        .await?;
-
-        let mut fs = sftp.fs();
-        fs.set_cwd("/");
-
-        let paths: Vec<&str> = self.root.split_inclusive('/').skip(1).collect();
-        let mut current = "/".to_owned();
-        for p in paths {
-            if p.is_empty() {
-                continue;
-            }
-
-            current.push_str(p);
-            let res = fs.create_dir(p).await;
-
-            if let Err(e) = res {
-                // ignore error if dir already exists
-                if !is_sftp_protocol_error(&e) {
-                    return Err(e.into());
-                }
-            }
-            fs.set_cwd(current.clone());
-        }
-
-        Ok(Connection { child: oref, sftp })
-    }
-
-    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
-        conn.child.session().check().await?;
-        Ok(())
-    }
-
-    /// Always allow reuse conn.
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
-    }
+    _permit: OwnedSemaphorePermit,
 }
 
 /// Backend is used to serve `Accessor` support for sftp.
@@ -297,7 +214,7 @@ pub struct SftpBackend {
     root: String,
     user: String,
     key: Option<String>,
-    sftp: OnceCell<bb8::Pool<Manager>>,
+    cnt: Arc<Semaphore>,
 }
 
 impl Debug for SftpBackend {
@@ -333,7 +250,7 @@ impl Accessor for SftpBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let client = self.sftp_connect().await?;
+        let client = self.connect().await?;
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
 
@@ -360,7 +277,7 @@ impl Accessor for SftpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let client = self.sftp_connect().await?;
+        let client = self.connect().await?;
 
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
@@ -392,7 +309,7 @@ impl Accessor for SftpBackend {
             (None, None) => (0, total_length),
         };
 
-        let r = SftpReader::new(self.sftp_connect_owned().await?, path, start, end).await?;
+        let r = SftpReader::new(self.connect().await?, path, start, end).await?;
 
         Ok((RpRead::new(end - start), r))
     }
@@ -411,14 +328,11 @@ impl Accessor for SftpBackend {
 
         let path = format!("{}{}", self.root, path);
 
-        Ok((
-            RpWrite::new(),
-            SftpWriter::new(self.sftp_connect_owned().await?, path),
-        ))
+        Ok((RpWrite::new(), SftpWriter::new(self.connect().await?, path)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let client = self.sftp_connect().await?;
+        let client = self.connect().await?;
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
 
@@ -428,7 +342,7 @@ impl Accessor for SftpBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let client = self.sftp_connect().await?;
+        let client = self.connect().await?;
 
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
@@ -476,7 +390,7 @@ impl Accessor for SftpBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let client = self.sftp_connect().await?;
+        let client = self.connect().await?;
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
 
@@ -502,33 +416,86 @@ impl Accessor for SftpBackend {
 }
 
 impl SftpBackend {
-    async fn pool(&self) -> Result<&bb8::Pool<Manager>> {
-        let pool = self
-            .sftp
-            .get_or_try_init(|| async {
-                let manager = Manager {
-                    endpoint: self.endpoint.clone(),
-                    user: self.user.clone(),
-                    key: self.key.clone(),
-                    root: self.root.clone(),
-                };
+    async fn connect(&self) -> std::result::Result<Connection, Error> {
+        let mut session = SessionBuilder::default();
 
-                bb8::Pool::builder().max_size(10).build(manager).await
-            })
-            .await?;
+        session.user(self.user.clone());
 
-        Ok(pool)
+        if let Some(key) = &self.key {
+            session.keyfile(key);
+        }
+
+        // set control directory to avoid temp files in root directory when panic
+        session.control_directory("/tmp");
+
+        session.server_alive_interval(Duration::from_secs(5));
+
+        // when connection > 10, it will wait others to finish
+        let permit = self.cnt.clone().acquire_owned().await.map_err(|_| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "failed to acquire connection permit",
+            )
+        })?;
+
+        let session = session.connect(self.endpoint.clone()).await?;
+
+        let sess = Box::new(session);
+        let mut oref = OwningHandle::new_with_fn(sess, unsafe {
+            |x| {
+                Box::new(
+                    block_on(
+                        (*x).subsystem("sftp")
+                            .stdin(Stdio::piped())
+                            .stdout(Stdio::piped())
+                            .spawn(),
+                    )
+                    .unwrap(),
+                )
+            }
+        });
+
+        let sftp = Sftp::new(
+            oref.stdin().take().unwrap(),
+            oref.stdout().take().unwrap(),
+            Default::default(),
+        )
+        .await?;
+
+        let mut fs = sftp.fs();
+        fs.set_cwd("/");
+
+        let paths: Vec<&str> = self.root.split_inclusive('/').skip(1).collect();
+        let mut current = "/".to_owned();
+        for p in paths {
+            if p.is_empty() {
+                continue;
+            }
+
+            current.push_str(p);
+            let res = fs.create_dir(p).await;
+
+            if let Err(e) = res {
+                // ignore error if dir already exists
+                if !is_sftp_protocol_error(&e) {
+                    return Err(e.into());
+                }
+            }
+            fs.set_cwd(current.clone());
+        }
+
+        debug!("sftp connection created: {}", self.root);
+
+        Ok(Connection {
+            _child: oref,
+            sftp,
+            _permit: permit,
+        })
     }
+}
 
-    pub async fn sftp_connect(&self) -> Result<PooledConnection<'_, Manager>> {
-        let conn = self.pool().await?.get().await?;
-
-        Ok(conn)
-    }
-
-    pub async fn sftp_connect_owned(&self) -> Result<PooledConnection<'static, Manager>> {
-        let conn = self.pool().await?.get_owned().await?;
-
-        Ok(conn)
+impl Drop for Connection {
+    fn drop(&mut self) {
+        debug!("sftp connection dropped");
     }
 }

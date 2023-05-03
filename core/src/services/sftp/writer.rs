@@ -15,21 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bb8::PooledConnection;
-use bytes::Bytes;
+use std::time::Duration;
 
-use super::backend::Manager;
+use async_trait::async_trait;
+use bytes::Bytes;
+use tokio::time::sleep;
+
+use super::backend::Connection;
 use crate::raw::oio;
 use crate::{Error, ErrorKind, Result};
 
 pub struct SftpWriter {
-    conn: PooledConnection<'static, Manager>,
+    conn: Connection,
     path: String,
 }
 
 impl SftpWriter {
-    pub fn new(conn: PooledConnection<'static, Manager>, path: String) -> Self {
+    pub fn new(conn: Connection, path: String) -> Self {
         SftpWriter { conn, path }
     }
 }
@@ -39,7 +41,15 @@ impl oio::Write for SftpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut file = self.conn.sftp.create(&self.path).await?;
 
-        file.write_all(&bs).await?;
+        tokio::select! {
+            _ = file.write_all(&bs) => {},
+            _ = sleep(Duration::from_secs(30)) => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "SFTP write timed out",
+                ));
+            },
+        };
 
         Ok(())
     }

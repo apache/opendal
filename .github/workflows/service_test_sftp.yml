@@ -49,13 +49,15 @@ jobs:
           ssh-keygen -t rsa -b 4096 -f target/ssh/ssh_host_rsa_key -q -N "" < /dev/null
           ssh-keygen -t rsa -b 4096 -f target/ssh/id_rsa -q -N "" < /dev/null
 
+          mkdir /tmp/sftp
           docker run \
               -v `pwd`/target/ssh/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \
               -v `pwd`/target/ssh/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key \
               -v `pwd`/target/ssh/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key \
+              -v /tmp/sftp:/home/foo/share \
               --ulimit nofile=65536:65536 \
               -p 2222:22 -d atmoz/sftp \
-              foo::1001
+              foo::1000
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

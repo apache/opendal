@@ -23,6 +23,8 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use log::debug;
+use openssh::RemoteChild;
+use openssh::Session;
 use openssh::SessionBuilder;
 use openssh::Stdio;
 use openssh_sftp_client::Sftp;
@@ -194,12 +196,6 @@ pub struct Connection {
     pub sftp: Sftp,
 }
 
-impl Connection {
-    pub fn into_sftp(self) -> Sftp {
-        self.sftp
-    }
-}
-
 /// Backend is used to serve `Accessor` support for sftp.
 #[derive(Clone)]
 pub struct SftpBackend {
@@ -318,7 +314,7 @@ impl Accessor for SftpBackend {
             self.create_dir(dir, OpCreate::default()).await?;
         }
 
-        let path = format!("{}{}", self.root, path);
+        let path = build_rooted_abs_path(&self.root, path);
 
         Ok((RpWrite::new(), SftpWriter::new(self.clone(), path)))
     }
@@ -408,6 +404,24 @@ impl Accessor for SftpBackend {
 }
 
 impl SftpBackend {
+    pub async fn connect_inner(&self) -> std::result::Result<Session, Error> {
+        let mut session = SessionBuilder::default();
+
+        session.user(self.user.clone());
+
+        if let Some(key) = &self.key {
+            session.keyfile(key);
+        }
+
+        // set control directory to avoid temp files in root directory when panic
+        session.control_directory("/tmp");
+        session.server_alive_interval(Duration::from_secs(5));
+
+        let session = session.connect(self.endpoint.clone()).await?;
+
+        Ok(session)
+    }
+
     pub async fn connect(&self) -> std::result::Result<Connection, Error> {
         let mut session = SessionBuilder::default();
 
@@ -424,7 +438,7 @@ impl SftpBackend {
         let session = session.connect(self.endpoint.clone()).await?;
 
         let mut child = session
-            .subsystem("sttp")
+            .subsystem("sftp")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -437,27 +451,27 @@ impl SftpBackend {
         )
         .await?;
 
-        let mut fs = sftp.fs();
-        fs.set_cwd("/");
+        // let mut fs = sftp.fs();
+        // fs.set_cwd("/");
 
-        let paths: Vec<&str> = self.root.split_inclusive('/').skip(1).collect();
-        let mut current = "/".to_owned();
-        for p in paths {
-            if p.is_empty() {
-                continue;
-            }
+        // let paths: Vec<&str> = self.root.split_inclusive('/').skip(1).collect();
+        // let mut current = "/".to_owned();
+        // for p in paths {
+        //     if p.is_empty() {
+        //         continue;
+        //     }
 
-            current.push_str(p);
-            let res = fs.create_dir(p).await;
+        //     current.push_str(p);
+        //     let res = fs.create_dir(p).await;
 
-            if let Err(e) = res {
-                // ignore error if dir already exists
-                if !is_sftp_protocol_error(&e) {
-                    return Err(e.into());
-                }
-            }
-            fs.set_cwd(current.clone());
-        }
+        //     if let Err(e) = res {
+        //         // ignore error if dir already exists
+        //         if !is_sftp_protocol_error(&e) {
+        //             return Err(e.into());
+        //         }
+        //     }
+        //     fs.set_cwd(current.clone());
+        // }
 
         debug!("sftp connection created: {}", self.root);
 

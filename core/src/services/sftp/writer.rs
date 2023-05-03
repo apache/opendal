@@ -17,9 +17,11 @@
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use openssh::Stdio;
+use openssh_sftp_client::Sftp;
 
-use super::backend::SftpBackend;
-use crate::raw::oio;
+use super::backend::{Connection, SftpBackend};
+use crate::raw::{get_basename, get_parent, oio};
 use crate::{Error, ErrorKind, Result};
 
 pub struct SftpWriter {
@@ -41,13 +43,28 @@ impl oio::Write for SftpWriter {
     ///
     /// We should hold the file until users call `close`.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let conn = self.backend.connect().await?;
-        let mut file = conn.sftp.create(&self.path).await?;
+        let session = self.backend.connect_inner().await?;
+
+        let mut child = session
+            .subsystem("sftp")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .await?;
+
+        let sftp = Sftp::new(
+            child.stdin().take().unwrap(),
+            child.stdout().take().unwrap(),
+            Default::default(),
+        )
+        .await?;
+
+        sftp.fs().set_cwd("/home/foo/share/");
+        let mut file = sftp.create("test").await?;
 
         file.write_all(&bs).await?;
         file.close().await?;
 
-        let sftp = conn.into_sftp();
         sftp.close().await?;
 
         Ok(())

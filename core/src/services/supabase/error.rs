@@ -28,7 +28,7 @@ use crate::Result;
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 /// The error returned by Supabase
-pub struct SupabaseError {
+struct SupabaseError {
     status_code: String,
     error: String,
     message: String,

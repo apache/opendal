@@ -58,7 +58,7 @@ jobs:
               --ulimit nofile=65536:65536 \
               -p 2222:22 -d atmoz/sftp \
               foo::::upload
-
+          sleep 20
           echo "exit" | sftp -vvv -P 2222 -i target/ssh/id_rsa -o StrictHostKeyChecking=no foo@127.0.0.1
 
       - name: Setup Rust toolchain

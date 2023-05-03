@@ -72,5 +72,5 @@ jobs:
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
           OPENDAL_SFTP_ROOT: /tmp/sftp_test/
           OPENDAL_SFTP_USER: foo
-          OPENDAL_SFTP_KEY: target/ssh/id_rsa
+          OPENDAL_SFTP_KEY: `pwd`/target/ssh/id_rsa
           OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY: accept

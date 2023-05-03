@@ -145,6 +145,7 @@ impl SftpBuilder {
     }
 
     /// set key path for sftp backend.
+    /// if you use relative path, it will be relative to account directory.
     pub fn key(&mut self, key: &str) -> &mut Self {
         self.key = if key.is_empty() {
             None

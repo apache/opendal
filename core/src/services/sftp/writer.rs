@@ -59,7 +59,6 @@ impl oio::Write for SftpWriter {
         )
         .await?;
 
-        sftp.fs().set_cwd("/home/foo/share/");
         let mut file = sftp.create("test").await?;
 
         file.write_all(&bs).await?;

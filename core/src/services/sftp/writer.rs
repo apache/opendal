@@ -15,56 +15,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use async_trait::async_trait;
 use bytes::Bytes;
-use openssh::Stdio;
-use openssh_sftp_client::Sftp;
+use tokio::time::sleep;
 
-use super::backend::{Connection, SftpBackend};
-use crate::raw::{get_basename, get_parent, oio};
+use super::backend::Connection;
+use crate::raw::oio;
 use crate::{Error, ErrorKind, Result};
 
 pub struct SftpWriter {
-    backend: SftpBackend,
+    conn: Connection,
     path: String,
 }
 
 impl SftpWriter {
-    pub fn new(backend: SftpBackend, path: String) -> Self {
-        SftpWriter { backend, path }
+    pub fn new(conn: Connection, path: String) -> Self {
+        SftpWriter { conn, path }
     }
 }
 
 #[async_trait]
 impl oio::Write for SftpWriter {
-    /// TODO
-    ///
-    /// this implementation is wrong.
-    ///
-    /// We should hold the file until users call `close`.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let session = self.backend.connect_inner().await?;
+        let mut file = self.conn.sftp.create(&self.path).await?;
 
-        let mut child = session
-            .subsystem("sftp")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .await?;
-
-        let sftp = Sftp::new(
-            child.stdin().take().unwrap(),
-            child.stdout().take().unwrap(),
-            Default::default(),
-        )
-        .await?;
-
-        let mut file = sftp.create("test").await?;
-
-        file.write_all(&bs).await?;
-        file.close().await?;
-
-        sftp.close().await?;
+        tokio::select! {
+            _ = file.write_all(&bs) => {},
+            _ = sleep(Duration::from_secs(30)) => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "SFTP write timed out",
+                ));
+            },
+        };
 
         Ok(())
     }

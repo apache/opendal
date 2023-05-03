@@ -218,6 +218,8 @@ impl Accessor for SupabaseBackend {
                 stat: true,
                 read: true,
                 write: true,
+                create_dir: true,
+                delete: true,
 
                 ..Default::default()
             });
@@ -225,8 +227,33 @@ impl Accessor for SupabaseBackend {
         am
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.supabase_get_object(path).await?;
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let mut req =
+            self.core
+                .supabase_upload_object_request(path, Some(0), None, AsyncBody::Empty)?;
+
+        self.core.sign(&mut req)?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        if status.is_success() {
+            resp.into_body().consume().await?;
+            Ok(RpCreate::default())
+        } else {
+            // create duplicate dir is ok
+            let e = parse_error(resp).await?;
+            if e.kind() == ErrorKind::AlreadyExists {
+                Ok(RpCreate::default())
+            } else {
+                Err(e)
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.supabase_get_object(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -259,16 +286,38 @@ impl Accessor for SupabaseBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.supabase_get_object_info(path).await?;
+        // The get_object_info does not contain the file size. Therefore
+        // we first try the get the metadata through head, if we fail,
+        // we then use get_object_info to get the actual error info
+        let mut resp = self.core.supabase_head_object(path).await?;
 
-        let status = resp.status();
-
-        match status {
+        match resp.status() {
             StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            _ => {
+                resp = self.core.supabase_get_object_info(path).await?;
+                match resp.status() {
+                    StatusCode::NOT_FOUND if path.ends_with('/') => {
+                        Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                    }
+                    _ => Err(parse_error(resp).await?),
+                }
             }
-            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.core.supabase_delete_object(path).await?;
+
+        if resp.status().is_success() {
+            Ok(RpDelete::default())
+        } else {
+            // deleting not existing objects is ok
+            let e = parse_error(resp).await?;
+            if e.kind() == ErrorKind::NotFound {
+                Ok(RpDelete::default())
+            } else {
+                Err(e)
+            }
         }
     }
 }

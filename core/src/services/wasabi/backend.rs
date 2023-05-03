@@ -908,6 +908,7 @@ impl Accessor for WasabiBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
 
                 write: true,
                 list: true,

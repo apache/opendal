@@ -109,7 +109,25 @@ impl SupabaseCore {
         Ok(req)
     }
 
-    pub fn supabase_get_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/storage/v1/object/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::delete(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
+    }
+
+    pub fn supabase_get_object_public_request(
+        &self,
+        path: &str,
+        _: BytesRange,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/public/{}/{}",
@@ -118,12 +136,16 @@ impl SupabaseCore {
             percent_encode_path(&p)
         );
 
-        Request::get(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
+        let req = Request::get(&url);
+
+        req.body(AsyncBody::Empty).map_err(new_request_build_error)
     }
 
-    pub fn supabase_get_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    pub fn supabase_get_object_auth_request(
+        &self,
+        path: &str,
+        _: BytesRange,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/storage/v1/object/authenticated/{}/{}",
@@ -132,7 +154,35 @@ impl SupabaseCore {
             percent_encode_path(&p)
         );
 
-        Request::get(&url)
+        let req = Request::get(&url);
+
+        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+    }
+
+    pub fn supabase_head_object_public_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/storage/v1/object/public/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::head(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)
+    }
+
+    pub fn supabase_head_object_auth_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/storage/v1/object/authenticated/{}/{}",
+            self.endpoint,
+            self.bucket,
+            percent_encode_path(&p)
+        );
+
+        Request::head(&url)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)
     }
@@ -175,11 +225,25 @@ impl SupabaseCore {
         self.http_client.send(req).await
     }
 
-    pub async fn supabase_get_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn supabase_get_object(
+        &self,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = if self.key.is_some() {
-            self.supabase_get_object_auth_request(path)?
+            self.supabase_get_object_auth_request(path, range)?
         } else {
-            self.supabase_get_object_public_request(path)?
+            self.supabase_get_object_public_request(path, range)?
+        };
+        self.sign(&mut req)?;
+        self.send(req).await
+    }
+
+    pub async fn supabase_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = if self.key.is_some() {
+            self.supabase_head_object_auth_request(path)?
+        } else {
+            self.supabase_head_object_public_request(path)?
         };
         self.sign(&mut req)?;
         self.send(req).await
@@ -194,6 +258,12 @@ impl SupabaseCore {
         } else {
             self.supabase_get_object_info_public_request(path)?
         };
+        self.sign(&mut req)?;
+        self.send(req).await
+    }
+
+    pub async fn supabase_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.supabase_delete_object_request(path)?;
         self.sign(&mut req)?;
         self.send(req).await
     }

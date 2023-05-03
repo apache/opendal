@@ -174,6 +174,12 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
+    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    if op.info().scheme() == opendal::Scheme::Supabase {
+        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (content, size) = gen_bytes();
 
@@ -273,6 +279,12 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
 
 /// Stat existing file with special chars should return metadata
 pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
+    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    if op.info().scheme() == opendal::Scheme::Supabase {
+        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (content, size) = gen_bytes();
 
@@ -419,6 +431,10 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
 
 /// Read range content should match.
 pub async fn test_read_range(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -445,6 +461,10 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
 
 /// Read large range content should match.
 pub async fn test_read_large_range(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -472,6 +492,10 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
 
 /// Read range content should match.
 pub async fn test_reader_range(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -501,6 +525,10 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
 
 /// Read range from should match.
 pub async fn test_reader_from(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -528,6 +556,10 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
 
 /// Read range tail should match.
 pub async fn test_reader_tail(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -645,6 +677,10 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -682,6 +718,10 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -719,6 +759,10 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -773,6 +817,12 @@ pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
 
 /// Read file with special chars should succeed.
 pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
+    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    if op.info().scheme() == opendal::Scheme::Supabase {
+        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -952,6 +1002,12 @@ pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
 
 /// Delete file with special chars should succeed.
 pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
+    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    if op.info().scheme() == opendal::Scheme::Supabase {
+        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();

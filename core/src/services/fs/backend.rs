@@ -303,6 +303,7 @@ impl Accessor for FsBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_seek: true,
+                read_with_range: true,
                 write: true,
                 write_without_content_length: true,
                 create_dir: true,

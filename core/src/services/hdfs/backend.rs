@@ -240,6 +240,8 @@ impl Accessor for HdfsBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_seek: true,
+                read_with_range: true,
+
                 write: true,
                 list: true,
                 blocking: true,

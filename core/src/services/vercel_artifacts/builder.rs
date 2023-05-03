@@ -16,18 +16,13 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use log::debug;
-
-use super::backend::OnedriveBackend;
-use crate::raw::normalize_root;
+use super::backend::VercelArtifactsBackend;
 use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
 
-/// [OneDrive](https://onedrive.com) backend support.
+/// [Vercel Cache](https://vercel.com/docs/concepts/monorepos/remote-caching) backend support.
 ///
 /// # Capabilities
 ///
@@ -35,24 +30,19 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] list
+/// - [ ] ~~copy~~
+/// - [ ] ~~rename~~
+/// - [ ] ~~list~~
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] blocking
 ///
 /// # Notes
-///
-/// Currently, only OneDrive Personal is supported.
-/// For uploading, only files under 4MB are supported via the Simple Upload API (<https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online>).
-///
 /// # Configuration
 ///
-/// - `access_token`: set the access_token for Graph API
-/// - `root`: Set the work directory for backend
+/// - `access_token`: set the access_token for Rest API
 ///
-/// You can refer to [`OnedriveBuilder`]'s docs for more information
+/// You can refer to [`VercelArtifactsBuilder`]'s docs for more information
 ///
 /// # Example
 ///
@@ -60,45 +50,32 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::Onedrive;
+/// use opendal::services::VercelArtifacts;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // create backend builder
-///     let mut builder = Onedrive::default();
+///     let mut builder = VercelArtifacts::default();
 ///
-///     builder.access_token("xxx").root("/path/to/root");
+///     builder.access_token("xxx");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///     Ok(())
 /// }
 /// ```
 #[derive(Default)]
-pub struct OnedriveBuilder {
+pub struct VercelArtifactsBuilder {
     access_token: Option<String>,
-    root: Option<String>,
     http_client: Option<HttpClient>,
 }
 
-impl Debug for OnedriveBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend").field("root", &self.root).finish()
-    }
-}
-
-impl OnedriveBuilder {
-    /// set the bearer access token for OneDrive
+impl VercelArtifactsBuilder {
+    /// set the bearer access token for Vercel
     ///
     /// default: no access token, which leads to failure
     pub fn access_token(&mut self, access_token: &str) -> &mut Self {
         self.access_token = Some(access_token.to_string());
-        self
-    }
-
-    /// Set root path of OneDrive folder.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
         self
     }
 
@@ -114,35 +91,32 @@ impl OnedriveBuilder {
     }
 }
 
-impl Builder for OnedriveBuilder {
-    const SCHEME: Scheme = Scheme::Onedrive;
+impl Builder for VercelArtifactsBuilder {
+    const SCHEME: Scheme = Scheme::VercelArtifacts;
 
-    type Accessor = OnedriveBackend;
+    type Accessor = VercelArtifactsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = Self::default();
-
-        map.get("root").map(|v| builder.root(v));
         map.get("access_token").map(|v| builder.access_token(v));
-
         builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
-        debug!("backend use root {}", root);
-
         let client = if let Some(client) = self.http_client.take() {
             client
         } else {
             HttpClient::new().map_err(|err| {
                 err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Onedrive)
+                    .with_context("service", Scheme::VercelArtifacts)
             })?
         };
 
         match self.access_token.clone() {
-            Some(access_token) => Ok(OnedriveBackend::new(root, access_token, client)),
+            Some(access_token) => Ok(VercelArtifactsBackend {
+                access_token,
+                client,
+            }),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "access_token not set")),
         }
     }

@@ -25,6 +25,7 @@ use std::usize;
 
 use bytes::Bytes;
 use log::debug;
+use log::warn;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::*;
@@ -54,6 +55,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
     let turn_on_test = cfg.get("test").cloned().unwrap_or_default();
 
     if turn_on_test != "on" && turn_on_test != "true" {
+        warn!("service {} not initiated, ignored", B::SCHEME);
         return None;
     }
 

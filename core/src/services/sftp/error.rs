@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bb8::RunError;
 use openssh::Error as SshError;
 use openssh_sftp_client::{error::SftpErrorKind, Error as SftpClientError};
 
@@ -67,17 +66,6 @@ impl From<SftpError> for Error {
         match e {
             SftpError::SftpClientError(e) => e.into(),
             SftpError::SshError(e) => e.into(),
-        }
-    }
-}
-
-impl From<RunError<SftpError>> for Error {
-    fn from(e: RunError<SftpError>) -> Self {
-        match e {
-            RunError::User(err) => err.into(),
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
-            }
         }
     }
 }

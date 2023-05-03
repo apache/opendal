@@ -140,7 +140,6 @@ services-s3 = [
 services-sftp = [
   "dep:openssh",
   "dep:openssh-sftp-client",
-  "dep:bb8",
   "dep:owning_ref",
 ]
 services-sled = ["dep:sled"]

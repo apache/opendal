@@ -25,6 +25,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use futures::executor::block_on;
 use log::debug;
+use openssh::KnownHosts;
 use openssh::RemoteChild;
 use openssh::Session;
 use openssh::SessionBuilder;
@@ -62,6 +63,7 @@ use crate::*;
 /// - `root`: Set the work directory for backend, default to `/home/$USER/`
 /// - `user`: Set the login user
 /// - `key`: Set the public key for login
+/// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
 ///
 /// It doesn't support password login, you can use public key instead.
 ///
@@ -96,6 +98,7 @@ pub struct SftpBuilder {
     root: Option<String>,
     user: Option<String>,
     key: Option<String>,
+    known_hosts_strategy: Option<String>,
 }
 
 impl Debug for SftpBuilder {
@@ -151,6 +154,21 @@ impl SftpBuilder {
 
         self
     }
+
+    /// set known_hosts strategy for sftp backend.
+    /// available values:
+    /// - Strict (default)
+    /// - Accept
+    /// - Add
+    pub fn known_hosts_strategy(&mut self, strategy: &str) -> &mut Self {
+        self.known_hosts_strategy = if strategy.is_empty() {
+            None
+        } else {
+            Some(strategy.to_string())
+        };
+
+        self
+    }
 }
 
 impl Builder for SftpBuilder {
@@ -175,6 +193,25 @@ impl Builder for SftpBuilder {
             .map(|r| normalize_root(r.as_str()))
             .unwrap_or(format!("/home/{}/", user));
 
+        let known_hosts_strategy = match self.known_hosts_strategy.clone() {
+            Some(v) => {
+                let v = v.to_lowercase();
+                if v == "strict" {
+                    KnownHosts::Strict
+                } else if v == "accept" {
+                    KnownHosts::Accept
+                } else if v == "add" {
+                    KnownHosts::Add
+                } else {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        format!("unknown known_hosts strategy: {}", v).as_str(),
+                    ));
+                }
+            }
+            None => KnownHosts::Strict,
+        };
+
         debug!("sftp backend finished: {:?}", &self);
 
         Ok(SftpBackend {
@@ -182,6 +219,7 @@ impl Builder for SftpBuilder {
             root,
             user,
             key: self.key.clone(),
+            known_hosts_strategy,
             cnt: Arc::new(Semaphore::new(10)),
         })
     }
@@ -193,6 +231,8 @@ impl Builder for SftpBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("user").map(|v| builder.user(v));
         map.get("key").map(|v| builder.key(v));
+        map.get("known_hosts_strategy")
+            .map(|v| builder.known_hosts_strategy(v));
 
         builder
     }
@@ -214,6 +254,7 @@ pub struct SftpBackend {
     root: String,
     user: String,
     key: Option<String>,
+    known_hosts_strategy: KnownHosts,
     cnt: Arc<Semaphore>,
 }
 
@@ -427,15 +468,12 @@ impl SftpBackend {
 
         // set control directory to avoid temp files in root directory when panic
         session.control_directory("/tmp");
-
         session.server_alive_interval(Duration::from_secs(5));
+        session.known_hosts_check(self.known_hosts_strategy.clone());
 
         // when connection > 10, it will wait others to finish
         let permit = self.cnt.clone().acquire_owned().await.map_err(|_| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "failed to acquire connection permit",
-            )
+            Error::new(ErrorKind::Unexpected, "failed to acquire connection permit")
         })?;
 
         let session = session.connect(self.endpoint.clone()).await?;

@@ -216,8 +216,14 @@ impl Accessor for SupabaseBackend {
             .set_name(&self.core.bucket)
             .set_capability(Capability {
                 stat: true,
+
                 read: true,
+
                 write: true,
+
+                create_dir: true,
+
+                delete: true,
 
                 ..Default::default()
             });
@@ -250,8 +256,8 @@ impl Accessor for SupabaseBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.supabase_get_object(path).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.supabase_get_object(path, args.range()).await?;
 
         let status = resp.status();
 

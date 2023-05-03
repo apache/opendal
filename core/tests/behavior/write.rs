@@ -431,6 +431,10 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
 
 /// Read range content should match.
 pub async fn test_read_range(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -457,6 +461,10 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
 
 /// Read large range content should match.
 pub async fn test_read_large_range(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -484,6 +492,10 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
 
 /// Read range content should match.
 pub async fn test_reader_range(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -513,6 +525,10 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
 
 /// Read range from should match.
 pub async fn test_reader_from(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -540,6 +556,10 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
 
 /// Read range tail should match.
 pub async fn test_reader_tail(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -657,6 +677,10 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -694,6 +718,10 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -731,6 +759,10 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();

@@ -16,16 +16,16 @@
 // under the License.
 
 use async_trait::async_trait;
-use http::{header, Request, Response, StatusCode};
-use serde::Deserialize;
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
+use http::StatusCode;
+
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use tokio::sync::Mutex;
 
 use crate::{
     ops::{OpDelete, OpRead, OpWrite},
     raw::{
-        build_rooted_abs_path, new_request_build_error, parse_into_metadata, Accessor,
-        AccessorInfo, AsyncBody, HttpClient, IncomingAsyncBody, RpDelete, RpRead, RpWrite,
+        parse_into_metadata, Accessor, AccessorInfo, HttpClient, IncomingAsyncBody, RpDelete,
+        RpRead, RpWrite,
     },
     types::Result,
     Capability, Error, ErrorKind,

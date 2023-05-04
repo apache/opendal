@@ -22,19 +22,13 @@ use std::sync::Arc;
 
 use crate::raw::HttpClient;
 
-use async_trait::async_trait;
-use http::{header, Request, Response, StatusCode};
+use http::{header, Request, Response};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::{
-    ops::{OpDelete, OpRead, OpWrite},
-    raw::{
-        build_rooted_abs_path, new_request_build_error, parse_into_metadata, Accessor,
-        AccessorInfo, AsyncBody, IncomingAsyncBody, RpDelete, RpRead, RpWrite,
-    },
+    raw::{build_rooted_abs_path, new_request_build_error, AsyncBody, IncomingAsyncBody},
     types::Result,
-    Capability, Error, ErrorKind,
 };
 
 pub struct GdriveCore {
@@ -87,7 +81,7 @@ impl GdriveCore {
         let path = build_rooted_abs_path(&self.root, file_path);
 
         {
-            let mut cache_guard = self.path_2_id.lock().await;
+            let cache_guard = self.path_2_id.lock().await;
             if cache_guard.contains_key(&path) {
                 return cache_guard.get(&path).unwrap().to_string();
             }
@@ -123,7 +117,6 @@ impl GdriveCore {
             let body_value: GdriveFileList =
                 serde_json::from_slice(&resp.into_body().bytes().await.unwrap()).unwrap();
             parent_id = String::from(body_value.files[0].id.as_str());
-            println!("id: {}", parent_id);
         }
 
         let mut cache_guard = self.path_2_id.lock().await;

@@ -16,16 +16,16 @@
 // under the License.
 
 use std::io::SeekFrom;
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
 use async_compat::Compat;
-use futures::executor::block_on;
+use futures::AsyncRead;
+use futures::AsyncSeek;
+use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::metadata::MetaData as SftpMeta;
-use owning_ref::OwningHandle;
 
 use super::backend::Connection;
 use crate::raw::oio;
@@ -35,37 +35,51 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
 
-pub struct SftpReader {
-    // similar situation to connection struct
-    // We can make sure the file can live as long as the connection.
-    file: OwningHandle<Box<Connection>, Box<FdReader<Compat<TokioCompatFile<'static>>>>>,
+pub struct SftpReaderInner {
+    file: Pin<Box<Compat<TokioCompatFile>>>,
+    _conn: Connection,
+}
+pub type SftpReader = FdReader<SftpReaderInner>;
+
+impl SftpReaderInner {
+    pub async fn new(conn: Connection, file: File) -> Self {
+        let file = Compat::new(file.into());
+        Self {
+            file: Box::pin(file),
+            _conn: conn,
+        }
+    }
 }
 
 impl SftpReader {
-    pub async fn new(conn: Connection, path: PathBuf, start: u64, end: u64) -> Result<Self> {
-        let mut file = OwningHandle::new_with_fn(Box::new(conn), |conn| unsafe {
-            let file = block_on((*conn).sftp.open(path)).unwrap();
-            let f = Compat::new(TokioCompatFile::from(file));
-            Box::new(oio::into_reader::from_fd(f, start, end))
-        });
-
-        file.seek(SeekFrom::Start(0)).await?;
-
-        Ok(SftpReader { file })
+    /// Create a new reader from a file, starting at the given offset and ending at the given offset.
+    pub async fn new(conn: Connection, file: File, start: u64, end: u64) -> Result<Self> {
+        let file = SftpReaderInner::new(conn, file).await;
+        let mut r = oio::into_reader::from_fd(file, start, end);
+        r.seek(SeekFrom::Start(0)).await?;
+        Ok(r)
     }
 }
 
-impl oio::Read for SftpReader {
-    fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
-        Pin::new(&mut *self.file).poll_read(cx, buf)
+impl AsyncRead for SftpReaderInner {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+        buf: &mut [u8],
+    ) -> Poll<std::io::Result<usize>> {
+        let this = self.get_mut();
+        Pin::new(&mut this.file).poll_read(cx, buf)
     }
+}
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        Pin::new(&mut *self.file).poll_seek(cx, pos)
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
-        Pin::new(&mut *self.file).poll_next(cx)
+impl AsyncSeek for SftpReaderInner {
+    fn poll_seek(
+        self: Pin<&mut Self>,
+        cx: &mut Context,
+        pos: SeekFrom,
+    ) -> Poll<std::io::Result<u64>> {
+        let this = self.get_mut();
+        Pin::new(&mut this.file).poll_seek(cx, pos)
     }
 }
 

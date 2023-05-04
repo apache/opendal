@@ -24,6 +24,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::executor::block_on;
+use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::RemoteChild;
@@ -64,6 +65,7 @@ use crate::*;
 /// - `user`: Set the login user
 /// - `key`: Set the public key for login
 /// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
+/// - `max_connections`: Set the max connection for backend, default to `10`
 ///
 /// It doesn't support password login, you can use public key instead.
 ///
@@ -84,7 +86,7 @@ use crate::*;
 ///     // create backend builder
 ///     let mut builder = Sftp::default();
 ///
-///     builder.endpoint("127.0.0.1").user("test").password("test");
+///     builder.endpoint("127.0.0.1").user("test").key("test_key");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");
@@ -99,6 +101,7 @@ pub struct SftpBuilder {
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: Option<String>,
+    max_connections: Option<usize>,
 }
 
 impl Debug for SftpBuilder {
@@ -169,6 +172,14 @@ impl SftpBuilder {
 
         self
     }
+
+    /// set max connections for sftp backend.
+    /// default to 10
+    pub fn max_connections(&mut self, max_connections: usize) -> &mut Self {
+        self.max_connections = Some(max_connections);
+
+        self
+    }
 }
 
 impl Builder for SftpBuilder {
@@ -193,7 +204,7 @@ impl Builder for SftpBuilder {
             .map(|r| normalize_root(r.as_str()))
             .unwrap_or(format!("/home/{}/", user));
 
-        let known_hosts_strategy = match self.known_hosts_strategy.clone() {
+        let known_hosts_strategy = match &self.known_hosts_strategy {
             Some(v) => {
                 let v = v.to_lowercase();
                 if v == "strict" {
@@ -220,7 +231,7 @@ impl Builder for SftpBuilder {
             user,
             key: self.key.clone(),
             known_hosts_strategy,
-            cnt: Arc::new(Semaphore::new(10)),
+            cnt: Arc::new(Semaphore::new(self.max_connections.unwrap_or(10))),
         })
     }
 
@@ -233,6 +244,8 @@ impl Builder for SftpBuilder {
         map.get("key").map(|v| builder.key(v));
         map.get("known_hosts_strategy")
             .map(|v| builder.known_hosts_strategy(v));
+        map.get("max_connections")
+            .map(|v| builder.max_connections(v.parse::<usize>().unwrap_or(10)));
 
         builder
     }
@@ -293,7 +306,7 @@ impl Accessor for SftpBackend {
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let client = self.connect().await?;
         let mut fs = client.sftp.fs();
-        fs.set_cwd(self.root.clone());
+        fs.set_cwd(&self.root);
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
         let mut current = self.root.clone();
@@ -311,7 +324,7 @@ impl Accessor for SftpBackend {
                     return Err(e.into());
                 }
             }
-            fs.set_cwd(current.clone());
+            fs.set_cwd(&current);
         }
 
         return Ok(RpCreate::default());
@@ -321,7 +334,7 @@ impl Accessor for SftpBackend {
         let client = self.connect().await?;
 
         let mut fs = client.sftp.fs();
-        fs.set_cwd(self.root.clone());
+        fs.set_cwd(&self.root);
         let path = fs.canonicalize(path).await?;
 
         let mut file = client.sftp.open(path.as_path()).await?;
@@ -350,7 +363,7 @@ impl Accessor for SftpBackend {
             (None, None) => (0, total_length),
         };
 
-        let r = SftpReader::new(self.connect().await?, path, start, end).await?;
+        let r = SftpReader::new(client, file, start, end).await?;
 
         Ok((RpRead::new(end - start), r))
     }
@@ -367,15 +380,21 @@ impl Accessor for SftpBackend {
             self.create_dir(dir, OpCreate::default()).await?;
         }
 
-        let path = format!("{}{}", self.root, path);
+        let client = self.connect().await?;
 
-        Ok((RpWrite::new(), SftpWriter::new(self.connect().await?, path)))
+        let mut fs = client.sftp.fs();
+        fs.set_cwd(&self.root);
+        let path = fs.canonicalize(path).await?;
+
+        let file = client.sftp.create(&path).await?;
+
+        Ok((RpWrite::new(), SftpWriter::new(client, file)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let client = self.connect().await?;
         let mut fs = client.sftp.fs();
-        fs.set_cwd(self.root.clone());
+        fs.set_cwd(&self.root);
 
         let meta = fs.metadata(path).await?;
 
@@ -386,11 +405,11 @@ impl Accessor for SftpBackend {
         let client = self.connect().await?;
 
         let mut fs = client.sftp.fs();
-        fs.set_cwd(self.root.clone());
+        fs.set_cwd(&self.root);
 
         if path.ends_with('/') {
             let file_path = format!("./{}", path);
-            let dir = match fs.open_dir(file_path.clone()).await {
+            let mut dir = match fs.open_dir(&file_path).await {
                 Ok(dir) => dir,
                 Err(e) => {
                     if is_not_found(&e) {
@@ -401,9 +420,10 @@ impl Accessor for SftpBackend {
                 }
             }
             .read_dir()
-            .await?;
+            .boxed();
 
-            for file in &dir {
+            while let Some(file) = dir.next().await {
+                let file = file?;
                 let file_name = file.filename().to_str().unwrap();
                 if file_name == "." || file_name == ".." {
                     continue;
@@ -433,11 +453,11 @@ impl Accessor for SftpBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let client = self.connect().await?;
         let mut fs = client.sftp.fs();
-        fs.set_cwd(self.root.clone());
+        fs.set_cwd(&self.root);
 
         let file_path = format!("./{}", path);
 
-        let mut dir = match fs.open_dir(file_path.clone()).await {
+        let dir = match fs.open_dir(&file_path).await {
             Ok(dir) => dir,
             Err(e) => {
                 if is_not_found(&e) {
@@ -446,12 +466,12 @@ impl Accessor for SftpBackend {
                     return Err(e.into());
                 }
             }
-        };
-        let dir = dir.read_dir().await?;
+        }
+        .read_dir();
 
         Ok((
             RpList::default(),
-            SftpPager::new(dir.into_inner(), path.to_owned(), args.limit()),
+            SftpPager::new(client, dir, path.to_owned(), args.limit()),
         ))
     }
 }
@@ -476,7 +496,7 @@ impl SftpBackend {
             Error::new(ErrorKind::Unexpected, "failed to acquire connection permit")
         })?;
 
-        let session = session.connect(self.endpoint.clone()).await?;
+        let session = session.connect(&self.endpoint).await?;
 
         let sess = Box::new(session);
         let mut oref = OwningHandle::new_with_fn(sess, unsafe {
@@ -519,10 +539,10 @@ impl SftpBackend {
                     return Err(e.into());
                 }
             }
-            fs.set_cwd(current.clone());
+            fs.set_cwd(&current);
         }
 
-        debug!("sftp connection created: {}", self.root);
+        debug!("sftp connection created at {}", self.root);
 
         Ok(Connection {
             _child: oref,

@@ -19,30 +19,31 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use openssh_sftp_client::file::File;
 use tokio::time::sleep;
 
-use super::backend::Connection;
 use crate::raw::oio;
 use crate::{Error, ErrorKind, Result};
 
+use super::backend::Connection;
+
 pub struct SftpWriter {
-    conn: Connection,
-    path: String,
+    file: File,
+    // avoid dropping the connection before writing
+    _conn: Connection,
 }
 
 impl SftpWriter {
-    pub fn new(conn: Connection, path: String) -> Self {
-        SftpWriter { conn, path }
+    pub fn new(conn: Connection, file: File) -> Self {
+        SftpWriter { file, _conn: conn }
     }
 }
 
 #[async_trait]
 impl oio::Write for SftpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut file = self.conn.sftp.create(&self.path).await?;
-
         tokio::select! {
-            _ = file.write_all(&bs) => {},
+            _ = self.file.write_all(&bs) => {},
             _ = sleep(Duration::from_secs(30)) => {
                 return Err(Error::new(
                     ErrorKind::Unexpected,

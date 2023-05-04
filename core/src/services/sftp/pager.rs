@@ -15,77 +15,81 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::pin::Pin;
+
 use async_trait::async_trait;
+use futures::StreamExt;
 use openssh_sftp_client::fs::DirEntry;
+use openssh_sftp_client::fs::ReadDir;
 
 use crate::raw::oio;
 use crate::Result;
 
-pub struct SftpPager {
-    dir: Box<[DirEntry]>,
-    path: String,
-    limit: Option<usize>,
-    complete: bool,
+use super::backend::Connection;
+
+pub enum SftpPager {
+    Empty,
+    Inner(SftpPagerInner),
+}
+
+pub struct SftpPagerInner {
+    dir: Pin<Box<ReadDir>>,
+    prefix: String,
+    limit: usize,
+    _conn: Connection,
 }
 
 impl SftpPager {
-    pub fn new(dir: Box<[DirEntry]>, path: String, limit: Option<usize>) -> Self {
-        Self {
-            dir,
-            path,
+    pub fn new(conn: Connection, dir: ReadDir, path: String, limit: Option<usize>) -> Self {
+        let prefix = if path == "/" { "".to_owned() } else { path };
+
+        let limit = limit.unwrap_or(usize::MAX);
+
+        Self::Inner(SftpPagerInner {
+            dir: Box::pin(dir),
+            prefix,
             limit,
-            complete: false,
-        }
+            _conn: conn,
+        })
     }
 
     pub fn empty() -> Self {
-        Self {
-            dir: Box::new([]),
-            path: String::new(),
-            limit: None,
-            complete: true,
-        }
+        Self::Empty
     }
 }
 
 #[async_trait]
 impl oio::Page for SftpPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if self.complete {
-            return Ok(None);
-        }
+        match self {
+            Self::Empty => Ok(None),
+            Self::Inner(inner) => {
+                if inner.limit == 0 {
+                    return Ok(None);
+                }
 
-        // when listing the root directory, the prefix should be empty
-        if self.path == "/" {
-            self.path = "".to_owned();
-        }
+                let item = inner.dir.next().await;
 
-        let iter = self
-            .dir
-            .iter()
-            .filter(|e| {
-                // filter out "." and ".."
-                e.filename().to_str().unwrap() != "." && e.filename().to_str().unwrap() != ".."
-            })
-            .map(|e| map_entry(self.path.clone(), e.clone()));
-
-        let v: Vec<oio::Entry> = if let Some(limit) = self.limit {
-            iter.take(limit).collect()
-        } else {
-            iter.collect()
-        };
-
-        self.complete = true;
-
-        if v.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(v))
+                match item {
+                    Some(Ok(e)) => {
+                        if e.filename().to_str().unwrap() == "."
+                            || e.filename().to_str().unwrap() == ".."
+                        {
+                            self.next().await
+                        } else {
+                            inner.limit -= 1;
+                            Ok(Some(vec![map_entry(inner.prefix.as_str(), e.clone())]))
+                        }
+                    }
+                    Some(Err(e)) => Err(e.into()),
+                    None => Ok(None),
+                }
+            }
         }
     }
 }
 
-fn map_entry(prefix: String, value: DirEntry) -> oio::Entry {
+fn map_entry(prefix: &str, value: DirEntry) -> oio::Entry {
     let path = format!(
         "{}{}{}",
         prefix,

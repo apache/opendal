@@ -2639,14 +2639,15 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client"
 version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4fa8e5f26e549bd266d9bcd9e5b4fd344729985ef1a7f5ac3e51f3f96a4a620"
+source = "git+https://github.com/openssh-rust/openssh-sftp-client?branch=remove-lifetime#f8047a13ac5e22b318ad548a8994f777e89f9063"
 dependencies = [
  "bytes",
  "derive_destructure2",
+ "futures-core",
  "once_cell",
  "openssh-sftp-client-lowlevel",
  "openssh-sftp-error",
+ "pin-project",
  "scopeguard",
  "tokio",
  "tokio-io-utility",
@@ -2656,8 +2657,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client-lowlevel"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "406bf41d8372365497d5645e802a8dfe22008b8183edbe6c79e4b75614431daa"
+source = "git+https://github.com/openssh-rust/openssh-sftp-client?branch=remove-lifetime#f8047a13ac5e22b318ad548a8994f777e89f9063"
 dependencies = [
  "awaitable",
  "bytes",
@@ -2673,8 +2673,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-error"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d836b428ead150165d1178ed0aa672791c13b3ae9616ea1e34d13730a2cb486"
+source = "git+https://github.com/openssh-rust/openssh-sftp-client?branch=remove-lifetime#f8047a13ac5e22b318ad548a8994f777e89f9063"
 dependencies = [
  "awaitable-error",
  "openssh-sftp-protocol-error",

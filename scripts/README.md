@@ -3,6 +3,14 @@
 This module provides scripts to make maintainers lives easier.
 OpenDAL users don't need to care about this folder.
 
+NOTES: all shell must be running at root folder of OpenDAL project.
+
+## Generate licenses
+
+```shell
+./scripts/generate_licenses.sh
+```
+
 ## Release
 
 ```shell

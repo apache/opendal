@@ -20,3 +20,6 @@
 "ba" = "ba"
 # Showed up in examples.
 "thw" = "thw"
+
+[files]
+extend-exclude = ["licenses/*"]

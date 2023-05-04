@@ -41,6 +41,7 @@ use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
 use crate::ops::*;
+use crate::raw::oio::Page;
 use crate::raw::*;
 use crate::*;
 
@@ -1072,22 +1073,27 @@ impl Accessor for S3Backend {
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
+            // TODO: check if bucket exists
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .s3_head_object(path, args.if_none_match(), args.if_match())
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
+        if path.ends_with('/') {
+            let (_, mut pager) = self.list(path, OpList::default().with_limit(1)).await?;
+            if pager.next().await?.unwrap_or_default().is_empty() {
+                Err(Error::new(ErrorKind::NotFound, "not found"))
+            } else {
                 Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
-            _ => Err(parse_error(resp).await?),
+        } else {
+            let resp = self
+                .core
+                .s3_head_object(path, args.if_none_match(), args.if_match())
+                .await?;
+            let status = resp.status();
+            match status {
+                StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
+                _ => Err(parse_error(resp).await?),
+            }
         }
     }
 

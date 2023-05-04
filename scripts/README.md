@@ -8,7 +8,7 @@ NOTES: all shell must be running at root folder of OpenDAL project.
 ## Generate licenses
 
 ```shell
-./scripts/generate_licenses.sh
+./scripts/generate_notice.sh
 ```
 
 ## Release

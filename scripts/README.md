@@ -5,7 +5,7 @@ OpenDAL users don't need to care about this folder.
 
 NOTES: all shell must be running at root folder of OpenDAL project.
 
-## Generate licenses
+## Generate NOTICE
 
 ```shell
 ./scripts/generate_notice.sh

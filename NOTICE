@@ -18,23 +18,21 @@ licenses.
 (Apache-2.0 OR MIT) AND BSD-3-Clause licenses
 ========================================================================
 The following components are provided under the (Apache-2.0 OR MIT) AND BSD-3-Clause License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/encoding_rs/0.8.32 0.8.32 (Apache-2.0 OR MIT) AND BSD-3-Clause
 
 ========================================================================
 (MIT OR Apache-2.0) AND Unicode-DFS-2016 licenses
 ========================================================================
 The following components are provided under the (MIT OR Apache-2.0) AND Unicode-DFS-2016 License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/unicode-ident/1.0.8 1.0.8 (MIT OR Apache-2.0) AND Unicode-DFS-2016
 
 ========================================================================
 Apache-2.0 licenses
 ========================================================================
 The following components are provided under the Apache-2.0 License. See project link for details.
-The text of each license is the standard Apache 2.0 license.
+    
     https://crates.io/crates/backon/0.4.0 0.4.0 Apache-2.0
     https://crates.io/crates/ciborium/0.2.0 0.2.0 Apache-2.0
     https://crates.io/crates/ciborium-io/0.2.0 0.2.0 Apache-2.0
@@ -76,8 +74,7 @@ The text of each license is the standard Apache 2.0 license.
 Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT licenses
 ========================================================================
 The following components are provided under the Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/io-lifetimes/1.0.9 1.0.9 Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT
     https://crates.io/crates/linux-raw-sys/0.1.4 0.1.4 Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT
     https://crates.io/crates/rustix/0.36.11 0.36.11 Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT
@@ -90,24 +87,21 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 Apache-2.0 OR BSD-3-Clause OR MIT licenses
 ========================================================================
 The following components are provided under the Apache-2.0 OR BSD-3-Clause OR MIT License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/librocksdb-sys/0.10.0+7.9.2 0.10.0+7.9.2 Apache-2.0 OR BSD-3-Clause OR MIT
 
 ========================================================================
 Apache-2.0 OR BSL-1.0 licenses
 ========================================================================
 The following components are provided under the Apache-2.0 OR BSL-1.0 License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/ryu/1.0.13 1.0.13 Apache-2.0 OR BSL-1.0
 
 ========================================================================
 Apache-2.0 OR ISC OR MIT licenses
 ========================================================================
 The following components are provided under the Apache-2.0 OR ISC OR MIT License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/hyper-rustls/0.23.2 0.23.2 Apache-2.0 OR ISC OR MIT
     https://crates.io/crates/rustls/0.19.1 0.19.1 Apache-2.0 OR ISC OR MIT
     https://crates.io/crates/rustls/0.20.8 0.20.8 Apache-2.0 OR ISC OR MIT
@@ -120,8 +114,7 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 Apache-2.0 OR MIT licenses
 ========================================================================
 The following components are provided under the Apache-2.0 OR MIT License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/ahash/0.7.6 0.7.6 Apache-2.0 OR MIT
     https://crates.io/crates/android_system_properties/0.1.5 0.1.5 Apache-2.0 OR MIT
     https://crates.io/crates/anes/0.1.6 0.1.6 Apache-2.0 OR MIT
@@ -446,8 +439,7 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 Apache-2.0 OR MIT OR Zlib licenses
 ========================================================================
 The following components are provided under the Apache-2.0 OR MIT OR Zlib License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/tinyvec/1.6.0 1.6.0 Apache-2.0 OR MIT OR Zlib
     https://crates.io/crates/tinyvec_macros/0.1.1 0.1.1 Apache-2.0 OR MIT OR Zlib
 
@@ -455,24 +447,21 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 Apache-2.0 WITH LLVM-exception licenses
 ========================================================================
 The following components are provided under the Apache-2.0 WITH LLVM-exception License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/target-lexicon/0.12.6 0.12.6 Apache-2.0 WITH LLVM-exception
 
 ========================================================================
 BSD-2-Clause licenses
 ========================================================================
 The following components are provided under the BSD-2-Clause License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/mach/0.3.2 0.3.2 BSD-2-Clause
 
 ========================================================================
 BSD-3-Clause licenses
 ========================================================================
 The following components are provided under the BSD-3-Clause License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/bindgen/0.60.1 0.60.1 BSD-3-Clause
     https://crates.io/crates/bindgen/0.64.0 0.64.0 BSD-3-Clause
     https://crates.io/crates/instant/0.1.12 0.1.12 BSD-3-Clause
@@ -484,8 +473,7 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 ISC licenses
 ========================================================================
 The following components are provided under the ISC License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/libloading/0.7.4 0.7.4 ISC
     https://crates.io/crates/simple_asn1/0.6.2 0.6.2 ISC
     https://crates.io/crates/untrusted/0.7.1 0.7.1 ISC
@@ -496,16 +484,14 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 ISC and OpenSSL and MIT licenses
 ========================================================================
 The following components are provided under the ISC and OpenSSL and MIT License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/ring/0.16.20 0.16.20 ISC and OpenSSL and MIT
 
 ========================================================================
 MIT licenses
 ========================================================================
 The following components are provided under the MIT License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/assert-json-diff/2.0.2 2.0.2 MIT
     https://crates.io/crates/async-stream/0.3.5 0.3.5 MIT
     https://crates.io/crates/async-stream-impl/0.3.5 0.3.5 MIT
@@ -620,8 +606,7 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 MIT OR Unlicense licenses
 ========================================================================
 The following components are provided under the MIT OR Unlicense License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/aho-corasick/0.7.20 0.7.20 MIT OR Unlicense
     https://crates.io/crates/byteorder/1.4.3 1.4.3 MIT OR Unlicense
     https://crates.io/crates/memchr/2.5.0 2.5.0 MIT OR Unlicense
@@ -635,8 +620,7 @@ The text of each license is also included in licenses/LICENSE-[project].txt.
 MPL-2.0 licenses
 ========================================================================
 The following components are provided under the MPL-2.0 License. See project link for details.
-The text of each license is also included in licenses/LICENSE-[project].txt.
-
+    
     https://crates.io/crates/cbindgen/0.24.3 0.24.3 MPL-2.0
     https://crates.io/crates/webpki-roots/0.21.1 0.21.1 MPL-2.0
 

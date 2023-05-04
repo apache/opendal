@@ -20,6 +20,5 @@ set -e
 
 go install github.com/apache/skywalking-eyes/cmd/license-eye@d299844e334855087f18ae1fe3c81ae8d22bc282
 
-rm -r licenses
-license-eye dependency resolve -c .github/licenserc.yaml --summary scripts/NOTICE.tpl -o "licenses"
+license-eye dependency resolve -c .github/licenserc.yaml --summary scripts/NOTICE.tpl
 mv scripts/LICENSE NOTICE

@@ -269,6 +269,7 @@ impl Accessor for WebdavBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 write: true,
                 list: true,
                 copy: true,

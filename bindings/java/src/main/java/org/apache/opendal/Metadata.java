@@ -21,6 +21,7 @@ package org.apache.opendal;
 
 public class Metadata extends OpenDALObject {
     public Metadata(long ptr) {
+        Utils.checkNullPointer(ptr);
         this.ptr = ptr;
     }
 
@@ -34,7 +35,9 @@ public class Metadata extends OpenDALObject {
 
     @Override
     public void close() {
-        freeMetadata(this.ptr);
+        if (this.ptr != 0) {
+            freeMetadata(this.ptr);
+        }
     }
 
     private native void freeMetadata(long statPtr);

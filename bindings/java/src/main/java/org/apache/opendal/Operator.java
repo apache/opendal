@@ -25,46 +25,65 @@ import java.util.concurrent.CompletableFuture;
 
 public class Operator extends OpenDALObject {
     public Operator(String schema, Map<String, String> params) {
-        this.ptr = getOperator(schema, params);
+        Utils.checkNotBlank(schema, "schema");
+        Utils.checkNotNull(params, "params");
+
+        long ptr = getOperator(schema, params);
+        Utils.checkNullPointer(ptr);
+        this.ptr = ptr;
     }
 
-    public void write(String fileName, String content) {
+    public void write(String fileName, byte[] content) {
+        Utils.checkNotBlank(fileName, "fileName");
+        Utils.checkNotNull(content, "content");
+
         write(this.ptr, fileName, content);
     }
 
-    public CompletableFuture<Boolean> writeAsync(String fileName, String content) {
+    public CompletableFuture<Boolean> writeAsync(String fileName, byte[] content) {
+        Utils.checkNotBlank(fileName, "fileName");
+        Utils.checkNotNull(content, "content");
+
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         writeAsync(this.ptr, fileName, content, future);
         return future;
     }
 
-    public String read(String s) {
-        return read(this.ptr, s);
+    public byte[] read(String file) {
+        Utils.checkNotBlank(file, "file");
+
+        return read(this.ptr, file);
     }
 
-    public void delete(String s) {
-        delete(this.ptr, s);
+    public void delete(String file) {
+        Utils.checkNotBlank(file, "file");
+
+        delete(this.ptr, file);
     }
 
-    public Metadata stat(String fileName) {
-        long statPtr = stat(this.ptr, fileName);
-        return new Metadata(statPtr);
+    public Metadata stat(String file) {
+        Utils.checkNotBlank(file, "file");
+
+        long metadataPtr = stat(this.ptr, file);
+        return new Metadata(metadataPtr);
     }
 
     @Override
     public void close() {
-        this.freeOperator(ptr);
+        if (this.ptr != 0) {
+            this.freeOperator(this.ptr);
+        }
     }
 
     private native long getOperator(String type, Map<String, String> params);
 
     protected native void freeOperator(long ptr);
 
-    private native void write(long ptr, String fileName, String content);
+    private native void write(long ptr, String fileName, byte[] content);
 
-    private native void writeAsync(long ptr, String fileName, String content, CompletableFuture<Boolean> future);
+    private native void writeAsync(long ptr, String fileName, byte[] content, CompletableFuture<Boolean> future);
 
-    private native String read(long ptr, String fileName);
+    private native byte[] read(long ptr, String fileName);
 
     private native void delete(long ptr, String fileName);
 

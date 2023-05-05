@@ -41,7 +41,7 @@ public class StepsTest {
 
     @When("Blocking write path {string} with content {string}")
     public void blocking_write_path_test_with_content_hello_world(String fileName, String content) {
-        this.operator.write(fileName, content);
+        this.operator.write(fileName, content.getBytes());
     }
 
     @Then("The blocking file {string} should exist")
@@ -49,7 +49,6 @@ public class StepsTest {
         Metadata metadata = this.operator.stat(fileName);
         assertNotNull(metadata);
     }
-
 
     @Then("The blocking file {string} entry mode must be file")
     public void the_blocking_file_test_entry_mode_must_be_file(String fileName) {
@@ -65,7 +64,7 @@ public class StepsTest {
 
     @Then("The blocking file {string} must have content {string}")
     public void the_blocking_file_test_must_have_content_hello_world(String fileName, String content) {
-        String readContent = this.operator.read(fileName);
+        String readContent = new String(this.operator.read(fileName));
         assertEquals(content, readContent);
     }
 }

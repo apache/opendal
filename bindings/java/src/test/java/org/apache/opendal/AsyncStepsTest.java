@@ -40,7 +40,7 @@ public class AsyncStepsTest {
 
     @When("Async write path {string} with content {string}")
     public void async_write_path_test_with_content_hello_world(String fileName, String content) {
-        CompletableFuture<Boolean> future = operator.writeAsync(fileName, content);
+        CompletableFuture<Boolean> future = operator.writeAsync(fileName, content.getBytes());
         Boolean result = future.join();
         assertTrue(result);
     }

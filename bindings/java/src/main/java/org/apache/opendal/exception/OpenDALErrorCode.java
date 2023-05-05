@@ -21,6 +21,7 @@ package org.apache.opendal.exception;
 
 public enum OpenDALErrorCode {
     UNEXPECTED,
+    JNI,
     UNSUPPORTED,
     CONFIG_INVALID,
     NOT_FOUND,
@@ -38,6 +39,8 @@ public enum OpenDALErrorCode {
         switch (errorCode) {
             case "Unsupported":
                 return UNSUPPORTED;
+            case "JNI":
+                return JNI;
             case "ConfigInvalid":
                 return CONFIG_INVALID;
             case "NotFound":

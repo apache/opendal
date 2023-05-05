@@ -29,6 +29,7 @@ use super::graph_model::ItemType;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
+use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -45,6 +46,7 @@ use crate::raw::AccessorInfo;
 use crate::raw::AsyncBody;
 use crate::raw::HttpClient;
 use crate::raw::IncomingAsyncBody;
+use crate::raw::RpDelete;
 use crate::raw::RpList;
 use crate::raw::RpRead;
 use crate::raw::RpStat;
@@ -100,6 +102,7 @@ impl Accessor for OnedriveBackend {
                 write: true,
                 scan: true,
                 list: true,
+                delete: true,
                 ..Default::default()
             });
 
@@ -181,6 +184,19 @@ impl Accessor for OnedriveBackend {
         meta.set_content_length(decoded_response.size);
 
         Ok(RpStat::new(meta))
+    }
+
+    /// Delete operation
+    /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.onedrive_delete(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn list(&self, path: &str, _op_list: OpList) -> Result<(RpList, Self::Pager)> {
@@ -316,6 +332,24 @@ impl OnedriveBackend {
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let url = format!(
+            "https://graph.microsoft.com/v1.0/me/drive/root:{}",
+            percent_encode_path(path)
+        );
+
+        let mut req = Request::delete(&url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

@@ -29,13 +29,16 @@ use super::graph_model::ItemType;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::raw::build_rooted_abs_path;
+use crate::raw::get_basename;
 use crate::raw::new_json_deserialize_error;
+use crate::raw::new_json_serialize_error;
 use crate::raw::new_request_build_error;
 use crate::raw::parse_datetime_from_rfc3339;
 use crate::raw::parse_into_metadata;
@@ -46,6 +49,7 @@ use crate::raw::AccessorInfo;
 use crate::raw::AsyncBody;
 use crate::raw::HttpClient;
 use crate::raw::IncomingAsyncBody;
+use crate::raw::RpCreate;
 use crate::raw::RpDelete;
 use crate::raw::RpList;
 use crate::raw::RpRead;
@@ -103,6 +107,7 @@ impl Accessor for OnedriveBackend {
                 scan: true,
                 list: true,
                 delete: true,
+                create_dir: true,
                 ..Default::default()
             });
 
@@ -208,6 +213,44 @@ impl Accessor for OnedriveBackend {
         );
 
         Ok((RpList::default(), pager))
+    }
+
+    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let path = build_rooted_abs_path(&self.root, path);
+        let encoded_path = percent_encode_path(&path);
+
+        let uri = format!(
+            "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
+            encoded_path
+        );
+
+        let folder_name = get_basename(&path);
+
+        let body = serde_json::json!({
+            "name": folder_name,
+            "folder": {},
+            "@microsoft.graph.conflictBehavior": "fail"
+        });
+        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+
+        let req = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(
+                header::AUTHORIZATION,
+                format!("Bearer {}", &self.access_token),
+            )
+            .body(AsyncBody::Bytes(body_bytes.into()))
+            .map_err(new_request_build_error)?;
+
+        let resp = self.client.send(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED => Ok(RpCreate::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }
 

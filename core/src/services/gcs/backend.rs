@@ -244,14 +244,17 @@ impl GcsBuilder {
     /// Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
     /// It's recommended that you use at least 8 MiB for the chunk size.
     /// Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
-    pub fn write_fixed_size(&mut self, fixed_buffer_size: usize) -> &mut Self {
+    pub fn write_fixed_size(&mut self, fixed_buffer_size: usize) -> Result<&mut Self> {
         if fixed_buffer_size.checked_rem_euclid(256 * 1024).is_none() {
             self.write_fixed_size = Some(fixed_buffer_size);
         } else {
-            warn!("The buffer sized does not meet requirements of GCS  resumable uploads, use 8 MB as default");
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "The buffer size is misconfigured")
+                    .with_context("service", Scheme::Gcs),
+            );
         }
 
-        self
+        Ok(self)
     }
 }
 

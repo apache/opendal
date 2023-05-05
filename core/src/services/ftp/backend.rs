@@ -318,6 +318,7 @@ impl Accessor for FtpBackend {
             .set_root(&self.root)
             .set_capability(Capability {
                 read: true,
+                read_with_range: true,
                 write: true,
                 list: true,
                 ..Default::default()

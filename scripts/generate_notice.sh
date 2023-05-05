@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,40 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings Java CI
+set -e
 
-on:
-  push:
-    branches:
-      - main
-    tags:
-      - '*'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "bindings/java/**"
-      - ".github/workflows/bindings_java.yml"
-  workflow_dispatch:
+go install github.com/apache/skywalking-eyes/cmd/license-eye@d299844e334855087f18ae1fe3c81ae8d22bc282
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up JDK 11
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-          cache: 'maven'
-      - name: Build with Maven
-        run: mvn test --file ${{ github.workspace }}/bindings/java/pom.xml
-
+license-eye dependency resolve -c .github/licenserc.yaml --summary scripts/NOTICE.tpl
+mv scripts/LICENSE NOTICE

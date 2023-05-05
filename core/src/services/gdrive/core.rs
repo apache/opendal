@@ -21,6 +21,9 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use crate::raw::HttpClient;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Scheme;
 
 use http::{header, Request, Response};
 use serde::Deserialize;
@@ -35,7 +38,7 @@ pub struct GdriveCore {
     pub root: String,
     pub access_token: String,
     pub client: HttpClient,
-    pub path_2_id: Arc<Mutex<HashMap<String, String>>>,
+    pub path_cache: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl Debug for GdriveCore {
@@ -47,14 +50,11 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
-    async fn get_abs_root_id(&self) -> String {
+    async fn get_abs_root_id(&self) -> Result<String> {
         let root = "root";
 
-        {
-            let cache_guard = self.path_2_id.lock().await;
-            if cache_guard.contains_key(root) {
-                return cache_guard.get(root).unwrap().to_string();
-            }
+        if let Some(root_id) = self.path_cache.lock().await.get(root) {
+            return Ok(root_id.to_string());
         }
 
         let mut req = Request::get("https://www.googleapis.com/drive/v3/files/root");
@@ -62,34 +62,40 @@ impl GdriveCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)
-            .unwrap();
+            .map_err(new_request_build_error)?;
 
-        let resp = self.client.send(req).await.unwrap();
+        let resp = self.client.send(req).await?;
+        let resp_body = &resp.into_body().bytes().await.map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "read respone body error")
+                .with_context("service", Scheme::Gdrive)
+                .set_source(e)
+        })?;
 
-        let body_value: GdriveFile =
-            serde_json::from_slice(&resp.into_body().bytes().await.unwrap()).unwrap();
-        let root_id = String::from(body_value.id.as_str());
+        let gdrive_file: GdriveFile = serde_json::from_slice(resp_body).map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "deserialize json error")
+                .with_context("service", Scheme::Gdrive)
+                .with_context("origin json vaule", String::from_utf8_lossy(resp_body))
+                .set_source(e)
+        })?;
 
-        let mut cache_guard = self.path_2_id.lock().await;
+        let root_id = gdrive_file.id;
+
+        let mut cache_guard = self.path_cache.lock().await;
         cache_guard.insert(root.to_owned(), root_id.clone());
 
-        root_id
+        Ok(root_id)
     }
 
-    async fn get_file_id_by_path(&self, file_path: &str) -> String {
+    async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, file_path);
 
-        {
-            let cache_guard = self.path_2_id.lock().await;
-            if cache_guard.contains_key(&path) {
-                return cache_guard.get(&path).unwrap().to_string();
-            }
+        if let Some(file_id) = self.path_cache.lock().await.get(&path) {
+            return Ok(file_id.to_string());
         }
 
         let auth_header_content = format!("Bearer {}", self.access_token);
 
-        let mut parent_id = self.get_abs_root_id().await;
+        let mut parent_id = self.get_abs_root_id().await?;
         let file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
 
         for (i, item) in file_path_items.iter().enumerate() {
@@ -109,26 +115,40 @@ impl GdriveCore {
             req = req.header(header::AUTHORIZATION, &auth_header_content);
             let req = req
                 .body(AsyncBody::default())
-                .map_err(new_request_build_error)
-                .unwrap();
+                .map_err(new_request_build_error)?;
 
-            let resp = self.client.send(req).await.unwrap();
+            let resp = self.client.send(req).await?;
+            let resp_body = &resp.into_body().bytes().await.map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "read respone body error")
+                    .with_context("service", Scheme::Gdrive)
+                    .set_source(e)
+            })?;
 
-            let body_value: GdriveFileList =
-                serde_json::from_slice(&resp.into_body().bytes().await.unwrap()).unwrap();
-            parent_id = String::from(body_value.files[0].id.as_str());
+            let gdrive_file_list: GdriveFileList =
+                serde_json::from_slice(resp_body).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "deserialize json error")
+                        .with_context("service", Scheme::Gdrive)
+                        .with_context("origin json vaule", String::from_utf8_lossy(resp_body))
+                        .set_source(e)
+                })?;
+
+            if gdrive_file_list.files.len() != 1 {
+                return Err(Error::new(ErrorKind::Unexpected, &format!("Please ensure that the file corresponding to the path exists and is unique. The response body is {}", String::from_utf8_lossy(resp_body))));
+            }
+
+            parent_id = gdrive_file_list.files[0].id.clone();
         }
 
-        let mut cache_guard = self.path_2_id.lock().await;
+        let mut cache_guard = self.path_cache.lock().await;
         cache_guard.insert(path, parent_id.clone());
 
-        parent_id
+        Ok(parent_id)
     }
 
     pub async fn gdrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url: String = format!(
             "https://www.googleapis.com/drive/v3/files/{}?alt=media",
-            self.get_file_id_by_path(path).await
+            self.get_file_id_by_path(path).await?
         );
 
         let auth_header_content = format!("Bearer {}", self.access_token);
@@ -151,7 +171,7 @@ impl GdriveCore {
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
             "https://www.googleapis.com/upload/drive/v3/files/{}",
-            self.get_file_id_by_path(path).await
+            self.get_file_id_by_path(path).await?
         );
 
         let mut req = Request::patch(&url);
@@ -175,7 +195,7 @@ impl GdriveCore {
     pub async fn gdrive_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
             "https://www.googleapis.com/drive/v3/files/{}",
-            self.get_file_id_by_path(path).await
+            self.get_file_id_by_path(path).await?
         );
 
         let mut req = Request::delete(&url);
@@ -191,11 +211,13 @@ impl GdriveCore {
     }
 }
 
+// refer to https://developers.google.com/drive/api/reference/rest/v3/files#File
 #[derive(Deserialize)]
 struct GdriveFile {
     id: String,
 }
 
+// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
 #[derive(Deserialize)]
 struct GdriveFileList {
     files: Vec<GdriveFile>,

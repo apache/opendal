@@ -45,7 +45,7 @@ impl GdriveBackend {
                 root,
                 access_token,
                 client: http_client,
-                path_2_id: Arc::new(Mutex::new(HashMap::new())),
+                path_cache: Arc::default(),
             }),
         }
     }

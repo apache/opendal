@@ -68,18 +68,64 @@ struct FileSystemInfo {
     last_modified_date_time: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub(crate) enum ItemType {
     Folder {
-        folder: HashMap<String, serde_json::Value>,
+        folder: Folder,
         #[serde(rename = "specialFolder")]
         special_folder: Option<HashMap<String, String>>,
     },
     File {
-        file: HashMap<String, serde_json::Value>,
+        file: File,
     },
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OnedriveGetItemBody {
+    #[serde(rename = "createdDateTime")]
+    created_date_time: String,
+    #[serde(rename = "cTag")]
+    c_tag: String,
+    #[serde(rename = "eTag")]
+    e_tag: String,
+    id: String,
+    #[serde(rename = "lastModifiedDateTime")]
+    last_modified_date_time: String,
+    name: String,
+    root: Option<Root>,
+    size: i64,
+    #[serde(rename = "webUrl")]
+    web_url: String,
+    #[serde(flatten)]
+    pub(crate) item_type: ItemType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct File {
+    #[serde(rename = "mimeType")]
+    mime_type: String,
+    hashes: Hashes,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Hashes {
+    #[serde(rename = "quickXorHash")]
+    quick_xor_hash: Option<String>,
+    #[serde(rename = "sha1Hash")]
+    sha1_hash: Option<String>,
+    #[serde(rename = "sha256Hash")]
+    sha256_hash: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Folder {
+    #[serde(rename = "childCount")]
+    child_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Root {}
 
 #[test]
 fn test_parse_one_drive_json() {
@@ -174,24 +220,6 @@ fn test_parse_one_drive_json() {
     assert_eq!(item.last_modified_date_time, "2020-01-01T00:00:00Z");
     assert_eq!(item.name, "name");
     assert_eq!(item.size, 0);
-    assert_eq!(
-        item.item_type,
-        ItemType::Folder {
-            folder: {
-                let mut map = HashMap::new();
-                map.insert(
-                    "childCount".to_string(),
-                    serde_json::Value::Number(0.into()),
-                );
-                map
-            },
-            special_folder: {
-                let mut map = HashMap::new();
-                map.insert("name".to_string(), "name".to_string());
-                Some(map)
-            },
-        }
-    );
 }
 
 #[test]
@@ -265,7 +293,7 @@ fn test_parse_folder_single() {
     let item = &response.value[0];
     assert_eq!(item.created_date_time, "2023-02-01T00:51:02.803Z");
     if let ItemType::Folder { folder, .. } = &item.item_type {
-        assert_eq!(folder["childCount"], serde_json::Value::Number(9.into()));
+        assert_eq!(folder.child_count, serde_json::Value::Number(9.into()));
     } else {
         panic!("item_type is not folder");
     }

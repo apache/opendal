@@ -20,23 +20,18 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use std::task::Poll;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::Future;
 use futures::StreamExt;
 use log::debug;
-use openssh::ChildStdin;
-use openssh::ChildStdout;
 use openssh::KnownHosts;
-use openssh::RemoteChild;
-use openssh::Session;
 use openssh::SessionBuilder;
 use openssh::Stdio;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpAuxiliaryData;
-use tokio::sync::oneshot;
-use tokio::sync::OwnedSemaphorePermit;
-use tokio::sync::Semaphore;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
@@ -67,7 +62,6 @@ use crate::*;
 /// - `user`: Set the login user
 /// - `key`: Set the public key for login
 /// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
-/// - `max_connections`: Set the max connection for backend, default to `10`
 ///
 /// It doesn't support password login, you can use public key instead.
 ///
@@ -103,7 +97,6 @@ pub struct SftpBuilder {
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: Option<String>,
-    max_connections: Option<usize>,
 }
 
 impl Debug for SftpBuilder {
@@ -174,14 +167,6 @@ impl SftpBuilder {
 
         self
     }
-
-    /// set max connections for sftp backend.
-    /// default to 10
-    pub fn max_connections(&mut self, max_connections: usize) -> &mut Self {
-        self.max_connections = Some(max_connections);
-
-        self
-    }
 }
 
 impl Builder for SftpBuilder {
@@ -233,7 +218,7 @@ impl Builder for SftpBuilder {
             user,
             key: self.key.clone(),
             known_hosts_strategy,
-            cnt: Arc::new(Semaphore::new(self.max_connections.unwrap_or(10))),
+            client: tokio::sync::OnceCell::new(),
         })
     }
 
@@ -246,16 +231,9 @@ impl Builder for SftpBuilder {
         map.get("key").map(|v| builder.key(v));
         map.get("known_hosts_strategy")
             .map(|v| builder.known_hosts_strategy(v));
-        map.get("max_connections")
-            .map(|v| builder.max_connections(v.parse::<usize>().unwrap_or(10)));
 
         builder
     }
-}
-
-pub struct Connection {
-    pub sftp: Sftp,
-    _permit: OwnedSemaphorePermit,
 }
 
 /// Backend is used to serve `Accessor` support for sftp.
@@ -265,7 +243,7 @@ pub struct SftpBackend {
     user: String,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
-    cnt: Arc<Semaphore>,
+    client: tokio::sync::OnceCell<Sftp>,
 }
 
 impl Debug for SftpBackend {
@@ -302,7 +280,7 @@ impl Accessor for SftpBackend {
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let client = self.connect().await?;
-        let mut fs = client.sftp.fs();
+        let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
@@ -330,11 +308,11 @@ impl Accessor for SftpBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let client = self.connect().await?;
 
-        let mut fs = client.sftp.fs();
+        let mut fs = client.fs();
         fs.set_cwd(&self.root);
         let path = fs.canonicalize(path).await?;
 
-        let mut file = client.sftp.open(path.as_path()).await?;
+        let mut file = client.open(path.as_path()).await?;
 
         let total_length = file.metadata().await?.len().ok_or(Error::new(
             ErrorKind::NotFound,
@@ -360,7 +338,7 @@ impl Accessor for SftpBackend {
             (None, None) => (0, total_length),
         };
 
-        let r = SftpReader::new(client, file, start, end).await?;
+        let r = SftpReader::new(file, start, end).await?;
 
         Ok((RpRead::new(end - start), r))
     }
@@ -379,18 +357,18 @@ impl Accessor for SftpBackend {
 
         let client = self.connect().await?;
 
-        let mut fs = client.sftp.fs();
+        let mut fs = client.fs();
         fs.set_cwd(&self.root);
         let path = fs.canonicalize(path).await?;
 
-        let file = client.sftp.create(&path).await?;
+        let file = client.create(&path).await?;
 
-        Ok((RpWrite::new(), SftpWriter::new(client, file)))
+        Ok((RpWrite::new(), SftpWriter::new(file)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let client = self.connect().await?;
-        let mut fs = client.sftp.fs();
+        let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
         let meta = fs.metadata(path).await?;
@@ -401,7 +379,7 @@ impl Accessor for SftpBackend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let client = self.connect().await?;
 
-        let mut fs = client.sftp.fs();
+        let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
         if path.ends_with('/') {
@@ -449,7 +427,7 @@ impl Accessor for SftpBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let client = self.connect().await?;
-        let mut fs = client.sftp.fs();
+        let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
         let file_path = format!("./{}", path);
@@ -468,107 +446,128 @@ impl Accessor for SftpBackend {
 
         Ok((
             RpList::default(),
-            SftpPager::new(client, dir, path.to_owned(), args.limit()),
+            SftpPager::new(dir, path.to_owned(), args.limit()),
         ))
     }
 }
 
 impl SftpBackend {
-    async fn connect(&self) -> std::result::Result<Connection, Error> {
-        let mut session = SessionBuilder::default();
+    async fn connect(&self) -> Result<&Sftp> {
+        let sftp = self
+            .client
+            .get_or_try_init(|| {
+                connect_sftp(
+                    self.endpoint.clone(),
+                    self.root.clone(),
+                    self.user.clone(),
+                    self.key.clone(),
+                    self.known_hosts_strategy.clone(),
+                )
+            })
+            .await?;
 
-        session.user(self.user.clone());
+        Ok(sftp)
+    }
+}
 
-        if let Some(key) = &self.key {
-            session.keyfile(key);
-        }
+async fn connect_sftp(
+    endpoint: String,
+    root: String,
+    user: String,
+    key: Option<String>,
+    known_hosts_strategy: KnownHosts,
+) -> Result<Sftp> {
+    let mut session = SessionBuilder::default();
 
-        // set control directory to avoid temp files in root directory when panic
-        session.control_directory("/tmp");
-        session.server_alive_interval(Duration::from_secs(5));
-        session.known_hosts_check(self.known_hosts_strategy.clone());
+    session.user(user.clone());
 
-        // when connection > 10, it will wait others to finish
-        let permit = self.cnt.clone().acquire_owned().await.map_err(|_| {
-            Error::new(ErrorKind::Unexpected, "failed to acquire connection permit")
-        })?;
+    if let Some(key) = &key {
+        session.keyfile(key);
+    }
 
-        let session = session.connect(&self.endpoint).await?;
+    // set control directory to avoid temp files in root directory when panic
+    session.control_directory("/tmp");
+    session.server_alive_interval(Duration::from_secs(5));
+    session.known_hosts_check(known_hosts_strategy.clone());
 
-        let (tx, rx) = oneshot::channel();
+    let session = session.connect(&endpoint).await?;
 
-        let mut future = Box::pin(async move {
-            let (_child, stdin, stdout) = spawn_child(&session).await?;
-            tx.send((stdin, stdout)).ok();
-            // Wait forever until being dropped
-            std::future::pending::<Result<()>>().await
-        });
+    let mut stdio = Arc::new(once_cell::sync::OnceCell::new());
+    let stdio_cloned = Arc::clone(&stdio);
+    let mut future = Box::pin(async move {
+        let res = session
+            .subsystem("sftp")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .await;
 
-        let (stdin, stdout) = tokio::select! {
-            // Always poll future first to simplify branches
-            biased;
-
-            // future would only return on error
-            res = future.as_mut() => return Err(res.unwrap_err().into()),
-            res = rx => res.map_err(|_| Error::new(ErrorKind::Unexpected, "failed to receive stdin/stdout"))?,
+        let mut child = match res {
+            Ok(child) => child,
+            Err(err) => {
+                stdio_cloned.set(Err(err)).unwrap(); // Err
+                drop(stdio_cloned);
+                return;
+            }
         };
 
-        let sftp = Sftp::new_with_auxiliary(
-            stdin,
-            stdout,
-            Default::default(),
-            SftpAuxiliaryData::Boxed(Box::new(future)),
-        )
-        .await?;
+        let stdin = child.stdin().take().unwrap();
+        let stdout = child.stdout().take().unwrap();
+        stdio_cloned.set(Ok((stdin, stdout))).unwrap();
+        drop(stdio_cloned);
 
-        let mut fs = sftp.fs();
-        fs.set_cwd("/");
+        // Wait forever until being dropped
+        std::future::pending::<()>().await;
 
-        let paths: Vec<&str> = self.root.split_inclusive('/').skip(1).collect();
-        let mut current = "/".to_owned();
-        for p in paths {
-            if p.is_empty() {
-                continue;
-            }
+        debug!("sftp child process exited");
 
-            current.push_str(p);
-            let res = fs.create_dir(p).await;
+        // Use child, session after await to keep them alive
+        drop(child);
+        drop(session);
+    });
 
-            if let Err(e) = res {
-                // ignore error if dir already exists
-                if !is_sftp_protocol_error(&e) {
-                    return Err(e.into());
-                }
-            }
-            fs.set_cwd(&current);
+    let (stdin, stdout) = std::future::poll_fn(|cx| {
+        let _ = future.as_mut().poll(cx);
+        if let Some(once_cell) = Arc::get_mut(&mut stdio) {
+            // future must have set some value before dropping stdio_cloned
+            return Poll::Ready(once_cell.take().unwrap());
+        }
+        Poll::Pending
+    })
+    .await?;
+
+    let sftp = Sftp::new_with_auxiliary(
+        stdin,
+        stdout,
+        Default::default(),
+        SftpAuxiliaryData::PinnedFuture(future),
+    )
+    .await?;
+
+    let mut fs = sftp.fs();
+    fs.set_cwd("/");
+
+    let paths: Vec<&str> = root.split_inclusive('/').skip(1).collect();
+    let mut current = "/".to_owned();
+    for p in paths {
+        if p.is_empty() {
+            continue;
         }
 
-        debug!("sftp connection created at {}", self.root);
+        current.push_str(p);
+        let res = fs.create_dir(p).await;
 
-        Ok(Connection {
-            sftp,
-            _permit: permit,
-        })
+        if let Err(e) = res {
+            // ignore error if dir already exists
+            if !is_sftp_protocol_error(&e) {
+                return Err(e.into());
+            }
+        }
+        fs.set_cwd(&current);
     }
-}
 
-async fn spawn_child(
-    session: &Session,
-) -> std::result::Result<(RemoteChild, ChildStdin, ChildStdout), openssh::Error> {
-    let mut child = session
-        .subsystem("sftp")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .await?;
-    let stdin = child.stdin().take().unwrap();
-    let stdout = child.stdout().take().unwrap();
-    Ok((child, stdin, stdout))
-}
+    debug!("sftp connection created at {}", root);
 
-impl Drop for Connection {
-    fn drop(&mut self) {
-        debug!("sftp connection dropped");
-    }
+    Ok(sftp)
 }

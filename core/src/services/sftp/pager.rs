@@ -25,8 +25,6 @@ use openssh_sftp_client::fs::ReadDir;
 use crate::raw::oio;
 use crate::Result;
 
-use super::backend::Connection;
-
 pub enum SftpPager {
     Empty,
     Inner(SftpPagerInner),
@@ -36,11 +34,10 @@ pub struct SftpPagerInner {
     dir: Pin<Box<ReadDir>>,
     prefix: String,
     limit: usize,
-    _conn: Connection,
 }
 
 impl SftpPager {
-    pub fn new(conn: Connection, dir: ReadDir, path: String, limit: Option<usize>) -> Self {
+    pub fn new(dir: ReadDir, path: String, limit: Option<usize>) -> Self {
         let prefix = if path == "/" { "".to_owned() } else { path };
 
         let limit = limit.unwrap_or(usize::MAX);
@@ -49,7 +46,6 @@ impl SftpPager {
             dir: Box::pin(dir),
             prefix,
             limit,
-            _conn: conn,
         })
     }
 

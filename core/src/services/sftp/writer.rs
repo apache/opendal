@@ -25,17 +25,13 @@ use tokio::time::sleep;
 use crate::raw::oio;
 use crate::{Error, ErrorKind, Result};
 
-use super::backend::Connection;
-
 pub struct SftpWriter {
     file: File,
-    // avoid dropping the connection before writing
-    _conn: Connection,
 }
 
 impl SftpWriter {
-    pub fn new(conn: Connection, file: File) -> Self {
-        SftpWriter { file, _conn: conn }
+    pub fn new(file: File) -> Self {
+        SftpWriter { file }
     }
 }
 

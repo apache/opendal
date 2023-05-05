@@ -123,7 +123,7 @@ pub struct OssBuilder {
     access_key_secret: Option<String>,
 
     http_client: Option<HttpClient>,
-    /// the size of each part, and the range is 100 KB ~ 5 GB.
+    /// the size of each part, and the range is 5MB ~ 5 GB.
     write_min_size: Option<usize>,
 }
 

@@ -137,4 +137,5 @@ behavior_tests!(Sled);
 behavior_tests!(Webdav);
 #[cfg(feature = "services-webhdfs")]
 behavior_tests!(Webhdfs);
-cfg_if::cfg_if! { if #[cfg(feature = "services-onedrive")] { behavior_tests!(Onedrive); }}
+#[cfg(feature = "services-onedrive")]
+behavior_tests!(Onedrive);

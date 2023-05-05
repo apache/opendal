@@ -225,6 +225,7 @@ impl Accessor for OnedriveBackend {
         );
 
         let folder_name = get_basename(&path);
+        let folder_name = folder_name.strip_suffix('/').unwrap_or(folder_name);
 
         let body = serde_json::json!({
             "name": folder_name,

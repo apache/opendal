@@ -66,7 +66,7 @@ impl GdriveCore {
 
         let resp = self.client.send(req).await?;
         let resp_body = &resp.into_body().bytes().await.map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "read respone body error")
+            Error::new(ErrorKind::Unexpected, "read response body error")
                 .with_context("service", Scheme::Gdrive)
                 .set_source(e)
         })?;
@@ -74,7 +74,7 @@ impl GdriveCore {
         let gdrive_file: GdriveFile = serde_json::from_slice(resp_body).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "deserialize json error")
                 .with_context("service", Scheme::Gdrive)
-                .with_context("origin json vaule", String::from_utf8_lossy(resp_body))
+                .with_context("origin json value", String::from_utf8_lossy(resp_body))
                 .set_source(e)
         })?;
 
@@ -119,7 +119,7 @@ impl GdriveCore {
 
             let resp = self.client.send(req).await?;
             let resp_body = &resp.into_body().bytes().await.map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "read respone body error")
+                Error::new(ErrorKind::Unexpected, "read response body error")
                     .with_context("service", Scheme::Gdrive)
                     .set_source(e)
             })?;
@@ -128,7 +128,7 @@ impl GdriveCore {
                 serde_json::from_slice(resp_body).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "deserialize json error")
                         .with_context("service", Scheme::Gdrive)
-                        .with_context("origin json vaule", String::from_utf8_lossy(resp_body))
+                        .with_context("origin json value", String::from_utf8_lossy(resp_body))
                         .set_source(e)
                 })?;
 

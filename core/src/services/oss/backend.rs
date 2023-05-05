@@ -25,7 +25,7 @@ use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
-use log::debug;
+use log::{debug, warn};
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
@@ -123,6 +123,7 @@ pub struct OssBuilder {
     access_key_secret: Option<String>,
 
     http_client: Option<HttpClient>,
+    /// the size of each part, and the range is 100 KB ~ 5 GB.
     write_buffer_size: Option<usize>,
 }
 
@@ -294,10 +295,15 @@ impl OssBuilder {
         self
     }
 
-    /// set the buffer size of unsized write.
-    pub fn write_buffer_size(&mut self, buffer_size: &str) -> &mut Self {
-        let buffer_size = buffer_size.parse::<usize>().unwrap();
-        self.write_buffer_size = Some(buffer_size);
+    /// set the minimum value of unsized write, valid values: 100 KB to 5 GB
+    /// Reference: [OSS Multipart upload](https://www.alibabacloud.com/help/en/object-storage-service/latest/multipart-upload-6)
+    pub fn write_buffer_size(&mut self, write_buffer_size: &str) -> &mut Self {
+        let write_buffer_size = write_buffer_size.parse::<usize>().unwrap();
+        if write_buffer_size > 100 * 1024 && write_buffer_size < 5 * 1024 * 1024 * 1024 {
+            self.write_buffer_size = Some(write_buffer_size);
+        } else {
+            warn!("The buffer sized does not meet requirements of OSS multipart upload, use 8 MB as default");
+        }
         self
     }
 }
@@ -500,7 +506,7 @@ impl Accessor for OssBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            OssWriter::new(self.core.clone(), path, args, self.core.writer_buffer_size),
+            OssWriter::new(self.core.clone(), path, args),
         ))
     }
 

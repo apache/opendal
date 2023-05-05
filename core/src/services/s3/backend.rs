@@ -26,7 +26,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
 use http::StatusCode;
-use log::debug;
+use log::{debug, warn};
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
@@ -305,6 +305,8 @@ pub struct S3Builder {
     http_client: Option<HttpClient>,
     customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
 
+    /// the part size of s3 multipart upload, which shoule be 5 MiB to 5 GiB.
+    /// There is no minimum size limit on the last part of your multipart upload
     write_buffer_size: Option<usize>,
 }
 
@@ -707,10 +709,16 @@ impl S3Builder {
         endpoint
     }
 
-    /// set the buffer size of unsized write.
-    pub fn write_buffer_size(&mut self, buffer_size: &str) -> &mut Self {
-        let buffer_size = buffer_size.parse::<usize>().unwrap();
-        self.write_buffer_size = Some(buffer_size);
+    /// set the buffer size of unsized write, valid values: 5 MB to 5 GB.
+    /// Reference: [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+    pub fn write_buffer_size(&mut self, write_buffer_size: &str) -> &mut Self {
+        let write_buffer_size = write_buffer_size.parse::<usize>().unwrap();
+        if write_buffer_size > 5 * 1024 * 1024 && write_buffer_size < 5 * 1024 * 1024 * 1024 {
+            self.write_buffer_size = Some(write_buffer_size);
+        } else {
+            warn!("The buffer sized does not meet requirements of AWS multipart upload, use 8 MB as default");
+        }
+
         self
     }
 }
@@ -998,7 +1006,7 @@ impl Accessor for S3Backend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            S3Writer::new(self.core.clone(), path, args, self.core.write_buffer_size),
+            S3Writer::new(self.core.clone(), path, args),
         ))
     }
 

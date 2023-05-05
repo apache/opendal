@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use http::StatusCode;
-use log::debug;
+use log::{debug, warn};
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
@@ -119,7 +119,9 @@ pub struct GcsBuilder {
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
     predefined_acl: Option<String>,
     default_storage_class: Option<String>,
-    write_buffer_size: Option<usize>,
+
+    /// the fixed size writer uses to flush into underlying storage.
+    write_fixed_size: Option<usize>,
 }
 
 impl GcsBuilder {
@@ -238,10 +240,17 @@ impl GcsBuilder {
         self
     }
 
-    /// set the buffer size of unsized write.
-    pub fn write_buffer_size(&mut self, buffer_size: &str) -> &mut Self {
-        let buffer_size = buffer_size.parse::<usize>().unwrap();
-        self.write_buffer_size = Some(buffer_size);
+    /// The buffer size should be a multiple of 256 KiB (256 x 1024 bytes), unless it's the last chunk that completes the upload.
+    /// Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
+    /// It's recommended that you use at least 8 MiB for the chunk size.
+    /// Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
+    pub fn write_fixed_size(&mut self, fixed_buffer_size: usize) -> &mut Self {
+        if fixed_buffer_size.checked_rem_euclid(256 * 1024).is_none() {
+            self.write_fixed_size = Some(fixed_buffer_size);
+        } else {
+            warn!("The buffer sized does not meet requirements of GCS  resumable uploads, use 8 MB as default");
+        }
+
         self
     }
 }
@@ -354,7 +363,7 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.predefined_acl.clone(),
                 default_storage_class: self.default_storage_class.clone(),
-                writer_buffer_size: self.write_buffer_size,
+                writer_fixed_size: self.write_fixed_size,
             }),
         };
 
@@ -439,7 +448,7 @@ impl Accessor for GcsBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            GcsWriter::new(self.core.clone(), path, args, self.core.writer_buffer_size),
+            GcsWriter::new(self.core.clone(), path, args),
         ))
     }
 

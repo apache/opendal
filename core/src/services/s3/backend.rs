@@ -26,7 +26,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
 use http::StatusCode;
-use log::{debug, warn};
+use log::debug;
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
@@ -307,7 +307,7 @@ pub struct S3Builder {
 
     /// the part size of s3 multipart upload, which shoule be 5 MiB to 5 GiB.
     /// There is no minimum size limit on the last part of your multipart upload
-    write_buffer_size: Option<usize>,
+    write_min_size: Option<usize>,
 }
 
 impl Debug for S3Builder {
@@ -709,17 +709,19 @@ impl S3Builder {
         endpoint
     }
 
-    /// set the buffer size of unsized write, valid values: 5 MB to 5 GB.
+    /// set the minimum size of unsized write, it should be greater than 5 MB.
     /// Reference: [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
-    pub fn write_buffer_size(&mut self, write_buffer_size: &str) -> &mut Self {
-        let write_buffer_size = write_buffer_size.parse::<usize>().unwrap();
-        if write_buffer_size > 5 * 1024 * 1024 && write_buffer_size < 5 * 1024 * 1024 * 1024 {
-            self.write_buffer_size = Some(write_buffer_size);
+    pub fn write_min_size(&mut self, write_min_size: usize) -> Result<&mut Self> {
+        if write_min_size > 5 * 1024 * 1024 {
+            self.write_min_size = Some(write_min_size);
         } else {
-            warn!("The buffer sized does not meet requirements of AWS multipart upload, use 8 MB as default");
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "The buffer size is misconfigured")
+                    .with_context("service", Scheme::S3),
+            );
         }
 
-        self
+        Ok(self)
     }
 }
 
@@ -888,7 +890,7 @@ impl Builder for S3Builder {
         }
 
         let signer = AwsV4Signer::new("s3", &region);
-        let write_buffer_size = self.write_buffer_size;
+        let write_min_size = self.write_min_size;
         debug!("backend build finished");
         Ok(S3Backend {
             core: Arc::new(S3Core {
@@ -904,7 +906,7 @@ impl Builder for S3Builder {
                 signer,
                 loader,
                 client,
-                write_buffer_size,
+                write_min_size,
             }),
         })
     }

@@ -27,6 +27,8 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
+/// It's recommended that you use at least 8 MiB for the chunk size.
+const DEFAULT_GCS_MINIMUM_PART_SIZE: usize = 8 * 1024 * 1024;
 pub struct GcsWriter {
     core: Arc<GcsCore>,
     path: String,
@@ -40,7 +42,9 @@ pub struct GcsWriter {
 
 impl GcsWriter {
     pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
-        let writer_fixed_size = core.writer_fixed_size.unwrap_or(8 * 1024 * 1024);
+        let writer_fixed_size = core
+            .writer_fixed_size
+            .unwrap_or(DEFAULT_GCS_MINIMUM_PART_SIZE);
         GcsWriter {
             core,
             path: path.to_string(),

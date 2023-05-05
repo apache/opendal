@@ -25,7 +25,7 @@ use async_trait::async_trait;
 use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
-use log::{debug, warn};
+use log::debug;
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
@@ -124,7 +124,7 @@ pub struct OssBuilder {
 
     http_client: Option<HttpClient>,
     /// the size of each part, and the range is 100 KB ~ 5 GB.
-    write_buffer_size: Option<usize>,
+    write_min_size: Option<usize>,
 }
 
 impl Debug for OssBuilder {
@@ -295,16 +295,18 @@ impl OssBuilder {
         self
     }
 
-    /// set the minimum value of unsized write, valid values: 100 KB to 5 GB
+    /// set the minimum size of unsized write, it should be greater than 5 MB.
     /// Reference: [OSS Multipart upload](https://www.alibabacloud.com/help/en/object-storage-service/latest/multipart-upload-6)
-    pub fn write_buffer_size(&mut self, write_buffer_size: &str) -> &mut Self {
-        let write_buffer_size = write_buffer_size.parse::<usize>().unwrap();
-        if write_buffer_size > 100 * 1024 && write_buffer_size < 5 * 1024 * 1024 * 1024 {
-            self.write_buffer_size = Some(write_buffer_size);
+    pub fn write_min_size(&mut self, write_min_size: usize) -> Result<&mut Self> {
+        if write_min_size > 5 * 1024 * 1024 {
+            self.write_min_size = Some(write_min_size);
         } else {
-            warn!("The buffer sized does not meet requirements of OSS multipart upload, use 8 MB as default");
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "The buffer size is misconfigured")
+                    .with_context("service", Scheme::Oss),
+            );
         }
-        self
+        Ok(self)
     }
 }
 
@@ -327,8 +329,8 @@ impl Builder for OssBuilder {
             .map(|v| builder.server_side_encryption(v));
         map.get("server_side_encryption_key_id")
             .map(|v| builder.server_side_encryption_key_id(v));
-        map.get("write_buffer_size")
-            .map(|v| builder.write_buffer_size(v));
+        map.get("write_min_size")
+            .map(|v| builder.write_min_size(v.parse::<usize>().unwrap()));
         builder
     }
 
@@ -414,7 +416,7 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
-                writer_buffer_size: self.write_buffer_size,
+                write_min_size: self.write_min_size,
             }),
         })
     }

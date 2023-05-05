@@ -65,7 +65,7 @@ pub struct OssCore {
     pub client: HttpClient,
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
-    pub writer_buffer_size: Option<usize>,
+    pub write_min_size: Option<usize>,
 }
 
 impl Debug for OssCore {

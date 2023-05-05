@@ -108,6 +108,7 @@ impl Accessor for OnedriveBackend {
                 list: true,
                 delete: true,
                 create_dir: true,
+                read_with_range: false,
                 ..Default::default()
             });
 

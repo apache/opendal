@@ -23,16 +23,18 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use futures::executor::block_on;
 use futures::StreamExt;
 use log::debug;
+use openssh::ChildStdin;
+use openssh::ChildStdout;
 use openssh::KnownHosts;
 use openssh::RemoteChild;
 use openssh::Session;
 use openssh::SessionBuilder;
 use openssh::Stdio;
 use openssh_sftp_client::Sftp;
-use owning_ref::OwningHandle;
+use openssh_sftp_client::SftpAuxiliaryData;
+use tokio::sync::oneshot;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
@@ -252,11 +254,6 @@ impl Builder for SftpBuilder {
 }
 
 pub struct Connection {
-    // the remote child owns the ref to session, so we need to use owning handle
-    // The session will only create one child, so we can make sure the child can live
-    // as long as the session. (the session will be dropped when the connection is dropped)
-    // Related: https://stackoverflow.com/a/47260399
-    _child: OwningHandle<Box<Session>, Box<RemoteChild<'static>>>,
     pub sftp: Sftp,
     _permit: OwnedSemaphorePermit,
 }
@@ -498,25 +495,29 @@ impl SftpBackend {
 
         let session = session.connect(&self.endpoint).await?;
 
-        let sess = Box::new(session);
-        let mut oref = OwningHandle::new_with_fn(sess, unsafe {
-            |x| {
-                Box::new(
-                    block_on(
-                        (*x).subsystem("sftp")
-                            .stdin(Stdio::piped())
-                            .stdout(Stdio::piped())
-                            .spawn(),
-                    )
-                    .unwrap(),
-                )
-            }
+        let (tx, rx) = oneshot::channel();
+
+        let mut future = Box::pin(async move {
+            let (_child, stdin, stdout) = spawn_child(&session).await?;
+            tx.send((stdin, stdout)).ok();
+            // Wait forever until being dropped
+            std::future::pending::<Result<()>>().await
         });
 
-        let sftp = Sftp::new(
-            oref.stdin().take().unwrap(),
-            oref.stdout().take().unwrap(),
+        let (stdin, stdout) = tokio::select! {
+            // Always poll future first to simplify branches
+            biased;
+
+            // future would only return on error
+            res = future.as_mut() => return Err(res.unwrap_err().into()),
+            res = rx => res.map_err(|_| Error::new(ErrorKind::Unexpected, "failed to receive stdin/stdout"))?,
+        };
+
+        let sftp = Sftp::new_with_auxiliary(
+            stdin,
+            stdout,
             Default::default(),
+            SftpAuxiliaryData::Boxed(Box::new(future)),
         )
         .await?;
 
@@ -545,11 +546,25 @@ impl SftpBackend {
         debug!("sftp connection created at {}", self.root);
 
         Ok(Connection {
-            _child: oref,
             sftp,
             _permit: permit,
         })
     }
+}
+
+async fn spawn_child(
+    session: &Session,
+) -> std::result::Result<(RemoteChild, ChildStdin, ChildStdout), openssh::Error> {
+    let mut child = session
+        .subsystem("sftp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .await?;
+    let stdin = child.stdin().take().unwrap();
+    let stdout = child.stdout().take().unwrap();
+    Ok((child, stdin, stdout))
 }
 
 impl Drop for Connection {

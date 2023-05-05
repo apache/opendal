@@ -72,8 +72,7 @@ impl oio::Page for SftpPager {
 
                 match item {
                     Some(Ok(e)) => {
-                        if e.filename().to_str().unwrap() == "."
-                            || e.filename().to_str().unwrap() == ".."
+                        if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..")
                         {
                             self.next().await
                         } else {

@@ -21,6 +21,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_compat::Compat;
+use futures::AsyncBufRead;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 use openssh_sftp_client::file::File;
@@ -69,6 +70,18 @@ impl AsyncRead for SftpReaderInner {
     ) -> Poll<std::io::Result<usize>> {
         let this = self.get_mut();
         Pin::new(&mut this.file).poll_read(cx, buf)
+    }
+}
+
+impl AsyncBufRead for SftpReaderInner {
+    fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context) -> Poll<std::io::Result<&[u8]>> {
+        let this = self.get_mut();
+        Pin::new(&mut this.file).poll_fill_buf(cx)
+    }
+
+    fn consume(self: Pin<&mut Self>, amt: usize) {
+        let this = self.get_mut();
+        Pin::new(&mut this.file).consume(amt)
     }
 }
 

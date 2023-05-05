@@ -2539,7 +2539,6 @@ dependencies = [
  "openssh-sftp-client",
  "opentelemetry 0.19.0",
  "opentelemetry-jaeger",
- "owning_ref",
  "parking_lot 0.12.1",
  "paste",
  "percent-encoding",
@@ -2639,7 +2638,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client"
 version = "0.12.2"
-source = "git+https://github.com/openssh-rust/openssh-sftp-client?branch=remove-lifetime#f8047a13ac5e22b318ad548a8994f777e89f9063"
+source = "git+https://github.com/openssh-rust/openssh-sftp-client?rev=8b380aa#8b380aa3a9ebde5c0a9f5a1fe3fde9975c74333a"
 dependencies = [
  "bytes",
  "derive_destructure2",
@@ -2657,7 +2656,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client-lowlevel"
 version = "0.4.1"
-source = "git+https://github.com/openssh-rust/openssh-sftp-client?branch=remove-lifetime#f8047a13ac5e22b318ad548a8994f777e89f9063"
+source = "git+https://github.com/openssh-rust/openssh-sftp-client?rev=8b380aa#8b380aa3a9ebde5c0a9f5a1fe3fde9975c74333a"
 dependencies = [
  "awaitable",
  "bytes",
@@ -2673,7 +2672,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-error"
 version = "0.3.0"
-source = "git+https://github.com/openssh-rust/openssh-sftp-client?branch=remove-lifetime#f8047a13ac5e22b318ad548a8994f777e89f9063"
+source = "git+https://github.com/openssh-rust/openssh-sftp-client?rev=8b380aa#8b380aa3a9ebde5c0a9f5a1fe3fde9975c74333a"
 dependencies = [
  "awaitable-error",
  "openssh-sftp-protocol-error",
@@ -2889,15 +2888,6 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
-
-[[package]]
-name = "owning_ref"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
-dependencies = [
- "stable_deref_trait",
-]
 
 [[package]]
 name = "parking"

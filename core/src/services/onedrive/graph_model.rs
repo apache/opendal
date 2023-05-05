@@ -32,8 +32,6 @@ pub(crate) struct GraphApiOnedriveListResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct OneDriveItem {
-    #[serde(rename = "createdDateTime")]
-    created_date_time: String,
     #[serde(rename = "eTag")]
     e_tag: String,
     id: String,
@@ -92,9 +90,9 @@ pub struct OnedriveGetItemBody {
     id: String,
     #[serde(rename = "lastModifiedDateTime")]
     pub(crate) last_modified_date_time: String,
-    name: String,
+    pub(crate) name: String,
     root: Option<Root>,
-    size: i64,
+    pub(crate) size: u64,
     #[serde(rename = "webUrl")]
     web_url: String,
     #[serde(flatten)]
@@ -214,7 +212,6 @@ fn test_parse_one_drive_json() {
     assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 2);
     let item = &response.value[0];
-    assert_eq!(item.created_date_time, "2020-01-01T00:00:00Z");
     assert_eq!(item.e_tag, "eTag");
     assert_eq!(item.id, "id");
     assert_eq!(item.last_modified_date_time, "2020-01-01T00:00:00Z");
@@ -291,7 +288,6 @@ fn test_parse_folder_single() {
     assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 1);
     let item = &response.value[0];
-    assert_eq!(item.created_date_time, "2023-02-01T00:51:02.803Z");
     if let ItemType::Folder { folder, .. } = &item.item_type {
         assert_eq!(folder.child_count, serde_json::Value::Number(9.into()));
     } else {

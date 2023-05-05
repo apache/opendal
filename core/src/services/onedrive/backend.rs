@@ -178,6 +178,8 @@ impl Accessor for OnedriveBackend {
         let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
         meta.set_last_modified(date_utc_last_modified);
 
+        meta.set_content_length(decoded_response.size);
+
         Ok(RpStat::new(meta))
     }
 

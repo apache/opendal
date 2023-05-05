@@ -86,12 +86,12 @@ pub struct OnedriveGetItemBody {
     #[serde(rename = "createdDateTime")]
     created_date_time: String,
     #[serde(rename = "cTag")]
-    c_tag: String,
+    pub(crate) c_tag: String,
     #[serde(rename = "eTag")]
-    e_tag: String,
+    pub(crate) e_tag: String,
     id: String,
     #[serde(rename = "lastModifiedDateTime")]
-    last_modified_date_time: String,
+    pub(crate) last_modified_date_time: String,
     name: String,
     root: Option<Root>,
     size: i64,

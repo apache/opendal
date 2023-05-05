@@ -25,13 +25,18 @@ use http::Response;
 use http::StatusCode;
 
 use super::error::parse_error;
+use super::graph_model::ItemType;
+use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
 use crate::ops::OpList;
 use crate::ops::OpRead;
+use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::raw::build_rooted_abs_path;
+use crate::raw::new_json_deserialize_error;
 use crate::raw::new_request_build_error;
+use crate::raw::parse_datetime_from_rfc3339;
 use crate::raw::parse_into_metadata;
 use crate::raw::parse_location;
 use crate::raw::percent_encode_path;
@@ -42,11 +47,14 @@ use crate::raw::HttpClient;
 use crate::raw::IncomingAsyncBody;
 use crate::raw::RpList;
 use crate::raw::RpRead;
+use crate::raw::RpStat;
 use crate::raw::RpWrite;
 use crate::types::Result;
 use crate::Capability;
+use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
+use crate::Metadata;
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
@@ -90,6 +98,8 @@ impl Accessor for OnedriveBackend {
             .set_capability(Capability {
                 read: true,
                 write: true,
+                scan: true,
+                list: true,
                 ..Default::default()
             });
 
@@ -97,7 +107,7 @@ impl Accessor for OnedriveBackend {
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.onedrive_get(path).await?;
+        let resp = self.onedrive_get(path, true).await?;
 
         let status = resp.status();
 
@@ -145,6 +155,32 @@ impl Accessor for OnedriveBackend {
         ))
     }
 
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        let resp = self.onedrive_get(path, false).await?;
+        let bytes = resp.into_body().bytes().await?;
+        let decoded_response = serde_json::from_slice::<OnedriveGetItemBody>(&bytes)
+            .map_err(new_json_deserialize_error)?;
+
+        let entry_mode: EntryMode = match decoded_response.item_type {
+            ItemType::Folder { .. } => EntryMode::DIR,
+            ItemType::File { .. } => EntryMode::FILE,
+        };
+
+        let mut meta = Metadata::new(entry_mode);
+        meta.set_etag(&decoded_response.e_tag);
+
+        let last_modified = decoded_response.last_modified_date_time;
+        let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+        meta.set_last_modified(date_utc_last_modified);
+
+        Ok(RpStat::new(meta))
+    }
+
     async fn list(&self, path: &str, _op_list: OpList) -> Result<(RpList, Self::Pager)> {
         let pager: OnedrivePager = OnedrivePager::new(
             self.root.clone(),
@@ -159,11 +195,20 @@ impl Accessor for OnedriveBackend {
 
 impl OnedriveBackend {
     pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
-    async fn onedrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn onedrive_get(
+        &self,
+        path: &str,
+        append_content_suffix: bool,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
-            "https://graph.microsoft.com/v1.0/me/drive/root:{}:/content",
+            "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",
             percent_encode_path(&path),
+            if append_content_suffix {
+                ":/content"
+            } else {
+                ""
+            }
         );
 
         let mut req = Request::get(&url);

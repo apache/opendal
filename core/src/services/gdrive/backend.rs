@@ -18,8 +18,7 @@
 use async_trait::async_trait;
 use http::StatusCode;
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
-use tokio::sync::Mutex;
+use std::{fmt::Debug, sync::Arc};
 
 use crate::{
     ops::{OpDelete, OpRead, OpWrite},

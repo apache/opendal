@@ -25,6 +25,7 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 
+use http::request::Builder;
 use http::{header, Request, Response};
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -57,10 +58,10 @@ impl GdriveCore {
             return Ok(root_id.to_string());
         }
 
-        let mut req = Request::get("https://www.googleapis.com/drive/v3/files/root");
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-        let req = req
+        let req = self
+            .sign(Request::get(
+                "https://www.googleapis.com/drive/v3/files/root",
+            ))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -93,8 +94,6 @@ impl GdriveCore {
             return Ok(file_id.to_string());
         }
 
-        let auth_header_content = format!("Bearer {}", self.access_token);
-
         let mut parent_id = self.get_abs_root_id().await?;
         let file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
 
@@ -108,12 +107,11 @@ impl GdriveCore {
             }
             let query: String = query.chars().filter(|c| !c.is_whitespace()).collect();
 
-            let mut req = Request::get(format!(
-                "https://www.googleapis.com/drive/v3/files?q={}",
-                query
-            ));
-            req = req.header(header::AUTHORIZATION, &auth_header_content);
-            let req = req
+            let req = self
+                .sign(Request::get(format!(
+                    "https://www.googleapis.com/drive/v3/files?q={}",
+                    query
+                )))
                 .body(AsyncBody::default())
                 .map_err(new_request_build_error)?;
 
@@ -208,6 +206,12 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
+    }
+
+    fn sign(&self, mut req: Builder) -> Builder {
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+        req
     }
 }
 

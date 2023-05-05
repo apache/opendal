@@ -60,10 +60,8 @@ pub(crate) struct ParentReference {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct FileSystemInfo {
-    #[serde(rename = "createdDateTime")]
-    created_date_time: String,
     #[serde[rename = "lastModifiedDateTime"]]
-    last_modified_date_time: String,
+    last_modified_date_time: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -81,8 +79,6 @@ pub(crate) enum ItemType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct OnedriveGetItemBody {
-    #[serde(rename = "createdDateTime")]
-    created_date_time: String,
     #[serde(rename = "cTag")]
     pub(crate) c_tag: String,
     #[serde(rename = "eTag")]

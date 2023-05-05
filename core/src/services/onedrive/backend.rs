@@ -194,7 +194,7 @@ impl Accessor for OnedriveBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+            StatusCode::NO_CONTENT | StatusCode::BAD_REQUEST => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

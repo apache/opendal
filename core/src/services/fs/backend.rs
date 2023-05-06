@@ -311,6 +311,7 @@ impl Accessor for FsBackend {
                 copy: true,
                 rename: true,
                 blocking: true,
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

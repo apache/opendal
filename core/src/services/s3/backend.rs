@@ -941,6 +941,9 @@ impl Accessor for S3Backend {
                 batch: true,
                 batch_max_operations: Some(1000),
 
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 
@@ -1053,17 +1056,10 @@ impl Accessor for S3Backend {
             S3Pager::new(
                 self.core.clone(),
                 path,
-                "/",
+                args.delimiter(),
                 args.limit(),
                 args.start_after(),
             ),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 

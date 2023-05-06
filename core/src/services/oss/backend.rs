@@ -446,6 +446,9 @@ impl Accessor for OssBackend {
                 batch: true,
                 batch_max_operations: Some(1000),
 
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
                 ..Default::default()
             });
 
@@ -550,14 +553,7 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            OssPager::new(self.core.clone(), path, "", args.limit()),
+            OssPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 

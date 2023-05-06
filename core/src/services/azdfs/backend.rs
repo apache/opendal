@@ -310,19 +310,19 @@ impl Accessor for AzdfsBackend {
             .set_name(&self.core.filesystem)
             .set_capability(Capability {
                 stat: true,
-                
+
                 read: true,
                 read_can_next: true,
                 read_with_range: true,
-                
+
                 write: true,
                 create_dir: true,
                 delete: true,
                 rename: true,
-                
+
                 list: true,
                 list_with_delimiter_slash: true,
-                
+
                 ..Default::default()
             });
 

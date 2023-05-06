@@ -318,17 +318,17 @@ impl Accessor for FtpBackend {
             .set_root(&self.root)
             .set_capability(Capability {
                 stat: true,
-                
+
                 read: true,
                 read_with_range: true,
-                
+
                 write: true,
                 delete: true,
                 create_dir: true,
-                
+
                 list: true,
                 list_with_delimiter_slash: true,
-                
+
                 ..Default::default()
             });
 

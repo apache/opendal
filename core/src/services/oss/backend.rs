@@ -38,6 +38,7 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
+const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 /// Aliyun Object Storage Service (OSS) support
 ///
 /// # Capabilities
@@ -123,6 +124,8 @@ pub struct OssBuilder {
     access_key_secret: Option<String>,
 
     http_client: Option<HttpClient>,
+    /// the size of each part, and the range is 5MB ~ 5 GB.
+    write_min_size: Option<usize>,
 }
 
 impl Debug for OssBuilder {
@@ -292,6 +295,14 @@ impl OssBuilder {
         }
         self
     }
+
+    /// set the minimum size of unsized write, it should be greater than 5 MB.
+    /// Reference: [OSS Multipart upload](https://www.alibabacloud.com/help/en/object-storage-service/latest/multipart-upload-6)
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
+
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -313,6 +324,8 @@ impl Builder for OssBuilder {
             .map(|v| builder.server_side_encryption(v));
         map.get("server_side_encryption_key_id")
             .map(|v| builder.server_side_encryption_key_id(v));
+        map.get("write_min_size")
+            .map(|v| builder.write_min_size(v.parse::<usize>().unwrap()));
         builder
     }
 
@@ -384,6 +397,14 @@ impl Builder for OssBuilder {
 
         let signer = AliyunOssSigner::new(bucket);
 
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 5 * 1024 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::Oss));
+        }
         debug!("Backend build finished");
 
         Ok(OssBackend {
@@ -398,6 +419,7 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
+                write_min_size,
             }),
         })
     }

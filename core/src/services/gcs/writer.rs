@@ -27,8 +27,6 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
-/// It's recommended that you use at least 8 MiB for the chunk size.
-const DEFAULT_GCS_MINIMUM_PART_SIZE: usize = 8 * 1024 * 1024;
 pub struct GcsWriter {
     core: Arc<GcsCore>,
     path: String,
@@ -37,14 +35,12 @@ pub struct GcsWriter {
     location: Option<String>,
     written: u64,
     buffer: oio::VectorCursor,
-    writer_fixed_size: usize,
+    write_fixed_size: usize,
 }
 
 impl GcsWriter {
     pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
-        let writer_fixed_size = core
-            .writer_fixed_size
-            .unwrap_or(DEFAULT_GCS_MINIMUM_PART_SIZE);
+        let write_fixed_size = core.write_fixed_size;
         GcsWriter {
             core,
             path: path.to_string(),
@@ -53,7 +49,7 @@ impl GcsWriter {
             location: None,
             written: 0,
             buffer: oio::VectorCursor::new(),
-            writer_fixed_size,
+            write_fixed_size,
         }
     }
 
@@ -147,16 +143,16 @@ impl oio::Write for GcsWriter {
 
         self.buffer.push(bs);
         // Return directly if the buffer is not full
-        if self.buffer.len() <= self.writer_fixed_size {
+        if self.buffer.len() <= self.write_fixed_size {
             return Ok(());
         }
 
-        let bs = self.buffer.peak_exact(self.writer_fixed_size);
+        let bs = self.buffer.peak_exact(self.write_fixed_size);
 
         match self.write_part(location, bs).await {
             Ok(_) => {
-                self.buffer.take(self.writer_fixed_size);
-                self.written += self.writer_fixed_size as u64;
+                self.buffer.take(self.write_fixed_size);
+                self.written += self.write_fixed_size as u64;
                 Ok(())
             }
             Err(e) => {

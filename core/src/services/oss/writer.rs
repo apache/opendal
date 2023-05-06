@@ -28,7 +28,6 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
-const DEFAULT_OSS_MINIMUM_PART_SIZE: usize = 8 * 1024 * 1024;
 pub struct OssWriter {
     core: Arc<OssCore>,
 
@@ -43,7 +42,7 @@ pub struct OssWriter {
 
 impl OssWriter {
     pub fn new(core: Arc<OssCore>, path: &str, op: OpWrite) -> Self {
-        let buffer_size = core.write_min_size.unwrap_or(DEFAULT_OSS_MINIMUM_PART_SIZE);
+        let buffer_size = core.write_min_size;
         OssWriter {
             core,
             path: path.to_string(),

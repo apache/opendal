@@ -86,7 +86,7 @@ pub struct S3Core {
     pub signer: AwsV4Signer,
     pub loader: AwsLoader,
     pub client: HttpClient,
-    pub write_min_size: Option<usize>,
+    pub write_min_size: usize,
 }
 
 impl Debug for S3Core {

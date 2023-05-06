@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use http::StatusCode;
-use log::{debug, warn};
+use log::debug;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
@@ -40,7 +40,8 @@ use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
-
+/// It's recommended that you use at least 8 MiB for the chunk size.
+const DEFAULT_WRITE_FIXED_SIZE: usize = 8 * 1024 * 1024;
 /// Google Cloud Storage service.
 ///
 /// # Capabilities
@@ -244,17 +245,10 @@ impl GcsBuilder {
     /// Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
     /// It's recommended that you use at least 8 MiB for the chunk size.
     /// Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
-    pub fn write_fixed_size(&mut self, fixed_buffer_size: usize) -> Result<&mut Self> {
-        if fixed_buffer_size.checked_rem_euclid(256 * 1024).is_none() {
-            self.write_fixed_size = Some(fixed_buffer_size);
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "The buffer size is misconfigured")
-                    .with_context("service", Scheme::Gcs),
-            );
-        }
+    pub fn write_fixed_size(&mut self, fixed_buffer_size: usize) -> &mut Self {
+        self.write_fixed_size = Some(fixed_buffer_size);
 
-        Ok(self)
+        self
     }
 }
 
@@ -355,6 +349,15 @@ impl Builder for GcsBuilder {
 
         let signer = GoogleSigner::new("storage");
 
+        let write_fixed_size = self.write_fixed_size.unwrap_or(DEFAULT_WRITE_FIXED_SIZE);
+        if write_fixed_size.checked_rem_euclid(256 * 1024).is_some() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write fixed buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::Gcs));
+        }
+
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
                 endpoint,
@@ -366,7 +369,7 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.predefined_acl.clone(),
                 default_storage_class: self.default_storage_class.clone(),
-                writer_fixed_size: self.write_fixed_size,
+                write_fixed_size,
             }),
         };
 

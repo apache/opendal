@@ -38,6 +38,7 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
+const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 /// Aliyun Object Storage Service (OSS) support
 ///
 /// # Capabilities
@@ -297,16 +298,10 @@ impl OssBuilder {
 
     /// set the minimum size of unsized write, it should be greater than 5 MB.
     /// Reference: [OSS Multipart upload](https://www.alibabacloud.com/help/en/object-storage-service/latest/multipart-upload-6)
-    pub fn write_min_size(&mut self, write_min_size: usize) -> Result<&mut Self> {
-        if write_min_size > 5 * 1024 * 1024 {
-            self.write_min_size = Some(write_min_size);
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "The buffer size is misconfigured")
-                    .with_context("service", Scheme::Oss),
-            );
-        }
-        Ok(self)
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
+
+        self
     }
 }
 
@@ -402,6 +397,14 @@ impl Builder for OssBuilder {
 
         let signer = AliyunOssSigner::new(bucket);
 
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 5 * 1024 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::Oss));
+        }
         debug!("Backend build finished");
 
         Ok(OssBackend {
@@ -416,7 +419,7 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
-                write_min_size: self.write_min_size,
+                write_min_size,
             }),
         })
     }

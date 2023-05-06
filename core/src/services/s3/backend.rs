@@ -54,6 +54,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
+const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 ///
@@ -890,7 +891,15 @@ impl Builder for S3Builder {
         }
 
         let signer = AwsV4Signer::new("s3", &region);
-        let write_min_size = self.write_min_size;
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 5 * 1024 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::S3));
+        }
+
         debug!("backend build finished");
         Ok(S3Backend {
             core: Arc::new(S3Core {

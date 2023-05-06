@@ -28,7 +28,6 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
-const DEFAULT_S3_MINIMUM_PART_SIZE: usize = 8 * 1024 * 1024;
 pub struct S3Writer {
     core: Arc<S3Core>,
 
@@ -43,7 +42,7 @@ pub struct S3Writer {
 
 impl S3Writer {
     pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite) -> Self {
-        let buffer_size = core.write_min_size.unwrap_or(DEFAULT_S3_MINIMUM_PART_SIZE);
+        let buffer_size = core.write_min_size;
         S3Writer {
             core,
             path: path.to_string(),

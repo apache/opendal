@@ -396,6 +396,8 @@ impl Accessor for GcsBackend {
                 copy: true,
                 presign: true,
 
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
                 ..Default::default()
             });
         am
@@ -514,17 +516,10 @@ impl Accessor for GcsBackend {
             GcsPager::new(
                 self.core.clone(),
                 path,
-                "/",
+                args.delimiter(),
                 args.limit(),
                 args.start_after(),
             ),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            GcsPager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 

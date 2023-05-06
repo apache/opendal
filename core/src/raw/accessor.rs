@@ -223,7 +223,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// Require [`Capability::scan`]
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let mut op_list = OpList::new().with_delimiter("".to_string());
+        let mut op_list = OpList::new().with_delimiter("");
         if let Some(limit) = args.limit() {
             op_list = op_list.with_limit(limit)
         }

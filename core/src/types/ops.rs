@@ -103,13 +103,13 @@ impl OpList {
     }
 
     /// Change the delimiter. The default delimiter is "/"
-    pub fn with_delimiter(mut self, delimiter: String) -> Self {
-        self.delimiter = delimiter;
+    pub fn with_delimiter(mut self, delimiter: &str) -> Self {
+        self.delimiter = delimiter.to_string();
         self
     }
 
     /// Get the current delimiter.
-    pub fn delimiter(&self) -> &String {
+    pub fn delimiter(&self) -> &str {
         &self.delimiter
     }
 }

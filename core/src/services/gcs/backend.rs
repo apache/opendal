@@ -351,7 +351,8 @@ impl Builder for GcsBuilder {
         let signer = GoogleSigner::new("storage");
 
         let write_fixed_size = self.write_fixed_size.unwrap_or(DEFAULT_WRITE_FIXED_SIZE);
-        if write_fixed_size.checked_rem_euclid(256 * 1024).is_some() {
+        // GCS requires write must align with 256 KiB.
+        if write_fixed_size % (256 * 1024) != 0 {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "The write fixed buffer size is misconfigured",

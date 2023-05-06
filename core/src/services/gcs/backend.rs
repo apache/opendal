@@ -396,6 +396,8 @@ impl Accessor for GcsBackend {
                 copy: true,
                 presign: true,
 
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
                 ..Default::default()
             });
         am

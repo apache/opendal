@@ -446,6 +446,9 @@ impl Accessor for OssBackend {
                 batch: true,
                 batch_max_operations: Some(1000),
 
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
                 ..Default::default()
             });
 

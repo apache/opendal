@@ -478,6 +478,8 @@ impl Accessor for AzblobBackend {
                 batch: true,
                 batch_delete: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

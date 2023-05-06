@@ -712,17 +712,10 @@ impl S3Builder {
 
     /// set the minimum size of unsized write, it should be greater than 5 MB.
     /// Reference: [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
-    pub fn write_min_size(&mut self, write_min_size: usize) -> Result<&mut Self> {
-        if write_min_size > 5 * 1024 * 1024 {
-            self.write_min_size = Some(write_min_size);
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "The buffer size is misconfigured")
-                    .with_context("service", Scheme::S3),
-            );
-        }
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
 
-        Ok(self)
+        self
     }
 }
 

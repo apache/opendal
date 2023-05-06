@@ -604,19 +604,6 @@ struct GetObjectJsonResponse {
     content_type: String,
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct DeleteObjectsJsonResponse {
-    delete_result: Vec<DeletetObjectJsonResponse>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct DeletetObjectJsonResponse {
-    status: String,
-    date: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

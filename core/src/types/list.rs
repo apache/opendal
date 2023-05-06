@@ -57,6 +57,36 @@ impl Lister {
         }
     }
 
+    /// has_next can be used to check if there are more pages.
+    pub async fn has_next(&mut self) -> Result<bool> {
+        debug_assert!(
+            self.fut.is_none(),
+            "there are ongoing futures for next page"
+        );
+
+        if !self.buf.is_empty() {
+            return Ok(true);
+        }
+
+        let entries = match self
+            .pager
+            .as_mut()
+            .expect("pager must be valid")
+            .next()
+            .await?
+        {
+            // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
+            //
+            // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
+            Some(entries) => entries.into(),
+            None => return Ok(false),
+        };
+        // Push fetched entries into buffer.
+        self.buf = entries;
+
+        Ok(true)
+    }
+
     /// next_page can be used to fetch a new page.
     ///
     /// # Notes

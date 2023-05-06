@@ -307,7 +307,7 @@ pub struct S3Builder {
     http_client: Option<HttpClient>,
     customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
 
-    /// the part size of s3 multipart upload, which shoule be 5 MiB to 5 GiB.
+    /// the part size of s3 multipart upload, which should be 5 MiB to 5 GiB.
     /// There is no minimum size limit on the last part of your multipart upload
     write_min_size: Option<usize>,
 }

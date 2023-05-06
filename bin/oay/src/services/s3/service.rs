@@ -15,11 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::Mutex;
 
-use anyhow::anyhow;
 use axum::extract::Query;
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -28,7 +25,7 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use chrono::SecondsFormat;
-use opendal::Lister;
+use opendal::ops::OpList;
 use opendal::Metakey;
 use opendal::Operator;
 use serde::Deserialize;
@@ -36,7 +33,6 @@ use serde::Serialize;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::debug;
-use uuid::Uuid;
 
 use crate::Config;
 
@@ -58,7 +54,6 @@ impl S3Service {
             .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
             .with_state(S3State {
                 op: self.op.clone(),
-                list_objects: Arc::default(),
             });
 
         axum::Server::bind(&s3_cfg.addr.parse().unwrap())
@@ -72,8 +67,6 @@ impl S3Service {
 #[derive(Clone)]
 pub struct S3State {
     op: Operator,
-    /// TODO: remove this global lock by page checkpoint.
-    list_objects: Arc<Mutex<HashMap<String, Lister>>>,
 }
 
 /// # TODO
@@ -81,13 +74,12 @@ pub struct S3State {
 /// we need to support following parameters:
 ///
 /// - max-keys
-/// - start-after
+/// - continuation_token
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
 struct ListObjectsV2Params {
     prefix: String,
-    delimiter: String,
-    continuation_token: String,
+    start_after: String,
 }
 
 async fn handle_list_objects(
@@ -95,26 +87,14 @@ async fn handle_list_objects(
     params: Query<ListObjectsV2Params>,
 ) -> Result<OkResponse, ErrorResponse> {
     debug!("got params: {:?}", params);
-    if params.delimiter != "/" && !params.delimiter.is_empty() {
-        return Err(anyhow!("delimiter is not supported").into());
-    }
 
-    let lister = state
-        .list_objects
-        .lock()
-        .unwrap()
-        .remove(format!("{}-{}", params.prefix, params.continuation_token).as_str());
-
-    let mut lister = match lister {
-        Some(lister) => lister,
-        None => {
-            if params.delimiter.is_empty() {
-                state.op.list(&params.prefix).await?
-            } else {
-                state.op.scan(&params.prefix).await?
-            }
-        }
-    };
+    let mut lister = state
+        .op
+        .list_with(
+            &params.prefix,
+            OpList::new().with_start_after(&params.start_after),
+        )
+        .await?;
 
     let page = lister.next_page().await?.unwrap_or_default();
 
@@ -147,25 +127,11 @@ async fn handle_list_objects(
         }
     }
 
-    let next_continuation_token = if is_truncated {
-        let token = format!("{}-{}", params.prefix, Uuid::new_v4().as_u128());
-        // Insert the lister into the state so that we can continue listing
-        state
-            .list_objects
-            .lock()
-            .unwrap()
-            .insert(token.clone(), lister);
-        token
-    } else {
-        String::new()
-    };
-
     let resp = ListBucketResult {
         is_truncated,
         common_prefixes,
         contents,
-        continuation_token: params.continuation_token.to_string(),
-        next_continuation_token,
+        start_after: Some(params.start_after.clone()),
     };
 
     Ok(OkResponse {
@@ -180,8 +146,7 @@ struct ListBucketResult {
     is_truncated: bool,
     common_prefixes: Vec<CommonPrefix>,
     contents: Vec<Object>,
-    continuation_token: String,
-    next_continuation_token: String,
+    start_after: Option<String>,
 }
 
 #[derive(Serialize, Default)]

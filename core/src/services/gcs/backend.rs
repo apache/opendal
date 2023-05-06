@@ -357,7 +357,8 @@ impl Builder for GcsBuilder {
                 ErrorKind::ConfigInvalid,
                 "The write fixed buffer size is misconfigured",
             )
-            .with_context("service", Scheme::Gcs));
+            .with_context("service", Scheme::Gcs)
+            .with_context("write_fixed_size", write_fixed_size.to_string()));
         }
 
         let backend = GcsBackend {

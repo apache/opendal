@@ -296,9 +296,16 @@ impl S3Core {
         range: BytesRange,
         if_none_match: Option<&str>,
         if_match: Option<&str>,
+        override_content_disposition: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req =
-            self.s3_get_object_request(path, range, None, None, if_none_match, if_match)?;
+        let mut req = self.s3_get_object_request(
+            path,
+            range,
+            override_content_disposition,
+            None,
+            if_none_match,
+            if_match,
+        )?;
 
         self.sign(&mut req).await?;
 
@@ -439,27 +446,31 @@ impl S3Core {
         self.send(req).await
     }
 
-    /// Make this functions as `pub(suber)` because `DirStream` depends
-    /// on this.
     pub async fn s3_list_objects(
         &self,
         path: &str,
         continuation_token: &str,
         delimiter: &str,
         limit: Option<usize>,
+        start_after: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!(
-            "{}?list-type=2&prefix={}",
-            self.endpoint,
-            percent_encode_path(&p)
-        );
+        let mut url = format!("{}?list-type=2", self.endpoint);
+        if !p.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(&p))
+                .expect("write into string must succeed");
+        }
         if !delimiter.is_empty() {
             write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
         }
         if let Some(limit) = limit {
             write!(url, "&max-keys={limit}").expect("write into string must succeed");
+        }
+        if let Some(start_after) = start_after {
+            let start_after = build_abs_path(&self.root, &start_after);
+            write!(url, "&start-after={}", percent_encode_path(&start_after))
+                .expect("write into string must succeed");
         }
         if !continuation_token.is_empty() {
             // AWS S3 could return continuation-token that contains `=`

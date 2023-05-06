@@ -336,14 +336,14 @@ export class Operator {
    * ### Example
    *
    * ```javascript
-   * const req = op.presignRead(path, parseInt(expires));
+   * const req = await op.presignRead(path, parseInt(expires));
    *
    * console.log("method: ", req.method);
    * console.log("url: ", req.url);
    * console.log("headers: ", req.headers);
    * ```
    */
-  presignRead(path: string, expires: number): PresignedRequest
+  presignRead(path: string, expires: number): Promise<PresignedRequest>
   /**
    * Get a presigned request for write.
    *
@@ -352,14 +352,14 @@ export class Operator {
    * ### Example
    *
    * ```javascript
-   * const req = op.presignWrite(path, parseInt(expires));
+   * const req = await op.presignWrite(path, parseInt(expires));
    *
    * console.log("method: ", req.method);
    * console.log("url: ", req.url);
    * console.log("headers: ", req.headers);
    * ```
    */
-  presignWrite(path: string, expires: number): PresignedRequest
+  presignWrite(path: string, expires: number): Promise<PresignedRequest>
   /**
    * Get a presigned request for stat.
    *
@@ -368,14 +368,14 @@ export class Operator {
    * ### Example
    *
    * ```javascript
-   * const req = op.presignStat(path, parseInt(expires));
+   * const req = await op.presignStat(path, parseInt(expires));
    *
    * console.log("method: ", req.method);
    * console.log("url: ", req.url);
    * console.log("headers: ", req.headers);
    * ```
    */
-  presignStat(path: string, expires: number): PresignedRequest
+  presignStat(path: string, expires: number): Promise<PresignedRequest>
 }
 export class Entry {
   /** Return the path of this entry. */
@@ -396,7 +396,11 @@ export class Metadata {
   get contentType(): string | null
   /** ETag of this object. */
   get etag(): string | null
-  /** Last Modified of this object.(UTC) */
+  /**
+   * Last Modified of this object.
+   *
+   * We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
+   */
   get lastModified(): string | null
 }
 export class Lister {

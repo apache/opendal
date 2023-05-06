@@ -41,23 +41,6 @@ pub enum AsyncBody {
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
-    /// Body with a multipart field.
-    ///
-    /// If input with this field, we will goto the internal multipart
-    /// handle logic.
-    Multipart(String, Bytes),
-}
-
-impl From<AsyncBody> for reqwest::Body {
-    fn from(v: AsyncBody) -> Self {
-        match v {
-            AsyncBody::Empty => reqwest::Body::from(""),
-            AsyncBody::Bytes(bs) => reqwest::Body::from(bs),
-            AsyncBody::Multipart(_, _) => {
-                unreachable!("reqwest multipart should not be constructed by body")
-            }
-        }
-    }
 }
 
 type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>;
@@ -146,11 +129,13 @@ impl IncomingAsyncBody {
             Ordering::Less => Err(Error::new(
                 ErrorKind::ContentIncomplete,
                 &format!("reader got too less data, expect: {expect}, actual: {actual}"),
-            )),
+            )
+            .set_temporary()),
             Ordering::Greater => Err(Error::new(
                 ErrorKind::ContentTruncated,
                 &format!("reader got too much data, expect: {expect}, actual: {actual}"),
-            )),
+            )
+            .set_temporary()),
         }
     }
 }

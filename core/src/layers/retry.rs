@@ -247,6 +247,34 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        { || self.inner.copy(from, to, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Copy, dur.as_secs_f64(), err)
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        { || self.inner.rename(from, to, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Rename, dur.as_secs_f64(), err)
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         { || self.inner.list(path, args.clone()) }
             .retry(&self.builder)
@@ -663,7 +691,7 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
                     Some(dur) => {
                         warn!(target: "opendal::service",
                               "operation={} path={} -> pager retry after {}s: error={:?}",
-                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
+                              WriteOperation::Abort, self.path, dur.as_secs_f64(), e);
                         tokio::time::sleep(dur).await;
                         continue;
                     }
@@ -816,8 +844,11 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capabilities(AccessorCapability::List | AccessorCapability::Batch);
-            am.set_hints(AccessorHint::ReadStreamable);
+            am.set_capability(Capability {
+                list: true,
+                batch: true,
+                ..Default::default()
+            });
 
             am
         }

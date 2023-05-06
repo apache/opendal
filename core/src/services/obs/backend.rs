@@ -301,23 +301,42 @@ impl Accessor for ObsBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Obs)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capabilities(Read | Write | Copy | List | Scan)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+
+                write: true,
+                write_with_content_type: true,
+                write_with_cache_control: true,
+
+                list: true,
+                scan: true,
+                copy: true,
+
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
+                ..Default::default()
+            });
 
         am
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self
-            .core
-            .obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req =
+            self.core
+                .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -337,7 +356,7 @@ impl Accessor for ObsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .obs_get_object(path, args.range(), args.if_match())
+            .obs_get_object(path, args.range(), args.if_match(), args.if_none_match())
             .await?;
 
         let status = resp.status();
@@ -385,7 +404,10 @@ impl Accessor for ObsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.obs_get_head_object(path, args.if_match()).await?;
+        let resp = self
+            .core
+            .obs_get_head_object(path, args.if_match(), args.if_none_match())
+            .await?;
 
         let status = resp.status();
 
@@ -415,14 +437,7 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            ObsPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            ObsPager::new(self.core.clone(), path, "", args.limit()),
+            ObsPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 }

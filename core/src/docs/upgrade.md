@@ -1,3 +1,20 @@
+# Upgrade to v0.33
+
+## Public API
+
+OpenDAL 0.33 has redesigned the `Writer` API, replacing all instances of `writer.append()` with `writer.write()`. For more information, please refer to [`Writer`](crate::Writer).
+
+## Raw API
+
+In addition to the redesign of the `Writer` API, we have removed `append` from `oio::Write`. Therefore, users who implement services and layers should also remove it.
+
+After v0.33 landing, services should handle `OpWrite::content_length` correctly by following these guidelines:
+
+- If the writer does not support uploading unsized data, return a response of `NotSupported` if content length is `None`.
+- Otherwise, continue writing data until either `close` or `abort` has been called.
+
+Furthermore, OpenDAL 0.33 introduces a new concept called `Capability` which replaces `AccessorCapability`. Services must adapt to this change.
+
 # Upgrade to v0.32
 
 OpenDAL 0.32 doesn't have much breaking changes.

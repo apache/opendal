@@ -22,7 +22,6 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 
 use crate::raw::adapters::kv;
-use crate::raw::*;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -141,8 +140,17 @@ impl Debug for Adapter {
 #[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
-        use AccessorCapability::*;
-        kv::Metadata::new(Scheme::Sled, &self.datadir, Read | Write | Scan | Blocking)
+        kv::Metadata::new(
+            Scheme::Sled,
+            &self.datadir,
+            Capability {
+                read: true,
+                write: true,
+                scan: true,
+                blocking: true,
+                ..Default::default()
+            },
+        )
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {

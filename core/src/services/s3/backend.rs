@@ -37,6 +37,7 @@ use reqsign::AwsV4Signer;
 
 use super::core::*;
 use super::error::parse_error;
+use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
 use crate::ops::*;
@@ -54,7 +55,8 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
-/// Aws S3 and compatible services (including minio, digitalocean space and so on) support
+/// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
+/// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 ///
 /// # Capabilities
 ///
@@ -907,16 +909,43 @@ impl Accessor for S3Backend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::S3)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+                read_with_override_cache_control: true,
+                read_with_override_content_disposition: true,
+
+                write: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
+                write_without_content_length: true,
+
+                list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
+
+                scan: true,
+                copy: true,
+                presign: true,
+                batch: true,
+                batch_max_operations: Some(1000),
+
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
+
+                ..Default::default()
+            });
 
         am
     }
@@ -944,7 +973,13 @@ impl Accessor for S3Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .s3_get_object(path, args.range(), args.if_none_match(), args.if_match())
+            .s3_get_object(
+                path,
+                args.range(),
+                args.if_none_match(),
+                args.if_match(),
+                args.override_content_disposition(),
+            )
             .await?;
 
         let status = resp.status();
@@ -1018,14 +1053,13 @@ impl Accessor for S3Backend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            S3Pager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit()),
+            S3Pager::new(
+                self.core.clone(),
+                path,
+                args.delimiter(),
+                args.limit(),
+                args.start_after(),
+            ),
         ))
     }
 
@@ -1093,10 +1127,15 @@ impl Accessor for S3Backend {
             for i in result.error {
                 let path = build_rel_path(&self.core.root, &i.key);
 
-                batched_result.push((
-                    path,
-                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                ));
+                // set the error kind and mark temporary if retryable
+                let (kind, retryable) =
+                    parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+                let mut err = Error::new(kind, &format!("{i:?}"));
+                if retryable {
+                    err = err.set_temporary();
+                }
+
+                batched_result.push((path, Err(err)));
             }
 
             Ok(RpBatch::new(batched_result))

@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use flagset::FlagSet;
 
 use crate::raw::*;
+use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -135,20 +135,16 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
 pub struct Metadata {
     scheme: Scheme,
     name: String,
-    capabilities: FlagSet<AccessorCapability>,
+    capabilities: Capability,
 }
 
 impl Metadata {
     /// Create a new KeyValueAccessorInfo.
-    pub fn new(
-        scheme: Scheme,
-        name: &str,
-        capabilities: impl Into<FlagSet<AccessorCapability>>,
-    ) -> Self {
+    pub fn new(scheme: Scheme, name: &str, capabilities: Capability) -> Self {
         Self {
             scheme,
             name: name.to_string(),
-            capabilities: capabilities.into(),
+            capabilities,
         }
     }
 
@@ -163,7 +159,7 @@ impl Metadata {
     }
 
     /// Get the capabilities.
-    pub fn capabilities(&self) -> FlagSet<AccessorCapability> {
+    pub fn capabilities(&self) -> Capability {
         self.capabilities
     }
 }
@@ -173,7 +169,7 @@ impl From<Metadata> for AccessorInfo {
         let mut am = AccessorInfo::default();
         am.set_name(m.name());
         am.set_scheme(m.scheme());
-        am.set_capabilities(m.capabilities());
+        am.set_capability(m.capabilities());
 
         am
     }

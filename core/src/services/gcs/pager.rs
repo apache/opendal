@@ -35,19 +35,30 @@ pub struct GcsPager {
     delimiter: String,
     limit: Option<usize>,
 
+    /// Filter results to objects whose names are lexicographically
+    /// **equal to or after** startOffset
+    start_after: Option<String>,
+
     page_token: String,
     done: bool,
 }
 
 impl GcsPager {
     /// Generate a new directory walker
-    pub fn new(core: Arc<GcsCore>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<GcsCore>,
+        path: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        start_after: Option<&str>,
+    ) -> Self {
         Self {
             core,
 
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
+            start_after: start_after.map(String::from),
 
             page_token: "".to_string(),
             done: false,
@@ -64,7 +75,13 @@ impl oio::Page for GcsPager {
 
         let resp = self
             .core
-            .gcs_list_objects(&self.path, &self.page_token, &self.delimiter, self.limit)
+            .gcs_list_objects(
+                &self.path,
+                &self.page_token,
+                &self.delimiter,
+                self.limit,
+                self.start_after.clone(),
+            )
             .await?;
 
         if !resp.status().is_success() {
@@ -97,6 +114,12 @@ impl oio::Page for GcsPager {
                 continue;
             }
 
+            // exclude the inclusive start_after itself
+            let path = &build_rel_path(&self.core.root, &object.name);
+            if self.start_after.as_ref() == Some(path) {
+                continue;
+            }
+
             let mut meta = Metadata::new(EntryMode::FILE);
 
             // set metadata fields
@@ -113,7 +136,7 @@ impl oio::Page for GcsPager {
 
             meta.set_last_modified(parse_datetime_from_rfc3339(object.updated.as_str())?);
 
-            let de = oio::Entry::new(&build_rel_path(&self.core.root, &object.name), meta);
+            let de = oio::Entry::new(path, meta);
 
             entries.push(de);
         }

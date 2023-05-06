@@ -25,7 +25,13 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Backend of kv service.
+/// Backend of kv service. If the storage service is one k-v-like service, it should implement this kv [`Backend`] by right.
+///
+/// `Backend` implements one general logic on how to read, write, scan the data from one kv store efficiently.
+/// And the [`Adapter`] held by `Backend` will handle how to communicate with one k-v-like service really and provides
+/// a series of basic operation for this service.
+///
+/// OpenDAL developer can implement one new k-v store backend easily with help of this Backend.
 #[derive(Debug, Clone)]
 pub struct Backend<S: Adapter> {
     kv: Arc<S>,
@@ -62,8 +68,20 @@ impl<S: Adapter> Accessor for Backend<S> {
 
     fn info(&self) -> AccessorInfo {
         let mut am: AccessorInfo = self.kv.metadata().into();
-        am.set_root(&self.root)
-            .set_hints(AccessorHint::ReadStreamable | AccessorHint::ReadSeekable);
+        am.set_root(&self.root);
+
+        let cap = am.capability_mut();
+        if cap.read {
+            cap.read_can_seek = true;
+            cap.read_can_next = true;
+            cap.read_with_range = true;
+            cap.stat = true;
+        }
+
+        if cap.write {
+            cap.create_dir = true;
+            cap.delete = true;
+        }
 
         am
     }

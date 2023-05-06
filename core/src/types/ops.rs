@@ -50,11 +50,28 @@ impl OpDelete {
 }
 
 /// Args for `list` operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct OpList {
     /// The limit passed to underlying service to specify the max results
     /// that could return.
     limit: Option<usize>,
+
+    /// The start_after passes to underlying service to specify the specified key
+    /// to start listing from.
+    start_after: Option<String>,
+
+    /// The delimiter used to for the list operation. Default to be `/`
+    delimiter: String,
+}
+
+impl Default for OpList {
+    fn default() -> Self {
+        OpList {
+            limit: None,
+            start_after: None,
+            delimiter: "/".to_string(),
+        }
+    }
 }
 
 impl OpList {
@@ -72,6 +89,28 @@ impl OpList {
     /// Get the limit of list operation.
     pub fn limit(&self) -> Option<usize> {
         self.limit
+    }
+
+    /// Change the start_after of this list operation.
+    pub fn with_start_after(mut self, start_after: &str) -> Self {
+        self.start_after = Some(start_after.into());
+        self
+    }
+
+    /// Get the start_after of list operation.
+    pub fn start_after(&self) -> Option<&str> {
+        self.start_after.as_deref()
+    }
+
+    /// Change the delimiter. The default delimiter is "/"
+    pub fn with_delimiter(mut self, delimiter: &str) -> Self {
+        self.delimiter = delimiter.to_string();
+        self
+    }
+
+    /// Get the current delimiter.
+    pub fn delimiter(&self) -> &str {
+        &self.delimiter
     }
 }
 
@@ -212,10 +251,10 @@ impl BatchOperation {
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     br: BytesRange,
-    override_content_disposition: Option<String>,
-    override_cache_control: Option<String>,
     if_match: Option<String>,
     if_none_match: Option<String>,
+    override_cache_control: Option<String>,
+    override_content_disposition: Option<String>,
 }
 
 impl OpRead {

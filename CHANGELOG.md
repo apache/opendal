@@ -5,6 +5,158 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.33.3] - 2023-05-06
+
+### Added
+
+- feat(services/onedrive): Add read and write support for OneDrive (#2129)
+- test(core): test for `read_with_override_cache_control` (#2155)
+- feat(http_util): Implement multipart/form-data support (#2157)
+- feat(http_util): Implement multipart/mixed support (#2161)
+- RFC-2133: Introduce Append API (#2133)
+- feat(services/sftp): Add read/write/stat support for sftp (#2186)
+- feat(services/gdrive): Add read & write & delete support for GoogleDrive (#2184)
+- feat(services/vercel): Add vercel remote cache support (#2193)
+- feat(tests): Enable supabase integration tests (#2190)
+- feat(core): merge scan and list (#2214)
+
+### Changed
+
+- refactor(java): refactor java code for java binding (#2145)
+- refactor(layers/logging): parsing level str (#2160)
+- refactor: Move not initiated logic to utils instead (#2196)
+- refactor(services/memcached): Rewrite memecached connection entirely (#2204)
+
+### Fixed
+
+- fix(service/s3): set retryable on batch (#2171)
+- fix(services/supabase): Supabase ci fix (#2200)
+
+### Docs
+
+- docs(website): try to add opendal logo (#2159)
+- doc: update vision to be more clear (#2164)
+- docs: Refactor `Contributing` and add `Developing` (#2169)
+- docs: Merge DEVELOPING into CONTRIBUTING (#2172)
+- docs: fix some grammar errors in the doc of Operator (#2173)
+- docs(nodejs): Add CONTRIBUTING docs (#2174)
+- docs: Add CONTRIBUTING for python (#2188)
+
+### CI
+
+- ci: Use microsoft rust devcontainer instead (#2165)
+- ci(devcontainer): Install development deps (#2167)
+- chore: set workspace default members (#2168)
+- ci: Setup vercel artifacts integration tests (#2197)
+- ci: Remove not used odev tools (#2202)
+- ci: Add tools to generate NOTICE and all deps licenses (#2205)
+- ci: use Temurin JDK 11 to build the bindings-java (#2213)
+
+### Chore
+
+- chore(deps): bump clap from 4.1.11 to 4.2.5 (#2183)
+- chore(deps): bump futures from 0.3.27 to 0.3.28 (#2181)
+- chore(deps): bump assert_cmd from 2.0.10 to 2.0.11 (#2180)
+- chore: Refactor behavior test (#2189)
+- chore: update readme for more information that is more friendly to newcomers (#2217)
+
+## [v0.33.2] - 2023-04-27
+
+### Added
+
+- feat(core): add test for `stat_with_if_none_match` (#2122)
+- feat(services/gcs): Add start-after support for list (#2107)
+- feat(services/azblob): Add supporting presign (#2120)
+- feat(services/gcs): Add supporting presign support (#2126)
+- feat(java): connect rust async/await with java future (#2112)
+- docs: add hdfs classpath related troubleshoot (#2130)
+- fix(clippy): suppress dead_code check (#2135)
+- feat(core): Add `cache-control` to Metadata (#2136)
+- fix(services/gcs): Remove HOST header to avoid gcs RESET connection (#2139)
+- test(core): test for `write_with_cache_control` (#2131)
+- test(core): test for `write_with_content_type` (#2140)
+- test(core): test for `read_with_if_none_match` (#2141)
+- feat(services/supabase): Add read/write/stat support for supabase (#2119)
+
+### Docs
+
+- docs: add hdfs classpath related troubleshoot (#2130)
+
+### CI
+
+-  ci: Mark job as skipped if owner is not apache (#2128)
+- ci: Enable native-tls to test gcs presign for workaround (#2138)
+
+## [v0.33.1] - 2023-04-25
+
+### Added
+
+- feat: Add behavior test for read_with_if_match & stat_with_if_match (#2088)
+- feat(tests): Add fuzz test for writer without content length (#2100)
+- feat: add if_none_match support for obs (#2103)
+- feat(services/oss): Add server side encryption support for oss (#2092)
+- feat(core): update errorKind `PreconditionFailed` to `ConditionNotMatch` (#2104)
+- feat(services/s3): Add `start-after` support for list (#2096)
+- feat: gcs support cache control (#2116)
+
+### Fixed
+
+- fix(services/gcs): set `content length=0` for gcs initiate_resumable_upload (#2110)
+- fix(bindings/nodejs): Fix index.d.ts not updated (#2117)
+
+### Docs
+
+- chore: improve LoggingLayer docs and pub use log::Level (#2089)
+- docs(refactor): Add more detailed description of operator, accessor, and builder (#2094)
+
+### CI
+
+- chore(bindings/nodejs): update `package.json` repository info (#2078)
+- ci: Bring hdfs test back (#2114)
+
+## [v0.33.0] - 2023-04-23
+
+### Added
+
+- feat: Add OpenTelemetry Trace Layer (#2001)
+- feat: add if_none_match support for azblob (#2035)
+- feat: add if_none_match/if_match for gcs (#2039)
+- feat: Add size check for sized writer (#2038)
+- feat(services/azblob): Add if-match support (#2037)
+- feat(core): add copy&rename to error_context layer (#2040)
+- feat: add if-match support for OSS (#2034)
+- feat: Bootstrap new (old) project oay (#2041)
+- feat(services/OSS): Add override_content_disposition support (#2043)
+- feat: add IF_MATCH for http (#2044)
+- feat: add IF_MATCH for http HEAD request (#2047)
+- feat: add cache control header for azblob and obs (#2049)
+- feat: Add capability for operation's variant and args (#2057)
+- feat(azblob): Add override_content_disposition support (#2065)
+- feat(core): test for read_with_override_content_composition (#2067)
+- feat(core): Add `start-after` support for list (#2071)
+
+### Changed
+
+- refactor: Polish Writer API by merging append and write together (#2036)
+- refactor(raw/http_util): Add url in error context (#2066)
+- refactor: Allow reusing the same operator to speed up tests (#2068)
+
+### Fixed
+
+- fix(bindings/ruby): use rb_sys_env to help find ruby for building (#2051)
+- fix: MadsimLayer should be able to built without cfg (#2059)
+- fix(services/s3): Ignore prefix if it's empty (#2064)
+
+### Docs
+
+- docs(bindings/python): ipynb examples for users (#2061)
+
+### CI
+
+- ci(bindings/nodejs): publish support `--provenance` (#2046)
+- ci: upgrade typos to 1.14.8 (#2055)
+- chore(bindings/C): ignore the formatting of auto-generated opendal.h (#2056)
+
 ## [v0.32.0] - 2023-04-18
 
 ### Added
@@ -1915,6 +2067,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.33.3]: https://github.com/apache/incubator-opendal/compare/v0.33.2...v0.33.3
+[v0.33.2]: https://github.com/apache/incubator-opendal/compare/v0.33.1...v0.33.2
+[v0.33.1]: https://github.com/apache/incubator-opendal/compare/v0.33.0...v0.33.1
+[v0.33.0]: https://github.com/apache/incubator-opendal/compare/v0.32.0...v0.33.0
 [v0.32.0]: https://github.com/apache/incubator-opendal/compare/v0.31.1...v0.32.0
 [v0.31.1]: https://github.com/apache/incubator-opendal/compare/v0.31.0...v0.31.1
 [v0.31.0]: https://github.com/apache/incubator-opendal/compare/v0.30.5...v0.31.0

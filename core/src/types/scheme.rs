@@ -61,6 +61,10 @@ pub enum Scheme {
     Moka,
     /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
     Obs,
+    /// [onedrive][crate::services::Onedrive]: Microsoft OneDrive services.
+    Onedrive,
+    /// [gdrive][crate::services::Gdrive]: GoogleDrive services.
+    Gdrive,
     /// [oss][crate::services::Oss]: Aliyun Object Storage Services
     Oss,
     /// [redis][crate::services::Redis]: Redis services
@@ -69,8 +73,14 @@ pub enum Scheme {
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
     S3,
+    /// [sftp][crate::services::Sftp]: SFTP services
+    Sftp,
     /// [sled][crate::services::Sled]: Sled services
     Sled,
+    /// [Supabase][crate::services::Supabase]: Supabase storage service
+    Supabase,
+    /// [Vercel Artifacts][crate::services::vercel_artifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
+    VercelArtifacts,
     /// [wasabi][crate::services::Wasabi]: Wasabi service
     Wasabi,
     /// [webdav][crate::services::Webdav]: WebDAV support.
@@ -130,6 +140,7 @@ impl FromStr for Scheme {
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
             "sled" => Ok(Scheme::Sled),
+            "supabase" => Ok(Scheme::Supabase),
             "oss" => Ok(Scheme::Oss),
             "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
@@ -157,10 +168,15 @@ impl From<Scheme> for &'static str {
             Scheme::Memory => "memory",
             Scheme::Moka => "moka",
             Scheme::Obs => "obs",
+            Scheme::Onedrive => "onedrive",
+            Scheme::Gdrive => "gdrive",
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",
+            Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
+            Scheme::Supabase => "supabase",
+            Scheme::VercelArtifacts => "vercel_artifacts",
             Scheme::Oss => "oss",
             Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",

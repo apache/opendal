@@ -33,8 +33,11 @@ use crate::raw::*;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.
+/// Developer should manipulate the data from storage service through Operator only by right.
 ///
-/// Read [`concepts`][docs::concepts] for know more about [`Operator`].
+/// We will usually do some general checks and data transformations in this layer,
+/// like normalizing path from input, checking whether the path refers to one file or one directory, and so on.
+/// Read [`concepts`][docs::concepts] for more about [`Operator`].
 ///
 /// # Examples
 ///
@@ -61,8 +64,10 @@ use crate::*;
 /// ```
 #[derive(Clone, Debug)]
 pub struct Operator {
+    // accessor is what Operator delegates for
     accessor: FusedAccessor,
 
+    // limit is usually the maximum size of data that operator will handle in one operation
     limit: usize,
 }
 
@@ -73,7 +78,11 @@ impl Operator {
     }
 
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
-        let limit = accessor.info().max_batch_operations().unwrap_or(1000);
+        let limit = accessor
+            .info()
+            .capability()
+            .batch_max_operations
+            .unwrap_or(1000);
         Self { accessor, limit }
     }
 
@@ -81,7 +90,8 @@ impl Operator {
         self.accessor
     }
 
-    /// Get current operator's limit
+    /// Get current operator's limit.
+    /// Limit is usually the maximum size of data that operator will handle in one operation.
     pub fn limit(&self) -> usize {
         self.limit
     }
@@ -154,7 +164,7 @@ impl Operator {
     ///
     /// Use `stat` if you:
     ///
-    /// - Want detect the outside changes of path.
+    /// - Want to detect the outside changes of path.
     /// - Don't want to read from cached metadata.
     ///
     /// You may want to use `metadata` if you are working with entries
@@ -189,7 +199,7 @@ impl Operator {
     ///
     /// Use `stat` if you:
     ///
-    /// - Want detect the outside changes of path.
+    /// - Want to detect the outside changes of path.
     /// - Don't want to read from cached metadata.
     ///
     /// You may want to use `metadata` if you are working with entries
@@ -237,7 +247,7 @@ impl Operator {
     ///
     /// You may want to use `stat`, if you:
     ///
-    /// - Want detect the outside changes of path.
+    /// - Want to detect the outside changes of path.
     /// - Don't want to read from cached metadata.
     ///
     /// # Behavior
@@ -249,8 +259,8 @@ impl Operator {
     ///
     /// ## Query already cached metadata
     ///
-    /// By query metadata with `None`, we can only query in-memory metadata
-    /// cache. In this way, we can make sure that no API call will send.
+    /// By querying metadata with `None`, we can only query in-memory metadata
+    /// cache. In this way, we can make sure that no API call will be sent.
     ///
     /// ```
     /// # use anyhow::Result;
@@ -290,7 +300,7 @@ impl Operator {
     ///
     /// ## Query all metadata
     ///
-    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this entry.
+    /// By querying metadata with `Complete`, we can make sure that we have fetched all metadata of this entry.
     ///
     /// ```
     /// # use anyhow::Result;
@@ -646,7 +656,7 @@ impl Operator {
     ///
     /// - `from` and `to` must be a file.
     /// - `to` will be overwritten if it exists.
-    /// - If `from` and `to` are the same,  a `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same,  an `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Examples
@@ -705,7 +715,7 @@ impl Operator {
     ///
     /// - `from` and `to` must be a file.
     /// - `to` will be overwritten if it exists.
-    /// - If `from` and `to` are the same, a `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
     ///
     /// # Examples
     ///
@@ -871,7 +881,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Delete not existing error won't return errors.
+    /// - Deleting a file that does not exist won't return errors.
     ///
     /// # Examples
     ///
@@ -917,9 +927,9 @@ impl Operator {
         self.remove_via(stream::iter(paths)).await
     }
 
-    /// remove will given paths.
-
-    /// remove_via will remove files via given stream.
+    /// remove will remove files via the given paths.
+    ///
+    /// remove_via will remove files via the given stream.
     ///
     /// We will delete by chunks with given batch limit on the stream.
     ///
@@ -1078,6 +1088,45 @@ impl Operator {
     /// # }
     /// ```
     pub async fn list(&self, path: &str) -> Result<Lister> {
+        self.list_with(path, OpList::new()).await
+    }
+
+    /// List given path with OpList.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::ops::OpList;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let option = OpList::new().with_limit(10).with_start_after("start");
+    /// let mut ds = op.list_with("path/to/dir/", option).await?;
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list_with(&self, path: &str, op: OpList) -> Result<Lister> {
         let path = normalize_path(path);
 
         if !validate_path(&path, EntryMode::DIR) {
@@ -1090,7 +1139,7 @@ impl Operator {
             .with_context("path", &path));
         }
 
-        let (_, pager) = self.inner().list(&path, OpList::new()).await?;
+        let (_, pager) = self.inner().list(&path, op).await?;
 
         Ok(Lister::new(pager))
     }

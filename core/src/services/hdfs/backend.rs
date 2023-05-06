@@ -93,6 +93,11 @@ use crate::*;
 /// ```
 ///
 /// `CLASSPATH` is not set correctly or your hadoop installation is incorrect.
+///  
+/// To set `CLASSPATH`:
+/// ```shell
+/// export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':'):${CLASSPATH}
+/// ```
 ///
 /// # Example
 ///
@@ -232,13 +237,18 @@ impl Accessor for HdfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Hdfs)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::List
-                    | AccessorCapability::Blocking,
-            )
-            .set_hints(AccessorHint::ReadSeekable);
+            .set_capability(Capability {
+                read: true,
+                read_can_seek: true,
+                read_with_range: true,
+
+                write: true,
+                list: true,
+                blocking: true,
+
+                list_with_delimiter_slash: true,
+                ..Default::default()
+            });
 
         am
     }

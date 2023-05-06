@@ -219,8 +219,15 @@ impl Accessor for IpfsBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Read | AccessorCapability::List)
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+                list: true,
+
+                list_with_delimiter_slash: true,
+                ..Default::default()
+            });
 
         ma
     }

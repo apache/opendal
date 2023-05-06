@@ -18,9 +18,11 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
+use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
 use reqsign::HuaweicloudObsCredential;
@@ -87,6 +89,7 @@ impl ObsCore {
         path: &str,
         range: BytesRange,
         if_match: Option<&str>,
+        if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -100,6 +103,10 @@ impl ObsCore {
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header())
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let mut req = req
@@ -116,6 +123,7 @@ impl ObsCore {
         path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
+        cache_control: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -126,6 +134,9 @@ impl ObsCore {
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
+        }
+        if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
         }
 
         if let Some(mime) = content_type {
@@ -141,6 +152,7 @@ impl ObsCore {
         &self,
         path: &str,
         if_match: Option<&str>,
+        if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -153,6 +165,10 @@ impl ObsCore {
 
         if let Some(if_match) = if_match {
             req = req.header(IF_MATCH, if_match);
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let mut req = req

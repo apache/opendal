@@ -36,18 +36,28 @@ pub struct S3Pager {
     delimiter: String,
     limit: Option<usize>,
 
+    /// Amazon S3 starts listing **after** this specified key
+    start_after: Option<String>,
+
     token: String,
     done: bool,
 }
 
 impl S3Pager {
-    pub fn new(core: Arc<S3Core>, path: &str, delimiter: &str, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<S3Core>,
+        path: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        start_after: Option<&str>,
+    ) -> Self {
         Self {
             core,
 
             path: path.to_string(),
             delimiter: delimiter.to_string(),
             limit,
+            start_after: start_after.map(String::from),
 
             token: "".to_string(),
             done: false,
@@ -64,7 +74,13 @@ impl oio::Page for S3Pager {
 
         let resp = self
             .core
-            .s3_list_objects(&self.path, &self.token, &self.delimiter, self.limit)
+            .s3_list_objects(
+                &self.path,
+                &self.token,
+                &self.delimiter,
+                self.limit,
+                self.start_after.clone(),
+            )
             .await?;
 
         if resp.status() != http::StatusCode::OK {

@@ -29,16 +29,12 @@ use crate::*;
 pub enum WriteOperation {
     /// Operation for [`Write::write`]
     Write,
-    /// Operation for [`Write::append`]
-    Append,
     /// Operation for [`Write::abort`]
     Abort,
     /// Operation for [`Write::close`]
     Close,
     /// Operation for [`BlockingWrite::write`]
     BlockingWrite,
-    /// Operation for [`BlockingWrite::append`]
-    BlockingAppend,
     /// Operation for [`BlockingWrite::close`]
     BlockingClose,
 }
@@ -62,11 +58,9 @@ impl From<WriteOperation> for &'static str {
 
         match v {
             Write => "Writer::write",
-            Append => "Writer::append",
             Abort => "Writer::abort",
             Close => "Writer::close",
             BlockingWrite => "BlockingWriter::write",
-            BlockingAppend => "BlockingWriter::append",
             BlockingClose => "BlockingWriter::close",
         }
     }

@@ -300,8 +300,15 @@ impl Accessor for GhacBackend {
         am.set_scheme(Scheme::Ghac)
             .set_root(&self.root)
             .set_name(&self.version)
-            .set_capabilities(AccessorCapability::Read | AccessorCapability::Write)
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+
+                write: true,
+
+                ..Default::default()
+            });
         am
     }
 

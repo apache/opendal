@@ -60,10 +60,10 @@ use crate::*;
 ///
 /// # Configuration
 ///
-/// - `endpoint`: set the endpoint for connection
+/// - `endpoint`: Set the endpoint for connection
 /// - `root`: Set the work directory for backend
-/// - `credential`:  login credentials
-/// - `tls`: tls mode
+/// - `user`: Set the login user
+/// - `password`: Set the login password
 ///
 /// You can refer to [`FtpBuilder`]'s docs for more information
 ///
@@ -316,9 +316,14 @@ impl Accessor for FtpBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            .set_capability(Capability {
+                read: true,
+                read_with_range: true,
+                write: true,
+                list: true,
+                list_with_delimiter_slash: true,
+                ..Default::default()
+            });
 
         am
     }
@@ -332,22 +337,16 @@ impl Accessor for FtpBackend {
 
         for path in paths {
             curr_path.push_str(path);
-            // try to create directory
-            if curr_path.ends_with('/') {
-                match ftp_stream.mkdir(&curr_path).await {
-                    // Do nothing if status is FileUnavailable or OK(()) is return.
-                    Err(FtpError::UnexpectedResponse(Response {
-                        status: Status::FileUnavailable,
-                        ..
-                    }))
-                    | Ok(()) => (),
-                    Err(e) => {
-                        return Err(e.into());
-                    }
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(e.into());
                 }
-            } else {
-                // else, create file
-                ftp_stream.put_file(&curr_path, &mut "".as_bytes()).await?;
             }
         }
 
@@ -393,6 +392,28 @@ impl Accessor for FtpBackend {
                 ErrorKind::Unsupported,
                 "write without content length is not supported",
             ));
+        }
+
+        // Ensure the parent dir exists.
+        let parent = get_parent(path);
+        let paths: Vec<&str> = parent.split('/').collect();
+
+        // TODO: we can optimize this by checking dir existence first.
+        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+        let mut curr_path = String::new();
+        for path in paths {
+            curr_path.push_str(path);
+            match ftp_stream.mkdir(&curr_path).await {
+                // Do nothing if status is FileUnavailable or OK(()) is return.
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(()) => (),
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
         }
 
         Ok((

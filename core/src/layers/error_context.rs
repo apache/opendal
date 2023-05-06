@@ -455,7 +455,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
-            err.with_operation(WriteOperation::Append)
+            err.with_operation(WriteOperation::Abort)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

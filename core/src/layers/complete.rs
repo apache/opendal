@@ -152,10 +152,9 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
-        let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadSeekable),
-            self.meta.hints().contains(AccessorHint::ReadStreamable),
-        );
+        let capability = self.meta.capability();
+        let seekable = capability.read_can_seek;
+        let streamable = capability.read_can_next;
 
         let range = args.range();
         let (rp, r) = self.inner.read(path, args).await?;
@@ -202,10 +201,9 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
-        let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadSeekable),
-            self.meta.hints().contains(AccessorHint::ReadStreamable),
-        );
+        let capability = self.meta.capability();
+        let seekable = capability.read_can_seek;
+        let streamable = capability.read_can_next;
 
         let (rp, r) = self.inner.blocking_read(path, args)?;
 
@@ -227,10 +225,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_list {
             let (rp, p) = self.inner.list(path, args).await?;
@@ -253,10 +249,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_list {
             let (rp, p) = self.inner.blocking_list(path, args)?;
@@ -279,10 +273,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpScan,
     ) -> Result<(RpScan, CompletePager<A, A::Pager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_scan {
             let (rp, p) = self.inner.scan(path, args).await?;
@@ -304,10 +296,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpScan,
     ) -> Result<(RpScan, CompletePager<A, A::BlockingPager>)> {
-        let (can_list, can_scan) = (
-            self.meta.capabilities().contains(AccessorCapability::List),
-            self.meta.capabilities().contains(AccessorCapability::Scan),
-        );
+        let capability = self.meta.capability();
+        let (can_list, can_scan) = (capability.list, capability.scan);
 
         if can_scan {
             let (rp, p) = self.inner.blocking_scan(path, args)?;
@@ -519,7 +509,7 @@ where
 }
 
 pub struct CompleteWriter<W> {
-    inner: W,
+    inner: Option<W>,
     size: Option<u64>,
     written: u64,
 }
@@ -527,9 +517,21 @@ pub struct CompleteWriter<W> {
 impl<W> CompleteWriter<W> {
     pub fn new(inner: W, size: Option<u64>) -> CompleteWriter<W> {
         CompleteWriter {
-            inner,
+            inner: Some(inner),
             size,
             written: 0,
+        }
+    }
+}
+
+/// Check if the writer has been closed or aborted while debug_assertions
+/// enabled. This code will never be executed in release mode.
+#[cfg(debug_assertions)]
+impl<W> Drop for CompleteWriter<W> {
+    fn drop(&mut self) {
+        if self.inner.is_some() {
+            // Do we need to panic here?
+            log::warn!("writer has not been closed or aborted, must be a bug")
         }
     }
 }
@@ -554,13 +556,23 @@ where
             }
         }
 
-        self.inner.write(bs).await?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        w.write(bs).await?;
         self.written += n as u64;
         Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.abort().await?;
+        self.inner = None;
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -576,7 +588,13 @@ where
             }
         }
 
-        self.inner.close().await?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.close().await?;
+        self.inner = None;
+
         Ok(())
     }
 }
@@ -600,7 +618,11 @@ where
             }
         }
 
-        self.inner.write(bs)?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.write(bs)?;
         self.written += n as u64;
         Ok(())
     }
@@ -618,7 +640,12 @@ where
             }
         }
 
-        self.inner.close()?;
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        w.close()?;
+        self.inner = None;
         Ok(())
     }
 }

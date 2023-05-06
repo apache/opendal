@@ -61,7 +61,7 @@ const AZBLOB_BATCH_LIMIT: usize = 256;
 /// - [x] copy
 /// - [x] list
 /// - [x] scan
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -403,6 +403,7 @@ impl Builder for AzblobBuilder {
                 signer,
                 batch_signer,
             }),
+            has_sas_token: self.sas_token.is_some(),
         })
     }
 }
@@ -435,6 +436,7 @@ fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
     core: Arc<AzblobCore>,
+    has_sas_token: bool,
 }
 
 #[async_trait]
@@ -447,24 +449,47 @@ impl Accessor for AzblobBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.core.root)
             .set_name(&self.core.container)
-            .set_max_batch_operations(AZBLOB_BATCH_LIMIT)
-            .set_capabilities(Read | Write | List | Scan | Batch | Copy)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+                read_with_override_content_disposition: true,
+
+                write: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
+
+                delete: true,
+                create_dir: true,
+                list: true,
+                scan: true,
+                copy: true,
+                presign: self.has_sas_token,
+                batch: true,
+                batch_delete: true,
+                batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+
+                list_with_delimiter_slash: true,
+                ..Default::default()
+            });
 
         am
     }
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self
-            .core
-            .azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req =
+            self.core
+                .azblob_put_blob_request(path, Some(0), None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -484,7 +509,13 @@ impl Accessor for AzblobBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .azblob_get_blob(path, args.range(), args.if_none_match(), args.if_match())
+            .azblob_get_blob(
+                path,
+                args.range(),
+                args.if_none_match(),
+                args.if_match(),
+                args.override_content_disposition(),
+            )
             .await?;
 
         let status = resp.status();
@@ -564,22 +595,41 @@ impl Accessor for AzblobBackend {
         let op = AzblobPager::new(
             self.core.clone(),
             path.to_string(),
-            "/".to_string(),
+            args.delimiter().to_string(),
             args.limit(),
         );
 
         Ok((RpList::default(), op))
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let op = AzblobPager::new(
-            self.core.clone(),
-            path.to_string(),
-            "".to_string(),
-            args.limit(),
-        );
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => {
+                self.core
+                    .azblob_head_blob_request(path, v.if_none_match(), v.if_match())?
+            }
+            PresignOperation::Read(v) => self.core.azblob_get_blob_request(
+                path,
+                v.range(),
+                v.if_none_match(),
+                v.if_match(),
+                v.override_content_disposition(),
+            )?,
+            PresignOperation::Write(_) => {
+                self.core
+                    .azblob_put_blob_request(path, None, None, None, AsyncBody::Empty)?
+            }
+        };
 
-        Ok((RpScan::default(), op))
+        self.core.sign_query(&mut req).await?;
+
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
@@ -591,6 +641,7 @@ impl Accessor for AzblobBackend {
                 "batch delete limit exceeded",
             ));
         }
+
         // construct and complete batch request
         let resp = self.core.azblob_batch_delete(&paths).await?;
 

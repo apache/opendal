@@ -125,7 +125,7 @@ opendal supports:
 | obs     | Y               | N                                       |
 | s3      | Y               | Y                                       |
 
-opendal has an idea called [`AccessorCapability`][crate::raw::AccessorCapability], so it's services may have different capability sets. For example, opendal's `http` and `ipfs` are read only.
+opendal has an idea called [`Capability`][crate::Capability], so it's services may have different capability sets. For example, opendal's `http` and `ipfs` are read only.
 
 ### Features
 

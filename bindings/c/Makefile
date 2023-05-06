@@ -26,7 +26,7 @@ all: build test
 
 .PHONY: format
 format:
-	find . \( -name '*.c' -o -name '*.h' \) -exec clang-format -i --style=WebKit --verbose {} \;
+	find . -name '*.c' -exec clang-format -i --style=WebKit --verbose {} \;
 
 .PHONY: build
 build:

@@ -897,16 +897,32 @@ impl Accessor for WasabiBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Wasabi)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | List | Scan | Presign | Batch | Copy | Rename)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+
+                write: true,
+                list: true,
+                scan: true,
+                copy: true,
+                presign: true,
+                batch: true,
+                rename: true,
+
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
+
+                ..Default::default()
+            });
 
         am
     }
@@ -1005,14 +1021,7 @@ impl Accessor for WasabiBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            WasabiPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            WasabiPager::new(self.core.clone(), path, "", args.limit()),
+            WasabiPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 
@@ -1050,7 +1059,7 @@ impl Accessor for WasabiBackend {
         if ops.len() > 1000 {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "s3 services only allow delete up to 1000 keys at once",
+                "wasabi services only allow delete up to 1000 keys at once",
             )
             .with_context("length", ops.len().to_string()));
         }

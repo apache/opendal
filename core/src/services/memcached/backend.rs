@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use async_compat::Compat;
 use async_trait::async_trait;
 use bb8::RunError;
 use tokio::net::TcpStream;
@@ -220,7 +219,7 @@ impl Adapter {
             RunError::TimedOut => {
                 Error::new(ErrorKind::Unexpected, "get connection from pool failed").set_temporary()
             }
-            RunError::User(err) => parse_io_error(err),
+            RunError::User(err) => err,
         })
     }
 }
@@ -231,18 +230,20 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Memcached,
             "memcached",
-            AccessorCapability::Read | AccessorCapability::Write,
+            Capability {
+                read: true,
+                write: true,
+                create_dir: true,
+
+                ..Default::default()
+            },
         )
     }
 
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let mut conn = self.conn().await?;
-        // TODO: memcache-async have `Sized` limit on key, can we remove it?
-        match conn.get(&percent_encode_path(key)).await {
-            Ok(bs) => Ok(Some(bs)),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
-            Err(err) => Err(parse_io_error(err)),
-        }
+
+        conn.get(&percent_encode_path(key)).await
     }
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
@@ -257,40 +258,13 @@ impl kv::Adapter for Adapter {
                 .unwrap_or_default(),
         )
         .await
-        .map_err(parse_io_error)?;
-
-        Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
         let mut conn = self.conn().await?;
 
-        let _: () = conn
-            .delete(&percent_encode_path(key))
-            .await
-            .map_err(parse_io_error)?;
-        Ok(())
+        conn.delete(&percent_encode_path(key)).await
     }
-}
-
-fn parse_io_error(err: std::io::Error) -> Error {
-    use std::io::ErrorKind::*;
-
-    let (kind, retryable) = match err.kind() {
-        NotFound => (ErrorKind::NotFound, false),
-        AlreadyExists => (ErrorKind::NotFound, false),
-        PermissionDenied => (ErrorKind::PermissionDenied, false),
-        Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, true),
-    };
-
-    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
-
-    if retryable {
-        err = err.set_temporary();
-    }
-
-    err
 }
 
 /// A `bb8::ManageConnection` for `memcache_async::ascii::Protocol`.
@@ -311,13 +285,15 @@ impl MemcacheConnectionManager {
 
 #[async_trait]
 impl bb8::ManageConnection for MemcacheConnectionManager {
-    type Connection = ascii::Protocol<Compat<TcpStream>>;
-    type Error = std::io::Error;
+    type Connection = ascii::Connection;
+    type Error = Error;
 
     /// TODO: Implement unix stream support.
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let sock = TcpStream::connect(&self.address).await?;
-        Ok(ascii::Protocol::new(Compat::new(sock)))
+        let conn = TcpStream::connect(&self.address)
+            .await
+            .map_err(parse_io_error)?;
+        Ok(ascii::Connection::new(conn))
     }
 
     async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
@@ -327,4 +303,8 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
         false
     }
+}
+
+pub fn parse_io_error(err: std::io::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, &err.kind().to_string()).set_source(err)
 }

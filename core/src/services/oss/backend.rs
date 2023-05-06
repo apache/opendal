@@ -114,6 +114,10 @@ pub struct OssBuilder {
     presign_endpoint: Option<String>,
     bucket: String,
 
+    // sse options
+    server_side_encryption: Option<String>,
+    server_side_encryption_key_id: Option<String>,
+
     // authenticate options
     access_key_id: Option<String>,
     access_key_secret: Option<String>,
@@ -253,6 +257,41 @@ impl OssBuilder {
         };
         Ok((endpoint, host))
     }
+
+    /// Set server_side_encryption for this backend.
+    ///
+    /// Available values: `AES256`, `KMS`.
+    ///
+    /// Reference: <https://www.alibabacloud.com/help/en/object-storage-service/latest/server-side-encryption-5>
+    /// Brief explanation:
+    /// There are two server-side encryption methods available:
+    /// SSE-AES256:
+    ///     1. Configure the bucket encryption mode as OSS-managed and specify the encryption algorithm as AES256.
+    ///     2. Include the `x-oss-server-side-encryption` parameter in the request and set its value to AES256.
+    /// SSE-KMS:
+    ///     1. To use this service, you need to first enable KMS.
+    ///     2. Configure the bucket encryption mode as KMS, and specify the specific CMK ID for BYOK (Bring Your Own Key)
+    ///        or not specify the specific CMK ID for OSS-managed KMS key.
+    ///     3. Include the `x-oss-server-side-encryption` parameter in the request and set its value to KMS.
+    ///     4. If a specific CMK ID is specified, include the `x-oss-server-side-encryption-key-id` parameter in the request, and set its value to the specified CMK ID.
+    pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.server_side_encryption = Some(v.to_string())
+        }
+        self
+    }
+
+    /// Set server_side_encryption_key_id for this backend.
+    ///
+    /// # Notes
+    ///
+    /// This option only takes effect when server_side_encryption equals to KMS.
+    pub fn server_side_encryption_key_id(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.server_side_encryption_key_id = Some(v.to_string())
+        }
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -270,7 +309,10 @@ impl Builder for OssBuilder {
         map.get("access_key_id").map(|v| builder.access_key_id(v));
         map.get("access_key_secret")
             .map(|v| builder.access_key_secret(v));
-
+        map.get("server_side_encryption")
+            .map(|v| builder.server_side_encryption(v));
+        map.get("server_side_encryption_key_id")
+            .map(|v| builder.server_side_encryption_key_id(v));
         builder
     }
 
@@ -310,6 +352,22 @@ impl Builder for OssBuilder {
         };
         debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
+        let server_side_encryption = match &self.server_side_encryption {
+            None => None,
+            Some(v) => Some(
+                build_header_value(v)
+                    .map_err(|err| err.with_context("key", "server_side_encryption"))?,
+            ),
+        };
+
+        let server_side_encryption_key_id = match &self.server_side_encryption_key_id {
+            None => None,
+            Some(v) => Some(
+                build_header_value(v)
+                    .map_err(|err| err.with_context("key", "server_side_encryption_key_id"))?,
+            ),
+        };
+
         let mut cfg = AliyunConfig::default();
         // Load cfg from env first.
         cfg = cfg.from_env();
@@ -338,6 +396,8 @@ impl Builder for OssBuilder {
                 signer,
                 loader,
                 client,
+                server_side_encryption,
+                server_side_encryption_key_id,
             }),
         })
     }
@@ -359,16 +419,38 @@ impl Accessor for OssBackend {
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
-        use AccessorCapability::*;
-        use AccessorHint::*;
-
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Oss)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_max_batch_operations(1000)
-            .set_capabilities(Read | Write | Copy | List | Scan | Presign | Batch)
-            .set_hints(ReadStreamable);
+            .set_capability(Capability {
+                stat: true,
+                stat_with_if_match: true,
+                stat_with_if_none_match: true,
+
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+
+                write: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
+                write_without_content_length: true,
+
+                list: true,
+                scan: true,
+                copy: true,
+                presign: true,
+                batch: true,
+                batch_max_operations: Some(1000),
+
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
+                ..Default::default()
+            });
 
         am
     }
@@ -392,7 +474,13 @@ impl Accessor for OssBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self
             .core
-            .oss_get_object(path, args.range(), args.if_match(), args.if_none_match())
+            .oss_get_object(
+                path,
+                args.range(),
+                args.if_match(),
+                args.if_none_match(),
+                args.override_content_disposition(),
+            )
             .await?;
 
         let status = resp.status();
@@ -465,27 +553,25 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            OssPager::new(self.core.clone(), path, "", args.limit()),
+            OssPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => {
-                self.core.oss_head_object_request(path, true, None, None)?
-            }
-            PresignOperation::Read(v) => {
+            PresignOperation::Stat(v) => {
                 self.core
-                    .oss_get_object_request(path, v.range(), true, None, None)?
+                    .oss_head_object_request(path, true, v.if_match(), v.if_none_match())?
             }
+            PresignOperation::Read(v) => self.core.oss_get_object_request(
+                path,
+                v.range(),
+                true,
+                v.if_match(),
+                v.if_none_match(),
+                v.override_content_disposition(),
+            )?,
             PresignOperation::Write(v) => self.core.oss_put_object_request(
                 path,
                 None,

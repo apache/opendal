@@ -45,6 +45,8 @@ use crate::*;
 ///   - `finished`: the operation is successful.
 ///   - `errored`: the operation returns an expected error like `NotFound`.
 ///   - `failed`: the operation returns an unexpected error.
+/// - The default log level while expected error happened is `Warn`.
+/// - The default log level while unexpected failure happened is `Error`.
 ///
 /// # Todo
 ///
@@ -103,9 +105,17 @@ impl LoggingLayer {
     /// For example: accessor returns NotFound.
     ///
     /// `None` means disable the log for error.
-    pub fn with_error_level(mut self, level: Option<Level>) -> Self {
-        self.error_level = level;
-        self
+    pub fn with_error_level(mut self, level: Option<&str>) -> Result<Self> {
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.error_level = Some(level);
+        } else {
+            self.error_level = None;
+        }
+        Ok(self)
     }
 
     /// Setting the log level while unexpected failure happened.
@@ -113,9 +123,17 @@ impl LoggingLayer {
     /// For example: accessor returns Unexpected network error.
     ///
     /// `None` means disable the log for failure.
-    pub fn with_failure_level(mut self, level: Option<Level>) -> Self {
-        self.failure_level = level;
-        self
+    pub fn with_failure_level(mut self, level: Option<&str>) -> Result<Self> {
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.failure_level = Some(level);
+        } else {
+            self.failure_level = None;
+        }
+        Ok(self)
     }
 }
 
@@ -752,7 +770,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|(rp, w)| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> written",
+                    "service={} operation={} path={} -> start writing",
                     self.scheme,
                     Operation::BlockingWrite,
                     path,
@@ -1338,19 +1356,6 @@ impl<W> LoggingWriter<W> {
     }
 }
 
-impl<W> Drop for LoggingWriter<W> {
-    fn drop(&mut self) {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} written={} -> data written finished",
-            self.scheme,
-            self.op,
-            self.path,
-            self.written
-        );
-    }
-}
-
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
@@ -1418,7 +1423,17 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 
     async fn close(&mut self) -> Result<()> {
         match self.inner.close().await {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data written finished",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.written
+                );
+                Ok(())
+            }
             Err(err) => {
                 if let Some(lvl) = self.failure_level {
                     log!(
@@ -1473,7 +1488,17 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
 
     fn close(&mut self) -> Result<()> {
         match self.inner.close() {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data written finished",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.written
+                );
+                Ok(())
+            }
             Err(err) => {
                 if let Some(lvl) = self.failure_level {
                     log!(

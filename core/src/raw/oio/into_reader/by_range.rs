@@ -323,7 +323,10 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capabilities(AccessorCapability::Read);
+            am.set_capability(Capability {
+                read: true,
+                ..Default::default()
+            });
 
             am
         }

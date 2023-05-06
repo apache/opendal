@@ -17,12 +17,15 @@
 
 //! The core concepts of OpenDAL's public API.
 //!
-//! OpenDAL provides a unified abstraction for all storage services.
+//! OpenDAL provides a unified abstraction that helps developers access all storage services.
 //!
 //! There are two core concepts in OpenDAL:
 //!
-//! - [`Builder`]: Build an instance of underlying services.
-//! - [`Operator`]: A bridge between underlying implementation detail and unified abstraction.
+//! - [`Builder`]: Builder accepts a series of parameters to set up an instance of underlying services.
+//! You can adjust the behaviour of underlying services with these parameters.
+//! - [`Operator`]: Developer can access underlying storage services with manipulating one Operator.
+//! The Operator is a delegate for underlying implementation detail, and provides one unified access interface,
+//! including `read`, `write`, `list` and so on.
 //!
 //! If you are interested in internal implementation details, please have a look at [`internals`][super::internals].
 //!
@@ -30,7 +33,9 @@
 //!
 //! Let's start with [`Builder`].
 //!
-//! A `Builder` is a trait that is implemented by the underlying services. We can use a `Builder` to configure and create a service. Builder is the only public API provided by services, and the detailed implementation is hidden.
+//! A `Builder` is a trait that is implemented by the underlying services. We can use a `Builder` to configure and create a service.
+//! Developer can only create one service via Builder, in other words, Builder is the only public API provided by services.
+//! And other detailed implementation will be hidden.
 //!
 //! ```text
 //! ┌───────────┐                 ┌───────────┐
@@ -41,6 +46,8 @@
 //! ```
 //!
 //! All [`Builder`] provided by OpenDAL is under [`services`][crate::services], we can refer to them like `opendal::services::S3`.
+//! By right the builder will be named like `OneServiceBuilder`, but usually we will export it to public with renaming it as one
+//! general name. For example, we will rename `S3Builder` to `S3` and developer will use `S3` finally.
 //!
 //! For example:
 //!
@@ -53,15 +60,19 @@
 //! ```
 //!
 //! # Operator
-//!
-//! The [`Operator`] is a bridge between the underlying implementation details and the unified abstraction. OpenDAL will erase all generic types and higher abstraction around it.
+//! The [`Operator`] is a delegate for Service, the underlying implementation detail that implements [`Accessor`][crate::raw::Accessor],
+//! and it also provides one unified access interface.
+//! It will hold one reference of Service with its all generic types erased by OpenDAL,
+//! which is the reason why we say the Operator is the delegate of one Service.
 //!
 //! ```text
-//! ┌───────────┐           ┌───────────┐              ┌─────────────────┐
-//! │           │  build()  │           │  type erase  │                 │
-//! │  Builder  ├──────────►│  Service  ├─────────────►│     Operator    │
-//! │           │           │           │              │                 │
-//! └───────────┘           └───────────┘              └─────────────────┘
+//!                   ┌────────────────────┐
+//!                   │      Operator      │
+//!                   │         │delegate  │
+//! ┌─────────┐ build │         ▼          │ rely on ┌─────────────────────┐
+//! │ Builder ├───────┼──►┌────────────┐   │◄────────┤ business logic code │
+//! └─────────┘       │   │  Service   │   │         └─────────────────────┘
+//!                   └───┴────────────┴───┘
 //! ```
 //!
 //! `Operator` can be built from `Builder`:

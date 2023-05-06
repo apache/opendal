@@ -47,6 +47,7 @@ impl oio::Write for ObsWriter {
             &self.path,
             Some(bs.len()),
             self.op.content_type(),
+            self.op.cache_control(),
             AsyncBody::Bytes(bs),
         )?;
 

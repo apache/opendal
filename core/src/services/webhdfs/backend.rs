@@ -465,10 +465,16 @@ impl Accessor for WebhdfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+                write: true,
+                list: true,
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
+                ..Default::default()
+            });
         am
     }
 

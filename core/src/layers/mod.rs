@@ -64,14 +64,11 @@ mod complete;
 pub(crate) use complete::CompleteLayer;
 
 #[cfg(feature = "layers-madsim")]
-#[cfg(madsim)]
 mod madsim;
 
 #[cfg(feature = "layers-madsim")]
-#[cfg(madsim)]
 pub use self::madsim::MadsimLayer;
 #[cfg(feature = "layers-madsim")]
-#[cfg(madsim)]
 pub use self::madsim::MadsimServer;
 
 #[cfg(feature = "layers-otel-trace")]

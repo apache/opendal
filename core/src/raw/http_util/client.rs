@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::mem;
 use std::str::FromStr;
 
 use futures::TryStreamExt;
@@ -79,29 +80,26 @@ impl HttpClient {
 
     /// Send a request in async way.
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+        let url = req.uri().to_string();
         let is_head = req.method() == http::Method::HEAD;
+
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
             .client
             .request(
                 parts.method,
-                Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
+                Url::from_str(&url).expect("input request url must be valid"),
             )
             .version(parts.version)
             .headers(parts.headers);
 
-        req_builder = if let AsyncBody::Multipart(field, r) = body {
-            let mut form = reqwest::multipart::Form::new();
-            let part = reqwest::multipart::Part::stream(AsyncBody::Bytes(r));
-            form = form.part(field, part);
-
-            req_builder.multipart(form)
-        } else {
-            req_builder.body(body)
+        req_builder = match body {
+            AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
+            AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
         };
 
-        let resp = req_builder.send().await.map_err(|err| {
+        let mut resp = req_builder.send().await.map_err(|err| {
             let is_temporary = !(
                 // Builder related error should not be retried.
                 err.is_builder() ||
@@ -117,6 +115,7 @@ impl HttpClient {
 
             let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
                 .with_operation("http_util::Client::send_async")
+                .with_context("url", &url)
                 .set_source(err);
             if is_temporary {
                 oerr = oerr.set_temporary();
@@ -136,15 +135,15 @@ impl HttpClient {
         let mut hr = Response::builder()
             .version(resp.version())
             .status(resp.status());
-        for (k, v) in resp.headers().iter() {
-            hr = hr.header(k, v);
-        }
+        // Swap headers directly instead of copy the entire map.
+        mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
-        let stream = resp.bytes_stream().map_err(|err| {
+        let stream = resp.bytes_stream().map_err(move |err| {
             // If stream returns a body related error, we can convert
             // it to interrupt so we can retry it.
             Error::new(ErrorKind::Unexpected, "read data from http stream")
                 .map(|v| if err.is_body() { v.set_temporary() } else { v })
+                .with_context("url", &url)
                 .set_source(err)
         });
 

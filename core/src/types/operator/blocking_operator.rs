@@ -70,7 +70,11 @@ impl BlockingOperator {
     /// # Note
     /// default batch limit is 1000.
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
-        let limit = accessor.info().max_batch_operations().unwrap_or(1000);
+        let limit = accessor
+            .info()
+            .capability()
+            .batch_max_operations
+            .unwrap_or(1000);
         Self { accessor, limit }
     }
 
@@ -419,7 +423,7 @@ impl BlockingOperator {
 
         let op = OpRead::new().with_range(range.into());
 
-        BlockingReader::create_dir(self.inner().clone(), &path, op)
+        BlockingReader::create(self.inner().clone(), &path, op)
     }
 
     /// Write bytes into given path.

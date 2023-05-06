@@ -22,17 +22,27 @@ package org.apache.opendal;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AsyncStepsTest {
-
+    Operator operator;
 
     @Given("A new OpenDAL Async Operator")
     public void a_new_open_dal_async_operator() {
+        Map<String, String> params = new HashMap<>();
+        params.put("root", "/tmp");
+        operator = new Operator("Memory", params);
     }
 
     @When("Async write path {string} with content {string}")
     public void async_write_path_test_with_content_hello_world(String fileName, String content) {
+        CompletableFuture<Boolean> future = operator.writeAsync(fileName, content);
+        Boolean result = future.join();
+        assertTrue(result);
     }
 
     @Then("The async file {string} should exist")

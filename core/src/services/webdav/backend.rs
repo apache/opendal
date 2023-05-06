@@ -266,14 +266,18 @@ impl Accessor for WebdavBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::Copy
-                    | AccessorCapability::Rename
-                    | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_capability(Capability {
+                read: true,
+                read_can_next: true,
+                read_with_range: true,
+                write: true,
+                list: true,
+                copy: true,
+                rename: true,
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
+                ..Default::default()
+            });
 
         ma
     }
@@ -432,7 +436,7 @@ impl WebdavBackend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
+        let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
@@ -647,6 +651,10 @@ impl WebdavBackend {
     }
 
     async fn ensure_parent_path(&self, path: &str) -> Result<()> {
+        if path == "/" {
+            return Ok(());
+        }
+
         // create dir recursively, split path by `/` and create each dir except the last one
         let abs_path = build_abs_path(&self.root, path);
         let abs_path = abs_path.as_str();

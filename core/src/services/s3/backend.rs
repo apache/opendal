@@ -1077,23 +1077,24 @@ impl Accessor for S3Backend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        if path.ends_with('/') {
-            let (_, mut pager) = self.list(path, OpList::default().with_limit(1)).await?;
-            if pager.next().await?.unwrap_or_default().is_empty() {
-                Err(Error::new(ErrorKind::NotFound, "not found"))
-            } else {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        let resp = self
+            .core
+            .s3_head_object(path, args.if_none_match(), args.if_match())
+            .await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => return parse_into_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
+                // S3 does not have a concept of directories, so we need to check if the path is a directory by listing it.
             }
+            _ => return Err(parse_error(resp).await?),
+        }
+
+        let (_, mut pager) = self.list(path, OpList::default().with_limit(1)).await?;
+        if pager.next().await?.unwrap_or_default().is_empty() {
+            Err(Error::new(ErrorKind::NotFound, "not found"))
         } else {
-            let resp = self
-                .core
-                .s3_head_object(path, args.if_none_match(), args.if_match())
-                .await?;
-            let status = resp.status();
-            match status {
-                StatusCode::OK => parse_into_metadata(path, resp.headers()).map(RpStat::new),
-                _ => Err(parse_error(resp).await?),
-            }
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         }
     }
 

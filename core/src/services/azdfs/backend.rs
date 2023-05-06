@@ -311,9 +311,11 @@ impl Accessor for AzdfsBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 write: true,
                 rename: true,
                 list: true,
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

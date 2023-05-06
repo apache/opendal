@@ -3,6 +3,14 @@
 This module provides scripts to make maintainers lives easier.
 OpenDAL users don't need to care about this folder.
 
+NOTES: all shell must be running at root folder of OpenDAL project.
+
+## Generate NOTICE
+
+```shell
+./scripts/generate_notice.sh
+```
+
 ## Release
 
 ```shell
@@ -14,7 +22,7 @@ OPENDAL_VERSION=0.30.2 OPENDAL_VERSION_RC=rc1 ./scripts/release.sh
 ## Check
 
 ```shell
-OPENDAL_VERSION=0.30.2 OPENDAL_VERSION_RC=rc1 ./scripts/check.sh
+./scripts/check.sh apache-incubator-opendal-0.33.3-src.tar.gz
 ```
 
 > Before running the check, please ensure that you have completed the following preparations.

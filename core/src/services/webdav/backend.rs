@@ -269,10 +269,13 @@ impl Accessor for WebdavBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 write: true,
                 list: true,
                 copy: true,
                 rename: true,
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 
@@ -433,7 +436,7 @@ impl WebdavBackend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
+        let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 

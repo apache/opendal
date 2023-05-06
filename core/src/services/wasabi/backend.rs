@@ -908,6 +908,7 @@ impl Accessor for WasabiBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
 
                 write: true,
                 list: true,
@@ -916,6 +917,9 @@ impl Accessor for WasabiBackend {
                 presign: true,
                 batch: true,
                 rename: true,
+
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
 
                 ..Default::default()
             });
@@ -1017,14 +1021,7 @@ impl Accessor for WasabiBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            WasabiPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            WasabiPager::new(self.core.clone(), path, "", args.limit()),
+            WasabiPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 
@@ -1062,7 +1059,7 @@ impl Accessor for WasabiBackend {
         if ops.len() > 1000 {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "s3 services only allow delete up to 1000 keys at once",
+                "wasabi services only allow delete up to 1000 keys at once",
             )
             .with_context("length", ops.len().to_string()));
         }

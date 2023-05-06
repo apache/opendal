@@ -24,7 +24,6 @@ use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
 use bytes::BytesMut;
-use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -171,12 +170,7 @@ impl GcsCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::get(&url);
 
@@ -215,7 +209,6 @@ impl GcsCore {
         path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
-        cache_control: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -239,10 +232,6 @@ impl GcsCore {
         let mut req = Request::post(&url);
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
-
-        if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
 
         if let Some(storage_class) = &self.default_storage_class {
             req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
@@ -282,30 +271,17 @@ impl GcsCore {
     pub fn gcs_insert_object_xml_request(
         &self,
         path: &str,
-        size: Option<usize>,
         content_type: Option<&str>,
-        cache_control: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::put(&url);
 
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
-
         if let Some(content_type) = content_type {
             req = req.header(CONTENT_TYPE, content_type);
-        }
-
-        if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control)
         }
 
         if let Some(acl) = &self.predefined_acl {
@@ -362,12 +338,7 @@ impl GcsCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/{}/{}",
-            self.endpoint,
-            self.bucket,
-            percent_encode_path(&p)
-        );
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut req = Request::head(&url);
 
@@ -436,6 +407,7 @@ impl GcsCore {
         );
 
         let mut req = Request::post(req_uri)
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

@@ -468,8 +468,11 @@ impl Accessor for WebhdfsBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 write: true,
                 list: true,
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
         am

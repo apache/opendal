@@ -222,8 +222,10 @@ impl Accessor for IpfsBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 list: true,
 
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

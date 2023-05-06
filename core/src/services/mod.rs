@@ -114,10 +114,20 @@ mod s3;
 #[cfg(feature = "services-s3")]
 pub use s3::S3;
 
+#[cfg(feature = "services-sftp")]
+mod sftp;
+#[cfg(feature = "services-sftp")]
+pub use sftp::Sftp;
+
 #[cfg(feature = "services-sled")]
 mod sled;
 #[cfg(feature = "services-sled")]
 pub use self::sled::Sled;
+
+#[cfg(feature = "services-supabase")]
+mod supabase;
+#[cfg(feature = "services-supabase")]
+pub use supabase::Supabase;
 
 #[cfg(feature = "services-wasabi")]
 mod wasabi;
@@ -131,5 +141,21 @@ pub use webdav::Webdav;
 
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;
+
+#[cfg(feature = "services-onedrive")]
+mod onedrive;
+#[cfg(feature = "services-onedrive")]
+pub use onedrive::Onedrive;
+
+#[cfg(feature = "services-gdrive")]
+mod gdrive;
+#[cfg(feature = "services-gdrive")]
+pub use gdrive::Gdrive;
+
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;
+
+#[cfg(feature = "services-vercel-artifacts")]
+mod vercel_artifacts;
+#[cfg(feature = "services-vercel-artifacts")]
+pub use vercel_artifacts::VercelArtifacts;

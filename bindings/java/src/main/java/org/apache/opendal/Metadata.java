@@ -19,17 +19,7 @@
 
 package org.apache.opendal;
 
-public class Metadata {
-
-    long ptr;
-
-    private native void freeStat(long statPtr);
-
-    private native boolean isFile(long statPtr);
-
-    private native long getContentLength(long statPtr);
-
-
+public class Metadata extends OpenDALObject {
     public Metadata(long ptr) {
         this.ptr = ptr;
     }
@@ -38,12 +28,18 @@ public class Metadata {
         return isFile(this.ptr);
     }
 
-    @Override
-    protected void finalize() {
-        freeStat(this.ptr);
-    }
-
     public long getContentLength() {
         return getContentLength(this.ptr);
     }
+
+    @Override
+    public void close() {
+        freeMetadata(this.ptr);
+    }
+
+    private native void freeMetadata(long statPtr);
+
+    private native boolean isFile(long statPtr);
+
+    private native long getContentLength(long statPtr);
 }

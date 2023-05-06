@@ -5,6 +5,88 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.33.3] - 2023-05-06
+
+### Added
+
+- feat(services/onedrive): Add read and write support for OneDrive (#2129)
+- test(core): test for `read_with_override_cache_control` (#2155)
+- feat(http_util): Implement multipart/form-data support (#2157)
+- feat(http_util): Implement multipart/mixed support (#2161)
+- RFC-2133: Introduce Append API (#2133)
+- feat(services/sftp): Add read/write/stat support for sftp (#2186)
+- feat(services/gdrive): Add read & write & delete support for GoogleDrive (#2184)
+- feat(services/vercel): Add vercel remote cache support (#2193)
+- feat(tests): Enable supabase integration tests (#2190)
+- feat(core): merge scan and list (#2214)
+
+### Changed
+
+- refactor(java): refactor java code for java binding (#2145)
+- refactor(layers/logging): parsing level str (#2160)
+- refactor: Move not initiated logic to utils instead (#2196)
+- refactor(services/memcached): Rewrite memecached connection entirely (#2204)
+
+### Fixed
+
+- fix(service/s3): set retryable on batch (#2171)
+- fix(services/supabase): Supabase ci fix (#2200)
+
+### Docs
+
+- docs(website): try to add opendal logo (#2159)
+- doc: update vision to be more clear (#2164)
+- docs: Refactor `Contributing` and add `Developing` (#2169)
+- docs: Merge DEVELOPING into CONTRIBUTING (#2172)
+- docs: fix some grammar errors in the doc of Operator (#2173)
+- docs(nodejs): Add CONTRIBUTING docs (#2174)
+- docs: Add CONTRIBUTING for python (#2188)
+
+### CI
+
+- ci: Use microsoft rust devcontainer instead (#2165)
+- ci(devcontainer): Install development deps (#2167)
+- chore: set workspace default members (#2168)
+- ci: Setup vercel artifacts integration tests (#2197)
+- ci: Remove not used odev tools (#2202)
+- ci: Add tools to generate NOTICE and all deps licenses (#2205)
+- ci: use Temurin JDK 11 to build the bindings-java (#2213)
+
+### Chore
+
+- chore(deps): bump clap from 4.1.11 to 4.2.5 (#2183)
+- chore(deps): bump futures from 0.3.27 to 0.3.28 (#2181)
+- chore(deps): bump assert_cmd from 2.0.10 to 2.0.11 (#2180)
+- chore: Refactor behavior test (#2189)
+- chore: update readme for more information that is more friendly to newcomers (#2217)
+
+## [v0.33.2] - 2023-04-27
+
+### Added
+
+- feat(core): add test for `stat_with_if_none_match` (#2122)
+- feat(services/gcs): Add start-after support for list (#2107)
+- feat(services/azblob): Add supporting presign (#2120)
+- feat(services/gcs): Add supporting presign support (#2126)
+- feat(java): connect rust async/await with java future (#2112)
+- docs: add hdfs classpath related troubleshoot (#2130)
+- fix(clippy): suppress dead_code check (#2135)
+- feat(core): Add `cache-control` to Metadata (#2136)
+- fix(services/gcs): Remove HOST header to avoid gcs RESET connection (#2139)
+- test(core): test for `write_with_cache_control` (#2131)
+- test(core): test for `write_with_content_type` (#2140)
+- test(core): test for `read_with_if_none_match` (#2141)
+- feat(services/supabase): Add read/write/stat support for supabase (#2119)
+
+### Docs
+
+- docs: add hdfs classpath related troubleshoot (#2130)
+
+### CI
+
+-  ci: Mark job as skipped if owner is not apache (#2128)
+- ci: Enable native-tls to test gcs presign for workaround (#2138)
+
 ## [v0.33.1] - 2023-04-25
 
 ### Added
@@ -1985,6 +2067,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.33.3]: https://github.com/apache/incubator-opendal/compare/v0.33.2...v0.33.3
+[v0.33.2]: https://github.com/apache/incubator-opendal/compare/v0.33.1...v0.33.2
+[v0.33.1]: https://github.com/apache/incubator-opendal/compare/v0.33.0...v0.33.1
 [v0.33.0]: https://github.com/apache/incubator-opendal/compare/v0.32.0...v0.33.0
 [v0.32.0]: https://github.com/apache/incubator-opendal/compare/v0.31.1...v0.32.0
 [v0.31.1]: https://github.com/apache/incubator-opendal/compare/v0.31.0...v0.31.1

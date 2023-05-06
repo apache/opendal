@@ -19,28 +19,25 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::str::FromStr;
 
 use http::header::HeaderName;
-use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
 use http::Response;
-use http::Uri;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
-use super::batch::BatchDeleteRequestBuilder;
 use crate::raw::*;
 use crate::*;
 
 mod constants {
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
+    pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
 }
 
 pub struct AzblobCore {
@@ -209,7 +206,7 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
         if let Some(cache_control) = cache_control {
-            req = req.header(CACHE_CONTROL, cache_control);
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -274,7 +271,7 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub fn azblob_delete_blob_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -286,9 +283,13 @@ impl AzblobCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req
+        req.header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+            .map_err(new_request_build_error)
+    }
+
+    pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.azblob_delete_blob_request(path)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -364,35 +365,24 @@ impl AzblobCore {
         &self,
         paths: &[String],
     ) -> Result<Response<IncomingAsyncBody>> {
-        // init batch request
         let url = format!(
             "{}/{}?restype=container&comp=batch",
             self.endpoint, self.container
         );
-        let mut batch_delete_req_builder = BatchDeleteRequestBuilder::new(&url);
 
-        for path in paths.iter() {
-            // build sub requests
-            let p = build_abs_path(&self.root, path);
-            let encoded_path = percent_encode_path(&p);
+        let mut multipart = Multipart::new();
 
-            let url = Uri::from_str(&format!(
-                "{}/{}/{}",
-                self.endpoint, self.container, encoded_path
-            ))
-            .unwrap();
+        for (idx, path) in paths.iter().enumerate() {
+            let mut req = self.azblob_delete_blob_request(path)?;
 
-            let mut sub_req = Request::delete(&url.to_string())
-                .header(CONTENT_LENGTH, 0)
-                .body(AsyncBody::Empty)
-                .map_err(new_request_build_error)?;
-
-            self.batch_sign(&mut sub_req).await?;
-
-            batch_delete_req_builder.append(sub_req);
+            self.batch_sign(&mut req).await?;
+            multipart = multipart.part(
+                MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
+            );
         }
 
-        let mut req = batch_delete_req_builder.try_into_req()?;
+        let req = Request::post(url);
+        let mut req = multipart.apply(req)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

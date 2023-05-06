@@ -452,8 +452,13 @@ impl Accessor for OssBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
 
                 write: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
                 write_without_content_length: true,
 
                 list: true,
@@ -462,6 +467,9 @@ impl Accessor for OssBackend {
                 presign: true,
                 batch: true,
                 batch_max_operations: Some(1000),
+
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
 
                 ..Default::default()
             });
@@ -567,14 +575,7 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            OssPager::new(self.core.clone(), path, "", args.limit()),
+            OssPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 

@@ -15,19 +15,83 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ffi::c_void;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use jni::objects::JClass;
 use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::objects::JThrowable;
+use jni::objects::JValue;
 use jni::sys::jboolean;
+use jni::sys::jint;
 use jni::sys::jlong;
+use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
+use jni::JavaVM;
+use once_cell::sync::OnceCell;
 use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
+
+static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
+
+thread_local! {
+    static JAVA_VM: RefCell<Option<Arc<JavaVM>>> = RefCell::new(None);
+    static JENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
+}
+
+/// # Safety
+///
+/// This function could be only called by java vm when load this lib.
+#[no_mangle]
+pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
+    // TODO: make this configurable in the future
+    let thread_count = num_cpus::get();
+
+    let java_vm = Arc::new(vm);
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(thread_count)
+        .on_thread_start(move || {
+            JENV.with(|cell| {
+                let env = java_vm.attach_current_thread_as_daemon().unwrap();
+                *cell.borrow_mut() = Some(env.get_raw());
+            });
+            JAVA_VM.with(|cell| {
+                *cell.borrow_mut() = Some(java_vm.clone());
+            });
+        })
+        .on_thread_stop(move || {
+            JENV.with(|cell| {
+                *cell.borrow_mut() = None;
+            });
+            JAVA_VM.with(|cell| unsafe {
+                if let Some(vm) = cell.borrow_mut().take() {
+                    vm.detach_current_thread();
+                }
+            });
+        })
+        .build()
+        .unwrap();
+    RUNTIME.set(runtime).unwrap();
+    JNI_VERSION_1_8
+}
+
+/// # Safety
+///
+/// This function could be only called by java vm when unload this lib.
+#[no_mangle]
+pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
+    if let Some(runtime) = RUNTIME.take() {
+        runtime.shutdown_background();
+    }
+}
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
@@ -55,6 +119,52 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
         .expect("Couldn't throw exception");
         0 as jlong
     }
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_writeAsync(
+    mut env: JNIEnv,
+    _class: JClass,
+    ptr: *mut Operator,
+    file: JString,
+    content: JString,
+    future: JObject,
+) {
+    let op = &mut *ptr;
+
+    let file: String = env.get_string(&file).unwrap().into();
+    let content: String = env.get_string(&content).unwrap().into();
+    // keep the future alive, so that we can complete it later
+    // but this approach will be limited by global ref table size
+    let future = env.new_global_ref(future).unwrap();
+
+    let x = async move {
+        op.write(&file, content).await.unwrap();
+        JENV.with(|cell| {
+            let env_ptr = cell.borrow().unwrap();
+            let mut env = JNIEnv::from_raw(env_ptr).unwrap();
+
+            // build result
+            let boolean_class = env.find_class("java/lang/Boolean").unwrap();
+            let boolean = env
+                .get_static_field(boolean_class, "TRUE", "Ljava/lang/Boolean;")
+                .unwrap();
+
+            // complete the java future
+            let _ = env
+                .call_method(
+                    future,
+                    "complete",
+                    "(Ljava/lang/Object;)Z",
+                    &[boolean.borrow()],
+                )
+                .unwrap();
+        });
+    };
+    RUNTIME.get().unwrap().spawn(x);
 }
 
 /// # Safety
@@ -116,6 +226,31 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
     output
 }
 
+fn convert_error_into_java_exception<'local>(
+    env: &mut JNIEnv<'local>,
+    error: opendal::Error,
+) -> Result<JThrowable<'local>, jni::errors::Error> {
+    let error_code_class = env.find_class("org/apache/opendal/exception/OpenDALErrorCode")?;
+    let error_code_string = env.new_string(error.kind().into_static())?;
+    let error_code = env.call_static_method(
+        error_code_class,
+        "parse",
+        "(Ljava/lang/String;)Lorg/apache/opendal/exception/OpenDALErrorCode;",
+        &[JValue::Object(error_code_string.as_ref())],
+    )?;
+
+    let exception_class = env.find_class("org/apache/opendal/exception/OpenDALException")?;
+    let exception = env.new_object(
+        exception_class,
+        "(Lorg/apache/opendal/exception/OpenDALErrorCode;Ljava/lang/String;)V",
+        &[
+            JValue::Object(error_code.l()?.as_ref()),
+            JValue::Object(env.new_string(error.to_string())?.as_ref()),
+        ],
+    )?;
+    Ok(JThrowable::from(exception))
+}
+
 /// # Safety
 ///
 /// This function should not be called before the Operator are ready.
@@ -131,8 +266,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
         .get_string(&file)
         .expect("Couldn't get java string!")
         .into();
-    let metadata = op.stat(&file).unwrap();
-    Box::into_raw(Box::new(metadata)) as jlong
+    let result = op.stat(&file);
+    if let Err(error) = result {
+        let exception = convert_error_into_java_exception(&mut env, error).unwrap();
+        env.throw(exception).unwrap();
+        return 0 as jlong;
+    }
+    Box::into_raw(Box::new(result.unwrap())) as jlong
 }
 
 /// # Safety
@@ -165,7 +305,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_getContentLength(
 ///
 /// This function should not be called before the Stat are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_freeStat(
+pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_freeMetadata(
     mut _env: JNIEnv,
     _class: JClass,
     ptr: *mut opendal::Metadata,

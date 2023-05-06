@@ -50,7 +50,6 @@ macro_rules! behavior_presign_test {
                             Ok(())
                         },
                         None => {
-                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
                             Ok(())
                         }
                     }

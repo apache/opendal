@@ -37,6 +37,7 @@ use reqsign::AwsV4Signer;
 
 use super::core::*;
 use super::error::parse_error;
+use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
 use crate::ops::*;
@@ -941,11 +942,15 @@ impl Accessor for S3Backend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
+                read_with_override_cache_control: true,
                 read_with_override_content_disposition: true,
 
                 write: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
                 write_without_content_length: true,
 
                 list: true,
@@ -957,6 +962,9 @@ impl Accessor for S3Backend {
                 presign: true,
                 batch: true,
                 batch_max_operations: Some(1000),
+
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
 
                 ..Default::default()
             });
@@ -1070,17 +1078,10 @@ impl Accessor for S3Backend {
             S3Pager::new(
                 self.core.clone(),
                 path,
-                "/",
+                args.delimiter(),
                 args.limit(),
                 args.start_after(),
             ),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 
@@ -1148,10 +1149,15 @@ impl Accessor for S3Backend {
             for i in result.error {
                 let path = build_rel_path(&self.core.root, &i.key);
 
-                batched_result.push((
-                    path,
-                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                ));
+                // set the error kind and mark temporary if retryable
+                let (kind, retryable) =
+                    parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+                let mut err = Error::new(kind, &format!("{i:?}"));
+                if retryable {
+                    err = err.set_temporary();
+                }
+
+                batched_result.push((path, Err(err)));
             }
 
             Ok(RpBatch::new(batched_result))

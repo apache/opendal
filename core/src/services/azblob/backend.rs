@@ -460,13 +460,14 @@ impl Accessor for AzblobBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
                 read_with_override_content_disposition: true,
 
                 write: true,
-                write_with_content_type: true,
                 write_with_cache_control: true,
+                write_with_content_type: true,
 
                 delete: true,
                 create_dir: true,
@@ -475,7 +476,10 @@ impl Accessor for AzblobBackend {
                 copy: true,
                 presign: self.has_sas_token,
                 batch: true,
+                batch_delete: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 
@@ -591,22 +595,11 @@ impl Accessor for AzblobBackend {
         let op = AzblobPager::new(
             self.core.clone(),
             path.to_string(),
-            "/".to_string(),
+            args.delimiter().to_string(),
             args.limit(),
         );
 
         Ok((RpList::default(), op))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let op = AzblobPager::new(
-            self.core.clone(),
-            path.to_string(),
-            "".to_string(),
-            args.limit(),
-        );
-
-        Ok((RpScan::default(), op))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -648,6 +641,7 @@ impl Accessor for AzblobBackend {
                 "batch delete limit exceeded",
             ));
         }
+
         // construct and complete batch request
         let resp = self.core.azblob_batch_delete(&paths).await?;
 

@@ -550,14 +550,7 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            OssPager::new(self.core.clone(), path, "", args.limit()),
+            OssPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 

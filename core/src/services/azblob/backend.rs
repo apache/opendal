@@ -593,22 +593,11 @@ impl Accessor for AzblobBackend {
         let op = AzblobPager::new(
             self.core.clone(),
             path.to_string(),
-            "/".to_string(),
+            args.delimiter().to_string(),
             args.limit(),
         );
 
         Ok((RpList::default(), op))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let op = AzblobPager::new(
-            self.core.clone(),
-            path.to_string(),
-            "".to_string(),
-            args.limit(),
-        );
-
-        Ok((RpScan::default(), op))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

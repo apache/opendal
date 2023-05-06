@@ -1018,14 +1018,7 @@ impl Accessor for WasabiBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            WasabiPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            WasabiPager::new(self.core.clone(), path, "", args.limit()),
+            WasabiPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 

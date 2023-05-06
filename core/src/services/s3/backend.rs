@@ -1053,17 +1053,10 @@ impl Accessor for S3Backend {
             S3Pager::new(
                 self.core.clone(),
                 path,
-                "/",
+                args.delimiter(),
                 args.limit(),
                 args.start_after(),
             ),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 

@@ -50,7 +50,7 @@ impl OpDelete {
 }
 
 /// Args for `list` operation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct OpList {
     /// The limit passed to underlying service to specify the max results
     /// that could return.
@@ -59,6 +59,19 @@ pub struct OpList {
     /// The start_after passes to underlying service to specify the specified key
     /// to start listing from.
     start_after: Option<String>,
+
+    /// The delimiter used to for the list operation. Default to be `/`
+    delimiter: String,
+}
+
+impl Default for OpList {
+    fn default() -> Self {
+        OpList {
+            limit: None,
+            start_after: None,
+            delimiter: "/".to_string(),
+        }
+    }
 }
 
 impl OpList {
@@ -87,6 +100,17 @@ impl OpList {
     /// Get the start_after of list operation.
     pub fn start_after(&self) -> Option<&str> {
         self.start_after.as_deref()
+    }
+
+    /// Change the delimiter. The default delimiter is "/"
+    pub fn with_delimiter(mut self, delimiter: String) -> Self {
+        self.delimiter = delimiter;
+        self
+    }
+
+    /// Get the current delimiter.
+    pub fn delimiter(&self) -> &String {
+        &self.delimiter
     }
 }
 

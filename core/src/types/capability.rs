@@ -98,7 +98,10 @@ pub struct Capability {
     pub list_with_limit: bool,
     /// If backend supports list with start after, it will be true.
     pub list_with_start_after: bool,
-
+    /// If backend support list with delimiter
+    pub list_with_delimiter: bool,
+    /// If backend supports list without delimiter
+    pub list_without_delimiter: bool,
     /// If operator supports scan natively, it will be true.
     pub scan: bool,
     /// If backend supports scan with limit, it will be true.

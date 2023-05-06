@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [v0.33.3] - 2023-05-05
+## [v0.33.3] - 2023-05-06
 
 ### Added
 
@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - feat(services/gdrive): Add read & write & delete support for GoogleDrive (#2184)
 - feat(services/vercel): Add vercel remote cache support (#2193)
 - feat(tests): Enable supabase integration tests (#2190)
+- feat(core): merge scan and list (#2214)
 
 ### Changed
 
@@ -49,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - ci: Setup vercel artifacts integration tests (#2197)
 - ci: Remove not used odev tools (#2202)
 - ci: Add tools to generate NOTICE and all deps licenses (#2205)
+- ci: use Temurin JDK 11 to build the bindings-java (#2213)
 
 ### Chore
 
@@ -56,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - chore(deps): bump futures from 0.3.27 to 0.3.28 (#2181)
 - chore(deps): bump assert_cmd from 2.0.10 to 2.0.11 (#2180)
 - chore: Refactor behavior test (#2189)
+- chore: update readme for more information that is more friendly to newcomers (#2217)
 
 ## [v0.33.2] - 2023-04-27
 

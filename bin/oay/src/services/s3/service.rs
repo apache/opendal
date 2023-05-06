@@ -88,6 +88,18 @@ async fn handle_list_objects(
 ) -> Result<OkResponse, ErrorResponse> {
     debug!("got params: {:?}", params);
 
+    if !state.op.info().capability().list_with_start_after {
+        return Err(ErrorResponse {
+            code: StatusCode::NOT_IMPLEMENTED,
+            err: Error {
+                code: "NotImplemented".to_string(),
+                message: "list with start after is not supported".to_string(),
+                resource: "".to_string(),
+                request_id: "".to_string(),
+            },
+        });
+    }
+
     let mut lister = state
         .op
         .list_with(

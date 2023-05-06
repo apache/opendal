@@ -295,11 +295,15 @@ impl Accessor for SftpBackend {
             .set_scheme(Scheme::Sftp)
             .set_capability(Capability {
                 stat: true,
+                
                 read: true,
+                
                 write: true,
+                create_dir: true,
+                delete: true,
+                
                 list: true,
                 list_with_limit: true,
-
                 list_with_delimiter_slash: true,
 
                 ..Default::default()

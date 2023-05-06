@@ -466,13 +466,20 @@ impl Accessor for WebhdfsBackend {
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
                 read_with_range: true,
+
                 write: true,
+                create_dir: true,
+                delete: true,
+
                 list: true,
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
         am

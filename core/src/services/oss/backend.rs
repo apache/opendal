@@ -460,16 +460,22 @@ impl Accessor for OssBackend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
-
-                list: true,
-                scan: true,
+                delete: true,
+                create_dir: true,
                 copy: true,
-                presign: true,
-                batch: true,
-                batch_max_operations: Some(1000),
 
+                scan: true,
+                list: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
+                batch: true,
+                batch_max_operations: Some(1000),
 
                 ..Default::default()
             });

@@ -911,15 +911,22 @@ impl Accessor for WasabiBackend {
                 read_with_range: true,
 
                 write: true,
-                list: true,
-                scan: true,
+                create_dir: true,
+                delete: true,
                 copy: true,
-                presign: true,
-                batch: true,
                 rename: true,
 
+                scan: true,
+                list: true,
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
+                batch: true,
 
                 ..Default::default()
             });

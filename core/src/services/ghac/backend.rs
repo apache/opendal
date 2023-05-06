@@ -301,11 +301,15 @@ impl Accessor for GhacBackend {
             .set_root(&self.root)
             .set_name(&self.version)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
                 read_with_range: true,
 
                 write: true,
+                create_dir: true,
+                delete: true,
 
                 ..Default::default()
             });

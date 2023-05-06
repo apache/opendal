@@ -471,15 +471,21 @@ impl Accessor for AzblobBackend {
 
                 delete: true,
                 create_dir: true,
-                list: true,
-                scan: true,
                 copy: true,
+
+                scan: true,
+                list: true,
+                list_with_delimiter_slash: true,
+
                 presign: self.has_sas_token,
+                presign_stat: self.has_sas_token,
+                presign_read: self.has_sas_token,
+                presign_write: self.has_sas_token,
+
                 batch: true,
                 batch_delete: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
 
-                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

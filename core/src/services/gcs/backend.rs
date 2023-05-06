@@ -414,16 +414,22 @@ impl Accessor for GcsBackend {
                 write: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                delete: true,
+                copy: true,
 
+                scan: true,
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                scan: true,
-                copy: true,
+
                 presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
 
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
+
                 ..Default::default()
             });
         am

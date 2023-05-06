@@ -216,7 +216,9 @@ impl Accessor for SupabaseBackend {
             .set_name(&self.core.bucket)
             .set_capability(Capability {
                 stat: true,
+                
                 read: true,
+                
                 write: true,
                 create_dir: true,
                 delete: true,

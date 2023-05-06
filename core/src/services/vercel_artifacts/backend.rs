@@ -60,7 +60,9 @@ impl Accessor for VercelArtifactsBackend {
             .set_capability(Capability {
                 read: true,
                 read_can_next: true,
+                
                 write: true,
+                
                 ..Default::default()
             });
 

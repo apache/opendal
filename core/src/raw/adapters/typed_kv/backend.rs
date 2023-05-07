@@ -27,7 +27,7 @@ use crate::raw::oio::VectorCursor;
 use crate::raw::*;
 use crate::*;
 
-/// The typed kv backend which implmenets Accessor for for typed kv adapter.
+/// The typed kv backend which implements Accessor for for typed kv adapter.
 #[derive(Debug, Clone)]
 pub struct Backend<S: Adapter> {
     kv: Arc<S>,

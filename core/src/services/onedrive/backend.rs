@@ -242,7 +242,7 @@ impl Accessor for OnedriveBackend {
         let body = serde_json::json!({
             "name": folder_name,
             "folder": {},
-            "@microsoft.graph.conflictBehavior": "fail"
+            "@microsoft.graph.conflictBehavior": "replace"
         });
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
 
@@ -261,7 +261,7 @@ impl Accessor for OnedriveBackend {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED => Ok(RpCreate::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreate::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -72,6 +72,9 @@ impl oio::Page for OnedrivePager {
 
         let status_code = response.status();
         if !status_code.is_success() {
+            if status_code == http::StatusCode::NOT_FOUND {
+                return Ok(None);
+            }
             let error = parse_error(response).await?;
             return Err(error);
         }

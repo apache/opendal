@@ -35,7 +35,7 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::raw::build_rooted_abs_path;
+use crate::raw::{build_abs_path, build_rooted_abs_path};
 use crate::raw::get_basename;
 use crate::raw::new_json_deserialize_error;
 use crate::raw::new_json_serialize_error;
@@ -211,7 +211,7 @@ impl Accessor for OnedriveBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT | StatusCode::BAD_REQUEST => Ok(RpDelete::default()),
+            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -393,9 +393,10 @@ impl OnedriveBackend {
     }
 
     pub(crate) async fn onedrive_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let path = build_abs_path(&self.root, path);
         let url = format!(
-            "https://graph.microsoft.com/v1.0/me/drive/root:{}",
-            percent_encode_path(path)
+            "https://graph.microsoft.com/v1.0/me/drive/root:/{}",
+            percent_encode_path(&path)
         );
 
         let mut req = Request::delete(&url);

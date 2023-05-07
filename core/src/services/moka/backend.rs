@@ -24,7 +24,7 @@ use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
 
-use crate::raw::adapters::kv;
+use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// [moka](https://github.com/moka-rs/moka) backend support.
@@ -151,11 +151,11 @@ impl Builder for MokaBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder: CacheBuilder<String, Vec<u8>, _> =
+        let mut builder: CacheBuilder<String, typed_kv::Value, _> =
             SegmentedCache::builder(self.num_segments.unwrap_or(1))
                 .thread_pool_enabled(self.thread_pool_enabled.unwrap_or(false));
         // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.len()) as u32);
+        builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
         if let Some(v) = &self.name {
             builder = builder.name(v);
         }
@@ -177,11 +177,11 @@ impl Builder for MokaBuilder {
 }
 
 /// Backend is used to serve `Accessor` support in moka.
-pub type MokaBackend = kv::Backend<Adapter>;
+pub type MokaBackend = typed_kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    inner: SegmentedCache<String, Vec<u8>>,
+    inner: SegmentedCache<String, typed_kv::Value>,
 }
 
 impl Debug for Adapter {
@@ -194,37 +194,31 @@ impl Debug for Adapter {
 }
 
 #[async_trait]
-impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+impl typed_kv::Adapter for Adapter {
+    fn metadata(&self) -> (Scheme, String) {
+        (
             Scheme::Moka,
-            self.inner.name().unwrap_or("moka"),
-            Capability {
-                read: true,
-                write: true,
-
-                ..Default::default()
-            },
+            self.inner.name().unwrap_or("moka").to_string(),
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         self.blocking_get(path)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         match self.inner.get(path) {
             None => Ok(None),
             Some(bs) => Ok(Some(bs)),
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
         self.blocking_set(path, value)
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.inner.insert(path.to_string(), value.to_vec());
+    fn blocking_set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
+        self.inner.insert(path.to_string(), value);
 
         Ok(())
     }

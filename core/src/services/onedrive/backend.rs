@@ -173,33 +173,34 @@ impl Accessor for OnedriveBackend {
         let resp = self.onedrive_get(path, false).await?;
         let status = resp.status();
 
-        match status {
-            StatusCode::OK => {
-                let bytes = resp.into_body().bytes().await?;
-                let decoded_response = serde_json::from_slice::<OnedriveGetItemBody>(&bytes)
-                    .map_err(new_json_deserialize_error)?;
+        if status.is_success() {
+            let bytes = resp.into_body().bytes().await?;
+            let decoded_response = serde_json::from_slice::<OnedriveGetItemBody>(&bytes)
+                .map_err(new_json_deserialize_error)?;
 
-                let entry_mode: EntryMode = match decoded_response.item_type {
-                    ItemType::Folder { .. } => EntryMode::DIR,
-                    ItemType::File { .. } => EntryMode::FILE,
-                };
+            let entry_mode: EntryMode = match decoded_response.item_type {
+                ItemType::Folder { .. } => EntryMode::DIR,
+                ItemType::File { .. } => EntryMode::FILE,
+            };
 
-                let mut meta = Metadata::new(entry_mode);
-                meta.set_etag(&decoded_response.e_tag);
+            let mut meta = Metadata::new(entry_mode);
+            meta.set_etag(&decoded_response.e_tag);
 
-                let last_modified = decoded_response.last_modified_date_time;
-                let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
-                meta.set_last_modified(date_utc_last_modified);
+            let last_modified = decoded_response.last_modified_date_time;
+            let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+            meta.set_last_modified(date_utc_last_modified);
 
-                meta.set_content_length(decoded_response.size);
+            meta.set_content_length(decoded_response.size);
 
-                Ok(RpStat::new(meta))
+            Ok(RpStat::new(meta))
+        } else {
+            match status {
+                StatusCode::NOT_FOUND => Err(Error::new(
+                    ErrorKind::NotFound,
+                    "path not found in onedrive",
+                )),
+                _ => Err(parse_error(resp).await?),
             }
-            StatusCode::NOT_FOUND => Err(Error::new(
-                ErrorKind::NotFound,
-                "path not found in onedrive",
-            )),
-            _ => Err(parse_error(resp).await?),
         }
     }
 

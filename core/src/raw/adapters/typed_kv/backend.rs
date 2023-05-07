@@ -59,8 +59,8 @@ impl<S: Adapter> Accessor for Backend<S> {
     type BlockingReader = oio::Cursor;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
-    type Pager = ();
-    type BlockingPager = ();
+    type Pager = KvPager;
+    type BlockingPager = KvPager;
 
     fn info(&self) -> AccessorInfo {
         let (scheme, name) = self.kv.metadata();
@@ -182,6 +182,22 @@ impl<S: Adapter> Accessor for Backend<S> {
         self.kv.blocking_delete(&p)?;
         Ok(RpDelete::default())
     }
+
+    async fn scan(&self, path: &str, _: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let p = build_abs_path(&self.root, path);
+        let res = self.kv.scan(&p).await?;
+        let pager = KvPager::new(&self.root, res);
+
+        Ok((RpScan::default(), pager))
+    }
+
+    fn blocking_scan(&self, path: &str, _: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        let p = build_abs_path(&self.root, path);
+        let res = self.kv.blocking_scan(&p)?;
+        let pager = KvPager::new(&self.root, res);
+
+        Ok((RpScan::default(), pager))
+    }
 }
 
 impl<S> Backend<S>
@@ -201,6 +217,52 @@ where
             (None, Some(size)) => bs.split_off(bs.len() - size as usize),
             (None, None) => bs,
         }
+    }
+}
+
+pub struct KvPager {
+    root: String,
+    inner: Option<Vec<String>>,
+}
+
+impl KvPager {
+    fn new(root: &str, inner: Vec<String>) -> Self {
+        Self {
+            root: root.to_string(),
+            inner: Some(inner),
+        }
+    }
+
+    fn inner_next_page(&mut self) -> Option<Vec<oio::Entry>> {
+        let res = self
+            .inner
+            .take()?
+            .into_iter()
+            .map(|v| {
+                let mode = if v.ends_with('/') {
+                    EntryMode::DIR
+                } else {
+                    EntryMode::FILE
+                };
+
+                oio::Entry::new(&build_rel_path(&self.root, &v), Metadata::new(mode))
+            })
+            .collect();
+
+        Some(res)
+    }
+}
+
+#[async_trait]
+impl oio::Page for KvPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        Ok(self.inner_next_page())
+    }
+}
+
+impl oio::BlockingPage for KvPager {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        Ok(self.inner_next_page())
     }
 }
 

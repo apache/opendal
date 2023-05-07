@@ -20,11 +20,11 @@ use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use futures::ready;
 use tokio::io::ReadBuf;
 
 use crate::ops::*;

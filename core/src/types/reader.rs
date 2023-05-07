@@ -17,11 +17,11 @@
 
 use std::io;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;

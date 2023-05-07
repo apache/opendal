@@ -16,11 +16,11 @@
 // under the License.
 
 use std::io::SeekFrom;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::ready;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;

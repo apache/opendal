@@ -80,7 +80,7 @@ pub struct Adapter {
 #[async_trait]
 impl typed_kv::Adapter for Adapter {
     fn metadata(&self) -> (Scheme, String) {
-        (Scheme::Dashmap, "dashmap".to_string())
+        (Scheme::Dashmap, format!("{:?}", &self.inner as *const _))
     }
 
     async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {

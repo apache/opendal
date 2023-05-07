@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
@@ -30,7 +31,6 @@ use backon::ExponentialBackoff;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
-use futures::ready;
 use futures::FutureExt;
 use log::warn;
 

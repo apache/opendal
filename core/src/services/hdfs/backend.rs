@@ -245,6 +245,8 @@ impl Accessor for HdfsBackend {
                 write: true,
                 list: true,
                 blocking: true,
+
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

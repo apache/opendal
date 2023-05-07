@@ -315,6 +315,7 @@ impl Accessor for AzdfsBackend {
                 write: true,
                 rename: true,
                 list: true,
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

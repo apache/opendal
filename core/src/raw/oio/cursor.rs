@@ -47,6 +47,12 @@ impl Cursor {
     }
 }
 
+impl From<Bytes> for Cursor {
+    fn from(v: Bytes) -> Self {
+        Cursor { inner: v, pos: 0 }
+    }
+}
+
 impl From<Vec<u8>> for Cursor {
     fn from(v: Vec<u8>) -> Self {
         Cursor {
@@ -255,6 +261,21 @@ impl VectorCursor {
             let len = b.len().min(n);
             bs.extend_from_slice(&b[..len]);
             n -= len;
+        }
+        bs.freeze()
+    }
+
+    /// peak all will read and copy all bytes from current cursor
+    /// without change it's content.
+    pub fn peak_all(&self) -> Bytes {
+        // Avoid data copy if we only have one bytes.
+        if self.inner.len() == 1 {
+            return self.inner[0].clone();
+        }
+
+        let mut bs = BytesMut::with_capacity(self.len());
+        for b in &self.inner {
+            bs.extend_from_slice(b);
         }
         bs.freeze()
     }

@@ -18,13 +18,13 @@
 use std::cmp::min;
 use std::cmp::Ordering;
 use std::io;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
-use futures::ready;
 use futures::Stream;
 use futures::StreamExt;
 

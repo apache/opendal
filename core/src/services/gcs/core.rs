@@ -54,6 +54,8 @@ pub struct GcsCore {
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
+
+    pub write_fixed_size: usize,
 }
 
 impl Debug for GcsCore {

@@ -11,3 +11,7 @@ Allow users to access different storage backend through their preferred APIs.
 ## Status
 
 Our first milestone is to provide S3 APIs.
+
+### S3 API
+
+Only `list_object_v2` with `start_after` is supported.

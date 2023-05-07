@@ -478,6 +478,8 @@ impl Accessor for AzblobBackend {
                 batch: true,
                 batch_delete: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 
@@ -593,22 +595,11 @@ impl Accessor for AzblobBackend {
         let op = AzblobPager::new(
             self.core.clone(),
             path.to_string(),
-            "/".to_string(),
+            args.delimiter().to_string(),
             args.limit(),
         );
 
         Ok((RpList::default(), op))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let op = AzblobPager::new(
-            self.core.clone(),
-            path.to_string(),
-            "".to_string(),
-            args.limit(),
-        );
-
-        Ok((RpScan::default(), op))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

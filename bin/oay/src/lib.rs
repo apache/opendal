@@ -15,35 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Providing adapters and its implementations.
-//!
-//! Adapters in OpenDAL means services that shares similar behaviors. We use
-//! adapter to make those services been implemented more easily. For example,
-//! with [`kv::Adapter`], users only need to implement `get`, `set` for a service.
-//!
-//! # Notes
-//!
-//! Please import the module instead of its type.
-//!
-//! For example, use the following:
-//!
-//! ```ignore
-//! use opendal::adapters::kv;
-//!
-//! impl kv::Adapter for MyType {}
-//! ```
-//!
-//! Instead of:
-//!
-//! ```ignore
-//! use opendal::adapters::kv::Adapter;
-//!
-//! impl Adapter for MyType {}
-//! ```
-//!
-//! # Available Adapters
-//!
-//! - [`kv::Adapter`]: Adapter for Key Value Services like in-memory map, `redis`.
+pub mod services;
 
-pub mod kv;
-pub mod typed_kv;
+mod config;
+pub use config::*;

@@ -20,10 +20,10 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use crate::raw::percent_encode_path;
 use crate::raw::HttpClient;
 use crate::Error;
 use crate::ErrorKind;
-use crate::Scheme;
 
 use http::request::Builder;
 use http::{header, Request, Response};
@@ -66,15 +66,10 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
-        let resp_body = &resp.into_body().bytes().await.map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "read response body error")
-                .with_context("service", Scheme::Gdrive)
-                .set_source(e)
-        })?;
+        let resp_body = &resp.into_body().bytes().await?;
 
         let gdrive_file: GdriveFile = serde_json::from_slice(resp_body).map_err(|e| {
             Error::new(ErrorKind::Unexpected, "deserialize json error")
-                .with_context("service", Scheme::Gdrive)
                 .with_context("origin json value", String::from_utf8_lossy(resp_body))
                 .set_source(e)
         })?;
@@ -105,27 +100,21 @@ impl GdriveCore {
             if i != file_path_items.len() - 1 {
                 query += "and mimeType = 'application/vnd.google-apps.folder'";
             }
-            let query: String = query.chars().filter(|c| !c.is_whitespace()).collect();
 
             let req = self
                 .sign(Request::get(format!(
                     "https://www.googleapis.com/drive/v3/files?q={}",
-                    query
+                    percent_encode_path(&query)
                 )))
                 .body(AsyncBody::default())
                 .map_err(new_request_build_error)?;
 
             let resp = self.client.send(req).await?;
-            let resp_body = &resp.into_body().bytes().await.map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "read response body error")
-                    .with_context("service", Scheme::Gdrive)
-                    .set_source(e)
-            })?;
+            let resp_body = &resp.into_body().bytes().await?;
 
             let gdrive_file_list: GdriveFileList =
                 serde_json::from_slice(resp_body).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "deserialize json error")
-                        .with_context("service", Scheme::Gdrive)
                         .with_context("origin json value", String::from_utf8_lossy(resp_body))
                         .set_source(e)
                 })?;
@@ -149,11 +138,8 @@ impl GdriveCore {
             self.get_file_id_by_path(path).await?
         );
 
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        let mut req = Request::get(&url);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
+        let req = self
+            .sign(Request::get(&url))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -174,9 +160,6 @@ impl GdriveCore {
 
         let mut req = Request::patch(&url);
 
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
         if let Some(size) = size {
             req = req.header(header::CONTENT_LENGTH, size)
         }
@@ -185,7 +168,7 @@ impl GdriveCore {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = self.sign(req).body(body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -196,12 +179,8 @@ impl GdriveCore {
             self.get_file_id_by_path(path).await?
         );
 
-        let mut req = Request::delete(&url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
+        let req = self
+            .sign(Request::delete(&url))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

@@ -195,10 +195,16 @@ impl Debug for Adapter {
 
 #[async_trait]
 impl typed_kv::Adapter for Adapter {
-    fn metadata(&self) -> (Scheme, String) {
-        (
+    fn info(&self) -> typed_kv::Info {
+        typed_kv::Info::new(
             Scheme::Moka,
-            self.inner.name().unwrap_or("moka").to_string(),
+            self.inner.name().unwrap_or("moka"),
+            Capability {
+                read: true,
+                write: true,
+
+                ..Default::default()
+            },
         )
     }
 

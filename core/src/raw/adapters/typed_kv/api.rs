@@ -21,7 +21,14 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 
-use crate::*;
+use crate::raw::*;
+use crate::Capability;
+use crate::EntryMode;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Metadata;
+use crate::Result;
+use crate::Scheme;
 
 /// Adapter is the typed adapter to underlying kv services.
 ///
@@ -39,7 +46,7 @@ use crate::*;
 #[async_trait]
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Get the scheme and name of current adapter.
-    fn metadata(&self) -> (Scheme, String);
+    fn info(&self) -> Info;
 
     /// Get a value from adapter.
     async fn get(&self, path: &str) -> Result<Option<Value>>;
@@ -108,5 +115,49 @@ impl Value {
     /// Size returns the in-memory size of Value.
     pub fn size(&self) -> usize {
         size_of::<Metadata>() + self.value.len()
+    }
+}
+
+/// Info for this key value accessor.
+pub struct Info {
+    scheme: Scheme,
+    name: String,
+    capabilities: Capability,
+}
+
+impl Info {
+    /// Create a new KeyValueAccessorInfo.
+    pub fn new(scheme: Scheme, name: &str, capabilities: Capability) -> Self {
+        Self {
+            scheme,
+            name: name.to_string(),
+            capabilities,
+        }
+    }
+
+    /// Get the scheme.
+    pub fn scheme(&self) -> Scheme {
+        self.scheme
+    }
+
+    /// Get the name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get the capabilities.
+    pub fn capabilities(&self) -> Capability {
+        self.capabilities
+    }
+}
+
+impl From<Info> for AccessorInfo {
+    fn from(m: Info) -> AccessorInfo {
+        let mut am = AccessorInfo::default();
+        am.set_name(m.name());
+        am.set_scheme(m.scheme());
+        am.set_capability(m.capabilities());
+
+        am
     }
 }

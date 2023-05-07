@@ -79,8 +79,17 @@ pub struct Adapter {
 
 #[async_trait]
 impl typed_kv::Adapter for Adapter {
-    fn metadata(&self) -> (Scheme, String) {
-        (Scheme::Dashmap, format!("{:?}", &self.inner as *const _))
+    fn info(&self) -> typed_kv::Info {
+        typed_kv::Info::new(
+            Scheme::Dashmap,
+            &format!("{:?}", &self.inner as *const _),
+            Capability {
+                read: true,
+                write: true,
+                scan: true,
+                ..Default::default()
+            },
+        )
     }
 
     async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {

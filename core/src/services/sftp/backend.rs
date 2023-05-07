@@ -456,13 +456,13 @@ impl SftpBackend {
         let sftp = self
             .client
             .get_or_try_init(|| {
-                connect_sftp(
+                Box::pin(connect_sftp(
                     self.endpoint.clone(),
                     self.root.clone(),
                     self.user.clone(),
                     self.key.clone(),
                     self.known_hosts_strategy.clone(),
-                )
+                ))
             })
             .await?;
 

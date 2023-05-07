@@ -18,11 +18,11 @@
 use std::collections::VecDeque;
 use std::mem;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use futures::ready;
 use futures::FutureExt;
 use futures::Stream;
 

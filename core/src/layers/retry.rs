@@ -316,38 +316,27 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        { || self.inner.batch(args.clone()).map(Err::<(), _>) }
-            .retry(&self.builder)
-            .when(|res| match res {
-                Ok(rp) => rp.results().iter().any(|(_, v)| {
-                    if let Err(e) = v {
-                        e.is_temporary()
-                    } else {
-                        false
-                    }
-                }),
-                Err(err) => err.is_temporary(),
-            })
-            .notify(|res, dur| match res {
-                Ok(rp) => warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::Batch, dur.as_secs_f64(),
-                    rp.results().iter().filter_map(|(_, v)| {
-                        if let Err(e) = v  {
-                            if e.is_temporary() {
-                                return Some(e);
-                            }
-                        }
-                        None
-                }).collect::<Vec<_>>()),
-                Err(err) => warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::Batch, dur.as_secs_f64(), err),
-            })
-            .map(|v| v.unwrap_err().map_err(|e| e.set_persistent()))
-            .await
+        {
+            || async {
+                let rp = self.inner.batch(args.clone()).await?;
+                let mut nrp = Vec::with_capacity(rp.results().len());
+                for (path, result) in rp.into_results() {
+                    let result = result?;
+                    nrp.push((path, Ok(result)))
+                }
+                Ok(RpBatch::new(nrp))
+            }
+        }
+        .retry(&self.builder)
+        .when(|e: &Error| e.is_temporary())
+        .notify(|err, dur| {
+            warn!(
+                target: "opendal::service",
+                "operation={} -> retry after {}s: error={:?}",
+                Operation::Batch, dur.as_secs_f64(), err)
+        })
+        .await
+        .map_err(|e| e.set_persistent())
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {

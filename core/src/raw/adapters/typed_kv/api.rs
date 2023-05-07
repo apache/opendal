@@ -58,6 +58,13 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
 
     /// Delete a value from adapter.
     fn blocking_delete(&self, path: &str) -> Result<()>;
+
+    /// Scan a key prefix to get all keys that start with this key.
+    async fn scan(&self, path: &str) -> Result<Vec<String>>;
+
+    /// Scan a key prefix to get all keys that start with this key
+    /// in blocking way.
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>>;
 }
 
 /// Value is the typed value stored in adapter.

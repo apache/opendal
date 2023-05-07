@@ -195,10 +195,9 @@ impl Accessor for OnedriveBackend {
             Ok(RpStat::new(meta))
         } else {
             match status {
-                StatusCode::NOT_FOUND => Err(Error::new(
-                    ErrorKind::NotFound,
-                    "path not found in onedrive",
-                )),
+                StatusCode::NOT_FOUND if path.ends_with('/') => {
+                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                }
                 _ => Err(parse_error(resp).await?),
             }
         }

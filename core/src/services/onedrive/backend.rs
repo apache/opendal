@@ -35,7 +35,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::raw::{build_abs_path, build_rooted_abs_path};
 use crate::raw::get_basename;
 use crate::raw::new_json_deserialize_error;
 use crate::raw::new_json_serialize_error;
@@ -55,6 +54,7 @@ use crate::raw::RpList;
 use crate::raw::RpRead;
 use crate::raw::RpStat;
 use crate::raw::RpWrite;
+use crate::raw::{build_abs_path, build_rooted_abs_path};
 use crate::types::Result;
 use crate::Capability;
 use crate::EntryMode;
@@ -211,7 +211,7 @@ impl Accessor for OnedriveBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

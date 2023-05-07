@@ -60,11 +60,27 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     fn blocking_delete(&self, path: &str) -> Result<()>;
 
     /// Scan a key prefix to get all keys that start with this key.
-    async fn scan(&self, path: &str) -> Result<Vec<String>>;
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        let _ = path;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "typed_kv adapter doesn't support this operation",
+        )
+        .with_operation("typed_kv::Adapter::scan"))
+    }
 
     /// Scan a key prefix to get all keys that start with this key
     /// in blocking way.
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>>;
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let _ = path;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "typed_kv adapter doesn't support this operation",
+        )
+        .with_operation("typed_kv::Adapter::blocking_scan"))
+    }
 }
 
 /// Value is the typed value stored in adapter.

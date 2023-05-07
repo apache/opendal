@@ -232,17 +232,4 @@ impl typed_kv::Adapter for Adapter {
 
         Ok(())
     }
-
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        self.blocking_scan(path)
-    }
-
-    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
-        let keys = self.inner.iter().map(|(k, _)| k.to_string());
-        if path.is_empty() {
-            Ok(keys.collect())
-        } else {
-            Ok(keys.filter(|k| k.starts_with(path)).collect())
-        }
-    }
 }

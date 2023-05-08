@@ -20,12 +20,14 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use crate::raw::new_json_deserialize_error;
 use crate::raw::percent_encode_path;
 use crate::raw::HttpClient;
 use crate::Error;
 use crate::ErrorKind;
 
 use http::request::Builder;
+use http::StatusCode;
 use http::{header, Request, Response};
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -34,6 +36,8 @@ use crate::{
     raw::{build_rooted_abs_path, new_request_build_error, AsyncBody, IncomingAsyncBody},
     types::Result,
 };
+
+use super::error::parse_error;
 
 pub struct GdriveCore {
     pub root: String,
@@ -66,20 +70,24 @@ impl GdriveCore {
             .map_err(new_request_build_error)?;
 
         let resp = self.client.send(req).await?;
-        let resp_body = &resp.into_body().bytes().await?;
+        let status = resp.status();
 
-        let gdrive_file: GdriveFile = serde_json::from_slice(resp_body).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "deserialize json error")
-                .with_context("origin json value", String::from_utf8_lossy(resp_body))
-                .set_source(e)
-        })?;
+        match status {
+            StatusCode::OK => {
+                let resp_body = &resp.into_body().bytes().await?;
 
-        let root_id = gdrive_file.id;
+                let gdrive_file: GdriveFile =
+                    serde_json::from_slice(resp_body).map_err(new_json_deserialize_error)?;
 
-        let mut cache_guard = self.path_cache.lock().await;
-        cache_guard.insert(root.to_owned(), root_id.clone());
+                let root_id = gdrive_file.id;
 
-        Ok(root_id)
+                let mut cache_guard = self.path_cache.lock().await;
+                cache_guard.insert(root.to_owned(), root_id.clone());
+
+                Ok(root_id)
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
@@ -110,20 +118,22 @@ impl GdriveCore {
                 .map_err(new_request_build_error)?;
 
             let resp = self.client.send(req).await?;
-            let resp_body = &resp.into_body().bytes().await?;
+            let status = resp.status();
 
-            let gdrive_file_list: GdriveFileList =
-                serde_json::from_slice(resp_body).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "deserialize json error")
-                        .with_context("origin json value", String::from_utf8_lossy(resp_body))
-                        .set_source(e)
-                })?;
+            if status == StatusCode::OK {
+                let resp_body = &resp.into_body().bytes().await?;
 
-            if gdrive_file_list.files.len() != 1 {
-                return Err(Error::new(ErrorKind::Unexpected, &format!("Please ensure that the file corresponding to the path exists and is unique. The response body is {}", String::from_utf8_lossy(resp_body))));
+                let gdrive_file_list: GdriveFileList =
+                    serde_json::from_slice(resp_body).map_err(new_json_deserialize_error)?;
+
+                if gdrive_file_list.files.len() != 1 {
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("Please ensure that the file corresponding to the path exists and is unique. The response body is {}", String::from_utf8_lossy(resp_body))));
+                }
+
+                parent_id = gdrive_file_list.files[0].id.clone();
+            } else {
+                return Err(parse_error(resp).await?);
             }
-
-            parent_id = gdrive_file_list.files[0].id.clone();
         }
 
         let mut cache_guard = self.path_cache.lock().await;

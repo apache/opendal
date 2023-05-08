@@ -82,7 +82,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.meta.clone()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner
             .create_dir(path, args)
             .map_err(|err| {
@@ -260,7 +260,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingCreateDir)
                 .with_context("service", self.meta.scheme())

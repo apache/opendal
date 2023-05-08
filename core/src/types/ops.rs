@@ -27,10 +27,10 @@ use crate::raw::*;
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct OpCreate {}
+pub struct OpCreateDir {}
 
-impl OpCreate {
-    /// Create a new `OpCreate`.
+impl OpCreateDir {
+    /// Create a new `OpCreateDir`.
     pub fn new() -> Self {
         Self::default()
     }

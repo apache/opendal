@@ -19,9 +19,9 @@ use http::Request;
 
 use crate::*;
 
-/// Reply for `create` operation
+/// Reply for `create_dir` operation
 #[derive(Debug, Clone, Default)]
-pub struct RpCreate {}
+pub struct RpCreateDir {}
 
 /// Reply for `delete` operation
 #[derive(Debug, Clone, Default)]

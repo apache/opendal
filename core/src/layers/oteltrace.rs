@@ -85,7 +85,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         tracer.in_span("metadata", |_cx| self.inner.info())
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("create");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -193,7 +193,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         self.inner().presign(path, args).with_context(cx).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let tracer = global::tracer("opendal");
         tracer.in_span("blocking_create_dir", |cx| {
             let span = cx.span(); // let mut span = cx.();

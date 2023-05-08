@@ -307,7 +307,8 @@ impl BlockingOperator {
             .with_context("path", &path));
         }
 
-        self.inner().blocking_create_dir(&path, OpCreate::new())?;
+        self.inner()
+            .blocking_create_dir(&path, OpCreateDir::new())?;
 
         Ok(())
     }

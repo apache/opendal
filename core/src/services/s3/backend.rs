@@ -1001,7 +1001,7 @@ impl Accessor for S3Backend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
                 .s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
@@ -1015,7 +1015,7 @@ impl Accessor for S3Backend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }

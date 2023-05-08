@@ -292,7 +292,7 @@ impl Accessor for WebdavBackend {
         ma
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         self.ensure_parent_path(path).await?;
 
         let abs_path = build_abs_path(&self.root, path);
@@ -633,7 +633,7 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {
+    async fn create_internal(&self, abs_path: &str) -> Result<RpCreateDir> {
         let resp = if abs_path.ends_with('/') {
             self.webdav_mkcol(abs_path, None, None, AsyncBody::Empty)
                 .await?
@@ -654,7 +654,7 @@ impl WebdavBackend {
             // create existing file will return no_content
             | StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }

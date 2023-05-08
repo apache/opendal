@@ -263,12 +263,12 @@ impl Accessor for HdfsBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
         self.client.create_dir(&p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -401,12 +401,12 @@ impl Accessor for HdfsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
         self.client.create_dir(&p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

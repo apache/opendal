@@ -168,7 +168,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         &self.inner
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         { || self.inner.create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -339,7 +339,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         { || self.inner.blocking_create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())

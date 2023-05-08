@@ -460,7 +460,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         result
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.handle.requests_total_create.increment(1);
 
         let start = Instant::now();
@@ -646,7 +646,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.handle.requests_total_blocking_create.increment(1);
 
         let start = Instant::now();

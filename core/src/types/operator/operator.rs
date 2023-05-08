@@ -400,7 +400,7 @@ impl Operator {
             .with_context("path", &path));
         }
 
-        self.inner().create_dir(&path, OpCreate::new()).await?;
+        self.inner().create_dir(&path, OpCreateDir::new()).await?;
 
         Ok(())
     }

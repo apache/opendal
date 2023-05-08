@@ -438,7 +438,7 @@ impl Accessor for GcsBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req = self
             .core
             .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
@@ -449,7 +449,7 @@ impl Accessor for GcsBackend {
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
-            Ok(RpCreate::default())
+            Ok(RpCreateDir::default())
         } else {
             Err(parse_error(resp).await?)
         }

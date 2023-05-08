@@ -200,7 +200,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         &self.inner
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.stats
             .requests_total
             .with_label_values(&[&self.scheme])
@@ -427,7 +427,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.stats
             .requests_total
             .with_label_values(&[&self.scheme, Operation::BlockingCreateDir.into_static()])

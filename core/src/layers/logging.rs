@@ -216,7 +216,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         result
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -672,7 +672,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",

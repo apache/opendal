@@ -93,7 +93,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST match with EntryMode, DON'T NEED to check mode.
     /// - Create on existing dir SHOULD succeed.
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -268,7 +268,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// This operation is the blocking version of [`Accessor::create_dir`]
     ///
     /// Require [`Capability::create_dir`] and [`Capability::blocking`]
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -427,7 +427,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.as_ref().create_dir(path, args).await
     }
 
@@ -467,7 +467,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().presign(path, args).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.as_ref().blocking_create_dir(path, args)
     }
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

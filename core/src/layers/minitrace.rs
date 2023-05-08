@@ -148,7 +148,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     }
 
     #[trace("create", enter_on_poll = true)]
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.create_dir(path, args).await
     }
 
@@ -215,7 +215,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     }
 
     #[trace("blocking_create")]
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args)
     }
 

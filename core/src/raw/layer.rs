@@ -151,7 +151,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner().create_dir(path, args).await
     }
 
@@ -187,7 +187,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().presign(path, args).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner().blocking_create_dir(path, args)
     }
 
@@ -229,7 +229,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).metadata()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         (self as &L).create_dir(path, args).await
     }
 
@@ -273,7 +273,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).presign(path, args).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         (self as &L).blocking_create_dir(path, args)
     }
 

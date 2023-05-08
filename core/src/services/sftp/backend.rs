@@ -19,6 +19,9 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::fs::create_dir;
+use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -285,14 +288,10 @@ impl Accessor for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
 
-        let paths: Vec<&str> = path.split_inclusive('/').collect();
-        let mut current = self.root.clone();
+        let paths = Path::new(&path).components();
+        let mut current = PathBuf::from(&self.root);
         for p in paths {
-            if p.is_empty() {
-                continue;
-            }
-
-            current.push_str(p);
+            current = current.join(p);
             let res = fs.create_dir(p).await;
 
             if let Err(e) = res {
@@ -401,12 +400,19 @@ impl Accessor for SftpBackend {
 
             while let Some(file) = dir.next().await {
                 let file = file?;
-                let file_name = file.filename().to_str().unwrap();
-                if file_name == "." || file_name == ".." {
+                let file_name = file.filename().to_str();
+                if file_name == Some(".") || file_name == Some("..") {
                     continue;
                 }
-                let file_path = format!("{}{}", path, file_name);
-                self.delete(file_path.as_str(), OpDelete::default()).await?;
+                let file_path = Path::new(&self.root).join(file.filename());
+                self.delete(
+                    file_path.to_str().ok_or(Error::new(
+                        ErrorKind::Unexpected,
+                        "unable to convert file path to str",
+                    ))?,
+                    OpDelete::default(),
+                )
+                .await?;
             }
 
             match fs.remove_dir(path).await {
@@ -459,7 +465,7 @@ impl SftpBackend {
             .client
             .get_or_try_init(|| {
                 Box::pin(connect_sftp(
-                    self.endpoint.clone(),
+                    self.endpoint.as_str(),
                     self.root.clone(),
                     self.user.clone(),
                     self.key.clone(),
@@ -473,7 +479,7 @@ impl SftpBackend {
 }
 
 async fn connect_sftp(
-    endpoint: String,
+    endpoint: &str,
     root: String,
     user: String,
     key: Option<String>,
@@ -481,16 +487,25 @@ async fn connect_sftp(
 ) -> Result<Sftp> {
     let mut session = SessionBuilder::default();
 
-    session.user(user.clone());
+    session.user(user);
 
     if let Some(key) = &key {
         session.keyfile(key);
     }
 
     // set control directory to avoid temp files in root directory when panic
-    session.control_directory("/tmp");
+    if let Some(dir) = dirs::runtime_dir() {
+        session.control_directory(dir);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = create_dir("/private/tmp/.opendal/");
+        session.control_directory("/private/tmp/.opendal/");
+    }
+
     session.server_alive_interval(Duration::from_secs(5));
-    session.known_hosts_check(known_hosts_strategy.clone());
+    session.known_hosts_check(known_hosts_strategy);
 
     let session = session.connect(&endpoint).await?;
 
@@ -499,14 +514,10 @@ async fn connect_sftp(
     let mut fs = sftp.fs();
     fs.set_cwd("/");
 
-    let paths: Vec<&str> = root.split_inclusive('/').skip(1).collect();
-    let mut current = "/".to_owned();
+    let paths = Path::new(&root).components();
+    let mut current = PathBuf::from("/");
     for p in paths {
-        if p.is_empty() {
-            continue;
-        }
-
-        current.push_str(p);
+        current = current.join(p);
         let res = fs.create_dir(p).await;
 
         if let Err(e) = res {

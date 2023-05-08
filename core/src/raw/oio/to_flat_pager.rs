@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn test_blocking_list() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let acc = MockService::new();
         let mut pager = to_flat_pager(acc, "x/", 10);

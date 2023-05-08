@@ -401,7 +401,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -427,7 +427,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_via_basic_auth() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let (username, password) = ("your_username", "your_password");
 
@@ -457,7 +457,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_via_bearer_auth() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let token = "your_token";
 
@@ -487,7 +487,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stat() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("HEAD"))
@@ -509,7 +509,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_with() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -538,7 +538,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stat_with() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("HEAD"))

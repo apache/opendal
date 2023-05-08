@@ -284,7 +284,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
@@ -322,7 +322,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_scan() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
@@ -362,7 +362,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_dir() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in [
@@ -423,7 +423,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_walk_top_down_dir() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in [

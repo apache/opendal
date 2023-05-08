@@ -737,6 +737,7 @@ impl BlockingOperator {
     /// # Notes
     ///
     /// - `scan` will not return the prefix itself.
+    /// - `scan` is an alias of `list_with(OpList::new().with_delimiter(""))`
     ///
     /// # Examples
     ///

@@ -21,8 +21,6 @@ use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct GraphApiOnedriveListResponse {
-    #[serde(rename = "@odata.context")]
-    odata_context: String,
     #[serde(rename = "@odata.count")]
     pub(crate) odata_count: usize,
     #[serde(rename = "@odata.nextLink")]
@@ -50,7 +48,6 @@ pub(crate) struct OneDriveItem {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ParentReference {
-    id: String,
     pub(crate) path: String,
 }
 
@@ -77,10 +74,8 @@ pub struct OnedriveGetItemBody {
     #[serde(rename = "lastModifiedDateTime")]
     pub(crate) last_modified_date_time: String,
     pub(crate) name: String,
-    root: Option<Root>,
     pub(crate) size: u64,
-    #[serde(rename = "webUrl")]
-    web_url: String,
+
     #[serde(flatten)]
     pub(crate) item_type: ItemType,
 }
@@ -89,17 +84,6 @@ pub struct OnedriveGetItemBody {
 pub struct File {
     #[serde(rename = "mimeType")]
     mime_type: String,
-    hashes: Hashes,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Hashes {
-    #[serde(rename = "quickXorHash")]
-    quick_xor_hash: Option<String>,
-    #[serde(rename = "sha1Hash")]
-    sha1_hash: Option<String>,
-    #[serde(rename = "sha256Hash")]
-    sha256_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -107,9 +91,6 @@ pub struct Folder {
     #[serde(rename = "childCount")]
     child_count: i64,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct Root {}
 
 #[test]
 fn test_parse_one_drive_json() {
@@ -177,10 +158,6 @@ fn test_parse_one_drive_json() {
                 },
                 "file": {
                     "mimeType": "application/pdf",
-                    "hashes": {
-                        "quickXorHash": "=",
-                        "sha1Hash": ""
-                    }
                 },
                 "fileSystemInfo": {
                     "createdDateTime": "2018-12-30T05:32:55.46Z",
@@ -191,10 +168,6 @@ fn test_parse_one_drive_json() {
     }"#;
 
     let response: GraphApiOnedriveListResponse = serde_json::from_str(data).unwrap();
-    assert_eq!(
-        response.odata_context,
-        "https://graph.microsoft.com/v1.0/$metadata#users('user_id')/drive/root/children"
-    );
     assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 2);
     let item = &response.value[0];
@@ -266,10 +239,6 @@ fn test_parse_folder_single() {
       }"#;
 
     let response: GraphApiOnedriveListResponse = serde_json::from_str(response_json).unwrap();
-    assert_eq!(
-        response.odata_context,
-        "https://graph.microsoft.com/v1.0/$metadata#users('great.cat%40outlook.com')/drive/root/children"
-    );
     assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 1);
     let item = &response.value[0];

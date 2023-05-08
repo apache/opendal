@@ -200,14 +200,6 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.inner
-            .scan(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, TracingWrapper::new(Span::current(), s))))
-            .await
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
     }
@@ -260,13 +252,6 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, it)| (rp, TracingWrapper::new(Span::current(), it)))
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.inner
-            .blocking_scan(path, args)
             .map(|(rp, it)| (rp, TracingWrapper::new(Span::current(), it)))
     }
 }

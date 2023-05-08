@@ -31,10 +31,6 @@ pub struct RpDelete {}
 #[derive(Debug, Clone, Default)]
 pub struct RpList {}
 
-/// Reply for `scan` operation.
-#[derive(Debug, Clone, Default)]
-pub struct RpScan {}
-
 /// Reply for `presign` operation.
 #[derive(Debug, Clone)]
 pub struct RpPresign {

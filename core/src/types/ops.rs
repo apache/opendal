@@ -114,32 +114,6 @@ impl OpList {
     }
 }
 
-/// Args for `scan` operation.
-#[derive(Debug, Default, Clone)]
-pub struct OpScan {
-    /// The limit passed to underlying service to specify the max results
-    /// that could return.
-    limit: Option<usize>,
-}
-
-impl OpScan {
-    /// Create a new `OpList`.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Change the limit of this list operation.
-    pub fn with_limit(mut self, limit: usize) -> Self {
-        self.limit = Some(limit);
-        self
-    }
-
-    /// Get the limit of list operation.
-    pub fn limit(&self) -> Option<usize> {
-        self.limit
-    }
-}
-
 /// Args for `presign` operation.
 ///
 /// The path must be normalized.

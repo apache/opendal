@@ -773,12 +773,14 @@ impl BlockingOperator {
                 ErrorKind::NotADirectory,
                 "the path trying to scan should end with `/`",
             )
-            .with_operation("BlockingOperator::scan")
+            .with_operation("BlockingOperator::list")
             .with_context("service", self.info().scheme().into_static())
             .with_context("path", path));
         }
 
-        let (_, pager) = self.inner().blocking_scan(&path, OpScan::new())?;
+        let (_, pager) = self
+            .inner()
+            .blocking_list(&path, OpList::new().with_delimiter(""))?;
         Ok(BlockingLister::new(pager))
     }
 }

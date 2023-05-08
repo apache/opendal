@@ -66,10 +66,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
     type BlockingWriter: oio::BlockingWrite;
-    /// Pager is the associated page that return in `list` or `scan` operation.
+    /// Pager is the associated page that return in `list` operation.
     type Pager: oio::Page;
     /// BlockingPager is the associated pager that could return in
-    /// `blocking_list` or `scan` operation.
+    /// `blocking_list` operation.
     type BlockingPager: oio::BlockingPage;
 
     /// Invoke the `info` operation to get metadata of accessor.
@@ -219,22 +219,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
-    /// Invoke the `scan` operation on the specified path.
-    ///
-    /// Require [`Capability::scan`]
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let mut op_list = OpList::new().with_delimiter("");
-        if let Some(limit) = args.limit() {
-            op_list = op_list.with_limit(limit)
-        }
-        let result = self.list(path, op_list).await;
-
-        return match result {
-            Ok(r) => Ok((RpScan::default(), r.1)),
-            Err(e) => Err(e),
-        };
-    }
-
     /// Invoke the `presign` operation on the specified path.
     ///
     /// Require [`Capability::presign`]
@@ -378,18 +362,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
             "operation is not supported",
         ))
     }
-
-    /// Invoke the `blocking_scan` operation on the specified path.
-    ///
-    /// Require [`Capability::scan`] and [`Capability::blocking`]
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
 }
 
 /// Dummy implementation of accessor.
@@ -455,9 +427,6 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.as_ref().list(path, args).await
     }
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.as_ref().scan(path, args).await
-    }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.as_ref().batch(args).await
@@ -493,10 +462,6 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.as_ref().blocking_list(path, args)
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.as_ref().blocking_scan(path, args)
     }
 }
 

@@ -101,14 +101,6 @@ use crate::*;
 ///     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
 ///         self.inner.blocking_list(path, args)
 ///     }
-///
-///     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-///         self.inner.scan(path, args).await
-///     }
-///
-///     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-///         self.inner.blocking_scan(path, args)
-///     }
 /// }
 ///
 /// /// The public struct that exposed to users.
@@ -177,8 +169,6 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)>;
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)>;
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.inner().batch(args).await
     }
@@ -212,8 +202,6 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)>;
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)>;
 }
 
 #[async_trait]
@@ -261,10 +249,6 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).list(path, args).await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        (self as &L).scan(path, args).await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         (self as &L).batch(args).await
     }
@@ -303,10 +287,6 @@ impl<L: LayeredAccessor> Accessor for L {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         (self as &L).blocking_list(path, args)
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        (self as &L).blocking_scan(path, args)
     }
 }
 

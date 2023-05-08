@@ -1190,12 +1190,15 @@ impl Operator {
                 ErrorKind::NotADirectory,
                 "the path trying to scan should end with `/`",
             )
-            .with_operation("scan")
+            .with_operation("list")
             .with_context("service", self.info().scheme().into_static())
             .with_context("path", &path));
         }
 
-        let (_, pager) = self.inner().scan(&path, OpScan::new()).await?;
+        let (_, pager) = self
+            .inner()
+            .list(&path, OpList::new().with_delimiter(""))
+            .await?;
 
         Ok(Lister::new(pager))
     }

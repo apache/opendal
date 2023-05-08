@@ -851,7 +851,7 @@ impl Builder for WasabiBuilder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg).with_allow_anonymous();
+        let mut loader = AwsLoader::new(client.client(), cfg);
         if self.disable_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
         }

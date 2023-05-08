@@ -21,8 +21,6 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::time::Duration;
 
-use backon::ExponentialBuilder;
-use backon::Retryable;
 use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
@@ -34,7 +32,6 @@ use http::header::IF_NONE_MATCH;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
 use reqsign::AwsCredential;
 use reqsign::AwsLoader;
 use reqsign::AwsV4Signer;
@@ -69,9 +66,6 @@ mod constants {
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
-static BACKOFF: Lazy<ExponentialBuilder> =
-    Lazy::new(|| ExponentialBuilder::default().with_jitter());
-
 pub struct S3Core {
     pub bucket: String,
     pub endpoint: String,
@@ -82,6 +76,7 @@ pub struct S3Core {
     pub server_side_encryption_customer_key: Option<HeaderValue>,
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
+    pub allow_anonymous: bool,
 
     pub signer: AwsV4Signer,
     pub loader: AwsLoader,
@@ -102,15 +97,24 @@ impl Debug for S3Core {
 impl S3Core {
     /// If credential is not found, we will not sign the request.
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
-        let cred = { || self.loader.load() }
-            .retry(&*BACKOFF)
+        let cred = self
+            .loader
+            .load()
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
             Ok(Some(cred))
-        } else {
+        } else if self.allow_anonymous {
+            // If allow_anonymous has been set, we will not sign the request.
             Ok(None)
+        } else {
+            // Mark this error as temporary since it could be caused by AWS STS.
+            Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "no valid credential found, please check configuration or try again",
+            )
+            .set_temporary())
         }
     }
 

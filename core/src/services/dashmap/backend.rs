@@ -30,12 +30,10 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
-/// - [x] read
-/// - [x] write
-/// - [ ] ~~list~~
+/// - [x] get
+/// - [x] set
+/// - [x] delete
 /// - [x] scan
-/// - [ ] ~~presign~~
-/// - [x] blocking
 #[derive(Default)]
 pub struct DashmapBuilder {
     root: Option<String>,

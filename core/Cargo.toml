@@ -217,7 +217,6 @@ uuid = { version = "1", features = ["serde", "v4"] }
 [dev-dependencies]
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
-env_logger = "0.10"
 opentelemetry = { version = "0.19", default-features = false, features = [
   "trace",
 ] }

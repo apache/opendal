@@ -2631,7 +2631,6 @@ dependencies = [
  "criterion",
  "dashmap",
  "dotenvy",
- "env_logger",
  "flagset",
  "futures",
  "hdrs",

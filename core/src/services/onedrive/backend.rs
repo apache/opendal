@@ -95,7 +95,7 @@ impl Accessor for OnedriveBackend {
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.onedrive_get(path, true).await?;
+        let resp = self.onedrive_get_content(path).await?;
 
         let status = resp.status();
 
@@ -149,7 +149,7 @@ impl Accessor for OnedriveBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.onedrive_get(path, false).await?;
+        let resp = self.onedrive_get(path).await?;
         let status = resp.status();
 
         if status.is_success() {
@@ -245,20 +245,32 @@ impl Accessor for OnedriveBackend {
 
 impl OnedriveBackend {
     pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
-    async fn onedrive_get(
-        &self,
-        path: &str,
-        append_content_suffix: bool,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    async fn onedrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",
             percent_encode_path(&path),
-            if append_content_suffix {
-                ":/content"
-            } else {
-                ""
-            }
+            ""
+        );
+
+        let mut req = Request::get(&url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    async fn onedrive_get_content(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let path = build_rooted_abs_path(&self.root, path);
+        let url: String = format!(
+            "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",
+            percent_encode_path(&path),
+            ":/content"
         );
 
         let mut req = Request::get(&url);

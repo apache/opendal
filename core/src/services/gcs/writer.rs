@@ -163,9 +163,25 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    // TODO: we can cancel the upload by sending a DELETE request to the location
     async fn abort(&mut self) -> Result<()> {
-        Ok(())
+        let location = if let Some(location) = &self.location {
+            location
+        } else {
+            return Ok(());
+        };
+
+        let resp = self.core.gcs_abort_resumable_upload(location).await?;
+
+        match resp.status() {
+            // gcs returns 204 if the upload aborted successfully
+            StatusCode::NO_CONTENT => {
+                resp.into_body().consume().await?;
+                self.location = None;
+                self.buffer.clear();
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn close(&mut self) -> Result<()> {

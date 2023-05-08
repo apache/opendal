@@ -328,7 +328,6 @@ impl Accessor for ObsBackend {
                 create_dir: true,
                 copy: true,
 
-                scan: true,
                 list: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,

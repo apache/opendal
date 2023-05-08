@@ -980,7 +980,6 @@ impl Accessor for S3Backend {
                 delete: true,
                 copy: true,
 
-                scan: true,
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,

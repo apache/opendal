@@ -47,8 +47,8 @@ macro_rules! behavior_list_test {
                     match OPERATOR.as_ref() {
                         Some(op) if op.info().can_read()
                             && op.info().can_write()
-                            && (op.info().can_list()
-                                || op.info().can_scan()) => RUNTIME.block_on($crate::list::$test(op.clone())),
+                            && op.info().can_list()
+                                 => RUNTIME.block_on($crate::list::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
                             Ok(())

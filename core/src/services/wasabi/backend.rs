@@ -919,7 +919,6 @@ impl Accessor for WasabiBackend {
                 copy: true,
                 rename: true,
 
-                scan: true,
                 list: true,
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,

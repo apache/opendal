@@ -30,6 +30,8 @@ pub(crate) struct GraphApiOnedriveListResponse {
     pub(crate) value: Vec<OneDriveItem>,
 }
 
+/// DriveItem representation
+/// https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/list?view=odsp-graph-online#json-representation
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct OneDriveItem {
     #[serde(rename = "eTag")]
@@ -39,29 +41,17 @@ pub(crate) struct OneDriveItem {
     last_modified_date_time: String,
     pub(crate) name: String,
 
-    size: usize,
     #[serde(rename = "parentReference")]
     pub(crate) parent_reference: ParentReference,
-    #[serde(rename = "fileSystemInfo")]
-    file_system_info: FileSystemInfo,
+
     #[serde(flatten)]
     pub(crate) item_type: ItemType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct ParentReference {
-    #[serde(rename = "driveId")]
-    drive_id: String,
-    #[serde(rename = "driveType")]
-    drive_type: String,
     id: String,
     pub(crate) path: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct FileSystemInfo {
-    #[serde[rename = "lastModifiedDateTime"]]
-    last_modified_date_time: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -212,7 +202,6 @@ fn test_parse_one_drive_json() {
     assert_eq!(item.id, "id");
     assert_eq!(item.last_modified_date_time, "2020-01-01T00:00:00Z");
     assert_eq!(item.name, "name");
-    assert_eq!(item.size, 0);
 }
 
 #[test]

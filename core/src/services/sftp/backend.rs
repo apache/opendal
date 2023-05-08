@@ -19,19 +19,15 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::sync::Arc;
-use std::task::Poll;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use futures::Future;
 use futures::StreamExt;
 use log::debug;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
-use openssh::Stdio;
 use openssh_sftp_client::Sftp;
-use openssh_sftp_client::SftpAuxiliaryData;
+use openssh_sftp_client::SftpOptions;
 
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
@@ -43,6 +39,10 @@ use crate::raw::*;
 use crate::*;
 
 /// SFTP services support. (only works on unix)
+///
+/// Warning: Maximum number of file holdings is depend on the remote system configuration.
+/// For example, the default value is 255 in macos, and 1024 in linux. If you want to open
+/// lots of files, you should pay attention to close the file after using it.
 ///
 /// # Capabilities
 ///
@@ -492,58 +492,7 @@ async fn connect_sftp(
 
     let session = session.connect(&endpoint).await?;
 
-    let mut stdio = Arc::new(once_cell::sync::OnceCell::new());
-    let stdio_cloned = Arc::clone(&stdio);
-    let mut future = Box::pin(async move {
-        let res = session
-            .subsystem("sftp")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .await;
-
-        let mut child = match res {
-            Ok(child) => child,
-            Err(err) => {
-                stdio_cloned.set(Err(err)).unwrap(); // Err
-                drop(stdio_cloned);
-                return;
-            }
-        };
-
-        let stdin = child.stdin().take().unwrap();
-        let stdout = child.stdout().take().unwrap();
-        stdio_cloned.set(Ok((stdin, stdout))).unwrap();
-        drop(stdio_cloned);
-
-        // Wait forever until being dropped
-        std::future::pending::<()>().await;
-
-        debug!("sftp child process exited");
-
-        // Use child, session after await to keep them alive
-        drop(child);
-        drop(session);
-    });
-
-    let (stdin, stdout) = std::future::poll_fn(|cx| {
-        let _ = future.as_mut().poll(cx);
-        if let Some(once_cell) = Arc::get_mut(&mut stdio) {
-            // future must have set some value before dropping stdio_cloned
-            return Poll::Ready(once_cell.take().unwrap());
-        }
-        Poll::Pending
-    })
-    .await?;
-
-    let sftp = Sftp::new_with_auxiliary(
-        stdin,
-        stdout,
-        Default::default(),
-        SftpAuxiliaryData::PinnedFuture(future),
-    )
-    .await?;
+    let sftp = Sftp::from_session(session, SftpOptions::default()).await?;
 
     let mut fs = sftp.fs();
     fs.set_cwd("/");

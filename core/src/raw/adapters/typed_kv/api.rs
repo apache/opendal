@@ -21,7 +21,12 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 
-use crate::*;
+use crate::EntryMode;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Metadata;
+use crate::Result;
+use crate::Scheme;
 
 /// Adapter is the typed adapter to underlying kv services.
 ///
@@ -39,7 +44,7 @@ use crate::*;
 #[async_trait]
 pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Get the scheme and name of current adapter.
-    fn metadata(&self) -> (Scheme, String);
+    fn info(&self) -> Info;
 
     /// Get a value from adapter.
     async fn get(&self, path: &str) -> Result<Option<Value>>;
@@ -58,6 +63,29 @@ pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
 
     /// Delete a value from adapter.
     fn blocking_delete(&self, path: &str) -> Result<()>;
+
+    /// Scan a key prefix to get all keys that start with this key.
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        let _ = path;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "typed_kv adapter doesn't support this operation",
+        )
+        .with_operation("typed_kv::Adapter::scan"))
+    }
+
+    /// Scan a key prefix to get all keys that start with this key
+    /// in blocking way.
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let _ = path;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "typed_kv adapter doesn't support this operation",
+        )
+        .with_operation("typed_kv::Adapter::blocking_scan"))
+    }
 }
 
 /// Value is the typed value stored in adapter.
@@ -85,5 +113,73 @@ impl Value {
     /// Size returns the in-memory size of Value.
     pub fn size(&self) -> usize {
         size_of::<Metadata>() + self.value.len()
+    }
+}
+
+/// Capability is used to describe what operations are supported
+/// by Typed KV Operator.
+#[derive(Copy, Clone, Default)]
+pub struct Capability {
+    /// If typed_kv operator supports get natively, it will be true.
+    pub get: bool,
+    /// If typed_kv operator supports set natively, it will be true.
+    pub set: bool,
+    /// If typed_kv operator supports delete natively, it will be true.
+    pub delete: bool,
+    /// If typed_kv operator supports scan natively, it will be true.
+    pub scan: bool,
+}
+
+impl Debug for Capability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = vec![];
+
+        if self.get {
+            s.push("Get")
+        }
+        if self.set {
+            s.push("Set");
+        }
+        if self.delete {
+            s.push("Delete");
+        }
+        if self.scan {
+            s.push("Scan");
+        }
+
+        write!(f, "{{ {} }}", s.join(" | "))
+    }
+}
+
+/// Info for this key value accessor.
+pub struct Info {
+    scheme: Scheme,
+    name: String,
+    capabilities: Capability,
+}
+
+impl Info {
+    /// Create a new KeyValueAccessorInfo.
+    pub fn new(scheme: Scheme, name: &str, capabilities: Capability) -> Self {
+        Self {
+            scheme,
+            name: name.to_string(),
+            capabilities,
+        }
+    }
+
+    /// Get the scheme.
+    pub fn scheme(&self) -> Scheme {
+        self.scheme
+    }
+
+    /// Get the name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get the capabilities.
+    pub fn capabilities(&self) -> Capability {
+        self.capabilities
     }
 }

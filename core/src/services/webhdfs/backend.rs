@@ -482,7 +482,6 @@ impl Accessor for WebhdfsBackend {
                 delete: true,
 
                 list: true,
-                list_without_delimiter: true,
                 list_with_delimiter_slash: true,
 
                 ..Default::default()
@@ -594,7 +593,14 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if args.delimiter() != "/" {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "webhdfs only support delimiter `/`",
+            ));
+        }
+
         let path = path.trim_end_matches('/');
         let req = self.webhdfs_list_status_request(path)?;
 

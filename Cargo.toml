@@ -40,7 +40,7 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.64"
+rust-version = "1.65"
 version = "0.33.3"
 
 [workspace.dependencies]

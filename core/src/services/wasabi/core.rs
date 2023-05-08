@@ -21,8 +21,6 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::time::Duration;
 
-use backon::ExponentialBuilder;
-use backon::Retryable;
 use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
@@ -32,7 +30,6 @@ use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
 use reqsign::AwsCredential;
 use reqsign::AwsLoader;
 use reqsign::AwsV4Signer;
@@ -73,9 +70,6 @@ mod constants {
     pub const OVERWRITE: &str = "Overwrite";
 }
 
-static BACKOFF: Lazy<ExponentialBuilder> =
-    Lazy::new(|| ExponentialBuilder::default().with_jitter());
-
 pub struct WasabiCore {
     pub bucket: String,
     pub endpoint: String,
@@ -105,15 +99,21 @@ impl Debug for WasabiCore {
 impl WasabiCore {
     /// If credential is not found, we will not sign the request.
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
-        let cred = { || self.loader.load() }
-            .retry(&*BACKOFF)
+        let cred = self
+            .loader
+            .load()
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
             Ok(Some(cred))
         } else {
-            Ok(None)
+            // Mark this error as temporary since it could be caused by AWS STS.
+            Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "no valid credential found, please check configuration or try again",
+            )
+            .set_temporary())
         }
     }
 

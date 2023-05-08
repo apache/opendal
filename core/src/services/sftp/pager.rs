@@ -25,12 +25,7 @@ use openssh_sftp_client::fs::ReadDir;
 use crate::raw::oio;
 use crate::Result;
 
-pub enum SftpPager {
-    Empty,
-    Inner(SftpPagerInner),
-}
-
-pub struct SftpPagerInner {
+pub struct SftpPager {
     dir: Pin<Box<ReadDir>>,
     prefix: String,
     limit: usize,
@@ -42,44 +37,34 @@ impl SftpPager {
 
         let limit = limit.unwrap_or(usize::MAX);
 
-        Self::Inner(SftpPagerInner {
+        SftpPager {
             dir: Box::pin(dir),
             prefix,
             limit,
-        })
-    }
-
-    pub fn empty() -> Self {
-        Self::Empty
+        }
     }
 }
 
 #[async_trait]
 impl oio::Page for SftpPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        match self {
-            Self::Empty => Ok(None),
-            Self::Inner(inner) => {
-                if inner.limit == 0 {
-                    return Ok(None);
-                }
+        if self.limit == 0 {
+            return Ok(None);
+        }
 
-                let item = inner.dir.next().await;
+        let item = self.dir.next().await;
 
-                match item {
-                    Some(Ok(e)) => {
-                        if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..")
-                        {
-                            self.next().await
-                        } else {
-                            inner.limit -= 1;
-                            Ok(Some(vec![map_entry(inner.prefix.as_str(), e.clone())]))
-                        }
-                    }
-                    Some(Err(e)) => Err(e.into()),
-                    None => Ok(None),
+        match item {
+            Some(Ok(e)) => {
+                if e.filename().to_str() == Some(".") || e.filename().to_str() == Some("..") {
+                    self.next().await
+                } else {
+                    self.limit -= 1;
+                    Ok(Some(vec![map_entry(self.prefix.as_str(), e.clone())]))
                 }
             }
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
         }
     }
 }

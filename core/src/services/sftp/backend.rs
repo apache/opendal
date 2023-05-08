@@ -258,7 +258,7 @@ impl Accessor for SftpBackend {
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
-    type Pager = SftpPager;
+    type Pager = Option<SftpPager>;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -438,7 +438,7 @@ impl Accessor for SftpBackend {
             Ok(dir) => dir,
             Err(e) => {
                 if is_not_found(&e) {
-                    return Ok((RpList::default(), SftpPager::empty()));
+                    return Ok((RpList::default(), None));
                 } else {
                     return Err(e.into());
                 }
@@ -448,7 +448,7 @@ impl Accessor for SftpBackend {
 
         Ok((
             RpList::default(),
-            SftpPager::new(dir, path.to_owned(), args.limit()),
+            Some(SftpPager::new(dir, path.to_owned(), args.limit())),
         ))
     }
 }

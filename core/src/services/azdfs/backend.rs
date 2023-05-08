@@ -55,8 +55,12 @@ const KNOWN_AZDFS_ENDPOINT_SUFFIX: &[&str] = &[
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
 /// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~

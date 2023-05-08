@@ -41,13 +41,17 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [x] blocking
-///
 /// # Differences with webhdfs
 ///
 /// [Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.

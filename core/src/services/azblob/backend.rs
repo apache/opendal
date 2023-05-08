@@ -56,9 +56,13 @@ const AZBLOB_BATCH_LIMIT: usize = 256;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
 /// - [x] presign

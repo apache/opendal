@@ -41,9 +41,13 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign

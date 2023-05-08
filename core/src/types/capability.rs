@@ -137,11 +137,11 @@ impl Debug for Capability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = vec![];
 
-        if self.read {
-            s.push("Read");
-        }
         if self.stat {
             s.push("Stat");
+        }
+        if self.read {
+            s.push("Read");
         }
         if self.write {
             s.push("Write");
@@ -152,17 +152,17 @@ impl Debug for Capability {
         if self.delete {
             s.push("Delete");
         }
-        if self.list {
-            s.push("List");
-        }
-        if self.scan {
-            s.push("Scan");
-        }
         if self.copy {
             s.push("Copy");
         }
         if self.rename {
             s.push("Rename");
+        }
+        if self.list {
+            s.push("List");
+        }
+        if self.scan {
+            s.push("Scan");
         }
         if self.presign {
             s.push("Presign");

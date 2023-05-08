@@ -60,13 +60,16 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [x] rename
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
-/// - [x] rename
 /// - [ ] blocking
 ///
 /// # Configuration

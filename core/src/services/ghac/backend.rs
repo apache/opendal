@@ -67,13 +67,17 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [x] copy
+/// - [ ] rename
 /// - [ ] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
+/// - [ ] scan
+/// - [ ] presign
 /// - [ ] blocking
-///
 /// # Notes
 ///
 /// This service is mainly provided by github actions.

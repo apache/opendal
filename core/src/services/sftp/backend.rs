@@ -55,6 +55,18 @@ use crate::*;
 /// - [ ] ~~presign~~
 /// - [ ] blocking
 ///
+/// - [x] stat
+/// - [x] read
+/// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
+/// - [x] list
+/// - [ ] ~~scan~~
+/// - [ ] ~~presign~~
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `endpoint`: Set the endpoint for connection

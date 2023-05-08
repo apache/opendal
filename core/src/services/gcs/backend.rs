@@ -49,11 +49,15 @@ const DEFAULT_WRITE_FIXED_SIZE: usize = 8 * 1024 * 1024;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
-/// - [x] copy
 /// - [x] presign
 /// - [ ] blocking
 ///
@@ -421,14 +425,13 @@ impl Accessor for GcsBackend {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
 
                 presign: true,
                 presign_stat: true,
                 presign_read: true,
                 presign_write: true,
-
-                list_with_delimiter_slash: true,
-                list_without_delimiter: true,
 
                 ..Default::default()
             });

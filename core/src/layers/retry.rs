@@ -797,6 +797,8 @@ mod tests {
             let mut am = AccessorInfo::default();
             am.set_capability(Capability {
                 list: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
                 batch: true,
                 ..Default::default()
             });

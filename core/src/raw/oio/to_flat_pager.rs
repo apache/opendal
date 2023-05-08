@@ -255,6 +255,7 @@ mod tests {
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
             am.capability_mut().list = true;
+            am.capability_mut().list_with_delimiter_slash = true;
 
             am
         }

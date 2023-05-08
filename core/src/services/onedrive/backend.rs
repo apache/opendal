@@ -229,7 +229,12 @@ impl Accessor for OnedriveBackend {
 
     async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let path = build_rooted_abs_path(&self.root, path);
-        let encoded_path = percent_encode_path(&path);
+        let path_before_last_slash = std::path::Path::new(&path)
+            .parent()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "invalid path"))?
+            .to_str()
+            .unwrap_or(&path);
+        let encoded_path = percent_encode_path(path_before_last_slash);
 
         let uri = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
@@ -245,24 +250,16 @@ impl Accessor for OnedriveBackend {
             "@microsoft.graph.conflictBehavior": "replace"
         });
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body_bytes));
 
-        let req = Request::builder()
-            .method("POST")
-            .uri(uri)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header(
-                header::AUTHORIZATION,
-                format!("Bearer {}", &self.access_token),
-            )
-            .body(AsyncBody::Bytes(body_bytes.into()))
-            .map_err(new_request_build_error)?;
+        let response = self
+            .onedrive_post(&uri, async_body, Some("application/json"))
+            .await?;
 
-        let resp = self.client.send(req).await?;
-
-        let status = resp.status();
+        let status = response.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreate::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => Err(parse_error(response).await?),
         }
     }
 }

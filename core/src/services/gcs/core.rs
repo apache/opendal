@@ -538,4 +538,18 @@ impl GcsCore {
 
         self.send(req).await
     }
+
+    pub async fn gcs_abort_resumable_upload(
+        &self,
+        location: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = Request::delete(location)
+            .header(CONTENT_LENGTH, 0)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
 }

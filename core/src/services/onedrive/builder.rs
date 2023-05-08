@@ -35,9 +35,9 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
+/// - [x] list
 /// - [ ] copy
 /// - [ ] rename
-/// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] blocking

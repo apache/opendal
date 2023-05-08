@@ -17,12 +17,12 @@
 
 use std::io;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bb8::PooledConnection;
 use futures::future::BoxFuture;
-use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
 use suppaftp::Status;

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,33 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+set -e
 
-[workspace]
-default-members = ["core"]
-members = [
-  "core",
+go install github.com/apache/skywalking-eyes/cmd/license-eye@d299844e334855087f18ae1fe3c81ae8d22bc282
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-
-  "bin/oli",
-  "bin/oay",
-]
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.64"
-version = "0.33.3"
-
-[workspace.dependencies]
-opendal = { version = "0.33", path = "core" }
+license-eye dependency resolve -c .github/licenserc.yaml --summary scripts/NOTICE.tpl
+mv scripts/LICENSE NOTICE

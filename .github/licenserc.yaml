@@ -15,33 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+header:
+  license:
+    spdx-id: Apache-2.0
+    copyright-owner: Apache Software Foundation
 
-[workspace]
-default-members = ["core"]
-members = [
-  "core",
-
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-
-  "bin/oli",
-  "bin/oay",
-]
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.64"
-version = "0.33.3"
-
-[workspace.dependencies]
-opendal = { version = "0.33", path = "core" }
+dependency:
+  files:
+    - Cargo.toml
+  excludes:
+    - name: opendal
+    - name: opendal-c
+    - name: opendal-java
+    - name: opendal-nodejs
+    - name: opendal-python
+    - name: opendal-ruby

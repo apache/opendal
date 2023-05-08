@@ -324,6 +324,9 @@ impl Accessor for ObsBackend {
                 scan: true,
                 copy: true,
 
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
                 ..Default::default()
             });
 
@@ -434,14 +437,7 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            ObsPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            ObsPager::new(self.core.clone(), path, "", args.limit()),
+            ObsPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 }

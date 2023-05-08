@@ -274,6 +274,8 @@ impl Accessor for WebdavBackend {
                 list: true,
                 copy: true,
                 rename: true,
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

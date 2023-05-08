@@ -223,12 +223,16 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// Require [`Capability::scan`]
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let (_, _) = (path, args);
+        let mut op_list = OpList::new().with_delimiter("");
+        if let Some(limit) = args.limit() {
+            op_list = op_list.with_limit(limit)
+        }
+        let result = self.list(path, op_list).await;
 
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        return match result {
+            Ok(r) => Ok((RpScan::default(), r.1)),
+            Err(e) => Err(e),
+        };
     }
 
     /// Invoke the `presign` operation on the specified path.

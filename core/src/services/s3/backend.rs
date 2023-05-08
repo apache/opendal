@@ -55,6 +55,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
+const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 ///
@@ -305,6 +306,10 @@ pub struct S3Builder {
 
     http_client: Option<HttpClient>,
     customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+
+    /// the part size of s3 multipart upload, which should be 5 MiB to 5 GiB.
+    /// There is no minimum size limit on the last part of your multipart upload
+    write_min_size: Option<usize>,
 }
 
 impl Debug for S3Builder {
@@ -705,6 +710,14 @@ impl S3Builder {
 
         endpoint
     }
+
+    /// set the minimum size of unsized write, it should be greater than 5 MB.
+    /// Reference: [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
+
+        self
+    }
 }
 
 impl Builder for S3Builder {
@@ -872,6 +885,14 @@ impl Builder for S3Builder {
         }
 
         let signer = AwsV4Signer::new("s3", &region);
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 5 * 1024 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::S3));
+        }
 
         debug!("backend build finished");
         Ok(S3Backend {
@@ -888,6 +909,7 @@ impl Builder for S3Builder {
                 signer,
                 loader,
                 client,
+                write_min_size,
             }),
         })
     }
@@ -940,6 +962,9 @@ impl Accessor for S3Backend {
                 presign: true,
                 batch: true,
                 batch_max_operations: Some(1000),
+
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
 
                 ..Default::default()
             });
@@ -1053,17 +1078,10 @@ impl Accessor for S3Backend {
             S3Pager::new(
                 self.core.clone(),
                 path,
-                "/",
+                args.delimiter(),
                 args.limit(),
                 args.start_after(),
             ),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 

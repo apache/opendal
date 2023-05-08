@@ -18,10 +18,10 @@
 use std::cmp;
 use std::io::SeekFrom;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 

@@ -272,6 +272,8 @@ impl Accessor for SftpBackend {
                 list: true,
                 list_with_limit: true,
 
+                list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 

@@ -344,7 +344,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_match("invalid_etag");
+    op_stat = op_stat.with_if_match("\"invalid_etag\"");
 
     let res = op.stat_with(&path, op_stat).await;
     assert!(res.is_err());
@@ -386,7 +386,7 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_none_match("invalid_etag");
+    op_stat = op_stat.with_if_none_match("\"invalid_etag\"");
 
     let res = op.stat_with(&path, op_stat).await?;
     assert_eq!(res.mode(), meta.mode());
@@ -621,7 +621,7 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
     let meta = op.stat(&path).await?;
 
     let mut op_read = OpRead::default();
-    op_read = op_read.with_if_match("invalid_etag");
+    op_read = op_read.with_if_match("\"invalid_etag\"");
 
     let res = op.read_with(&path, op_read).await;
     assert!(res.is_err());
@@ -664,7 +664,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     let mut op_read = OpRead::default();
-    op_read = op_read.with_if_none_match("invalid_etag");
+    op_read = op_read.with_if_none_match("\"invalid_etag\"");
 
     let bs = op
         .read_with(&path, op_read)

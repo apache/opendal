@@ -15,35 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Providing adapters and its implementations.
-//!
-//! Adapters in OpenDAL means services that shares similar behaviors. We use
-//! adapter to make those services been implemented more easily. For example,
-//! with [`kv::Adapter`], users only need to implement `get`, `set` for a service.
-//!
-//! # Notes
-//!
-//! Please import the module instead of its type.
-//!
-//! For example, use the following:
-//!
-//! ```ignore
-//! use opendal::adapters::kv;
-//!
-//! impl kv::Adapter for MyType {}
-//! ```
-//!
-//! Instead of:
-//!
-//! ```ignore
-//! use opendal::adapters::kv::Adapter;
-//!
-//! impl Adapter for MyType {}
-//! ```
-//!
-//! # Available Adapters
-//!
-//! - [`kv::Adapter`]: Adapter for Key Value Services like in-memory map, `redis`.
+use serde::Deserialize;
+use serde::Serialize;
 
-pub mod kv;
-pub mod typed_kv;
+#[derive(Serialize, Deserialize)]
+pub struct Config {
+    pub backend: BackendConfig,
+    pub frontends: FrontendsConfig,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BackendConfig {
+    #[serde(rename = "type")]
+    pub typ: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct FrontendsConfig {
+    pub s3: S3Config,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct S3Config {
+    pub enable: bool,
+    pub addr: String,
+}

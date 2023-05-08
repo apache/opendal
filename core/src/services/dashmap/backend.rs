@@ -83,11 +83,11 @@ impl typed_kv::Adapter for Adapter {
         typed_kv::Info::new(
             Scheme::Dashmap,
             &format!("{:?}", &self.inner as *const _),
-            Capability {
-                read: true,
-                write: true,
+            typed_kv::Capability {
+                get: true,
+                set: true,
                 scan: true,
-                ..Default::default()
+                delete: true,
             },
         )
     }

@@ -63,20 +63,32 @@ impl<S: Adapter> Accessor for Backend<S> {
     type BlockingPager = KvPager;
 
     fn info(&self) -> AccessorInfo {
-        let mut am: AccessorInfo = self.kv.info().into();
+        let kv_info = self.kv.info();
+        let mut am: AccessorInfo = AccessorInfo::default();
         am.set_root(&self.root);
-
+        am.set_scheme(kv_info.scheme());
+        am.set_name(kv_info.name());
+        let kv_cap = kv_info.capabilities();
         let cap = am.capability_mut();
-        if cap.read {
+        if kv_cap.get {
+            cap.read = true;
             cap.read_can_seek = true;
             cap.read_can_next = true;
             cap.read_with_range = true;
             cap.stat = true;
         }
 
-        if cap.write {
+        if kv_cap.set {
+            cap.write = true;
             cap.create_dir = true;
+        }
+
+        if kv_cap.delete {
             cap.delete = true;
+        }
+
+        if kv_cap.scan {
+            cap.scan = true;
         }
 
         am

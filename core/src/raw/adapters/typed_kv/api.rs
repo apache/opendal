@@ -21,8 +21,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 
-use crate::raw::*;
-use crate::Capability;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
@@ -118,6 +116,41 @@ impl Value {
     }
 }
 
+/// Capability is used to describe what operations are supported
+/// by Typed KV Operator.
+#[derive(Copy, Clone, Default)]
+pub struct Capability {
+    /// If typed_kv operator supports get natively, it will be true.
+    pub get: bool,
+    /// If typed_kv operator supports set natively, it will be true.
+    pub set: bool,
+    /// If typed_kv operator supports delete natively, it will be true.
+    pub delete: bool,
+    /// If typed_kv operator supports scan natively, it will be true.
+    pub scan: bool,
+}
+
+impl Debug for Capability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut s = vec![];
+
+        if self.get {
+            s.push("Get")
+        }
+        if self.set {
+            s.push("Set");
+        }
+        if self.delete {
+            s.push("Delete");
+        }
+        if self.scan {
+            s.push("Scan");
+        }
+
+        write!(f, "{{ {} }}", s.join(" | "))
+    }
+}
+
 /// Info for this key value accessor.
 pub struct Info {
     scheme: Scheme,
@@ -148,16 +181,5 @@ impl Info {
     /// Get the capabilities.
     pub fn capabilities(&self) -> Capability {
         self.capabilities
-    }
-}
-
-impl From<Info> for AccessorInfo {
-    fn from(m: Info) -> AccessorInfo {
-        let mut am = AccessorInfo::default();
-        am.set_name(m.name());
-        am.set_scheme(m.scheme());
-        am.set_capability(m.capabilities());
-
-        am
     }
 }

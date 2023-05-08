@@ -199,10 +199,10 @@ impl typed_kv::Adapter for Adapter {
         typed_kv::Info::new(
             Scheme::Moka,
             self.inner.name().unwrap_or("moka"),
-            Capability {
-                read: true,
-                write: true,
-
+            typed_kv::Capability {
+                get: true,
+                set: true,
+                delete: true,
                 ..Default::default()
             },
         )

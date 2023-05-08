@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::time::Duration;
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use openssh_sftp_client::file::File;
-use tokio::time::sleep;
 
 use crate::raw::oio;
 use crate::{Error, ErrorKind, Result};
@@ -38,15 +35,7 @@ impl SftpWriter {
 #[async_trait]
 impl oio::Write for SftpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        tokio::select! {
-            _ = self.file.write_all(&bs) => {},
-            _ = sleep(Duration::from_secs(30)) => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "SFTP write timed out",
-                ));
-            },
-        };
+        self.file.write_all(&bs).await?;
 
         Ok(())
     }

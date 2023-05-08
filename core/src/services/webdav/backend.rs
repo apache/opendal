@@ -283,7 +283,6 @@ impl Accessor for WebdavBackend {
                 rename: true,
 
                 list: true,
-                list_without_delimiter: true,
                 list_with_delimiter_slash: true,
 
                 ..Default::default()
@@ -292,7 +291,7 @@ impl Accessor for WebdavBackend {
         ma
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         self.ensure_parent_path(path).await?;
 
         let abs_path = build_abs_path(&self.root, path);
@@ -405,7 +404,14 @@ impl Accessor for WebdavBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if args.delimiter() != "/" {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "webdav only support delimiter `/`",
+            ));
+        }
+
         let mut header_map = HeaderMap::new();
         header_map.insert("Depth", "1".parse().unwrap());
         header_map.insert(header::CONTENT_TYPE, "application/xml".parse().unwrap());
@@ -633,7 +639,7 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {
+    async fn create_internal(&self, abs_path: &str) -> Result<RpCreateDir> {
         let resp = if abs_path.ends_with('/') {
             self.webdav_mkcol(abs_path, None, None, AsyncBody::Empty)
                 .await?
@@ -654,7 +660,7 @@ impl WebdavBackend {
             // create existing file will return no_content
             | StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }

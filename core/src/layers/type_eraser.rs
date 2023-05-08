@@ -103,17 +103,4 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
             .blocking_list(path, args)
             .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
     }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.inner
-            .scan(path, args)
-            .await
-            .map(|(rp, p)| (rp, Box::new(p) as oio::Pager))
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.inner
-            .blocking_scan(path, args)
-            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
-    }
 }

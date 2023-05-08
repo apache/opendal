@@ -468,7 +468,6 @@ impl Accessor for OssBackend {
                 create_dir: true,
                 copy: true,
 
-                scan: true,
                 list: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
@@ -487,7 +486,7 @@ impl Accessor for OssBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self
             .core
             .oss_put_object(path, None, None, None, None, AsyncBody::Empty)
@@ -497,7 +496,7 @@ impl Accessor for OssBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }

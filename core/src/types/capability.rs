@@ -108,10 +108,6 @@ pub struct Capability {
     pub list_with_delimiter_slash: bool,
     /// If backend supports list without delimiter.
     pub list_without_delimiter: bool,
-    /// If operator supports scan natively, it will be true.
-    pub scan: bool,
-    /// If backend supports scan with limit, it will be true.
-    pub scan_with_limit: bool,
 
     /// If operator supports presign natively, it will be true.
     pub presign: bool,
@@ -160,9 +156,6 @@ impl Debug for Capability {
         }
         if self.list {
             s.push("List");
-        }
-        if self.scan {
-            s.push("Scan");
         }
         if self.presign {
             s.push("Presign");

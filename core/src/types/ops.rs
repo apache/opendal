@@ -27,10 +27,10 @@ use crate::raw::*;
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct OpCreate {}
+pub struct OpCreateDir {}
 
-impl OpCreate {
-    /// Create a new `OpCreate`.
+impl OpCreateDir {
+    /// Create a new `OpCreateDir`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -111,32 +111,6 @@ impl OpList {
     /// Get the current delimiter.
     pub fn delimiter(&self) -> &str {
         &self.delimiter
-    }
-}
-
-/// Args for `scan` operation.
-#[derive(Debug, Default, Clone)]
-pub struct OpScan {
-    /// The limit passed to underlying service to specify the max results
-    /// that could return.
-    limit: Option<usize>,
-}
-
-impl OpScan {
-    /// Create a new `OpList`.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Change the limit of this list operation.
-    pub fn with_limit(mut self, limit: usize) -> Self {
-        self.limit = Some(limit);
-        self
-    }
-
-    /// Get the limit of list operation.
-    pub fn limit(&self) -> Option<usize> {
-        self.limit
     }
 }
 

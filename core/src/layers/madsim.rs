@@ -228,13 +228,6 @@ impl LayeredAccessor for MadsimAccessor {
         ))
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> crate::Result<(RpScan, Self::Pager)> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "will be supported in the future",
-        ))
-    }
-
     fn blocking_read(
         &self,
         path: &str,
@@ -262,17 +255,6 @@ impl LayeredAccessor for MadsimAccessor {
         path: &str,
         args: OpList,
     ) -> crate::Result<(RpList, Self::BlockingPager)> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "will not be supported in MadsimLayer",
-        ))
-    }
-
-    fn blocking_scan(
-        &self,
-        path: &str,
-        args: OpScan,
-    ) -> crate::Result<(RpScan, Self::BlockingPager)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will not be supported in MadsimLayer",

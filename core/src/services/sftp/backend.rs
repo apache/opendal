@@ -324,7 +324,7 @@ impl Accessor for SftpBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let client = self.sftp_connect().await?;
         let mut fs = client.sftp.fs();
         fs.set_cwd(self.root.clone());
@@ -348,7 +348,7 @@ impl Accessor for SftpBackend {
             fs.set_cwd(current.clone());
         }
 
-        return Ok(RpCreate::default());
+        return Ok(RpCreateDir::default());
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -398,7 +398,7 @@ impl Accessor for SftpBackend {
         }
 
         if let Some((dir, _)) = path.rsplit_once('/') {
-            self.create_dir(dir, OpCreate::default()).await?;
+            self.create_dir(dir, OpCreateDir::default()).await?;
         }
 
         let path = format!("{}{}", self.root, path);

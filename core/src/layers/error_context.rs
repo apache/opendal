@@ -82,7 +82,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.meta.clone()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner
             .create_dir(path, args)
             .map_err(|err| {
@@ -205,27 +205,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.inner
-            .scan(path, args)
-            .map_ok(|(rp, os)| {
-                (
-                    rp,
-                    ErrorContextWrapper {
-                        scheme: self.meta.scheme(),
-                        path: path.to_string(),
-                        inner: os,
-                    },
-                )
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Scan)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
-    }
-
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await.map_err(|err| {
             err.with_operation(Operation::Presign)
@@ -260,7 +239,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingCreateDir)
                 .with_context("service", self.meta.scheme())
@@ -357,26 +336,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             })
             .map_err(|err| {
                 err.with_operation(Operation::BlockingList)
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.inner
-            .blocking_scan(path, args)
-            .map(|(rp, os)| {
-                (
-                    rp,
-                    ErrorContextWrapper {
-                        scheme: self.meta.scheme(),
-                        path: path.to_string(),
-                        inner: os,
-                    },
-                )
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::BlockingScan)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })

@@ -168,7 +168,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         &self.inner
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         { || self.inner.create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -295,26 +295,6 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        { || self.inner.scan(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::Scan, dur.as_secs_f64(), err)
-            })
-            .map(|v| {
-                v.map(|(l, p)| {
-                    let pager = RetryWrapper::new(p, path, self.builder.clone());
-                    (l, pager)
-                })
-                .map_err(|e| e.set_persistent())
-            })
-            .await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         {
             || async {
@@ -339,7 +319,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         { || self.inner.blocking_create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -420,24 +400,6 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::BlockingList, dur.as_secs_f64(), err)
-            })
-            .call()
-            .map(|(rp, p)| {
-                let p = RetryWrapper::new(p, path, self.builder.clone());
-                (rp, p)
-            })
-            .map_err(|e| e.set_persistent())
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        { || self.inner.blocking_scan(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::BlockingScan, dur.as_secs_f64(), err)
             })
             .call()
             .map(|(rp, p)| {
@@ -835,6 +797,8 @@ mod tests {
             let mut am = AccessorInfo::default();
             am.set_capability(Capability {
                 list: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
                 batch: true,
                 ..Default::default()
             });

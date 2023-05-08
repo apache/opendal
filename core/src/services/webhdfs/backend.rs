@@ -449,7 +449,7 @@ impl WebhdfsBackend {
                 }
             }
             StatusCode::NOT_FOUND => {
-                self.create_dir("/", OpCreate::new()).await?;
+                self.create_dir("/", OpCreateDir::new()).await?;
             }
             _ => return Err(parse_error(resp).await?),
         }
@@ -482,7 +482,6 @@ impl Accessor for WebhdfsBackend {
                 delete: true,
 
                 list: true,
-                list_without_delimiter: true,
                 list_with_delimiter_slash: true,
 
                 ..Default::default()
@@ -491,7 +490,7 @@ impl Accessor for WebhdfsBackend {
     }
 
     /// Create a file or directory
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let req = self
             .webhdfs_create_object_request(path, Some(0), None, AsyncBody::Empty)
             .await?;
@@ -512,7 +511,7 @@ impl Accessor for WebhdfsBackend {
                     .map_err(new_json_deserialize_error)?;
 
                 if resp.boolean {
-                    Ok(RpCreate::default())
+                    Ok(RpCreateDir::default())
                 } else {
                     Err(Error::new(
                         ErrorKind::Unexpected,
@@ -594,7 +593,14 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if args.delimiter() != "/" {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "webhdfs only support delimiter `/`",
+            ));
+        }
+
         let path = path.trim_end_matches('/');
         let req = self.webhdfs_list_status_request(path)?;
 

@@ -77,11 +77,6 @@ impl OperatorInfo {
         self.0.capability().list
     }
 
-    /// Check if current backend supports [`Accessor::scan`] or not.
-    pub fn can_scan(&self) -> bool {
-        self.0.capability().scan
-    }
-
     /// Check if current backend supports [`Accessor::presign`] or not.
     pub fn can_presign(&self) -> bool {
         self.0.capability().presign

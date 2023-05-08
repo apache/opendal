@@ -52,6 +52,18 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 /// - [ ] ~~presign~~
 /// - [ ] blocking
 ///
+/// - [x] stat
+/// - [x] read
+/// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
+/// - [ ] ~~list~~
+/// - [ ] scan
+/// - [ ] ~~presign~~
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the working directory of `OpenDAL`

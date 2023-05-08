@@ -42,8 +42,11 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
 /// - [x] rename
 /// - [x] list
@@ -301,17 +304,24 @@ impl Accessor for FsBackend {
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root.to_string_lossy())
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_seek: true,
                 read_with_range: true,
+
                 write: true,
                 write_without_content_length: true,
                 create_dir: true,
+                delete: true,
+
                 list: true,
+                list_with_delimiter_slash: true,
+
                 copy: true,
                 rename: true,
                 blocking: true,
-                list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 

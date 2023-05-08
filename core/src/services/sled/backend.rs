@@ -41,6 +41,18 @@ use crate::*;
 /// - [ ] ~~presign~~
 /// - [x] blocking
 ///
+/// - [x] stat
+/// - [x] read
+/// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
+/// - [ ] ~~list~~
+/// - [ ] scan
+/// - [ ] ~~presign~~
+/// - [x] blocking
+///
 /// # Configuration
 ///
 /// - `datadir`: Set the path to the sled data directory

@@ -41,9 +41,13 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign
@@ -320,10 +324,12 @@ impl Accessor for ObsBackend {
                 write_with_content_type: true,
                 write_with_cache_control: true,
 
-                list: true,
-                scan: true,
+                delete: true,
+                create_dir: true,
                 copy: true,
 
+                scan: true,
+                list: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
 

@@ -47,7 +47,7 @@ use crate::*;
 /// - `access_token`: set the access_token for google drive api
 /// - `root`: Set the work directory for backend
 ///
-/// You can refer to [`GoogleDriveBuilder`]'s docs for more information
+/// You can refer to [`GdriveBuilder`]'s docs for more information
 ///
 /// # Example
 ///

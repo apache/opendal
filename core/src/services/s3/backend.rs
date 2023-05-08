@@ -873,10 +873,18 @@ impl Builder for S3Builder {
         }
 
         if cfg.region.is_none() {
-            // region is required to make signer work.
-            //
-            // If we don't know region after loading from builder and env.
-            // We will use `us-east-1` as default.
+            // AWS S3 requires region to be set.
+            if self.endpoint.is_none()
+                || self.endpoint.as_deref() == Some("https://s3.amazonaws.com")
+            {
+                return Err(Error::new(ErrorKind::ConfigInvalid, "region is missing")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::S3));
+            }
+
+            // For other compatible services, if we don't know region
+            // after loading from builder and env, we can use `us-east-1`
+            // as default.
             cfg.region = Some("us-east-1".to_string());
         }
 

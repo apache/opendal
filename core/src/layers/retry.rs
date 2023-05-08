@@ -1012,7 +1012,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_read() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())
@@ -1034,7 +1034,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_list() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())
@@ -1058,7 +1058,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_batch() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let builder = MockBuilder::default();
         // set to a lower delay to make it run faster

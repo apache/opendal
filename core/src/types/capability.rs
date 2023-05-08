@@ -43,7 +43,7 @@ use std::fmt::Debug;
 /// - Operation with sub operations should be named like `presign_read`.
 /// - Operation with variants should be named like `read_can_seek`.
 /// - Operation with arguments should be named like `read_with_range`.
-/// - Operation with limtations should be named like `batch_max_operations`.
+/// - Operation with limitations should be named like `batch_max_operations`.
 #[derive(Copy, Clone, Default)]
 pub struct Capability {
     /// If operator supports stat natively, it will be true.
@@ -92,6 +92,12 @@ pub struct Capability {
     /// If operator supports delete natively, it will be true.
     pub delete: bool,
 
+    /// If operator supports copy natively, it will be true.
+    pub copy: bool,
+
+    /// If operator supports rename natively, it will be true.
+    pub rename: bool,
+
     /// If operator supports list natively, it will be true.
     pub list: bool,
     /// If backend supports list with limit, it will be true.
@@ -106,12 +112,6 @@ pub struct Capability {
     pub scan: bool,
     /// If backend supports scan with limit, it will be true.
     pub scan_with_limit: bool,
-
-    /// If operator supports copy natively, it will be true.
-    pub copy: bool,
-
-    /// If operator supports rename natively, it will be true.
-    pub rename: bool,
 
     /// If operator supports presign natively, it will be true.
     pub presign: bool,
@@ -137,11 +137,11 @@ impl Debug for Capability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = vec![];
 
-        if self.read {
-            s.push("Read");
-        }
         if self.stat {
             s.push("Stat");
+        }
+        if self.read {
+            s.push("Read");
         }
         if self.write {
             s.push("Write");
@@ -152,17 +152,17 @@ impl Debug for Capability {
         if self.delete {
             s.push("Delete");
         }
-        if self.list {
-            s.push("List");
-        }
-        if self.scan {
-            s.push("Scan");
-        }
         if self.copy {
             s.push("Copy");
         }
         if self.rename {
             s.push("Rename");
+        }
+        if self.list {
+            s.push("List");
+        }
+        if self.scan {
+            s.push("Scan");
         }
         if self.presign {
             s.push("Presign");

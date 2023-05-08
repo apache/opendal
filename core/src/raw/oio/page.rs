@@ -96,7 +96,7 @@ impl<P: Page> Page for Option<P> {
 }
 
 /// BlockingPage is the blocking version of [`Page`].
-pub trait BlockingPage: 'static {
+pub trait BlockingPage: Send + 'static {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all pages have been returned. Any following call

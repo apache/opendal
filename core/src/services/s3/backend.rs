@@ -63,9 +63,13 @@ const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
@@ -302,6 +306,7 @@ pub struct S3Builder {
 
     disable_config_load: bool,
     disable_ec2_metadata: bool,
+    allow_anonymous: bool,
     enable_virtual_host_style: bool,
 
     http_client: Option<HttpClient>,
@@ -626,6 +631,13 @@ impl S3Builder {
         self
     }
 
+    /// Allow anonymous will allow opendal to send request without signing
+    /// when credentail is not loaded.
+    pub fn allow_anonymous(&mut self) -> &mut Self {
+        self.allow_anonymous = true;
+        self
+    }
+
     /// Enable virtual host style so that opendal will send API requests
     /// in virtual host style instead of path style.
     ///
@@ -756,6 +768,9 @@ impl Builder for S3Builder {
         map.get("enable_virtual_host_style")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.enable_virtual_host_style());
+        map.get("allow_anonymous")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.allow_anonymous());
         map.get("default_storage_class")
             .map(|v| builder.default_storage_class(v));
 
@@ -862,10 +877,18 @@ impl Builder for S3Builder {
         }
 
         if cfg.region.is_none() {
-            // region is required to make signer work.
-            //
-            // If we don't know region after loading from builder and env.
-            // We will use `us-east-1` as default.
+            // AWS S3 requires region to be set.
+            if self.endpoint.is_none()
+                || self.endpoint.as_deref() == Some("https://s3.amazonaws.com")
+            {
+                return Err(Error::new(ErrorKind::ConfigInvalid, "region is missing")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::S3));
+            }
+
+            // For other compatible services, if we don't know region
+            // after loading from builder and env, we can use `us-east-1`
+            // as default.
             cfg.region = Some("us-east-1".to_string());
         }
 
@@ -876,7 +899,7 @@ impl Builder for S3Builder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg).with_allow_anonymous();
+        let mut loader = AwsLoader::new(client.client(), cfg);
         if self.disable_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
         }
@@ -906,6 +929,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
+                allow_anonymous: self.allow_anonymous,
                 signer,
                 loader,
                 client,
@@ -952,19 +976,24 @@ impl Accessor for S3Backend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                create_dir: true,
+                delete: true,
+                copy: true,
 
+                scan: true,
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-
-                scan: true,
-                copy: true,
-                presign: true,
-                batch: true,
-                batch_max_operations: Some(1000),
-
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
+                batch: true,
+                batch_max_operations: Some(1000),
 
                 ..Default::default()
             });
@@ -1194,7 +1223,7 @@ mod tests {
 
     #[test]
     fn test_build_endpoint() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let endpoint_cases = vec![
             Some("s3.amazonaws.com"),

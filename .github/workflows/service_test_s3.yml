@@ -177,3 +177,4 @@ jobs:
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
+          OPENDAL_S3_ALLOW_ANONYMOUS: on

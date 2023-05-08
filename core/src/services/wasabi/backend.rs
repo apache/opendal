@@ -60,13 +60,16 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [x] rename
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
-/// - [x] rename
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -851,7 +854,7 @@ impl Builder for WasabiBuilder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg).with_allow_anonymous();
+        let mut loader = AwsLoader::new(client.client(), cfg);
         if self.disable_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
         }
@@ -911,15 +914,22 @@ impl Accessor for WasabiBackend {
                 read_with_range: true,
 
                 write: true,
-                list: true,
-                scan: true,
+                create_dir: true,
+                delete: true,
                 copy: true,
-                presign: true,
-                batch: true,
                 rename: true,
 
+                scan: true,
+                list: true,
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
+                batch: true,
 
                 ..Default::default()
             });

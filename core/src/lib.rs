@@ -94,4 +94,18 @@ mod tests {
         assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());
     }
+
+    /// This is used to make sure our public API implement Send + Sync
+    trait AssertSendSync: Send + Sync {}
+    impl AssertSendSync for Entry {}
+    impl AssertSendSync for Capability {}
+    impl AssertSendSync for Error {}
+    impl AssertSendSync for Reader {}
+    impl AssertSendSync for Writer {}
+    impl AssertSendSync for Lister {}
+    impl AssertSendSync for Operator {}
+    impl AssertSendSync for BlockingReader {}
+    impl AssertSendSync for BlockingWriter {}
+    impl AssertSendSync for BlockingLister {}
+    impl AssertSendSync for BlockingOperator {}
 }

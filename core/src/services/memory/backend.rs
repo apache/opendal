@@ -22,7 +22,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 
-use crate::raw::adapters::kv;
+use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// In memory service support. (BTreeMap Based)
@@ -31,12 +31,10 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
-/// - [x] read
-/// - [x] write
-/// - [ ] ~~list~~
+/// - [x] get
+/// - [x] set
+/// - [x] delete
 /// - [x] scan
-/// - [ ] ~~presign~~
-/// - [x] blocking
 #[derive(Default)]
 pub struct MemoryBuilder {
     root: Option<String>,
@@ -72,47 +70,45 @@ impl Builder for MemoryBuilder {
 }
 
 /// Backend is used to serve `Accessor` support in memory.
-pub type MemoryBackend = kv::Backend<Adapter>;
+pub type MemoryBackend = typed_kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
-    inner: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
+    inner: Arc<Mutex<BTreeMap<String, typed_kv::Value>>>,
 }
 
 #[async_trait]
-impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+impl typed_kv::Adapter for Adapter {
+    fn info(&self) -> typed_kv::Info {
+        typed_kv::Info::new(
             Scheme::Memory,
             &format!("{:?}", &self.inner as *const _),
-            Capability {
-                read: true,
-                write: true,
-                create_dir: true,
+            typed_kv::Capability {
+                get: true,
+                set: true,
+                delete: true,
                 scan: true,
-
-                ..Default::default()
             },
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         self.blocking_get(path)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         match self.inner.lock().get(path) {
             None => Ok(None),
-            Some(bs) => Ok(Some(bs.to_vec())),
+            Some(bs) => Ok(Some(bs.to_owned())),
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
         self.blocking_set(path, value)
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.inner.lock().insert(path.to_string(), value.to_vec());
+    fn blocking_set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
+        self.inner.lock().insert(path.to_string(), value);
 
         Ok(())
     }

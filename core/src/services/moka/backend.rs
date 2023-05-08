@@ -33,12 +33,10 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
-/// - [x] read
-/// - [x] write
-/// - [ ] ~~list~~
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [x] blocking
+/// - [x] get
+/// - [x] set
+/// - [x] delete
+/// - [ ] ~~ scan ~~
 #[derive(Default, Debug)]
 pub struct MokaBuilder {
     /// Name for this cache instance.
@@ -195,10 +193,16 @@ impl Debug for Adapter {
 
 #[async_trait]
 impl typed_kv::Adapter for Adapter {
-    fn metadata(&self) -> (Scheme, String) {
-        (
+    fn info(&self) -> typed_kv::Info {
+        typed_kv::Info::new(
             Scheme::Moka,
-            self.inner.name().unwrap_or("moka").to_string(),
+            self.inner.name().unwrap_or("moka"),
+            typed_kv::Capability {
+                get: true,
+                set: true,
+                delete: true,
+                ..Default::default()
+            },
         )
     }
 

@@ -19,7 +19,6 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::fs::create_dir;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -500,7 +499,7 @@ async fn connect_sftp(
 
     #[cfg(target_os = "macos")]
     {
-        let _ = create_dir("/private/tmp/.opendal/");
+        let _ = std::fs::create_dir("/private/tmp/.opendal/");
         session.control_directory("/private/tmp/.opendal/");
     }
 

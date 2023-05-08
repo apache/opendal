@@ -19,6 +19,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::time::Duration;
 
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
@@ -83,7 +84,7 @@ impl AzblobCore {
         let cred = self.load_credential().await?;
 
         self.signer
-            .sign_query(req, &cred)
+            .sign_query(req, Duration::from_secs(3600), &cred)
             .map_err(new_request_sign_error)
     }
 

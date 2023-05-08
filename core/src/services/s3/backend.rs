@@ -302,6 +302,7 @@ pub struct S3Builder {
 
     disable_config_load: bool,
     disable_ec2_metadata: bool,
+    allow_anonymous: bool,
     enable_virtual_host_style: bool,
 
     http_client: Option<HttpClient>,
@@ -626,6 +627,13 @@ impl S3Builder {
         self
     }
 
+    /// Allow anonymous will allow opendal to send request without signing
+    /// when credentail is not loaded.
+    pub fn allow_anonymous(&mut self) -> &mut Self {
+        self.allow_anonymous = true;
+        self
+    }
+
     /// Enable virtual host style so that opendal will send API requests
     /// in virtual host style instead of path style.
     ///
@@ -756,6 +764,9 @@ impl Builder for S3Builder {
         map.get("enable_virtual_host_style")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.enable_virtual_host_style());
+        map.get("allow_anonymous")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.allow_anonymous());
         map.get("default_storage_class")
             .map(|v| builder.default_storage_class(v));
 
@@ -876,7 +887,7 @@ impl Builder for S3Builder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg).with_allow_anonymous();
+        let mut loader = AwsLoader::new(client.client(), cfg);
         if self.disable_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
         }
@@ -906,6 +917,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
+                allow_anonymous: self.allow_anonymous,
                 signer,
                 loader,
                 client,

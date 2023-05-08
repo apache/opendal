@@ -20,35 +20,35 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct GraphApiOnedriveListResponse {
+pub struct GraphApiOnedriveListResponse {
     #[serde(rename = "@odata.count")]
-    pub(crate) odata_count: usize,
+    pub odata_count: usize,
     #[serde(rename = "@odata.nextLink")]
-    pub(crate) next_link: Option<String>,
-    pub(crate) value: Vec<OneDriveItem>,
+    pub next_link: Option<String>,
+    pub value: Vec<OneDriveItem>,
 }
 
 /// DriveItem representation
 /// https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/list?view=odsp-graph-online#json-representation
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct OneDriveItem {
-    pub(crate) name: String,
+pub struct OneDriveItem {
+    pub name: String,
 
     #[serde(rename = "parentReference")]
-    pub(crate) parent_reference: ParentReference,
+    pub parent_reference: ParentReference,
 
     #[serde(flatten)]
-    pub(crate) item_type: ItemType,
+    pub item_type: ItemType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct ParentReference {
-    pub(crate) path: String,
+pub struct ParentReference {
+    pub path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
-pub(crate) enum ItemType {
+pub enum ItemType {
     Folder {
         folder: Folder,
         #[serde(rename = "specialFolder")]

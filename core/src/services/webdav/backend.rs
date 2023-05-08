@@ -42,8 +42,11 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
 /// - [x] rename
 /// - [x] list
@@ -267,15 +270,22 @@ impl Accessor for WebdavBackend {
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
                 read_with_range: true,
+
                 write: true,
-                list: true,
+                create_dir: true,
+                delete: true,
                 copy: true,
                 rename: true,
+
+                list: true,
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 

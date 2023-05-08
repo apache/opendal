@@ -63,9 +63,13 @@ const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
@@ -972,19 +976,24 @@ impl Accessor for S3Backend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                create_dir: true,
+                delete: true,
+                copy: true,
 
+                scan: true,
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-
-                scan: true,
-                copy: true,
-                presign: true,
-                batch: true,
-                batch_max_operations: Some(1000),
-
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
+                batch: true,
+                batch_max_operations: Some(1000),
 
                 ..Default::default()
             });

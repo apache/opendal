@@ -51,8 +51,13 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -317,11 +322,18 @@ impl Accessor for FtpBackend {
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_with_range: true,
+
                 write: true,
+                delete: true,
+                create_dir: true,
+
                 list: true,
                 list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 

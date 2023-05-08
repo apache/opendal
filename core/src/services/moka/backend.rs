@@ -33,10 +33,17 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
-/// - [x] get
-/// - [x] set
+/// - [x] stat
+/// - [x] read
+/// - [x] write
+/// - [x] create_dir
 /// - [x] delete
-/// - [ ] ~~ scan ~~
+/// - [ ] copy
+/// - [ ] rename
+/// - [ ] list
+/// - [ ] ~~scan~~
+/// - [ ] presign
+/// - [ ] blocking
 #[derive(Default, Debug)]
 pub struct MokaBuilder {
     /// Name for this cache instance.

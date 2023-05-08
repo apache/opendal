@@ -30,43 +30,16 @@ use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
 use crate::{
+    ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite},
     raw::{
-        new_request_build_error,
-        parse_datetime_from_rfc3339,
-        parse_into_metadata,
-        new_json_serialize_error,
-        new_json_deserialize_error,
-        get_basename,
-        parse_location,
-        percent_encode_path,
-        Accessor,
-        AccessorInfo,
-        AsyncBody,
-        HttpClient,
-        IncomingAsyncBody,
-        RpCreate,
-        RpDelete,
-        RpList,
-        RpRead,
-        RpStat,
+        build_abs_path, build_rooted_abs_path, get_basename, new_json_deserialize_error,
+        new_json_serialize_error, new_request_build_error, parse_datetime_from_rfc3339,
+        parse_into_metadata, parse_location, percent_encode_path, Accessor, AccessorInfo,
+        AsyncBody, HttpClient, IncomingAsyncBody, RpCreate, RpDelete, RpList, RpRead, RpStat,
         RpWrite,
-        build_abs_path,
-        build_rooted_abs_path
-    },
-    ops::{
-        OpRead,
-        OpStat,
-        OpWrite,
-        OpList,
-        OpDelete,
-        OpCreate
     },
     types::Result,
-    Capability,
-    EntryMode,
-    Error,
-    ErrorKind,
-    Metadata
+    Capability, EntryMode, Error, ErrorKind, Metadata,
 };
 
 #[derive(Clone)]

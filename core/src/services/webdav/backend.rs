@@ -28,6 +28,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use reqwest::Url;
+use async_recursion::async_recursion;
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
@@ -300,53 +301,7 @@ impl Accessor for WebdavBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.webdav_get(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
-            }
-            StatusCode::FOUND | StatusCode::TEMPORARY_REDIRECT => {
-                // if server returns redirect HTTP status, then redirect it
-                let url = parse_location(resp.headers())?
-                    // no location means invalid redirect response
-                    .ok_or(
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("no location header in redirect response."),
-                        ).with_operation(Operation::Read)
-                    )?;
-
-                // first the url in location should be valid
-                let redirected_url = Url::parse(url).map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("redirected url({url}) is not valid."),
-                    ).with_operation(Operation::Read).set_source(e)
-                })?;
-
-                let original_url = Url::parse(&self.endpoint).map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("original url({}) is not valid.", &self.endpoint),
-                    ).with_operation(Operation::Read).set_source(e)
-                })?;
-                // then the redirected url should have the same origin with original url
-                // this is basic security check
-                if original_url != redirected_url {
-                    return Err(Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("origin of original url({}) doesn't match with redirect url({}).", &self.endpoint, url),
-                    ).with_operation(Operation::Read));
-                }
-                // if original_url
-                return self.read(redirected_url.path(), args).await;
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        self.read(path, args, true).await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -486,6 +441,7 @@ impl WebdavBackend {
         &self,
         path: &str,
         range: BytesRange,
+        send_auth: bool,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -493,8 +449,9 @@ impl WebdavBackend {
 
         let mut req = Request::get(&url);
 
-        if let Some(auth) = &self.authorization {
-            req = req.header(header::AUTHORIZATION, auth.clone())
+        match &self.authorization {
+            Some(auth) if send_auth => req = req.header(header::AUTHORIZATION, auth.clone()),
+            _ => ()
         }
 
         if !range.is_full() {
@@ -506,6 +463,57 @@ impl WebdavBackend {
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
+    }
+
+    #[async_recursion]
+    // read will send http request for dav access.
+    // sometimes we need to control whether we should add auth token in Authorization header
+    // that is why send_auth exists here.
+    async fn read(&self, path: &str, args: OpRead, send_auth: bool) -> Result<(RpRead, IncomingAsyncBody)> {
+        let resp = self.webdav_get(path, args.range(), send_auth).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
+            }
+            StatusCode::FOUND | StatusCode::TEMPORARY_REDIRECT => {
+                // if server returns redirect HTTP status, then redirect it
+                let url = parse_location(resp.headers())?
+                    // no location means invalid redirect response
+                    .ok_or(
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("no location header in redirect response."),
+                        ).with_operation(Operation::Read)
+                    )?;
+
+                // first the url in location should be valid
+                let redirected_url = Url::parse(url).map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("redirected url({url}) is not valid."),
+                    ).with_operation(Operation::Read).set_source(e)
+                })?;
+
+                let original_url = Url::parse(&self.endpoint).map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("original url({}) is not valid.", &self.endpoint),
+                    ).with_operation(Operation::Read).set_source(e)
+                })?;
+                // basic security check, the redirected url should have the same origin with original url
+                // if not, it will not send request with auth
+                return self.read(
+                    redirected_url.path(),
+                    args,
+                    send_auth && (original_url == redirected_url),
+                ).await;
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     pub async fn webdav_put(

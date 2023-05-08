@@ -214,6 +214,7 @@ suppaftp = { version = "4.5", default-features = false, features = [
 tokio = "1.27"
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
+async-recursion = "1.0.4"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["async", "async_tokio"] }

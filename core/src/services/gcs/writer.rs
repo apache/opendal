@@ -173,8 +173,9 @@ impl oio::Write for GcsWriter {
         let resp = self.core.gcs_abort_resumable_upload(location).await?;
 
         match resp.status() {
-            // gcs returns 204 if the upload aborted successfully
-            StatusCode::NO_CONTENT => {
+            // gcs returns 499 if the upload aborted successfully
+            // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
+            n if n == StatusCode::from_u16(499).unwrap() => {
                 resp.into_body().consume().await?;
                 self.location = None;
                 self.buffer.clear();

@@ -47,6 +47,11 @@ pub struct Lister {
     fut: Option<BoxFuture<'static, (oio::Pager, Result<Option<Vec<oio::Entry>>>)>>,
 }
 
+/// # Safety
+///
+/// Lister will only be accessed by `&mut Self`
+unsafe impl Sync for Lister {}
+
 impl Lister {
     /// Create a new lister.
     pub(crate) fn new(pager: oio::Pager) -> Self {
@@ -165,6 +170,11 @@ pub struct BlockingLister {
     pager: oio::BlockingPager,
     buf: VecDeque<oio::Entry>,
 }
+
+/// # Safety
+///
+/// BlockingLister will only be accessed by `&mut Self`
+unsafe impl Sync for BlockingLister {}
 
 impl BlockingLister {
     /// Create a new lister.

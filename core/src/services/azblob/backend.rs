@@ -480,6 +480,7 @@ impl Accessor for AzblobBackend {
                 scan: true,
                 list: true,
                 list_with_delimiter_slash: true,
+                list_without_delimiter: true,
 
                 presign: self.has_sas_token,
                 presign_stat: self.has_sas_token,

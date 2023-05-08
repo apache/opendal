@@ -283,7 +283,6 @@ impl Accessor for WebdavBackend {
                 rename: true,
 
                 list: true,
-                list_without_delimiter: true,
                 list_with_delimiter_slash: true,
 
                 ..Default::default()
@@ -405,7 +404,14 @@ impl Accessor for WebdavBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if args.delimiter() != "/" {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "webdav only support delimiter `/`",
+            ));
+        }
+
         let mut header_map = HeaderMap::new();
         header_map.insert("Depth", "1".parse().unwrap());
         header_map.insert(header::CONTENT_TYPE, "application/xml".parse().unwrap());

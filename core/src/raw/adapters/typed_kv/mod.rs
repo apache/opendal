@@ -21,6 +21,8 @@
 
 mod api;
 pub use api::Adapter;
+pub use api::Capability;
+pub use api::Info;
 pub use api::Value;
 
 mod backend;

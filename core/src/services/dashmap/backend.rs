@@ -21,7 +21,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use dashmap::DashMap;
 
-use crate::raw::adapters::kv;
+use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
@@ -70,45 +70,45 @@ impl Builder for DashmapBuilder {
 }
 
 /// Backend is used to serve `Accessor` support in dashmap.
-pub type DashmapBackend = kv::Backend<Adapter>;
+pub type DashmapBackend = typed_kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
-    inner: DashMap<String, Vec<u8>>,
+    inner: DashMap<String, typed_kv::Value>,
 }
 
 #[async_trait]
-impl kv::Adapter for Adapter {
-    fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
+impl typed_kv::Adapter for Adapter {
+    fn info(&self) -> typed_kv::Info {
+        typed_kv::Info::new(
             Scheme::Dashmap,
             &format!("{:?}", &self.inner as *const _),
-            Capability {
-                read: true,
-                write: true,
+            typed_kv::Capability {
+                get: true,
+                set: true,
                 scan: true,
-                ..Default::default()
+                delete: true,
             },
         )
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         self.blocking_get(path)
     }
 
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+    fn blocking_get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
         match self.inner.get(path) {
             None => Ok(None),
-            Some(bs) => Ok(Some(bs.to_vec())),
+            Some(bs) => Ok(Some(bs.value().to_owned())),
         }
     }
 
-    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+    async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
         self.blocking_set(path, value)
     }
 
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.inner.insert(path.to_string(), value.to_vec());
+    fn blocking_set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
+        self.inner.insert(path.to_string(), value);
 
         Ok(())
     }

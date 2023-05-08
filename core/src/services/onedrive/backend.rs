@@ -104,7 +104,7 @@ impl Accessor for OnedriveBackend {
             .set_capability(Capability {
                 read: true,
                 write: true,
-                scan: true,
+                stat: true,
                 list: true,
                 delete: true,
                 create_dir: true,

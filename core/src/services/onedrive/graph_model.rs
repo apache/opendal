@@ -32,11 +32,6 @@ pub(crate) struct GraphApiOnedriveListResponse {
 /// https://learn.microsoft.com/en-us/onedrive/developer/rest-api/resources/list?view=odsp-graph-online#json-representation
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct OneDriveItem {
-    #[serde(rename = "eTag")]
-    e_tag: String,
-    id: String,
-    #[serde(rename = "lastModifiedDateTime")]
-    last_modified_date_time: String,
     pub(crate) name: String,
 
     #[serde(rename = "parentReference")]
@@ -171,9 +166,6 @@ fn test_parse_one_drive_json() {
     assert_eq!(response.odata_count, 1);
     assert_eq!(response.value.len(), 2);
     let item = &response.value[0];
-    assert_eq!(item.e_tag, "eTag");
-    assert_eq!(item.id, "id");
-    assert_eq!(item.last_modified_date_time, "2020-01-01T00:00:00Z");
     assert_eq!(item.name, "name");
 }
 

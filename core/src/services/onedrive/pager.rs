@@ -127,7 +127,19 @@ impl OnedrivePager {
             self.next_link = None;
             next_link_clone
         } else {
-            self.build_request_url()
+            let path = build_rooted_abs_path(&self.root, &self.path);
+            let url: String = if path == "." || path == "/" {
+                "https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
+            } else {
+                // According to OneDrive API examples, the path should not end with a slash.
+                // Reference: <https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_list_children?view=odsp-graph-online>
+                let path = path.strip_suffix('/').unwrap_or("");
+                format!(
+                    "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
+                    percent_encode_path(path),
+                )
+            };
+            url
         };
 
         let mut req = Request::get(&request_url);
@@ -140,21 +152,5 @@ impl OnedrivePager {
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
-    }
-
-    fn build_request_url(&self) -> String {
-        let path = build_rooted_abs_path(&self.root, &self.path);
-        let url: String = if path == "." || path == "/" {
-            "https://graph.microsoft.com/v1.0/me/drive/root/children".to_string()
-        } else {
-            // According to OneDrive API examples, the path should not end with a slash.
-            // Reference: <https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_list_children?view=odsp-graph-online>
-            let path = path.strip_suffix('/').unwrap_or("");
-            format!(
-                "https://graph.microsoft.com/v1.0/me/drive/root:{}:/children",
-                percent_encode_path(path),
-            )
-        };
-        url
     }
 }

@@ -1,3 +1,22 @@
+# Upgrade to v0.34
+
+## Public API
+
+- OpenDAL raises it's MSRV to 1.65 for dependences changes
+- `OperatorInfo::can_scan` has been removed, to check if underlying services support scan a dir natively, please use `Capability::list_without_delimiter` instead.
+
+## Raw API
+
+### Merged `scan` into `list`
+
+After `Capability` introduced, we have added `delimiter` in `OpList`. Users can specify the delimiter to `""` or `"/"` to control the list behavior.
+
+Along with this change, `Operator::scan()` becomes a short alias of `Operator::list_with(OpList::new().with_delimiter(""))`.
+
+### Typed Kv Adapter
+
+In v0.34, OpenDAL adds a typed kv adapter for zero-copy read and write. If you are implemented kv adapter for a rust in-memory data struct, please consider migrate.
+
 # Upgrade to v0.33
 
 ## Public API

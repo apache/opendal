@@ -200,7 +200,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         &self.inner
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.stats
             .requests_total
             .with_label_values(&[&self.scheme])
@@ -365,26 +365,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.stats
-            .requests_total
-            .with_label_values(&[&self.scheme, Operation::Scan.into_static()])
-            .inc();
-
-        let timer = self
-            .stats
-            .requests_duration_seconds
-            .with_label_values(&[&self.scheme, Operation::Scan.into_static()])
-            .start_timer();
-
-        let scan_res = self.inner.scan(path, args).await;
-        timer.observe_duration();
-        scan_res.map_err(|e| {
-            self.stats.increment_errors_total(Operation::Scan, e.kind());
-            e
-        })
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.stats
             .requests_total
@@ -427,7 +407,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.stats
             .requests_total
             .with_label_values(&[&self.scheme, Operation::BlockingCreateDir.into_static()])
@@ -571,26 +551,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         result.map_err(|e| {
             self.stats
                 .increment_errors_total(Operation::BlockingList, e.kind());
-            e
-        })
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.stats
-            .requests_total
-            .with_label_values(&[&self.scheme, Operation::BlockingScan.into_static()])
-            .inc();
-
-        let timer = self
-            .stats
-            .requests_duration_seconds
-            .with_label_values(&[&self.scheme, Operation::BlockingScan.into_static()])
-            .start_timer();
-        let result = self.inner.blocking_scan(path, args);
-        timer.observe_duration();
-        result.map_err(|e| {
-            self.stats
-                .increment_errors_total(Operation::BlockingScan, e.kind());
             e
         })
     }

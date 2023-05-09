@@ -42,8 +42,11 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
 /// - [x] rename
 /// - [x] list
@@ -301,29 +304,36 @@ impl Accessor for FsBackend {
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root.to_string_lossy())
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_seek: true,
                 read_with_range: true,
+
                 write: true,
                 write_without_content_length: true,
                 create_dir: true,
+                delete: true,
+
                 list: true,
+                list_with_delimiter_slash: true,
+
                 copy: true,
                 rename: true,
                 blocking: true,
-                list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     /// # Notes
@@ -516,12 +526,12 @@ impl Accessor for FsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         std::fs::create_dir_all(p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

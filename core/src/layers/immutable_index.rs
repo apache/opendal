@@ -152,7 +152,8 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
 
         let cap = meta.capability_mut();
         cap.list = true;
-        cap.scan = true;
+        cap.list_with_delimiter_slash = true;
+        cap.list_without_delimiter = true;
 
         meta
     }
@@ -161,28 +162,24 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.read(path, args).await
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok((
-            RpList::default(),
-            ImmutableDir::new(self.children_hierarchy(path)),
-        ))
-    }
+        let idx = if args.delimiter() == "/" {
+            self.children_hierarchy(path)
+        } else if args.delimiter().is_empty() {
+            self.children_flat(path)
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                &format!("delimiter {} is not supported", args.delimiter()),
+            ));
+        };
 
-    async fn scan(&self, path: &str, _: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let mut path = path;
-        if path == "/" {
-            path = ""
-        }
-
-        Ok((
-            RpScan::default(),
-            ImmutableDir::new(self.children_flat(path)),
-        ))
+        Ok((RpList::default(), ImmutableDir::new(idx)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -197,28 +194,24 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.blocking_write(path, args)
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok((
-            RpList::default(),
-            ImmutableDir::new(self.children_hierarchy(path)),
-        ))
-    }
+        let idx = if args.delimiter() == "/" {
+            self.children_hierarchy(path)
+        } else if args.delimiter().is_empty() {
+            self.children_flat(path)
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                &format!("delimiter {} is not supported", args.delimiter()),
+            ));
+        };
 
-    fn blocking_scan(&self, path: &str, _: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        let mut path = path;
-        if path == "/" {
-            path = ""
-        }
-
-        Ok((
-            RpScan::default(),
-            ImmutableDir::new(self.children_flat(path)),
-        ))
+        Ok((RpList::default(), ImmutableDir::new(idx)))
     }
 }
 
@@ -284,7 +277,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
@@ -322,7 +315,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_scan() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
@@ -362,7 +355,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_dir() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in [
@@ -423,7 +416,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_walk_top_down_dir() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mut iil = ImmutableIndexLayer::default();
         for i in [

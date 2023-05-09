@@ -58,6 +58,11 @@ pub struct Writer {
     state: State,
 }
 
+/// # Safety
+///
+/// Writer will only be accessed by `&mut Self`
+unsafe impl Sync for Writer {}
+
 impl Writer {
     /// Create a new writer.
     ///

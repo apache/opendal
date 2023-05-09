@@ -196,7 +196,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = { version = "0.10.0", default-features = false, optional = true }
+reqsign = { version = "0.10.1", default-features = false, optional = true }
 reqwest = { version = "0.11.13", features = [
   "stream",
 ], default-features = false }
@@ -215,7 +215,6 @@ uuid = { version = "1", features = ["serde", "v4"] }
 [dev-dependencies]
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
-env_logger = "0.10"
 opentelemetry = { version = "0.19", default-features = false, features = [
   "trace",
 ] }

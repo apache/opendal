@@ -45,12 +45,16 @@ const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -460,16 +464,21 @@ impl Accessor for OssBackend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                delete: true,
+                create_dir: true,
+                copy: true,
 
                 list: true,
-                scan: true,
-                copy: true,
-                presign: true,
-                batch: true,
-                batch_max_operations: Some(1000),
-
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
+                batch: true,
+                batch_max_operations: Some(1000),
 
                 ..Default::default()
             });
@@ -477,7 +486,7 @@ impl Accessor for OssBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self
             .core
             .oss_put_object(path, None, None, None, None, AsyncBody::Empty)
@@ -487,7 +496,7 @@ impl Accessor for OssBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }

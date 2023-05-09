@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_blocking_list() -> Result<()> {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let pager = MockPager::new(&["x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a"]);
         let mut pager = to_hierarchy_pager(pager, "");

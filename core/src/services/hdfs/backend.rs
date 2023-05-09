@@ -41,13 +41,17 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [x] blocking
-///
 /// # Differences with webhdfs
 ///
 /// [Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.
@@ -93,7 +97,7 @@ use crate::*;
 /// ```
 ///
 /// `CLASSPATH` is not set correctly or your hadoop installation is incorrect.
-///  
+///
 /// To set `CLASSPATH`:
 /// ```shell
 /// export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':'):${CLASSPATH}
@@ -238,27 +242,33 @@ impl Accessor for HdfsBackend {
         am.set_scheme(Scheme::Hdfs)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_seek: true,
                 read_with_range: true,
 
                 write: true,
+                create_dir: true,
+                delete: true,
+
                 list: true,
+                list_with_delimiter_slash: true,
+
                 blocking: true,
 
-                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
         self.client.create_dir(&p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -391,12 +401,12 @@ impl Accessor for HdfsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
         self.client.create_dir(&p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

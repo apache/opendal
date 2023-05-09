@@ -57,6 +57,18 @@ use crate::*;
 /// - [ ] ~~presign~~
 /// - [ ] blocking
 ///
+/// - [x] stat
+/// - [x] read
+/// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
+/// - [x] list
+/// - [ ] ~~scan~~
+/// - [ ] ~~presign~~
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `endpoint`: Set the endpoint for connection
@@ -269,11 +281,15 @@ impl Accessor for SftpBackend {
             .set_scheme(Scheme::Sftp)
             .set_capability(Capability {
                 stat: true,
+
                 read: true,
+
                 write: true,
+                create_dir: true,
+                delete: true,
+
                 list: true,
                 list_with_limit: true,
-
                 list_with_delimiter_slash: true,
 
                 ..Default::default()
@@ -282,10 +298,10 @@ impl Accessor for SftpBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let client = self.connect().await?;
         let mut fs = client.fs();
-        fs.set_cwd(&self.root);
+        fs.set_cwd(%self.root);
 
         let paths = Path::new(&path).components();
         let mut current = PathBuf::from(&self.root);
@@ -302,7 +318,7 @@ impl Accessor for SftpBackend {
             fs.set_cwd(&current);
         }
 
-        return Ok(RpCreate::default());
+        return Ok(RpCreateDir::default());
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -352,7 +368,7 @@ impl Accessor for SftpBackend {
         }
 
         if let Some((dir, _)) = path.rsplit_once('/') {
-            self.create_dir(dir, OpCreate::default()).await?;
+            self.create_dir(dir, OpCreateDir::default()).await?;
         }
 
         let client = self.connect().await?;

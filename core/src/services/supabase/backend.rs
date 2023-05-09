@@ -33,9 +33,13 @@ use crate::*;
 ///
 /// # Capabilities
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [ ] copy
+/// - [ ] rename
 /// - [ ] list
 /// - [ ] scan
 /// - [ ] presign
@@ -216,7 +220,9 @@ impl Accessor for SupabaseBackend {
             .set_name(&self.core.bucket)
             .set_capability(Capability {
                 stat: true,
+
                 read: true,
+
                 write: true,
                 create_dir: true,
                 delete: true,
@@ -227,7 +233,7 @@ impl Accessor for SupabaseBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
                 .supabase_upload_object_request(path, Some(0), None, AsyncBody::Empty)?;
@@ -240,12 +246,12 @@ impl Accessor for SupabaseBackend {
 
         if status.is_success() {
             resp.into_body().consume().await?;
-            Ok(RpCreate::default())
+            Ok(RpCreateDir::default())
         } else {
             // create duplicate dir is ok
             let e = parse_error(resp).await?;
             if e.kind() == ErrorKind::AlreadyExists {
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             } else {
                 Err(e)
             }

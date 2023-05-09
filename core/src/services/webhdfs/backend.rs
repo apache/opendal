@@ -51,8 +51,13 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [ ] copy
+/// - [ ] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -444,7 +449,7 @@ impl WebhdfsBackend {
                 }
             }
             StatusCode::NOT_FOUND => {
-                self.create_dir("/", OpCreate::new()).await?;
+                self.create_dir("/", OpCreateDir::new()).await?;
             }
             _ => return Err(parse_error(resp).await?),
         }
@@ -466,20 +471,26 @@ impl Accessor for WebhdfsBackend {
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
                 read_with_range: true,
+
                 write: true,
+                create_dir: true,
+                delete: true,
+
                 list: true,
-                list_without_delimiter: true,
                 list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
         am
     }
 
     /// Create a file or directory
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let req = self
             .webhdfs_create_object_request(path, Some(0), None, AsyncBody::Empty)
             .await?;
@@ -500,7 +511,7 @@ impl Accessor for WebhdfsBackend {
                     .map_err(new_json_deserialize_error)?;
 
                 if resp.boolean {
-                    Ok(RpCreate::default())
+                    Ok(RpCreateDir::default())
                 } else {
                     Err(Error::new(
                         ErrorKind::Unexpected,
@@ -582,7 +593,14 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if args.delimiter() != "/" {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "webhdfs only support delimiter `/`",
+            ));
+        }
+
         let path = path.trim_end_matches('/');
         let req = self.webhdfs_list_status_request(path)?;
 

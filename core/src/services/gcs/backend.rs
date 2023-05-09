@@ -49,11 +49,15 @@ const DEFAULT_WRITE_FIXED_SIZE: usize = 8 * 1024 * 1024;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
-/// - [x] copy
 /// - [x] presign
 /// - [ ] blocking
 ///
@@ -414,22 +418,26 @@ impl Accessor for GcsBackend {
                 write: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                delete: true,
+                copy: true,
 
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                scan: true,
-                copy: true,
-                presign: true,
-
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
                 ..Default::default()
             });
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req = self
             .core
             .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
@@ -440,7 +448,7 @@ impl Accessor for GcsBackend {
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
-            Ok(RpCreate::default())
+            Ok(RpCreateDir::default())
         } else {
             Err(parse_error(resp).await?)
         }

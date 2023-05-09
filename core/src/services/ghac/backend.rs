@@ -320,10 +320,10 @@ impl Accessor for GhacBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         // ignore creation of dir.
         if path.ends_with('/') {
-            return Ok(RpCreate::default());
+            return Ok(RpCreateDir::default());
         }
         if !self.enable_create_simulation {
             return Err(Error::new(
@@ -343,7 +343,7 @@ impl Accessor for GhacBackend {
             reserve_resp.cache_id
         } else if resp.status().as_u16() == StatusCode::CONFLICT {
             // If the file is already exist, just return Ok.
-            return Ok(RpCreate::default());
+            return Ok(RpCreateDir::default());
         } else {
             return Err(parse_error(resp)
                 .await
@@ -370,7 +370,7 @@ impl Accessor for GhacBackend {
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
-            Ok(RpCreate::default())
+            Ok(RpCreateDir::default())
         } else {
             Err(parse_error(resp)
                 .await

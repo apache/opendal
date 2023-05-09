@@ -400,7 +400,7 @@ impl Operator {
             .with_context("path", &path));
         }
 
-        self.inner().create_dir(&path, OpCreate::new()).await?;
+        self.inner().create_dir(&path, OpCreateDir::new()).await?;
 
         Ok(())
     }
@@ -1099,6 +1099,8 @@ impl Operator {
     ///
     /// # Examples
     ///
+    /// ## List current dir
+    ///
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
@@ -1110,6 +1112,38 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let option = OpList::new().with_limit(10).with_start_after("start");
+    /// let mut ds = op.list_with("path/to/dir/", option).await?;
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List all files recursively
+    ///
+    /// We can use `op.scan()` as a shorter alias.
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::ops::OpList;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let option = OpList::new().with_delimiter("");
     /// let mut ds = op.list_with("path/to/dir/", option).await?;
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = op.metadata(&de, Metakey::Mode).await?;
@@ -1153,6 +1187,7 @@ impl Operator {
     /// # Notes
     ///
     /// - `scan` will not return the prefix itself.
+    /// - `scan` is an alias of `list_with(OpList::new().with_delimiter(""))`
     ///
     /// # Examples
     ///
@@ -1190,12 +1225,15 @@ impl Operator {
                 ErrorKind::NotADirectory,
                 "the path trying to scan should end with `/`",
             )
-            .with_operation("scan")
+            .with_operation("list")
             .with_context("service", self.info().scheme().into_static())
             .with_context("path", &path));
         }
 
-        let (_, pager) = self.inner().scan(&path, OpScan::new()).await?;
+        let (_, pager) = self
+            .inner()
+            .list(&path, OpList::new().with_delimiter(""))
+            .await?;
 
         Ok(Lister::new(pager))
     }

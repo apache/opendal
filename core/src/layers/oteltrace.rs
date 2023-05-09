@@ -85,7 +85,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         tracer.in_span("metadata", |_cx| self.inner.info())
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("create");
         span.set_attribute(KeyValue::new("path", path.to_string()));
@@ -165,17 +165,6 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
             .await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let tracer = global::tracer("opendal");
-        let mut span = tracer.start("scan");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        self.inner
-            .scan(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, OtelTraceWrapper::new(span, s))))
-            .await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("batch");
@@ -193,7 +182,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         self.inner().presign(path, args).with_context(cx).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let tracer = global::tracer("opendal");
         tracer.in_span("blocking_create_dir", |cx| {
             let span = cx.span(); // let mut span = cx.();
@@ -272,16 +261,6 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, it)| (rp, OtelTraceWrapper::new(span, it)))
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        let tracer = global::tracer("opendal");
-        let mut span = tracer.start("blocking_scan");
-        span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        self.inner
-            .blocking_scan(path, args)
             .map(|(rp, it)| (rp, OtelTraceWrapper::new(span, it)))
     }
 }

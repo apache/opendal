@@ -477,9 +477,9 @@ impl Accessor for AzblobBackend {
                 create_dir: true,
                 copy: true,
 
-                scan: true,
                 list: true,
                 list_with_delimiter_slash: true,
+                list_without_delimiter: true,
 
                 presign: self.has_sas_token,
                 presign_stat: self.has_sas_token,
@@ -496,7 +496,7 @@ impl Accessor for AzblobBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
                 .azblob_put_blob_request(path, Some(0), None, None, AsyncBody::Empty)?;
@@ -510,7 +510,7 @@ impl Accessor for AzblobBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }

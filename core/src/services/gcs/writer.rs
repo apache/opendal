@@ -163,9 +163,26 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    // TODO: we can cancel the upload by sending a DELETE request to the location
     async fn abort(&mut self) -> Result<()> {
-        Ok(())
+        let location = if let Some(location) = &self.location {
+            location
+        } else {
+            return Ok(());
+        };
+
+        let resp = self.core.gcs_abort_resumable_upload(location).await?;
+
+        match resp.status().as_u16() {
+            // gcs returns 499 if the upload aborted successfully
+            // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
+            499 => {
+                resp.into_body().consume().await?;
+                self.location = None;
+                self.buffer.clear();
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn close(&mut self) -> Result<()> {

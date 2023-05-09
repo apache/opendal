@@ -919,7 +919,6 @@ impl Accessor for WasabiBackend {
                 copy: true,
                 rename: true,
 
-                scan: true,
                 list: true,
                 list_without_delimiter: true,
                 list_with_delimiter_slash: true,
@@ -937,7 +936,7 @@ impl Accessor for WasabiBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
                 .put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
@@ -951,7 +950,7 @@ impl Accessor for WasabiBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -1148,7 +1147,7 @@ mod tests {
 
     #[test]
     fn test_build_endpoint() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let endpoint_cases = vec![
             Some("s3.wasabisys.com"),

@@ -158,7 +158,7 @@ impl kv::Adapter for Adapter {
             Capability {
                 read: true,
                 write: true,
-                scan: true,
+                list: true,
                 blocking: true,
                 ..Default::default()
             },

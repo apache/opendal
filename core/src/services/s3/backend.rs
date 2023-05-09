@@ -371,10 +371,12 @@ impl S3Builder {
         self
     }
 
-    /// Region represent the signing region of this endpoint.
+    /// Region represent the signing region of this endpoint. This is required
+    /// if you are using the default AWS S3 endpoint.
     ///
+    /// If using a custom endpoint,
     /// - If region is set, we will take user's input first.
-    /// - If not, we will use `us-east-1` as default.
+    /// - If not, the default `us-east-1` will be used.
     pub fn region(&mut self, region: &str) -> &mut Self {
         if !region.is_empty() {
             self.region = Some(region.to_string())

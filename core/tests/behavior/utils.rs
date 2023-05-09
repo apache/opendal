@@ -39,7 +39,11 @@ use sha2::Sha256;
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
 pub fn init_service<B: Builder>() -> Option<Operator> {
-    let _ = tracing_subscriber::fmt::try_init();
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        //.with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
     let _ = dotenvy::dotenv();
 
     let prefix = format!("opendal_{}_", B::SCHEME);

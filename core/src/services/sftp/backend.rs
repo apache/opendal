@@ -301,7 +301,7 @@ impl Accessor for SftpBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let client = self.connect().await?;
         let mut fs = client.fs();
-        fs.set_cwd(%self.root);
+        fs.set_cwd(&self.root);
 
         let paths = Path::new(&path).components();
         let mut current = PathBuf::from(&self.root);

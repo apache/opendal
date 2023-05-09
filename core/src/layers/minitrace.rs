@@ -56,7 +56,7 @@ use crate::*;
 /// use std::error::Error;
 ///
 /// use anyhow::Result;
-/// use futures_util::executor::block_on;
+/// use futures_executor::block_on;
 /// use opendal::layers::MinitraceLayer;
 /// use opendal::services;
 /// use opendal::Operator;

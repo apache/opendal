@@ -22,7 +22,7 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use bb8::PooledConnection;
-use futures_util::executor::block_on;
+use futures_executor::block_on;
 use log::debug;
 use openssh::RemoteChild;
 use openssh::Session;

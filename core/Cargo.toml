@@ -140,6 +140,7 @@ services-sftp = [
   "dep:openssh-sftp-client",
   "dep:bb8",
   "dep:owning_ref",
+  "dep:futures-executor",
 ]
 services-sled = ["dep:sled"]
 services-supabase = []
@@ -172,6 +173,7 @@ chrono = "0.4.24"
 dashmap = { version = "5.4", optional = true }
 flagset = "0.4"
 futures-util = { version = "0.3", features = ["alloc"] }
+futures-executor = { version = "0.3", optional = true }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }
 http = "0.2.5"
 hyper = "0.14"

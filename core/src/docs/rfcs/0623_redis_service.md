@@ -183,7 +183,7 @@ use redis::AsyncCommands;
 // args: &OpWrite
 // r: BytesReader
 let mut buf = vec![];
-let content_length: u64 = futures::io::copy(r, &mut buf).await?;
+let content_length: u64 = futures_util::io::copy(r, &mut buf).await?;
 let last_modified: String = OffsetDateTime::now().to_string();
 
 // content md5 will not be offered

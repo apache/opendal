@@ -30,7 +30,7 @@ version.workspace = true
 [dependencies]
 async-trait = "0.1"
 bytes = "1"
-futures = "0.3"
+futures-util = "0.3"
 object_store = "0.5"
 opendal.workspace = true
 tokio = "1"

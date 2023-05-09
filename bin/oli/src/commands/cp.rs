@@ -24,7 +24,7 @@ use clap::Arg;
 use clap::ArgAction;
 use clap::ArgMatches;
 use clap::Command;
-use futures::TryStreamExt;
+use futures_util::TryStreamExt;
 use opendal::Metakey;
 
 use crate::config::Config;
@@ -49,8 +49,8 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     if !recursive {
         let mut dst_w = dst_op.writer(&dst_path).await?;
         let reader = src_op.reader(&src_path).await?;
-        let buf_reader = futures::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
-        futures::io::copy_buf(buf_reader, &mut dst_w).await?;
+        let buf_reader = futures_util::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
+        futures_util::io::copy_buf(buf_reader, &mut dst_w).await?;
         // flush data
         dst_w.close().await?;
         return Ok(());
@@ -66,12 +66,12 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
 
         let fp = de.path().strip_prefix(&src_path).expect("invalid path");
         let reader = src_op.reader(de.path()).await?;
-        let buf_reader = futures::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
+        let buf_reader = futures_util::io::BufReader::with_capacity(8 * 1024 * 1024, reader);
 
         let mut writer = dst_op.writer(&dst_root.join(fp).to_string_lossy()).await?;
 
         println!("Copying {}", de.path());
-        futures::io::copy_buf(buf_reader, &mut writer).await?;
+        futures_util::io::copy_buf(buf_reader, &mut writer).await?;
         writer.close().await?;
     }
     Ok(())

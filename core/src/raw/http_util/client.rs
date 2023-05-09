@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 use std::mem;
 use std::str::FromStr;
 
-use futures::TryStreamExt;
+use futures_util::TryStreamExt;
 use http::Request;
 use http::Response;
 use reqwest::redirect::Policy;

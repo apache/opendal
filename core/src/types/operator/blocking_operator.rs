@@ -131,7 +131,7 @@ impl BlockingOperator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures::io;
+    /// # use futures_util::io;
     /// # use opendal::BlockingOperator;
     /// use opendal::ErrorKind;
     /// #
@@ -288,7 +288,7 @@ impl BlockingOperator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
-    /// # use futures::TryStreamExt;
+    /// # use futures_util::TryStreamExt;
     /// # async fn test(op: BlockingOperator) -> Result<()> {
     /// op.create_dir("path/to/dir/")?;
     /// # Ok(())
@@ -343,7 +343,7 @@ impl BlockingOperator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
-    /// # use futures::TryStreamExt;
+    /// # use futures_util::TryStreamExt;
     /// # use opendal::Scheme;
     /// # async fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = op.range_read("path/to/file", 1024..2048)?;
@@ -387,7 +387,7 @@ impl BlockingOperator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
-    /// # use futures::TryStreamExt;
+    /// # use futures_util::TryStreamExt;
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let r = op.reader("path/to/file")?;
     /// # Ok(())
@@ -404,7 +404,7 @@ impl BlockingOperator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
-    /// # use futures::TryStreamExt;
+    /// # use futures_util::TryStreamExt;
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let r = op.range_reader("path/to/file", 1024..2048)?;
     /// # Ok(())
@@ -438,8 +438,8 @@ impl BlockingOperator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
+    /// # use futures_util::StreamExt;
+    /// # use futures_util::SinkExt;
     /// use bytes::Bytes;
     ///
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -625,8 +625,8 @@ impl BlockingOperator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
+    /// # use futures_util::StreamExt;
+    /// # use futures_util::SinkExt;
     /// use bytes::Bytes;
     ///
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -663,7 +663,7 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures::io;
+    /// # use futures_util::io;
     /// # use opendal::BlockingOperator;
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// op.delete("path/to/file")?;
@@ -688,7 +688,7 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use opendal::Result;
-    /// # use futures::io;
+    /// # use futures_util::io;
     /// # use opendal::BlockingOperator;
     /// # use opendal::EntryMode;
     /// # fn test(op: BlockingOperator) -> Result<()> {
@@ -743,7 +743,7 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use opendal::Result;
-    /// # use futures::io;
+    /// # use futures_util::io;
     /// # use opendal::BlockingOperator;
     /// # use opendal::EntryMode;
     /// # fn test(op: BlockingOperator) -> Result<()> {

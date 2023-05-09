@@ -23,7 +23,7 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::TryFutureExt;
+use futures_util::TryFutureExt;
 
 use crate::ops::*;
 use crate::raw::oio::PageOperation;

@@ -35,7 +35,7 @@ axum = "0.6"
 chrono = "0.4.24"
 clap = { version = "4", features = ["cargo", "string"] }
 dirs = "5.0.0"
-futures = "0.3"
+futures-util = "0.3"
 opendal.workspace = true
 quick-xml = { version = "0.27", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }

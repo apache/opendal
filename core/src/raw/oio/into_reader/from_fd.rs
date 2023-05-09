@@ -22,8 +22,8 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::AsyncRead;
-use futures::AsyncSeek;
+use futures_util::AsyncRead;
+use futures_util::AsyncSeek;
 
 use crate::raw::*;
 use crate::*;

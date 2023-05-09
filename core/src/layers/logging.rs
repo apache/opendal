@@ -22,8 +22,8 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::FutureExt;
-use futures::TryFutureExt;
+use futures_util::FutureExt;
+use futures_util::TryFutureExt;
 use log::debug;
 use log::log;
 use log::trace;

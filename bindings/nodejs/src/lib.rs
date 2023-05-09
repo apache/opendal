@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
-use futures::TryStreamExt;
+use futures_util::TryStreamExt;
 use napi::bindgen_prelude::*;
 
 fn build_operator(

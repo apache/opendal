@@ -32,7 +32,7 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
-futures = "0.3.28"
+futures-util = "0.3.28"
 napi = { version = "2.11.3", default-features = false, features = [
   "napi6",
   "async",

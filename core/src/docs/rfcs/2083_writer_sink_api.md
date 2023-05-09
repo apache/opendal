@@ -35,11 +35,11 @@ I propose to add the following API to `Writer`:
 impl Writer {
     pub async fn copy_from<R>(&mut self, size: u64, r: R) -> Result<()>
     where
-        R: futures::AsyncRead + Send + Sync + 'static;
+        R: futures_util::AsyncRead + Send + Sync + 'static;
 
     pub async fn pipe_from<S>(&mut self, size: u64, s: S) -> Result<()>
     where
-        S: futures::TryStream + Send + Sync + 'static
+        S: futures_util::TryStream + Send + Sync + 'static
         Bytes: From<S::Ok>;
 }
 ```
@@ -71,7 +71,7 @@ To support `Wrtier::copy_from` and `Writer::pipe_from`, we will add a new API ca
 ```rust
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
-    async fn sink(&mut self, size: u64, s: Box<dyn futures::TryStream<Ok=Bytes> + Send + Sync>) -> Result<()>;
+    async fn sink(&mut self, size: u64, s: Box<dyn futures_util::TryStream<Ok=Bytes> + Send + Sync>) -> Result<()>;
 }
 ```
 

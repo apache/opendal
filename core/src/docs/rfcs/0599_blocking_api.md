@@ -117,7 +117,7 @@ Notes:
 
 - `BlockingBytesReader` is a boxed `std::io::Read`.
 - All blocking operations are happening on the current thread.
-- Blocking operation is implemented natively, no `futures::block_on`.
+- Blocking operation is implemented natively, no `futures_util::block_on`.
 
 # Drawbacks
 

@@ -267,9 +267,9 @@ In v0.24, we made a big refactor on our internal IO-related traits. In this vers
 
 Take `Reader` as an example:
 
-`input::Reader` is the user input reader, which only requires `futures::AsyncRead + Send`.
+`input::Reader` is the user input reader, which only requires `futures_util::AsyncRead + Send`.
 
-`output::Reader` is the reader returned by `OpenDAL`, which implements `futures::AsyncRead`, `futures::AsyncSeek`, and `futures::Stream<Item=io::Result<Bytes>>`. Besides, `output::Reader` also implements `Send + Sync`, which makes it useful for users.
+`output::Reader` is the reader returned by `OpenDAL`, which implements `futures_util::AsyncRead`, `futures_util::AsyncSeek`, and `futures_util::Stream<Item=io::Result<Bytes>>`. Besides, `output::Reader` also implements `Send + Sync`, which makes it useful for users.
 
 Due to this change, all code that depends on `BytesReader` should be refactored.
 
@@ -278,9 +278,9 @@ Due to this change, all code that depends on `BytesReader` should be refactored.
 
 Thanks to the change of IO trait split, we make `ObjectReader` implements all needed traits:
 
-- `futures::AsyncRead`
-- `futures::AsyncSeek`
-- `futures::Stream<Item=io::Result<Bytes>>`
+- `futures_util::AsyncRead`
+- `futures_util::AsyncSeek`
+- `futures_util::Stream<Item=io::Result<Bytes>>`
 
 Thus, we removed the `seekable_reader` API. They can be replaced by `range_reader`:
 

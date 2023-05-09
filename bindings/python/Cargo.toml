@@ -33,7 +33,7 @@ doc = false
 
 [dependencies]
 chrono = { version = "0.4.24", default-features = false, features = ["std"] }
-futures = "0.3.28"
+futures-util = "0.3.28"
 opendal.workspace = true
 pyo3 = { version = "0.18", features = ["chrono"] }
 pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }

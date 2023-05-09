@@ -22,9 +22,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::AsyncRead;
-use futures::AsyncSeek;
-use futures::Stream;
+use futures_util::AsyncRead;
+use futures_util::AsyncSeek;
+use futures_util::Stream;
 
 use crate::ops::OpRead;
 use crate::raw::*;

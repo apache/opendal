@@ -22,7 +22,7 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::FutureExt;
+use futures_util::FutureExt;
 use tracing::Span;
 
 use crate::ops::*;

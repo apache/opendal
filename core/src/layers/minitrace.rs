@@ -22,7 +22,7 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::FutureExt;
+use futures_util::FutureExt;
 use minitrace::prelude::*;
 
 use crate::ops::*;
@@ -56,7 +56,7 @@ use crate::*;
 /// use std::error::Error;
 ///
 /// use anyhow::Result;
-/// use futures::executor::block_on;
+/// use futures_util::executor::block_on;
 /// use opendal::layers::MinitraceLayer;
 /// use opendal::services;
 /// use opendal::Operator;

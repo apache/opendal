@@ -266,7 +266,7 @@ mod tests {
     use std::collections::HashSet;
 
     use anyhow::Result;
-    use futures::TryStreamExt;
+    use futures_util::TryStreamExt;
     use log::debug;
 
     use super::*;

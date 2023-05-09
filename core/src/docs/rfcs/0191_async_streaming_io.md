@@ -314,7 +314,7 @@ pub trait Accessor: Send + Sync + Debug {
 }
 ```
 
-This API design addressed all concerns but made it hard for users to use. Primarily, we can't support `futures::AsyncRead` and `tokio::AsyncRead` simultaneously.
+This API design addressed all concerns but made it hard for users to use. Primarily, we can't support `futures_util::AsyncRead` and `tokio::AsyncRead` simultaneously.
 
 For example, we can't accept a `Box::new(Vec::new())`, user can't get this vec from OpenDAL.
 

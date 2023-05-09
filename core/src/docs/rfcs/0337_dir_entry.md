@@ -12,8 +12,8 @@ Returning `DirEntry` instead of `Object` in list.
 In [Object Stream](./0069-object-stream.md), we introduce read_dir support via:
 
 ```rust
-pub trait ObjectStream: futures::Stream<Item = Result<Object>> + Unpin + Send {}
-impl<T> ObjectStream for T where T: futures::Stream<Item = Result<Object>> + Unpin + Send {}
+pub trait ObjectStream: futures_util::Stream<Item = Result<Object>> + Unpin + Send {}
+impl<T> ObjectStream for T where T: futures_util::Stream<Item = Result<Object>> + Unpin + Send {}
 
 pub struct Object {
     acc: Arc<dyn Accessor>,
@@ -34,7 +34,7 @@ Users can't know an object's mode after the list, so they have to send `metadata
 ```rust
 let o = op.object("path/to/dir/");
 let mut obs = o.list().await?;
-// ObjectStream implements `futures::Stream`
+// ObjectStream implements `futures_util::Stream`
 while let Some(o) = obs.next().await {
     let mut o = o?;
     // It's highly possible that OpenDAL already did metadata during list.
@@ -59,7 +59,7 @@ Introducing a separate `DirEntry` could reduce an extra call for metadata most o
 ```rust
 let o = op.object("path/to/dir/");
 let mut ds = o.list().await?;
-// ObjectStream implements `futures::Stream`
+// ObjectStream implements `futures_util::Stream`
 while let Some(de) = ds.try_next().await {
     match de.mode() {
         ObjectMode::FILE => {
@@ -78,7 +78,7 @@ while let Some(de) = ds.try_next().await {
 Within this RFC, `Object::list()` will return `DirStreamer` instead.
 
 ```rust
-pub trait DirStream: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
+pub trait DirStream: futures_util::Stream<Item = Result<DirEntry>> + Unpin + Send {}
 pub type DirStreamer = Box<dyn DirStream>;
 ```
 
@@ -97,7 +97,7 @@ With `DirEntry` support, we can reduce an extra `metadata` call if we only want 
 ```rust
 let o = op.object("path/to/dir/");
 let mut ds = o.list().await?;
-// ObjectStream implements `futures::Stream`
+// ObjectStream implements `futures_util::Stream`
 while let Some(de) = ds.try_next().await {
     match de.mode() {
         ObjectMode::FILE => {
@@ -138,7 +138,7 @@ impl From<DirEntry> for Object {}
 And use `DirStream` to replace `ObjectStream`:
 
 ```rust
-pub trait DirStream: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
+pub trait DirStream: futures_util::Stream<Item = Result<DirEntry>> + Unpin + Send {}
 pub type DirStreamer = Box<dyn DirStream>;
 ```
 

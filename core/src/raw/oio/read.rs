@@ -24,7 +24,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::Future;
+use futures_util::Future;
 use pin_project::pin_project;
 
 use crate::*;
@@ -149,7 +149,7 @@ impl<T: Read + ?Sized> Read for Box<T> {
     }
 }
 
-impl futures::AsyncRead for dyn Read {
+impl futures_util::AsyncRead for dyn Read {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -161,7 +161,7 @@ impl futures::AsyncRead for dyn Read {
     }
 }
 
-impl futures::AsyncSeek for dyn Read {
+impl futures_util::AsyncSeek for dyn Read {
     fn poll_seek(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -173,7 +173,7 @@ impl futures::AsyncSeek for dyn Read {
     }
 }
 
-impl futures::Stream for dyn Read {
+impl futures_util::Stream for dyn Read {
     type Item = Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

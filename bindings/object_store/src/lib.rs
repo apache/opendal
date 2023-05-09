@@ -22,9 +22,9 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::stream::BoxStream;
-use futures::Stream;
-use futures::StreamExt;
+use futures_util::stream::BoxStream;
+use futures_util::Stream;
+use futures_util::StreamExt;
 use object_store::path::Path;
 use object_store::GetResult;
 use object_store::ListResult;

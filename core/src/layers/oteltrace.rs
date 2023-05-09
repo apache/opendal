@@ -20,7 +20,7 @@ use std::task;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::FutureExt;
+use futures_util::FutureExt;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
 use opentelemetry::trace::FutureExt as TraceFutureExt;

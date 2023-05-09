@@ -15,26 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::GdriveBackend;
+use super::core::GdriveCore;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct GdriveWriter {
-    backend: GdriveBackend,
-
+    core: Arc<GdriveCore>,
     op: OpWrite,
     path: String,
 }
 
 impl GdriveWriter {
-    pub fn new(backend: GdriveBackend, op: OpWrite, path: String) -> Self {
-        GdriveWriter { backend, op, path }
+    pub fn new(core: Arc<GdriveCore>, op: OpWrite, path: String) -> Self {
+        GdriveWriter { core, op, path }
     }
 }
 
@@ -42,7 +43,7 @@ impl GdriveWriter {
 impl oio::Write for GdriveWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
-            .backend
+            .core
             .gdrive_update(
                 &self.path,
                 Some(bs.len()),

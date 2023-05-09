@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.34.0] - 2023-05-09
+
+### Added
+
+- feat(writer): configurable buffer size of unsized write (#2143)
+- feat(oay): Add basic s3 list_objects_v2 with start_after support (#2219)
+- feat: Add typed kv adapter and migrate moka to it (#2222)
+- feat: migrate service dashmap (#2225)
+- feat(services/memory): migrate service memory  (#2229)
+- feat: Add assert for public types to ensure Send + Sync (#2237)
+- feat(services/gcs): Add abort support for writer (#2242)
+
+### Changed
+
+- refactor: Replace futures::ready with std::task::ready (#2221)
+- refactor: Use list without delimiter to replace scan (#2243)
+
+### Fixed
+
+- fix(services/gcs): checked_rem_euclid could return Some(0) (#2220)
+- fix(tests): Etag must be wrapped by `"` (#2226)
+- fix(services/s3): Return error if credential load fail instead skip (#2233)
+- fix(services/s3): Return error if region not set for AWS S3 (#2234)
+- fix(services/gcs): rsa 0.9 breaks gcs presign (#2236)
+
+### Chore
+
+- chore: change log subscriber from env_logger to tracing-subscriber (#2238)
+- chore: Fix build of wasabi (#2241)
+
 ## [v0.33.3] - 2023-05-06
 
 ### Added
@@ -2067,6 +2097,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.34.0]: https://github.com/apache/incubator-opendal/compare/v0.33.3...v0.34.0
 [v0.33.3]: https://github.com/apache/incubator-opendal/compare/v0.33.2...v0.33.3
 [v0.33.2]: https://github.com/apache/incubator-opendal/compare/v0.33.1...v0.33.2
 [v0.33.1]: https://github.com/apache/incubator-opendal/compare/v0.33.0...v0.33.1

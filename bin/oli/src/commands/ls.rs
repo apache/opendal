@@ -23,7 +23,7 @@ use clap::Arg;
 use clap::ArgAction;
 use clap::ArgMatches;
 use clap::Command;
-use futures_util::TryStreamExt;
+use futures::TryStreamExt;
 
 use crate::config::Config;
 

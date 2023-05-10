@@ -2538,7 +2538,7 @@ dependencies = [
  "chrono",
  "clap 4.2.5",
  "dirs 5.0.0",
- "futures-util",
+ "futures",
  "opendal",
  "quick-xml 0.27.1",
  "serde",
@@ -2578,7 +2578,7 @@ version = "0.34.0"
 dependencies = [
  "async-trait",
  "bytes",
- "futures-util",
+ "futures",
  "object_store",
  "opendal",
  "tokio",
@@ -2593,7 +2593,7 @@ dependencies = [
  "clap 4.2.5",
  "dirs 5.0.0",
  "env_logger",
- "futures-util",
+ "futures",
  "log",
  "opendal",
  "predicates 2.1.5",
@@ -2700,7 +2700,7 @@ dependencies = [
 name = "opendal-nodejs"
 version = "0.34.0"
 dependencies = [
- "futures-util",
+ "futures",
  "napi",
  "napi-build",
  "napi-derive",
@@ -2712,7 +2712,7 @@ name = "opendal-python"
 version = "0.34.0"
 dependencies = [
  "chrono",
- "futures-util",
+ "futures",
  "opendal",
  "pyo3",
  "pyo3-asyncio",

@@ -21,7 +21,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use ::opendal as od;
-use futures_util::TryStreamExt;
+use futures::TryStreamExt;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyStopAsyncIteration;

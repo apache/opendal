@@ -27,7 +27,7 @@
 // * A valid ptr is given
 // * The blocking write operation is successful
 // * The blocking read operation is successful and works as expected
-void test_operator_rw(opendal_operator_ptr ptr, char *path)
+void test_operator_rw(opendal_operator_ptr ptr, char* path)
 {
     // have to be valid ptr
     assert(ptr);
@@ -54,7 +54,7 @@ void test_operator_rw(opendal_operator_ptr ptr, char *path)
     opendal_bytes_free(r.data);
 }
 
-void test_operator_stat(opendal_operator_ptr ptr, char *path)
+void test_operator_stat(opendal_operator_ptr ptr, char* path)
 {
     assert(ptr);
     opendal_result_stat r = opendal_operator_stat(ptr, path);

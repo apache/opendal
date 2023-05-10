@@ -153,7 +153,7 @@ impl Accessor for OnedriveBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.onedrive_get(path).await?;
+        let resp = self.onedrive_get_stat(path).await?;
         let status = resp.status();
 
         if status.is_success() {
@@ -233,7 +233,7 @@ impl Accessor for OnedriveBackend {
 impl OnedriveBackend {
     pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
 
-    async fn onedrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn onedrive_get_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
             "https://graph.microsoft.com/v1.0/me/drive/root:{}{}",

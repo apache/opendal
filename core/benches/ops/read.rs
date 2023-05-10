@@ -16,8 +16,8 @@
 // under the License.
 
 use criterion::Criterion;
-use futures_util::io;
-use futures_util::AsyncReadExt;
+use futures::io;
+use futures::AsyncReadExt;
 use opendal::Operator;
 use rand::prelude::*;
 use size::Size;
@@ -143,7 +143,7 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
                                 let _ = d;
                             })
                             .collect::<Vec<_>>();
-                        futures_util::future::join_all(futures).await
+                        futures::future::join_all(futures).await
                     })
                 },
             );

@@ -18,7 +18,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use futures_util::TryStreamExt;
+use futures::TryStreamExt;
 use opendal::EntryMode;
 use opendal::Operator;
 

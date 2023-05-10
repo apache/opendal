@@ -16,7 +16,7 @@
 // under the License.
 
 use anyhow::Result;
-use futures_util::AsyncReadExt;
+use futures::AsyncReadExt;
 use opendal::ops::OpRead;
 use opendal::ops::OpStat;
 use opendal::EntryMode;

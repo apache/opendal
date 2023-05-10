@@ -19,9 +19,9 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Result;
-use futures_util::AsyncReadExt;
-use futures_util::AsyncSeekExt;
-use futures_util::StreamExt;
+use futures::AsyncReadExt;
+use futures::AsyncSeekExt;
+use futures::StreamExt;
 use http::StatusCode;
 use log::debug;
 use log::warn;
@@ -1044,7 +1044,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     }
 
     op.with_limit(30)
-        .remove_via(futures_util::stream::iter(expected.clone()).map(|v| format!("{dir}/{v}")))
+        .remove_via(futures::stream::iter(expected.clone()).map(|v| format!("{dir}/{v}")))
         .await?;
 
     // Stat it again to check.
@@ -1112,7 +1112,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
         Err(err) => return Err(err.into()),
     };
 
-    futures_util::io::copy(&mut content.as_slice(), &mut w).await?;
+    futures::io::copy(&mut content.as_slice(), &mut w).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

@@ -19,9 +19,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use anyhow::Result;
-use futures_util::stream::FuturesUnordered;
-use futures_util::StreamExt;
-use futures_util::TryStreamExt;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use futures::TryStreamExt;
 use log::debug;
 use opendal::ops::OpList;
 use opendal::EntryMode;

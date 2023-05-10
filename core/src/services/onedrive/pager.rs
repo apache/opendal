@@ -56,7 +56,6 @@ impl OnedrivePager {
 }
 
 #[async_trait]
-
 impl oio::Page for OnedrivePager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {

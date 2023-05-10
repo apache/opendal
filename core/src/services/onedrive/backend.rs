@@ -24,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 
 use super::error::parse_error;
+use super::graph_model::CreateDirPayload;
 use super::graph_model::ItemType;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
@@ -218,11 +219,7 @@ impl Accessor for OnedriveBackend {
         let folder_name = get_basename(&path);
         let folder_name = folder_name.strip_suffix('/').unwrap_or(folder_name);
 
-        let body = serde_json::json!({
-            "name": folder_name,
-            "folder": {},
-            "@microsoft.graph.conflictBehavior": "replace"
-        });
+        let body = CreateDirPayload::new(folder_name.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body_bytes));
 

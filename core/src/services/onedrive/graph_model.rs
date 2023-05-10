@@ -87,6 +87,28 @@ pub struct Folder {
     child_count: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateDirPayload {
+    // folder: String,
+    #[serde(rename = "@microsoft.graph.conflictBehavior")]
+    conflict_behavior: String,
+    name: String,
+    folder: EmptyStruct,
+}
+
+impl CreateDirPayload {
+    pub fn new(name: String) -> Self {
+        Self {
+            conflict_behavior: "rename".to_string(),
+            name,
+            folder: EmptyStruct {},
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct EmptyStruct {}
+
 #[test]
 fn test_parse_one_drive_json() {
     let data = r#"{

@@ -196,12 +196,7 @@ impl Accessor for OnedriveBackend {
     }
 
     async fn list(&self, path: &str, _op_list: OpList) -> Result<(RpList, Self::Pager)> {
-        let pager: OnedrivePager = OnedrivePager::new(
-            self.root.clone(),
-            path.into(),
-            self.access_token.clone(),
-            self.client.clone(),
-        );
+        let pager: OnedrivePager = OnedrivePager::new(self.root.clone(), path.into(), self.clone());
 
         Ok((RpList::default(), pager))
     }
@@ -245,6 +240,7 @@ impl Accessor for OnedriveBackend {
 
 impl OnedriveBackend {
     pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
+
     async fn onedrive_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
         let url: String = format!(
@@ -254,6 +250,22 @@ impl OnedriveBackend {
         );
 
         let mut req = Request::get(&url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub(crate) async fn onedrive_get_next_list_page(
+        &self,
+        url: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = Request::get(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -331,7 +343,6 @@ impl OnedriveBackend {
     pub(crate) async fn onedrive_chunked_upload(
         &self,
         url: &str,
-        size: Option<usize>,
         content_type: Option<&str>,
         offset: usize,
         chunk_end: usize,
@@ -344,11 +355,10 @@ impl OnedriveBackend {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let range = format!("bytes {}-{}/{}", offset, chunk_end, total_len);
-        req.header("Content-Range".to_string(), range);
+        req = req.header("Content-Range".to_string(), range);
 
-        if let Some(size) = size {
-            req = req.header(header::CONTENT_LENGTH, size)
-        }
+        let size = chunk_end - offset + 1;
+        req = req.header(header::CONTENT_LENGTH, size.to_string());
 
         if let Some(mime) = content_type {
             req = req.header(header::CONTENT_TYPE, mime)

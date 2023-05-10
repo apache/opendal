@@ -17,26 +17,26 @@
 
 use crate::{
     raw::{
-        build_rel_path, build_rooted_abs_path, new_json_deserialize_error, new_request_build_error,
+        build_rel_path, build_rooted_abs_path, new_json_deserialize_error,
         oio::{self},
-        percent_encode_path, AsyncBody, HttpClient, IncomingAsyncBody,
+        percent_encode_path, IncomingAsyncBody,
     },
     EntryMode, Metadata,
 };
 
 use super::{
+    backend::OnedriveBackend,
     error::parse_error,
     graph_model::{GraphApiOnedriveListResponse, ItemType},
 };
 use crate::Result;
 use async_trait::async_trait;
-use http::{header, Request, Response};
+use http::Response;
 
 pub struct OnedrivePager {
     root: String,
     path: String,
-    access_token: String,
-    client: HttpClient,
+    backend: OnedriveBackend,
     next_link: Option<String>,
     done: bool,
 }
@@ -44,17 +44,11 @@ pub struct OnedrivePager {
 impl OnedrivePager {
     const DRIVE_ROOT_PREFIX: &'static str = "/drive/root:";
 
-    pub(crate) fn new(
-        root: String,
-        path: String,
-        access_token: String,
-        client: HttpClient,
-    ) -> Self {
+    pub(crate) fn new(root: String, path: String, backend: OnedriveBackend) -> Self {
         Self {
             root,
             path,
-            access_token,
-            client,
+            backend,
             next_link: None,
             done: false,
         }
@@ -142,15 +136,6 @@ impl OnedrivePager {
             url
         };
 
-        let mut req = Request::get(&request_url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
+        self.backend.onedrive_get_next_list_page(&request_url).await
     }
 }

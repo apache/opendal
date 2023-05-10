@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
 use async_trait::async_trait;
 use bytes::{Buf, Bytes};
 use http::StatusCode;
@@ -115,7 +113,6 @@ impl OneDriveWriter {
                 .backend
                 .onedrive_chunked_upload(
                     &session_response.upload_url,
-                    Some(chunk.len()),
                     None,
                     offset,
                     chunk_end,

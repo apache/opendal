@@ -91,7 +91,7 @@ impl OneDriveWriter {
         }
     }
 
-    pub(crate) async fn write_chunked(&self, bs: Bytes) -> Result<()> {
+    pub(crate) async fn write_chunked(&self, total_bytes: Bytes) -> Result<()> {
         // Upload large files via sessions: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
         // 1. Create an upload session
         // 2. Upload the bytes of each chunk
@@ -101,27 +101,25 @@ impl OneDriveWriter {
 
         let mut offset = 0;
 
-        let iter = bs.chunks(OneDriveWriter::CHUNK_SIZE_FACTOR);
+        let iter = total_bytes.chunks(OneDriveWriter::CHUNK_SIZE_FACTOR);
 
         for chunk in iter {
             let mut end = offset + OneDriveWriter::CHUNK_SIZE_FACTOR;
-            if end > bs.len() {
-                end = bs.len();
+            if end > total_bytes.len() {
+                end = total_bytes.len();
             }
+            let total_len = total_bytes.len();
+            let chunk_end = end - 1;
 
-            let range = format!("bytes {}-{}/{}", offset, end - 1, bs.len());
-            let custom_header_hash_map = {
-                let mut map = HashMap::new();
-                map.insert("Content-Range".to_string(), range);
-                map
-            };
             let resp = self
                 .backend
-                .onedrive_custom_put(
+                .onedrive_chunked_upload(
                     &session_response.upload_url,
                     Some(chunk.len()),
                     None,
-                    Some(custom_header_hash_map),
+                    offset,
+                    chunk_end,
+                    total_len,
                     AsyncBody::Bytes(Bytes::copy_from_slice(chunk)),
                 )
                 .await?;

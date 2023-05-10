@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
@@ -29,14 +28,15 @@ use super::graph_model::ItemType;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
+use crate::ops::OpCreateDir;
+use crate::raw::RpCreateDir;
 use crate::{
-    ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite},
+    ops::{OpDelete, OpList, OpRead, OpStat, OpWrite},
     raw::{
         build_abs_path, build_rooted_abs_path, get_basename, new_json_deserialize_error,
         new_json_serialize_error, new_request_build_error, parse_datetime_from_rfc3339,
         parse_into_metadata, parse_location, percent_encode_path, Accessor, AccessorInfo,
-        AsyncBody, HttpClient, IncomingAsyncBody, RpCreate, RpDelete, RpList, RpRead, RpStat,
-        RpWrite,
+        AsyncBody, HttpClient, IncomingAsyncBody, RpDelete, RpList, RpRead, RpStat, RpWrite,
     },
     types::Result,
     Capability, EntryMode, Error, ErrorKind, Metadata,
@@ -206,7 +206,7 @@ impl Accessor for OnedriveBackend {
         Ok((RpList::default(), pager))
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let path = build_rooted_abs_path(&self.root, path);
         let path_before_last_slash = std::path::Path::new(&path)
             .parent()
@@ -237,7 +237,7 @@ impl Accessor for OnedriveBackend {
 
         let status = response.status();
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCreate::default()),
+            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
             _ => Err(parse_error(response).await?),
         }
     }
@@ -328,12 +328,14 @@ impl OnedriveBackend {
         self.client.send(req).await
     }
 
-    pub(crate) async fn onedrive_custom_put(
+    pub(crate) async fn onedrive_chunked_upload(
         &self,
         url: &str,
         size: Option<usize>,
         content_type: Option<&str>,
-        additional_headers: Option<HashMap<String, String>>,
+        offset: usize,
+        chunk_end: usize,
+        total_len: usize,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = Request::put(url);
@@ -341,11 +343,8 @@ impl OnedriveBackend {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        if let Some(headers) = additional_headers {
-            for (key, value) in headers {
-                req = req.header(key, value);
-            }
-        }
+        let range = format!("bytes {}-{}/{}", offset, chunk_end, total_len);
+        req.header("Content-Range".to_string(), range);
 
         if let Some(size) = size {
             req = req.header(header::CONTENT_LENGTH, size)

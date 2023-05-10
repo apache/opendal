@@ -294,22 +294,22 @@ void opendal_bytes_free(const struct opendal_bytes *self);
 /*
  Free the allocated metadata
  */
-void opendal_meta_free(const opendal_metadata *self);
+void opendal_metadata_free(const opendal_metadata *self);
 
 /*
  Return the content_length of the metadata
  */
-uint64_t opendal_meta_content_length(const opendal_metadata *self);
+uint64_t opendal_metadata_content_length(const opendal_metadata *self);
 
 /*
  Return whether the path represents a file
  */
-bool opendal_meta_is_file(const opendal_metadata *self);
+bool opendal_metadata_is_file(const opendal_metadata *self);
 
 /*
  Return whether the path represents a directory
  */
-bool opendal_meta_is_dir(const opendal_metadata *self);
+bool opendal_metadata_is_dir(const opendal_metadata *self);
 
 #ifdef __cplusplus
 } // extern "C"

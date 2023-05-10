@@ -130,7 +130,7 @@ pub struct opendal_metadata {
 impl opendal_metadata {
     /// Free the allocated metadata
     #[no_mangle]
-    pub extern "C" fn opendal_meta_free(&self) {
+    pub extern "C" fn opendal_metadata_free(&self) {
         if self.inner.is_null() {
             return;
         }
@@ -139,7 +139,7 @@ impl opendal_metadata {
 
     /// Return the content_length of the metadata
     #[no_mangle]
-    pub extern "C" fn opendal_meta_content_length(&self) -> u64 {
+    pub extern "C" fn opendal_metadata_content_length(&self) -> u64 {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { (*self.inner).content_length() }
@@ -147,7 +147,7 @@ impl opendal_metadata {
 
     /// Return whether the path represents a file
     #[no_mangle]
-    pub extern "C" fn opendal_meta_is_file(&self) -> bool {
+    pub extern "C" fn opendal_metadata_is_file(&self) -> bool {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { (*self.inner).is_file() }
@@ -155,7 +155,7 @@ impl opendal_metadata {
 
     /// Return whether the path represents a directory
     #[no_mangle]
-    pub extern "C" fn opendal_meta_is_dir(&self) -> bool {
+    pub extern "C" fn opendal_metadata_is_dir(&self) -> bool {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { (*self.inner).is_dir() }
@@ -172,7 +172,7 @@ impl opendal_metadata {
 
     /// Convert a Rust core [`od::Metadata`] into a heap allocated C-compatible
     /// [`opendal_metadata`]
-    pub(crate) fn from_meta(m: od::Metadata) -> Self {
+    pub(crate) fn from_metadata(m: od::Metadata) -> Self {
         Self {
             inner: Box::leak(Box::new(m)),
         }

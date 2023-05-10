@@ -153,10 +153,7 @@ impl OneDriveWriter {
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name_from_path.to_string());
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let asyn_body = AsyncBody::Bytes(Bytes::from(body_bytes));
-        let resp = self
-            .backend
-            .onedrive_post(&url, asyn_body, Some("application/json"))
-            .await?;
+        let resp = self.backend.onedrive_post(&url, asyn_body).await?;
 
         let status = resp.status();
 

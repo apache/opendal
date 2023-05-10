@@ -30,6 +30,7 @@ use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
 use crate::ops::OpCreateDir;
+use crate::raw::get_parent;
 use crate::raw::RpCreateDir;
 use crate::{
     ops::{OpDelete, OpList, OpRead, OpStat, OpWrite},
@@ -204,11 +205,7 @@ impl Accessor for OnedriveBackend {
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let path = build_rooted_abs_path(&self.root, path);
-        let path_before_last_slash = std::path::Path::new(&path)
-            .parent()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "invalid path"))?
-            .to_str()
-            .unwrap_or(&path);
+        let path_before_last_slash = get_parent(&path);
         let encoded_path = percent_encode_path(path_before_last_slash);
 
         let uri = format!(
@@ -223,9 +220,7 @@ impl Accessor for OnedriveBackend {
         let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(body_bytes));
 
-        let response = self
-            .onedrive_post(&uri, async_body, Some("application/json"))
-            .await?;
+        let response = self.onedrive_post(&uri, async_body).await?;
 
         let status = response.status();
         match status {
@@ -370,16 +365,13 @@ impl OnedriveBackend {
         &self,
         url: &str,
         body: AsyncBody,
-        content_type: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = Request::post(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        if let Some(mime) = content_type {
-            req = req.header(header::CONTENT_TYPE, mime)
-        }
+        req = req.header(header::CONTENT_TYPE, "application/json");
 
         let req = req.body(body).map_err(new_request_build_error)?;
 

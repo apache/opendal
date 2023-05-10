@@ -70,7 +70,7 @@ impl OneDriveWriter {
     async fn write_simple(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend
-            .onedrive_put(
+            .onedrive_upload_simple(
                 &self.path,
                 Some(bs.len()),
                 self.op.content_type(),

@@ -302,7 +302,7 @@ impl OnedriveBackend {
         self.client.send(req).await
     }
 
-    pub async fn onedrive_put(
+    pub async fn onedrive_upload_simple(
         &self,
         path: &str,
         size: Option<usize>,

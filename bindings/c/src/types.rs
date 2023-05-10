@@ -163,12 +163,15 @@ impl opendal_metadata {
 }
 
 impl opendal_metadata {
+    /// Return a null metadata
     pub(crate) fn null() -> Self {
         Self {
             inner: std::ptr::null(),
         }
     }
 
+    /// Convert a Rust core [`od::Metadata`] into a heap allocated C-compatible
+    /// [`opendal_metadata`]
     pub(crate) fn from_meta(m: od::Metadata) -> Self {
         Self {
             inner: Box::leak(Box::new(m)),

@@ -112,6 +112,17 @@ typedef enum opendal_code {
 typedef struct BlockingOperator BlockingOperator;
 
 /*
+ Metadata carries all metadata associated with an path.
+
+ # Notes
+
+ mode and content_length are required metadata that all services
+ should provide during `stat` operation. But in `list` operation,
+ a.k.a., `Entry`'s content length could be `None`.
+ */
+typedef struct Metadata Metadata;
+
+/*
  The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
  It is also the key struct that OpenDAL's APIs access the real
  operator's memory. The use of OperatorPtr is zero cost, it
@@ -155,6 +166,27 @@ typedef struct opendal_result_is_exist {
   enum opendal_code code;
 } opendal_result_is_exist;
 
+/*
+ Metadata carries all metadata associated with an path.
+
+ # Notes
+
+ mode and content_length are required metadata that all services
+ should provide during `stat` operation. But in `list` operation,
+ a.k.a., `Entry`'s content length could be NULL.
+ */
+typedef const struct Metadata *opendal_metadata;
+
+/*
+ The result type for [`opendal_operator_stat()`], the meta contains the metadata
+ of the path, the code represents whether the stat operation is successful. Note
+ that the operation could be successful even if the path does not exist.
+ */
+typedef struct opendal_result_stat {
+  opendal_metadata meta;
+  enum opendal_code code;
+} opendal_result_stat;
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -173,17 +205,12 @@ extern "C" {
 opendal_operator_ptr opendal_operator_new(const char *scheme);
 
 /*
- Free the allocated operator pointed by [`opendal_operator_ptr`]
- */
-void opendal_operator_free(opendal_operator_ptr op_ptr);
-
-/*
  Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
  if succeeds, others otherwise
 
  # Safety
 
- It is [safe] under two cases below
+ It is [safe] under the cases below
  * The memory pointed to by `path` must contain a valid nul terminator at the end of
    the string.
 
@@ -202,7 +229,7 @@ enum opendal_code opendal_operator_blocking_write(opendal_operator_ptr op_ptr,
 
  # Safety
 
- It is [safe] under two cases below
+ It is [safe] under the cases below
  * The memory pointed to by `path` must contain a valid nul terminator at the end of
    the string.
 
@@ -223,7 +250,7 @@ struct opendal_result_read opendal_operator_blocking_read(opendal_operator_ptr o
 
  # Safety
 
- It is [safe] under two cases below
+ It is [safe] under the cases below
  * The memory pointed to by `path` must contain a valid nul terminator at the end of
    the string.
 
@@ -235,9 +262,54 @@ struct opendal_result_is_exist opendal_operator_is_exist(opendal_operator_ptr op
                                                          const char *path);
 
 /*
+ Stat the path, return its metadata.
+
+ If the operation succeeds, no matter the path exists or not,
+ the error code should be opendal_code::OPENDAL_OK. Otherwise,
+ the field `meata` is filled with a NULL pointer, and the error code
+ is set correspondingly.
+
+ # Safety
+
+ It is [safe] under the cases below
+ * The memory pointed to by `path` must contain a valid nul terminator at the end of
+   the string.
+
+ # Panic
+
+ * If the `path` points to NULL, this function panics
+ */
+struct opendal_result_stat opendal_operator_stat(opendal_operator_ptr op_ptr, const char *path);
+
+/*
+ Free the allocated operator pointed by [`opendal_operator_ptr`]
+ */
+void opendal_operator_free(const opendal_operator_ptr *self);
+
+/*
  Frees the heap memory used by the [`opendal_bytes`]
  */
 void opendal_bytes_free(const struct opendal_bytes *self);
+
+/*
+ Free the allocated metadata
+ */
+void opendal_metadata_free(const opendal_metadata *self);
+
+/*
+ Return the content_length of the metadata
+ */
+uint64_t opendal_metadata_content_length(const opendal_metadata *self);
+
+/*
+ Return whether the path represents a file
+ */
+bool opendal_metadata_is_file(const opendal_metadata *self);
+
+/*
+ Return whether the path represents a directory
+ */
+bool opendal_metadata_is_dir(const opendal_metadata *self);
 
 #ifdef __cplusplus
 } // extern "C"

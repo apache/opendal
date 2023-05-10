@@ -65,6 +65,9 @@ void test_operator_stat(opendal_operator_ptr ptr, char *path)
 
     assert(opendal_meta_is_file(&meta));
 
+    uint64_t content_length = opendal_meta_content_length(&meta);
+    assert(content_length == 11);
+
     opendal_meta_free(&meta);
 }
 

@@ -137,6 +137,14 @@ impl opendal_metadata {
         let _ = unsafe { Box::from_raw(self.inner as *mut od::Metadata) };
     }
 
+    /// Return the content_length of the metadata
+    #[no_mangle]
+    pub extern "C" fn opendal_meta_content_length(&self) -> u64 {
+        // Safety: the inner should never be null once constructed
+        // The use-after-free is undefined behavior
+        unsafe { (*self.inner).content_length() }
+    }
+
     /// Return whether the path represents a file
     #[no_mangle]
     pub extern "C" fn opendal_meta_is_file(&self) -> bool {

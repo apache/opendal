@@ -295,6 +295,11 @@ void opendal_bytes_free(const struct opendal_bytes *self);
 void opendal_meta_free(const opendal_metadata *self);
 
 /*
+ Return the content_length of the metadata
+ */
+uint64_t opendal_meta_content_length(const opendal_metadata *self);
+
+/*
  Return whether the path represents a file
  */
 bool opendal_meta_is_file(const opendal_metadata *self);

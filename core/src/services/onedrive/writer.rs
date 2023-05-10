@@ -18,10 +18,12 @@
 use async_trait::async_trait;
 use bytes::{Buf, Bytes};
 use http::StatusCode;
-use serde::{Deserialize, Serialize};
 
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
+use super::graph_model::{
+    OneDriveUploadSessionCreationRequestBody, OneDriveUploadSessionCreationResponseBody,
+};
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
@@ -151,16 +153,17 @@ impl OneDriveWriter {
             percent_encode_path(&self.path)
         );
         let body = OneDriveUploadSessionCreationRequestBody::new(file_name_from_path.to_string());
-        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let asyn_body = AsyncBody::Bytes(Bytes::from(body_bytes));
-        let resp = self.backend.onedrive_post(&url, asyn_body).await?;
+
+        let resp = self
+            .backend
+            .onedrive_create_upload_session(&url, body)
+            .await?;
 
         let status = resp.status();
 
         match status {
             // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#response
             StatusCode::OK => {
-                // serde to parse body to OneDriveUploadSessionCreationResponseBody
                 let bs = resp.into_body().bytes().await?;
                 let result: OneDriveUploadSessionCreationResponseBody =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
@@ -169,38 +172,4 @@ impl OneDriveWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct OneDriveUploadSessionCreationRequestBody {
-    item: Item,
-}
-
-impl OneDriveUploadSessionCreationRequestBody {
-    fn new(path: String) -> Self {
-        OneDriveUploadSessionCreationRequestBody {
-            item: Item {
-                odata_type: "microsoft.graph.driveItemUploadableProperties".to_string(),
-                microsoft_graph_conflict_behavior: "replace".to_string(),
-                name: path,
-            },
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Item {
-    #[serde(rename = "@odata.type")]
-    odata_type: String,
-    #[serde(rename = "@microsoft.graph.conflictBehavior")]
-    microsoft_graph_conflict_behavior: String,
-    name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct OneDriveUploadSessionCreationResponseBody {
-    #[serde(rename = "uploadUrl")]
-    upload_url: String,
-    #[serde(rename = "expirationDateTime")]
-    expiration_date_time: String,
 }

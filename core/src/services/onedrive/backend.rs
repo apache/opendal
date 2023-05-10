@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
@@ -26,6 +27,7 @@ use http::StatusCode;
 use super::error::parse_error;
 use super::graph_model::CreateDirPayload;
 use super::graph_model::ItemType;
+use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
@@ -359,10 +361,10 @@ impl OnedriveBackend {
         self.client.send(req).await
     }
 
-    pub(crate) async fn onedrive_post(
+    pub(crate) async fn onedrive_create_upload_session(
         &self,
         url: &str,
-        body: AsyncBody,
+        body: OneDriveUploadSessionCreationRequestBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = Request::post(url);
 
@@ -371,7 +373,9 @@ impl OnedriveBackend {
 
         req = req.header(header::CONTENT_TYPE, "application/json");
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let asyn_body = AsyncBody::Bytes(Bytes::from(body_bytes));
+        let req = req.body(asyn_body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

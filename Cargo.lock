@@ -2632,7 +2632,6 @@ dependencies = [
  "dashmap",
  "dotenvy",
  "flagset",
- "futures-executor",
  "futures-util",
  "hdrs",
  "http",

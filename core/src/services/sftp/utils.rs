@@ -23,7 +23,7 @@ use std::task::Poll;
 
 use async_compat::Compat;
 use bb8::PooledConnection;
-use futures_executor::block_on;
+use futures_util::executor::block_on;
 use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::metadata::MetaData as SftpMeta;
 use owning_ref::OwningHandle;

@@ -27,13 +27,12 @@
 // * A valid ptr is given
 // * The blocking write operation is successful
 // * The blocking read operation is successful and works as expected
-void test_operator_rw(opendal_operator_ptr ptr)
+void test_operator_rw(opendal_operator_ptr ptr, char *path)
 {
     // have to be valid ptr
     assert(ptr);
 
     // write some contents by the operator, must be successful
-    char path[] = "test";
     char content[] = "Hello World";
     const opendal_bytes data = {
         .len = sizeof(content) - 1,
@@ -55,17 +54,33 @@ void test_operator_rw(opendal_operator_ptr ptr)
     opendal_bytes_free(r.data);
 }
 
+void test_operator_stat(opendal_operator_ptr ptr, char *path)
+{
+    assert(ptr);
+    opendal_result_stat r = opendal_operator_stat(ptr, path);
+    assert(r.code == OPENDAL_OK);
+
+    opendal_metadata meta = r.meta;
+    assert(meta);
+
+    assert(opendal_meta_is_file(&meta));
+
+    opendal_meta_free(&meta);
+}
+
 int main(int argc, char* argv[])
 {
     // construct the memory operator
     char scheme1[] = "memory";
+    char path[] = "test";
     opendal_operator_ptr p1 = opendal_operator_new(scheme1);
     assert(p1);
 
-    test_operator_rw(p1);
+    test_operator_rw(p1, path);
+    test_operator_stat(p1, path);
 
     // free the operator
-    opendal_operator_free(p1);
+    opendal_operator_free(&p1);
 
     return 0;
 }

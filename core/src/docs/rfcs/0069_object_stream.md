@@ -47,7 +47,7 @@ let meta = o.metadata_cached().await?;
 First, we will add a new API in `Accessor`:
 
 ```rust
-pub type BoxedObjectStream = Box<dyn futures_util::Stream<Item = Result<Object>> + Unpin + Send>;
+pub type BoxedObjectStream = Box<dyn futures::Stream<Item = Result<Object>> + Unpin + Send>;
 
 async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
     let _ = args;

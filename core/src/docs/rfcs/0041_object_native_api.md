@@ -50,7 +50,7 @@ Here is an example:
 
 ```rust
 use anyhow::Result;
-use futures_util::AsyncReadExt;
+use futures::AsyncReadExt;
 
 use opendal::services::fs;
 use opendal::Operator;

@@ -17,7 +17,7 @@
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures_util::AsyncWriteExt;
+use futures::AsyncWriteExt;
 
 use super::backend::FtpBackend;
 use crate::raw::*;

@@ -23,9 +23,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures_util::future::BoxFuture;
-use futures_util::AsyncWrite;
-use futures_util::FutureExt;
+use futures::future::BoxFuture;
+use futures::AsyncWrite;
+use futures::FutureExt;
 
 use crate::ops::OpWrite;
 use crate::raw::oio::Write;

@@ -20,11 +20,11 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use flagset::FlagSet;
-use futures_util::stream;
-use futures_util::AsyncReadExt;
-use futures_util::Stream;
-use futures_util::StreamExt;
-use futures_util::TryStreamExt;
+use futures::stream;
+use futures::AsyncReadExt;
+use futures::Stream;
+use futures::StreamExt;
+use futures::TryStreamExt;
 use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
@@ -175,7 +175,7 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures_util::io;
+    /// # use futures::io;
     /// # use opendal::Operator;
     /// use opendal::ErrorKind;
     /// #
@@ -210,7 +210,7 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures_util::io;
+    /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::ops::OpStat;
     /// use opendal::ErrorKind;
@@ -341,7 +341,7 @@ impl Operator {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use futures_util::io;
+    /// use futures::io;
     /// use opendal::Operator;
     ///
     /// #[tokio::main]
@@ -380,7 +380,7 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.create_dir("path/to/dir/").await?;
@@ -415,7 +415,7 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read("path/to/file").await?;
@@ -437,7 +437,7 @@ impl Operator {
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use opendal::ops::OpRead;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read_with("path/to/file", OpRead::new()).await?;
@@ -463,7 +463,7 @@ impl Operator {
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use opendal::ops::OpRead;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.range_read("path/to/file", 1024..2048).await?;
@@ -489,7 +489,7 @@ impl Operator {
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use opendal::ops::OpRead;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op
@@ -551,7 +551,7 @@ impl Operator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -574,7 +574,7 @@ impl Operator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.range_reader("path/to/file", 1024..2048).await?;
@@ -593,7 +593,7 @@ impl Operator {
     /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::TryStreamExt;
+    /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
     /// # use opendal::ops::OpRead;
     /// # #[tokio::main]
@@ -630,8 +630,8 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::StreamExt;
-    /// # use futures_util::SinkExt;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
     /// # #[tokio::main]
@@ -776,8 +776,8 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::StreamExt;
-    /// # use futures_util::SinkExt;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
     /// # #[tokio::main]
@@ -802,8 +802,8 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures_util::StreamExt;
-    /// # use futures_util::SinkExt;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
     /// use bytes::Bytes;
     /// use opendal::ops::OpWrite;
     ///
@@ -887,7 +887,7 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures_util::io;
+    /// # use futures::io;
     /// # use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -913,7 +913,7 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures_util::io;
+    /// # use futures::io;
     /// # use opendal::Operator;
     /// #
     /// # #[tokio::main]
@@ -942,9 +942,9 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures_util::io;
+    /// # use futures::io;
     /// # use opendal::Operator;
-    /// use futures_util::stream;
+    /// use futures::stream;
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -995,7 +995,7 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures_util::io;
+    /// # use futures::io;
     /// # use opendal::Operator;
     /// #
     /// # #[tokio::main]
@@ -1064,8 +1064,8 @@ impl Operator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures_util::io;
-    /// use futures_util::TryStreamExt;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
@@ -1103,8 +1103,8 @@ impl Operator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures_util::io;
-    /// use futures_util::TryStreamExt;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
     /// use opendal::ops::OpList;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
@@ -1135,8 +1135,8 @@ impl Operator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures_util::io;
-    /// use futures_util::TryStreamExt;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
     /// use opendal::ops::OpList;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
@@ -1193,8 +1193,8 @@ impl Operator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures_util::io;
-    /// use futures_util::TryStreamExt;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
@@ -1247,7 +1247,7 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use futures_util::io;
+    /// use futures::io;
     /// use opendal::Operator;
     /// use std::time::Duration;
     ///
@@ -1277,7 +1277,7 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use futures_util::io;
+    /// use futures::io;
     /// use opendal::Operator;
     /// use std::time::Duration;
     ///
@@ -1314,7 +1314,7 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use futures_util::io;
+    /// use futures::io;
     /// use opendal::Operator;
     /// use std::time::Duration;
     /// use opendal::ops::OpRead;
@@ -1347,7 +1347,7 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use futures_util::io;
+    /// use futures::io;
     /// use opendal::Operator;
     /// use std::time::Duration;
     ///
@@ -1379,7 +1379,7 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use futures_util::io;
+    /// use futures::io;
     /// use opendal::ops::OpWrite;
     /// use opendal::Operator;
     /// use std::time::Duration;

@@ -25,8 +25,8 @@ use std::task::Poll;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
-use futures_util::Stream;
-use futures_util::StreamExt;
+use futures::Stream;
+use futures::StreamExt;
 
 use crate::raw::*;
 use crate::Error;

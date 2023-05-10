@@ -22,9 +22,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use bb8::PooledConnection;
-use futures_util::future::BoxFuture;
-use futures_util::AsyncRead;
-use futures_util::FutureExt;
+use futures::future::BoxFuture;
+use futures::AsyncRead;
+use futures::FutureExt;
 use suppaftp::Status;
 
 use super::backend::Manager;

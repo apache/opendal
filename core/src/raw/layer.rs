@@ -294,7 +294,7 @@ impl<L: LayeredAccessor> Accessor for L {
 mod tests {
     use std::sync::Arc;
 
-    use futures_util::lock::Mutex;
+    use futures::lock::Mutex;
 
     use super::*;
     use crate::services::Memory;

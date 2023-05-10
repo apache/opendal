@@ -25,8 +25,8 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures_util::FutureExt;
-use futures_util::TryFutureExt;
+use futures::FutureExt;
+use futures::TryFutureExt;
 use metrics::increment_counter;
 use metrics::register_counter;
 use metrics::register_histogram;

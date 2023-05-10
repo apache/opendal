@@ -22,9 +22,9 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures_util::future::BoxFuture;
-use futures_util::FutureExt;
-use futures_util::Stream;
+use futures::future::BoxFuture;
+use futures::FutureExt;
+use futures::Stream;
 
 use crate::raw::*;
 use crate::*;

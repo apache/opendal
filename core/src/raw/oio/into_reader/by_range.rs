@@ -24,7 +24,7 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use futures_util::future::BoxFuture;
+use futures::future::BoxFuture;
 use tokio::io::ReadBuf;
 
 use crate::ops::*;
@@ -281,9 +281,9 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures_util::AsyncRead;
-    use futures_util::AsyncReadExt;
-    use futures_util::AsyncSeekExt;
+    use futures::AsyncRead;
+    use futures::AsyncReadExt;
+    use futures::AsyncSeekExt;
     use rand::prelude::*;
     use sha2::Digest;
     use sha2::Sha256;
@@ -337,7 +337,7 @@ mod tests {
             Ok((
                 RpRead::new(bs.len() as u64),
                 MockReader {
-                    inner: futures_util::io::Cursor::new(bs.into()),
+                    inner: futures::io::Cursor::new(bs.into()),
                 },
             ))
         }
@@ -345,7 +345,7 @@ mod tests {
 
     #[derive(Debug, Clone, Default)]
     struct MockReader {
-        inner: futures_util::io::Cursor<Vec<u8>>,
+        inner: futures::io::Cursor<Vec<u8>>,
     }
 
     impl oio::Read for MockReader {
@@ -385,7 +385,7 @@ mod tests {
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
         let r = MockReader {
-            inner: futures_util::io::Cursor::new(bs.to_vec()),
+            inner: futures::io::Cursor::new(bs.to_vec()),
         };
         let mut r = Box::new(by_range(acc, "x", r, 0, bs.len() as u64)) as oio::Reader;
 
@@ -419,7 +419,7 @@ mod tests {
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
         let r = MockReader {
-            inner: futures_util::io::Cursor::new(bs[4096..4096 + 4096].to_vec()),
+            inner: futures::io::Cursor::new(bs[4096..4096 + 4096].to_vec()),
         };
         let mut r = Box::new(by_range(acc, "x", r, 4096, 4096)) as oio::Reader;
 

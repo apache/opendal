@@ -31,7 +31,7 @@ use backon::ExponentialBackoff;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
-use futures_util::FutureExt;
+use futures::FutureExt;
 use log::warn;
 
 use crate::ops::*;
@@ -754,8 +754,8 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures_util::AsyncReadExt;
-    use futures_util::TryStreamExt;
+    use futures::AsyncReadExt;
+    use futures::TryStreamExt;
 
     use super::*;
 

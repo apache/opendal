@@ -77,7 +77,7 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
-    use futures_util::stream;
+    use futures::stream;
     use serde_json::from_reader;
 
     use super::*;

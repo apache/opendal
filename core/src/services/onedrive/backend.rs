@@ -217,10 +217,8 @@ impl Accessor for OnedriveBackend {
         let folder_name = folder_name.strip_suffix('/').unwrap_or(folder_name);
 
         let body = CreateDirPayload::new(folder_name.to_string());
-        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body_bytes));
 
-        let response = self.onedrive_post(&uri, async_body).await?;
+        let response = self.onedrive_create_dir(&uri, body).await?;
 
         let status = response.status();
         match status {
@@ -374,6 +372,24 @@ impl OnedriveBackend {
         req = req.header(header::CONTENT_TYPE, "application/json");
 
         let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    async fn onedrive_create_dir(
+        &self,
+        url: &str,
+        body: CreateDirPayload,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = Request::post(url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+        req = req.header(header::CONTENT_TYPE, "application/json");
+
+        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(body_bytes));
+        let req = req.body(async_body).map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

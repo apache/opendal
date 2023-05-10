@@ -99,7 +99,7 @@ pub struct CreateDirPayload {
 impl CreateDirPayload {
     pub fn new(name: String) -> Self {
         Self {
-            conflict_behavior: "rename".to_string(),
+            conflict_behavior: "replace".to_string(),
             name,
             folder: EmptyStruct {},
         }

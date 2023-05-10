@@ -89,9 +89,10 @@ impl Accessor for OnedriveBackend {
                 read: true,
                 write: true,
                 stat: true,
-                list: true,
                 delete: true,
                 create_dir: true,
+                list: true,
+                list_with_delimiter_slash: true,
                 ..Default::default()
             });
 

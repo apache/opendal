@@ -180,7 +180,7 @@ typedef const struct Metadata *opendal_metadata;
 /*
  The result type for [`opendal_operator_stat()`], the meta contains the metadata
  of the path, the code represents whether the stat operation is successful. Note
- that the operation could be successfull even if the path does not exist.
+ that the operation could be successful even if the path does not exist.
  */
 typedef struct opendal_result_stat {
   opendal_metadata meta;

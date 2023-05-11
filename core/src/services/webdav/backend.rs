@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -29,6 +30,7 @@ use http::StatusCode;
 use log::debug;
 use reqwest::Url;
 use async_recursion::async_recursion;
+use percent_encoding::{percent_decode_str};
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
@@ -508,10 +510,14 @@ impl WebdavBackend {
                 // basic security check, the redirected url should have the same origin with original url
                 // if not, it will not send request with auth
                 let path = redirected_url.path();
+                // url escape decode to avoid special case
+                let path = percent_decode_str(path)
+                    .decode_utf8().unwrap_or(Cow::from(path))
+                    .into_owned();
                 return self.read(
                     // if root is the prefix of path, then remove it
                     // this is for the case that redirect only change the origin of url
-                    path.strip_prefix(&self.root).unwrap_or(path),
+                    path.strip_prefix(&self.root).unwrap_or(&path),
                     args,
                     Some(redirected_url.origin().unicode_serialization()),
                 ).await;

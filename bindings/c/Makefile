@@ -16,7 +16,7 @@
 # under the License.
 
 RPATH=$(PWD)/../../target/debug
-CCFLAGS=-I./include -std=c++14
+CXXFLAGS=-I./include -std=c++14
 LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS=-lopendal_c -lgtest
 OBJ_DIR=./build
@@ -35,7 +35,7 @@ build:
 
 .PHONY: test
 test:
-	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CCFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 
 .PHONY: clean
 clean:

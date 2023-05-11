@@ -77,7 +77,7 @@ TEST_F(OpendalBddTest, Exist)
 TEST_F(OpendalBddTest, EntryMode)
 {
     opendal_result_stat r = opendal_operator_stat(this->p, this->path.c_str());
-    assert(r.code == OPENDAL_OK);
+    EXPECT_EQ(r.code, OPENDAL_OK);
 
     opendal_metadata meta = r.meta;
     EXPECT_TRUE(opendal_metadata_is_file(&meta));

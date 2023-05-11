@@ -301,7 +301,7 @@ impl Accessor for WebdavBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.read(path, args, true).await
+        self.read(path, args, None).await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -441,11 +441,16 @@ impl WebdavBackend {
         &self,
         path: &str,
         range: BytesRange,
-        send_auth: bool,
+        override_endpoint: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
-
-        let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
+        // user can give one new endpoint to override default endpoint
+        // this case happens when receive redirect response from server
+        let endpoint = override_endpoint.unwrap_or(self.endpoint.clone());
+        // if the override endpoint differs from original endpoint
+        // we will not send auth to server due to security issue.
+        let send_auth = endpoint.eq(&self.endpoint);
+        let url: String = format!("{}{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
@@ -465,12 +470,12 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    #[async_recursion]
     // read will send http request for dav access.
-    // sometimes we need to control whether we should add auth token in Authorization header
-    // that is why send_auth exists here.
-    async fn read(&self, path: &str, args: OpRead, send_auth: bool) -> Result<(RpRead, IncomingAsyncBody)> {
-        let resp = self.webdav_get(path, args.range(), send_auth).await?;
+    // sometimes we need to send request to different endpoint when server side
+    // indicate we need to redirect to another url.
+    #[async_recursion]
+    async fn read(&self, path: &str, args: OpRead, override_endpoint: Option<String>) -> Result<(RpRead, IncomingAsyncBody)> {
+        let resp = self.webdav_get(path, args.range(), override_endpoint).await?;
 
         let status = resp.status();
 
@@ -481,7 +486,7 @@ impl WebdavBackend {
             }
             StatusCode::FOUND | StatusCode::TEMPORARY_REDIRECT => {
                 // if server returns redirect HTTP status, then redirect it
-                let url = parse_location(resp.headers())?
+                let redirected_url = parse_location(resp.headers())?
                     // no location means invalid redirect response
                     .ok_or(
                         Error::new(
@@ -491,25 +496,18 @@ impl WebdavBackend {
                     )?;
 
                 // first the url in location should be valid
-                let redirected_url = Url::parse(url).map_err(|e| {
+                let redirected_url = Url::parse(redirected_url).map_err(|e| {
                     Error::new(
                         ErrorKind::Unexpected,
-                        &format!("redirected url({url}) is not valid."),
+                        &format!("redirected url({redirected_url}) is not valid."),
                     ).with_operation(Operation::Read).set_source(e)
                 })?;
 
-                let original_url = Url::parse(&self.endpoint).map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("original url({}) is not valid.", &self.endpoint),
-                    ).with_operation(Operation::Read).set_source(e)
-                })?;
                 // basic security check, the redirected url should have the same origin with original url
                 // if not, it will not send request with auth
                 return self.read(
-                    redirected_url.path(),
-                    args,
-                    send_auth && (original_url == redirected_url),
+                    redirected_url.path(), args,
+                    Some(redirected_url.origin().unicode_serialization()),
                 ).await;
             }
             _ => Err(parse_error(resp).await?),

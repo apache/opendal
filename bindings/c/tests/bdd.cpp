@@ -29,7 +29,7 @@ protected:
     std::string path;
     std::string content;
 
-    // the fixsure setup is an operator write, which will be
+    // the fixture setup is an operator write, which will be
     // run at the beginning of every tests
     void SetUp() override
     {
@@ -59,7 +59,7 @@ protected:
     }
 };
 
-// do nothing, the fixsure does the Write Test
+// do nothing, the fixture does the Write Test
 TEST_F(OpendalBddTest, Write)
 {
 }

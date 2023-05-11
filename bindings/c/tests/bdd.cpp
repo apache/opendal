@@ -42,11 +42,12 @@ protected:
     }
 };
 
+// do nothing, the fixsure does the Write Test
 TEST_F(OpendalBddTest, Write)
 {
-    // do nothing, the fixsure does the Write Test
 }
 
+// The path must exist
 TEST_F(OpendalBddTest, Exist)
 {
     opendal_result_is_exist r = opendal_operator_is_exist(this->p, this->path.c_str());
@@ -55,6 +56,7 @@ TEST_F(OpendalBddTest, Exist)
     EXPECT_TRUE(r.is_exist);
 }
 
+// The entry mode must be file
 TEST_F(OpendalBddTest, EntryMode)
 {
     opendal_result_stat r = opendal_operator_stat(this->p, this->path.c_str());
@@ -66,6 +68,7 @@ TEST_F(OpendalBddTest, EntryMode)
     opendal_metadata_free(&meta);
 }
 
+// The content length must be consistent
 TEST_F(OpendalBddTest, ContentLength)
 {
     opendal_result_stat r = opendal_operator_stat(this->p, this->path.c_str());
@@ -77,6 +80,7 @@ TEST_F(OpendalBddTest, ContentLength)
     opendal_metadata_free(&meta);
 }
 
+// We must read the correct content
 TEST_F(OpendalBddTest, Read)
 {
     struct opendal_result_read r = opendal_operator_blocking_read(this->p, this->path.c_str());

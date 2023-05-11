@@ -94,6 +94,8 @@ Major components of the project include:
 
 </details>
 
+> Welcome to add any services that are not currently supported [here](https://github.com/apache/incubator-opendal/issues/5).
+
 ## Documentation
 
 The documentation is available at <https://opendal.apache.org>.

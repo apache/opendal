@@ -475,6 +475,7 @@ impl WebdavBackend {
     // indicate we need to redirect to another url.
     #[async_recursion]
     async fn read(&self, path: &str, args: OpRead, override_endpoint: Option<String>) -> Result<(RpRead, IncomingAsyncBody)> {
+        debug!("will read: path={}, override_endpoint={:?}", &path, &override_endpoint);
         let resp = self.webdav_get(path, args.range(), override_endpoint).await?;
 
         let status = resp.status();
@@ -494,6 +495,7 @@ impl WebdavBackend {
                             &format!("no location header in redirect response."),
                         ).with_operation(Operation::Read)
                     )?;
+                debug!("received statue code 302/307, will redirect request, url: {}", redirected_url);
 
                 // first the url in location should be valid
                 let redirected_url = Url::parse(redirected_url).map_err(|e| {
@@ -507,7 +509,9 @@ impl WebdavBackend {
                 // if not, it will not send request with auth
                 let path = redirected_url.path();
                 return self.read(
-                    path.strip_prefix("/").unwrap_or(path),
+                    // if root is the prefix of path, then remove it
+                    // this is for the case that redirect only change the origin of url
+                    path.strip_prefix(&self.root).unwrap_or(path),
                     args,
                     Some(redirected_url.origin().unicode_serialization()),
                 ).await;

@@ -44,9 +44,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Setup Cpp (C++ / C)
-        uses: aminya/setup-cpp@v0.26.2
-        with:
-          llvm: 13.0.0
+        run: |
+          wget "https://github.com/aminya/setup-cpp/releases/download/v0.26.2/setup-cpp-x64-linux"
+          chmod +x ./setup-cpp-x64-linux
+          sudo ./setup-cpp-x64-linux --compiler llvm --ccache true
+          source ~/.cpprc
       - name: Install gtest manually
         run: sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && sudo cp lib/*.a /usr/lib && sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a && sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
       - name: Setup Rust toolchain

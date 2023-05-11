@@ -45,8 +45,8 @@ protected:
         EXPECT_TRUE(this->p);
 
         const opendal_bytes data = {
-            .len = this->content.length(),
             .data = (uint8_t*)this->content.c_str(),
+            .len = this->content.length(),
         };
 
         opendal_code code = opendal_operator_blocking_write(this->p, this->path.c_str(), data);

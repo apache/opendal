@@ -59,4 +59,7 @@ jobs:
       - name: Build BDD tests
         working-directory: "bindings/c"
         run: make test
+      - name: Run BDD tests
+        working-directory: "bindings/c"
+        run: ./build/bdd
 

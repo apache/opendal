@@ -68,6 +68,16 @@ jobs:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
 
+      - name: Test with redirect
+        shell: bash
+        working-directory: core
+        run: cargo test webdav -- --show-output
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_WEBDAV_ENDPOINT: http://localhost:8081
+
   nginx_with_password:
     runs-on: ${{ matrix.os }}
     strategy:

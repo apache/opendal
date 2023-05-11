@@ -505,8 +505,10 @@ impl WebdavBackend {
 
                 // basic security check, the redirected url should have the same origin with original url
                 // if not, it will not send request with auth
+                let path = redirected_url.path();
                 return self.read(
-                    redirected_url.path(), args,
+                    path.strip_prefix("/").unwrap_or(path),
+                    args,
                     Some(redirected_url.origin().unicode_serialization()),
                 ).await;
             }

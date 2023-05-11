@@ -20,6 +20,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bytes::Buf;
 use http::header;
@@ -28,9 +29,8 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use percent_encoding::percent_decode_str;
 use reqwest::Url;
-use async_recursion::async_recursion;
-use percent_encoding::{percent_decode_str};
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
@@ -458,7 +458,7 @@ impl WebdavBackend {
 
         match &self.authorization {
             Some(auth) if send_auth => req = req.header(header::AUTHORIZATION, auth.clone()),
-            _ => ()
+            _ => (),
         }
 
         if !range.is_full() {
@@ -476,9 +476,19 @@ impl WebdavBackend {
     // sometimes we need to send request to different endpoint when server side
     // indicate we need to redirect to another url.
     #[async_recursion]
-    async fn read(&self, path: &str, args: OpRead, override_endpoint: Option<String>) -> Result<(RpRead, IncomingAsyncBody)> {
-        debug!("will read: path={}, override_endpoint={:?}", &path, &override_endpoint);
-        let resp = self.webdav_get(path, args.range(), override_endpoint).await?;
+    async fn read(
+        &self,
+        path: &str,
+        args: OpRead,
+        override_endpoint: Option<String>,
+    ) -> Result<(RpRead, IncomingAsyncBody)> {
+        debug!(
+            "will read: path={}, override_endpoint={:?}",
+            &path, &override_endpoint
+        );
+        let resp = self
+            .webdav_get(path, args.range(), override_endpoint)
+            .await?;
 
         let status = resp.status();
 
@@ -495,16 +505,22 @@ impl WebdavBackend {
                         Error::new(
                             ErrorKind::Unexpected,
                             &format!("no location header in redirect response."),
-                        ).with_operation(Operation::Read)
+                        )
+                        .with_operation(Operation::Read),
                     )?;
-                debug!("received statue code 302/307, will redirect request, url: {}", redirected_url);
+                debug!(
+                    "received statue code 302/307, will redirect request, url: {}",
+                    redirected_url
+                );
 
                 // first the url in location should be valid
                 let redirected_url = Url::parse(redirected_url).map_err(|e| {
                     Error::new(
                         ErrorKind::Unexpected,
                         &format!("redirected url({redirected_url}) is not valid."),
-                    ).with_operation(Operation::Read).set_source(e)
+                    )
+                    .with_operation(Operation::Read)
+                    .set_source(e)
                 })?;
 
                 // basic security check, the redirected url should have the same origin with original url
@@ -512,15 +528,18 @@ impl WebdavBackend {
                 let path = redirected_url.path();
                 // url escape decode to avoid special case
                 let path = percent_decode_str(path)
-                    .decode_utf8().unwrap_or(Cow::from(path))
+                    .decode_utf8()
+                    .unwrap_or(Cow::from(path))
                     .into_owned();
-                return self.read(
-                    // if root is the prefix of path, then remove it
-                    // this is for the case that redirect only change the origin of url
-                    path.strip_prefix(&self.root).unwrap_or(&path),
-                    args,
-                    Some(redirected_url.origin().unicode_serialization()),
-                ).await;
+                return self
+                    .read(
+                        // if root is the prefix of path, then remove it
+                        // this is for the case that redirect only change the origin of url
+                        path.strip_prefix(&self.root).unwrap_or(&path),
+                        args,
+                        Some(redirected_url.origin().unicode_serialization()),
+                    )
+                    .await;
             }
             _ => Err(parse_error(resp).await?),
         }

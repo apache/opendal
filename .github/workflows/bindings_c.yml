@@ -43,8 +43,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup C/C++
-        uses: aminya/setup-cpp@v1
+      - name: Setup Cpp (C++ / C)
+        uses: aminya/setup-cpp@v0.26.2
         with:
           llvm: 13.0.0
       - name: Install gtest manually

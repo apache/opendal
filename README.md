@@ -65,7 +65,6 @@ Major components of the project include:
 
 </details>
 
-
 <details>
 <summary>Consumer Cloud Storage Service (like gdrive, onedrive)</summary>
 

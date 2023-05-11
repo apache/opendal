@@ -2711,7 +2711,6 @@ dependencies = [
 name = "opendal-python"
 version = "0.34.0"
 dependencies = [
- "chrono",
  "futures",
  "opendal",
  "pyo3",
@@ -3385,7 +3384,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfb848f80438f926a9ebddf0a539ed6065434fd7aae03a89312a9821f81b8501"
 dependencies = [
  "cfg-if",
- "chrono",
  "indoc",
  "libc",
  "memoffset",

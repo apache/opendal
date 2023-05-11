@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::time::Duration;
 
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
@@ -118,6 +119,38 @@ impl ObsCore {
         self.send(req).await
     }
 
+    pub fn obs_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        let mut req = Request::get(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header())
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
     pub fn obs_put_object_request(
         &self,
         path: &str,
@@ -178,6 +211,36 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         self.send(req).await
+    }
+
+    pub fn obs_get_head_object_request(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
+        // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0084.html
+
+        let mut req = Request::head(&url);
+
+        if let Some(if_match) = if_match {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        if let Some(if_none_match) = if_none_match {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
     }
 
     pub async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -253,5 +316,17 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         self.send(req).await
+    }
+
+    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        let cred = if let Some(cred) = self.load_credential().await? {
+            cred
+        } else {
+            return Ok(());
+        };
+
+        self.signer
+            .sign_query(req, duration, &cred)
+            .map_err(new_request_sign_error)
     }
 }

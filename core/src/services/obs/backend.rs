@@ -50,7 +50,7 @@ use crate::*;
 /// - [ ] rename
 /// - [x] list
 /// - [x] scan
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -332,10 +332,47 @@ impl Accessor for ObsBackend {
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
 
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
                 ..Default::default()
             });
 
         am
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => {
+                self.core
+                    .obs_get_head_object_request(path, v.if_match(), v.if_none_match())?
+            }
+            PresignOperation::Read(v) => self.core.obs_get_object_request(
+                path,
+                v.range(),
+                v.if_match(),
+                v.if_none_match(),
+            )?,
+            PresignOperation::Write(v) => self.core.obs_put_object_request(
+                path,
+                None,
+                v.content_type(),
+                v.cache_control(),
+                AsyncBody::Empty,
+            )?,
+        };
+        self.core.sign_query(&mut req, args.expire()).await?;
+
+        // We don't need this request anymore, consume it directly.
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

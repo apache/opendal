@@ -78,6 +78,18 @@ impl ObsCore {
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
+    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        let cred = if let Some(cred) = self.load_credential().await? {
+            cred
+        } else {
+            return Ok(());
+        };
+
+        self.signer
+            .sign_query(req, duration, &cred)
+            .map_err(new_request_sign_error)
+    }
+
     #[inline]
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         self.client.send(req).await
@@ -92,27 +104,7 @@ impl ObsCore {
         if_match: Option<&str>,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::get(&url);
-
-        if let Some(if_match) = if_match {
-            req = req.header(IF_MATCH, if_match);
-        }
-
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header())
-        }
-
-        if let Some(if_none_match) = if_none_match {
-            req = req.header(IF_NONE_MATCH, if_none_match);
-        }
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = self.obs_get_object_request(path, range, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
 
@@ -181,39 +173,20 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_get_head_object(
+    pub async fn obs_head_object(
         &self,
         path: &str,
         if_match: Option<&str>,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
-        // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0084.html
-
-        let mut req = Request::head(&url);
-
-        if let Some(if_match) = if_match {
-            req = req.header(IF_MATCH, if_match);
-        }
-
-        if let Some(if_none_match) = if_none_match {
-            req = req.header(IF_NONE_MATCH, if_none_match);
-        }
-
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = self.obs_head_object_request(path, if_match, if_none_match)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub fn obs_get_head_object_request(
+    pub fn obs_head_object_request(
         &self,
         path: &str,
         if_match: Option<&str>,
@@ -316,17 +289,5 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         self.send(req).await
-    }
-
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
-
-        self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)
     }
 }

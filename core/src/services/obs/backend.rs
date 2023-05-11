@@ -347,7 +347,7 @@ impl Accessor for ObsBackend {
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => {
                 self.core
-                    .obs_get_head_object_request(path, v.if_match(), v.if_none_match())?
+                    .obs_head_object_request(path, v.if_match(), v.if_none_match())?
             }
             PresignOperation::Read(v) => self.core.obs_get_object_request(
                 path,
@@ -448,7 +448,7 @@ impl Accessor for ObsBackend {
 
         let resp = self
             .core
-            .obs_get_head_object(path, args.if_match(), args.if_none_match())
+            .obs_head_object(path, args.if_match(), args.if_none_match())
             .await?;
 
         let status = resp.status();

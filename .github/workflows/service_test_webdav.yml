@@ -79,6 +79,11 @@ jobs:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8081
 
+      - name: print error log
+        shell: bash
+        working-directory: core
+        run: cat /tmp/error.log
+
   nginx_with_password:
     runs-on: ${{ matrix.os }}
     strategy:

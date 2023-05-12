@@ -56,6 +56,7 @@ jobs:
         working-directory: core
         run: |
           mkdir -p /tmp/static
+          chmod a+rw static/ # make nginx worker has permission to operate it
           nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
 
       - name: Test

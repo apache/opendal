@@ -56,7 +56,6 @@ jobs:
         working-directory: core
         run: |
           mkdir -p /tmp/static
-          chmod a+rw /tmp/static/ # make nginx worker has permission to operate it
           nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
 
       - name: Test
@@ -68,20 +67,6 @@ jobs:
           RUST_LOG: debug
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
-
-      - name: Test with redirect
-        shell: bash
-        working-directory: core
-        run: |
-          rm -rf /tmp/static
-          mkdir -p /tmp/static
-          chmod a+rw /tmp/static/
-          cargo test services_webdav::write_test_read_full -- --show-output || true; cat /tmp/error.log
-        env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
-          OPENDAL_WEBDAV_TEST: on
-          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8081
 
   nginx_with_password:
     runs-on: ${{ matrix.os }}
@@ -127,3 +112,35 @@ jobs:
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_WEBDAV_USERNAME: bar
           OPENDAL_WEBDAV_PASSWORD: bar
+
+  nginx_with_redirect:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Install nginx full for dav_ext modules
+        run: sudo apt install nginx-full
+
+      - name: Start nginx
+        shell: bash
+        working-directory: core
+        run: |
+          mkdir -p /tmp/static
+          chmod a+rw /tmp/static/ # make nginx worker has permission to operate it
+          nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
+
+      - name: Test with redirect
+        shell: bash
+        working-directory: core
+        run: cargo test services_webdav::write_test_read_full -- --show-output || true; cat /tmp/error.log
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8081

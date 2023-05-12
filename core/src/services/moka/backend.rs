@@ -41,7 +41,7 @@ use crate::*;
 /// - [ ] copy
 /// - [ ] rename
 /// - [ ] list
-/// - [ ] ~~scan~~
+/// - [ ] scan
 /// - [ ] presign
 /// - [ ] blocking
 #[derive(Default, Debug)]

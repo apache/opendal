@@ -98,6 +98,9 @@ pub struct Capability {
     /// If operator supports rename natively, it will be true.
     pub rename: bool,
 
+    /// If operator supports scan natively, it will be true.
+    pub scan: bool,
+
     /// If operator supports list natively, it will be true.
     pub list: bool,
     /// If backend supports list with limit, it will be true.
@@ -153,6 +156,9 @@ impl Debug for Capability {
         }
         if self.rename {
             s.push("Rename");
+        }
+        if self.scan {
+            s.push("Scan");
         }
         if self.list {
             s.push("List");

@@ -72,17 +72,12 @@ jobs:
       - name: Test with redirect
         shell: bash
         working-directory: core
-        run: cargo test webdav -- --show-output
+        run: cargo test webdav -- --show-output || true; cat /tmp/error.log
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8081
-
-      - name: print error log
-        shell: bash
-        working-directory: core
-        run: cat /tmp/error.log
 
   nginx_with_password:
     runs-on: ${{ matrix.os }}

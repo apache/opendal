@@ -41,9 +41,9 @@ use crate::*;
 /// - [x] delete
 /// - [ ] copy
 /// - [ ] rename
-/// - [ ] list
+/// - [ ] ~~list~~
 /// - [ ] scan
-/// - [ ] presign
+/// - [ ] ~~presign~~
 /// - [ ] blocking
 ///
 /// # Configuration

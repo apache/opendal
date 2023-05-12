@@ -74,6 +74,7 @@ jobs:
         working-directory: core
         run: |
           rm -rf /tmp/static
+          mkdir -p /tmp/static
           chmod a+rw /tmp/static/
           cargo test webdav -- --show-output || true; cat /tmp/error.log
         env:

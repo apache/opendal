@@ -72,7 +72,10 @@ jobs:
       - name: Test with redirect
         shell: bash
         working-directory: core
-        run: cargo test webdav -- --show-output || true; cat /tmp/error.log
+        run: |
+          rm -rf /tmp/static
+          chmod a+rw /tmp/static/
+          cargo test webdav -- --show-output || true; cat /tmp/error.log
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

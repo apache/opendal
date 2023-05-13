@@ -133,7 +133,6 @@ jobs:
         run: |
           mkdir -p /tmp/static
           chmod a+rw /tmp/static/ # make nginx worker has permission to operate it
-          chmod a+rw /var/lib/nginx/body/
           nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
 
       - name: Test with redirect

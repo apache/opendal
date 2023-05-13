@@ -209,6 +209,7 @@ impl Accessor for SupabaseBackend {
     type BlockingReader = ();
     type Writer = SupabaseWriter;
     type BlockingWriter = ();
+    type Appender = ();
     // todo: implement Pager to support list and scan
     type Pager = ();
     type BlockingPager = ();

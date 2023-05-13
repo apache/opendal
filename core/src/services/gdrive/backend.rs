@@ -56,6 +56,7 @@ impl Accessor for GdriveBackend {
     type BlockingReader = ();
     type Writer = GdriveWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 

@@ -441,6 +441,7 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = OssPager;
     type BlockingPager = ();
 

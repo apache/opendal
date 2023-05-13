@@ -51,6 +51,7 @@ impl Accessor for VercelArtifactsBackend {
     type BlockingReader = ();
     type Writer = VercelArtifactsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 

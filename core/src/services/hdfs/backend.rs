@@ -235,6 +235,7 @@ impl Accessor for HdfsBackend {
     type BlockingReader = oio::into_blocking_reader::FdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
+    type Appender = ();
     type Pager = Option<HdfsPager>;
     type BlockingPager = Option<HdfsPager>;
 

@@ -35,6 +35,9 @@ pub mod into_reader;
 pub mod into_blocking_reader;
 
 mod write;
+pub use write::Append;
+pub use write::AppendOperation;
+pub use write::Appender;
 pub use write::BlockingWrite;
 pub use write::BlockingWriter;
 pub use write::Write;

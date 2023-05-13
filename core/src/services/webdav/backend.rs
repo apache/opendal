@@ -262,6 +262,7 @@ impl Accessor for WebdavBackend {
     type BlockingReader = ();
     type Writer = WebdavWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = WebdavPager;
     type BlockingPager = ();
 

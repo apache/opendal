@@ -896,6 +896,7 @@ impl Accessor for WasabiBackend {
     type BlockingReader = ();
     type Writer = WasabiWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = WasabiPager;
     type BlockingPager = ();
 

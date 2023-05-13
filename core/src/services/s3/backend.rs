@@ -953,6 +953,7 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = S3Writer;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = S3Pager;
     type BlockingPager = ();
 

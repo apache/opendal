@@ -296,6 +296,7 @@ impl Accessor for GhacBackend {
     type BlockingReader = ();
     type Writer = GhacWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 

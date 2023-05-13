@@ -78,6 +78,7 @@ impl Accessor for OnedriveBackend {
     type BlockingReader = ();
     type Writer = OneDriveWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = OnedrivePager;
     type BlockingPager = ();
 

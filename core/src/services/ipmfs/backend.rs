@@ -84,6 +84,7 @@ impl Accessor for IpmfsBackend {
     type BlockingReader = ();
     type Writer = IpmfsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = IpmfsPager;
     type BlockingPager = ();
 

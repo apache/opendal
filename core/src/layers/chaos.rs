@@ -107,7 +107,7 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
     type BlockingReader = ChaosReader<A::BlockingReader>;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
-    type Appender = ();
+    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 

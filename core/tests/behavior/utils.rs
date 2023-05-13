@@ -41,7 +41,7 @@ use sha2::Sha256;
 pub fn init_service<B: Builder>() -> Option<Operator> {
     let _ = tracing_subscriber::fmt()
         .pretty()
-        //.with_test_writer()
+        .with_test_writer()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .try_init();
     let _ = dotenvy::dotenv();

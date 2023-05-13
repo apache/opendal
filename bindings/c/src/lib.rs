@@ -28,8 +28,8 @@ use std::str::FromStr;
 
 use ::opendal as od;
 use error::opendal_code;
-use result::opendal_result_is_exist;
-use result::opendal_result_read;
+use result::{opendal_result_is_exist, opendal_result_read, opendal_result_stat};
+use types::opendal_metadata;
 
 use crate::types::opendal_bytes;
 use crate::types::opendal_operator_ptr;
@@ -74,22 +74,12 @@ pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_
     opendal_operator_ptr::from(op)
 }
 
-/// Free the allocated operator pointed by [`opendal_operator_ptr`]
-#[no_mangle]
-pub extern "C" fn opendal_operator_free(op_ptr: opendal_operator_ptr) {
-    if op_ptr.is_null() {
-        return;
-    }
-    let _ = unsafe { Box::from_raw(op_ptr.get_ref_mut()) };
-    // dropped
-}
-
 /// Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
 /// if succeeds, others otherwise
 ///
 /// # Safety
 ///
-/// It is [safe] under two cases below
+/// It is [safe] under the cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
 ///
@@ -120,7 +110,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
 ///
 /// # Safety
 ///
-/// It is [safe] under two cases below
+/// It is [safe] under the cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
 ///
@@ -163,7 +153,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
 ///
 /// # Safety
 ///
-/// It is [safe] under two cases below
+/// It is [safe] under the cases below
 /// * The memory pointed to by `path` must contain a valid nul terminator at the end of
 ///   the string.
 ///
@@ -188,6 +178,45 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
         },
         Err(err) => opendal_result_is_exist {
             is_exist: false,
+            code: opendal_code::from_opendal_error(err),
+        },
+    }
+}
+
+/// Stat the path, return its metadata.
+///
+/// If the operation succeeds, no matter the path exists or not,
+/// the error code should be opendal_code::OPENDAL_OK. Otherwise,
+/// the field `meata` is filled with a NULL pointer, and the error code
+/// is set correspondingly.
+///
+/// # Safety
+///
+/// It is [safe] under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_stat(
+    op_ptr: opendal_operator_ptr,
+    path: *const c_char,
+) -> opendal_result_stat {
+    if path.is_null() {
+        panic!("The path given is pointing at NULL");
+    }
+
+    let op = op_ptr.get_ref();
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    match op.stat(path) {
+        Ok(m) => opendal_result_stat {
+            meta: opendal_metadata::from_metadata(m),
+            code: opendal_code::OPENDAL_OK,
+        },
+        Err(err) => opendal_result_stat {
+            meta: opendal_metadata::null(),
             code: opendal_code::from_opendal_error(err),
         },
     }

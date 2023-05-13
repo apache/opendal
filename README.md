@@ -28,6 +28,74 @@ Major components of the project include:
 - [oli](bin/oli): OpenDAL Command Line Interface
 - [oay](bin/oay): OpenDAL Gateway
 
+**Services**
+
+<details>
+<summary>Standard Storage Protocols (like fs, ftp)</summary>
+
+- fs: POSIX alike file system
+- ftp: FTP and FTPS
+- http: HTTP read-only services
+- sftp: [SFTP](https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02) services *working on*
+- webdav: [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service
+
+</details>
+
+<details>
+<summary>Object Storage Services (like s3, gcs, azblob)</summary>
+
+- azblob: [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services
+- gcs: [Google Cloud Storage](https://cloud.google.com/storage) Service
+- obs: [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS)
+- oss: [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS)
+- s3: [AWS S3](https://aws.amazon.com/s3/) alike services
+- supabase: [Supabase Storage](https://supabase.com/docs/guides/storage) Service *working on*
+- wasabi: [Wasabi](https://wasabi.com/) Cloud Storage
+
+</details>
+
+<details>
+<summary>File Storage Services (like azdfs, hdfs)</summary>
+
+- azdfs: [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
+- hdfs: [Hadoop Distributed File System](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html)(HDFS)
+- ipfs: [InterPlanetary File System](https://ipfs.tech/) HTTP Gateway
+- ipmfs: [InterPlanetary File System](https://ipfs.tech/) MFS API *working on*
+- webhdfs: [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service
+
+</details>
+
+<details>
+<summary>Consumer Cloud Storage Service (like gdrive, onedrive)</summary>
+
+- gdrive: [Google Drive](https://www.google.com/drive/) *working on*
+- onedrive: [OneDrive](https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage) *working on*
+
+</details>
+
+<details>
+<summary>Key-Value Storage Service (like rocksdb, sled)</summary>
+
+- dashmap: [dashmap](https://github.com/xacrimon/dashmap) backend
+- memory: In memory backend
+- redis: [Redis](https://redis.io/) services
+- rocksdb: [RocksDB](http://rocksdb.org/) services
+- sled: [sled](https://crates.io/crates/sled) backend
+
+</details>
+
+<details>
+<summary>Cache Storage Service (like memcached, moka)</summary>
+
+- ghac: [Github Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service
+- memcached: [Memcached](https://memcached.org/) service
+- moka: [moka](https://github.com/moka-rs/moka) backend
+- vercel_artifacts: [Vercel Remote Caching](https://vercel.com/docs/concepts/monorepos/remote-caching) Service *working on*
+
+</details>
+
+> Welcome to add any services that are not currently supported [here](https://github.com/apache/incubator-opendal/issues/5).
+
 ## Documentation
 
 The documentation is available at <https://opendal.apache.org>.

@@ -16,9 +16,9 @@
 # under the License.
 
 RPATH=$(PWD)/../../target/debug
-CFLAGS=-I./include
+CXXFLAGS=-I./include -std=c++14
 LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
-LIBS=-lopendal_c
+LIBS=-lopendal_c -lgtest
 OBJ_DIR=./build
 
 .PHONY: all
@@ -26,7 +26,7 @@ all: build test
 
 .PHONY: format
 format:
-	find . -name '*.c' -exec clang-format -i --style=WebKit --verbose {} \;
+	find . -name '*.cpp' -exec clang-format -i --style=WebKit --verbose {} \;
 
 .PHONY: build
 build:
@@ -35,7 +35,8 @@ build:
 
 .PHONY: test
 test:
-	$(CC) tests/basicio.c -o $(OBJ_DIR)/basicio $(CFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(OBJ_DIR)/bdd
 
 .PHONY: clean
 clean:

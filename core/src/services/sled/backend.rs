@@ -34,13 +34,6 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
-/// - [x] read
-/// - [x] write
-/// - [ ] ~~list~~
-/// - [ ] scan
-/// - [ ] ~~presign~~
-/// - [x] blocking
-///
 /// - [x] stat
 /// - [x] read
 /// - [x] write

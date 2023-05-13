@@ -67,7 +67,7 @@ jobs:
           manylinux: auto
           working-directory: "bindings/python"
           command: build
-          args: --release --sdist -o dist --find-interpreter
+          args: --release --sdist -o dist
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -83,7 +83,7 @@ jobs:
         with:
           working-directory: "bindings/python"
           command: build
-          args: --release -o dist --find-interpreter
+          args: --release -o dist
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -99,7 +99,7 @@ jobs:
         with:
           working-directory: "bindings/python"
           command: build
-          args: --release -o dist --universal2 --find-interpreter
+          args: --release -o dist --universal2
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

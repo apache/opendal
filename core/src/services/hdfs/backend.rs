@@ -52,6 +52,7 @@ use crate::*;
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [x] blocking
+///
 /// # Differences with webhdfs
 ///
 /// [Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.

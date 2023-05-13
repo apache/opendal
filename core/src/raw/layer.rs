@@ -63,7 +63,7 @@ use crate::*;
 ///     type BlockingReader = A::BlockingReader;
 ///     type Writer = A::Writer;
 ///     type BlockingWriter = A::BlockingWriter;
-///     type Appender = ();
+///     type Appender = A::Appender;
 ///     type Pager = A::Pager;
 ///     type BlockingPager = A::BlockingPager;
 ///

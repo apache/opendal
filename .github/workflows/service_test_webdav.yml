@@ -132,8 +132,9 @@ jobs:
         working-directory: core
         run: |
           mkdir -p /tmp/static
+          mkdir -p /var/lib/nginx
           chmod a+rw /tmp/static/ # make nginx worker has permission to operate it
-          sudo chmod a+rw /var/lib/
+          sudo chmod a+rw /var/lib/nginx
           nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
 
       - name: Test with redirect

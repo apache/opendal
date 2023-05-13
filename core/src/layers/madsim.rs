@@ -222,7 +222,11 @@ impl LayeredAccessor for MadsimAccessor {
         }
     }
 
-    async fn append(&self, path: &str, args: OpAppend) -> crate::Result<(RpAppend, Self::Appender)> {
+    async fn append(
+        &self,
+        path: &str,
+        args: OpAppend,
+    ) -> crate::Result<(RpAppend, Self::Appender)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will not be supported in MadsimLayer",

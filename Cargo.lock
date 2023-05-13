@@ -2749,8 +2749,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client"
 version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb5fe82840743fe3d31c478d543868b5ec7b6b4b3fbbedaea8547122c0b03816"
+source = "git+https://github.com/silver-ymz/openssh-sftp-client/?rev=c0a2759318a4fab02c0f27d55d9289aa8ec0606d#c0a2759318a4fab02c0f27d55d9289aa8ec0606d"
 dependencies = [
  "bytes",
  "derive_destructure2",
@@ -2770,8 +2769,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client-lowlevel"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8efd4c88a55c2baa1162e97f201a26a3d0b65773e6f942ada35ef455b1194ede"
+source = "git+https://github.com/silver-ymz/openssh-sftp-client/?rev=c0a2759318a4fab02c0f27d55d9289aa8ec0606d#c0a2759318a4fab02c0f27d55d9289aa8ec0606d"
 dependencies = [
  "awaitable",
  "bytes",
@@ -2787,8 +2785,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-error"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4c3356e914b8006417188efd534105d5bcb230b4a9fd67782a6b4a4e15fa006"
+source = "git+https://github.com/silver-ymz/openssh-sftp-client/?rev=c0a2759318a4fab02c0f27d55d9289aa8ec0606d#c0a2759318a4fab02c0f27d55d9289aa8ec0606d"
 dependencies = [
  "awaitable-error",
  "openssh",

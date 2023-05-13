@@ -138,7 +138,12 @@ jobs:
       - name: Test with redirect
         shell: bash
         working-directory: core
-        run: cargo test services_webdav::write_test_read_full -- --show-output || true; cat /tmp/error.log
+        run: |
+          cargo test services_webdav::write_test_read_full -- --show-output || true; cat /tmp/error.log
+          echo "following is forward-access.log"
+          cat /tmp/forward-access.log
+          echo "following is forward-error.log"
+          cat /tmp/forward-error.log;
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

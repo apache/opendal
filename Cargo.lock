@@ -2748,7 +2748,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client"
 version = "0.13.3"
-source = "git+https://github.com/silver-ymz/openssh-sftp-client/?rev=c0a2759318a4fab02c0f27d55d9289aa8ec0606d#c0a2759318a4fab02c0f27d55d9289aa8ec0606d"
+source = "git+https://github.com/silver-ymz/openssh-sftp-client/?branch=fix/invalid-response-id#03567ba12eb99bd56a107b87798f1208cc7700d6"
 dependencies = [
  "bytes",
  "derive_destructure2",
@@ -2768,7 +2768,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-client-lowlevel"
 version = "0.5.0"
-source = "git+https://github.com/silver-ymz/openssh-sftp-client/?rev=c0a2759318a4fab02c0f27d55d9289aa8ec0606d#c0a2759318a4fab02c0f27d55d9289aa8ec0606d"
+source = "git+https://github.com/silver-ymz/openssh-sftp-client/?branch=fix/invalid-response-id#03567ba12eb99bd56a107b87798f1208cc7700d6"
 dependencies = [
  "awaitable",
  "bytes",
@@ -2784,7 +2784,7 @@ dependencies = [
 [[package]]
 name = "openssh-sftp-error"
 version = "0.3.1"
-source = "git+https://github.com/silver-ymz/openssh-sftp-client/?rev=c0a2759318a4fab02c0f27d55d9289aa8ec0606d#c0a2759318a4fab02c0f27d55d9289aa8ec0606d"
+source = "git+https://github.com/silver-ymz/openssh-sftp-client/?branch=fix/invalid-response-id#03567ba12eb99bd56a107b87798f1208cc7700d6"
 dependencies = [
  "awaitable-error",
  "openssh",

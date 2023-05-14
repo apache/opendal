@@ -134,7 +134,7 @@ jobs:
           mkdir -p /tmp/static
           mkdir -p /var/lib/nginx
           chmod a+rw /tmp/static/ # make nginx worker has permission to operate it
-          sudo chmod a+rw /var/lib/nginx
+          sudo chmod a+rw /var/lib/nginx/body
           nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
 
       - name: Test with redirect
@@ -146,6 +146,10 @@ jobs:
           cat /tmp/forward-access.log
           echo "following is forward-error.log"
           cat /tmp/forward-error.log;
+          echo "following is checking perm of file"
+          ls -ld /var/lib/nginx/body
+          echo "check storage"
+          df -h /var/lib/nginx/
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

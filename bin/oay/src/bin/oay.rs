@@ -21,7 +21,9 @@ use oay::Config;
 use opendal::services::Memory;
 use opendal::Operator;
 use std::sync::Arc;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::fmt;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {

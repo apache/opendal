@@ -18,19 +18,28 @@
 use async_trait::async_trait;
 use http::StatusCode;
 
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
+use std::sync::Arc;
 
-use crate::{
-    ops::{OpDelete, OpRead, OpWrite},
-    raw::{
-        parse_into_metadata, Accessor, AccessorInfo, HttpClient, IncomingAsyncBody, RpDelete,
-        RpRead, RpWrite,
-    },
-    types::Result,
-    Capability, Error, ErrorKind,
-};
+use crate::ops::OpDelete;
+use crate::ops::OpRead;
+use crate::ops::OpWrite;
+use crate::raw::parse_into_metadata;
+use crate::raw::Accessor;
+use crate::raw::AccessorInfo;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::raw::RpDelete;
+use crate::raw::RpRead;
+use crate::raw::RpWrite;
+use crate::types::Result;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
 
-use super::{core::GdriveCore, error::parse_error, writer::GdriveWriter};
+use super::core::GdriveCore;
+use super::error::parse_error;
+use super::writer::GdriveWriter;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {

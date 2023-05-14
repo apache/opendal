@@ -26,16 +26,19 @@ use crate::raw::HttpClient;
 use crate::Error;
 use crate::ErrorKind;
 
+use http::header;
 use http::request::Builder;
+use http::Request;
+use http::Response;
 use http::StatusCode;
-use http::{header, Request, Response};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
-use crate::{
-    raw::{build_rooted_abs_path, new_request_build_error, AsyncBody, IncomingAsyncBody},
-    types::Result,
-};
+use crate::raw::build_rooted_abs_path;
+use crate::raw::new_request_build_error;
+use crate::raw::AsyncBody;
+use crate::raw::IncomingAsyncBody;
+use crate::types::Result;
 
 use super::error::parse_error;
 

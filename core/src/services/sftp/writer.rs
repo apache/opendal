@@ -20,7 +20,9 @@ use bytes::Bytes;
 use openssh_sftp_client::file::File;
 
 use crate::raw::oio;
-use crate::{Error, ErrorKind, Result};
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 pub struct SftpWriter {
     file: File,

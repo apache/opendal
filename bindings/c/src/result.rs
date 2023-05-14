@@ -21,7 +21,8 @@
 //! we are defining all Result types here
 
 use crate::error::opendal_code;
-use crate::types::{opendal_bytes, opendal_metadata};
+use crate::types::opendal_bytes;
+use crate::types::opendal_metadata;
 
 /// The Rust-like Result type of opendal C binding, it contains
 /// the data that the read operation returns and a error code

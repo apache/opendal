@@ -15,20 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{
-    raw::{
-        build_rel_path, build_rooted_abs_path, new_json_deserialize_error,
-        oio::{self},
-        percent_encode_path, IncomingAsyncBody,
-    },
-    EntryMode, Metadata,
-};
+use crate::raw::build_rel_path;
+use crate::raw::build_rooted_abs_path;
+use crate::raw::new_json_deserialize_error;
+use crate::raw::oio::{self};
+use crate::raw::percent_encode_path;
+use crate::raw::IncomingAsyncBody;
+use crate::EntryMode;
+use crate::Metadata;
 
-use super::{
-    backend::OnedriveBackend,
-    error::parse_error,
-    graph_model::{GraphApiOnedriveListResponse, ItemType},
-};
+use super::backend::OnedriveBackend;
+use super::error::parse_error;
+use super::graph_model::GraphApiOnedriveListResponse;
+use super::graph_model::ItemType;
 use crate::Result;
 use async_trait::async_trait;
 use http::Response;

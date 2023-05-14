@@ -41,8 +41,6 @@ pub enum Operation {
     Delete,
     /// Operation for [`crate::raw::Accessor::list`]
     List,
-    /// Operation for [`crate::raw::Accessor::scan`]
-    Scan,
     /// Operation for [`crate::raw::Accessor::batch`]
     Batch,
     /// Operation for [`crate::raw::Accessor::presign`]
@@ -63,8 +61,6 @@ pub enum Operation {
     BlockingDelete,
     /// Operation for [`crate::raw::Accessor::blocking_list`]
     BlockingList,
-    /// Operation for [`crate::raw::Accessor::blocking_scan`]
-    BlockingScan,
 }
 
 impl Operation {
@@ -92,7 +88,6 @@ impl From<Operation> for &'static str {
             Operation::Stat => "stat",
             Operation::Delete => "delete",
             Operation::List => "list",
-            Operation::Scan => "scan",
             Operation::Presign => "presign",
             Operation::Batch => "batch",
             Operation::BlockingCreateDir => "blocking_create_dir",
@@ -103,7 +98,6 @@ impl From<Operation> for &'static str {
             Operation::BlockingStat => "blocking_stat",
             Operation::BlockingDelete => "blocking_delete",
             Operation::BlockingList => "blocking_list",
-            Operation::BlockingScan => "blocking_scan",
         }
     }
 }

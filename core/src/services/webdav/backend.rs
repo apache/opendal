@@ -27,7 +27,7 @@ use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use log::{debug, error};
+use log::debug;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 

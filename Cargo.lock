@@ -1158,11 +1158,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "5.0.0"
+version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dece029acd3353e3a58ac2e3eb3c8d6c35827a892edc6cc4138ef9c33df46ecd"
+checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
 dependencies = [
- "dirs-sys 0.4.0",
+ "dirs-sys 0.4.1",
 ]
 
 [[package]]
@@ -1178,13 +1178,14 @@ dependencies = [
 
 [[package]]
 name = "dirs-sys"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04414300db88f70d74c5ff54e50f9e1d1737d9a5b90f53fcf2e95ca2a9ab554b"
+checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
 dependencies = [
  "libc",
+ "option-ext",
  "redox_users",
- "windows-sys 0.45.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2537,7 +2538,7 @@ dependencies = [
  "axum",
  "chrono",
  "clap 4.2.5",
- "dirs 5.0.0",
+ "dirs 5.0.1",
  "futures",
  "opendal",
  "quick-xml 0.27.1",
@@ -2591,7 +2592,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap 4.2.5",
- "dirs 5.0.0",
+ "dirs 5.0.1",
  "env_logger",
  "futures",
  "log",
@@ -2630,6 +2631,7 @@ dependencies = [
  "chrono",
  "criterion",
  "dashmap",
+ "dirs 5.0.1",
  "dotenvy",
  "flagset",
  "futures",
@@ -2648,7 +2650,6 @@ dependencies = [
  "openssh-sftp-client",
  "opentelemetry 0.19.0",
  "opentelemetry-jaeger",
- "owning_ref",
  "parking_lot 0.12.1",
  "paste",
  "percent-encoding",
@@ -2746,26 +2747,30 @@ dependencies = [
 
 [[package]]
 name = "openssh-sftp-client"
-version = "0.12.2"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4fa8e5f26e549bd266d9bcd9e5b4fd344729985ef1a7f5ac3e51f3f96a4a620"
+checksum = "cbf7ee42fa3533261da10b179b27ce4fd7b6954b9919836d26d9a96f39c62d26"
 dependencies = [
  "bytes",
  "derive_destructure2",
+ "futures-core",
  "once_cell",
+ "openssh",
  "openssh-sftp-client-lowlevel",
  "openssh-sftp-error",
+ "pin-project",
  "scopeguard",
  "tokio",
  "tokio-io-utility",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]
 name = "openssh-sftp-client-lowlevel"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "406bf41d8372365497d5645e802a8dfe22008b8183edbe6c79e4b75614431daa"
+checksum = "8efd4c88a55c2baa1162e97f201a26a3d0b65773e6f942ada35ef455b1194ede"
 dependencies = [
  "awaitable",
  "bytes",
@@ -2780,11 +2785,12 @@ dependencies = [
 
 [[package]]
 name = "openssh-sftp-error"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d836b428ead150165d1178ed0aa672791c13b3ae9616ea1e34d13730a2cb486"
+checksum = "f4c3356e914b8006417188efd534105d5bcb230b4a9fd67782a6b4a4e15fa006"
 dependencies = [
  "awaitable-error",
+ "openssh",
  "openssh-sftp-protocol-error",
  "ssh_format_error",
  "thiserror",
@@ -2960,6 +2966,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "option-ext"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
 name = "ordered-float"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2998,15 +3010,6 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
-
-[[package]]
-name = "owning_ref"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
-dependencies = [
- "stable_deref_trait",
-]
 
 [[package]]
 name = "parking"

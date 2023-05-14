@@ -16,30 +16,26 @@
 // under the License.
 
 use async_trait::async_trait;
-use bb8::PooledConnection;
 use bytes::Bytes;
+use openssh_sftp_client::file::File;
 
-use super::backend::Manager;
 use crate::raw::oio;
 use crate::{Error, ErrorKind, Result};
 
 pub struct SftpWriter {
-    conn: PooledConnection<'static, Manager>,
-    path: String,
+    file: File,
 }
 
 impl SftpWriter {
-    pub fn new(conn: PooledConnection<'static, Manager>, path: String) -> Self {
-        SftpWriter { conn, path }
+    pub fn new(file: File) -> Self {
+        SftpWriter { file }
     }
 }
 
 #[async_trait]
 impl oio::Write for SftpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut file = self.conn.sftp.create(&self.path).await?;
-
-        file.write_all(&bs).await?;
+        self.file.write_all(&bs).await?;
 
         Ok(())
     }

@@ -329,7 +329,7 @@ impl Accessor for WebdavBackend {
                         .ok_or(
                             Error::new(
                                 ErrorKind::Unexpected,
-                                &format!("no location header in redirect response."),
+                                "no location header in redirect response.",
                             )
                                 .with_operation(Operation::Read),
                         )?;

@@ -27,7 +27,7 @@ use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use log::debug;
+use log::{debug, error};
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 
@@ -302,7 +302,7 @@ impl Accessor for WebdavBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let mut remaining_retry_times = 3;
+        let mut remaining_retry_times = 10;
         // if response indicates that we should redirect
         // then modify this variable
         let mut override_endpoint: Option<String> = None;
@@ -367,7 +367,7 @@ impl Accessor for WebdavBackend {
                 _ => return Err(parse_error(resp).await?),
             }
 
-            remaining_retry_times -= remaining_retry_times
+            remaining_retry_times -= 1
         }
         return Err(Error::new(
             ErrorKind::Unexpected,

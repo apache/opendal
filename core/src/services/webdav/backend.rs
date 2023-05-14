@@ -302,7 +302,7 @@ impl Accessor for WebdavBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let mut remaining_retry_times = 10;
+        let mut remaining_retry_times = 3;
         // if response indicates that we should redirect
         // then modify this variable
         let mut override_endpoint: Option<String> = None;
@@ -329,15 +329,15 @@ impl Accessor for WebdavBackend {
                     // if server returns redirect HTTP status, then redirect it
                     let redirected_url = parse_location(resp.headers())?
                         // no location means invalid redirect response
-                        .ok_or(
+                        .ok_or_else(|| {
                             Error::new(
                                 ErrorKind::Unexpected,
                                 "no location header in redirect response.",
                             )
-                            .with_operation(Operation::Read),
-                        )?;
+                            .with_operation(Operation::Read)
+                        })?;
                     debug!(
-                        "received statue code 302/307, will redirect request, url: {}",
+                        "received status code 302/307, will redirect request, url: {}",
                         redirected_url
                     );
 
@@ -357,7 +357,7 @@ impl Accessor for WebdavBackend {
                     // url escape decode to avoid special case
                     let path = percent_decode_str(path)
                         .decode_utf8()
-                        .unwrap_or(Cow::from(path))
+                        .unwrap_or_else(|_| Cow::from(path))
                         .into_owned();
                     // if root is the prefix of path, then remove it
                     // this is for the case that redirect only change the origin of url
@@ -521,7 +521,7 @@ impl WebdavBackend {
         let p = build_rooted_abs_path(&self.root, path);
         // user can give one new endpoint to override default endpoint
         // this case happens when receive redirect response from server
-        let endpoint = override_endpoint.unwrap_or(self.endpoint.clone());
+        let endpoint = override_endpoint.unwrap_or_else(|| self.endpoint.clone());
         // if the override endpoint differs from original endpoint
         // we will not send auth to server due to security issue.
         let send_auth = endpoint.eq(&self.endpoint);

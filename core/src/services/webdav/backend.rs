@@ -310,7 +310,10 @@ impl Accessor for WebdavBackend {
         // response
         let mut override_path: String = path.to_string();
 
-        debug!("will read with maximum {} times to retry: path={}", &path, remaining_retry_times);
+        debug!(
+            "will read with maximum {} times to retry: path={}",
+            &path, remaining_retry_times
+        );
         while remaining_retry_times > 0 {
             debug!("remaining retry times: {}", remaining_retry_times);
             let resp = self
@@ -331,7 +334,7 @@ impl Accessor for WebdavBackend {
                                 ErrorKind::Unexpected,
                                 "no location header in redirect response.",
                             )
-                                .with_operation(Operation::Read),
+                            .with_operation(Operation::Read),
                         )?;
                     debug!(
                         "received statue code 302/307, will redirect request, url: {}",
@@ -344,8 +347,8 @@ impl Accessor for WebdavBackend {
                             ErrorKind::Unexpected,
                             &format!("redirected url({redirected_url}) is not valid."),
                         )
-                            .with_operation(Operation::Read)
-                            .set_source(e)
+                        .with_operation(Operation::Read)
+                        .set_source(e)
                     })?;
 
                     // basic security check, the redirected url should have the same origin with original url
@@ -366,16 +369,14 @@ impl Accessor for WebdavBackend {
 
             remaining_retry_times -= remaining_retry_times
         }
-        return Err(
-            Error::new(
-                ErrorKind::Unexpected,
-                &format!(
-                    "reach maximum retry times for requesting redirected endpoint({:?}), path({})",
-                    override_endpoint,
-                    override_path,
-                ),
-            ).with_operation(Operation::Read)
-        );
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            &format!(
+                "reach maximum retry times for requesting redirected endpoint({:?}), path({})",
+                override_endpoint, override_path,
+            ),
+        )
+        .with_operation(Operation::Read));
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

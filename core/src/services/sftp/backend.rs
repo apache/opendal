@@ -34,6 +34,7 @@ use openssh_sftp_client::SftpOptions;
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
 use super::pager::SftpPager;
+use super::utils::is_same_parent;
 use super::utils::SftpReader;
 use super::writer::SftpWriter;
 use crate::ops::*;
@@ -55,8 +56,8 @@ use crate::*;
 /// - [x] write
 /// - [x] create_dir
 /// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
+/// - [x] copy
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -276,14 +277,20 @@ impl Accessor for SftpBackend {
                 stat: true,
 
                 read: true,
+                read_can_seek: true,
+                read_with_range: true,
 
                 write: true,
+                write_without_content_length: true,
                 create_dir: true,
                 delete: true,
 
                 list: true,
                 list_with_limit: true,
                 list_with_delimiter_slash: true,
+
+                copy: true,
+                rename: true,
 
                 ..Default::default()
             });
@@ -352,14 +359,7 @@ impl Accessor for SftpBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         if let Some((dir, _)) = path.rsplit_once('/') {
             self.create_dir(dir, OpCreateDir::default()).await?;
         }
@@ -373,6 +373,49 @@ impl Accessor for SftpBackend {
         let file = client.create(&path).await?;
 
         Ok((RpWrite::new(), SftpWriter::new(file)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        if let Some((dir, _)) = to.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
+
+        let src = fs.canonicalize(from).await?;
+        let dst = fs.canonicalize(to).await?;
+        let mut src_file = client.open(&src).await?;
+        let mut dst_file = client.create(dst).await?;
+
+        // if remote sftp server supports copy extension, use it
+        if let Ok(()) = src_file.copy_all_to(&mut dst_file).await {
+            return Ok(RpCopy::default());
+        }
+
+        src_file.close().await?;
+        let buffer = fs.read(&src).await?;
+        dst_file.write_all(&buffer).await?;
+
+        Ok(RpCopy::default())
+    }
+
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        if is_same_parent(from, to) {
+            fs.rename(from, to).await?;
+        } else {
+            self.copy(from, to, OpCopy::default()).await?;
+            fs.remove_file(from).await?;
+        }
+
+        Ok(RpRename::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

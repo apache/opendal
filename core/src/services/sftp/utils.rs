@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io::SeekFrom;
+use std::path::Path;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -120,4 +121,8 @@ impl From<SftpMeta> for Metadata {
 
         metadata
     }
+}
+
+pub(super) fn is_same_parent(a: &str, b: &str) -> bool {
+    Path::new(a).parent() == Path::new(b).parent()
 }

@@ -34,7 +34,6 @@ use openssh_sftp_client::SftpOptions;
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
 use super::pager::SftpPager;
-use super::utils::is_same_parent;
 use super::utils::SftpReader;
 use super::writer::SftpWriter;
 use crate::ops::*;
@@ -56,8 +55,8 @@ use crate::*;
 /// - [x] write
 /// - [x] create_dir
 /// - [x] delete
-/// - [ ] copy (partially, only supoort when remote server has copy_data extension)
-/// - [ ] rename (partially, only support to rename files or dirs on the same parent dirs)
+/// - [ ] copy (partially, only supoort when remote server has copy-file extension)
+/// - [x] rename (partially, only support to rename files on the same mount point)
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -289,6 +288,8 @@ impl Accessor for SftpBackend {
                 list_with_limit: true,
                 list_with_delimiter_slash: true,
 
+                rename: true,
+
                 ..Default::default()
             });
 
@@ -393,17 +394,14 @@ impl Accessor for SftpBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        if !is_same_parent(from, to) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "rename files in different dirs is not supported",
-            ));
-        }
-
         let client = self.connect().await?;
 
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
+
+        if let Some((dir, _)) = to.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
         fs.rename(from, to).await?;
 
         Ok(RpRename::default())

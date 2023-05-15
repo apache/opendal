@@ -56,8 +56,8 @@ use crate::*;
 /// - [x] write
 /// - [x] create_dir
 /// - [x] delete
-/// - [x] copy
-/// - [x] rename
+/// - [ ] copy (partially, only supoort when remote server has copy_data extension)
+/// - [ ] rename (partially, only support to rename files or dirs on the same parent dirs)
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -289,9 +289,6 @@ impl Accessor for SftpBackend {
                 list_with_limit: true,
                 list_with_delimiter_slash: true,
 
-                copy: true,
-                rename: true,
-
                 ..Default::default()
             });
 
@@ -390,30 +387,24 @@ impl Accessor for SftpBackend {
         let mut src_file = client.open(&src).await?;
         let mut dst_file = client.create(dst).await?;
 
-        // if remote sftp server supports copy extension, use it
-        if let Ok(()) = src_file.copy_all_to(&mut dst_file).await {
-            return Ok(RpCopy::default());
-        }
-
-        src_file.close().await?;
-        let buffer = fs.read(&src).await?;
-        dst_file.write_all(&buffer).await?;
+        src_file.copy_all_to(&mut dst_file).await?;
 
         Ok(RpCopy::default())
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        if !is_same_parent(from, to) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "rename files in different dirs is not supported",
+            ));
+        }
+
         let client = self.connect().await?;
 
         let mut fs = client.fs();
         fs.set_cwd(&self.root);
-
-        if is_same_parent(from, to) {
-            fs.rename(from, to).await?;
-        } else {
-            self.copy(from, to, OpCopy::default()).await?;
-            fs.remove_file(from).await?;
-        }
+        fs.rename(from, to).await?;
 
         Ok(RpRename::default())
     }

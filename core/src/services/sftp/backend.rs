@@ -55,8 +55,8 @@ use crate::*;
 /// - [x] write
 /// - [x] create_dir
 /// - [x] delete
-/// - [ ] copy (partially, only supoort when remote server has copy-file extension)
-/// - [x] rename (partially, only support to rename files on the same mount point)
+/// - [ ] copy
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -276,7 +276,7 @@ impl Accessor for SftpBackend {
                 stat: true,
 
                 read: true,
-                read_can_seek: true,
+                // read_can_seek: true,
                 read_with_range: true,
 
                 write: true,
@@ -357,7 +357,7 @@ impl Accessor for SftpBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         if let Some((dir, _)) = path.rsplit_once('/') {
             self.create_dir(dir, OpCreateDir::default()).await?;
         }
@@ -373,7 +373,7 @@ impl Accessor for SftpBackend {
         Ok((RpWrite::new(), SftpWriter::new(file)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
         let client = self.connect().await?;
 
         let mut fs = client.fs();
@@ -393,7 +393,7 @@ impl Accessor for SftpBackend {
         Ok(RpCopy::default())
     }
 
-    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
         let client = self.connect().await?;
 
         let mut fs = client.fs();

@@ -35,6 +35,7 @@ use futures::FutureExt;
 use log::warn;
 
 use crate::ops::*;
+use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -161,6 +162,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type BlockingReader = RetryWrapper<A::BlockingReader>;
     type Writer = RetryWrapper<A::Writer>;
     type BlockingWriter = RetryWrapper<A::BlockingWriter>;
+    type Appender = RetryWrapper<A::Appender>;
     type Pager = RetryWrapper<A::Pager>;
     type BlockingPager = RetryWrapper<A::BlockingPager>;
 
@@ -211,6 +213,23 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Write, dur.as_secs_f64(), err)
+            })
+            .map(|v| {
+                v.map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
+                    .map_err(|e| e.set_persistent())
+            })
+            .await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        { || self.inner.append(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Append, dur.as_secs_f64(), err)
             })
             .map(|v| {
                 v.map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
@@ -704,6 +723,51 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for RetryWrapper<R> {
 }
 
 #[async_trait]
+impl<A: oio::Append> oio::Append for RetryWrapper<A> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.append(bs.clone()).await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> appender retry after {}s: error={:?}",
+                              AppendOperation::Append, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.close().await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> appender retry after {}s: error={:?}",
+                              AppendOperation::Close, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+}
+
+#[async_trait]
 impl<P: oio::Page> oio::Page for RetryWrapper<P> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut backoff = self.builder.build();
@@ -790,6 +854,7 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
+        type Appender = ();
         type Pager = MockPager;
         type BlockingPager = ();
 

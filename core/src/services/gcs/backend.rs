@@ -396,6 +396,7 @@ impl Accessor for GcsBackend {
     type BlockingReader = ();
     type Writer = GcsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = GcsPager;
     type BlockingPager = ();
 

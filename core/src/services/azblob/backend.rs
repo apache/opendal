@@ -449,6 +449,7 @@ impl Accessor for AzblobBackend {
     type BlockingReader = ();
     type Writer = AzblobWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = AzblobPager;
     type BlockingPager = ();
 

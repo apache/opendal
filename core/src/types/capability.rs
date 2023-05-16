@@ -86,6 +86,9 @@ pub struct Capability {
     /// If operator supports write with cache control natively, it will be true.
     pub write_with_cache_control: bool,
 
+    /// If operator supports append natively, it will be true.
+    pub append: bool,
+
     /// If operator supports create dir natively, it will be true.
     pub create_dir: bool,
 

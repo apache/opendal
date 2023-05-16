@@ -80,7 +80,7 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::Ftp;
+/// use opendal::services::Sftp;
 /// use opendal::Object;
 /// use opendal::Operator;
 ///
@@ -265,6 +265,7 @@ impl Accessor for SftpBackend {
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = Option<SftpPager>;
     type BlockingPager = ();
 

@@ -397,6 +397,17 @@ impl OpWrite {
     }
 }
 
+/// Args for `append` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpAppend {}
+
+impl OpAppend {
+    /// Create a new `OpAppend`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Args for `copy` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCopy {}

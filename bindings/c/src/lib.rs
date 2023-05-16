@@ -28,7 +28,9 @@ use std::str::FromStr;
 
 use ::opendal as od;
 use error::opendal_code;
-use result::{opendal_result_is_exist, opendal_result_read, opendal_result_stat};
+use result::opendal_result_is_exist;
+use result::opendal_result_read;
+use result::opendal_result_stat;
 use types::opendal_metadata;
 
 use crate::types::opendal_bytes;

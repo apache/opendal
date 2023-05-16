@@ -32,19 +32,39 @@ use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
 use crate::ops::OpCreateDir;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::raw::build_abs_path;
+use crate::raw::build_rooted_abs_path;
+use crate::raw::get_basename;
 use crate::raw::get_parent;
+use crate::raw::new_json_deserialize_error;
+use crate::raw::new_json_serialize_error;
+use crate::raw::new_request_build_error;
+use crate::raw::parse_datetime_from_rfc3339;
+use crate::raw::parse_into_metadata;
+use crate::raw::parse_location;
+use crate::raw::percent_encode_path;
+use crate::raw::Accessor;
+use crate::raw::AccessorInfo;
+use crate::raw::AsyncBody;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
 use crate::raw::RpCreateDir;
-use crate::{
-    ops::{OpDelete, OpList, OpRead, OpStat, OpWrite},
-    raw::{
-        build_abs_path, build_rooted_abs_path, get_basename, new_json_deserialize_error,
-        new_json_serialize_error, new_request_build_error, parse_datetime_from_rfc3339,
-        parse_into_metadata, parse_location, percent_encode_path, Accessor, AccessorInfo,
-        AsyncBody, HttpClient, IncomingAsyncBody, RpDelete, RpList, RpRead, RpStat, RpWrite,
-    },
-    types::Result,
-    Capability, EntryMode, Error, ErrorKind, Metadata,
-};
+use crate::raw::RpDelete;
+use crate::raw::RpList;
+use crate::raw::RpRead;
+use crate::raw::RpStat;
+use crate::raw::RpWrite;
+use crate::types::Result;
+use crate::Capability;
+use crate::EntryMode;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Metadata;
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
@@ -78,6 +98,7 @@ impl Accessor for OnedriveBackend {
     type BlockingReader = ();
     type Writer = OneDriveWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = OnedrivePager;
     type BlockingPager = ();
 

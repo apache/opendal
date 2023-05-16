@@ -138,6 +138,7 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     type BlockingReader = TracingWrapper<A::BlockingReader>;
     type Writer = TracingWrapper<A::Writer>;
     type BlockingWriter = TracingWrapper<A::BlockingWriter>;
+    type Appender = A::Appender;
     type Pager = TracingWrapper<A::Pager>;
     type BlockingPager = TracingWrapper<A::BlockingPager>;
 
@@ -169,6 +170,10 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

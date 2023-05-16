@@ -301,6 +301,7 @@ impl Accessor for ObsBackend {
     type BlockingReader = ();
     type Writer = ObsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ObsPager;
     type BlockingPager = ();
 

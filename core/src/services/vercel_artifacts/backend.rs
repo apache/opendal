@@ -16,20 +16,30 @@
 // under the License.
 
 use async_trait::async_trait;
-use http::{header, Request, Response, StatusCode};
+use http::header;
+use http::Request;
+use http::Response;
+use http::StatusCode;
 use std::fmt::Debug;
 
-use crate::{
-    ops::{OpRead, OpWrite},
-    raw::{
-        new_request_build_error, parse_into_metadata, Accessor, AccessorInfo, AsyncBody,
-        HttpClient, IncomingAsyncBody, RpRead, RpWrite,
-    },
-    types::Result,
-    Capability, Error, ErrorKind,
-};
+use crate::ops::OpRead;
+use crate::ops::OpWrite;
+use crate::raw::new_request_build_error;
+use crate::raw::parse_into_metadata;
+use crate::raw::Accessor;
+use crate::raw::AccessorInfo;
+use crate::raw::AsyncBody;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::raw::RpRead;
+use crate::raw::RpWrite;
+use crate::types::Result;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
 
-use super::{error::parse_error, writer::VercelArtifactsWriter};
+use super::error::parse_error;
+use super::writer::VercelArtifactsWriter;
 
 #[derive(Clone)]
 pub struct VercelArtifactsBackend {
@@ -51,6 +61,7 @@ impl Accessor for VercelArtifactsBackend {
     type BlockingReader = ();
     type Writer = VercelArtifactsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 

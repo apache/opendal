@@ -63,6 +63,7 @@ use crate::*;
 ///     type BlockingReader = A::BlockingReader;
 ///     type Writer = A::Writer;
 ///     type BlockingWriter = A::BlockingWriter;
+///     type Appender = A::Appender;
 ///     type Pager = A::Pager;
 ///     type BlockingPager = A::BlockingPager;
 ///
@@ -92,6 +93,10 @@ use crate::*;
 ///         args: OpWrite,
 ///     ) -> Result<(RpWrite, Self::BlockingWriter)> {
 ///         self.inner.blocking_write(path, args)
+///     }
+///
+///     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+///        self.inner.append(path, args).await
 ///     }
 ///
 ///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
@@ -134,6 +139,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type BlockingReader: oio::BlockingRead;
     type Writer: oio::Write;
     type BlockingWriter: oio::BlockingWrite;
+    type Appender: oio::Append;
     type Pager: oio::Page;
     type BlockingPager: oio::BlockingPage;
 
@@ -150,6 +156,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)>;
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)>;
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)>;
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().copy(from, to, args).await
@@ -210,6 +218,7 @@ impl<L: LayeredAccessor> Accessor for L {
     type BlockingReader = L::BlockingReader;
     type Writer = L::Writer;
     type BlockingWriter = L::BlockingWriter;
+    type Appender = L::Appender;
     type Pager = L::Pager;
     type BlockingPager = L::BlockingPager;
 
@@ -227,6 +236,10 @@ impl<L: LayeredAccessor> Accessor for L {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         (self as &L).write(path, args).await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        (self as &L).append(path, args).await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -323,6 +336,7 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
+        type Appender = ();
         type Pager = ();
         type BlockingPager = ();
 

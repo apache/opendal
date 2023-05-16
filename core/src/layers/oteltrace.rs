@@ -308,7 +308,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
         self.inner.read(buf)
     }
 
-    fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
 

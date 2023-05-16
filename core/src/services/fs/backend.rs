@@ -292,12 +292,12 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = oio::into_reader::FdReader<Compat<tokio::fs::File>>;
+    type Reader = oio::into_reader::FdReader<Compat<fs::File>>;
     type BlockingReader = oio::into_blocking_reader::FdReader<std::fs::File>;
-    type Writer = FsWriter<tokio::fs::File>;
+    type Writer = FsWriter<fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type Appender = ();
-    type Pager = Option<FsPager<tokio::fs::ReadDir>>;
+    type Pager = Option<FsPager<fs::ReadDir>>;
     type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
 
     fn info(&self) -> AccessorInfo {
@@ -421,7 +421,7 @@ impl Accessor for FsBackend {
             (p, None)
         };
 
-        let f = tokio::fs::OpenOptions::new()
+        let f = fs::OpenOptions::new()
             .create(true)
             .truncate(true)
             .write(true)
@@ -503,7 +503,7 @@ impl Accessor for FsBackend {
 
                 Ok(RpDelete::default())
             }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(RpDelete::default()),
             Err(err) => Err(parse_io_error(err)),
         }
     }
@@ -688,7 +688,7 @@ impl Accessor for FsBackend {
 
                 Ok(RpDelete::default())
             }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(RpDelete::default()),
             Err(err) => Err(parse_io_error(err)),
         }
     }

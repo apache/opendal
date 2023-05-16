@@ -683,17 +683,19 @@ where
     A: oio::Append,
 {
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let a = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "appender has been closed or aborted")
-        })?;
+        let a = self
+            .inner
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
 
         a.append(bs).await
     }
 
     async fn close(&mut self) -> Result<()> {
-        let a = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "appender has been closed or aborted")
-        })?;
+        let a = self
+            .inner
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
 
         a.close().await?;
         self.inner = None;

@@ -276,7 +276,6 @@ impl Accessor for SftpBackend {
                 stat: true,
 
                 read: true,
-                // read_can_seek: true,
                 read_with_range: true,
 
                 write: true,

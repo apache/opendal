@@ -69,7 +69,7 @@ use crate::*;
 /// - `user`: Set the login user
 /// - `key`: Set the public key for login
 /// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
-/// - `copyable`: Set whether the remote server has copy-data extension
+/// - `copyable`: Set whether the remote server has copy-file extension
 ///
 /// It doesn't support password login, you can use public key instead.
 ///

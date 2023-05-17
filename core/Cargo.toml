@@ -135,12 +135,7 @@ services-s3 = [
   "reqsign?/services-aws",
   "reqsign?/reqwest_request",
 ]
-services-sftp = [
-  "dep:openssh",
-  "dep:openssh-sftp-client",
-  "dep:dirs",
-  "futures/executor",
-]
+services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
 services-sled = ["dep:sled"]
 services-supabase = []
 services-vercel-artifacts = []

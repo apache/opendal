@@ -56,7 +56,7 @@ use crate::*;
 /// - [x] create_dir
 /// - [x] delete
 /// - [ ] copy
-/// - [ ] rename
+/// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -277,14 +277,18 @@ impl Accessor for SftpBackend {
                 stat: true,
 
                 read: true,
+                read_with_range: true,
 
                 write: true,
+                write_without_content_length: true,
                 create_dir: true,
                 delete: true,
 
                 list: true,
                 list_with_limit: true,
                 list_with_delimiter_slash: true,
+
+                rename: true,
 
                 ..Default::default()
             });
@@ -353,14 +357,7 @@ impl Accessor for SftpBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         if let Some((dir, _)) = path.rsplit_once('/') {
             self.create_dir(dir, OpCreateDir::default()).await?;
         }
@@ -374,6 +371,40 @@ impl Accessor for SftpBackend {
         let file = client.create(&path).await?;
 
         Ok((RpWrite::new(), SftpWriter::new(file)))
+    }
+
+    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        if let Some((dir, _)) = to.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
+
+        let src = fs.canonicalize(from).await?;
+        let dst = fs.canonicalize(to).await?;
+        let mut src_file = client.open(&src).await?;
+        let mut dst_file = client.create(dst).await?;
+
+        src_file.copy_all_to(&mut dst_file).await?;
+
+        Ok(RpCopy::default())
+    }
+
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+
+        if let Some((dir, _)) = to.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
+        fs.rename(from, to).await?;
+
+        Ok(RpRename::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

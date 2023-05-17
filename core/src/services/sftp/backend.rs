@@ -55,7 +55,7 @@ use crate::*;
 /// - [x] write
 /// - [x] create_dir
 /// - [x] delete
-/// - [ ] copy
+/// - [x] copy
 /// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
@@ -104,6 +104,7 @@ pub struct SftpBuilder {
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: Option<String>,
+    copyable: bool,
 }
 
 impl Debug for SftpBuilder {
@@ -174,6 +175,14 @@ impl SftpBuilder {
 
         self
     }
+
+    /// set copyable for sftp backend.
+    /// It requires the server supports copy-file extension.
+    pub fn copyable(&mut self, copyable: bool) -> &mut Self {
+        self.copyable = copyable;
+
+        self
+    }
 }
 
 impl Builder for SftpBuilder {
@@ -225,6 +234,7 @@ impl Builder for SftpBuilder {
             user,
             key: self.key.clone(),
             known_hosts_strategy,
+            copyable: self.copyable,
             client: tokio::sync::OnceCell::new(),
         })
     }
@@ -250,6 +260,7 @@ pub struct SftpBackend {
     user: String,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
+    copyable: bool,
     client: tokio::sync::OnceCell<Sftp>,
 }
 
@@ -278,6 +289,7 @@ impl Accessor for SftpBackend {
 
                 read: true,
                 read_with_range: true,
+                read_can_seek: true,
 
                 write: true,
                 write_without_content_length: true,
@@ -288,6 +300,7 @@ impl Accessor for SftpBackend {
                 list_with_limit: true,
                 list_with_delimiter_slash: true,
 
+                copy: self.copyable,
                 rename: true,
 
                 ..Default::default()

@@ -55,7 +55,7 @@ use crate::*;
 /// - [x] write
 /// - [x] create_dir
 /// - [x] delete
-/// - [ ] copy
+/// - [x] copy
 /// - [x] rename
 /// - [x] list
 /// - [ ] ~~scan~~
@@ -69,6 +69,7 @@ use crate::*;
 /// - `user`: Set the login user
 /// - `key`: Set the public key for login
 /// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
+/// - `enable_copy`: Set whether the remote server has copy-file extension
 ///
 /// It doesn't support password login, you can use public key instead.
 ///
@@ -104,6 +105,7 @@ pub struct SftpBuilder {
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: Option<String>,
+    enable_copy: bool,
 }
 
 impl Debug for SftpBuilder {
@@ -174,6 +176,14 @@ impl SftpBuilder {
 
         self
     }
+
+    /// set enable_copy for sftp backend.
+    /// It requires the server supports copy-file extension.
+    pub fn enable_copy(&mut self, enable_copy: bool) -> &mut Self {
+        self.enable_copy = enable_copy;
+
+        self
+    }
 }
 
 impl Builder for SftpBuilder {
@@ -225,6 +235,7 @@ impl Builder for SftpBuilder {
             user,
             key: self.key.clone(),
             known_hosts_strategy,
+            copyable: self.enable_copy,
             client: tokio::sync::OnceCell::new(),
         })
     }
@@ -250,6 +261,7 @@ pub struct SftpBackend {
     user: String,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
+    copyable: bool,
     client: tokio::sync::OnceCell<Sftp>,
 }
 
@@ -278,6 +290,7 @@ impl Accessor for SftpBackend {
 
                 read: true,
                 read_with_range: true,
+                read_can_seek: true,
 
                 write: true,
                 write_without_content_length: true,
@@ -288,6 +301,7 @@ impl Accessor for SftpBackend {
                 list_with_limit: true,
                 list_with_delimiter_slash: true,
 
+                copy: self.copyable,
                 rename: true,
 
                 ..Default::default()

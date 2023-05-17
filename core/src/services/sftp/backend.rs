@@ -69,7 +69,7 @@ use crate::*;
 /// - `user`: Set the login user
 /// - `key`: Set the public key for login
 /// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
-/// - `copyable`: Set whether the remote server has copy-file extension
+/// - `enable_copy`: Set whether the remote server has copy-file extension
 ///
 /// It doesn't support password login, you can use public key instead.
 ///
@@ -105,7 +105,7 @@ pub struct SftpBuilder {
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: Option<String>,
-    copyable: bool,
+    enable_copy: bool,
 }
 
 impl Debug for SftpBuilder {
@@ -177,10 +177,10 @@ impl SftpBuilder {
         self
     }
 
-    /// set copyable for sftp backend.
+    /// set enable_copy for sftp backend.
     /// It requires the server supports copy-file extension.
-    pub fn copyable(&mut self, copyable: bool) -> &mut Self {
-        self.copyable = copyable;
+    pub fn enable_copy(&mut self, enable_copy: bool) -> &mut Self {
+        self.enable_copy = enable_copy;
 
         self
     }
@@ -235,7 +235,7 @@ impl Builder for SftpBuilder {
             user,
             key: self.key.clone(),
             known_hosts_strategy,
-            copyable: self.copyable,
+            copyable: self.enable_copy,
             client: tokio::sync::OnceCell::new(),
         })
     }

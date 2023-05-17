@@ -22,7 +22,7 @@ To build OpenDAL C binding, the tools you need are very simple.
 
 The following is all you need
 - **A C++ compiler** that supports **c++14**, *e.g.* clang++ and g++
-- **A Rust toolchain** that satifies the MSRV
+- **A Rust toolchain** that satisfies the MSRV
 - **(optional)** if you want to format the code, you need to install **clang-format**
     - The `opendal.h` is not formatted by hands when you contribute, please do not format the file. **Use `make format` only.**
     - If your contribution is related to the files under `./tests`, you may format it before submitting your pull request. But notice that different versions of `clang-format` may format the files differently.

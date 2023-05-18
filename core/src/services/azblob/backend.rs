@@ -388,6 +388,7 @@ impl Builder for AzblobBuilder {
                 .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
             account_key: self.account_key.clone(),
             sas_token: self.sas_token.clone(),
+            ..Default::default()
         };
 
         let cred_loader = AzureStorageLoader::new(config_loader);

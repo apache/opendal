@@ -29,6 +29,11 @@ mod azdfs;
 #[cfg(feature = "services-azdfs")]
 pub use azdfs::Azdfs;
 
+#[cfg(feature = "services-cos")]
+mod cos;
+#[cfg(feature = "services-cos")]
+pub use cos::Cos;
+
 #[cfg(feature = "services-dashmap")]
 mod dashmap;
 #[cfg(feature = "services-dashmap")]

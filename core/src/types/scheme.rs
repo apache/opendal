@@ -35,6 +35,8 @@ pub enum Scheme {
     Azblob,
     /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
     Azdfs,
+    /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
+    Cos,
     /// [dashmap][crate::services::Dashmap]: dashmap backend support.
     Dashmap,
     /// [fs][crate::services::Fs]: POSIX alike file system.
@@ -123,6 +125,7 @@ impl FromStr for Scheme {
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
             "azdfs" => Ok(Scheme::Azdfs),
+            "cos" => Ok(Scheme::Cos),
             "dashmap" => Ok(Scheme::Dashmap),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
@@ -155,6 +158,7 @@ impl From<Scheme> for &'static str {
         match v {
             Scheme::Azblob => "azblob",
             Scheme::Azdfs => "azdfs",
+            Scheme::Cos => "cos",
             Scheme::Dashmap => "dashmap",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",

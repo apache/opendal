@@ -38,6 +38,7 @@ default = [
   "rustls",
   "services-azblob",
   "services-azdfs",
+  "services-cos",
   "services-fs",
   "services-gcs",
   "services-ghac",
@@ -98,6 +99,11 @@ services-azblob = [
 services-azdfs = [
   "dep:reqsign",
   "reqsign?/services-azblob",
+  "reqsign?/reqwest_request",
+]
+services-cos = [
+  "dep:reqsign",
+  "reqsign?/services-tencent",
   "reqsign?/reqwest_request",
 ]
 services-dashmap = ["dep:dashmap"]
@@ -196,7 +202,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = { version = "0.10.1", default-features = false, optional = true }
+reqsign = { version = "0.11.0", default-features = false, optional = true }
 reqwest = { version = "0.11.13", features = [
   "stream",
 ], default-features = false }

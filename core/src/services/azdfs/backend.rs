@@ -261,6 +261,7 @@ impl Builder for AzdfsBuilder {
                 .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
             account_key: self.account_key.clone(),
             sas_token: None,
+            ..Default::default()
         };
 
         let cred_loader = AzureStorageLoader::new(config_loader);

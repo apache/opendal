@@ -95,6 +95,8 @@ macro_rules! behavior_tests {
 behavior_tests!(Azblob);
 #[cfg(feature = "services-azdfs")]
 behavior_tests!(Azdfs);
+#[cfg(feature = "services-cos")]
+behavior_tests!(Cos);
 #[cfg(feature = "services-dashmap")]
 behavior_tests!(Dashmap);
 #[cfg(feature = "services-fs")]

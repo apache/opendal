@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::BufRead;
+use std::mem;
 use std::str::FromStr;
 
+use bytes::Buf;
 use bytes::Bytes;
 use bytes::BytesMut;
 use http::header::CONTENT_DISPOSITION;
@@ -79,7 +82,7 @@ impl<T: Part> Multipart<T> {
             bs.extend_from_slice(self.boundary.as_bytes());
             bs.extend_from_slice(b"\r\n");
 
-            bs.extend_from_slice(v.build().as_ref());
+            bs.extend_from_slice(v.format().as_ref());
         }
 
         // Write the last boundary
@@ -112,14 +115,17 @@ impl<T: Part> Multipart<T> {
 }
 
 /// Part is a trait for multipart part.
-pub trait Part {
+pub trait Part: Sized {
     /// TYPE is the type of multipart.
     ///
     /// Current available types are: `form-data` and `mixed`
     const TYPE: &'static str;
 
-    /// Build will consume this part and generates the bytes.
-    fn build(&self) -> Bytes;
+    /// format will generates the bytes.
+    fn format(&self) -> Bytes;
+
+    /// parse will parse the bytes into a part.
+    fn parse(bs: Bytes) -> Result<Self>;
 }
 
 /// FormDataPart is a builder for multipart/form-data part.
@@ -165,7 +171,7 @@ impl FormDataPart {
 impl Part for FormDataPart {
     const TYPE: &'static str = "form-data";
 
-    fn build(&self) -> Bytes {
+    fn format(&self) -> Bytes {
         let mut bs = BytesMut::new();
 
         // Write headers.
@@ -182,6 +188,13 @@ impl Part for FormDataPart {
         bs.extend_from_slice(b"\r\n");
 
         bs.freeze()
+    }
+
+    fn parse(_: Bytes) -> Result<Self> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "parse of form-data is not supported",
+        ))
     }
 }
 
@@ -279,7 +292,7 @@ impl MixedPart {
 impl Part for MixedPart {
     const TYPE: &'static str = "mixed";
 
-    fn build(&self) -> Bytes {
+    fn format(&self) -> Bytes {
         let mut bs = BytesMut::new();
 
         // Write parts headers.
@@ -315,6 +328,47 @@ impl Part for MixedPart {
         }
 
         bs.freeze()
+    }
+
+    fn parse(bs: Bytes) -> Result<Self> {
+        let mut r = bs.reader();
+        let mut buf = String::new();
+
+        let mut part_headers = HeaderMap::new();
+        loop {
+            let n = r.read_line(&mut buf)?;
+            // Read an unexpected EOF
+            if n == 0 {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "unexpected end of multipart")
+                        .with_operation("Multipart::parse"),
+                );
+            }
+            // Read a `\r\n`, which means the end of headers.
+            if n == 1 && buf == "\r" {
+                break;
+            }
+            // Read a `\n`, keep going.
+            if n == 1 {
+                continue;
+            }
+
+            let (header_name, header_value) = buf.split_once(": ").ok_or({
+                Error::new(ErrorKind::Unexpected, "invalid header format")
+                    .with_operation("Multipart::parse")
+            })?;
+            part_headers.insert(
+                HeaderName::from_str(header_name).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "invalid header name").set_source(err)
+                })?,
+                HeaderValue::from_str(header_value).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "invalid header value").set_source(err)
+                })?,
+            );
+
+            buf.clear();
+        }
+        todo!()
     }
 }
 

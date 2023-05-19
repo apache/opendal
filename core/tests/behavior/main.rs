@@ -139,6 +139,8 @@ behavior_tests!(Supabase);
 behavior_tests!(Sled);
 #[cfg(feature = "services-vercel-artifacts")]
 behavior_tests!(VercelArtifacts);
+#[cfg(feature = "services-wasabi")]
+behavior_tests!(Wasabi);
 #[cfg(feature = "services-webdav")]
 behavior_tests!(Webdav);
 #[cfg(feature = "services-webhdfs")]

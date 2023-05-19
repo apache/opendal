@@ -102,6 +102,8 @@ pub struct CosBuilder {
     secret_key: Option<String>,
     bucket: Option<String>,
     http_client: Option<HttpClient>,
+
+    disable_config_load: bool,
 }
 
 impl Debug for CosBuilder {
@@ -172,6 +174,17 @@ impl CosBuilder {
             self.bucket = Some(bucket.to_string());
         }
 
+        self
+    }
+
+    /// Disable config load so that opendal will not load config from
+    /// environment.
+    ///
+    /// For examples:
+    ///
+    /// - envs like `TENCENTCLOUD_SECRET_ID`
+    pub fn disable_config_load(&mut self) -> &mut Self {
+        self.disable_config_load = true;
         self
     }
 
@@ -247,13 +260,19 @@ impl Builder for CosBuilder {
             })?
         };
 
-        let config = TencentCosConfig {
-            access_key_id: self.secret_id.take(),
-            secret_access_key: self.secret_key.take(),
-            security_token: None,
-        };
+        let mut cfg = TencentCosConfig::default();
+        if !self.disable_config_load {
+            cfg = cfg.from_env();
+        }
 
-        let cred_loader = TencentCosCredentialLoader::new(config);
+        if let Some(v) = self.secret_id.take() {
+            cfg.secret_id = Some(v);
+        }
+        if let Some(v) = self.secret_key.take() {
+            cfg.secret_key = Some(v);
+        }
+
+        let cred_loader = TencentCosCredentialLoader::new(client.client(), cfg);
 
         let signer = TencentCosSigner::new();
 

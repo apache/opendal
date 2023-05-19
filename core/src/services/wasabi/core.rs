@@ -36,6 +36,7 @@ use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::ops::OpStat;
 use crate::raw::*;
 use crate::*;
 
@@ -207,11 +208,7 @@ impl WasabiCore {
 }
 
 impl WasabiCore {
-    pub fn head_object_request(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -220,8 +217,12 @@ impl WasabiCore {
 
         req = self.insert_sse_headers(req, false);
 
-        if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        if let Some(v) = args.if_match() {
+            req = req.header(http::header::IF_MATCH, v);
+        }
+
+        if let Some(v) = args.if_none_match() {
+            req = req.header(http::header::IF_NONE_MATCH, v);
         }
 
         let req = req
@@ -346,9 +347,9 @@ impl WasabiCore {
     pub async fn head_object(
         &self,
         path: &str,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.head_object_request(path, if_none_match)?;
+        let mut req = self.head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 

@@ -43,39 +43,24 @@ impl WasabiWriter {
 #[async_trait]
 impl oio::Write for WasabiWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        if self.op.content_length().unwrap_or_default() == bs.len() as u64 {
-            let resp = self
-                .core
-                .put_object(
-                    &self.path,
-                    Some(bs.len()),
-                    self.op.content_type(),
-                    self.op.content_disposition(),
-                    self.op.cache_control(),
-                    AsyncBody::Bytes(bs),
-                )
-                .await?;
+        let resp = self
+            .core
+            .put_object(
+                &self.path,
+                Some(bs.len()),
+                self.op.content_type(),
+                self.op.content_disposition(),
+                self.op.cache_control(),
+                AsyncBody::Bytes(bs),
+            )
+            .await?;
 
-            match resp.status() {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(())
-                }
-                _ => Err(parse_error(resp).await?),
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
             }
-        } else {
-            let resp = self
-                .core
-                .append_object(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))
-                .await?;
-
-            match resp.status() {
-                StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
-                    resp.into_body().consume().await?;
-                    Ok(())
-                }
-                _ => Err(parse_error(resp).await?),
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 

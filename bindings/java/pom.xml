@@ -29,10 +29,14 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <rust-maven-plugin.version>1.0.0</rust-maven-plugin.version>
+
+        <questdb.version>1.0.0</questdb.version>
+
+        <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
+        <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -58,60 +62,54 @@
         <dependency>
             <groupId>org.questdb</groupId>
             <artifactId>jar-jni</artifactId>
-            <version>${rust-maven-plugin.version}</version>
+            <version>${questdb.version}</version>
         </dependency>
+
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-junit-platform-engine</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-suite</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-
-
     </dependencies>
 
     <build>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+            </testResource>
+        </testResources>
         <plugins>
-            <!--
-                The Rust Maven Plugin
-                Here it'll build the `str-reverse` crate and place the cdylib in the target's "classes" directory.
-                Placing it there will have Maven automatically bundle the compiled code in the Jar.
-            -->
             <plugin>
                 <groupId>org.questdb</groupId>
                 <artifactId>rust-maven-plugin</artifactId>
-                <version>${rust-maven-plugin.version}</version>
+                <version>${questdb.version}</version>
                 <executions>
                     <execution>
-                        <id>opendal-java</id>
+                        <id>opendaljni</id>
                         <goals>
                             <goal>build</goal>
                         </goals>
                         <configuration>
-                            <path>../java</path>
+                            <path>${project.basedir}</path>
                             <release>true</release>
-                            <copyTo>${project.build.directory}/classes/org/apache/opendal/rust/libs</copyTo>
+                            <copyTo>${project.build.directory}/classes/native</copyTo>
                             <copyWithPlatformDir>true</copyWithPlatformDir>
-                            <extraArgs>
-                                <extraArg>--color=always</extraArg>
-                            </extraArgs>
                         </configuration>
                     </execution>
                 </executions>
@@ -119,18 +117,14 @@
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
-                <configuration>
-                    <encoding>UTF-8</encoding>
-                    <source>1.8</source>
-                    <target>1.8</target>
-                </configuration>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>${maven-resources-plugin.version}</version>
             </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0</version>
+                <version>${maven-surefire-plugin.version}</version>
             </plugin>
         </plugins>
     </build>

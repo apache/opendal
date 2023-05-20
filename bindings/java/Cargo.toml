@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-name = "opendal-java"
+name = "opendaljni"
 publish = false
 version = "0.1.0"
 

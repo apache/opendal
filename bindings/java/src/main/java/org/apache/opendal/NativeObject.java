@@ -22,7 +22,7 @@ package org.apache.opendal;
 import io.questdb.jar.jni.JarJniLoader;
 import java.util.concurrent.atomic.AtomicReference;
 
-public abstract class AbstractNativeObject implements AutoCloseable {
+public abstract class NativeObject implements AutoCloseable {
 
     private enum LibraryState {
         NOT_LOADED,
@@ -34,7 +34,7 @@ public abstract class AbstractNativeObject implements AutoCloseable {
         new AtomicReference<>(LibraryState.NOT_LOADED);
 
     static {
-        AbstractNativeObject.loadLibrary();
+        NativeObject.loadLibrary();
     }
 
     public static void loadLibrary() {
@@ -43,9 +43,7 @@ public abstract class AbstractNativeObject implements AutoCloseable {
         }
 
         if (libraryLoaded.compareAndSet(LibraryState.NOT_LOADED, LibraryState.LOADING)) {
-            final String prefix = "/org/apache/opendal/rust/libs";
-            final String name = "opendal_java";
-            JarJniLoader.loadLib(Operator.class, prefix, name);
+            JarJniLoader.loadLib(NativeObject.class, "/native", "opendaljni");
             libraryLoaded.set(LibraryState.LOADED);
             return;
         }
@@ -60,7 +58,7 @@ public abstract class AbstractNativeObject implements AutoCloseable {
 
     protected final long nativeHandle;
 
-    protected AbstractNativeObject(long nativeHandle) {
+    protected NativeObject(long nativeHandle) {
         this.nativeHandle = nativeHandle;
     }
 }

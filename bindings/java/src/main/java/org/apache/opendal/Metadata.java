@@ -19,7 +19,7 @@
 
 package org.apache.opendal;
 
-public class Metadata extends AbstractNativeObject {
+public class Metadata extends NativeObject {
     public Metadata(long nativeHandle) {
         super(nativeHandle);
     }

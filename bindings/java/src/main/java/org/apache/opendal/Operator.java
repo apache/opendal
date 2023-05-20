@@ -23,7 +23,7 @@ package org.apache.opendal;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public class Operator extends AbstractNativeObject {
+public class Operator extends NativeObject {
     public Operator(String schema, Map<String, String> params) {
         super(newOperator(schema, params));
     }

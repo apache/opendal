@@ -256,7 +256,7 @@ impl std::error::Error for Error {
 
 impl Error {
     /// Create a new Error with error kind and message.
-    pub fn new(kind: ErrorKind, message: &str) -> Self {
+    pub fn new(kind: ErrorKind, message: impl ToString) -> Self {
         Self {
             kind,
             message: message.to_string(),

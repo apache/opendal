@@ -34,11 +34,12 @@ use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
 use jni::JavaVM;
 use once_cell::sync::OnceCell;
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
+
 use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
-use tokio::runtime::Builder;
-use tokio::runtime::Runtime;
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
 
@@ -94,7 +95,7 @@ pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
+pub extern "system" fn Java_org_apache_opendal_Operator_newOperator(
     mut env: JNIEnv,
     _class: JClass,
     input: JString,
@@ -102,21 +103,21 @@ pub extern "system" fn Java_org_apache_opendal_Operator_getOperator(
 ) -> jlong {
     let input: String = env
         .get_string(&input)
-        .expect("Couldn't get java string!")
+        .expect("cannot get java string")
         .into();
 
     let scheme = Scheme::from_str(&input).unwrap();
 
-    let map = convert_map(&mut env, &params);
+    let map = convert_jmap_to_hashmap(&mut env, &params);
     if let Ok(operator) = build_operator(scheme, map) {
         Box::into_raw(Box::new(operator)) as jlong
     } else {
-        env.exception_clear().expect("Couldn't clear exception");
+        env.exception_clear().expect("cannot clear exception");
         env.throw_new(
             "java/lang/IllegalArgumentException",
             "Unsupported operator.",
         )
-        .expect("Couldn't throw exception");
+        .expect("cannot throw exception");
         0 as jlong
     }
 }
@@ -194,11 +195,11 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     let op = &mut *ptr;
     let file: String = env
         .get_string(&file)
-        .expect("Couldn't get java string!")
+        .expect("cannot get java string!")
         .into();
     let content: String = env
         .get_string(&content)
-        .expect("Couldn't get java string!")
+        .expect("cannot get java string!")
         .into();
     op.write(&file, content).unwrap();
 }
@@ -216,17 +217,15 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
     let op = &mut *ptr;
     let file: String = env
         .get_string(&file)
-        .expect("Couldn't get java string!")
+        .expect("cannot get java string!")
         .into();
-    let content = String::from_utf8(op.read(&file).unwrap()).expect("Couldn't convert to string");
+    let content = String::from_utf8(op.read(&file).unwrap()).expect("cannot convert to string");
 
-    let output = env
-        .new_string(content)
-        .expect("Couldn't create java string!");
+    let output = env.new_string(content).expect("cannot create java string!");
     output
 }
 
-fn convert_error_into_java_exception<'local>(
+fn convert_error_to_exception<'local>(
     env: &mut JNIEnv<'local>,
     error: opendal::Error,
 ) -> Result<JThrowable<'local>, jni::errors::Error> {
@@ -264,11 +263,11 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     let op = &mut *ptr;
     let file: String = env
         .get_string(&file)
-        .expect("Couldn't get java string!")
+        .expect("cannot get java string!")
         .into();
     let result = op.stat(&file);
     if let Err(error) = result {
-        let exception = convert_error_into_java_exception(&mut env, error).unwrap();
+        let exception = convert_error_to_exception(&mut env, error).unwrap();
         env.throw(exception).unwrap();
         return 0 as jlong;
     }
@@ -311,7 +310,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_freeMetadata(
     ptr: *mut opendal::Metadata,
 ) {
     // Take ownership of the pointer by wrapping it with a Box
-    let _ = Box::from_raw(ptr);
+    drop(Box::from_raw(ptr));
 }
 
 /// # Safety
@@ -327,38 +326,36 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
     let op = &mut *ptr;
     let file: String = env
         .get_string(&file)
-        .expect("Couldn't get java string!")
+        .expect("cannot get java string!")
         .into();
     op.delete(&file).unwrap();
 }
 
 fn build_operator(
-    scheme: opendal::Scheme,
+    scheme: Scheme,
     map: HashMap<String, String>,
-) -> Result<opendal::Operator, opendal::Error> {
+) -> Result<Operator, opendal::Error> {
     use opendal::services::*;
 
     let op = match scheme {
-        opendal::Scheme::Azblob => opendal::Operator::from_map::<Azblob>(map).unwrap().finish(),
-        opendal::Scheme::Azdfs => opendal::Operator::from_map::<Azdfs>(map).unwrap().finish(),
-        opendal::Scheme::Fs => opendal::Operator::from_map::<Fs>(map).unwrap().finish(),
-        opendal::Scheme::Gcs => opendal::Operator::from_map::<Gcs>(map).unwrap().finish(),
-        opendal::Scheme::Ghac => opendal::Operator::from_map::<Ghac>(map).unwrap().finish(),
-        opendal::Scheme::Http => opendal::Operator::from_map::<Http>(map).unwrap().finish(),
-        opendal::Scheme::Ipmfs => opendal::Operator::from_map::<Ipmfs>(map).unwrap().finish(),
-        opendal::Scheme::Memory => opendal::Operator::from_map::<Memory>(map).unwrap().finish(),
-        opendal::Scheme::Obs => opendal::Operator::from_map::<Obs>(map).unwrap().finish(),
-        opendal::Scheme::Oss => opendal::Operator::from_map::<Oss>(map).unwrap().finish(),
-        opendal::Scheme::S3 => opendal::Operator::from_map::<S3>(map).unwrap().finish(),
-        opendal::Scheme::Webdav => opendal::Operator::from_map::<Webdav>(map).unwrap().finish(),
-        opendal::Scheme::Webhdfs => opendal::Operator::from_map::<Webhdfs>(map)
-            .unwrap()
-            .finish(),
+        Scheme::Azblob => Operator::from_map::<Azblob>(map).unwrap().finish(),
+        Scheme::Azdfs => Operator::from_map::<Azdfs>(map).unwrap().finish(),
+        Scheme::Fs => Operator::from_map::<Fs>(map).unwrap().finish(),
+        Scheme::Gcs => Operator::from_map::<Gcs>(map).unwrap().finish(),
+        Scheme::Ghac => Operator::from_map::<Ghac>(map).unwrap().finish(),
+        Scheme::Http => Operator::from_map::<Http>(map).unwrap().finish(),
+        Scheme::Ipmfs => Operator::from_map::<Ipmfs>(map).unwrap().finish(),
+        Scheme::Memory => Operator::from_map::<Memory>(map).unwrap().finish(),
+        Scheme::Obs => Operator::from_map::<Obs>(map).unwrap().finish(),
+        Scheme::Oss => Operator::from_map::<Oss>(map).unwrap().finish(),
+        Scheme::S3 => Operator::from_map::<S3>(map).unwrap().finish(),
+        Scheme::Webdav => Operator::from_map::<Webdav>(map).unwrap().finish(),
+        Scheme::Webhdfs => Operator::from_map::<Webhdfs>(map).unwrap().finish(),
 
         _ => {
             return Err(opendal::Error::new(
                 opendal::ErrorKind::Unexpected,
-                "Scheme not supported",
+                format!("scheme {scheme:?} not supported"),
             ));
         }
     };
@@ -366,26 +363,18 @@ fn build_operator(
     Ok(op)
 }
 
-fn convert_map(env: &mut JNIEnv, params: &JObject) -> HashMap<String, String> {
+fn convert_jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> HashMap<String, String> {
+    let map = JMap::from_env(env, params).unwrap();
+    let mut iter = map.iter(env).unwrap();
+
     let mut result: HashMap<String, String> = HashMap::new();
-    let _ = JMap::from_env(env, params)
-        .unwrap()
-        .iter(env)
-        .and_then(|mut iter| {
-            while let Some(e) = iter.next(env)? {
-                let key = JString::from(e.0);
-                let value = JString::from(e.1);
-                let key: String = env
-                    .get_string(&key)
-                    .expect("Couldn't get java string!")
-                    .into();
-                let value: String = env
-                    .get_string(&value)
-                    .expect("Couldn't get java string!")
-                    .into();
-                result.insert(key, value);
-            }
-            Ok(())
-        });
+    while let Some(e) = iter.next(env).unwrap() {
+        let k = JString::from(e.0);
+        let v = JString::from(e.1);
+        result.insert(
+            env.get_string(&k).unwrap().into(),
+            env.get_string(&v).unwrap().into(),
+        );
+    }
     result
 }

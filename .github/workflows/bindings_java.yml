@@ -49,6 +49,6 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
           cache: 'maven'
-      - name: Build with Maven
-        run: mvn test --file ${{ github.workspace }}/bindings/java/pom.xml
-
+      - name: Build and test
+        working-directory: bindings/java
+        run: mvn clean verify

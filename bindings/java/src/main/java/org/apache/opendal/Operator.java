@@ -49,13 +49,9 @@ public class Operator extends NativeObject {
     }
 
     @Override
-    public void close() {
-        freeOperator(nativeHandle);
-    }
+    protected native void disposeInternal(long handle);
 
     private static native long newOperator(String type, Map<String, String> params);
-
-    private static native void freeOperator(long nativeHandle);
 
     private static native void write(long nativeHandle, String fileName, String content);
 

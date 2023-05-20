@@ -33,11 +33,7 @@ public class Metadata extends NativeObject {
     }
 
     @Override
-    public void close() {
-        freeMetadata(nativeHandle);
-    }
-
-    private static native void freeMetadata(long nativeHandle);
+    protected native void disposeInternal(long handle);
     private static native boolean isFile(long nativeHandle);
     private static native long getContentLength(long nativeHandle);
 }

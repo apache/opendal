@@ -154,13 +154,12 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_writeAsync(
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_freeOperator(
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
     mut _env: JNIEnv,
     _class: JClass,
     ptr: *mut Operator,
 ) {
-    // Take ownership of the pointer by wrapping it with a Box
-    let _ = Box::from_raw(ptr);
+    drop(Box::from_raw(ptr));
 }
 
 /// # Safety
@@ -259,12 +258,11 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_getContentLength(
 ///
 /// This function should not be called before the Stat are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_freeMetadata(
+pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_disposeInternal(
     mut _env: JNIEnv,
     _class: JClass,
     ptr: *mut opendal::Metadata,
 ) {
-    // Take ownership of the pointer by wrapping it with a Box
     drop(Box::from_raw(ptr));
 }
 

@@ -61,4 +61,11 @@ public abstract class NativeObject implements AutoCloseable {
     protected NativeObject(long nativeHandle) {
         this.nativeHandle = nativeHandle;
     }
+
+    @Override
+    public void close() {
+        disposeInternal(nativeHandle);
+    }
+
+    protected abstract void disposeInternal(long handle);
 }

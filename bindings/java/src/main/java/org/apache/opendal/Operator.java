@@ -23,50 +23,49 @@ package org.apache.opendal;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public class Operator extends OpenDALObject {
+public class Operator extends AbstractNativeObject {
     public Operator(String schema, Map<String, String> params) {
-        this.ptr = getOperator(schema, params);
+        super(newOperator(schema, params));
     }
 
     public void write(String fileName, String content) {
-        write(this.ptr, fileName, content);
+        write(nativeHandle, fileName, content);
     }
 
     public CompletableFuture<Boolean> writeAsync(String fileName, String content) {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
-        writeAsync(this.ptr, fileName, content, future);
+        writeAsync(nativeHandle, fileName, content, future);
         return future;
     }
 
     public String read(String s) {
-        return read(this.ptr, s);
+        return read(nativeHandle, s);
     }
 
     public void delete(String s) {
-        delete(this.ptr, s);
+        delete(nativeHandle, s);
     }
 
     public Metadata stat(String fileName) {
-        long statPtr = stat(this.ptr, fileName);
-        return new Metadata(statPtr);
+        return new Metadata(stat(nativeHandle, fileName));
     }
 
     @Override
     public void close() {
-        this.freeOperator(ptr);
+        freeOperator(nativeHandle);
     }
 
-    private native long getOperator(String type, Map<String, String> params);
+    private static native long newOperator(String type, Map<String, String> params);
 
-    protected native void freeOperator(long ptr);
+    private static native void freeOperator(long nativeHandle);
 
-    private native void write(long ptr, String fileName, String content);
+    private static native void write(long nativeHandle, String fileName, String content);
 
-    private native void writeAsync(long ptr, String fileName, String content, CompletableFuture<Boolean> future);
+    private static native void writeAsync(long nativeHandle, String fileName, String content, CompletableFuture<Boolean> future);
 
-    private native String read(long ptr, String fileName);
+    private static native String read(long nativeHandle, String fileName);
 
-    private native void delete(long ptr, String fileName);
+    private static native void delete(long nativeHandle, String fileName);
 
-    private native long stat(long ptr, String file);
+    private static native long stat(long nativeHandle, String file);
 }

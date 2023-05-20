@@ -106,6 +106,11 @@ impl ErrorKind {
     pub fn into_static(self) -> &'static str {
         self.into()
     }
+
+    /// Convert self into ordinal number
+    pub fn into_ordinal(self) -> u8 {
+        self as u8
+    }
 }
 
 impl Display for ErrorKind {

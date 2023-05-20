@@ -21,8 +21,7 @@ package org.apache.opendal;
 
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.opendal.exception.OpenDALErrorCode;
-import org.apache.opendal.exception.OpenDALException;
+import org.apache.opendal.exception.ODException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,7 +46,7 @@ public class ExceptionTest {
 
     @Test
     public void testStatNotExistFile() {
-        OpenDALException exception = assertThrows(OpenDALException.class, () -> this.operator.stat("not_exist_file"));
-        assertEquals(exception.getErrorCode(), OpenDALErrorCode.NOT_FOUND);
+        final ODException exception = assertThrows(ODException.class, () -> operator.stat("not_exist_file"));
+        assertEquals(ODException.Code.NotFound, exception.getCode());
     }
 }

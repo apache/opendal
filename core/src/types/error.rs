@@ -108,8 +108,8 @@ impl ErrorKind {
     }
 
     /// Convert self into ordinal number
-    pub fn into_ordinal(self) -> u8 {
-        self as u8
+    pub fn into_ordinal(self) -> i8 {
+        self as i8
     }
 }
 

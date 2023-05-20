@@ -109,7 +109,7 @@ pub extern "system" fn Java_org_apache_opendal_Operator_newOperator(
     let scheme = Scheme::from_str(&input).unwrap();
 
     let map = convert_jmap_to_hashmap(&mut env, &params);
-    if let Ok(operator) = build_operator(scheme, map) {
+    if let Ok(operator) = new_operator(scheme, map) {
         Box::into_raw(Box::new(operator)) as jlong
     } else {
         env.exception_clear().expect("cannot clear exception");
@@ -220,34 +220,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
         .expect("cannot get java string!")
         .into();
     let content = String::from_utf8(op.read(&file).unwrap()).expect("cannot convert to string");
-
-    let output = env.new_string(content).expect("cannot create java string!");
-    output
-}
-
-fn convert_error_to_exception<'local>(
-    env: &mut JNIEnv<'local>,
-    error: opendal::Error,
-) -> Result<JThrowable<'local>, jni::errors::Error> {
-    let error_code_class = env.find_class("org/apache/opendal/exception/OpenDALErrorCode")?;
-    let error_code_string = env.new_string(error.kind().into_static())?;
-    let error_code = env.call_static_method(
-        error_code_class,
-        "parse",
-        "(Ljava/lang/String;)Lorg/apache/opendal/exception/OpenDALErrorCode;",
-        &[JValue::Object(error_code_string.as_ref())],
-    )?;
-
-    let exception_class = env.find_class("org/apache/opendal/exception/OpenDALException")?;
-    let exception = env.new_object(
-        exception_class,
-        "(Lorg/apache/opendal/exception/OpenDALErrorCode;Ljava/lang/String;)V",
-        &[
-            JValue::Object(error_code.l()?.as_ref()),
-            JValue::Object(env.new_string(error.to_string())?.as_ref()),
-        ],
-    )?;
-    Ok(JThrowable::from(exception))
+    env.new_string(content).expect("cannot create java string")
 }
 
 /// # Safety
@@ -331,10 +304,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
     op.delete(&file).unwrap();
 }
 
-fn build_operator(
-    scheme: Scheme,
-    map: HashMap<String, String>,
-) -> Result<Operator, opendal::Error> {
+fn new_operator(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator, opendal::Error> {
     use opendal::services::*;
 
     let op = match scheme {
@@ -361,6 +331,20 @@ fn build_operator(
     };
 
     Ok(op)
+}
+
+fn convert_error_to_exception<'local>(
+    env: &mut JNIEnv<'local>,
+    error: opendal::Error,
+) -> Result<JThrowable<'local>, jni::errors::Error> {
+    let class = env.find_class("org/apache/opendal/exception/ODException")?;
+
+    let code = error.kind().into_ordinal();
+    let message = env.new_string(error.to_string())?;
+
+    let sig = "(BLjava/lang/String;)V";
+    let params = &[JValue::Byte(code), JValue::Object(&message)];
+    env.new_object(class, sig, params).map(JThrowable::from)
 }
 
 fn convert_jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> HashMap<String, String> {

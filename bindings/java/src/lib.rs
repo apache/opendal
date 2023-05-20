@@ -49,7 +49,9 @@ pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
     let runtime = Builder::new_multi_thread()
         .worker_threads(num_cpus::get())
         .on_thread_stop(move || {
-            if let Some(vm) = VM.get() { vm.detach_current_thread() }
+            if let Some(vm) = VM.get() {
+                vm.detach_current_thread()
+            }
         })
         .build()
         .unwrap();
@@ -64,8 +66,12 @@ pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
 /// This function could be only called by java vm when unload this lib.
 #[no_mangle]
 pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
-    if let Some(r) = RUNTIME.take() { r.shutdown_background() }
-    if let Some(vm) = VM.take() { vm.detach_current_thread() }
+    if let Some(r) = RUNTIME.take() {
+        r.shutdown_background()
+    }
+    if let Some(vm) = VM.take() {
+        vm.detach_current_thread()
+    }
 }
 
 #[no_mangle]

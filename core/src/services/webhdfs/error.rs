@@ -65,7 +65,7 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         Err(_) => body.to_owned(),
     };
 
-    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
+    let mut err = Error::new(kind, message).with_context("response", format!("{parts:?}"));
 
     if retryable {
         err = err.set_temporary();

@@ -35,7 +35,7 @@ pub fn parse_io_error(err: io::Error) -> Error {
         _ => (ErrorKind::Unexpected, true),
     };
 
-    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
+    let mut err = Error::new(kind, err.kind().to_string()).set_source(err);
 
     if retryable {
         err = err.set_temporary();

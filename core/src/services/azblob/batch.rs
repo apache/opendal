@@ -61,14 +61,14 @@ pub(super) fn parse_batch_delete_response(
             .map_err(|e| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    &format!("invalid status code: {:?}", e),
+                    format!("invalid status code: {:?}", e),
                 )
             })?
             .try_into()
             .map_err(|e| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    &format!("invalid status code: {:?}", e),
+                    format!("invalid status code: {:?}", e),
                 )
             })?;
 

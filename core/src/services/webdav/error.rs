@@ -38,7 +38,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut err = Error::new(kind, &String::from_utf8_lossy(&bs))
+    let mut err = Error::new(kind, String::from_utf8_lossy(&bs))
         .with_context("response", format!("{parts:?}"));
 
     if retryable {

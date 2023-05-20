@@ -553,7 +553,7 @@ where
             if self.written + n as u64 > size {
                 return Err(Error::new(
                     ErrorKind::ContentTruncated,
-                    &format!(
+                    format!(
                         "writer got too much data, expect: {size}, actual: {}",
                         self.written + n as u64
                     ),
@@ -585,7 +585,7 @@ where
             if self.written < size {
                 return Err(Error::new(
                     ErrorKind::ContentIncomplete,
-                    &format!(
+                    format!(
                         "writer got too less data, expect: {size}, actual: {}",
                         self.written
                     ),
@@ -615,7 +615,7 @@ where
             if self.written + n as u64 > size {
                 return Err(Error::new(
                     ErrorKind::ContentTruncated,
-                    &format!(
+                    format!(
                         "writer got too much data, expect: {size}, actual: {}",
                         self.written + n as u64
                     ),
@@ -637,7 +637,7 @@ where
             if self.written < size {
                 return Err(Error::new(
                     ErrorKind::ContentIncomplete,
-                    &format!(
+                    format!(
                         "writer got too less data, expect: {size}, actual: {}",
                         self.written
                     ),

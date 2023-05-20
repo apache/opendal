@@ -73,7 +73,7 @@ pub fn parse_http_error(status: StatusCode, body: &str) -> Result<Error> {
         Ok(err) => format!("{err:?}"),
         Err(_) => body.to_string(),
     };
-    let mut err = Error::new(kind, &message).with_context("response", body.to_string());
+    let mut err = Error::new(kind, message).with_context("response", body.to_string());
 
     if retryable {
         err = err.set_temporary();

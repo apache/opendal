@@ -58,7 +58,7 @@ impl ListOpResponse {
             if code >= 400 {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
-                    &format!("Invalid response: {} {}", code, text),
+                    format!("Invalid response: {} {}", code, text),
                 ));
             }
         }

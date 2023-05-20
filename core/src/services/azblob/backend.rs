@@ -675,7 +675,7 @@ impl Accessor for AzblobBackend {
             .map_err(|e| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    &format!("get invalid CONTENT_TYPE header in response: {:?}", e),
+                    format!("get invalid CONTENT_TYPE header in response: {:?}", e),
                 )
             })?;
         let splits = content_type.split("boundary=").collect::<Vec<&str>>();
@@ -690,7 +690,7 @@ impl Accessor for AzblobBackend {
         let body = String::from_utf8(body.to_vec()).map_err(|e| {
             Error::new(
                 ErrorKind::Unexpected,
-                &format!("get invalid batch response {e:?}"),
+                format!("get invalid batch response {e:?}"),
             )
         })?;
 

@@ -110,6 +110,9 @@
                             <release>true</release>
                             <copyTo>${project.build.directory}/classes/native</copyTo>
                             <copyWithPlatformDir>true</copyWithPlatformDir>
+                            <extraArgs>
+                                <extraArg>--color=always</extraArg>
+                            </extraArgs>
                         </configuration>
                     </execution>
                 </executions>

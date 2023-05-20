@@ -32,10 +32,8 @@ public class Operator extends NativeObject {
         write(nativeHandle, fileName, content);
     }
 
-    public CompletableFuture<Boolean> writeAsync(String fileName, String content) {
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-        writeAsync(nativeHandle, fileName, content, future);
-        return future;
+    public CompletableFuture<Void> writeAsync(String fileName, String content) {
+        return writeAsync(nativeHandle, fileName, content);
     }
 
     public String read(String s) {
@@ -61,7 +59,7 @@ public class Operator extends NativeObject {
 
     private static native void write(long nativeHandle, String fileName, String content);
 
-    private static native void writeAsync(long nativeHandle, String fileName, String content, CompletableFuture<Boolean> future);
+    private static native CompletableFuture<Void> writeAsync(long nativeHandle, String fileName, String content);
 
     private static native String read(long nativeHandle, String fileName);
 

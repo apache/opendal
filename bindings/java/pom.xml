@@ -25,7 +25,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.apache.opendal</groupId>
-    <artifactId>java-binding</artifactId>
+    <artifactId>opendaljni</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>

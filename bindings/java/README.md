@@ -1,3 +1,13 @@
+# OpenDAL Java Bindings
+
+## Build and test
+
+Following the command below to build `opendaljni` and run the tests:
+
+```shell
+mvn clean verify
+```
+
 ## Todos
 
 - [ ] Readme for usage

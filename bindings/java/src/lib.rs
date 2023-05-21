@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::str::FromStr;
@@ -37,26 +38,29 @@ use opendal::Operator;
 use opendal::Scheme;
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
-static mut VM: OnceCell<JavaVM> = OnceCell::new();
+thread_local! {
+    static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = RefCell::new(None);
+}
 
 /// # Safety
 ///
 /// This function could be only called by java vm when load this lib.
 #[no_mangle]
 pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
-    VM.set(vm).unwrap();
-
-    let runtime = Builder::new_multi_thread()
-        .worker_threads(num_cpus::get())
-        .on_thread_stop(move || {
-            if let Some(vm) = VM.get() {
-                vm.detach_current_thread()
-            }
-        })
-        .build()
+    RUNTIME
+        .set(
+            Builder::new_multi_thread()
+                .worker_threads(num_cpus::get())
+                .on_thread_start(move || {
+                    ENV.with(|cell| {
+                        let env = vm.attach_current_thread_as_daemon().unwrap();
+                        *cell.borrow_mut() = Some(env.get_raw());
+                    })
+                })
+                .build()
+                .unwrap(),
+        )
         .unwrap();
-
-    RUNTIME.set(runtime).unwrap();
 
     JNI_VERSION_1_8
 }
@@ -68,9 +72,6 @@ pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
 pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
     if let Some(r) = RUNTIME.take() {
         r.shutdown_background()
-    }
-    if let Some(vm) = VM.take() {
-        vm.detach_current_thread()
     }
 }
 
@@ -128,8 +129,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_writeAsync(
     RUNTIME.get_unchecked().spawn(async move {
         let result = op.write(&file, content).await;
 
-        let vm = VM.get().unwrap();
-        let mut env = vm.attach_current_thread_as_daemon().unwrap();
+        let env = ENV.with(|cell| *cell.borrow_mut());
+        let mut env = JNIEnv::from_raw(env.unwrap()).unwrap();
 
         match result {
             Ok(()) => env

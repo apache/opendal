@@ -129,8 +129,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_writeAsync(
     RUNTIME.get_unchecked().spawn(async move {
         let result = op.write(&file, content).await;
 
-        let env = ENV.with(|cell| *cell.borrow_mut());
-        let mut env = JNIEnv::from_raw(env.unwrap()).unwrap();
+        let env = ENV.with(|cell| *cell.borrow_mut()).unwrap();
+        let mut env = JNIEnv::from_raw(env).unwrap();
 
         match result {
             Ok(()) => env

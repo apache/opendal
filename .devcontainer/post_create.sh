@@ -38,7 +38,7 @@ echo "export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")" | sud
 sudo ln -s /usr/lib/jvm/default-java /usr/lib/jvm/default
 
 # Setup for C binding
-sudo apt-get install libgtest-dev
+sudo apt install -y libgtest-dev cmake
 cd /usr/src/gtest
 sudo cmake CMakeLists.txt
 sudo make

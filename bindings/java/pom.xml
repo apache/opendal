@@ -111,6 +111,7 @@
                             <copyTo>${project.build.directory}/classes/native</copyTo>
                             <copyWithPlatformDir>true</copyWithPlatformDir>
                             <extraArgs>
+                                <extraArg>--features=tests</extraArg>
                                 <extraArg>--color=always</extraArg>
                             </extraArgs>
                         </configuration>

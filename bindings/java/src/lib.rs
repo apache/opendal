@@ -33,9 +33,9 @@ use once_cell::sync::OnceCell;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
-use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
+use opendal::{BlockingOperator, ErrorKind};
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
 thread_local! {
@@ -291,6 +291,42 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
     op.delete(&file).unwrap();
 }
 
+/// # Safety
+///
+/// This function should be called by JNI only.
+#[cfg(feature = "tests")]
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_ExceptionTest_getErrors(
+    env: JNIEnv,
+    _: JClass,
+) -> jni::sys::jbyteArray {
+    use enum_iterator::all;
+
+    let errors = all::<ErrorKind>()
+        .map(|k| k.into_ordinal())
+        .collect::<Vec<_>>();
+
+    env.byte_array_from_slice(&errors).unwrap().into_raw()
+}
+
+/// # Safety
+///
+/// This function should be called by JNI only.
+#[cfg(feature = "tests")]
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_ExceptionTest_getErrorName(
+    env: JNIEnv,
+    _: JClass,
+    ordinal: jni::sys::jbyte,
+) -> jni::sys::jstring {
+    use enum_iterator::all;
+
+    let name = all::<ErrorKind>()
+        .find(|k| (k.into_ordinal() as i8) == ordinal)
+        .unwrap();
+    env.new_string(name.to_string()).unwrap().into_raw()
+}
+
 fn new_operator(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator, opendal::Error> {
     use opendal::services::*;
 
@@ -311,7 +347,7 @@ fn new_operator(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator
 
         _ => {
             return Err(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
+                ErrorKind::Unexpected,
                 format!("scheme {scheme:?} not supported"),
             ));
         }
@@ -326,7 +362,7 @@ fn convert_error_to_exception<'local>(
 ) -> Result<JThrowable<'local>, jni::errors::Error> {
     let class = env.find_class("org/apache/opendal/exception/ODException")?;
 
-    let code = error.kind().into_ordinal();
+    let code = error.kind().into_ordinal() as i8;
     let message = env.new_string(error.to_string())?;
 
     let sig = "(BLjava/lang/String;)V";

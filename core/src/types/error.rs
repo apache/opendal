@@ -35,6 +35,7 @@
 //! # }
 //! ```
 
+use enum_iterator::Sequence;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -45,7 +46,7 @@ use std::io;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// ErrorKind is all kinds of Error of opendal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Sequence)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// OpenDAL don't know what happened here, and no actions other than just
@@ -108,8 +109,8 @@ impl ErrorKind {
     }
 
     /// Convert self into ordinal number
-    pub fn into_ordinal(self) -> i8 {
-        self as i8
+    pub fn into_ordinal(self) -> u8 {
+        self as u8
     }
 }
 

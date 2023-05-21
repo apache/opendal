@@ -172,6 +172,7 @@ bytes = "1.2"
 chrono = "0.4.24"
 dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }
+enum-iterator = "1.4.1"
 flagset = "0.4"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }

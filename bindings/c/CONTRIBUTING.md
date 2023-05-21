@@ -18,16 +18,32 @@ The fastest way is:
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
 
 ### Bring your own toolbox
-To build OpenDAL C binding, the tools you need are very simple.
-
-The following is all you need
+To build OpenDAL C binding, the following is all you need:
 - **A C++ compiler** that supports **c++14**, *e.g.* clang++ and g++
-- **A Rust toolchain** that satisfies the MSRV
-- **(optional)** if you want to format the code, you need to install **clang-format**
+
+- To format the code, you need to install **clang-format**
     - The `opendal.h` is not formatted by hands when you contribute, please do not format the file. **Use `make format` only.**
     - If your contribution is related to the files under `./tests`, you may format it before submitting your pull request. But notice that different versions of `clang-format` may format the files differently.
-- **(optional)** **GTest(Google Test)** need to be installed if you want to build the BDD (Behavior
-  Driven Development) tests. To see how to build, check [here](https://github.com/google/googletest).
+
+- **GTest(Google Test)** need to be installed to build the BDD (Behavior Driven Development) tests. To see how to build, check [here](https://github.com/google/googletest).
+
+For Ubuntu and Debian:
+```shell
+# install C/C++ toolchain
+sudo apt install -y build-essential
+
+# install clang-format
+sudo apt install clang-format
+
+# install and build GTest library under /usr/lib and softlink to /usr/local/lib
+sudo apt-get install libgtest-dev
+cd /usr/src/gtest
+sudo cmake CMakeLists.txt
+sudo make
+sudo cp lib/*.a /usr/lib
+sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
+sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
+```
 
 ## Build
 To build the library and header file.
@@ -70,14 +86,3 @@ make test
 [  PASSED  ] 5 tests.
 ```
 
-## Docs
-The OpenDAL C binding currently do not have an official documentation online(Open to contribution).
-
-If you want to know more about the OpenDAL C binding, you may:
-- Have a look at the comments inline with Rust codes under the `./src` or the comments in `opendal.h`
-- Have a look at the comments of the Rust core
-- Have a look at the test files, they contain compact and simple usage of OpenDAL C binding
-
-## Misc
-- We use `cbindgen` to generate the header file and library. If you want to contribute to the C binding core code, you may see the official [documentation](https://github.com/mozilla/cbindgen/blob/master/docs.md) of `cbindgen`.
-- We have github action that shows how to setup the building and testing environment, if you are still not clear how to setup your environment, you may see [this github action](../../.github/workflows/bindings_c.yml).

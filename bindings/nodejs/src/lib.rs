@@ -321,7 +321,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = await op.scan("/path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = await lister.next();
     ///   if (entry === null) {
     ///     break;
@@ -346,7 +346,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = op.scan_sync(/path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = lister.next();
     ///   if (entry === null) {
     ///     break;
@@ -426,7 +426,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = await op.list("path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = await lister.next();
     ///   if (entry === null) {
     ///     break;
@@ -451,7 +451,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = op.listSync("path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = lister.next();
     ///   if (entry === null) {
     ///     break;

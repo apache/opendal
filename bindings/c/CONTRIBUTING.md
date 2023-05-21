@@ -1,12 +1,12 @@
 # Contributing
-1. [Contributing](#contributing)
-   1. [Setup](#setup)
-      1. [Using a dev container environment](#using-a-dev-container-environment)
-      2. [Bring your own toolbox](#bring-your-own-toolbox)
-   2. [Build](#build)
-   3. [Test](#test)
-   4. [Docs](#docs)
-   5. [Misc](#misc)
+- [Contributing](#contributing)
+   - [Setup](#setup)
+      - [Using a dev container environment](#using-a-dev-container-environment)
+      - [Bring your own toolbox](#bring-your-own-toolbox)
+   - [Build](#build)
+   - [Test](#test)
+   - [Docs](#docs)
+   - [Misc](#misc)
 
 ## Setup
 

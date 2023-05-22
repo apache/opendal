@@ -192,7 +192,7 @@ impl OssCore {
     /// # Note
     ///
     /// This request is used to append data to an existing object or create an appendable object.
-    /// So you must set the `append` and `position` header.
+    /// So we must set the `append` and `position` header.
     ///
     /// https://www.alibabacloud.com/help/object-storage-service/latest/appendobject
     pub fn oss_append_object_request(

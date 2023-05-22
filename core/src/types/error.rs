@@ -107,11 +107,6 @@ impl ErrorKind {
     pub fn into_static(self) -> &'static str {
         self.into()
     }
-
-    /// Convert self into ordinal number
-    pub fn into_ordinal(self) -> u8 {
-        self as u8
-    }
 }
 
 impl Display for ErrorKind {
@@ -257,7 +252,7 @@ impl std::error::Error for Error {
 
 impl Error {
     /// Create a new Error with error kind and message.
-    pub fn new(kind: ErrorKind, message: impl ToString) -> Self {
+    pub fn new(kind: ErrorKind, message: &str) -> Self {
         Self {
             kind,
             message: message.to_string(),

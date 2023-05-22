@@ -15,13 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use std::fmt::Debug;
 
+use super::error::parse_error;
+use super::writer::VercelArtifactsWriter;
 use crate::ops::OpRead;
 use crate::ops::OpWrite;
 use crate::raw::new_request_build_error;
@@ -37,9 +40,6 @@ use crate::types::Result;
 use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
-
-use super::error::parse_error;
-use super::writer::VercelArtifactsWriter;
 
 #[derive(Clone)]
 pub struct VercelArtifactsBackend {

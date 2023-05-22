@@ -134,8 +134,8 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-    /// use opendal::Scheme;
     /// use opendal::Operator;
+    /// use opendal::Scheme;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
     ///     let map = HashMap::from([
@@ -146,7 +146,7 @@ impl Operator {
     ///     ]);
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::via_map(Scheme::Fs, map)?.finish();
+    ///     let op: Operator = Operator::via_map(Scheme::Fs, map)?;
     ///
     ///     Ok(())
     /// }

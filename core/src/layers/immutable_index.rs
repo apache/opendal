@@ -32,6 +32,8 @@ use crate::*;
 /// # Examples
 ///
 /// ```rust, no_run
+/// use std::collections::HashMap;
+///
 /// use opendal::layers::ImmutableIndexLayer;
 /// use opendal::services;
 /// use opendal::Operator;
@@ -42,7 +44,7 @@ use crate::*;
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_env::<services::Http>()
+/// let op = Operator::from_map::<services::Http>(HashMap::default())
 ///     .unwrap()
 ///     .layer(iil)
 ///     .finish();

@@ -41,6 +41,8 @@ pub enum Scheme {
     Dashmap,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
+    /// [ftp][crate::services::Ftp]: FTP backend.
+    Ftp,
     /// [gcs][crate::services::Gcs]: Google Cloud Storage backend.
     Gcs,
     /// [ghac][crate::services::Ghac]: GitHub Action Cache services.
@@ -49,8 +51,7 @@ pub enum Scheme {
     Hdfs,
     /// [http][crate::services::Http]: HTTP backend.
     Http,
-    /// [ftp][crate::services::Ftp]: FTP backend.
-    Ftp,
+
     /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
     Ipfs,
     /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system

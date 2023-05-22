@@ -20,22 +20,23 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 use std::str::FromStr;
 
-use jni::objects::JClass;
 use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JThrowable;
 use jni::objects::JValue;
-use jni::sys::{jboolean, jobject, JNI_VERSION_1_8};
-use jni::sys::{jint, jlong};
+use jni::sys::jint;
+use jni::sys::JNI_VERSION_1_8;
 use jni::{JNIEnv, JavaVM};
 use once_cell::sync::OnceCell;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
-use opendal::Operator;
-use opendal::Scheme;
-use opendal::{BlockingOperator, ErrorKind};
+use opendal::ErrorKind;
+
+mod blocking_operator;
+mod metadata;
+mod operator;
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
 thread_local! {
@@ -73,222 +74,6 @@ pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
     if let Some(r) = RUNTIME.take() {
         r.shutdown_background()
     }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_Operator_newOperator(
-    mut env: JNIEnv,
-    _class: JClass,
-    input: JString,
-    params: JObject,
-) -> jlong {
-    let input: String = env
-        .get_string(&input)
-        .expect("cannot get java string")
-        .into();
-
-    let scheme = Scheme::from_str(&input).unwrap();
-
-    let map = convert_jmap_to_hashmap(&mut env, &params);
-    if let Ok(operator) = Operator::via_map(scheme, map) {
-        Box::into_raw(Box::new(operator)) as jlong
-    } else {
-        env.exception_clear().expect("cannot clear exception");
-        env.throw_new(
-            "java/lang/IllegalArgumentException",
-            "Unsupported operator.",
-        )
-        .expect("cannot throw exception");
-        0 as jlong
-    }
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_writeAsync(
-    mut env: JNIEnv,
-    _class: JClass,
-    ptr: *mut Operator,
-    file: JString,
-    content: JString,
-) -> jobject {
-    let op = &mut *ptr;
-
-    let file: String = env.get_string(&file).unwrap().into();
-    let content: String = env.get_string(&content).unwrap().into();
-
-    let class = "java/util/concurrent/CompletableFuture";
-    let f = env.new_object(class, "()V", &[]).unwrap();
-
-    // keep the future alive, so that we can complete it later
-    // but this approach will be limited by global ref table size (65535)
-    let future = env.new_global_ref(&f).unwrap();
-
-    RUNTIME.get_unchecked().spawn(async move {
-        let result = op.write(&file, content).await;
-
-        let env = ENV.with(|cell| *cell.borrow_mut()).unwrap();
-        let mut env = JNIEnv::from_raw(env).unwrap();
-
-        match result {
-            Ok(()) => env
-                .call_method(
-                    future,
-                    "complete",
-                    "(Ljava/lang/Object;)Z",
-                    &[JValue::Object(&JObject::null())],
-                )
-                .unwrap(),
-            Err(err) => {
-                let exception = convert_error_to_exception(&mut env, err).unwrap();
-                env.call_method(
-                    future,
-                    "completeExceptionally",
-                    "(Ljava/lang/Throwable;)Z",
-                    &[JValue::Object(&exception)],
-                )
-                .unwrap()
-            }
-        }
-    });
-
-    f.as_raw()
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
-    mut _env: JNIEnv,
-    _class: JClass,
-    ptr: *mut Operator,
-) {
-    drop(Box::from_raw(ptr));
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
-    mut env: JNIEnv,
-    _class: JClass,
-    ptr: *mut BlockingOperator,
-    file: JString,
-    content: JString,
-) {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    let content: String = env
-        .get_string(&content)
-        .expect("cannot get java string!")
-        .into();
-    op.write(&file, content).unwrap();
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    ptr: *mut BlockingOperator,
-    file: JString<'local>,
-) -> JString<'local> {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    let content = String::from_utf8(op.read(&file).unwrap()).expect("cannot convert to string");
-    env.new_string(content).expect("cannot create java string")
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
-    mut env: JNIEnv,
-    _class: JClass,
-    ptr: *mut BlockingOperator,
-    file: JString,
-) -> jlong {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    let result = op.stat(&file);
-    if let Err(error) = result {
-        let exception = convert_error_to_exception(&mut env, error).unwrap();
-        env.throw(exception).unwrap();
-        return 0 as jlong;
-    }
-    Box::into_raw(Box::new(result.unwrap())) as jlong
-}
-
-/// # Safety
-///
-/// This function should not be called before the Stat are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_isFile(
-    mut _env: JNIEnv,
-    _class: JClass,
-    ptr: *mut opendal::Metadata,
-) -> jboolean {
-    let metadata = &mut *ptr;
-    metadata.is_file() as jboolean
-}
-
-/// # Safety
-///
-/// This function should not be called before the Stat are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_getContentLength(
-    mut _env: JNIEnv,
-    _class: JClass,
-    ptr: *mut opendal::Metadata,
-) -> jlong {
-    let metadata = &mut *ptr;
-    metadata.content_length() as jlong
-}
-
-/// # Safety
-///
-/// This function should not be called before the Stat are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_disposeInternal(
-    mut _env: JNIEnv,
-    _class: JClass,
-    ptr: *mut opendal::Metadata,
-) {
-    drop(Box::from_raw(ptr));
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    ptr: *mut BlockingOperator,
-    file: JString<'local>,
-) {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    op.delete(&file).unwrap();
 }
 
 fn convert_error_to_exception<'local>(

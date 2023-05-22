@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.apache.opendal;
 
 import java.util.Map;

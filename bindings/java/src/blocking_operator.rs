@@ -21,12 +21,11 @@ use jni::objects::{JClass, JObject, JString};
 use jni::sys::jlong;
 use jni::JNIEnv;
 
+use crate::convert;
 use opendal::{BlockingOperator, Operator, Scheme};
 
-use crate::{convert_error_to_exception, convert_jmap_to_hashmap};
-
 #[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_Operator_newOperator(
+pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
     mut env: JNIEnv,
     _: JClass,
     input: JString,
@@ -39,7 +38,7 @@ pub extern "system" fn Java_org_apache_opendal_Operator_newOperator(
 
     let scheme = Scheme::from_str(&input).unwrap();
 
-    let map = convert_jmap_to_hashmap(&mut env, &params);
+    let map = convert::jmap_to_hashmap(&mut env, &params);
     if let Ok(operator) = Operator::via_map(scheme, map) {
         Box::into_raw(Box::new(operator)) as jlong
     } else {
@@ -124,7 +123,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
         .into();
     let result = op.stat(&file);
     if let Err(error) = result {
-        let exception = convert_error_to_exception(&mut env, error).unwrap();
+        let exception = convert::error_to_exception(&mut env, error).unwrap();
         env.throw(exception).unwrap();
         return 0 as jlong;
     }

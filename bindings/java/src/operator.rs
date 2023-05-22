@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{convert_error_to_exception, ENV, RUNTIME};
+use crate::{convert, ENV, RUNTIME};
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::jobject;
 use jni::JNIEnv;
@@ -61,7 +61,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_writeAsync(
                 )
                 .unwrap(),
             Err(err) => {
-                let exception = convert_error_to_exception(&mut env, err).unwrap();
+                let exception = convert::error_to_exception(&mut env, err).unwrap();
                 env.call_method(
                     future,
                     "completeExceptionally",

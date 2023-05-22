@@ -24,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class Operator extends NativeObject {
     public Operator(String schema, Map<String, String> params) {
-        super(newOperator(schema, params));
+        super(constructor(schema, params));
     }
 
     public void write(String fileName, String content) {
@@ -50,7 +50,7 @@ public class Operator extends NativeObject {
     @Override
     protected native void disposeInternal(long handle);
 
-    private static native long newOperator(String type, Map<String, String> params);
+    private static native long constructor(String type, Map<String, String> params);
 
     private static native void write(long nativeHandle, String fileName, String content);
 

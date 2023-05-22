@@ -178,3 +178,37 @@ jobs:
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ALLOW_ANONYMOUS: on
+
+  s3_with_iam:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - name: Start LocalStack
+        run: |
+          pip install localstack awscli-local[ver2]
+          docker pull localstack/localstack
+          localstack start -d
+          localstack wait -t 30
+          echo "Startup LocalStack complete"
+      - name: Create user, access key and S3 bucket
+        id: create-access-key
+        run: |
+          awslocal iam create-user --user-name test-user
+          awslocal iam create-access-key --user-name test-user > output.json
+          export ACCESS_KEY=$(cat output.json | jq -r '.AccessKey.AccessKeyId')
+          export SECRET_KEY=$(cat output.json | jq -r '.AccessKey.SecretAccessKey')
+          awslocal s3 mb s3://test
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo test s3 -- --show-output
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_S3_TEST: on
+          OPENDAL_S3_BUCKET: test
+          OPENDAL_S3_ENDPOINT: "http://127.0.0.1:4566"
+          OPENDAL_S3_ACCESS_KEY_ID: $ACCESS_KEY
+          OPENDAL_S3_SECRET_ACCESS_KEY: $SECRET_KEY

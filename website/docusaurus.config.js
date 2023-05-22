@@ -88,7 +88,7 @@ const config = {
           alt: 'Apache OpenDAL(incubating)',
           src: 'img/logo.svg',
           srcDark: 'img/logo_dark.svg',
-          href: 'https://opendal.apache.org/',
+          href: '/',
           target: '_self',
           height: 32,
         },
@@ -98,20 +98,24 @@ const config = {
             label: 'Documentation',
             items: [
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs">General</a>'
+                label: 'General',
+                to: '/docs'
+              },
+              {
+                label: 'Services',
+                to: '/docs/category/services'
               },
               {
                 type: 'html',
-                value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust</a>'
+                value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust Core</a>'
               },
               {
                 type: 'html',
-                value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js</a>'
+                value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js Binding</a>'
               },
               {
                 type: 'html',
-                value: '<a class="dropdown__link" href="/docs/python/">Python</a>'
+                value: '<a class="dropdown__link" href="/docs/python/">Python Binding</a>'
               },
             ]
           },

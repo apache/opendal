@@ -33,9 +33,9 @@ use once_cell::sync::OnceCell;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
+use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
-use opendal::{BlockingOperator, ErrorKind};
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
 thread_local! {

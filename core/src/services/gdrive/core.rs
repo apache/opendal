@@ -130,7 +130,7 @@ impl GdriveCore {
                     serde_json::from_slice(resp_body).map_err(new_json_deserialize_error)?;
 
                 if gdrive_file_list.files.len() != 1 {
-                    return Err(Error::new(ErrorKind::Unexpected, format!("Please ensure that the file corresponding to the path exists and is unique. The response body is {}", String::from_utf8_lossy(resp_body))));
+                    return Err(Error::new(ErrorKind::Unexpected, &format!("Please ensure that the file corresponding to the path exists and is unique. The response body is {}", String::from_utf8_lossy(resp_body))));
                 }
 
                 parent_id = gdrive_file_list.files[0].id.clone();

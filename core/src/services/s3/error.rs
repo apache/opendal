@@ -62,7 +62,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         (kind, retryable) = parse_s3_error_code(s3_err.code.as_str()).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, message).with_context("response", format!("{parts:?}"));
+    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
 
     if retryable {
         err = err.set_temporary();

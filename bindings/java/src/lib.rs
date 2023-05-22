@@ -312,7 +312,7 @@ fn new_operator(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator
         _ => {
             return Err(opendal::Error::new(
                 ErrorKind::Unexpected,
-                format!("scheme {scheme:?} not supported"),
+                &format!("scheme {scheme:?} not supported"),
             ));
         }
     };

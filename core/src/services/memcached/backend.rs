@@ -311,5 +311,5 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
 }
 
 pub fn parse_io_error(err: std::io::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, err.kind().to_string()).set_source(err)
+    Error::new(ErrorKind::Unexpected, &err.kind().to_string()).set_source(err)
 }

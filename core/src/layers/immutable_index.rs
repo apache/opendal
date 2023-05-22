@@ -176,7 +176,7 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         } else {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                format!("delimiter {} is not supported", args.delimiter()),
+                &format!("delimiter {} is not supported", args.delimiter()),
             ));
         };
 
@@ -212,7 +212,7 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         } else {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                format!("delimiter {} is not supported", args.delimiter()),
+                &format!("delimiter {} is not supported", args.delimiter()),
             ));
         };
 

@@ -29,60 +29,6 @@ use magnus::Error;
 use magnus::RString;
 use opendal as od;
 
-fn build_operator(scheme: od::Scheme, map: HashMap<String, String>) -> Result<od::Operator> {
-    use od::services::*;
-
-    let op = match scheme {
-        od::Scheme::Azblob => od::Operator::from_map::<Azblob>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Azdfs => od::Operator::from_map::<Azdfs>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Fs => od::Operator::from_map::<Fs>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Gcs => od::Operator::from_map::<Gcs>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Ghac => od::Operator::from_map::<Ghac>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Http => od::Operator::from_map::<Http>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Ipmfs => od::Operator::from_map::<Ipmfs>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Memory => od::Operator::from_map::<Memory>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Obs => od::Operator::from_map::<Obs>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Oss => od::Operator::from_map::<Oss>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::S3 => od::Operator::from_map::<S3>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Webdav => od::Operator::from_map::<Webdav>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        od::Scheme::Webhdfs => od::Operator::from_map::<Webhdfs>(map)
-            .map_err(format_magnus_error)?
-            .finish(),
-        _ => {
-            return Err(format_magnus_error(od::Error::new(
-                od::ErrorKind::Unexpected,
-                "not supported scheme",
-            )))
-        }
-    };
-
-    Ok(op)
-}
-
 #[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
 #[derive(Clone, Debug)]
 pub struct Operator(od::BlockingOperator);
@@ -95,7 +41,11 @@ impl Operator {
             })
             .map_err(format_magnus_error)?;
         let options = options.unwrap_or_default();
-        Ok(Operator(build_operator(scheme, options)?.blocking()))
+
+        let op = od::Operator::via_map(scheme, options)
+            .map_err(format_magnus_error)?
+            .blocking();
+        Ok(Operator(op))
     }
 
     /// Read the whole path into string.

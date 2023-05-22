@@ -82,6 +82,15 @@ impl Operator {
 
     /// Create a new operator from given map.
     ///
+    /// # Notes
+    ///
+    /// from_map is using static dispatch layers which is zero cost. via_map is
+    /// using dynamic dispatch layers which has a bit runtime overhead with an
+    /// extra vtable lookup and unable to inline. But from_map requires generic
+    /// type parameter which is not always easy to be used.
+    ///
+    /// # Examples
+    ///
     /// ```
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
@@ -110,29 +119,108 @@ impl Operator {
         Ok(OperatorBuilder::new(acc))
     }
 
-    /// Create a new operator from iter.
+    /// Create a new operator from given shceme and map.
     ///
-    /// # WARNING
+    /// # Notes
     ///
-    /// It's better to use `from_map`. We may remove this API in the
-    /// future.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_iter<B: Builder>(
-        iter: impl Iterator<Item = (String, String)>,
-    ) -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_iter(iter).build()?;
-        Ok(OperatorBuilder::new(acc))
-    }
+    /// from_map is using static dispatch layers which is zero cost. via_map is
+    /// using dynamic dispatch layers which has a bit runtime overhead with an
+    /// extra vtable lookup and unable to inline. But from_map requires generic
+    /// type parameter which is not always easy to be used.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::Scheme;
+    /// use opendal::Operator;
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let map = HashMap::from([
+    ///         // Set the root for fs, all operations will happen under this root.
+    ///         //
+    ///         // NOTE: the root must be absolute path.
+    ///         ("root".to_string(), "/tmp".to_string()),
+    ///     ]);
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::via_map(Scheme::Fs, map)?.finish();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn via_map(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator> {
+        let op = match scheme {
+            #[cfg(feature = "services-azblob")]
+            Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
+            #[cfg(feature = "services-azdfs")]
+            Scheme::Azdfs => Self::from_map::<services::Azdfs>(map)?.finish(),
+            #[cfg(feature = "services-cos")]
+            Scheme::Cos => Self::from_map::<services::Cos>(map)?.finish(),
+            #[cfg(feature = "services-dashmap")]
+            Scheme::Dashmap => Self::from_map::<services::Dashmap>(map)?.finish(),
+            #[cfg(feature = "services-fs")]
+            Scheme::Fs => Self::from_map::<services::Fs>(map)?.finish(),
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => Self::from_map::<services::Ftp>(map)?.finish(),
+            #[cfg(feature = "services-gcs")]
+            Scheme::Gcs => Self::from_map::<services::Gcs>(map)?.finish(),
+            #[cfg(feature = "services-ghac")]
+            Scheme::Ghac => Self::from_map::<services::Ghac>(map)?.finish(),
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs => Self::from_map::<services::Hdfs>(map)?.finish(),
+            #[cfg(feature = "services-http")]
+            Scheme::Http => Self::from_map::<services::Http>(map)?.finish(),
+            #[cfg(feature = "services-ipfs")]
+            Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
+            #[cfg(feature = "services-ipmfs")]
+            Scheme::Ipmfs => Self::from_map::<services::Ipmfs>(map)?.finish(),
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached => Self::from_map::<services::Memcached>(map)?.finish(),
+            #[cfg(feature = "services-memory")]
+            Scheme::Memory => Self::from_map::<services::Memory>(map)?.finish(),
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka => Self::from_map::<services::Moka>(map)?.finish(),
+            #[cfg(feature = "services-obs")]
+            Scheme::Obs => Self::from_map::<services::Obs>(map)?.finish(),
+            #[cfg(feature = "services-onedrive")]
+            Scheme::Onedrive => Self::from_map::<services::Onedrive>(map)?.finish(),
+            #[cfg(feature = "services-gdrive")]
+            Scheme::Gdrive => Self::from_map::<services::Gdrive>(map)?.finish(),
+            #[cfg(feature = "services-oss")]
+            Scheme::Oss => Self::from_map::<services::Oss>(map)?.finish(),
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis => Self::from_map::<services::Redis>(map)?.finish(),
+            #[cfg(feature = "services-rocksdb")]
+            Scheme::Rocksdb => Self::from_map::<services::Rocksdb>(map)?.finish(),
+            #[cfg(feature = "services-s3")]
+            Scheme::S3 => Self::from_map::<services::S3>(map)?.finish(),
+            #[cfg(feature = "services-sftp")]
+            Scheme::Sftp => Self::from_map::<services::Sftp>(map)?.finish(),
+            #[cfg(feature = "services-sled")]
+            Scheme::Sled => Self::from_map::<services::Sled>(map)?.finish(),
+            #[cfg(feature = "services-supabase")]
+            Scheme::Supabase => Self::from_map::<services::Supabase>(map)?.finish(),
+            #[cfg(feature = "services-vercel-artifacts")]
+            Scheme::VercelArtifacts => Self::from_map::<services::VercelArtifacts>(map)?.finish(),
+            #[cfg(feature = "services-wasabi")]
+            Scheme::Wasabi => Self::from_map::<services::Wasabi>(map)?.finish(),
+            #[cfg(feature = "services-webdav")]
+            Scheme::Webdav => Self::from_map::<services::Webdav>(map)?.finish(),
+            #[cfg(feature = "services-webhdfs")]
+            Scheme::Webhdfs => Self::from_map::<services::Webhdfs>(map)?.finish(),
+            v => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "scheme is not enabled or supported",
+                )
+                .with_context("scheme", v))
+            }
+        };
 
-    /// Create a new operator from env.
-    ///
-    /// # WARNING
-    ///
-    /// It's better to use `from_map`. We may remove this API in the
-    /// future.
-    pub fn from_env<B: Builder>() -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_env().build()?;
-        Ok(OperatorBuilder::new(acc))
+        Ok(op)
     }
 
     /// Create a new layer with dynamic dispatch.

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::env;
 
 use crate::raw::*;
 use crate::*;
@@ -44,31 +43,6 @@ pub trait Builder: Default {
 
     /// Construct a builder from given map which contains several parameters needed by underlying service.
     fn from_map(map: HashMap<String, String>) -> Self;
-
-    /// Construct a builder from given iterator.
-    fn from_iter(iter: impl Iterator<Item = (String, String)>) -> Self
-    where
-        Self: Sized,
-    {
-        Self::from_map(iter.collect())
-    }
-
-    /// Construct a builder from envs. Please note that the env should begin with `opendal_{schema_name}_`.
-    fn from_env() -> Self
-    where
-        Self: Sized,
-    {
-        let prefix = format!("opendal_{}_", Self::SCHEME);
-        let envs = env::vars()
-            .filter_map(move |(k, v)| {
-                k.to_lowercase()
-                    .strip_prefix(&prefix)
-                    .map(|k| (k.to_string(), v))
-            })
-            .collect();
-
-        Self::from_map(envs)
-    }
 
     /// Consume the accessor builder to build a service.
     fn build(&mut self) -> Result<Self::Accessor>;

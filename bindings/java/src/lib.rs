@@ -90,7 +90,7 @@ pub extern "system" fn Java_org_apache_opendal_Operator_newOperator(
     let scheme = Scheme::from_str(&input).unwrap();
 
     let map = convert_jmap_to_hashmap(&mut env, &params);
-    if let Ok(operator) = new_operator(scheme, map) {
+    if let Ok(operator) = Operator::via_map(scheme, map) {
         Box::into_raw(Box::new(operator)) as jlong
     } else {
         env.exception_clear().expect("cannot clear exception");
@@ -289,35 +289,6 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
         .expect("cannot get java string!")
         .into();
     op.delete(&file).unwrap();
-}
-
-fn new_operator(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator, opendal::Error> {
-    use opendal::services::*;
-
-    let op = match scheme {
-        Scheme::Azblob => Operator::from_map::<Azblob>(map).unwrap().finish(),
-        Scheme::Azdfs => Operator::from_map::<Azdfs>(map).unwrap().finish(),
-        Scheme::Fs => Operator::from_map::<Fs>(map).unwrap().finish(),
-        Scheme::Gcs => Operator::from_map::<Gcs>(map).unwrap().finish(),
-        Scheme::Ghac => Operator::from_map::<Ghac>(map).unwrap().finish(),
-        Scheme::Http => Operator::from_map::<Http>(map).unwrap().finish(),
-        Scheme::Ipmfs => Operator::from_map::<Ipmfs>(map).unwrap().finish(),
-        Scheme::Memory => Operator::from_map::<Memory>(map).unwrap().finish(),
-        Scheme::Obs => Operator::from_map::<Obs>(map).unwrap().finish(),
-        Scheme::Oss => Operator::from_map::<Oss>(map).unwrap().finish(),
-        Scheme::S3 => Operator::from_map::<S3>(map).unwrap().finish(),
-        Scheme::Webdav => Operator::from_map::<Webdav>(map).unwrap().finish(),
-        Scheme::Webhdfs => Operator::from_map::<Webhdfs>(map).unwrap().finish(),
-
-        _ => {
-            return Err(opendal::Error::new(
-                ErrorKind::Unexpected,
-                &format!("scheme {scheme:?} not supported"),
-            ));
-        }
-    };
-
-    Ok(op)
 }
 
 fn convert_error_to_exception<'local>(

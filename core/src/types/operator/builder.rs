@@ -110,31 +110,6 @@ impl Operator {
         Ok(OperatorBuilder::new(acc))
     }
 
-    /// Create a new operator from iter.
-    ///
-    /// # WARNING
-    ///
-    /// It's better to use `from_map`. We may remove this API in the
-    /// future.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_iter<B: Builder>(
-        iter: impl Iterator<Item = (String, String)>,
-    ) -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_iter(iter).build()?;
-        Ok(OperatorBuilder::new(acc))
-    }
-
-    /// Create a new operator from env.
-    ///
-    /// # WARNING
-    ///
-    /// It's better to use `from_map`. We may remove this API in the
-    /// future.
-    pub fn from_env<B: Builder>() -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_env().build()?;
-        Ok(OperatorBuilder::new(acc))
-    }
-
     /// Create a new layer with dynamic dispatch.
     ///
     /// # Notes

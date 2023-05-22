@@ -35,7 +35,6 @@
 //! # }
 //! ```
 
-use enum_iterator::Sequence;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -46,7 +45,7 @@ use std::io;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// ErrorKind is all kinds of Error of opendal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Sequence)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// OpenDAL don't know what happened here, and no actions other than just

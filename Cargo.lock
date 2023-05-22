@@ -1243,26 +1243,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "enum-iterator"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7add3873b5dd076766ee79c8e406ad1a472c385476b9e38849f8eec24f1be689"
-dependencies = [
- "enum-iterator-derive",
-]
-
-[[package]]
-name = "enum-iterator-derive"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eecf8589574ce9b895052fa12d69af7a233f99e6107f5cb8dd1044f2a17bfdcb"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.16",
-]
-
-[[package]]
 name = "env_logger"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1932,16 +1912,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "453ad9f582a441959e5f0d088b02ce04cfe8d51a8eaf077f12ac6d3e94164ca6"
 
 [[package]]
-name = "java-locator"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72cb7c9d00a642469deceff95ca37d0da9ce72d7f8b863edbebdf0aac75093da"
-dependencies = [
- "glob",
- "lazy_static",
-]
-
-[[package]]
 name = "jni"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1950,9 +1920,7 @@ dependencies = [
  "cesu8",
  "cfg-if",
  "combine",
- "java-locator",
  "jni-sys",
- "libloading",
  "log",
  "thiserror",
  "walkdir",
@@ -2665,7 +2633,6 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "dotenvy",
- "enum-iterator",
  "flagset",
  "futures",
  "hdrs",
@@ -2723,8 +2690,6 @@ dependencies = [
 name = "opendal-java"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "enum-iterator",
  "jni",
  "num_cpus",
  "once_cell",

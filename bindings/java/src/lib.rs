@@ -33,9 +33,9 @@ use once_cell::sync::OnceCell;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
-use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
+use opendal::{BlockingOperator, ErrorKind};
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
 thread_local! {
@@ -297,7 +297,22 @@ fn convert_error_to_exception<'local>(
 ) -> Result<JThrowable<'local>, jni::errors::Error> {
     let class = env.find_class("org/apache/opendal/exception/ODException")?;
 
-    let code = env.new_string(error.kind().into_static())?;
+    let code = env.new_string(match error.kind() {
+        ErrorKind::Unexpected => "Unexpected",
+        ErrorKind::Unsupported => "Unsupported",
+        ErrorKind::ConfigInvalid => "ConfigInvalid",
+        ErrorKind::NotFound => "NotFound",
+        ErrorKind::PermissionDenied => "PermissionDenied",
+        ErrorKind::IsADirectory => "IsADirectory",
+        ErrorKind::NotADirectory => "NotADirectory",
+        ErrorKind::AlreadyExists => "AlreadyExists",
+        ErrorKind::RateLimited => "RateLimited",
+        ErrorKind::IsSameFile => "IsSameFile",
+        ErrorKind::ConditionNotMatch => "ConditionNotMatch",
+        ErrorKind::ContentTruncated => "ContentTruncated",
+        ErrorKind::ContentIncomplete => "ContentIncomplete",
+        _ => "Unexpected",
+    })?;
     let message = env.new_string(error.to_string())?;
 
     let sig = "(Ljava/lang/String;Ljava/lang/String;)V";

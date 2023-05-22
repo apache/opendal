@@ -119,7 +119,7 @@ impl Operator {
         Ok(OperatorBuilder::new(acc))
     }
 
-    /// Create a new operator from given shceme and map.
+    /// Create a new operator from given scheme and map.
     ///
     /// # Notes
     ///

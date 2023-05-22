@@ -19,15 +19,35 @@
 
 package org.apache.opendal.exception;
 
-public class OpenDALException extends RuntimeException {
-    private final OpenDALErrorCode errorCode;
+public class ODException extends RuntimeException {
+    private final Code code;
 
-    public OpenDALException(OpenDALErrorCode errorCode, String message) {
-        super(message);
-        this.errorCode = errorCode;
+    public ODException(String code, String message) {
+        this(Code.valueOf(code), message);
     }
 
-    public OpenDALErrorCode getErrorCode() {
-        return errorCode;
+    public ODException(Code code, String message) {
+        super(message);
+        this.code = code;
+    }
+
+    public Code getCode() {
+        return code;
+    }
+
+    public enum Code {
+        Unexpected,
+        Unsupported,
+        ConfigInvalid,
+        NotFound,
+        PermissionDenied,
+        IsADirectory,
+        NotADirectory,
+        AlreadyExists,
+        RateLimited,
+        IsSameFile,
+        ConditionNotMatch,
+        ContentTruncated,
+        ContentIncomplete,
     }
 }

@@ -19,7 +19,6 @@ use crate::{convert, ENV, RUNTIME};
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::jobject;
 use jni::JNIEnv;
-use opendal::raw::Accessor;
 use opendal::Operator;
 
 /// # Safety

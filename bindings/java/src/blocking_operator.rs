@@ -21,54 +21,31 @@ use jni::objects::{JClass, JObject, JString};
 use jni::sys::jlong;
 use jni::JNIEnv;
 
-use crate::convert;
+use opendal::Result;
 use opendal::{BlockingOperator, Operator, Scheme};
+
+use crate::{convert, or_throw};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
     mut env: JNIEnv,
     _: JClass,
-    input: JString,
-    params: JObject,
+    scheme: JString,
+    map: JObject,
 ) -> jlong {
-    let input: String = env
-        .get_string(&input)
-        .expect("cannot get java string")
-        .into();
-
-    let scheme = Scheme::from_str(&input).unwrap();
-
-    let map = convert::jmap_to_hashmap(&mut env, &params);
-    if let Ok(operator) = Operator::via_map(scheme, map) {
-        Box::into_raw(Box::new(operator)) as jlong
-    } else {
-        env.exception_clear().expect("cannot clear exception");
-        env.throw_new(
-            "java/lang/IllegalArgumentException",
-            "Unsupported operator.",
-        )
-        .expect("cannot throw exception");
-        0 as jlong
-    }
+    let res = intern_constructor(&mut env, scheme, map);
+    or_throw(&mut env, res)
 }
 
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    ptr: *mut BlockingOperator,
-    file: JString<'local>,
-) -> JString<'local> {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    let content = String::from_utf8(op.read(&file).unwrap()).expect("cannot convert to string");
-    env.new_string(content).expect("cannot create java string")
+fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
+    let scheme = {
+        let res = env.get_string(&scheme).map_err(convert::error_to_error)?;
+        let res = res.to_str().map_err(convert::error_to_error)?;
+        Scheme::from_str(res)?
+    };
+    let map = convert::jmap_to_hashmap(env, &map).map_err(convert::error_to_error)?;
+    let op = Operator::via_map(scheme, map)?;
+    Ok(Box::into_raw(Box::new(op.blocking())) as jlong)
 }
 
 /// # Safety
@@ -87,23 +64,57 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass<'local>,
+    op: *mut BlockingOperator,
+    file: JString<'local>,
+) -> JString<'local> {
+    let res = intern_read(&mut env, &mut *op, file);
+    or_throw(&mut env, res)
+}
+
+fn intern_read<'local>(
+    env: &mut JNIEnv<'local>,
+    op: &mut BlockingOperator,
+    file: JString<'local>,
+) -> Result<JString<'local>> {
+    let content = {
+        let file = env.get_string(&file).map_err(convert::error_to_error)?;
+        let file = file.to_str().map_err(convert::error_to_error)?;
+        let res = op.read(file)?;
+        let res = String::from_utf8(res).map_err(convert::error_to_error)?;
+        env.new_string(res).map_err(convert::error_to_error)?
+    };
+    Ok(content)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     mut env: JNIEnv,
     _: JClass,
-    ptr: *mut BlockingOperator,
+    op: *mut BlockingOperator,
     file: JString,
     content: JString,
 ) {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    let content: String = env
-        .get_string(&content)
-        .expect("cannot get java string!")
-        .into();
-    op.write(&file, content).unwrap();
+    let res = intern_write(&mut env, &mut *op, file, content);
+    or_throw(&mut env, res)
+}
+
+fn intern_write(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    file: JString,
+    content: JString,
+) -> Result<()> {
+    let file = env.get_string(&file).map_err(convert::error_to_error)?;
+    let file = file.to_str().map_err(convert::error_to_error)?;
+    let content = env.get_string(&content).map_err(convert::error_to_error)?;
+    let content = content.to_str().map_err(convert::error_to_error)?;
+    op.write(file, content.to_string())
 }
 
 /// # Safety
@@ -112,38 +123,37 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     mut env: JNIEnv,
-    _class: JClass,
-    ptr: *mut BlockingOperator,
+    _: JClass,
+    op: *mut BlockingOperator,
     file: JString,
 ) -> jlong {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    let result = op.stat(&file);
-    if let Err(error) = result {
-        let exception = convert::error_to_exception(&mut env, error).unwrap();
-        env.throw(exception).unwrap();
-        return 0 as jlong;
-    }
-    Box::into_raw(Box::new(result.unwrap())) as jlong
+    let res = intern_stat(&mut env, &mut *op, file);
+    or_throw(&mut env, res)
+}
+
+fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, file: JString) -> Result<jlong> {
+    let file = env.get_string(&file).map_err(convert::error_to_error)?;
+    let file = file.to_str().map_err(convert::error_to_error)?;
+    let metadata = op.stat(file)?;
+    Ok(Box::into_raw(Box::new(metadata)) as jlong)
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    ptr: *mut BlockingOperator,
-    file: JString<'local>,
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    file: JString,
 ) {
-    let op = &mut *ptr;
-    let file: String = env
-        .get_string(&file)
-        .expect("cannot get java string!")
-        .into();
-    op.delete(&file).unwrap();
+    let res = intern_delete(&mut env, &mut *op, file);
+    or_throw(&mut env, res)
+}
+
+fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, file: JString) -> Result<()> {
+    let file = env.get_string(&file).map_err(convert::error_to_error)?;
+    let file = file.to_str().map_err(convert::error_to_error)?;
+    op.delete(file)
 }

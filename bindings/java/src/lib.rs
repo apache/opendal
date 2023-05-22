@@ -17,11 +17,10 @@
 
 use std::cell::RefCell;
 use std::ffi::c_void;
-use std::str::FromStr;
 
 use jni::sys::jint;
 use jni::sys::JNI_VERSION_1_8;
-use jni::JavaVM;
+use jni::{JNIEnv, JavaVM};
 use once_cell::sync::OnceCell;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
@@ -66,5 +65,19 @@ pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
 pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
     if let Some(r) = RUNTIME.take() {
         r.shutdown_background()
+    }
+}
+
+fn or_throw<T>(env: &mut JNIEnv, res: opendal::Result<T>) -> T
+where
+    T: Default,
+{
+    match res {
+        Ok(content) => content,
+        Err(err) => {
+            let exception = convert::error_to_exception(env, err).unwrap();
+            env.throw(exception).unwrap();
+            Default::default()
+        }
     }
 }

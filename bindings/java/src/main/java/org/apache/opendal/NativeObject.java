@@ -43,7 +43,7 @@ public abstract class NativeObject implements AutoCloseable {
         }
 
         if (libraryLoaded.compareAndSet(LibraryState.NOT_LOADED, LibraryState.LOADING)) {
-            JarJniLoader.loadLib(NativeObject.class, "/native", "opendaljni");
+            JarJniLoader.loadLib(NativeObject.class, "/native", "opendal_java");
             libraryLoaded.set(LibraryState.LOADED);
             return;
         }

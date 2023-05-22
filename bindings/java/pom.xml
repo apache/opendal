@@ -25,7 +25,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.apache.opendal</groupId>
-    <artifactId>opendaljni</artifactId>
+    <artifactId>opendal-java</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -101,7 +101,7 @@
                 <version>${questdb.version}</version>
                 <executions>
                     <execution>
-                        <id>opendaljni</id>
+                        <id>opendal-java</id>
                         <goals>
                             <goal>build</goal>
                         </goals>

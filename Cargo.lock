@@ -2708,6 +2708,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-java"
+version = "0.1.0"
+dependencies = [
+ "enum-iterator",
+ "jni",
+ "num_cpus",
+ "once_cell",
+ "opendal",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-nodejs"
 version = "0.34.0"
 dependencies = [
@@ -2737,18 +2749,6 @@ dependencies = [
  "opendal",
  "rb-sys",
  "rb-sys-env",
-]
-
-[[package]]
-name = "opendaljni"
-version = "0.1.0"
-dependencies = [
- "enum-iterator",
- "jni",
- "num_cpus",
- "once_cell",
- "opendal",
- "tokio",
 ]
 
 [[package]]

@@ -25,63 +25,6 @@ use std::time::Duration;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 
-fn build_operator(
-    scheme: opendal::Scheme,
-    map: HashMap<String, String>,
-) -> Result<opendal::Operator> {
-    use opendal::services::*;
-
-    let op = match scheme {
-        opendal::Scheme::Azblob => opendal::Operator::from_map::<Azblob>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Azdfs => opendal::Operator::from_map::<Azdfs>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Fs => opendal::Operator::from_map::<Fs>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Gcs => opendal::Operator::from_map::<Gcs>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Ghac => opendal::Operator::from_map::<Ghac>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Http => opendal::Operator::from_map::<Http>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Ipmfs => opendal::Operator::from_map::<Ipmfs>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Memory => opendal::Operator::from_map::<Memory>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Obs => opendal::Operator::from_map::<Obs>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Oss => opendal::Operator::from_map::<Oss>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::S3 => opendal::Operator::from_map::<S3>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Webdav => opendal::Operator::from_map::<Webdav>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        opendal::Scheme::Webhdfs => opendal::Operator::from_map::<Webhdfs>(map)
-            .map_err(format_napi_error)?
-            .finish(),
-        _ => {
-            return Err(format_napi_error(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
-                "not supported scheme",
-            )))
-        }
-    };
-
-    Ok(op)
-}
-
 #[napi]
 pub struct Operator(opendal::Operator);
 
@@ -97,7 +40,9 @@ impl Operator {
             .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
-        build_operator(scheme, options).map(Operator)
+        opendal::Operator::via_map(scheme, options)
+            .map_err(format_napi_error)
+            .map(Operator)
     }
 
     /// Get current path's metadata **without cache** directly.
@@ -321,7 +266,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = await op.scan("/path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = await lister.next();
     ///   if (entry === null) {
     ///     break;
@@ -346,7 +291,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = op.scan_sync(/path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = lister.next();
     ///   if (entry === null) {
     ///     break;
@@ -426,7 +371,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = await op.list("path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = await lister.next();
     ///   if (entry === null) {
     ///     break;
@@ -451,7 +396,7 @@ impl Operator {
     /// ### Example
     /// ```javascript
     /// const lister = op.listSync("path/to/dir/");
-    /// while (true)) {
+    /// while (true) {
     ///   const entry = lister.next();
     ///   if (entry === null) {
     ///     break;

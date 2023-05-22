@@ -96,7 +96,7 @@ use crate::*;
 ///     }
 ///
 ///     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-///        self.inner.append(path, args).await
+///         self.inner.append(path, args).await
 ///     }
 ///
 ///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {

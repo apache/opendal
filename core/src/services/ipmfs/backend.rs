@@ -51,7 +51,6 @@ use crate::*;
 /// - [ ] scan
 /// - [ ] presign
 /// - [ ] blocking
-///
 #[derive(Clone)]
 pub struct IpmfsBackend {
     root: String,

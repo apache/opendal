@@ -18,7 +18,7 @@
 RPATH=$(PWD)/../../target/debug
 CXXFLAGS=-I./include -std=c++14
 LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
-LIBS=-lopendal_c -lgtest
+LIBS=-lopendal_c -lgtest -lpthread
 OBJ_DIR=./build
 
 .PHONY: all

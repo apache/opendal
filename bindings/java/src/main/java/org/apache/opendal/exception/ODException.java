@@ -22,8 +22,8 @@ package org.apache.opendal.exception;
 public class ODException extends RuntimeException {
     private final Code code;
 
-    public ODException(byte code, String message) {
-        this(Code.getCode(code), message);
+    public ODException(String code, String message) {
+        this(Code.valueOf(code), message);
     }
 
     public ODException(Code code, String message) {
@@ -49,16 +49,5 @@ public class ODException extends RuntimeException {
         ConditionNotMatch,
         ContentTruncated,
         ContentIncomplete,
-        ;
-
-        public static Code getCode(byte value) {
-            for (final Code code : Code.values()) {
-                if (code.ordinal() == value){
-                    return code;
-                }
-            }
-            throw new IllegalArgumentException(
-                "Illegal value provided for Code (" + value + ").");
-        }
     }
 }

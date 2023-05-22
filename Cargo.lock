@@ -2711,7 +2711,6 @@ dependencies = [
 name = "opendal-java"
 version = "0.1.0"
 dependencies = [
- "enum-iterator",
  "jni",
  "num_cpus",
  "once_cell",

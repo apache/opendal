@@ -49,15 +49,4 @@ public class ExceptionTest {
         final ODException exception = assertThrows(ODException.class, () -> operator.stat("not_exist_file"));
         assertEquals(ODException.Code.NotFound, exception.getCode());
     }
-
-    private static native byte[] getErrors();
-    private static native String getErrorName(byte code);
-
-    @Test
-    public void testErrorsExhausted() {
-        final byte[] codes = getErrors();
-        for (byte code : codes) {
-            assertEquals(getErrorName(code), ODException.Code.getCode(code).name());
-        }
-    }
 }

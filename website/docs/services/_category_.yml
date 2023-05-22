@@ -1,0 +1,7 @@
+position: 3
+label: 'Services'
+collapsible: true
+collapsed: false
+link:
+  type: generated-index
+  title: Services

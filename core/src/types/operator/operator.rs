@@ -29,7 +29,9 @@ use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
 use crate::ops::*;
+use crate::raw::oio::Append;
 use crate::raw::*;
+use crate::types::appender::Appender;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.
@@ -650,6 +652,32 @@ impl Operator {
         .await
     }
 
+    /// Append bytes into path.
+    ///
+    /// # Notes
+    ///
+    /// - Append will make sure all bytes has been written, or an error will be returned.
+    /// - Append will create the file if it does not exist.
+    /// - Append always write bytes to the end of the file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.append("path/to/file", vec![0; 4096]).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn append(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
+        let bs = bs.into();
+        self.append_with(path, OpAppend::new(), bs).await
+    }
+
     /// Copy a file from `from` to `to`.
     ///
     /// # Notes
@@ -872,6 +900,116 @@ impl Operator {
             .write(&path, args.with_content_length(bs.len() as u64))
             .await?;
         w.write(bs).await?;
+        w.close().await?;
+
+        Ok(())
+    }
+
+    /// Append multiple bytes into path.
+    ///
+    /// Refer to [`Appender`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut a = op.appender("path/to/file").await?;
+    /// a.append(vec![0; 4096]).await?;
+    /// a.append(vec![1; 4096]).await?;
+    /// a.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn appender(&self, path: &str) -> Result<Appender> {
+        self.appender_with(path, OpAppend::default()).await
+    }
+
+    /// Append multiple bytes into path with extra options.
+    ///
+    /// Refer to [`Appender`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    /// use opendal::ops::OpAppend;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let args = OpAppend::new().with_content_type("application/octet-stream");
+    /// let mut a = op.appender_with("path/to/file", args).await?;
+    /// a.append(vec![0; 4096]).await?;
+    /// a.append(vec![1; 4096]).await?;
+    /// a.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn appender_with(&self, path: &str, args: OpAppend) -> Result<Appender> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "append path is a directory")
+                    .with_operation("Operator::appender")
+                    .with_context("service", self.inner().info().scheme().into_static())
+                    .with_context("path", &path),
+            );
+        }
+
+        Appender::create(self.inner().clone(), &path, args).await
+    }
+
+    /// Append bytes with extra options.
+    ///
+    /// # Notes
+    ///
+    /// - Append will make sure all bytes has been written, or an error will be returned.
+    /// - Append will create the file if it does not exist.
+    /// - Append always write bytes to the end of the file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    /// use opendal::ops::OpAppend;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let args = OpAppend::new().with_content_type("text/plain");
+    /// let _ = op.append_with("path/to/file", args, bs).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn append_with(
+        &self,
+        path: &str,
+        args: OpAppend,
+        bs: impl Into<Bytes>,
+    ) -> Result<()> {
+        let path = normalize_path(path);
+
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "append path is a directory")
+                    .with_operation("Operator::append_with")
+                    .with_context("service", self.info().scheme().into_static())
+                    .with_context("path", &path),
+            );
+        }
+
+        let bs = bs.into();
+        let (_, mut w) = self.inner().append(&path, args).await?;
+        w.append(bs).await?;
         w.close().await?;
 
         Ok(())

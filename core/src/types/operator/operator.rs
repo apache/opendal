@@ -29,9 +29,7 @@ use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
 use crate::ops::*;
-use crate::raw::oio::Append;
 use crate::raw::*;
-use crate::types::appender::Appender;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.

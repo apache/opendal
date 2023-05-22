@@ -469,6 +469,8 @@ impl Accessor for OssBackend {
                 create_dir: true,
                 copy: true,
 
+                append: true,
+
                 list: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,

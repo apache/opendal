@@ -37,6 +37,7 @@ use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::ops::OpAppend;
 use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
@@ -176,6 +177,53 @@ impl OssCore {
         }
 
         if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // set sse headers
+        req = self.insert_sse_headers(req);
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+        Ok(req)
+    }
+
+    /// Oss append object request
+    ///
+    /// # Note
+    ///
+    /// This request is used to append data to an existing object or create an appendable object.
+    /// So you must set the `append` and `position` header.
+    ///
+    /// https://www.alibabacloud.com/help/object-storage-service/latest/appendobject
+    pub fn oss_append_object_request(
+        &self,
+        path: &str,
+        position: u64,
+        size: usize,
+        args: &OpAppend,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let endpoint = self.get_endpoint(false);
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+
+        let mut req = Request::post(&url);
+
+        // The header `append` does not need a value.
+        req = req.header(HeaderName::from_static("append"), "");
+        req = req.header(HeaderName::from_static("position"), position);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 

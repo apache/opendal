@@ -470,6 +470,9 @@ impl Accessor for OssBackend {
                 copy: true,
 
                 append: true,
+                append_with_cache_control: true,
+                append_with_content_type: true,
+                append_with_content_disposition: true,
 
                 list: true,
                 list_with_delimiter_slash: true,

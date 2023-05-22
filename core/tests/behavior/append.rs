@@ -63,7 +63,6 @@ macro_rules! behavior_append_tests {
                 $service,
 
                 test_append,
-                test_append_to_non_existing_target,
                 test_append_with_dir_path,
                 test_append_with_cache_control,
                 test_append_with_content_type,
@@ -81,13 +80,13 @@ pub async fn test_append(op: Operator) -> Result<()> {
     let (content_one, size_one) = gen_bytes();
     let (content_two, size_two) = gen_bytes();
 
-    op.write(&path, content_one.clone())
+    op.append(&path, content_one.clone())
         .await
-        .expect("write file must success");
+        .expect("append file first time must success");
 
     op.append(&path, content_two.clone())
         .await
-        .expect("append file must success");
+        .expect("append to an existing file must success");
 
     let bs = op.read(&path).await.expect("read file must success");
 
@@ -96,22 +95,6 @@ pub async fn test_append(op: Operator) -> Result<()> {
     assert_eq!(bs[size_one..], content_two);
 
     op.delete(&path).await.expect("delete file must success");
-
-    Ok(())
-}
-
-/// Test append to a non existing target must success.
-pub async fn test_append_to_non_existing_target(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    let (content, size) = gen_bytes();
-
-    op.append(&path, content.clone())
-        .await
-        .expect_err("append to non existing target must success");
-
-    let bs = op.read(&path).await?;
-    assert_eq!(bs.len(), size);
-    assert_eq!(bs, content);
 
     Ok(())
 }

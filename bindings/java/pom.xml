@@ -115,6 +115,15 @@
                             </extraArgs>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>opendal-java-test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <path>${project.basedir}</path>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
 

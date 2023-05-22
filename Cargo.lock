@@ -1932,6 +1932,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "453ad9f582a441959e5f0d088b02ce04cfe8d51a8eaf077f12ac6d3e94164ca6"
 
 [[package]]
+name = "java-locator"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72cb7c9d00a642469deceff95ca37d0da9ce72d7f8b863edbebdf0aac75093da"
+dependencies = [
+ "glob",
+ "lazy_static",
+]
+
+[[package]]
 name = "jni"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1940,7 +1950,9 @@ dependencies = [
  "cesu8",
  "cfg-if",
  "combine",
+ "java-locator",
  "jni-sys",
+ "libloading",
  "log",
  "thiserror",
  "walkdir",
@@ -2711,6 +2723,8 @@ dependencies = [
 name = "opendal-java"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "enum-iterator",
  "jni",
  "num_cpus",
  "once_cell",

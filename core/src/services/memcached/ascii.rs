@@ -15,14 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::*;
-
-use super::backend::parse_io_error;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::TcpStream;
+
+use super::backend::parse_io_error;
+use crate::*;
 
 pub struct Connection {
     io: BufReader<TcpStream>,

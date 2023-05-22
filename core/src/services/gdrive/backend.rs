@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use http::StatusCode;
-
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use http::StatusCode;
+
+use super::core::GdriveCore;
+use super::error::parse_error;
+use super::writer::GdriveWriter;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpWrite;
@@ -36,10 +39,6 @@ use crate::types::Result;
 use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
-
-use super::core::GdriveCore;
-use super::error::parse_error;
-use super::writer::GdriveWriter;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {

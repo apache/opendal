@@ -156,7 +156,6 @@ pub use onedrive::Onedrive;
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::Gdrive;
-
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;
 

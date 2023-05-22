@@ -27,7 +27,7 @@ use opendal::{BlockingOperator, Operator, Scheme};
 use crate::{convert, or_throw};
 
 #[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
+pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(
     mut env: JNIEnv,
     _: JClass,
     scheme: JString,
@@ -52,19 +52,19 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_disposeInternal(
     _: JNIEnv,
     _: JClass,
-    ptr: *mut BlockingOperator,
+    op: *mut BlockingOperator,
 ) {
-    drop(Box::from_raw(ptr));
+    drop(Box::from_raw(op));
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read<'local>(
     mut env: JNIEnv<'local>,
     _: JClass<'local>,
     op: *mut BlockingOperator,
@@ -93,7 +93,7 @@ fn intern_read<'local>(
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_write(
     mut env: JNIEnv,
     _: JClass,
     op: *mut BlockingOperator,
@@ -121,7 +121,7 @@ fn intern_write(
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
     mut env: JNIEnv,
     _: JClass,
     op: *mut BlockingOperator,
@@ -142,7 +142,7 @@ fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, file: JString) -> Re
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete(
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
     mut env: JNIEnv,
     _: JClass,
     op: *mut BlockingOperator,

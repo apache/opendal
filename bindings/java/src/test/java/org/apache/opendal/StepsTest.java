@@ -30,42 +30,42 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class StepsTest {
-    Operator operator;
+    BlockingOperator blockingOperator;
 
     @Given("A new OpenDAL Blocking Operator")
     public void a_new_open_dal_blocking_operator() {
         Map<String, String> params = new HashMap<>();
         params.put("root", "/tmp");
-        this.operator = new Operator("Memory", params);
+        this.blockingOperator = new BlockingOperator("Memory", params);
     }
 
     @When("Blocking write path {string} with content {string}")
     public void blocking_write_path_test_with_content_hello_world(String fileName, String content) {
-        this.operator.write(fileName, content);
+        this.blockingOperator.write(fileName, content);
     }
 
     @Then("The blocking file {string} should exist")
     public void the_blocking_file_test_should_exist(String fileName) {
-        Metadata metadata = this.operator.stat(fileName);
+        Metadata metadata = this.blockingOperator.stat(fileName);
         assertNotNull(metadata);
     }
 
 
     @Then("The blocking file {string} entry mode must be file")
     public void the_blocking_file_test_entry_mode_must_be_file(String fileName) {
-        Metadata metadata = this.operator.stat(fileName);
+        Metadata metadata = this.blockingOperator.stat(fileName);
         assertTrue(metadata.isFile());
     }
 
     @Then("The blocking file {string} content length must be {int}")
     public void the_blocking_file_test_content_length_must_be_13(String fileName, int length) {
-        Metadata metadata = this.operator.stat(fileName);
+        Metadata metadata = this.blockingOperator.stat(fileName);
         assertEquals(metadata.getContentLength(), length);
     }
 
     @Then("The blocking file {string} must have content {string}")
     public void the_blocking_file_test_must_have_content_hello_world(String fileName, String content) {
-        String readContent = this.operator.read(fileName);
+        String readContent = this.blockingOperator.read(fileName);
         assertEquals(content, readContent);
     }
 }

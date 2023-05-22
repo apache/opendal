@@ -15,24 +15,63 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::{convert, ENV, RUNTIME};
+use std::str::FromStr;
+
 use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::jobject;
+use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
-use opendal::Operator;
+
+use opendal::Result;
+use opendal::{Operator, Scheme};
+
+use crate::{convert, or_throw, ENV, RUNTIME};
+
+#[no_mangle]
+pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
+    mut env: JNIEnv,
+    _: JClass,
+    scheme: JString,
+    map: JObject,
+) -> jlong {
+    let res = intern_constructor(&mut env, scheme, map);
+    or_throw(&mut env, res)
+}
+
+fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
+    let scheme = {
+        let res = env.get_string(&scheme).map_err(convert::error_to_error)?;
+        let res = res.to_str().map_err(convert::error_to_error)?;
+        Scheme::from_str(res)?
+    };
+    let map = convert::jmap_to_hashmap(env, &map).map_err(convert::error_to_error)?;
+    let op = Operator::via_map(scheme, map)?;
+    Ok(Box::into_raw(Box::new(op)) as jlong)
+}
 
 /// # Safety
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_writeAsync(
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) {
+    drop(Box::from_raw(op));
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     mut env: JNIEnv,
     _: JClass,
-    ptr: *mut Operator,
+    op: *mut Operator,
     file: JString,
     content: JString,
 ) -> jobject {
-    let op = &mut *ptr;
+    let op = &mut *op;
 
     let file: String = env.get_string(&file).unwrap().into();
     let content: String = env.get_string(&content).unwrap().into();

@@ -22,16 +22,25 @@ package org.apache.opendal;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public class Operator extends NativeObject {
-
-
-    public Operator(String schema, Map<String, String> map) {
+public class BlockingOperator extends NativeObject {
+    public BlockingOperator(String schema, Map<String, String> map) {
         super(constructor(schema, map));
     }
 
+    public void write(String fileName, String content) {
+        write(nativeHandle, fileName, content);
+    }
 
-    public CompletableFuture<Void> write(String fileName, String content) {
-        return write(nativeHandle, fileName, content);
+    public String read(String s) {
+        return read(nativeHandle, s);
+    }
+
+    public void delete(String s) {
+        delete(nativeHandle, s);
+    }
+
+    public Metadata stat(String fileName) {
+        return new Metadata(stat(nativeHandle, fileName));
     }
 
     @Override
@@ -39,5 +48,11 @@ public class Operator extends NativeObject {
 
     private static native long constructor(String schema, Map<String, String> map);
 
-    private static native CompletableFuture<Void> write(long nativeHandle, String fileName, String content);
+    private static native void write(long nativeHandle, String fileName, String content);
+
+    private static native String read(long nativeHandle, String fileName);
+
+    private static native void delete(long nativeHandle, String fileName);
+
+    private static native long stat(long nativeHandle, String file);
 }

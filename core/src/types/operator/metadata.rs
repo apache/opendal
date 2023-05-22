@@ -62,6 +62,11 @@ impl OperatorInfo {
         self.0.capability().write
     }
 
+    /// Check if current backend supports [`Accessor::append`] or not.
+    pub fn can_append(&self) -> bool {
+        self.0.capability().append
+    }
+
     /// Check if current backend supports [`Accessor::copy`] or not.
     pub fn can_copy(&self) -> bool {
         self.0.capability().copy

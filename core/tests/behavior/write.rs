@@ -80,6 +80,7 @@ macro_rules! behavior_write_tests {
                 test_write_with_special_chars,
                 test_write_with_cache_control,
                 test_write_with_content_type,
+                test_write_with_content_disposition,
                 test_stat,
                 test_stat_dir,
                 test_stat_with_special_chars,
@@ -241,6 +242,35 @@ pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
     assert_eq!(
         meta.content_type().expect("content type must exist"),
         target_content_type
+    );
+    assert_eq!(meta.content_length(), size as u64);
+
+    op.delete(&path).await.expect("delete must succeed");
+
+    Ok(())
+}
+
+/// Write a single file with content disposition should succeed.
+pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
+    if !op.info().capability().write_with_content_disposition {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, size) = gen_bytes();
+
+    let target_content_disposition = "attachment; filename=\"filename.jpg\"";
+
+    let mut op_write = OpWrite::default();
+    op_write = op_write.with_content_disposition(target_content_disposition);
+
+    op.write_with(&path, op_write, content).await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(
+        meta.content_disposition().expect("content type must exist"),
+        target_content_disposition
     );
     assert_eq!(meta.content_length(), size as u64);
 

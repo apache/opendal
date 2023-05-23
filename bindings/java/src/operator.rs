@@ -17,7 +17,7 @@
 
 use std::str::FromStr;
 
-use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
+use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
 
@@ -87,11 +87,11 @@ fn intern_write(
     let content: String = env.get_string(&content)?.into();
 
     let class = "java/util/concurrent/CompletableFuture";
-    let f = env.new_object(class, "()V", &[]).unwrap();
+    let f = env.new_object(class, "()V", &[])?;
 
     // keep the future alive, so that we can complete it later
     // but this approach will be limited by global ref table size (65535)
-    let future = env.new_global_ref(&f).unwrap();
+    let future = env.new_global_ref(&f)?;
 
     let runtime = unsafe { RUNTIME.get_unchecked() };
     runtime.spawn(async move {
@@ -99,13 +99,13 @@ fn intern_write(
             Ok(()) => Ok(JObject::null()),
             Err(err) => Err(Error::from(err)),
         };
-        complete_future(future, result)
+        complete_future(future.as_ref(), result)
     });
 
     Ok(f.into_raw())
 }
 
-fn complete_future(future: GlobalRef, result: Result<JObject>) {
+fn complete_future(future: &JObject, result: Result<JObject>) {
     let mut env = unsafe { get_current_env() };
     match result {
         Ok(result) => env

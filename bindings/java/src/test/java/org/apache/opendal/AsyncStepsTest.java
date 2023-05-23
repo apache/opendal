@@ -30,23 +30,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AsyncStepsTest {
-    Operator operator;
+    Operator op;
 
     @Given("A new OpenDAL Async Operator")
     public void a_new_open_dal_async_operator() {
         Map<String, String> params = new HashMap<>();
         params.put("root", "/tmp");
-        operator = new Operator("Memory", params);
+        op = new Operator("Memory", params);
     }
 
     @When("Async write path {string} with content {string}")
     public void async_write_path_test_with_content_hello_world(String fileName, String content) {
-        CompletableFuture<Void> f = operator.write(fileName, content);
-
-        f.join();
-
-        assertTrue(f.isDone());
-        assertFalse(f.isCompletedExceptionally());
+        op.write(fileName, content).join();
     }
 
     @Then("The async file {string} should exist")

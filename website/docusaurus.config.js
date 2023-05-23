@@ -99,7 +99,7 @@ const config = {
             items: [
               {
                 label: 'General',
-                to: '/docs'
+                to: '/docs/overview'
               },
               {
                 label: 'Services',

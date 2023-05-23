@@ -23,7 +23,6 @@ use jni::JNIEnv;
 
 use opendal::{Operator, Scheme};
 
-use crate::error::Error;
 use crate::{get_current_env, Result};
 use crate::{jmap_to_hashmap, RUNTIME};
 
@@ -90,14 +89,15 @@ fn intern_write(
 
     let runtime = unsafe { RUNTIME.get_unchecked() };
     runtime.spawn(async move {
-        let result = match op.write(&file, content).await {
-            Ok(()) => Ok(JValueOwned::Void),
-            Err(err) => Err(Error::from(err)),
-        };
-        complete_future(id, result)
+        let result = do_write(op, file, content).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
     });
 
     Ok(id)
+}
+
+async fn do_write(op: &mut Operator, file: String, content: String) -> Result<()> {
+    Ok(op.write(&file, content).await?)
 }
 
 /// # Safety
@@ -124,14 +124,56 @@ fn intern_stat(env: &mut JNIEnv, op: *mut Operator, file: JString) -> Result<jlo
 
     let runtime = unsafe { RUNTIME.get_unchecked() };
     runtime.spawn(async move {
-        let result = match op.stat(&file).await {
-            Ok(metadata) => Ok(JValueOwned::Long(Box::into_raw(Box::new(metadata)) as jlong)),
-            Err(err) => Err(Error::from(err)),
-        };
-        complete_future(id, result)
+        let result = do_stat(op, file).await;
+        complete_future(id, result.map(JValueOwned::Long))
     });
 
     Ok(id)
+}
+
+async fn do_stat(op: &mut Operator, file: String) -> Result<jlong> {
+    let metadata = op.stat(&file).await?;
+    Ok(Box::into_raw(Box::new(metadata)) as jlong)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    file: JString,
+) -> jlong {
+    intern_read(&mut env, op, file).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_read(env: &mut JNIEnv, op: *mut Operator, file: JString) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let file = env.get_string(&file)?.to_str()?.to_string();
+
+    let runtime = unsafe { RUNTIME.get_unchecked() };
+    runtime.spawn(async move {
+        let result = do_read(op, file).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
+async fn do_read<'local>(op: &mut Operator, file: String) -> Result<JObject<'local>> {
+    let content = op.read(&file).await?;
+    let content = String::from_utf8(content)?;
+
+    let env = unsafe { get_current_env() };
+    let result = env.new_string(content)?;
+    Ok(result.into())
 }
 
 fn request_id(env: &mut JNIEnv) -> Result<jlong> {

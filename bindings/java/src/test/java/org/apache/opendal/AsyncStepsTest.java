@@ -66,5 +66,7 @@ public class AsyncStepsTest {
 
     @Then("The async file {string} must have content {string}")
     public void the_async_file_test_must_have_content_hello_world(String fileName, String content) {
+        String readContent = op.read(fileName).join();
+        assertEquals(content, readContent);
     }
 }

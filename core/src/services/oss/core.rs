@@ -205,13 +205,14 @@ impl OssCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
-        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+        let url = format!(
+            "{}/{}?append&position={}",
+            endpoint,
+            percent_encode_path(&p),
+            position
+        );
 
         let mut req = Request::post(&url);
-
-        // The header `append` does not need a value.
-        req = req.header(HeaderName::from_static("append"), "");
-        req = req.header(HeaderName::from_static("position"), position);
 
         req = req.header(CONTENT_LENGTH, size);
 

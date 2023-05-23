@@ -16,10 +16,10 @@
 // under the License.
 
 use jni::errors::Result;
-use jni::objects::{JMap, JObject, JString, JThrowable, JValue};
+use jni::objects::{JThrowable, JValue};
 use jni::JNIEnv;
+
 use opendal::ErrorKind;
-use std::collections::HashMap;
 
 pub(crate) fn error_to_error<E>(error: E) -> opendal::Error
 where
@@ -55,21 +55,4 @@ pub(crate) fn error_to_exception<'local>(
     let sig = "(Ljava/lang/String;Ljava/lang/String;)V";
     let params = &[JValue::Object(&code), JValue::Object(&message)];
     env.new_object(class, sig, params).map(JThrowable::from)
-}
-
-pub(crate) fn jmap_to_hashmap(
-    env: &mut JNIEnv,
-    params: &JObject,
-) -> Result<HashMap<String, String>> {
-    let map = JMap::from_env(env, params)?;
-    let mut iter = map.iter(env)?;
-
-    let mut result: HashMap<String, String> = HashMap::new();
-    while let Some(e) = iter.next(env)? {
-        let k = JString::from(e.0);
-        let v = JString::from(e.1);
-        result.insert(env.get_string(&k)?.into(), env.get_string(&v)?.into());
-    }
-
-    Ok(result)
 }

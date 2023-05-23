@@ -16,8 +16,10 @@
 // under the License.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::c_void;
 
+use jni::objects::{JMap, JObject, JString};
 use jni::sys::jint;
 use jni::sys::JNI_VERSION_1_8;
 use jni::{JNIEnv, JavaVM};
@@ -27,8 +29,11 @@ use tokio::runtime::Runtime;
 
 mod blocking_operator;
 mod convert;
+mod error;
 mod metadata;
 mod operator;
+
+pub(crate) type Result<T> = std::result::Result<T, error::Error>;
 
 static mut RUNTIME: OnceCell<Runtime> = OnceCell::new();
 thread_local! {
@@ -68,15 +73,28 @@ pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
     }
 }
 
-fn or_throw<T>(env: &mut JNIEnv, res: opendal::Result<T>) -> T
+fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String, String>> {
+    let map = JMap::from_env(env, params)?;
+    let mut iter = map.iter(env)?;
+
+    let mut result: HashMap<String, String> = HashMap::new();
+    while let Some(e) = iter.next(env)? {
+        let k = JString::from(e.0);
+        let v = JString::from(e.1);
+        result.insert(env.get_string(&k)?.into(), env.get_string(&v)?.into());
+    }
+
+    Ok(result)
+}
+
+fn or_throw<T>(env: &mut JNIEnv, res: Result<T>) -> T
 where
     T: Default,
 {
     match res {
         Ok(content) => content,
         Err(err) => {
-            let exception = convert::error_to_exception(env, err).unwrap();
-            env.throw(exception).unwrap();
+            err.throw(env);
             Default::default()
         }
     }

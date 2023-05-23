@@ -21,10 +21,10 @@ use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
 
-use opendal::Result;
 use opendal::{Operator, Scheme};
 
-use crate::{convert, or_throw, ENV, RUNTIME};
+use crate::Result;
+use crate::{convert, jmap_to_hashmap, or_throw, ENV, RUNTIME};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
@@ -43,7 +43,7 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
         let res = res.to_str().map_err(convert::error_to_error)?;
         Scheme::from_str(res)?
     };
-    let map = convert::jmap_to_hashmap(env, &map).map_err(convert::error_to_error)?;
+    let map = jmap_to_hashmap(env, &map).map_err(convert::error_to_error)?;
     let op = Operator::via_map(scheme, map)?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }

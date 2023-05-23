@@ -18,13 +18,13 @@
 use std::str::FromStr;
 
 use jni::objects::{JClass, JObject, JString};
-use jni::sys::jlong;
+use jni::sys::{jlong, jstring};
 use jni::JNIEnv;
 
-use opendal::Result;
 use opendal::{BlockingOperator, Operator, Scheme};
 
-use crate::{convert, or_throw};
+use crate::jmap_to_hashmap;
+use crate::Result;
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(
@@ -33,17 +33,15 @@ pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(
     scheme: JString,
     map: JObject,
 ) -> jlong {
-    let res = intern_constructor(&mut env, scheme, map);
-    or_throw(&mut env, res)
+    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
 }
 
 fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
-    let scheme = {
-        let res = env.get_string(&scheme).map_err(convert::error_to_error)?;
-        let res = res.to_str().map_err(convert::error_to_error)?;
-        Scheme::from_str(res)?
-    };
-    let map = convert::jmap_to_hashmap(env, &map).map_err(convert::error_to_error)?;
+    let scheme = Scheme::from_str(env.get_string(&scheme)?.to_str()?)?;
+    let map = jmap_to_hashmap(env, &map)?;
     let op = Operator::via_map(scheme, map)?;
     Ok(Box::into_raw(Box::new(op.blocking())) as jlong)
 }
@@ -64,29 +62,22 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_disposeIn
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass<'local>,
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read(
+    mut env: JNIEnv,
+    _: JClass,
     op: *mut BlockingOperator,
-    file: JString<'local>,
-) -> JString<'local> {
-    let res = intern_read(&mut env, &mut *op, file);
-    or_throw(&mut env, res)
+    file: JString,
+) -> jstring {
+    intern_read(&mut env, &mut *op, file).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        JObject::null().into_raw()
+    })
 }
 
-fn intern_read<'local>(
-    env: &mut JNIEnv<'local>,
-    op: &mut BlockingOperator,
-    file: JString<'local>,
-) -> Result<JString<'local>> {
-    let content = {
-        let file = env.get_string(&file).map_err(convert::error_to_error)?;
-        let file = file.to_str().map_err(convert::error_to_error)?;
-        let res = op.read(file)?;
-        let res = String::from_utf8(res).map_err(convert::error_to_error)?;
-        env.new_string(res).map_err(convert::error_to_error)?
-    };
-    Ok(content)
+fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, file: JString) -> Result<jstring> {
+    let file = env.get_string(&file)?;
+    let content = String::from_utf8(op.read(file.to_str()?)?)?;
+    Ok(env.new_string(content)?.into_raw())
 }
 
 /// # Safety
@@ -100,8 +91,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_write(
     file: JString,
     content: JString,
 ) {
-    let res = intern_write(&mut env, &mut *op, file, content);
-    or_throw(&mut env, res)
+    intern_write(&mut env, &mut *op, file, content).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
 }
 
 fn intern_write(
@@ -110,11 +102,9 @@ fn intern_write(
     file: JString,
     content: JString,
 ) -> Result<()> {
-    let file = env.get_string(&file).map_err(convert::error_to_error)?;
-    let file = file.to_str().map_err(convert::error_to_error)?;
-    let content = env.get_string(&content).map_err(convert::error_to_error)?;
-    let content = content.to_str().map_err(convert::error_to_error)?;
-    op.write(file, content.to_string())
+    let file = env.get_string(&file)?;
+    let content = env.get_string(&content)?;
+    Ok(op.write(file.to_str()?, content.to_str()?.to_string())?)
 }
 
 /// # Safety
@@ -127,14 +117,15 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
     op: *mut BlockingOperator,
     file: JString,
 ) -> jlong {
-    let res = intern_stat(&mut env, &mut *op, file);
-    or_throw(&mut env, res)
+    intern_stat(&mut env, &mut *op, file).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
 }
 
 fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, file: JString) -> Result<jlong> {
-    let file = env.get_string(&file).map_err(convert::error_to_error)?;
-    let file = file.to_str().map_err(convert::error_to_error)?;
-    let metadata = op.stat(file)?;
+    let file = env.get_string(&file)?;
+    let metadata = op.stat(file.to_str()?)?;
     Ok(Box::into_raw(Box::new(metadata)) as jlong)
 }
 
@@ -148,12 +139,12 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
     op: *mut BlockingOperator,
     file: JString,
 ) {
-    let res = intern_delete(&mut env, &mut *op, file);
-    or_throw(&mut env, res)
+    intern_delete(&mut env, &mut *op, file).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
 }
 
 fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, file: JString) -> Result<()> {
-    let file = env.get_string(&file).map_err(convert::error_to_error)?;
-    let file = file.to_str().map_err(convert::error_to_error)?;
-    op.delete(file)
+    let file = env.get_string(&file)?;
+    Ok(op.delete(file.to_str()?)?)
 }

@@ -39,7 +39,6 @@ pub struct OssAppender {
 }
 
 impl OssAppender {
-    #[allow(dead_code)]
     pub fn new(core: Arc<OssCore>, path: &str, op: OpAppend) -> Self {
         Self {
             core,

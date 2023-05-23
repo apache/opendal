@@ -30,6 +30,7 @@ use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
+use super::appender::OssAppender;
 use super::core::*;
 use super::error::parse_error;
 use super::pager::OssPager;
@@ -441,7 +442,7 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriter;
     type BlockingWriter = ();
-    type Appender = ();
+    type Appender = OssAppender;
     type Pager = OssPager;
     type BlockingPager = ();
 
@@ -535,6 +536,13 @@ impl Accessor for OssBackend {
         Ok((
             RpWrite::default(),
             OssWriter::new(self.core.clone(), path, args),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            OssAppender::new(self.core.clone(), path, args),
         ))
     }
 

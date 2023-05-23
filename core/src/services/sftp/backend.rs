@@ -53,6 +53,7 @@ use crate::*;
 /// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] append
 /// - [x] create_dir
 /// - [x] delete
 /// - [x] copy
@@ -277,7 +278,7 @@ impl Accessor for SftpBackend {
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
-    type Appender = ();
+    type Appender = SftpWriter;
     type Pager = Option<SftpPager>;
     type BlockingPager = ();
 
@@ -303,6 +304,7 @@ impl Accessor for SftpBackend {
 
                 copy: self.copyable,
                 rename: true,
+                append: true,
 
                 ..Default::default()
             });
@@ -385,6 +387,25 @@ impl Accessor for SftpBackend {
         let file = client.create(&path).await?;
 
         Ok((RpWrite::new(), SftpWriter::new(file)))
+    }
+
+    async fn append(&self, path: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        if let Some((dir, _)) = path.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
+
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+        let path = fs.canonicalize(path).await?;
+
+        let mut option = client.options();
+        option.append(true).create(true);
+
+        let file = option.open(path).await?;
+
+        Ok((RpAppend::new(), SftpWriter::new(file)))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

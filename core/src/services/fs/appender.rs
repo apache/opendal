@@ -15,10 +15,36 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::FsBuilder as Fs;
+use async_trait::async_trait;
+use bytes::Bytes;
 
-mod appender;
-mod error;
-mod pager;
-mod writer;
+use tokio::io::AsyncWriteExt;
+
+use super::error::parse_io_error;
+use crate::raw::*;
+use crate::*;
+
+pub struct FsAppender<F> {
+    f: F,
+}
+
+impl<F> FsAppender<F> {
+    pub fn new(f: F) -> Self {
+        Self { f }
+    }
+}
+
+#[async_trait]
+impl oio::Append for FsAppender<tokio::fs::File> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.f.write_all(&bs).await.map_err(parse_io_error)?;
+
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.f.sync_all().await.map_err(parse_io_error)?;
+
+        Ok(())
+    }
+}

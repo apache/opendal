@@ -28,7 +28,6 @@ use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
 mod blocking_operator;
-mod convert;
 mod error;
 mod metadata;
 mod operator;
@@ -73,6 +72,14 @@ pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
     }
 }
 
+/// # Safety
+///
+/// This function could be only when the lib is loaded.
+unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
+    let env = ENV.with(|cell| *cell.borrow_mut()).unwrap();
+    JNIEnv::from_raw(env).unwrap()
+}
+
 fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String, String>> {
     let map = JMap::from_env(env, params)?;
     let mut iter = map.iter(env)?;
@@ -85,17 +92,4 @@ fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String,
     }
 
     Ok(result)
-}
-
-fn or_throw<T>(env: &mut JNIEnv, res: Result<T>) -> T
-where
-    T: Default,
-{
-    match res {
-        Ok(content) => content,
-        Err(err) => {
-            err.throw(env);
-            Default::default()
-        }
-    }
 }

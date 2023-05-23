@@ -14,7 +14,10 @@ impl Error {
         }
     }
 
-    fn do_throw(&self, env: &mut JNIEnv) -> jni::errors::Result<()> {
+    pub(crate) fn to_exception<'local>(
+        &self,
+        env: &mut JNIEnv<'local>,
+    ) -> jni::errors::Result<JThrowable<'local>> {
         let class = env.find_class("org/apache/opendal/exception/ODException")?;
         let code = env.new_string(match self.inner.kind() {
             ErrorKind::Unexpected => "Unexpected",
@@ -38,7 +41,12 @@ impl Error {
             "(Ljava/lang/String;Ljava/lang/String;)V",
             &[JValue::Object(&code), JValue::Object(&message)],
         )?;
-        env.throw(JThrowable::from(exception))
+        Ok(JThrowable::from(exception))
+    }
+
+    fn do_throw(&self, env: &mut JNIEnv) -> jni::errors::Result<()> {
+        let exception = self.to_exception(env)?;
+        env.throw(exception)
     }
 }
 

@@ -30,23 +30,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class ExceptionTest {
-    private BlockingOperator blockingOperator;
+    private BlockingOperator op;
 
     @BeforeEach
     public void init() {
         Map<String, String> params = new HashMap<>();
         params.put("root", "/tmp");
-        this.blockingOperator = new BlockingOperator("Memory", params);
+        this.op = new BlockingOperator("Memory", params);
     }
 
     @AfterEach
     public void clean() {
-        this.blockingOperator.close();
+        this.op.close();
     }
 
     @Test
     public void testStatNotExistFile() {
-        final ODException exception = assertThrows(ODException.class, () -> blockingOperator.stat("not_exist_file"));
+        final ODException exception = assertThrows(ODException.class, () -> op.stat("not_exist_file"));
         assertEquals(ODException.Code.NotFound, exception.getCode());
     }
 }

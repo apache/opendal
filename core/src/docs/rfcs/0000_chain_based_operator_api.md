@@ -32,7 +32,7 @@ let bs = op.read_with(
 
 # Guide-level explanation
 
-In this proposal, I plan to introduce chain based `Operator` API to make them more firendly to use:
+In this proposal, I plan to introduce chain based `Operator` API to make them more friendly to use:
 
 ```rust
 let bs = op.read_with("path/to/file")

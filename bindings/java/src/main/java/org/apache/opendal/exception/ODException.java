@@ -22,6 +22,7 @@ package org.apache.opendal.exception;
 public class ODException extends RuntimeException {
     private final Code code;
 
+    @SuppressWarnings("unused") // called by jni-rs
     public ODException(String code, String message) {
         this(Code.valueOf(code), message);
     }

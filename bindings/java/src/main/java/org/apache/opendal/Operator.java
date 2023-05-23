@@ -20,24 +20,71 @@
 package org.apache.opendal;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Operator extends NativeObject {
+    private static AsyncRegistry registry()  {
+        return AsyncRegistry.INSTANCE;
+    }
 
+    private enum AsyncRegistry {
+        INSTANCE;
+
+        private final Map<Long, CompletableFuture<?>> registry = new ConcurrentHashMap<>();
+
+        @SuppressWarnings("unused") // called by jni-rs
+        private long requestId() {
+            final CompletableFuture<?> f = new CompletableFuture<>();
+            while (true) {
+                final long requestId = Math.abs(UUID.randomUUID().getLeastSignificantBits());
+                final CompletableFuture<?> prev = registry.putIfAbsent(requestId, f);
+                if (prev == null) {
+                    return requestId;
+                }
+            }
+        }
+
+        private CompletableFuture<?> get(long requestId) {
+            return registry.get(requestId);
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> CompletableFuture<T> take(long requestId) {
+            final CompletableFuture<?> f = get(requestId);
+            if (f != null) {
+                f.whenComplete((r, e) -> registry.remove(requestId));
+            }
+            return (CompletableFuture<T>) f;
+        }
+    }
 
     public Operator(String schema, Map<String, String> map) {
         super(constructor(schema, map));
     }
 
-
     public CompletableFuture<Void> write(String fileName, String content) {
-        return write(nativeHandle, fileName, content);
+        final long requestId = write(nativeHandle, fileName, content);
+        return registry().take(requestId);
+    }
+
+    public CompletableFuture<Metadata> stat(String fileName) {
+        final long requestId = stat(nativeHandle, fileName);
+        final CompletableFuture<Long> f = registry().take(requestId);
+        return f.thenApply(Metadata::new);
+    }
+
+    public CompletableFuture<String> read(String fileName) {
+        final long requestId = read(nativeHandle, fileName);
+        return registry().take(requestId);
     }
 
     @Override
     protected native void disposeInternal(long handle);
 
     private static native long constructor(String schema, Map<String, String> map);
-
-    private static native CompletableFuture<Void> write(long nativeHandle, String fileName, String content);
+    private static native long read(long nativeHandle, String fileName);
+    private static native long write(long nativeHandle, String fileName, String content);
+    private static native long stat(long nativeHandle, String file);
 }

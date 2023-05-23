@@ -17,13 +17,12 @@
 
 use std::str::FromStr;
 
-use jni::objects::{JClass, JObject, JString, JValue};
-use jni::sys::{jlong, jobject};
+use jni::objects::{JClass, JObject, JString, JValue, JValueOwned};
+use jni::sys::jlong;
 use jni::JNIEnv;
 
 use opendal::{Operator, Scheme};
 
-use crate::error::Error;
 use crate::{get_current_env, Result};
 use crate::{jmap_to_hashmap, RUNTIME};
 
@@ -69,10 +68,10 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     op: *mut Operator,
     file: JString,
     content: JString,
-) -> jobject {
+) -> jlong {
     intern_write(&mut env, op, file, content).unwrap_or_else(|e| {
         e.throw(&mut env);
-        JObject::null().into_raw()
+        0
     })
 }
 
@@ -81,41 +80,147 @@ fn intern_write(
     op: *mut Operator,
     file: JString,
     content: JString,
-) -> Result<jobject> {
+) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    let file: String = env.get_string(&file)?.into();
-    let content: String = env.get_string(&content)?.into();
+    let id = request_id(env)?;
 
-    let class = "java/util/concurrent/CompletableFuture";
-    let f = env.new_object(class, "()V", &[])?;
-
-    // keep the future alive, so that we can complete it later
-    // but this approach will be limited by global ref table size (65535)
-    let future = env.new_global_ref(&f)?;
+    let file = env.get_string(&file)?.to_str()?.to_string();
+    let content = env.get_string(&content)?.to_str()?.to_string();
 
     let runtime = unsafe { RUNTIME.get_unchecked() };
     runtime.spawn(async move {
-        let result = match op.write(&file, content).await {
-            Ok(()) => Ok(JObject::null()),
-            Err(err) => Err(Error::from(err)),
-        };
-        complete_future(future.as_ref(), result)
+        let result = do_write(op, file, content).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
     });
 
-    Ok(f.into_raw())
+    Ok(id)
 }
 
-fn complete_future(future: &JObject, result: Result<JObject>) {
+async fn do_write(op: &mut Operator, file: String, content: String) -> Result<()> {
+    Ok(op.write(&file, content).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    file: JString,
+) -> jlong {
+    intern_stat(&mut env, op, file).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_stat(env: &mut JNIEnv, op: *mut Operator, file: JString) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let file = env.get_string(&file)?.to_str()?.to_string();
+
+    let runtime = unsafe { RUNTIME.get_unchecked() };
+    runtime.spawn(async move {
+        let result = do_stat(op, file).await;
+        complete_future(id, result.map(JValueOwned::Long))
+    });
+
+    Ok(id)
+}
+
+async fn do_stat(op: &mut Operator, file: String) -> Result<jlong> {
+    let metadata = op.stat(&file).await?;
+    Ok(Box::into_raw(Box::new(metadata)) as jlong)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    file: JString,
+) -> jlong {
+    intern_read(&mut env, op, file).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_read(env: &mut JNIEnv, op: *mut Operator, file: JString) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let file = env.get_string(&file)?.to_str()?.to_string();
+
+    let runtime = unsafe { RUNTIME.get_unchecked() };
+    runtime.spawn(async move {
+        let result = do_read(op, file).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
+async fn do_read<'local>(op: &mut Operator, file: String) -> Result<JObject<'local>> {
+    let content = op.read(&file).await?;
+    let content = String::from_utf8(content)?;
+
+    let env = unsafe { get_current_env() };
+    let result = env.new_string(content)?;
+    Ok(result.into())
+}
+
+fn request_id(env: &mut JNIEnv) -> Result<jlong> {
+    let registry = env
+        .call_static_method(
+            "org/apache/opendal/Operator",
+            "registry",
+            "()Lorg/apache/opendal/Operator$AsyncRegistry;",
+            &[],
+        )?
+        .l()?;
+    Ok(env.call_method(registry, "requestId", "()J", &[])?.j()?)
+}
+
+fn make_object<'local>(
+    env: &mut JNIEnv<'local>,
+    value: JValueOwned<'local>,
+) -> Result<JObject<'local>> {
+    let o = match value {
+        JValueOwned::Object(o) => o,
+        JValueOwned::Byte(_) => env.new_object("java/lang/Long", "(B)V", &[value.borrow()])?,
+        JValueOwned::Char(_) => env.new_object("java/lang/Char", "(C)V", &[value.borrow()])?,
+        JValueOwned::Short(_) => env.new_object("java/lang/Short", "(S)V", &[value.borrow()])?,
+        JValueOwned::Int(_) => env.new_object("java/lang/Integer", "(I)V", &[value.borrow()])?,
+        JValueOwned::Long(_) => env.new_object("java/lang/Long", "(J)V", &[value.borrow()])?,
+        JValueOwned::Bool(_) => env.new_object("java/lang/Boolean", "(Z)V", &[value.borrow()])?,
+        JValueOwned::Float(_) => env.new_object("java/lang/Float", "(F)V", &[value.borrow()])?,
+        JValueOwned::Double(_) => env.new_object("java/lang/Double", "(D)V", &[value.borrow()])?,
+        JValueOwned::Void => JObject::null(),
+    };
+    Ok(o)
+}
+
+fn complete_future(id: jlong, result: Result<JValueOwned>) {
     let mut env = unsafe { get_current_env() };
+    let future = get_future(&mut env, id).unwrap();
     match result {
-        Ok(result) => env
-            .call_method(
+        Ok(result) => {
+            let result = make_object(&mut env, result).unwrap();
+            env.call_method(
                 future,
                 "complete",
                 "(Ljava/lang/Object;)Z",
                 &[JValue::Object(&result)],
             )
-            .unwrap(),
+            .unwrap()
+        }
         Err(err) => {
             let exception = err.to_exception(&mut env).unwrap();
             env.call_method(
@@ -127,4 +232,23 @@ fn complete_future(future: &JObject, result: Result<JObject>) {
             .unwrap()
         }
     };
+}
+
+fn get_future<'local>(env: &mut JNIEnv<'local>, id: jlong) -> Result<JObject<'local>> {
+    let registry = env
+        .call_static_method(
+            "org/apache/opendal/Operator",
+            "registry",
+            "()Lorg/apache/opendal/Operator$AsyncRegistry;",
+            &[],
+        )?
+        .l()?;
+    Ok(env
+        .call_method(
+            registry,
+            "get",
+            "(J)Ljava/util/concurrent/CompletableFuture;",
+            &[JValue::Long(id)],
+        )?
+        .l()?)
 }

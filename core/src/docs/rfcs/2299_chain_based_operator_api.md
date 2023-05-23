@@ -1,6 +1,6 @@
 - Proposal Name: `chain_based_operator_api`
 - Start Date: 2023-05-23
-- RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
+- RFC PR: [apache/incubator-opendal#2299](https://github.com/apache/incubator-opendal/pull/2299)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary

@@ -65,13 +65,20 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String fileName, String content) {
-        return registry().take(write(nativeHandle, fileName, content));
+        final long requestId = write(nativeHandle, fileName, content);
+        return registry().take(requestId);
+    }
+
+    public CompletableFuture<Metadata> stat(String fileName) {
+        final long requestId = stat(nativeHandle, fileName);
+        final CompletableFuture<Long> f = registry().take(requestId);
+        return f.thenApply(Metadata::new);
     }
 
     @Override
     protected native void disposeInternal(long handle);
 
     private static native long constructor(String schema, Map<String, String> map);
-
     private static native long write(long nativeHandle, String fileName, String content);
+    private static native long stat(long nativeHandle, String file);
 }

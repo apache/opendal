@@ -26,7 +26,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AsyncStepsTest {
@@ -46,14 +48,20 @@ public class AsyncStepsTest {
 
     @Then("The async file {string} should exist")
     public void the_async_file_test_should_exist(String fileName) {
+        Metadata metadata = op.stat(fileName).join();
+        assertNotNull(metadata);
     }
 
     @Then("The async file {string} entry mode must be file")
     public void the_async_file_test_entry_mode_must_be_file(String fileName) {
+        Metadata metadata = op.stat(fileName).join();
+        assertTrue(metadata.isFile());
     }
 
     @Then("The async file {string} content length must be {int}")
     public void the_async_file_test_content_length_must_be_13(String fileName, int length) {
+        Metadata metadata = op.stat(fileName).join();
+        assertEquals(metadata.getContentLength(), length);
     }
 
     @Then("The async file {string} must have content {string}")

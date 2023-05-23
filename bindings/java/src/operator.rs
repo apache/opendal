@@ -17,7 +17,7 @@
 
 use std::str::FromStr;
 
-use jni::objects::{JClass, JObject, JString, JValue};
+use jni::objects::{JClass, JObject, JString, JValue, JValueOwned};
 use jni::sys::jlong;
 use jni::JNIEnv;
 
@@ -83,15 +83,49 @@ fn intern_write(
     content: JString,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
     let file = env.get_string(&file)?.to_str()?.to_string();
     let content = env.get_string(&content)?.to_str()?.to_string();
-
-    let id = request_id(env)?;
 
     let runtime = unsafe { RUNTIME.get_unchecked() };
     runtime.spawn(async move {
         let result = match op.write(&file, content).await {
-            Ok(()) => Ok(JObject::null()),
+            Ok(()) => Ok(JValueOwned::Void),
+            Err(err) => Err(Error::from(err)),
+        };
+        complete_future(id, result)
+    });
+
+    Ok(id)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    file: JString,
+) -> jlong {
+    intern_stat(&mut env, op, file).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_stat(env: &mut JNIEnv, op: *mut Operator, file: JString) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let file = env.get_string(&file)?.to_str()?.to_string();
+
+    let runtime = unsafe { RUNTIME.get_unchecked() };
+    runtime.spawn(async move {
+        let result = match op.stat(&file).await {
+            Ok(metadata) => Ok(JValueOwned::Long(Box::into_raw(Box::new(metadata)) as jlong)),
             Err(err) => Err(Error::from(err)),
         };
         complete_future(id, result)
@@ -112,18 +146,39 @@ fn request_id(env: &mut JNIEnv) -> Result<jlong> {
     Ok(env.call_method(registry, "requestId", "()J", &[])?.j()?)
 }
 
-fn complete_future(id: jlong, result: Result<JObject>) {
+fn make_object<'local>(
+    env: &mut JNIEnv<'local>,
+    value: JValueOwned<'local>,
+) -> Result<JObject<'local>> {
+    let o = match value {
+        JValueOwned::Object(o) => o,
+        JValueOwned::Byte(_) => env.new_object("java/lang/Long", "(B)V", &[value.borrow()])?,
+        JValueOwned::Char(_) => env.new_object("java/lang/Char", "(C)V", &[value.borrow()])?,
+        JValueOwned::Short(_) => env.new_object("java/lang/Short", "(S)V", &[value.borrow()])?,
+        JValueOwned::Int(_) => env.new_object("java/lang/Integer", "(I)V", &[value.borrow()])?,
+        JValueOwned::Long(_) => env.new_object("java/lang/Long", "(J)V", &[value.borrow()])?,
+        JValueOwned::Bool(_) => env.new_object("java/lang/Boolean", "(Z)V", &[value.borrow()])?,
+        JValueOwned::Float(_) => env.new_object("java/lang/Float", "(F)V", &[value.borrow()])?,
+        JValueOwned::Double(_) => env.new_object("java/lang/Double", "(D)V", &[value.borrow()])?,
+        JValueOwned::Void => JObject::null(),
+    };
+    Ok(o)
+}
+
+fn complete_future(id: jlong, result: Result<JValueOwned>) {
     let mut env = unsafe { get_current_env() };
     let future = get_future(&mut env, id).unwrap();
     match result {
-        Ok(result) => env
-            .call_method(
+        Ok(result) => {
+            let result = make_object(&mut env, result).unwrap();
+            env.call_method(
                 future,
                 "complete",
                 "(Ljava/lang/Object;)Z",
                 &[JValue::Object(&result)],
             )
-            .unwrap(),
+            .unwrap()
+        }
         Err(err) => {
             let exception = err.to_exception(&mut env).unwrap();
             env.call_method(

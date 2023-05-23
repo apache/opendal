@@ -16,10 +16,13 @@
 // under the License.
 
 use anyhow::Result;
+use log::warn;
 use opendal::ops::OpAppend;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
+use sha2::Digest;
+use sha2::Sha256;
 
 use super::utils::*;
 
@@ -68,6 +71,7 @@ macro_rules! behavior_append_tests {
                 test_append_with_content_type,
                 test_append_with_content_disposition,
 
+                test_appender_futures_copy,
                 test_fuzz_appender,
             );
         )*
@@ -101,7 +105,7 @@ pub async fn test_append(op: Operator) -> Result<()> {
 
 /// Test append to a directory path must fail.
 pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
+    let path = format!("{}/", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes();
 
     let res = op.append(&path, content).await;
@@ -194,6 +198,39 @@ pub async fn test_append_with_content_disposition(op: Operator) -> Result<()> {
 
     op.delete(&path).await.expect("delete must succeed");
 
+    Ok(())
+}
+
+/// Copy data from reader to writer
+pub async fn test_appender_futures_copy(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, size): (Vec<u8>, usize) =
+        gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
+
+    let mut a = match op.appender(&path).await {
+        Ok(a) => a,
+        Err(err) if err.kind() == ErrorKind::Unsupported => {
+            warn!("service doesn't support write with append");
+            return Ok(());
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    futures::io::copy(&mut content.as_slice(), &mut a).await?;
+    a.close().await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
+
+    let bs = op.read(&path).await?;
+    assert_eq!(bs.len(), size, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", Sha256::digest(content)),
+        "read content"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 

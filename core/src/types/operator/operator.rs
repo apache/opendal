@@ -1006,9 +1006,9 @@ impl Operator {
         }
 
         let bs = bs.into();
-        let (_, mut w) = self.inner().append(&path, args).await?;
-        w.append(bs).await?;
-        w.close().await?;
+        let (_, mut a) = self.inner().append(&path, args).await?;
+        a.append(bs).await?;
+        a.close().await?;
 
         Ok(())
     }

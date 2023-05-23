@@ -151,6 +151,9 @@ impl Debug for Capability {
         if self.write {
             s.push("Write");
         }
+        if self.append {
+            s.push("Append");
+        }
         if self.create_dir {
             s.push("CreateDir");
         }

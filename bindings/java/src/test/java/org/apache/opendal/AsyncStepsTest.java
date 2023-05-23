@@ -41,7 +41,7 @@ public class AsyncStepsTest {
 
     @When("Async write path {string} with content {string}")
     public void async_write_path_test_with_content_hello_world(String fileName, String content) {
-        CompletableFuture<Void> f = operator.writeAsync(fileName, content);
+        CompletableFuture<Void> f = operator.write(fileName, content);
 
         f.join();
 

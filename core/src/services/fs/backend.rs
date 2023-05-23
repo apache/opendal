@@ -27,12 +27,12 @@ use chrono::DateTime;
 use log::debug;
 use uuid::Uuid;
 
+use super::appender::FsAppender;
 use super::error::parse_io_error;
 use super::pager::FsPager;
 use super::writer::FsWriter;
 use crate::ops::*;
 use crate::raw::*;
-use crate::services::fs::appender::FsAppender;
 use crate::*;
 
 /// POSIX file system support.

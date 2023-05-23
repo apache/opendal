@@ -1,3 +1,15 @@
+# Upgrade to v0.35
+
+## Public API
+
+- OpenDAL removes rarely used `Operator::from_env` and `Operator::from_iter` APIs
+  - Users can use `Operator::via_map` instead.
+
+## Raw API
+
+- OpenDAL adds `append` support with could break existing layers. Please make sure `append` requests have been forward correctly.
+- After the merging of `scan` and `list`, OpenDAL removes the `scan` from raw API. Please use `list_without_delimiter` instead.
+
 # Upgrade to v0.34
 
 ## Public API

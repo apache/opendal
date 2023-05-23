@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.35.0] - 2023-05-23
+
+### Added
+
+- feat(services/onedrive): Implement `list`, `create_dir`, `stat` and upload
+ing large files (#2231)
+- feat(bindings/C): Initially support stat in C binding (#2249)
+- feat(bindings/python): Enable `abi3` to avoid building on different python
+ version (#2255)
+- feat(bindings/C): support BDD tests using GTest (#2254)
+- feat(services/sftp): setup integration tests (#2192)
+- feat(core): Add trait and public API for `append` (#2260)
+- feat(services/sftp): support copy and rename for sftp (#2263)
+- feat(services/sftp): support copy and read_seek (#2267)
+- feat: Add COS service support (#2269)
+- feat(services/cos): Add support for loading from env (#2271)
+- feat(core): add presign support for obs (#2253)
+- feat(services/sftp): setup integration tests (#2192)
+- feat(core): add presign support for obs (#2253)
+- feat(core): public API of append (#2284)
+- test(core): test for append (#2286)
+- feat(services/oss): add append support (#2279)
+- feat(bindings/java): implement async ops to pass AsyncStepsTest (#2291)
+
+### Changed
+
+- services/gdrive: port code to GdriveCore & add path_2_id cache (#2203)
+- refactor: Minimize futures dependencies (#2248)
+- refactor: Add Operator::via_map to support init without generic type parameters (#2280)
+- refactor(binding/java): build, async and docs (#2276)
+
+### Fixed
+
+- fix: Fix bugs that failed wasabi's integration tests (#2273)
+
+### Removed
+
+- feat(core): remove `scan` from raw API (#2262)
+
+### Docs
+
+- chore(s3): update builder region doc (#2247)
+- docs: Add services in readme (#2251)
+- docs: Unify capabilities list for kv services (#2257)
+- docs(nodejs): fix some example code errors (#2277)
+- docs(bindings/C): C binding contributing documentation (#2266)
+- docs: Add new docs that available for all languages (#2285)
+- docs: Remove unlicensed svg (#2289)
+- fix(website): double active route (#2290)
+
+### CI
+
+- ci: Enable test for cos (#2270)
+- ci: Add integration tests for supabase (#2272)
+- ci: replace set-output for docs (#2275)
+- ci: Fix unit tests (#2282)
+- ci: Cleanup NOTICE file (#2281)
+- ci: Fix release not contains incubating (#2292)
+
+### Chore
+
+- chore(core): remove unnecessary path prefix (#2265)
+
 ## [v0.34.0] - 2023-05-09
 
 ### Added
@@ -2097,6 +2160,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.35.0]: https://github.com/apache/incubator-opendal/compare/v0.34.0...v0.35.0
 [v0.34.0]: https://github.com/apache/incubator-opendal/compare/v0.33.3...v0.34.0
 [v0.33.3]: https://github.com/apache/incubator-opendal/compare/v0.33.2...v0.33.3
 [v0.33.2]: https://github.com/apache/incubator-opendal/compare/v0.33.1...v0.33.2

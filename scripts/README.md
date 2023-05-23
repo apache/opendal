@@ -22,7 +22,7 @@ OPENDAL_VERSION=0.30.2 OPENDAL_VERSION_RC=rc1 ./scripts/release.sh
 ## Check
 
 ```shell
-./scripts/check.sh apache-incubator-opendal-0.33.3-src.tar.gz
+./scripts/check.sh apache-opendal-incubating-0.33.3-src.tar.gz
 ```
 
 > Before running the check, please ensure that you have completed the following preparations.

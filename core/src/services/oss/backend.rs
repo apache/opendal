@@ -49,6 +49,7 @@ const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 /// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] append
 /// - [x] create_dir
 /// - [x] delete
 /// - [x] copy

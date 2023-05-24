@@ -533,7 +533,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        self.read_with(path).range(range.into()).await
+        self.read_with(path).range(range).await
     }
 
     /// Create a new reader which can read the whole path.

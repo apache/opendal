@@ -20,6 +20,7 @@
 //! By using futures, users can add more options for operation.
 
 use std::mem;
+use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -180,8 +181,8 @@ pub struct FutureRead(pub(crate) OperatorFuture<OpRead, Vec<u8>>);
 
 impl FutureRead {
     /// Set the range header for this operation.
-    pub fn range(mut self, range: BytesRange) -> Self {
-        self.0 = self.0.map_args(|args| args.with_range(range));
+    pub fn range(mut self, range: impl RangeBounds<u64>) -> Self {
+        self.0 = self.0.map_args(|args| args.with_range(range.into()));
         self
     }
 

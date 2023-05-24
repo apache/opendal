@@ -936,7 +936,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn appender(&self, path: &str) -> Result<Appender> {
-        self.appender_with(path, OpAppend::default()).await
+        self.appender_with(path).await
     }
 
     /// Append multiple bytes into path with extra options.
@@ -953,27 +953,40 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let args = OpAppend::new().with_content_type("application/octet-stream");
-    /// let mut a = op.appender_with("path/to/file", args).await?;
+    /// let mut a = op.appender_with("path/to/file").content_type("application/octet-stream").await?;
     /// a.append(vec![0; 4096]).await?;
     /// a.append(vec![1; 4096]).await?;
     /// a.close().await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn appender_with(&self, path: &str, args: OpAppend) -> Result<Appender> {
+    pub fn appender_with(&self, path: &str) -> FutureAppender {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "append path is a directory")
-                    .with_operation("Operator::appender")
-                    .with_context("service", self.inner().info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
+        let fut = FutureAppender(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpAppend::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "append path is a directory",
+                        )
+                        .with_operation("Operator::appender")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+                    let ap = Appender::create(inner, &path, args).await?;
+                    Ok(ap)
+                };
 
-        Appender::create(self.inner().clone(), &path, args).await
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Append bytes with extra options.

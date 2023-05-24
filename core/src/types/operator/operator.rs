@@ -452,12 +452,62 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.read_with("path/to/file", OpRead::new()).await?;
+    /// let bs = op.read_with("path/to/file").await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn read_with(&self, path: &str, args: OpRead) -> Result<Vec<u8>> {
-        self.range_read_with(path, .., args).await
+    pub fn read_with(&self, path: &str) -> FutureRead {
+        let path = normalize_path(path);
+
+        let fut = FutureRead(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "read path is a directory",
+                        )
+                        .with_operation("range_read")
+                        .with_context("service", inner.info().scheme())
+                        .with_context("path", &path));
+                    }
+
+                    let br = args.range();
+                    let (rp, mut s) = inner.read(&path, args).await?;
+
+                    let length = rp.into_metadata().content_length() as usize;
+                    let mut buffer = Vec::with_capacity(length);
+
+                    let dst = buffer.spare_capacity_mut();
+                    let mut buf = ReadBuf::uninit(dst);
+
+                    // Safety: the input buffer is created with_capacity(length).
+                    unsafe { buf.assume_init(length) };
+
+                    // TODO: use native read api
+                    s.read_exact(buf.initialized_mut()).await.map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "read from storage")
+                            .with_operation("range_read")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path)
+                            .with_context("range", br.to_string())
+                            .set_source(err)
+                    })?;
+
+                    // Safety: read_exact makes sure this buffer has been filled.
+                    unsafe { buffer.set_len(length) }
+
+                    Ok(buffer)
+                };
+
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Read the specified range of path into a bytes.
@@ -483,77 +533,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        self.range_read_with(path, range, OpRead::new()).await
-    }
-
-    /// Read the specified range of path into a bytes with extra options..
-    ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Operator::range_reader`]
-    ///
-    /// # Notes
-    ///
-    /// - The returning content's length may be smaller than the range specified.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use opendal::ops::OpRead;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op
-    ///     .range_read_with("path/to/file", 1024..2048, OpRead::new())
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn range_read_with(
-        &self,
-        path: &str,
-        range: impl RangeBounds<u64>,
-        args: OpRead,
-    ) -> Result<Vec<u8>> {
-        let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("range_read")
-                    .with_context("service", self.inner().info().scheme())
-                    .with_context("path", &path),
-            );
-        }
-
-        let br = BytesRange::from(range);
-
-        let (rp, mut s) = self.inner().read(&path, args.with_range(br)).await?;
-
-        let length = rp.into_metadata().content_length() as usize;
-        let mut buffer = Vec::with_capacity(length);
-
-        let dst = buffer.spare_capacity_mut();
-        let mut buf = ReadBuf::uninit(dst);
-
-        // Safety: the input buffer is created with_capacity(length).
-        unsafe { buf.assume_init(length) };
-
-        // TODO: use native read api
-        s.read_exact(buf.initialized_mut()).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read from storage")
-                .with_operation("range_read")
-                .with_context("service", self.inner().info().scheme().into_static())
-                .with_context("path", &path)
-                .with_context("range", br.to_string())
-                .set_source(err)
-        })?;
-
-        // Safety: read_exact makes sure this buffer has been filled.
-        unsafe { buffer.set_len(length) }
-
-        Ok(buffer)
+        self.read_with(path).range(range).await
     }
 
     /// Create a new reader which can read the whole path.

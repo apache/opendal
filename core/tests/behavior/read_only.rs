@@ -17,7 +17,6 @@
 
 use anyhow::Result;
 use futures::AsyncReadExt;
-use opendal::ops::OpRead;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -310,18 +309,13 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(path).await?;
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_match("invalid_etag");
-
-    let res = op.read_with(path, op_read).await;
+    let res = op.read_with(path).if_match("invalid_etag").await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_match(meta.etag().expect("etag must exist"));
-
     let bs = op
-        .read_with(path, op_read)
+        .read_with(path)
+        .if_match(meta.etag().expect("etag must exist"))
         .await
         .expect("read must succeed");
     assert_eq!(bs.len(), 262144, "read size");
@@ -344,18 +338,16 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(path).await?;
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_none_match(meta.etag().expect("etag must exist"));
-
-    let res = op.read_with(path, op_read).await;
+    let res = op
+        .read_with(path)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_none_match("invalid_etag");
-
     let bs = op
-        .read_with(path, op_read)
+        .read_with(path)
+        .if_none_match("invalid_etag")
         .await
         .expect("read must succeed");
     assert_eq!(bs.len(), 262144, "read size");

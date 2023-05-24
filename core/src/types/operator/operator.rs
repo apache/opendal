@@ -665,7 +665,7 @@ impl Operator {
     /// ```
     pub async fn append(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
         let bs = bs.into();
-        self.append_with(path, OpAppend::new(), bs).await
+        self.append_with(path, bs).await
     }
 
     /// Copy a file from `from` to `to`.
@@ -988,34 +988,41 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let args = OpAppend::new().with_content_type("text/plain");
-    /// let _ = op.append_with("path/to/file", args, bs).await?;
+    /// let _ = op.append_with("path/to/file", bs).content_type("text/plain").await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn append_with(
-        &self,
-        path: &str,
-        args: OpAppend,
-        bs: impl Into<Bytes>,
-    ) -> Result<()> {
+    pub fn append_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureAppend {
         let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "append path is a directory")
-                    .with_operation("Operator::append_with")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
-
         let bs = bs.into();
-        let (_, mut a) = self.inner().append(&path, args).await?;
-        a.append(bs).await?;
-        a.close().await?;
 
-        Ok(())
+        let fut = FutureAppend(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpAppend::default(), bs),
+            |inner, path, (args, bs)| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "append path is a directory",
+                        )
+                        .with_operation("Operator::append_with")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+                    let (_, mut a) = inner.append(&path, args).await?;
+                    a.append(bs).await?;
+                    a.close().await?;
+
+                    Ok(())
+                };
+
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Delete the given path.

@@ -534,9 +534,7 @@ mod tests {
         builder.root("/");
         let op = Operator::new(builder)?.finish();
 
-        let match_bs = op
-            .read_with("hello", OpRead::new().with_if_none_match("*"))
-            .await?;
+        let match_bs = op.read_with("hello").if_none_match("*").await?;
         assert_eq!(match_bs, b"Hello, World!");
 
         Ok(())

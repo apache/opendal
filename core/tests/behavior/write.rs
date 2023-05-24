@@ -25,7 +25,6 @@ use futures::StreamExt;
 use http::StatusCode;
 use log::debug;
 use log::warn;
-use opendal::ops::OpRead;
 use opendal::ops::OpWrite;
 use opendal::EntryMode;
 use opendal::ErrorKind;

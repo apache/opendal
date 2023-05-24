@@ -39,6 +39,7 @@ mod constants {
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
+    pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
 }
 
 pub struct AzblobCore {
@@ -223,6 +224,116 @@ impl AzblobCore {
         );
 
         // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    /// For appendable object, it could be created by `put` an empty blob
+    /// with `x-ms-blob-type` header set to `AppendBlob`.
+    /// And it's just initialized with empty content.
+    ///
+    /// If want to append content to it, we should use the following method `azblob_append_blob_request`.
+    ///
+    /// # Notes
+    ///
+    /// Appendable blob's custom header could only be set when it's created.
+    ///
+    /// The following custom header could be set:
+    /// - `content-type`
+    /// - `x-ms-blob-cache-control`
+    ///
+    /// # Reference
+    ///
+    /// https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob
+    pub fn azblob_init_appendable_blob_request(
+        &self,
+        path: &str,
+        content_type: Option<&str>,
+        cache_control: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::put(&url);
+
+        // The content-length header must be set to zero
+        // when creating an appendable blob.
+        req = req.header(CONTENT_LENGTH, 0);
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "AppendBlob",
+        );
+
+        if let Some(ty) = content_type {
+            req = req.header(CONTENT_TYPE, ty)
+        }
+
+        if let Some(cache_control) = cache_control {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    /// Append content to an appendable blob.
+    /// The content will be appended to the end of the blob.
+    ///
+    /// # Notes
+    ///
+    /// - The maximum size of the content could be appended is 4MB.
+    /// - `Append Block` succeeds only if the blob already exists.
+    /// - It does not need to provide append position.
+    /// - But it could use append position to verify the content is appended to the right position.
+    ///
+    /// Since the `appendpos` only returned by the append operation response,
+    /// we could not use it when we want to append content to the blob first time.
+    /// (The first time of the appender, not the blob)
+    ///
+    /// # Reference
+    ///
+    /// https://learn.microsoft.com/en-us/rest/api/storageservices/append-block
+    pub fn azblob_append_blob_request(
+        &self,
+        path: &str,
+        size: usize,
+        position: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?comp=appendblock",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::put(&url);
+
+        req = req.header(CONTENT_LENGTH, size);
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "AppendBlob",
+        );
+
+        if let Some(pos) = position {
+            req = req.header(
+                HeaderName::from_static(constants::X_MS_BLOB_CONDITION_APPENDPOS),
+                pos.to_string(),
+            );
+        }
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)

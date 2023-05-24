@@ -90,7 +90,7 @@ impl FunctionWrite {
         self
     }
 
-    /// Call the function to comsume all the input and generate a
+    /// Call the function to consume all the input and generate a
     /// result.
     pub fn call(self) -> Result<()> {
         self.0.call()

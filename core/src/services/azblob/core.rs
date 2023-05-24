@@ -322,10 +322,6 @@ impl AzblobCore {
         let mut req = Request::put(&url);
 
         req = req.header(CONTENT_LENGTH, size);
-        req = req.header(
-            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
-            "AppendBlob",
-        );
 
         if let Some(pos) = position {
             req = req.header(

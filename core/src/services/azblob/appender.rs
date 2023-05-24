@@ -62,6 +62,7 @@ impl oio::Append for AzblobAppender {
                 .await?;
 
             let status = resp.status();
+
             match status {
                 // Just check the blob type.
                 // If it is not an appendable blob, return an error.
@@ -108,9 +109,11 @@ impl oio::Append for AzblobAppender {
             }
         }
 
+        let size = bs.len();
+
         let mut req = self.core.azblob_append_blob_request(
             &self.path,
-            bs.len(),
+            size,
             self.position,
             AsyncBody::Bytes(bs),
         )?;
@@ -127,7 +130,7 @@ impl oio::Append for AzblobAppender {
                     .get(X_MS_BLOB_APPEND_OFFSET)
                     .and_then(|v| v.to_str().ok())
                     .and_then(|v| v.parse::<u64>().ok());
-                self.position = position;
+                self.position = position.map(|v| v + size as u64);
             }
             _ => {
                 return Err(parse_error(resp).await?);

@@ -117,7 +117,7 @@ pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
 
 /// Test append with cache control must success.
 pub async fn test_append_with_cache_control(op: Operator) -> Result<()> {
-    if !op.info().capability().write_with_cache_control {
+    if !op.info().capability().append_with_cache_control {
         return Ok(());
     }
 
@@ -174,7 +174,7 @@ pub async fn test_append_with_content_type(op: Operator) -> Result<()> {
 
 /// Write a single file with content disposition should succeed.
 pub async fn test_append_with_content_disposition(op: Operator) -> Result<()> {
-    if !op.info().capability().write_with_content_disposition {
+    if !op.info().capability().append_with_content_disposition {
         return Ok(());
     }
 

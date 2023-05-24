@@ -647,12 +647,7 @@ impl Operator {
     /// ```
     pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
         let bs = bs.into();
-        self.write_with(
-            path,
-            OpWrite::new().with_content_length(bs.len() as u64),
-            bs,
-        )
-        .await
+        self.write_with(path, bs).await
     }
 
     /// Append bytes into path.
@@ -880,32 +875,40 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let args = OpWrite::new().with_content_type("text/plain");
-    /// let _ = op.write_with("path/to/file", args, bs).await?;
+    /// let _ = op.write_with("path/to/file", bs).content_type("text/plain").await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_with(&self, path: &str, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
+    pub fn write_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureWrite {
         let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Operator::write_with")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
-
         let bs = bs.into();
-        let (_, mut w) = self
-            .inner()
-            .write(&path, args.with_content_length(bs.len() as u64))
-            .await?;
-        w.write(bs).await?;
-        w.close().await?;
 
-        Ok(())
+        let fut = FutureWrite(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpWrite::default().with_content_length(bs.len() as u64), bs),
+            |inner, path, (args, bs)| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "write path is a directory",
+                        )
+                        .with_operation("Operator::write_with")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+
+                    let (_, mut w) = inner.write(&path, args).await?;
+                    w.write(bs).await?;
+                    w.close().await?;
+
+                    Ok(())
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 
     /// Append multiple bytes into path.

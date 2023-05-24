@@ -26,7 +26,6 @@ use http::StatusCode;
 use log::debug;
 use log::warn;
 use opendal::ops::OpRead;
-use opendal::ops::OpWrite;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -202,11 +201,9 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
     let (content, _) = gen_bytes();
 
     let target_cache_control = "no-cache, no-store, max-age=300";
-
-    let mut op_write = OpWrite::default();
-    op_write = op_write.with_cache_control(target_cache_control);
-
-    op.write_with(&path, op_write, content).await?;
+    op.write_with(&path, content)
+        .cache_control(target_cache_control)
+        .await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -230,11 +227,9 @@ pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     let target_content_type = "application/json";
-
-    let mut op_write = OpWrite::default();
-    op_write = op_write.with_content_type(target_content_type);
-
-    op.write_with(&path, op_write, content).await?;
+    op.write_with(&path, content)
+        .content_type(target_content_type)
+        .await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -259,11 +254,9 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     let target_content_disposition = "attachment; filename=\"filename.jpg\"";
-
-    let mut op_write = OpWrite::default();
-    op_write = op_write.with_content_disposition(target_content_disposition);
-
-    op.write_with(&path, op_write, content).await?;
+    op.write_with(&path, content)
+        .content_disposition(target_content_disposition)
+        .await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.mode(), EntryMode::FILE);

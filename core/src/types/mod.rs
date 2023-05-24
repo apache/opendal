@@ -41,6 +41,7 @@ pub use list::BlockingLister;
 pub use list::Lister;
 
 mod operator;
+pub use operator::operator_futures;
 pub use operator::BlockingOperator;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;

@@ -558,9 +558,7 @@ mod tests {
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         let op = Operator::new(builder)?.finish();
-        let bs = op
-            .stat_with("hello", OpStat::new().with_if_none_match("*"))
-            .await?;
+        let bs = op.stat_with("hello").if_none_match("*").await?;
 
         assert_eq!(bs.mode(), EntryMode::FILE);
         assert_eq!(bs.content_length(), 128);

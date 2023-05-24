@@ -28,6 +28,7 @@ use futures::TryStreamExt;
 use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
+use crate::operator_futures::*;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -190,7 +191,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn stat(&self, path: &str) -> Result<Metadata> {
-        self.stat_with(path, OpStat::new()).await
+        self.stat_with(path).await
     }
 
     /// Get current path's metadata **without cache** directly with extra options.
@@ -217,7 +218,7 @@ impl Operator {
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// if let Err(e) = op.stat_with("test", OpStat::new()).await {
+    /// if let Err(e) = op.stat_with("test").if_match("<etag>").await {
     ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("file not exist")
     ///     }
@@ -225,13 +226,24 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn stat_with(&self, path: &str, args: OpStat) -> Result<Metadata> {
+    pub fn stat_with(&self, path: &str) -> FutureStat {
         let path = normalize_path(path);
 
-        let rp = self.inner().stat(&path, args).await?;
-        let meta = rp.into_metadata();
+        let fut = FutureStat(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpStat::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    let rp = inner.stat(&path, args).await?;
+                    Ok(rp.into_metadata())
+                };
 
-        Ok(meta)
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Get current metadata with cache.

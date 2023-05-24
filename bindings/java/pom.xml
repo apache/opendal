@@ -24,11 +24,31 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.apache</groupId>
+        <artifactId>apache</artifactId>
+        <version>29</version>
+    </parent>
+
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-java</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
+
+    <url>https://opendal.apache.org</url>
+    <mailingLists>
+        <mailingList>
+            <name>Develop List</name>
+            <subscribe>dev-subscribe@opendal.apache.org</subscribe>
+            <unsubscribe>dev-unsubscribe@opendal.apache.org</unsubscribe>
+            <post>dev@opendal.apache.org</post>
+            <archive>https://lists.apache.org/list.html?dev@opendal.apache.org</archive>
+        </mailingList>
+    </mailingLists>
 
     <properties>
+        <!-- This value is for Reproducible Builds. It will be updated by Maven Release Plugin during releases. -->
+        <project.build.outputTimestamp>10</project.build.outputTimestamp>
+
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

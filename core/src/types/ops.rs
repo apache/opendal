@@ -438,7 +438,7 @@ impl OpAppend {
         self.cache_control.as_deref()
     }
 
-    /// Set the content type of option
+    /// Set the cache control of option
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
         self

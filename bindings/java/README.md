@@ -2,9 +2,9 @@
 
 ## Build
 
-This project provide OpenDAL Java bindings with artifact name `opendal-java`. It depends on JDK 8 or later.
+This project provides OpenDAL Java bindings with artifact name `opendal-java`. It depends on JDK 8 or later.
 
-Thanks to [rust-maven-plugin](https://github.com/questdb/rust-maven-plugin) with can use Maven to build both Rust dynamic lib and JAR files with one command:
+Thanks to [rust-maven-plugin](https://github.com/questdb/rust-maven-plugin), we can use Maven to build both Rust dynamic lib and JAR files with one command now:
 
 ```shell
 mvn clean package

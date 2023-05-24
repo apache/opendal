@@ -400,6 +400,8 @@ impl Accessor for AzblobBackend {
                 write_with_content_type: true,
 
                 append: true,
+                append_with_cache_control: true,
+                append_with_content_type: true,
 
                 delete: true,
                 create_dir: true,

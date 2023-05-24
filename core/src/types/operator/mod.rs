@@ -29,3 +29,5 @@ pub use builder::OperatorBuilder;
 
 mod metadata;
 pub use metadata::OperatorInfo;
+
+pub mod operator_futures;

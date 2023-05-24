@@ -48,9 +48,9 @@ pub(crate) enum OperatorFuture<T, F> {
     ),
     /// Polling state, waiting for the future to be ready
     Poll(BoxFuture<'static, Result<F>>),
-    /// Done state, the future has been polled and completed or something is
-    /// broken during state switch.
-    Done,
+    /// Empty state, the future has been polled and completed or
+    /// something is broken during state switch.
+    Empty,
 }
 
 impl<T, F> OperatorFuture<T, F> {
@@ -80,8 +80,19 @@ where
 {
     type Output = Result<F>;
 
+    /// We will move the self state out by replace a `Empty` into.
+    ///
+    /// - If the future is `Idle`, we will move all args out to build
+    ///   a new future, and update self state to `Poll`.
+    /// - If the future is `Poll`, we will poll the inner future
+    ///   - If future is `Ready`, we will return it directly with
+    ///     self state is `Empty`
+    ///   - If future is `Pending`, we will set self state to `Poll`
+    ///     and wait for next poll
+    ///
+    /// In general, `Empty` state should not be polled.
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        *self = match mem::replace(self.as_mut().get_mut(), OperatorFuture::Done) {
+        *self = match mem::replace(self.as_mut().get_mut(), OperatorFuture::Empty) {
             OperatorFuture::Idle(inner, path, args, f) => {
                 OperatorFuture::Poll(f(inner, path, args))
             }
@@ -89,8 +100,8 @@ where
                 Poll::Pending => OperatorFuture::Poll(fut),
                 Poll::Ready(v) => return Poll::Ready(v),
             },
-            OperatorFuture::Done => {
-                panic!("Future polled after completion");
+            OperatorFuture::Empty => {
+                panic!("future polled after completion");
             }
         };
         cx.waker().wake_by_ref();

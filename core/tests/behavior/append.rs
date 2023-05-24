@@ -17,7 +17,6 @@
 
 use anyhow::Result;
 use log::warn;
-use opendal::ops::OpAppend;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;

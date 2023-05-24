@@ -1469,24 +1469,30 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let args = OpRead::new()
-    ///         .with_override_content_disposition("attachment; filename=\"othertext.txt\"");
-    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::from_secs(3600)).await?;
+    ///     let signed_req = op
+    ///         .presign_read_with("test.txt", Duration::from_secs(3600))
+    ///         .override_content_disposition("attachment; filename=\"othertext.txt\"")
+    ///         .await?;
     /// #    Ok(())
     /// # }
     /// ```
-    pub async fn presign_read_with(
-        &self,
-        path: &str,
-        op: OpRead,
-        expire: Duration,
-    ) -> Result<PresignedRequest> {
+    pub fn presign_read_with(&self, path: &str, expire: Duration) -> FuturePresignRead {
         let path = normalize_path(path);
+        let op = OpPresign::new(OpRead::default(), expire);
 
-        let op = OpPresign::new(op, expire);
-
-        let rp = self.inner().presign(&path, op).await?;
-        Ok(rp.into_presigned_request())
+        let fut = FuturePresignRead(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpRead::default(), op),
+            |inner, path, (_args, op)| {
+                let fut = async move {
+                    let rp = inner.presign(&path, op).await?;
+                    Ok(rp.into_presigned_request())
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 
     /// Presign an operation for write.

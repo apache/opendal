@@ -876,12 +876,9 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let target_cache_control = "no-cache, no-store, must-revalidate";
-
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_override_cache_control(target_cache_control);
-
     let signed_req = op
-        .presign_read_with(&path, op_read, Duration::from_secs(60))
+        .presign_read_with(&path, Duration::from_secs(60))
+        .override_cache_control(target_cache_control)
         .await
         .expect("sign must succeed");
 
@@ -930,11 +927,9 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
 
     let target_content_disposition = "attachment; filename=foo.txt";
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_override_content_disposition(target_content_disposition);
-
     let signed_req = op
-        .presign_read_with(&path, op_read, Duration::from_secs(60))
+        .presign_read_with(&path, Duration::from_secs(60))
+        .override_content_disposition(target_content_disposition)
         .await
         .expect("presign must succeed");
 

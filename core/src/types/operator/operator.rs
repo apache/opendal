@@ -552,7 +552,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn reader(&self, path: &str) -> Result<Reader> {
-        self.reader_with(path, OpRead::default()).await
+        self.reader_with(path).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -574,8 +574,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_reader(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Reader> {
-        self.reader_with(path, OpRead::new().with_range(range.into()))
-            .await
+        self.reader_with(path).range(range).await
     }
 
     /// Create a new reader with extra options
@@ -591,24 +590,38 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op
-    ///     .reader_with("path/to/file", OpRead::default().with_range((0..10).into()))
+    ///     .reader_with("path/to/file")
+    ///     .range((0..10))
     ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn reader_with(&self, path: &str, args: OpRead) -> Result<Reader> {
+    pub fn reader_with(&self, path: &str) -> FutureReader {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("Operator::range_reader")
-                    .with_context("service", self.info().scheme())
-                    .with_context("path", path),
-            );
-        }
+        let fut = FutureReader(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "read path is a directory",
+                        )
+                        .with_operation("Operator::range_reader")
+                        .with_context("service", inner.info().scheme())
+                        .with_context("path", path));
+                    }
 
-        Reader::create_dir(self.inner().clone(), &path, args).await
+                    Reader::create_dir(inner.clone(), &path, args).await
+                };
+
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 
     /// Write bytes into path.

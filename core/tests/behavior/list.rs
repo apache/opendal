@@ -23,7 +23,6 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
-use opendal::ops::OpList;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;

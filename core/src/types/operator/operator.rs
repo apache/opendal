@@ -1402,25 +1402,34 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn scan(&self, path: &str) -> Result<Lister> {
+    pub fn scan(&self, path: &str) -> FutureList {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "the path trying to scan should end with `/`",
-            )
-            .with_operation("list")
-            .with_context("service", self.info().scheme().into_static())
-            .with_context("path", &path));
-        }
+        let fut = FutureList(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, _args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::DIR) {
+                        return Err(Error::new(
+                            ErrorKind::NotADirectory,
+                            "the path trying to scan should end with `/`",
+                        )
+                        .with_operation("list")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
 
-        let (_, pager) = self
-            .inner()
-            .list(&path, OpList::new().with_delimiter(""))
-            .await?;
+                    let (_, pager) = inner.list(&path, OpList::new().with_delimiter("")).await?;
 
-        Ok(Lister::new(pager))
+                    Ok(Lister::new(pager))
+                };
+
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 }
 /// Operator presign API.

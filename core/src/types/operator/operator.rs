@@ -1550,7 +1550,7 @@ impl Operator {
     /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
     /// ```
     pub async fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
-        self.presign_write_with(path, OpWrite::new(), expire).await
+        self.presign_write_with(path, expire).await
     }
 
     /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -1568,8 +1568,8 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let args = OpWrite::new().with_content_type("text/csv");
-    ///     let signed_req = op.presign_write_with("test", args, Duration::from_secs(3600)).await?;
+    ///     let signed_req = op.presign_write_with("test", Duration::from_secs(3600))
+    ///                        .content_type("text/csv").await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
@@ -1578,17 +1578,22 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub async fn presign_write_with(
-        &self,
-        path: &str,
-        op: OpWrite,
-        expire: Duration,
-    ) -> Result<PresignedRequest> {
+    pub fn presign_write_with(&self, path: &str, expire: Duration) -> FuturePresignWrite {
         let path = normalize_path(path);
 
-        let op = OpPresign::new(op, expire);
-
-        let rp = self.inner().presign(&path, op).await?;
-        Ok(rp.into_presigned_request())
+        let fut = FuturePresignWrite(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpWrite::default(), expire),
+            |inner, path, (args, dur)| {
+                let fut = async move {
+                    let op = OpPresign::new(args, dur);
+                    let rp = inner.presign(&path, op).await?;
+                    Ok(rp.into_presigned_request())
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 }

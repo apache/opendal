@@ -1422,7 +1422,6 @@ impl Operator {
 
         Ok(Lister::new(pager))
     }
-
 }
 /// Operator presign API.
 impl Operator {

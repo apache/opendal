@@ -1421,7 +1421,9 @@ impl Operator {
                         .with_context("path", &path));
                     }
 
-                    let (_, pager) = inner.list(&path, OpList::new().with_delimiter("")).await?;
+                    let (_, pager) = inner
+                        .list(&path, (arg as OpList).with_delimiter(""))
+                        .await?;
 
                     Ok(Lister::new(pager))
                 };

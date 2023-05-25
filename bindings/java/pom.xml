@@ -194,17 +194,9 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>macos-aarch64</id>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                        <configuration>
-                            <classifier>${os.detected.classifier}</classifier>
-                        </configuration>
-                    </execution>
-                </executions>
+                <configuration>
+                    <classifier>${os.detected.classifier}</classifier>
+                </configuration>
             </plugin>
         </plugins>
     </build>

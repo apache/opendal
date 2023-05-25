@@ -152,6 +152,22 @@ export class Operator {
    */
   writeSync(path: string, content: Buffer | string): void
   /**
+   * Append bytes into path.
+   *
+   * ### Notes
+   *
+   * - It always appends content to the end of the file.
+   * - It will create file if the path not exists.
+   *
+   * ### Example
+   * ```javascript
+   * await op.append("path/to/file", Buffer.from("hello world"));
+   * // or
+   * await op.append("path/to/file", "hello world");
+   * ```
+   */
+  append(path: string, content: Buffer | string): Promise<void>
+  /**
    * Copy file according to given `from` and `to` path.
    *
    * ### Example

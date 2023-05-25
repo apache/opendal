@@ -1372,7 +1372,7 @@ impl Operator {
     /// # Notes
     ///
     /// - `scan` will not return the prefix itself.
-    /// - `scan` is an alias of `list_with(OpList::new().with_delimiter(""))`
+    /// - `scan` is an alias of `list_with(path).delimiter("")`
     ///
     /// # Examples
     ///
@@ -1402,36 +1402,8 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn scan(&self, path: &str) -> FutureList {
-        let path = normalize_path(path);
-
-        let fut = FutureList(OperatorFuture::new(
-            self.inner().clone(),
-            path,
-            OpList::default(),
-            |inner, path, _args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::DIR) {
-                        return Err(Error::new(
-                            ErrorKind::NotADirectory,
-                            "the path trying to scan should end with `/`",
-                        )
-                        .with_operation("list")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
-
-                    let (_, pager) = inner
-                        .list(&path, (arg as OpList).with_delimiter(""))
-                        .await?;
-
-                    Ok(Lister::new(pager))
-                };
-
-                Box::pin(fut)
-            },
-        ));
-        fut
+    pub async fn scan(&self, path: &str) -> Result<Lister> {
+        self.list_with(path).delimiter("").await
     }
 }
 /// Operator presign API.

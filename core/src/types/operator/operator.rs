@@ -1494,14 +1494,14 @@ impl Operator {
     /// ```
     pub fn presign_read_with(&self, path: &str, expire: Duration) -> FuturePresignRead {
         let path = normalize_path(path);
-        let op = OpPresign::new(OpRead::default(), expire);
 
         let fut = FuturePresignRead(OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), op),
-            |inner, path, (_args, op)| {
+            (OpRead::default(), expire),
+            |inner, path, (args, dur)| {
                 let fut = async move {
+                    let op = OpPresign::new(args, dur);
                     let rp = inner.presign(&path, op).await?;
                     Ok(rp.into_presigned_request())
                 };

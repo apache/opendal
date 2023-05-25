@@ -59,6 +59,9 @@ pub struct AzblobBuilder {
     endpoint: Option<String>,
     account_name: Option<String>,
     account_key: Option<String>,
+    server_side_encryption_customer_key: Option<String>,
+    server_side_encryption_customer_key_sha256: Option<String>,
+    server_side_encryption_customer_algorithm: Option<String>,
     sas_token: Option<String>,
     http_client: Option<HttpClient>,
 }

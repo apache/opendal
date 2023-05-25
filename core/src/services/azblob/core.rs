@@ -26,6 +26,7 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use http::HeaderValue;
 use http::Request;
 use http::Response;
 use reqsign::AzureStorageCredential;
@@ -46,7 +47,9 @@ pub struct AzblobCore {
     pub container: String,
     pub root: String,
     pub endpoint: String,
-
+    pub server_side_encryption_customer_key: Option<HeaderValue>,
+    pub server_side_encryption_customer_key_sha256: Option<HeaderValue>,
+    pub server_side_encryption_customer_algorithm: Option<HeaderValue>,
     pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,

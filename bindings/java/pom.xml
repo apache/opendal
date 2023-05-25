@@ -33,7 +33,6 @@
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-java</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
 
     <url>https://opendal.apache.org</url>
     <mailingLists>
@@ -85,12 +84,6 @@
             <groupId>org.questdb</groupId>
             <artifactId>jar-jni</artifactId>
             <version>${questdb.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>opendal-java-native</artifactId>
-            <version>${project.version}</version>
-            <classifier>${os.detected.classifier}</classifier>
         </dependency>
 
         <dependency>

@@ -304,8 +304,7 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
         .collect::<Vec<_>>()
         .await;
 
-    let option = OpList::new().with_start_after(&given[2]);
-    let mut objects = op.list_with(dir, option).await?;
+    let mut objects = op.list_with(dir).start_after(&given[2]).await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();

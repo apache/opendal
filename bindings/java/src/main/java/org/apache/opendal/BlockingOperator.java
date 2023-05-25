@@ -20,7 +20,6 @@
 package org.apache.opendal;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 public class BlockingOperator extends NativeObject {
     public BlockingOperator(String schema, Map<String, String> map) {

@@ -816,7 +816,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn writer(&self, path: &str) -> Result<Writer> {
-        self.writer_with(path, OpWrite::default()).await
+        self.writer_with(path).await
     }
 
     /// Write multiple bytes into path with extra options.
@@ -835,27 +835,39 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let args = OpWrite::new().with_content_type("application/octet-stream");
-    /// let mut w = op.writer_with("path/to/file", args).await?;
+    /// let mut w = op.writer_with("path/to/file").content_type("application/octet-stream").await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn writer_with(&self, path: &str, args: OpWrite) -> Result<Writer> {
+    pub fn writer_with(&self, path: &str) -> FutureWriter {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Operator::writer")
-                    .with_context("service", self.inner().info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
+        let fut = FutureWriter(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpWrite::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "write path is a directory",
+                        )
+                        .with_operation("Operator::writer")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
 
-        Writer::create(self.inner().clone(), &path, args).await
+                    Writer::create(inner, &path, args).await
+                };
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Write data with extra options.

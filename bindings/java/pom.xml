@@ -31,8 +31,9 @@
     </parent>
 
     <groupId>org.apache.opendal</groupId>
-    <artifactId>opendal-java</artifactId>
+    <artifactId>opendal-java-build-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
     <url>https://opendal.apache.org</url>
     <mailingLists>
@@ -56,99 +57,20 @@
         <questdb.version>1.0.0</questdb.version>
 
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
-        <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
     </properties>
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>io.cucumber</groupId>
-                <artifactId>cucumber-bom</artifactId>
-                <version>7.11.2</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.junit</groupId>
-                <artifactId>junit-bom</artifactId>
-                <version>5.9.2</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
-    <dependencies>
-        <dependency>
-            <groupId>org.questdb</groupId>
-            <artifactId>jar-jni</artifactId>
-            <version>${questdb.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-java</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-junit-platform-engine</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.platform</groupId>
-            <artifactId>junit-platform-suite</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+    <modules>
+        <module>core</module>
+        <module>native</module>
+    </modules>
 
     <build>
-        <testResources>
-            <testResource>
-                <directory>src/test/resources</directory>
-                <filtering>true</filtering>
-            </testResource>
-        </testResources>
-        <plugins>
-            <plugin>
-                <groupId>org.questdb</groupId>
-                <artifactId>rust-maven-plugin</artifactId>
-                <version>${questdb.version}</version>
-                <executions>
-                    <execution>
-                        <id>opendal-java</id>
-                        <goals>
-                            <goal>build</goal>
-                        </goals>
-                        <configuration>
-                            <path>${project.basedir}</path>
-                            <release>true</release>
-                            <copyTo>${project.build.directory}/classes/native</copyTo>
-                            <copyWithPlatformDir>true</copyWithPlatformDir>
-                            <extraArgs>
-                                <extraArg>--color=always</extraArg>
-                            </extraArgs>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <version>${maven-resources-plugin.version}</version>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>${maven-surefire-plugin.version}</version>
-            </plugin>
-        </plugins>
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.0</version>
+            </extension>
+        </extensions>
     </build>
 </project>

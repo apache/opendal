@@ -57,6 +57,8 @@
         <questdb.version>1.0.0</questdb.version>
 
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
+
+        <build-helper-maven-plugin.version>3.3.0</build-helper-maven-plugin.version>
     </properties>
 
     <modules>

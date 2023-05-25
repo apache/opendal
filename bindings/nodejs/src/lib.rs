@@ -203,6 +203,29 @@ impl Operator {
         self.0.blocking().write(&path, c).map_err(format_napi_error)
     }
 
+    /// Append bytes into path.
+    ///
+    /// ### Notes
+    ///
+    /// - It always appends content to the end of the file.
+    /// - It will create file if the path not exists.
+    ///
+    /// ### Example
+    /// ```javascript
+    /// await op.append("path/to/file", Buffer.from("hello world"));
+    /// // or
+    /// await op.append("path/to/file", "hello world");
+    /// ```
+    #[napi]
+    pub async fn append(&self, path: String, content: Either<Buffer, String>) -> Result<()> {
+        let c = match content {
+            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::B(s) => s.into_bytes(),
+        };
+
+        self.0.append(&path, c).await.map_err(format_napi_error)
+    }
+
     /// Copy file according to given `from` and `to` path.
     ///
     /// ### Example

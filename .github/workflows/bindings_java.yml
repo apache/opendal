@@ -88,6 +88,9 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
+          server-id: apache.snapshots.https
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_CENTRAL_TOKEN
 
       - name: Prepare enviroment variables
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV
@@ -119,4 +122,7 @@ jobs:
           cp -r ~/macos-latest-local-staging/deferred/* ~/local-staging/deferred/
 
       - name: Deploy local staged artifacts
-        run: ./mvnw -B --file bindings/java/pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
+        run: mvn -B --file bindings/java/pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
+        env:
+          MAVEN_USERNAME: tison
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}

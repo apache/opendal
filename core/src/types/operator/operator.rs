@@ -1264,7 +1264,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn list(&self, path: &str) -> Result<Lister> {
-        self.list_with(path, OpList::new()).await
+        self.list_with(path).await
     }
 
     /// List given path with OpList.
@@ -1287,8 +1287,7 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let option = OpList::new().with_limit(10).with_start_after("start");
-    /// let mut ds = op.list_with("path/to/dir/", option).await?;
+    /// let mut ds = op.list_with("path/to/dir/").limit(10).start_after("start").await?;
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {
@@ -1319,8 +1318,7 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let option = OpList::new().with_delimiter("");
-    /// let mut ds = op.list_with("path/to/dir/", option).await?;
+    /// let mut ds = op.list_with("path/to/dir/").delimiter("").await?;
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {
@@ -1336,22 +1334,33 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_with(&self, path: &str, op: OpList) -> Result<Lister> {
+    pub fn list_with(&self, path: &str) -> FutureList {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "the path trying to list should end with `/`",
-            )
-            .with_operation("Operator::list")
-            .with_context("service", self.info().scheme().into_static())
-            .with_context("path", &path));
-        }
+        let fut = FutureList(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::DIR) {
+                        return Err(Error::new(
+                            ErrorKind::NotADirectory,
+                            "the path trying to list should end with `/`",
+                        )
+                        .with_operation("Operator::list")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
 
-        let (_, pager) = self.inner().list(&path, op).await?;
+                    let (_, pager) = inner.list(&path, args).await?;
 
-        Ok(Lister::new(pager))
+                    Ok(Lister::new(pager))
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 
     /// List dir in flat way.
@@ -1363,7 +1372,7 @@ impl Operator {
     /// # Notes
     ///
     /// - `scan` will not return the prefix itself.
-    /// - `scan` is an alias of `list_with(OpList::new().with_delimiter(""))`
+    /// - `scan` is an alias of `list_with(path).delimiter("")`
     ///
     /// # Examples
     ///
@@ -1394,27 +1403,9 @@ impl Operator {
     /// # }
     /// ```
     pub async fn scan(&self, path: &str) -> Result<Lister> {
-        let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "the path trying to scan should end with `/`",
-            )
-            .with_operation("list")
-            .with_context("service", self.info().scheme().into_static())
-            .with_context("path", &path));
-        }
-
-        let (_, pager) = self
-            .inner()
-            .list(&path, OpList::new().with_delimiter(""))
-            .await?;
-
-        Ok(Lister::new(pager))
+        self.list_with(path).delimiter("").await
     }
 }
-
 /// Operator presign API.
 impl Operator {
     /// Presign an operation for stat(head).

@@ -25,7 +25,6 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use chrono::SecondsFormat;
-use opendal::ops::OpList;
 use opendal::Metakey;
 use opendal::Operator;
 use serde::Deserialize;
@@ -102,10 +101,8 @@ async fn handle_list_objects(
 
     let mut lister = state
         .op
-        .list_with(
-            &params.prefix,
-            OpList::new().with_start_after(&params.start_after),
-        )
+        .list_with(&params.prefix)
+        .start_after(&params.start_after)
         .await?;
 
     let page = lister.next_page().await?.unwrap_or_default();

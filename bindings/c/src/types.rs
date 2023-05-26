@@ -17,7 +17,7 @@
 
 use ::opendal as od;
 
-use std::os::raw::c_char;
+use std::{collections::HashMap, os::raw::c_char};
 
 /// The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
 /// It is also the key struct that OpenDAL's APIs access the real
@@ -181,9 +181,62 @@ impl opendal_metadata {
     }
 }
 
-/// [`opendal_kv`] represents a string type key-value pair, it may be used for initialization
-#[repr(C)]
-pub struct opendal_kv {
-    pub key: *const c_char,
-    pub value: *const c_char,
+/// [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
+#[repr(transparent)]
+pub struct opendal_operator_options {
+    pub inner: *mut HashMap<String, String>,
+}
+
+impl opendal_operator_options {
+    /// Construct a heap-allocated opendal_operator_options
+    #[no_mangle]
+    pub extern "C" fn opendal_operator_options_new() -> Self {
+        let map: HashMap<String, String> = HashMap::default();
+        Self {
+            inner: Box::leak(Box::new(map)),
+        }
+    }
+
+    /// Set a Key-Value pair inside opendal_operator_options
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it dereferences and casts the raw pointers
+    /// Make sure the pointer of `key` and `value` point to a valid string.
+    ///
+    /// # Example
+    ///
+    /// ```C
+    /// opendal_operator_options options = opendal_operator_options_new();
+    /// opendal_operator_options_set(&options, "root", "/myroot");
+    ///
+    /// // .. use your opendal_operator_options
+    ///
+    /// opendal_operator_options_free(options);
+    /// ```
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_operator_options_set(
+        &mut self,
+        key: *const c_char,
+        value: *const c_char,
+    ) {
+        let k = unsafe { std::ffi::CStr::from_ptr(key) }
+            .to_str()
+            .unwrap()
+            .to_string();
+        let v = unsafe { std::ffi::CStr::from_ptr(value) }
+            .to_str()
+            .unwrap()
+            .to_string();
+        (*self.inner).insert(k, v);
+    }
+
+    /// Free the allocated memory used by [`opendal_operator_options`]
+    #[no_mangle]
+    pub extern "C" fn opendal_operator_options_free(&self) {
+        if self.inner.is_null() {
+            return;
+        }
+        let _ = unsafe { Box::from_raw(self.inner as *mut HashMap<String, String>) };
+    }
 }

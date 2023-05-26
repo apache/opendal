@@ -39,10 +39,14 @@ protected:
     this->path = std::string("test");
     this->content = std::string("Hello, World!");
 
-    // set a root
-    opendal_kv kv = opendal_kv{.key = "root", .value = "/root"};
+    // set options
+    opendal_operator_options options = opendal_operator_options_new();
+    opendal_operator_options_set(&options, "root", "/myroot");
 
-    this->p = opendal_operator_from_kvs(scheme.c_str(), &kv, 1);
+    this->p = opendal_operator_new(scheme.c_str(), options);
+
+    // free the options right away since the options is not used later on
+    opendal_operator_options_free(&options);
 
     EXPECT_TRUE(this->p);
 

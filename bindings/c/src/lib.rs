@@ -31,8 +31,8 @@ use error::opendal_code;
 use result::opendal_result_is_exist;
 use result::opendal_result_read;
 use result::opendal_result_stat;
-use types::opendal_kv;
 use types::opendal_metadata;
+use types::opendal_operator_options;
 
 use crate::types::opendal_bytes;
 use crate::types::opendal_operator_ptr;
@@ -43,12 +43,13 @@ use crate::types::opendal_operator_ptr;
 ///
 /// Following is a C example.
 /// ```no_run
-/// // It is okay to use temporary stack memory for kvs since the only functionality of
-/// // kvs here is to pass it into opendal_operator_from_kvs
-/// opendal_kvs kvs[1];
-/// kvs[0] = opendal_kv { .key = "root", .value = "/myroot"};
+/// opendal_operator_options options = opendal_operator_options_new();
+/// opendal_operator_options_set(&options, "root", "/myroot");
 ///
-/// opendal_operator_ptr ptr = opendal_operator_from_kvs("memory", kvs, 1);
+/// opendal_operator_ptr ptr = opendal_operator_from_kvs("memory", options);
+///
+// free the options right away since the options is not used later on
+/// opendal_operator_options_free(&options);
 ///
 /// // ... your operations
 /// ```
@@ -56,23 +57,22 @@ use crate::types::opendal_operator_ptr;
 /// # Safety
 ///
 /// This function is unsafe because it deferences and casts the raw pointers.
+///
 /// It is [safe] under two cases below
 /// * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
 ///   the string.
 /// * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
-/// * The `nr_kvs` provided is correct. If not, this will incur segfault.
 ///
 /// # Returns
 ///
 /// Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
 /// the error is nullptr, otherwise it contains the error information.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_from_kvs(
+pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,
-    kvs: *const opendal_kv,
-    nr_kvs: usize,
+    options: opendal_operator_options,
 ) -> opendal_operator_ptr {
-    if scheme.is_null() {
+    if scheme.is_null() || options.inner.is_null() {
         return opendal_operator_ptr::null();
     }
 
@@ -85,17 +85,8 @@ pub unsafe extern "C" fn opendal_operator_from_kvs(
     };
 
     let mut map = HashMap::default();
-    for i in 0..nr_kvs {
-        let kv = kvs.add(i).as_ref().unwrap();
-        let key = std::ffi::CStr::from_ptr(kv.key)
-            .to_str()
-            .unwrap()
-            .to_string();
-        let value = std::ffi::CStr::from_ptr(kv.value)
-            .to_str()
-            .unwrap()
-            .to_string();
-        map.insert(key, value);
+    for (k, v) in &*options.inner {
+        map.insert(k.to_string(), v.to_string());
     }
 
     let op = match scheme {

@@ -72,7 +72,7 @@ pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,
     options: opendal_operator_options,
 ) -> opendal_operator_ptr {
-    if scheme.is_null() || options.inner.is_null() {
+    if scheme.is_null() || options.is_null() {
         return opendal_operator_ptr::null();
     }
 
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn opendal_operator_new(
     };
 
     let mut map = HashMap::default();
-    for (k, v) in &*options.inner {
+    for (k, v) in options.as_ref() {
         map.insert(k.to_string(), v.to_string());
     }
 

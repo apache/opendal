@@ -184,7 +184,7 @@ impl opendal_metadata {
 /// [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
 #[repr(transparent)]
 pub struct opendal_operator_options {
-    pub(crate) inner: *mut HashMap<String, String>,
+    inner: *mut HashMap<String, String>,
 }
 
 impl opendal_operator_options {
@@ -229,6 +229,16 @@ impl opendal_operator_options {
             .unwrap()
             .to_string();
         (*self.inner).insert(k, v);
+    }
+
+    /// Returns a reference to the underlying [`HashMap<String, String>`]
+    pub(crate) fn as_ref(&self) -> &HashMap<String, String> {
+        unsafe { &*(self.inner) }
+    }
+
+    /// Returns whether the underlying HashMap points to NULL
+    pub(crate) fn is_null(&self) -> bool {
+        self.inner.is_null()
     }
 
     /// Free the allocated memory used by [`opendal_operator_options`]

@@ -62,7 +62,7 @@ jobs:
           python-version: '3.10'
       - name: Local staging
         working-directory: bindings/java
-        run: mvn -Papache-release package org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
+        run: mvn -Papache-release package org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
       - name: Upload local staging directory
         uses: actions/upload-artifact@v3
         with:

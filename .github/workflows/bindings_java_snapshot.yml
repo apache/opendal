@@ -121,6 +121,6 @@ jobs:
 
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
-        run: mvn -B --file bindings/java/pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
+        run: mvn -B --file bindings/java/pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR -DgithubRepository=${{ github.repository }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

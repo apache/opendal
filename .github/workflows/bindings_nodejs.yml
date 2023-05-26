@@ -102,7 +102,7 @@ jobs:
             ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian \
             bash -c "yarn build"
           # change owner to current user
-          chown -R 1001:121 *.node
+          sudo chown -R 1001:121 *.node
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-linux

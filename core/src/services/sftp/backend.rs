@@ -297,7 +297,7 @@ impl Accessor for SftpBackend {
 
                 append: true,
                 append_normal: true,
-                
+
                 create_dir: true,
                 delete: true,
 

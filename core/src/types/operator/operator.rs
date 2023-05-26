@@ -33,6 +33,7 @@ use crate::raw::*;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.
+///
 /// Developer should manipulate the data from storage service through Operator only by right.
 ///
 /// We will usually do some general checks and data transformations in this layer,

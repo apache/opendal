@@ -56,7 +56,7 @@
 
         <questdb.version>1.0.0</questdb.version>
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
-        <build-helper-maven-plugin.version>3.3.0</build-helper-maven-plugin.version>
+        <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -131,22 +131,21 @@
 
         <plugins>
             <plugin>
-                <groupId>org.questdb</groupId>
-                <artifactId>rust-maven-plugin</artifactId>
-                <version>${questdb.version}</version>
+                <artifactId>exec-maven-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <version>${exec-maven-plugin.version}</version>
                 <executions>
                     <execution>
-                        <id>opendal-java</id>
+                        <id>compile-native-code</id>
+                        <phase>compile</phase>
                         <goals>
-                            <goal>build</goal>
+                            <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <path>${project.basedir}</path>
-                            <release>true</release>
-                            <copyTo>${project.build.directory}/classes/native/${os.detected.classifier}</copyTo>
-                            <extraArgs>
-                                <extraArg>--color=always</extraArg>
-                            </extraArgs>
+                            <executable>${project.basedir}/tools/build.py</executable>
+                            <arguments>
+                                <argument>--classifier ${jni.classifier}</argument>
+                            </arguments>
                         </configuration>
                     </execution>
                 </executions>

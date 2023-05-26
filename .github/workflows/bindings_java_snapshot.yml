@@ -20,7 +20,7 @@ name: Deploy Java Binding Snapshot
 on:
   push:
     branches:
-      - stage-snapshot
+      - try-github-packages
   pull_request:
     branches:
       - main
@@ -34,6 +34,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   stage-snapshot:
@@ -81,9 +82,6 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
-          server-id: apache.snapshots.https
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_CENTRAL_TOKEN
 
       - name: Prepare enviroment variables
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV
@@ -125,5 +123,4 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         run: mvn -B --file bindings/java/pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
         env:
-          MAVEN_USERNAME: tison
-          MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

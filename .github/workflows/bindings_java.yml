@@ -21,7 +21,6 @@ on:
   push:
     branches:
       - main
-      - stage-snapshot
     tags:
       - '*'
   pull_request:

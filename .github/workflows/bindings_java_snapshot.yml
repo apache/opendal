@@ -32,10 +32,6 @@ on:
       - cron: '30 1 * * 1'
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
@@ -123,6 +119,7 @@ jobs:
           cp -r ~/osx-aarch_64-local-staging/deferred/* ~/local-staging/deferred/
 
       - name: Deploy local staged artifacts
+        if: ${{ github.event_name != 'pull_request' }}
         run: mvn -B --file bindings/java/pom.xml org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
         env:
           MAVEN_USERNAME: tison

@@ -19,19 +19,18 @@
 //!
 //! By using futures, users can add more options for operation.
 
-use bytes::Bytes;
-
 use std::mem;
 use std::ops::RangeBounds;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 use std::time::Duration;
 
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -277,7 +276,6 @@ impl FuturePresignWrite {
     ///
     /// If the content length is not set, the content length will be
     /// calculated automatically by buffering part of data.
-    ///
     pub fn content_length(mut self, v: u64) -> Self {
         self.0 = self
             .0
@@ -426,7 +424,6 @@ impl FutureWrite {
     ///
     /// If the content length is not set, the content length will be
     /// calculated automatically by buffering part of data.
-    ///
     pub fn content_length(mut self, v: u64) -> Self {
         self.0 = self
             .0
@@ -477,7 +474,6 @@ impl FutureWriter {
     ///
     /// If the content length is not set, the content length will be
     /// calculated automatically by buffering part of data.
-    ///
     pub fn content_length(mut self, v: u64) -> Self {
         self.0 = self.0.map_args(|args| args.with_content_length(v));
         self

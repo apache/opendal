@@ -36,7 +36,6 @@ use super::error::is_sftp_protocol_error;
 use super::pager::SftpPager;
 use super::utils::SftpReader;
 use super::writer::SftpWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

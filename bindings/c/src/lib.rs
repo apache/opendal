@@ -32,22 +32,47 @@ use result::opendal_result_is_exist;
 use result::opendal_result_read;
 use result::opendal_result_stat;
 use types::opendal_metadata;
+use types::opendal_operator_options;
 
 use crate::types::opendal_bytes;
 use crate::types::opendal_operator_ptr;
 
-/// Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
-/// the error is nullptr, otherwise it contains the error information.
+/// Uses an array of key-value pairs to initialize the operator based on provided scheme.
+///
+/// # Example
+///
+/// Following is a C example.
+/// ```no_run
+/// opendal_operator_options options = opendal_operator_options_new();
+/// opendal_operator_options_set(&options, "root", "/myroot");
+///
+/// opendal_operator_ptr ptr = opendal_operator_new("memory", options);
+///
+// free the options right away since the options is not used later on
+/// opendal_operator_options_free(&options);
+///
+/// // ... your operations
+/// ```
 ///
 /// # Safety
+///
+/// This function is unsafe because it deferences and casts the raw pointers.
 ///
 /// It is [safe] under two cases below
 /// * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
 ///   the string.
 /// * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
+///
+/// # Returns
+///
+/// Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
+/// the error is nullptr, otherwise it contains the error information.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_operator_ptr {
-    if scheme.is_null() {
+pub unsafe extern "C" fn opendal_operator_new(
+    scheme: *const c_char,
+    options: opendal_operator_options,
+) -> opendal_operator_ptr {
+    if scheme.is_null() || options.is_null() {
         return opendal_operator_ptr::null();
     }
 
@@ -59,8 +84,10 @@ pub unsafe extern "C" fn opendal_operator_new(scheme: *const c_char) -> opendal_
         }
     };
 
-    // todo: api for map construction
-    let map = HashMap::default();
+    let mut map = HashMap::default();
+    for (k, v) in options.as_ref() {
+        map.insert(k.to_string(), v.to_string());
+    }
 
     let op = match scheme {
         od::Scheme::Memory => generate_operator!(od::services::Memory, map),

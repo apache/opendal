@@ -35,7 +35,6 @@ use serde::Serialize;
 
 use super::error::parse_error;
 use super::writer::GhacWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

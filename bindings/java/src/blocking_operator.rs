@@ -17,11 +17,15 @@
 
 use std::str::FromStr;
 
-use jni::objects::{JClass, JObject, JString};
-use jni::sys::{jlong, jstring};
+use jni::objects::JClass;
+use jni::objects::JObject;
+use jni::objects::JString;
+use jni::sys::jlong;
+use jni::sys::jstring;
 use jni::JNIEnv;
-
-use opendal::{BlockingOperator, Operator, Scheme};
+use opendal::BlockingOperator;
+use opendal::Operator;
+use opendal::Scheme;
 
 use crate::jmap_to_hashmap;
 use crate::Result;

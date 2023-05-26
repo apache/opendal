@@ -31,8 +31,8 @@ use super::core::CosCore;
 use super::error::parse_error;
 use super::pager::CosPager;
 use super::writer::CosWriter;
-use crate::ops::*;
 use crate::raw::*;
+use crate::services::cos::appender::CosAppender;
 use crate::*;
 
 /// Huawei Cloud COS services support.
@@ -302,7 +302,7 @@ impl Accessor for CosBackend {
     type BlockingReader = ();
     type Writer = CosWriter;
     type BlockingWriter = ();
-    type Appender = ();
+    type Appender = CosAppender;
     type Pager = CosPager;
     type BlockingPager = ();
 
@@ -325,6 +325,11 @@ impl Accessor for CosBackend {
                 write: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
+
+                append: true,
+                append_with_cache_control: true,
+                append_with_content_disposition: true,
+                append_with_content_type: true,
 
                 delete: true,
                 create_dir: true,
@@ -393,6 +398,13 @@ impl Accessor for CosBackend {
         Ok((
             RpWrite::default(),
             CosWriter::new(self.core.clone(), args, path.to_string()),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            CosAppender::new(self.core.clone(), path, args),
         ))
     }
 

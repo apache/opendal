@@ -106,16 +106,16 @@ const config = {
                 to: '/docs/category/services'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust Core</a>'
+                label: 'Rust Core',
+                to: 'pathname:///docs/rust/opendal/'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js Binding</a>'
+                label: 'Node.js Binding',
+                to: 'pathname:///docs/nodejs/'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/python/">Python Binding</a>'
+                label: 'Python Binding',
+                to: 'pathname:///docs/python/'
               },
             ]
           },

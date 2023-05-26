@@ -34,7 +34,6 @@ use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
 use super::pager::WebhdfsPager;
 use super::writer::WebhdfsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

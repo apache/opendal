@@ -31,7 +31,6 @@ use super::appender::FsAppender;
 use super::error::parse_io_error;
 use super::pager::FsPager;
 use super::writer::FsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

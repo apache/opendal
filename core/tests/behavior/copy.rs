@@ -60,7 +60,7 @@ macro_rules! behavior_copy_tests {
             behavior_copy_test!(
                 $service,
 
-                test_copy,
+                test_copy_file,
                 test_copy_non_existing_source,
                 test_copy_source_dir,
                 test_copy_target_dir,
@@ -74,7 +74,7 @@ macro_rules! behavior_copy_tests {
 }
 
 /// Copy a file and test with stat.
-pub async fn test_copy(op: Operator) -> Result<()> {
+pub async fn test_copy_file(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 

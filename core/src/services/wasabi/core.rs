@@ -36,7 +36,6 @@ use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::ops::OpStat;
 use crate::raw::*;
 use crate::*;
 

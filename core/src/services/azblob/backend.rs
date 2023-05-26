@@ -33,7 +33,6 @@ use super::batch::parse_batch_delete_response;
 use super::error::parse_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
 use crate::types::Metadata;
@@ -52,7 +51,6 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 /// Azure Storage Blob services support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct AzblobBuilder {

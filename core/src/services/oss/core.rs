@@ -37,8 +37,6 @@ use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::ops::OpAppend;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
@@ -187,14 +185,6 @@ impl OssCore {
         Ok(req)
     }
 
-    /// Oss append object request
-    ///
-    /// # Note
-    ///
-    /// This request is used to append data to an existing object or create an appendable object.
-    /// So we must set the `append` and `position` header.
-    ///
-    /// https://www.alibabacloud.com/help/object-storage-service/latest/appendobject
     pub fn oss_append_object_request(
         &self,
         path: &str,

@@ -72,13 +72,13 @@ macro_rules! behavior_write_tests {
 
                 test_create_dir,
                 test_create_dir_existing,
-                test_write,
+                test_write_only,
                 test_write_with_dir_path,
                 test_write_with_special_chars,
                 test_write_with_cache_control,
                 test_write_with_content_type,
                 test_write_with_content_disposition,
-                test_stat,
+                test_stat_file,
                 test_stat_dir,
                 test_stat_with_special_chars,
                 test_stat_not_cleaned_path,
@@ -102,7 +102,7 @@ macro_rules! behavior_write_tests {
                 test_read_with_special_chars,
                 test_read_with_override_cache_control,
                 test_read_with_override_content_disposition,
-                test_delete,
+                test_delete_file,
                 test_delete_empty_dir,
                 test_delete_with_special_chars,
                 test_delete_not_existing,
@@ -145,7 +145,7 @@ pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
 }
 
 /// Write a single file and test with stat.
-pub async fn test_write(op: Operator) -> Result<()> {
+pub async fn test_write_only(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size) = gen_bytes();
 
@@ -271,7 +271,7 @@ pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
 }
 
 /// Stat existing file should return metadata
-pub async fn test_stat(op: Operator) -> Result<()> {
+pub async fn test_stat_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size) = gen_bytes();
 
@@ -981,7 +981,7 @@ pub async fn test_writer_abort(op: Operator) -> Result<()> {
 }
 
 /// Delete existing file should succeed.
-pub async fn test_delete(op: Operator) -> Result<()> {
+pub async fn test_delete_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 

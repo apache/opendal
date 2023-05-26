@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use http::header::CONTENT_LENGTH;
 use http::StatusCode;
 
 use super::core::*;
@@ -26,10 +27,11 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub const X_OSS_NEXT_APPEND_POSITION: &str = "x-oss-next-append-position";
+pub const X_COS_OBJECT_TYPE: &str = "x-cos-object-type";
+pub const X_COS_NEXT_APPEND_POSITION: &str = "x-cos-next-append-position";
 
-pub struct OssAppender {
-    core: Arc<OssCore>,
+pub struct CosAppender {
+    core: Arc<CosCore>,
 
     op: OpAppend,
     path: String,
@@ -37,8 +39,8 @@ pub struct OssAppender {
     position: Option<u64>,
 }
 
-impl OssAppender {
-    pub fn new(core: Arc<OssCore>, path: &str, op: OpAppend) -> Self {
+impl CosAppender {
+    pub fn new(core: Arc<CosCore>, path: &str, op: OpAppend) -> Self {
         Self {
             core,
             op,
@@ -49,24 +51,42 @@ impl OssAppender {
 }
 
 #[async_trait]
-impl oio::Append for OssAppender {
+impl oio::Append for CosAppender {
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         // If the position is not set, we need to get the current position.
         if self.position.is_none() {
-            let resp = self.core.oss_head_object(&self.path, None, None).await?;
+            let resp = self.core.cos_head_object(&self.path, None, None).await?;
 
             let status = resp.status();
             match status {
                 StatusCode::OK => {
+                    let object_type = resp
+                        .headers()
+                        .get(X_COS_OBJECT_TYPE)
+                        .and_then(|v| v.to_str().ok())
+                        .ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "missing x-cos-object-type, the object may not be appendable",
+                            )
+                        })?;
+
+                    if object_type != "appendable" {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "object_type mismatch. the object may not be appendable",
+                        ));
+                    }
+
                     let position = resp
                         .headers()
-                        .get(X_OSS_NEXT_APPEND_POSITION)
+                        .get(CONTENT_LENGTH)
                         .and_then(|v| v.to_str().ok())
                         .and_then(|v| v.parse::<u64>().ok())
                         .ok_or_else(|| {
                             Error::new(
                                 ErrorKind::Unexpected,
-                                "missing x-oss-next-append-position, the object may not be appendable",
+                                "missing content-length, the object may not be appendable",
                             )
                         })?;
                     self.position = Some(position);
@@ -80,7 +100,7 @@ impl oio::Append for OssAppender {
             }
         }
 
-        let mut req = self.core.oss_append_object_request(
+        let mut req = self.core.cos_append_object_request(
             &self.path,
             self.position.expect("position is not set"),
             bs.len(),
@@ -98,13 +118,13 @@ impl oio::Append for OssAppender {
             StatusCode::OK => {
                 let position = resp
                     .headers()
-                    .get(X_OSS_NEXT_APPEND_POSITION)
+                    .get(X_COS_NEXT_APPEND_POSITION)
                     .and_then(|v| v.to_str().ok())
                     .and_then(|v| v.parse::<u64>().ok())
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            "missing x-oss-next-append-position, the object may not be appendable",
+                            "append ok but missing x-cos-next-append-position, the object may not be appendable",
                         )
                     })?;
                 self.position = Some(position);
@@ -115,13 +135,13 @@ impl oio::Append for OssAppender {
                 // If the position is not match, we could get the current position and retry.
                 let position = resp
                     .headers()
-                    .get(X_OSS_NEXT_APPEND_POSITION)
+                    .get(X_COS_NEXT_APPEND_POSITION)
                     .and_then(|v| v.to_str().ok())
                     .and_then(|v| v.parse::<u64>().ok())
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            "missing x-oss-next-append-position, the object may not be appendable",
+                            "append conflict. missing x-cos-next-append-position, the object may not be appendable",
                         )
                     })?;
                 self.position = Some(position);

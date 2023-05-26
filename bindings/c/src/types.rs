@@ -17,6 +17,8 @@
 
 use ::opendal as od;
 
+use std::os::raw::c_char;
+
 /// The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
 /// It is also the key struct that OpenDAL's APIs access the real
 /// operator's memory. The use of OperatorPtr is zero cost, it
@@ -177,4 +179,11 @@ impl opendal_metadata {
             inner: Box::leak(Box::new(m)),
         }
     }
+}
+
+/// [`opendal_kv`] represents a string type key-value pair, it may be used for initialization
+#[repr(C)]
+pub struct opendal_kv {
+    pub key: *const c_char,
+    pub value: *const c_char,
 }

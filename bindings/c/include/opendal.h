@@ -135,6 +135,14 @@ typedef struct Metadata Metadata;
 typedef const struct BlockingOperator *opendal_operator_ptr;
 
 /*
+ [`opendal_kv`] represents a string type key-value pair, it may be used for initialization
+ */
+typedef struct opendal_kv {
+  const char *key;
+  const char *value;
+} opendal_kv;
+
+/*
  The [`opendal_bytes`] type is a C-compatible substitute for [`Vec`]
  in Rust, it will not be deallocated automatically like what
  has been done in Rust. Instead, you have to call [`opendal_free_bytes`]
@@ -192,17 +200,39 @@ extern "C" {
 #endif // __cplusplus
 
 /*
- Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
- the error is nullptr, otherwise it contains the error information.
+ Uses an array of key-value pairs to initialize the operator based on provided scheme.
+
+ # Example
+
+ Following is a C example.
+ ```no_run
+ // It is okay to use temporary stack memory for kvs since the only functionality of
+ // kvs here is to pass it into opendal_operator_from_kvs
+ opendal_kvs kvs[1];
+ kvs[0] = opendal_kv { .key = "root", .value = "/myroot"};
+
+ opendal_operator_ptr ptr = opendal_operator_from_kvs("memory", kvs, 1);
+
+ // ... your operations
+ ```
 
  # Safety
 
+ This function is unsafe because it deferences and casts the raw pointers.
  It is [safe] under two cases below
  * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
    the string.
  * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
+ * The `nr_kvs` provided is correct. If not, this will incur segfault.
+
+ # Returns
+
+ Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
+ the error is nullptr, otherwise it contains the error information.
  */
-opendal_operator_ptr opendal_operator_new(const char *scheme);
+opendal_operator_ptr opendal_operator_from_kvs(const char *scheme,
+                                               const struct opendal_kv *kvs,
+                                               uintptr_t nr_kvs);
 
 /*
  Write the data into the path blockingly by operator, returns the error code OPENDAL_OK

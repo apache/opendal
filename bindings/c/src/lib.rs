@@ -46,7 +46,7 @@ use crate::types::opendal_operator_ptr;
 /// opendal_operator_options options = opendal_operator_options_new();
 /// opendal_operator_options_set(&options, "root", "/myroot");
 ///
-/// opendal_operator_ptr ptr = opendal_operator_from_kvs("memory", options);
+/// opendal_operator_ptr ptr = opendal_operator_new("memory", options);
 ///
 // free the options right away since the options is not used later on
 /// opendal_operator_options_free(&options);

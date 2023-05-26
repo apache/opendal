@@ -184,7 +184,7 @@ impl opendal_metadata {
 /// [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
 #[repr(transparent)]
 pub struct opendal_operator_options {
-    pub inner: *mut HashMap<String, String>,
+    pub(crate) inner: *mut HashMap<String, String>,
 }
 
 impl opendal_operator_options {

@@ -52,7 +52,8 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
 
-        <jni.classifier>${os.detected.classifier}</jni.classifier>
+        <!-- Use camelCase instead of separating by dots to workaround PowerShell parsing. -->
+        <jniClassifier>${os.detected.classifier}</jniClassifier>
 
         <questdb.version>1.0.0</questdb.version>
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
@@ -145,7 +146,7 @@
                             <executable>${project.basedir}/tools/build.py</executable>
                             <arguments>
                                 <argument>--classifier</argument>
-                                <argument>${jni.classifier}</argument>
+                                <argument>${jniClassifier}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -176,7 +177,7 @@
                             <goal>jar</goal>
                         </goals>
                         <configuration>
-                            <classifier>${jni.classifier}</classifier>
+                            <classifier>${jniClassifier}</classifier>
                         </configuration>
                     </execution>
                 </executions>

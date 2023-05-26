@@ -93,6 +93,12 @@ pub trait Write: Unpin + Send + Sync {
     /// Please make sure `write` is safe to re-enter.
     async fn write(&mut self, bs: Bytes) -> Result<()>;
 
+    async fn sink(
+        &mut self,
+        size: u64,
+        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()>;
+
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
 
@@ -106,6 +112,17 @@ impl Write for () {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::Write")
+    }
+
+    async fn sink(
+        &mut self,
+        _: u64,
+        _: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support sink",
+        ))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -130,6 +147,14 @@ impl Write for () {
 impl<T: Write + ?Sized> Write for Box<T> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         (**self).write(bs).await
+    }
+
+    async fn sink(
+        &mut self,
+        n: u64,
+        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        (**self).sink(n, s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

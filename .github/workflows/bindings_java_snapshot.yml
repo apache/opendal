@@ -42,13 +42,13 @@ jobs:
       matrix:
         include:
         - os: ubuntu-latest
-          claasifier: linux-x86_64
+          classifier: linux-x86_64
         - os: windows-latest
           classifier: windows-x86_64
         - os: macos-latest
           classifier: osx-x86_64
         - os: macos-latest
-          classifier: osx-aarch64
+          classifier: osx-aarch_64
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 8
@@ -59,11 +59,11 @@ jobs:
           cache: 'maven'
       - name: Local staging
         working-directory: bindings/java
-        run: mvn -Papache-release package org.sonatype.plugins:nexus-staging-maven-plugin:deploy -Djni.classifier=${{ matrix.claasifier }} -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
+        run: mvn -Papache-release package org.sonatype.plugins:nexus-staging-maven-plugin:deploy -Djni.classifier=${{ matrix.classifier }} -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
       - name: Upload local staging directory
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.claasifier }}-local-staging
+          name: ${{ matrix.classifier }}-local-staging
           path: bindings/java/local-staging
           if-no-files-found: error
 

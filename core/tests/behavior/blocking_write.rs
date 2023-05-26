@@ -69,10 +69,10 @@ macro_rules! behavior_blocking_write_tests {
 
                 test_create_dir,
                 test_create_dir_existing,
-                test_write,
+                test_write_file,
                 test_write_with_dir_path,
                 test_write_with_special_chars,
-                test_stat,
+                test_stat_file,
                 test_stat_dir,
                 test_stat_with_special_chars,
                 test_stat_not_exist,
@@ -83,7 +83,7 @@ macro_rules! behavior_blocking_write_tests {
                 test_fuzz_range_reader,
                 test_fuzz_offset_reader,
                 test_fuzz_part_reader,
-                test_delete,
+                test_delete_file,
             );
         )*
     };
@@ -118,7 +118,7 @@ pub fn test_create_dir_existing(op: BlockingOperator) -> Result<()> {
 }
 
 /// Write a single file and test with stat.
-pub fn test_write(op: BlockingOperator) -> Result<()> {
+pub fn test_write_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -160,7 +160,7 @@ pub fn test_write_with_special_chars(op: BlockingOperator) -> Result<()> {
 }
 
 /// Stat existing file should return metadata
-pub fn test_stat(op: BlockingOperator) -> Result<()> {
+pub fn test_stat_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -399,7 +399,7 @@ pub fn test_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
 }
 
 // Delete existing file should succeed.
-pub fn test_delete(op: BlockingOperator) -> Result<()> {
+pub fn test_delete_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();

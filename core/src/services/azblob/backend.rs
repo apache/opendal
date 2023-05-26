@@ -146,6 +146,33 @@ impl AzblobBuilder {
         self
     }
 
+    /// Set server_side_encryption_customer_key of this backend.
+    pub fn server_side_encryption_customer_key(&mut self, server_side_encryption_customer_key: &str) -> &mut Self {
+        if !server_side_encryption_customer_key.is_empty() {
+            self.server_side_encryption_customer_key = Some(server_side_encryption_customer_key.to_string());
+        }
+
+        self
+    }
+
+    /// Set server_side_encryption_customer_key_sha256 of this backend.
+    pub fn server_side_encryption_customer_key_sha256(&mut self, server_side_encryption_customer_key_sha256: &str) -> &mut Self {
+        if !server_side_encryption_customer_key_sha256.is_empty() {
+            self.server_side_encryption_customer_key_sha256 = Some(server_side_encryption_customer_key_sha256.to_string());
+        }
+
+        self
+    }
+
+    /// Set server_side_encryption_customer_algorithm of this backend.
+    pub fn server_side_encryption_customer_algorithm(&mut self, server_side_encryption_customer_algorithm: &str) -> &mut Self {
+        if !server_side_encryption_customer_algorithm.is_empty() {
+            self.server_side_encryption_customer_algorithm = Some(server_side_encryption_customer_algorithm.to_string());
+        }
+
+        self
+    }
+
     /// Set sas_token of this backend.
     ///
     /// - If sas_token is set, we will take user's input first.
@@ -269,6 +296,9 @@ impl Builder for AzblobBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("account_name").map(|v| builder.account_name(v));
         map.get("account_key").map(|v| builder.account_key(v));
+        map.get("server_side_encryption_customer_key").map(|v| builder.server_side_encryption_customer_key(v));
+        map.get("server_side_encryption_customer_key_sha256").map(|v| builder.server_side_encryption_customer_key_sha256(v));
+        map.get("server_side_encryption_customer_algorithm").map(|v| builder.server_side_encryption_customer_algorithm(v));
         map.get("sas_token").map(|v| builder.sas_token(v));
 
         builder
@@ -316,6 +346,27 @@ impl Builder for AzblobBuilder {
             ..Default::default()
         };
 
+        let server_side_encryption_customer_key = match &self.server_side_encryption_customer_key {
+            None => None,
+            Some(v) => Some(build_header_value(v).map_err(|err| {
+                err.with_context("key", "server_side_encryption_customer_key")
+            })?),
+        };
+
+        let server_side_encryption_customer_key_sha256 = match &self.server_side_encryption_customer_key_sha256 {
+            None => None,
+            Some(v) => Some(build_header_value(v).map_err(|err| {
+                err.with_context("key", "server_side_encryption_customer_key_sha256")
+            })?),
+        };
+
+        let server_side_encryption_customer_algorithm = match &self.server_side_encryption_customer_algorithm {
+            None => None,
+            Some(v) => Some(build_header_value(v).map_err(|err| {
+                err.with_context("key", "server_side_encryption_customer_algorithm")
+            })?),
+        };
+
         let cred_loader = AzureStorageLoader::new(config_loader);
 
         let signer = AzureStorageSigner::new();
@@ -326,6 +377,9 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 root,
                 endpoint,
+                server_side_encryption_customer_key,
+                server_side_encryption_customer_key_sha256,
+                server_side_encryption_customer_algorithm,
                 container: self.container.clone(),
 
                 client,

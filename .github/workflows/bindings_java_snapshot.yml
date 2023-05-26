@@ -20,7 +20,7 @@ name: Deploy Java Binding Snapshot
 on:
   push:
     branches:
-      - try-github-packages
+      - main
   pull_request:
     branches:
       - main

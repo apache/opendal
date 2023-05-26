@@ -64,9 +64,14 @@ impl oio::Append for CosAppender {
                         .headers()
                         .get(X_COS_OBJECT_TYPE)
                         .and_then(|v| v.to_str().ok())
-                        .unwrap_or("Normal");
+                        .ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "missing x-cos-object-type, the object may not be appendable",
+                            )
+                        })?;
 
-                    if object_type != "Appendable" {
+                    if object_type != "appendable" {
                         return Err(Error::new(
                             ErrorKind::Unexpected,
                             "object_type mismatch. the object may not be appendable",

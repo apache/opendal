@@ -11,6 +11,10 @@ def classifier_to_target(classifier: str) -> str:
         return 'aarch64-apple-darwin'
     if classifier == 'osx-x86_64':
         return 'x86_64-apple-darwin'
+    if classifier == 'linux-x86_64':
+        return 'x86_64-unknown-linux-gnu'
+    if classifier == 'windows-x86_64':
+        return 'x86_64-pc-windows-msvc'
     raise Exception(f'unsupproted classifier {classifier}')
 
 
@@ -19,6 +23,10 @@ def get_cargo_artifact_name(classifier: str) -> str:
         return 'libopendal_java.dylib'
     if classifier == 'osx-x86_64':
         return 'libopendal_java.dylib'
+    if classifier == 'linux-x86_64':
+        return 'libopendal_java.so'
+    if classifier == 'windows-x86_64':
+        return 'opendal_java.dll'
     raise Exception(f'unsupproted classifier {classifier}')
 
 

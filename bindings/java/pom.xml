@@ -144,7 +144,8 @@
                         <configuration>
                             <executable>${project.basedir}/tools/build.py</executable>
                             <arguments>
-                                <argument>--classifier ${jni.classifier}</argument>
+                                <argument>--classifier</argument>
+                                <argument>${jni.classifier}</argument>
                             </arguments>
                         </configuration>
                     </execution>

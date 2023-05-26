@@ -17,8 +17,9 @@ def get_cargo_artifact_name(classifier: str) -> str:
         return 'libopendal_java.dylib'
     raise Exception(f'unsupproted classifier {classifier}')
 
+
 if __name__ == '__main__':
-    binding_root = Path(__file__).parent.parent
+    basedir = Path(__file__).parent.parent
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--classifier', type=str, required=True)
@@ -28,17 +29,20 @@ if __name__ == '__main__':
 
     target = classifier_to_target(args.classifier)
     if target:
-        subprocess.run(['rustup', 'target', 'add', target], cwd=binding_root, check=True)
+        command = ['rustup', 'target', 'add', target]
+        print(subprocess.list2cmdline(command))
+        subprocess.run(command, cwd=basedir, check=True)
         cmd += ['--target', target]
 
-    output = binding_root / 'target'
+    output = basedir / 'target' / 'bindings'
     Path(output).mkdir(exist_ok=True, parents=True)
     cmd += ['--target-dir', output]
 
-    subprocess.run(cmd, cwd=binding_root, check=True)
+    print(subprocess.list2cmdline(cmd))
+    subprocess.run(cmd, cwd=basedir, check=True)
 
     artifact = get_cargo_artifact_name(args.classifier)
-    src = output / 'release' / artifact
-    dst = output / 'native' / args.classifier / artifact
+    src = output / target / 'release' / artifact
+    dst = basedir / 'target' / 'classes' / 'native' / args.classifier / artifact
     dst.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy2(src, dst)

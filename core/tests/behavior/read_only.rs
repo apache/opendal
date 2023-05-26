@@ -59,7 +59,7 @@ macro_rules! behavior_read_tests {
             behavior_read_test!(
                 $service,
 
-                test_stat,
+                test_stat_file_and_dir,
                 test_stat_special_chars,
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
@@ -82,7 +82,7 @@ macro_rules! behavior_read_tests {
 }
 
 /// Stat normal file and dir should return metadata
-pub async fn test_stat(op: Operator) -> Result<()> {
+pub async fn test_stat_file_and_dir(op: Operator) -> Result<()> {
     let meta = op.stat("normal_file").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);

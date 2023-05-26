@@ -32,7 +32,7 @@ def classifier_to_target(classifier: str) -> str:
         return 'x86_64-unknown-linux-gnu'
     if classifier == 'windows-x86_64':
         return 'x86_64-pc-windows-msvc'
-    raise Exception(f'Unsupproted classifier: {classifier}')
+    raise Exception(f'Unsupported classifier: {classifier}')
 
 
 def get_cargo_artifact_name(classifier: str) -> str:
@@ -44,7 +44,7 @@ def get_cargo_artifact_name(classifier: str) -> str:
         return 'libopendal_java.so'
     if classifier == 'windows-x86_64':
         return 'opendal_java.dll'
-    raise Exception(f'Unsupproted classifier: {classifier}')
+    raise Exception(f'Unsupported classifier: {classifier}')
 
 
 if __name__ == '__main__':

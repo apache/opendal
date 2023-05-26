@@ -40,7 +40,6 @@ use super::error::parse_error;
 use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

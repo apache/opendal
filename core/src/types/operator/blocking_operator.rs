@@ -21,11 +21,9 @@ use std::ops::RangeBounds;
 use bytes::Bytes;
 use flagset::FlagSet;
 
-use crate::ops::*;
+use super::operator_functions::*;
 use crate::raw::*;
 use crate::*;
-
-use super::operator_functions::*;
 
 /// BlockingOperator is the entry for all public blocking APIs.
 ///
@@ -583,7 +581,10 @@ impl BlockingOperator {
     ///
     /// # async fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let _ = op.write_with("hello.txt", bs).content_type("text/plain").call()?;
+    /// let _ = op
+    ///     .write_with("hello.txt", bs)
+    ///     .content_type("text/plain")
+    ///     .call()?;
     /// # Ok(())
     /// # }
     /// ```

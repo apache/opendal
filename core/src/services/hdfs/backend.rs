@@ -29,7 +29,6 @@ use log::debug;
 use super::error::parse_io_error;
 use super::pager::HdfsPager;
 use super::writer::HdfsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

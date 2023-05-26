@@ -25,7 +25,6 @@ use bytes::Bytes;
 use futures::FutureExt;
 use tracing::Span;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

@@ -27,7 +27,6 @@ use std::task::Poll;
 use futures::future::BoxFuture;
 use tokio::io::ReadBuf;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

@@ -25,7 +25,6 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::ops::*;
 use crate::raw::oio::into_reader::RangeReader;
 use crate::raw::oio::to_flat_pager;
 use crate::raw::oio::to_hierarchy_pager;

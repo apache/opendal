@@ -19,7 +19,6 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -46,7 +45,6 @@ use crate::*;
 /// use std::sync::Arc;
 ///
 /// use async_trait::async_trait;
-/// use opendal::ops::*;
 /// use opendal::raw::*;
 /// use opendal::*;
 ///

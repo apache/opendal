@@ -36,7 +36,6 @@ use prometheus::register_int_counter_vec_with_registry;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 
-use crate::ops::*;
 use crate::raw::Accessor;
 use crate::raw::*;
 use crate::*;

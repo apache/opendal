@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::objects::{JThrowable, JValue};
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+
+use jni::objects::JThrowable;
+use jni::objects::JValue;
 use jni::JNIEnv;
 use opendal::ErrorKind;
-use std::fmt::{Debug, Display, Formatter};
 
 pub(crate) struct Error {
     inner: opendal::Error,

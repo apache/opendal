@@ -9,11 +9,15 @@ import subprocess
 def classifier_to_target(classifier: str) -> str:
     if classifier == 'osx-aarch_64':
         return 'aarch64-apple-darwin'
+    if classifier == 'osx-x86_64':
+        return 'x86_64-apple-darwin'
     raise Exception(f'unsupproted classifier {classifier}')
 
 
 def get_cargo_artifact_name(classifier: str) -> str:
     if classifier == 'osx-aarch_64':
+        return 'libopendal_java.dylib'
+    if classifier == 'osx-x86_64':
         return 'libopendal_java.dylib'
     raise Exception(f'unsupproted classifier {classifier}')
 

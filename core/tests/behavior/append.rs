@@ -70,6 +70,8 @@ macro_rules! behavior_append_tests {
                 test_append_with_content_type,
                 test_append_with_content_disposition,
 
+                test_append_to_normal,
+
                 test_appender_futures_copy,
                 test_fuzz_appender,
             );
@@ -190,6 +192,26 @@ pub async fn test_append_with_content_disposition(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
+    Ok(())
+}
+
+/// If operator can't append to a file not created by append, it must fail.
+pub async fn test_append_to_normal(op: Operator) -> Result<()> {
+    if op.info().capability().append_normal {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone()).await?;
+
+    let res = op.append(&path, content).await;
+    assert!(res.is_err());
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::Unexpected);
+
+    op.delete(&path).await.expect("delete file must success");
 
     Ok(())
 }

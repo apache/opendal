@@ -88,6 +88,8 @@ pub struct Capability {
 
     /// If operator supports append natively, it will be true.
     pub append: bool,
+    /// If operator supports append to a file not created by append natively, it will be true.
+    pub append_normal: bool,
     /// If operator supports append with content type natively, it will be true.
     pub append_with_content_type: bool,
     /// If operator supports append with content disposition natively, it will be true.

@@ -318,6 +318,7 @@ impl Accessor for FsBackend {
                 delete: true,
 
                 append: true,
+                append_normal: true,
 
                 list: true,
                 list_with_delimiter_slash: true,

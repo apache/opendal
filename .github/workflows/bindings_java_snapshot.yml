@@ -57,6 +57,9 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
       - name: Local staging
         working-directory: bindings/java
         run: mvn -Papache-release package org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DaltStagingDirectory=local-staging -DskipRemoteStaging=true

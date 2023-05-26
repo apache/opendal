@@ -41,7 +41,7 @@ OpenDAL's features include but are not limited to:
 - Support for various common data operations, including `read`, `write`, `list`, etc.
 - Support for automatic retry, request optimization, and observability mechanisms.
 - Zero cost, directly mapped to API calls.
-- Cross-language bindings: Python, Node.js, C (working on), etc.
+- Cross-language bindings: Python, Node.js, C (being worked on), etc.
 
 ## The Story about OpenDAL
 

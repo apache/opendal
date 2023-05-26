@@ -56,6 +56,9 @@ pub use version::VERSION;
 mod rps;
 pub use rps::*;
 
+mod ops;
+pub use ops::*;
+
 mod http_util;
 pub use http_util::*;
 

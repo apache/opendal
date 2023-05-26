@@ -61,5 +61,3 @@ pub use scheme::Scheme;
 
 mod capability;
 pub use capability::Capability;
-
-pub mod ops;

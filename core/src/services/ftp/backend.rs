@@ -41,7 +41,6 @@ use tokio::sync::OnceCell;
 use super::pager::FtpPager;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

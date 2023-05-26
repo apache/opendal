@@ -17,7 +17,6 @@
 
 use async_trait::async_trait;
 use bytes::Bytes;
-
 use tokio::io::AsyncWriteExt;
 
 use super::error::parse_io_error;

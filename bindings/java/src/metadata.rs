@@ -16,9 +16,9 @@
 // under the License.
 
 use jni::objects::JClass;
-use jni::sys::{jboolean, jlong};
+use jni::sys::jboolean;
+use jni::sys::jlong;
 use jni::JNIEnv;
-
 use opendal::Metadata;
 
 /// # Safety

@@ -37,8 +37,6 @@ use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::ops::OpAppend;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 

@@ -29,7 +29,6 @@ use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -589,10 +588,7 @@ impl Operator {
     /// # use opendal::ops::OpRead;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op
-    ///     .reader_with("path/to/file")
-    ///     .range((0..10))
-    ///     .await?;
+    /// let r = op.reader_with("path/to/file").range((0..10)).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -835,7 +831,10 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut w = op.writer_with("path/to/file").content_type("application/octet-stream").await?;
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_type("application/octet-stream")
+    ///     .await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;
@@ -887,7 +886,10 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let _ = op.write_with("path/to/file", bs).content_type("text/plain").await?;
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .content_type("text/plain")
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -961,7 +963,10 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut a = op.appender_with("path/to/file").content_type("application/octet-stream").await?;
+    /// let mut a = op
+    ///     .appender_with("path/to/file")
+    ///     .content_type("application/octet-stream")
+    ///     .await?;
     /// a.append(vec![0; 4096]).await?;
     /// a.append(vec![1; 4096]).await?;
     /// a.close().await?;
@@ -1016,7 +1021,10 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let _ = op.append_with("path/to/file", bs).content_type("text/plain").await?;
+    /// let _ = op
+    ///     .append_with("path/to/file", bs)
+    ///     .content_type("text/plain")
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1287,7 +1295,11 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op.list_with("path/to/dir/").limit(10).start_after("start").await?;
+    /// let mut ds = op
+    ///     .list_with("path/to/dir/")
+    ///     .limit(10)
+    ///     .start_after("start")
+    ///     .await?;
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {

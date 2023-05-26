@@ -27,7 +27,6 @@ use futures::future::BoxFuture;
 use futures::AsyncWrite;
 use futures::FutureExt;
 
-use crate::ops::OpAppend;
 use crate::raw::oio::Append;
 use crate::raw::*;
 use crate::*;

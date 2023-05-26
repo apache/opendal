@@ -31,7 +31,6 @@ use super::core::ObsCore;
 use super::error::parse_error;
 use super::pager::ObsPager;
 use super::writer::ObsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

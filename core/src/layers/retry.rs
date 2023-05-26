@@ -34,7 +34,6 @@ use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
 
-use crate::ops::*;
 use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;

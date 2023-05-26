@@ -19,10 +19,13 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 
-use jni::objects::{JMap, JObject, JString};
+use jni::objects::JMap;
+use jni::objects::JObject;
+use jni::objects::JString;
 use jni::sys::jint;
 use jni::sys::JNI_VERSION_1_8;
-use jni::{JNIEnv, JavaVM};
+use jni::JNIEnv;
+use jni::JavaVM;
 use once_cell::sync::OnceCell;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;

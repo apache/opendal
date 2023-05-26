@@ -39,7 +39,6 @@ use super::core::*;
 use super::error::parse_error;
 use super::pager::WasabiPager;
 use super::writer::WasabiWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

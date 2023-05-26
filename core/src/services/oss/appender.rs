@@ -65,7 +65,7 @@ impl oio::Append for OssAppender {
                         .and_then(|v| v.parse::<u64>().ok())
                         .ok_or_else(|| {
                             Error::new(
-                                ErrorKind::Unexpected,
+                                ErrorKind::ConditionNotMatch,
                                 "missing x-oss-next-append-position, the object may not be appendable",
                             )
                         })?;
@@ -120,7 +120,7 @@ impl oio::Append for OssAppender {
                     .and_then(|v| v.parse::<u64>().ok())
                     .ok_or_else(|| {
                         Error::new(
-                            ErrorKind::Unexpected,
+                            ErrorKind::ConditionNotMatch,
                             "missing x-oss-next-append-position, the object may not be appendable",
                         )
                     })?;

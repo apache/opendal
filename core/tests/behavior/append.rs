@@ -209,7 +209,7 @@ pub async fn test_append_to_normal(op: Operator) -> Result<()> {
 
     let res = op.append(&path, content).await;
     assert!(res.is_err());
-    assert_eq!(res.unwrap_err().kind(), ErrorKind::Unexpected);
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     op.delete(&path).await.expect("delete file must success");
 

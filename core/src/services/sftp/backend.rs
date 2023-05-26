@@ -294,6 +294,10 @@ impl Accessor for SftpBackend {
 
                 write: true,
                 write_without_content_length: true,
+
+                append: true,
+                append_normal: true,
+                
                 create_dir: true,
                 delete: true,
 
@@ -303,7 +307,6 @@ impl Accessor for SftpBackend {
 
                 copy: self.copyable,
                 rename: true,
-                append: true,
 
                 ..Default::default()
             });

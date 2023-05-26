@@ -143,8 +143,9 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <executable>${project.basedir}/tools/build.py</executable>
+                            <executable>python3</executable>
                             <arguments>
+                                <argument>${project.basedir}/tools/build.py</argument>
                                 <argument>--classifier</argument>
                                 <argument>${jniClassifier}</argument>
                             </arguments>

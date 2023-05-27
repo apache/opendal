@@ -64,19 +64,19 @@ public class Operator extends NativeObject {
         super(constructor(schema, map));
     }
 
-    public CompletableFuture<Void> write(String fileName, String content) {
-        final long requestId = write(nativeHandle, fileName, content);
+    public CompletableFuture<Void> write(String path, String content) {
+        final long requestId = write(nativeHandle, path, content);
         return registry().take(requestId);
     }
 
-    public CompletableFuture<Metadata> stat(String fileName) {
-        final long requestId = stat(nativeHandle, fileName);
+    public CompletableFuture<Metadata> stat(String path) {
+        final long requestId = stat(nativeHandle, path);
         final CompletableFuture<Long> f = registry().take(requestId);
         return f.thenApply(Metadata::new);
     }
 
-    public CompletableFuture<String> read(String fileName) {
-        final long requestId = read(nativeHandle, fileName);
+    public CompletableFuture<String> read(String path) {
+        final long requestId = read(nativeHandle, path);
         return registry().take(requestId);
     }
 
@@ -85,9 +85,9 @@ public class Operator extends NativeObject {
 
     private static native long constructor(String schema, Map<String, String> map);
 
-    private static native long read(long nativeHandle, String fileName);
+    private static native long read(long nativeHandle, String path);
 
-    private static native long write(long nativeHandle, String fileName, String content);
+    private static native long write(long nativeHandle, String path, String content);
 
     private static native long stat(long nativeHandle, String file);
 }

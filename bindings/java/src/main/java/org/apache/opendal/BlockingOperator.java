@@ -40,20 +40,20 @@ public class BlockingOperator extends NativeObject {
         super(constructor(schema, map));
     }
 
-    public void write(String fileName, String content) {
-        write(nativeHandle, fileName, content);
+    public void write(String path, String content) {
+        write(nativeHandle, path, content);
     }
 
-    public String read(String fileName) {
-        return read(nativeHandle, fileName);
+    public String read(String path) {
+        return read(nativeHandle, path);
     }
 
-    public void delete(String fileName) {
-        delete(nativeHandle, fileName);
+    public void delete(String path) {
+        delete(nativeHandle, path);
     }
 
-    public Metadata stat(String fileName) {
-        return new Metadata(stat(nativeHandle, fileName));
+    public Metadata stat(String path) {
+        return new Metadata(stat(nativeHandle, path));
     }
 
     @Override
@@ -61,11 +61,11 @@ public class BlockingOperator extends NativeObject {
 
     private static native long constructor(String schema, Map<String, String> map);
 
-    private static native void write(long nativeHandle, String fileName, String content);
+    private static native void write(long nativeHandle, String path, String content);
 
-    private static native String read(long nativeHandle, String fileName);
+    private static native String read(long nativeHandle, String path);
 
-    private static native void delete(long nativeHandle, String fileName);
+    private static native void delete(long nativeHandle, String path);
 
     private static native long stat(long nativeHandle, String file);
 }

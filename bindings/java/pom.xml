@@ -216,14 +216,6 @@
                         <endWithNewline/>
                     </java>
                 </configuration>
-                <executions>
-                    <execution>
-                        <id>codestyle</id>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

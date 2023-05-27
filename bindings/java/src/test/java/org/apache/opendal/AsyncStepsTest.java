@@ -39,31 +39,31 @@ public class AsyncStepsTest {
     }
 
     @When("Async write path {string} with content {string}")
-    public void async_write_path_test_with_content_hello_world(String fileName, String content) {
-        op.write(fileName, content).join();
+    public void async_write_path_test_with_content_hello_world(String path, String content) {
+        op.write(path, content).join();
     }
 
     @Then("The async file {string} should exist")
-    public void the_async_file_test_should_exist(String fileName) {
-        Metadata metadata = op.stat(fileName).join();
+    public void the_async_file_test_should_exist(String path) {
+        Metadata metadata = op.stat(path).join();
         assertNotNull(metadata);
     }
 
     @Then("The async file {string} entry mode must be file")
-    public void the_async_file_test_entry_mode_must_be_file(String fileName) {
-        Metadata metadata = op.stat(fileName).join();
+    public void the_async_file_test_entry_mode_must_be_file(String path) {
+        Metadata metadata = op.stat(path).join();
         assertTrue(metadata.isFile());
     }
 
     @Then("The async file {string} content length must be {int}")
-    public void the_async_file_test_content_length_must_be_13(String fileName, int length) {
-        Metadata metadata = op.stat(fileName).join();
+    public void the_async_file_test_content_length_must_be_13(String path, int length) {
+        Metadata metadata = op.stat(path).join();
         assertEquals(metadata.getContentLength(), length);
     }
 
     @Then("The async file {string} must have content {string}")
-    public void the_async_file_test_must_have_content_hello_world(String fileName, String content) {
-        String readContent = op.read(fileName).join();
+    public void the_async_file_test_must_have_content_hello_world(String path, String content) {
+        String readContent = op.read(path).join();
         assertEquals(content, readContent);
     }
 }

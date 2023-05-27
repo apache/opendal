@@ -48,16 +48,16 @@
     <properties>
         <!-- This value is for Reproducible Builds. It will be updated by Maven Release Plugin during releases. -->
         <project.build.outputTimestamp>10</project.build.outputTimestamp>
-
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- Use camelCase instead of separating by dots to workaround PowerShell parsing. -->
+        <jniClassifier>${os.detected.classifier}</jniClassifier>
 
         <questdb.version>1.0.0</questdb.version>
-
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
-
-        <build-helper-maven-plugin.version>3.3.0</build-helper-maven-plugin.version>
+        <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -109,6 +109,12 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <testResources>
             <testResource>
                 <directory>src/test/resources</directory>
@@ -126,22 +132,23 @@
 
         <plugins>
             <plugin>
-                <groupId>org.questdb</groupId>
-                <artifactId>rust-maven-plugin</artifactId>
-                <version>${questdb.version}</version>
+                <artifactId>exec-maven-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <version>${exec-maven-plugin.version}</version>
                 <executions>
                     <execution>
-                        <id>opendal-java</id>
+                        <id>compile-native-code</id>
+                        <phase>compile</phase>
                         <goals>
-                            <goal>build</goal>
+                            <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <path>${project.basedir}</path>
-                            <release>true</release>
-                            <copyTo>${project.build.directory}/classes/native/${os.detected.classifier}</copyTo>
-                            <extraArgs>
-                                <extraArg>--color=always</extraArg>
-                            </extraArgs>
+                            <executable>python3</executable>
+                            <arguments>
+                                <argument>${project.basedir}/tools/build.py</argument>
+                                <argument>--classifier</argument>
+                                <argument>${jniClassifier}</argument>
+                            </arguments>
                         </configuration>
                     </execution>
                 </executions>
@@ -153,46 +160,6 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>prepare-filtered-java-source</id>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <phase>generate-sources</phase>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/generated-sources/java</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>src/main/java-filtered</directory>
-                                    <filtering>true</filtering>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>${build-helper-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>add-source</goal>
-                        </goals>
-                        <configuration>
-                            <sources>
-                                <source>${project.build.directory}/generated-sources/java</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
                     <!--  Generate the fallback JAR that does not contain the native library.  -->
@@ -200,6 +167,7 @@
                         <id>default-jar</id>
                         <configuration>
                             <excludes>
+                                <exclude>bindings.properties</exclude>
                                 <exclude>native/**</exclude>
                             </excludes>
                         </configuration>
@@ -211,7 +179,7 @@
                             <goal>jar</goal>
                         </goals>
                         <configuration>
-                            <classifier>${os.detected.classifier}</classifier>
+                            <classifier>${jniClassifier}</classifier>
                         </configuration>
                     </execution>
                 </executions>

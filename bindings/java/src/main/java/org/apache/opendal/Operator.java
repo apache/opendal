@@ -66,7 +66,6 @@ public class Operator extends NativeObject {
                 final long requestId = Math.abs(UUID.randomUUID().getLeastSignificantBits());
                 final CompletableFuture<?> prev = registry.putIfAbsent(requestId, f);
                 if (prev == null) {
-
                     return requestId;
                 }
             }
@@ -131,6 +130,11 @@ public class Operator extends NativeObject {
         return registry().take(requestId);
     }
 
+    public CompletableFuture<Void> delete(String path) {
+        final long requestId = delete(nativeHandle, path);
+        return registry().take(requestId);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -139,6 +143,8 @@ public class Operator extends NativeObject {
     private static native long read(long nativeHandle, String path);
 
     private static native long write(long nativeHandle, String path, String content);
+
+    private static native long delete(long nativeHandle, String path);
 
     private static native long stat(long nativeHandle, String path);
 }

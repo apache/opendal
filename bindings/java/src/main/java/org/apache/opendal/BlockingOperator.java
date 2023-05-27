@@ -67,5 +67,5 @@ public class BlockingOperator extends NativeObject {
 
     private static native void delete(long nativeHandle, String path);
 
-    private static native long stat(long nativeHandle, String file);
+    private static native long stat(long nativeHandle, String path);
 }

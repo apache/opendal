@@ -89,5 +89,5 @@ public class Operator extends NativeObject {
 
     private static native long write(long nativeHandle, String path, String content);
 
-    private static native long stat(long nativeHandle, String file);
+    private static native long stat(long nativeHandle, String path);
 }

@@ -57,3 +57,11 @@ You can run tests with the following command:
 ```shell
 mvn clean verify
 ```
+
+Additionally, this project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.
+
+You can apply the code style with the following command::
+
+```shell
+mvn spotless:apply
+```

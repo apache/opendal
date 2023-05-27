@@ -59,7 +59,7 @@ if __name__ == '__main__':
     target = classifier_to_target(args.classifier)
     if target:
         command = ['rustup', 'target', 'add', target]
-        print(subprocess.list2cmdline(command))
+        print('$ ' + subprocess.list2cmdline(command))
         subprocess.run(command, cwd=basedir, check=True)
         cmd += ['--target', target]
 
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     Path(output).mkdir(exist_ok=True, parents=True)
     cmd += ['--target-dir', output]
 
-    print(subprocess.list2cmdline(cmd))
+    print('$ ' + subprocess.list2cmdline(cmd))
     subprocess.run(cmd, cwd=basedir, check=True)
 
     artifact = get_cargo_artifact_name(args.classifier)

@@ -39,7 +39,7 @@ impl Error {
         &self,
         env: &mut JNIEnv<'local>,
     ) -> jni::errors::Result<JThrowable<'local>> {
-        let class = env.find_class("org/apache/opendal/exception/OpenDALException")?;
+        let class = env.find_class("org/apache/opendal/OpenDALException")?;
         let code = env.new_string(match self.inner.kind() {
             ErrorKind::Unexpected => "Unexpected",
             ErrorKind::Unsupported => "Unsupported",

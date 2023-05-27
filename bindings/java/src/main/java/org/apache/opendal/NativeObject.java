@@ -23,7 +23,7 @@ import io.questdb.jar.jni.JarJniLoader;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * {@code NativeObject} is the base-class of all OpenDAL classes that have
+ * NativeObject is the base-class of all OpenDAL classes that have
  * a pointer to a native object.
  *
  * <p>

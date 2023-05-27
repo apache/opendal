@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.apache.opendal.exception;
+package org.apache.opendal;
 
 /**
- * A OpenDALException encapsulates the error of an operation. This exception
+ * An OpenDALException encapsulates the error of an operation. This exception
  * type is used to describe an internal error from the native opendal library.
  */
 public class OpenDALException extends RuntimeException {

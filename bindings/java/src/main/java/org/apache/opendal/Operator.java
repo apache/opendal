@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * An {@code Operator} represents an underneath OpenDAL operator that
+ * Operator represents an underneath OpenDAL operator that
  * accesses data asynchronously.
  */
 public class Operator extends NativeObject {

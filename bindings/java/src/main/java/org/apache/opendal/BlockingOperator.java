@@ -22,7 +22,7 @@ package org.apache.opendal;
 import java.util.Map;
 
 /**
- * A {@code BlockingOperator} represents an underneath OpenDAL operator that
+ * BlockingOperator represents an underneath OpenDAL operator that
  * accesses data synchronously.
  */
 public class BlockingOperator extends NativeObject {

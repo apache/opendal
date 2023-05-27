@@ -5,24 +5,37 @@
 You can use the package by adding the dependency as following:
 
 ```xml
-<dependencies>
-  <dependency>
-    <groupId>org.apache.opendal</groupId>
-    <artifactId>opendal-java</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
-    <classifier>${os.detected.classifier}</classifier>
-  </dependency>
-</dependencies>
+<project>
+  <repositories>
+    <repository>
+      <id>apache.snapshots</id>
+      <name>Apache Snapshot Repository</name>
+      <url>https://repository.apache.org/snapshots</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+    </repository>
+  </repositories>
 
-<build>
-    <extensions>
-        <extension>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>1.7.0</version>
-        </extension>
-    </extensions>
-</build>
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.opendal</groupId>
+      <artifactId>opendal-java</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+      <classifier>${os.detected.classifier}</classifier>
+    </dependency>
+  </dependencies>
+
+  <build>
+      <extensions>
+          <extension>
+              <groupId>kr.motd.maven</groupId>
+              <artifactId>os-maven-plugin</artifactId>
+              <version>1.7.0</version>
+          </extension>
+      </extensions>
+  </build>
+</project>
 ```
 
 ## Build
@@ -44,9 +57,3 @@ You can run tests with the following command:
 ```shell
 mvn clean verify
 ```
-
-## Todos
-
-- [ ] ReadMe for usage
-- [ ] Development/Contribution guide.
-- [ ] Cross-platform build for release build.

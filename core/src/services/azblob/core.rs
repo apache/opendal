@@ -41,6 +41,11 @@ mod constants {
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
+
+    // Server-side encryption with customer-provided headers
+    pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
+    pub const X_MS_ENCRYPTION_KEY_SHA256: &str = "x-ms-encryption-key-sha256";
+    pub const X_MS_ENCRYPTION_ALGORITHM: &str = "x-ms-encryption-algorithm";
 }
 
 pub struct AzblobCore {
@@ -108,6 +113,37 @@ impl AzblobCore {
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         self.client.send(req).await
     }
+
+    pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
+        if let Some(v) = &self.server_side_encryption_customer_key {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(HeaderName::from_static(constants::X_MS_ENCRYPTION_KEY), v)
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key_sha256 {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_MS_ENCRYPTION_KEY_SHA256),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_MS_ENCRYPTION_ALGORITHM),
+                v,
+            )
+        }
+
+        req
+    }
 }
 
 impl AzblobCore {
@@ -141,6 +177,9 @@ impl AzblobCore {
         }
 
         let mut req = Request::get(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
 
         if !range.is_full() {
             // azblob doesn't support read with suffix range.
@@ -210,6 +249,10 @@ impl AzblobCore {
         );
 
         let mut req = Request::put(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
         if let Some(cache_control) = cache_control {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
@@ -265,6 +308,9 @@ impl AzblobCore {
         );
 
         let mut req = Request::put(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
 
         // The content-length header must be set to zero
         // when creating an appendable blob.
@@ -324,6 +370,9 @@ impl AzblobCore {
 
         let mut req = Request::put(&url);
 
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
         req = req.header(CONTENT_LENGTH, size);
 
         if let Some(pos) = position {
@@ -354,6 +403,9 @@ impl AzblobCore {
         );
 
         let mut req = Request::head(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(IF_NONE_MATCH, if_none_match);

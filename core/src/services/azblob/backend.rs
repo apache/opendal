@@ -23,7 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
-use log::debug;
+use log::{debug, warn};
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -167,7 +167,11 @@ impl AzblobBuilder {
     /// Set server_side_encryption_customer_algorithm of this backend.
     pub fn server_side_encryption_customer_algorithm(&mut self, server_side_encryption_customer_algorithm: &str) -> &mut Self {
         if !server_side_encryption_customer_algorithm.is_empty() {
-            self.server_side_encryption_customer_algorithm = Some(server_side_encryption_customer_algorithm.to_string());
+            if server_side_encryption_customer_algorithm != "AES256" {
+                warn!("Only AES256 is supported for server_side_encryption_customer_algorithm, got {}", server_side_encryption_customer_algorithm);
+            } else {
+                self.server_side_encryption_customer_algorithm = Some(server_side_encryption_customer_algorithm.to_string());
+            }
         }
 
         self

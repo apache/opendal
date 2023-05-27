@@ -46,9 +46,9 @@ public class BlockingOperatorTest {
     @Test
     public void testStatNotExistFile() {
         assertThatExceptionOfType(OpenDALException.class)
-            .isThrownBy(() -> op.stat("nonexistence"))
-            .extracting(OpenDALException::getCode)
-            .isEqualTo(OpenDALException.Code.NotFound);
+                .isThrownBy(() -> op.stat("nonexistence"))
+                .extracting(OpenDALException::getCode)
+                .isEqualTo(OpenDALException.Code.NotFound);
     }
 
     @Test
@@ -57,8 +57,8 @@ public class BlockingOperatorTest {
         assertThat(op.read("testCreateAndDelete")).isEqualTo("Odin");
         op.delete("testCreateAndDelete");
         assertThatExceptionOfType(OpenDALException.class)
-            .isThrownBy(() -> op.stat("testCreateAndDelete"))
-            .extracting(OpenDALException::getCode)
-            .isEqualTo(OpenDALException.Code.NotFound);
+                .isThrownBy(() -> op.stat("testCreateAndDelete"))
+                .extracting(OpenDALException::getCode)
+                .isEqualTo(OpenDALException.Code.NotFound);
     }
 }

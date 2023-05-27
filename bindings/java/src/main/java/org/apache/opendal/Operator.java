@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Operator extends NativeObject {
-    private static AsyncRegistry registry()  {
+    private static AsyncRegistry registry() {
         return AsyncRegistry.INSTANCE;
     }
 
@@ -84,7 +84,10 @@ public class Operator extends NativeObject {
     protected native void disposeInternal(long handle);
 
     private static native long constructor(String schema, Map<String, String> map);
+
     private static native long read(long nativeHandle, String fileName);
+
     private static native long write(long nativeHandle, String fileName, String content);
+
     private static native long stat(long nativeHandle, String file);
 }

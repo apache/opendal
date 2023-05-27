@@ -60,5 +60,4 @@ public enum Environment {
     public static String getVersion() {
         return INSTANCE.projectVersion;
     }
-
 }

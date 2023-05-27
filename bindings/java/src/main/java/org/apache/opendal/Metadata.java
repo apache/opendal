@@ -34,6 +34,8 @@ public class Metadata extends NativeObject {
 
     @Override
     protected native void disposeInternal(long handle);
+
     private static native boolean isFile(long nativeHandle);
+
     private static native long getContentLength(long nativeHandle);
 }

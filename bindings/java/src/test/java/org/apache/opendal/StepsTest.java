@@ -19,15 +19,14 @@
 
 package org.apache.opendal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class StepsTest {
     BlockingOperator op;
@@ -49,7 +48,6 @@ public class StepsTest {
         Metadata metadata = op.stat(fileName);
         assertNotNull(metadata);
     }
-
 
     @Then("The blocking file {string} entry mode must be file")
     public void the_blocking_file_test_entry_mode_must_be_file(String fileName) {

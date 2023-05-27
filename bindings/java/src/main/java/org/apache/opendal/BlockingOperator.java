@@ -60,8 +60,12 @@ public class BlockingOperator extends NativeObject {
     protected native void disposeInternal(long handle);
 
     private static native long constructor(String schema, Map<String, String> map);
+
     private static native void write(long nativeHandle, String fileName, String content);
+
     private static native String read(long nativeHandle, String fileName);
+
     private static native void delete(long nativeHandle, String fileName);
+
     private static native long stat(long nativeHandle, String file);
 }

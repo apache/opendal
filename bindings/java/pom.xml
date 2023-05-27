@@ -181,6 +181,7 @@
                         <id>default-jar</id>
                         <configuration>
                             <excludes>
+                                <exclude>bindings.properties</exclude>
                                 <exclude>native/**</exclude>
                             </excludes>
                         </configuration>

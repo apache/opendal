@@ -21,7 +21,21 @@ package org.apache.opendal;
 
 import java.util.Map;
 
+/**
+ * A blocking operator represents an underneath OpenDAL operator that
+ * accesses data synchronously.
+ */
 public class BlockingOperator extends NativeObject {
+    /**
+     * Construct a blocking operator:
+     *
+     * <p>
+     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
+     * and see what config options each service supports.
+     *
+     * @param schema the name of the underneath service to access data from.
+     * @param map a map of properties to construct the underneath operator.
+     */
     public BlockingOperator(String schema, Map<String, String> map) {
         super(constructor(schema, map));
     }
@@ -30,12 +44,12 @@ public class BlockingOperator extends NativeObject {
         write(nativeHandle, fileName, content);
     }
 
-    public String read(String s) {
-        return read(nativeHandle, s);
+    public String read(String fileName) {
+        return read(nativeHandle, fileName);
     }
 
-    public void delete(String s) {
-        delete(nativeHandle, s);
+    public void delete(String fileName) {
+        delete(nativeHandle, fileName);
     }
 
     public Metadata stat(String fileName) {

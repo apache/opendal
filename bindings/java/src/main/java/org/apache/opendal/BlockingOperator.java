@@ -22,12 +22,12 @@ package org.apache.opendal;
 import java.util.Map;
 
 /**
- * A blocking operator represents an underneath OpenDAL operator that
+ * A {@code BlockingOperator} represents an underneath OpenDAL operator that
  * accesses data synchronously.
  */
 public class BlockingOperator extends NativeObject {
     /**
-     * Construct a blocking operator:
+     * Construct an OpenDAL blocking operator:
      *
      * <p>
      * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>

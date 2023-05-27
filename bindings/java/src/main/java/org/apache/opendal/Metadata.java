@@ -19,6 +19,9 @@
 
 package org.apache.opendal;
 
+/**
+ * Metadata carries all metadata associated with a path.
+ */
 public class Metadata extends NativeObject {
     protected Metadata(long nativeHandle) {
         super(nativeHandle);

@@ -30,8 +30,7 @@ public abstract class NativeObject implements AutoCloseable {
         LOADED
     }
 
-    private static final AtomicReference<LibraryState> libraryLoaded =
-        new AtomicReference<>(LibraryState.NOT_LOADED);
+    private static final AtomicReference<LibraryState> libraryLoaded = new AtomicReference<>(LibraryState.NOT_LOADED);
 
     static {
         NativeObject.loadLibrary();
@@ -43,11 +42,7 @@ public abstract class NativeObject implements AutoCloseable {
         }
 
         if (libraryLoaded.compareAndSet(LibraryState.NOT_LOADED, LibraryState.LOADING)) {
-            JarJniLoader.loadLib(
-                NativeObject.class,
-                "/native",
-                "opendal_java",
-                Environment.getClassifier());
+            JarJniLoader.loadLib(NativeObject.class, "/native", "opendal_java", Environment.getClassifier());
             libraryLoaded.set(LibraryState.LOADED);
             return;
         }

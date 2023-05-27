@@ -46,7 +46,7 @@ public class OperatorTest {
     public void testCreateAndDelete() {
         op.write("testCreateAndDelete", "Odin").join();
         assertThat(op.read("testCreateAndDelete").join()).isEqualTo("Odin");
-        op.delete("testCreateAndDelete");
+        op.delete("testCreateAndDelete").join();
         op.stat("testCreateAndDelete")
                 .handle((r, e) -> {
                     assertThat(r).isNull();

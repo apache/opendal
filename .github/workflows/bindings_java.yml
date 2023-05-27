@@ -27,6 +27,7 @@ on:
     branches:
       - main
     paths:
+      - "core/**"
       - "bindings/java/**"
       - ".github/workflows/bindings_java.yml"
   workflow_dispatch:

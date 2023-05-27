@@ -19,10 +19,11 @@ import TabItem from '@theme/TabItem';
 
 ```rust
 use std::sync::Arc;
+
 use anyhow::Result;
-use opendal::services::Azdfs;
 use opendal::Scheme;
 use opendal::Operator;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut map = HashMap::new();
@@ -31,6 +32,7 @@ async fn main() -> Result<()> {
     map.insert("endpoint".to_string(), "https://accountname.dfs.core.windows.net".to_string());
     map.insert("account_name".to_string(), "account_name".to_string());
     map.insert("account_key".to_string(), "account_key".to_string());
+
     let op: Operator = Operator::via_map(Scheme::Azdfs, map)?;
     Ok(())
 }
@@ -41,6 +43,7 @@ async fn main() -> Result<()> {
 
 ```javascript
 import { Operator } from "opendal";
+
 async function main() {
   const op = new Operator("azdfs", {
     root: "/path/to/dir",
@@ -57,6 +60,7 @@ async function main() {
 
 ```python
 import opendal
+
 op = opendal.Operator("azdfs",
     root="/path/to/dir",
     filesystem="test",

@@ -158,7 +158,7 @@ const config = {
             position: 'right',
             items: [
               {
-                label: 'Apache Software Foundation',
+                label: 'Foundation',
                 to: 'https://www.apache.org/'
               },
               {

@@ -21,18 +21,18 @@ use std::mem;
 use std::str::FromStr;
 
 use futures::TryStreamExt;
-use http::{Request, StatusCode, header};
 use http::Response;
-use reqwest::redirect::Policy;
-use url::{Url, ParseError};
+use http::{header, Request, StatusCode};
 use log::debug;
+use reqwest::redirect::Policy;
+use url::{ParseError, Url};
 
 use super::body::IncomingAsyncBody;
 use super::parse_content_length;
 use super::AsyncBody;
+use crate::raw::parse_location;
 use crate::Error;
 use crate::ErrorKind;
-use crate::raw::parse_location;
 use crate::Result;
 
 /// HttpClient that used across opendal.
@@ -66,7 +66,7 @@ impl HttpClient {
         builder = builder.redirect(Policy::none());
 
         #[cfg(feature = "trust-dns")]
-            let builder = builder.trust_dns(true);
+        let builder = builder.trust_dns(true);
 
         Ok(Self {
             client: builder.build().map_err(|err| {
@@ -160,15 +160,20 @@ impl HttpClient {
     /// Now we only support redirect GET request.
     /// # Arguments
     /// * `times` - how many times do you want to send request when we need to handle redirection
-    pub async fn send_with_redirect(&self, req: Request<AsyncBody>, times: usize) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send_with_redirect(
+        &self,
+        req: Request<AsyncBody>,
+        times: usize,
+    ) -> Result<Response<IncomingAsyncBody>> {
         if req.method() != http::Method::GET {
             // for now we only handle redirection for GET request
             // and please note that we don't support stream request either.
-            return Err(
-                Error::new(ErrorKind::Unsupported, "redirect for unsupported HTTP method")
-                    .with_operation("http_util::Client::send_with_redirect_async")
-                    .with_context("method", req.method().as_str())
-            );
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "redirect for unsupported HTTP method",
+            )
+            .with_operation("http_util::Client::send_with_redirect_async")
+            .with_context("method", req.method().as_str()));
         }
 
         let mut prev_req = self.clone_request(&req);
@@ -201,14 +206,14 @@ impl HttpClient {
                     // add method modification logic here
                     match new_req.method() {
                         &http::Method::GET | &http::Method::HEAD => {}
-                        _ => *new_req.method_mut() = http::Method::GET
+                        _ => *new_req.method_mut() = http::Method::GET,
                     }
                     Some(new_req)
                 }
                 // theoretically we need to handle following status also:
                 // - StatusCode::PERMANENT_REDIRECT
                 StatusCode::TEMPORARY_REDIRECT => Some(self.clone_request(&prev_req)),
-                _ => None
+                _ => None,
             };
 
             retries += 1;
@@ -218,7 +223,10 @@ impl HttpClient {
                 debug!("no need to redirect or reach the maximum retry times");
                 break prev_resp;
             }
-            debug!("it is the {} time for http client to retry. maximum times: {}", retries, times);
+            debug!(
+                "it is the {} time for http client to retry. maximum times: {}",
+                retries, times
+            );
 
             if let Some(mut redirect_req) = should_redirect {
                 let prev_url_str = redirect_req.uri().to_string();
@@ -231,13 +239,17 @@ impl HttpClient {
                 let loc = parse_location(prev_resp.headers())?
                     // no location means invalid redirect response
                     .ok_or_else(|| {
-                        debug!("no location headers in response, url: {}, headers: {:?}",
-                            &prev_url_str, &prev_resp.headers());
+                        debug!(
+                            "no location headers in response, url: {}, headers: {:?}",
+                            &prev_url_str,
+                            &prev_resp.headers()
+                        );
                         Error::new(
                             ErrorKind::Unexpected,
-                            "no location header in redirect response")
-                            .with_context("method", redirect_req.method().as_str())
-                            .with_context("url", &prev_url_str)
+                            "no location header in redirect response",
+                        )
+                        .with_context("method", redirect_req.method().as_str())
+                        .with_context("url", &prev_url_str)
                     })?;
 
                 // one url with origin and path
@@ -267,9 +279,7 @@ impl HttpClient {
                 self.remove_sensitive_headers(&mut redirect_req, &loc_url, &prev_url);
                 // change the request uri
                 *redirect_req.uri_mut() = loc_url.as_str().parse().map_err(|err| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "new redirect url is invalid")
+                    Error::new(ErrorKind::Unexpected, "new redirect url is invalid")
                         .with_context("loc", loc_url.as_str())
                         .set_source(err)
                 })?;
@@ -285,8 +295,9 @@ impl HttpClient {
     fn clone_request(&self, req: &Request<AsyncBody>) -> Request<AsyncBody> {
         let (mut parts, body) = Request::new(match req.body() {
             AsyncBody::Empty => AsyncBody::Empty,
-            AsyncBody::Bytes(bytes) => AsyncBody::Bytes(bytes.clone())
-        }).into_parts();
+            AsyncBody::Bytes(bytes) => AsyncBody::Bytes(bytes.clone()),
+        })
+        .into_parts();
 
         // we just ignore extensions of request, because we won't use it
         parts.method = req.method().clone();

@@ -19,6 +19,7 @@
 
 package org.apache.opendal;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -41,6 +42,10 @@ public class BlockingOperator extends NativeObject {
     }
 
     public void write(String path, String content) {
+        write(path, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public void write(String path, byte[] content) {
         write(nativeHandle, path, content);
     }
 
@@ -61,7 +66,7 @@ public class BlockingOperator extends NativeObject {
 
     private static native long constructor(String schema, Map<String, String> map);
 
-    private static native void write(long nativeHandle, String path, String content);
+    private static native void write(long nativeHandle, String path, byte[] content);
 
     private static native String read(long nativeHandle, String path);
 

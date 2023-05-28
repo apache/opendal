@@ -17,9 +17,9 @@
 
 use std::str::FromStr;
 
-use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::objects::{JByteArray, JClass};
 use jni::sys::jlong;
 use jni::sys::jstring;
 use jni::JNIEnv;
@@ -93,7 +93,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_write(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
-    content: JString,
+    content: JByteArray,
 ) {
     intern_write(&mut env, &mut *op, path, content).unwrap_or_else(|e| {
         e.throw(&mut env);
@@ -104,11 +104,11 @@ fn intern_write(
     env: &mut JNIEnv,
     op: &mut BlockingOperator,
     path: JString,
-    content: JString,
+    content: JByteArray,
 ) -> Result<()> {
     let path = env.get_string(&path)?;
-    let content = env.get_string(&content)?;
-    Ok(op.write(path.to_str()?, content.to_str()?.to_string())?)
+    let content = env.convert_byte_array(content)?;
+    Ok(op.write(path.to_str()?, content)?)
 }
 
 /// # Safety

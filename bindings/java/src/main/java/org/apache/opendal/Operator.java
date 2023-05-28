@@ -19,6 +19,7 @@
 
 package org.apache.opendal;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -115,7 +116,20 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, String content) {
+        return write(path, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public CompletableFuture<Void> write(String path, byte[] content) {
         final long requestId = write(nativeHandle, path, content);
+        return registry().take(requestId);
+    }
+
+    public CompletableFuture<Void> append(String path, String content) {
+        return append(path, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public CompletableFuture<Void> append(String path, byte[] content) {
+        final long requestId = append(nativeHandle, path, content);
         return registry().take(requestId);
     }
 
@@ -142,7 +156,9 @@ public class Operator extends NativeObject {
 
     private static native long read(long nativeHandle, String path);
 
-    private static native long write(long nativeHandle, String path, String content);
+    private static native long write(long nativeHandle, String path, byte[] content);
+
+    private static native long append(long nativeHandle, String path, byte[] content);
 
     private static native long delete(long nativeHandle, String path);
 

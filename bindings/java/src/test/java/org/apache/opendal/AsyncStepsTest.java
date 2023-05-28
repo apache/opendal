@@ -27,6 +27,7 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.util.HashMap;
 import java.util.Map;
+import lombok.Cleanup;
 
 public class AsyncStepsTest {
     Operator op;
@@ -45,19 +46,19 @@ public class AsyncStepsTest {
 
     @Then("The async file {string} should exist")
     public void the_async_file_test_should_exist(String path) {
-        Metadata metadata = op.stat(path).join();
+        @Cleanup Metadata metadata = op.stat(path).join();
         assertNotNull(metadata);
     }
 
     @Then("The async file {string} entry mode must be file")
     public void the_async_file_test_entry_mode_must_be_file(String path) {
-        Metadata metadata = op.stat(path).join();
+        @Cleanup Metadata metadata = op.stat(path).join();
         assertTrue(metadata.isFile());
     }
 
     @Then("The async file {string} content length must be {int}")
     public void the_async_file_test_content_length_must_be_13(String path, int length) {
-        Metadata metadata = op.stat(path).join();
+        @Cleanup Metadata metadata = op.stat(path).join();
         assertEquals(metadata.getContentLength(), length);
     }
 

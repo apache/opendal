@@ -30,28 +30,34 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Build opendal docs ----------------------------------------------
-      - name: Checkout java env
-        uses: actions/setup-java@v3
+      # Build OpenDAL docs ----------------------------------------------
+      - uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           cache-key: "-services-all"
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --lib --no-deps --all-features -p opendal
+      - name: Build OpenDAL doc
+        run: cargo doc --lib --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Copy docs into build
         run: |
           cp -r ./target/doc ./website/static/docs/rust
+
+      # Build bindings/java docs --------------------------------------
+      - name: Build and test
+        working-directory: bindings/java
+        run: mvn javadoc:javadoc
+
+      - name: Copy docs into build
+        run: |
+          cp -r ./bindings/java/target/site/apidocs ./website/static/docs/java
 
       # Set node.js environment -----------------------------------------
       - uses: actions/setup-node@v3
@@ -105,23 +111,6 @@ jobs:
       - name: Copy docs into build
         run: |
           cp -r ./bindings/python/docs ./website/static/docs/python
-
-      # Setup java environment ----------------------------------------
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'maven'
-
-      # Build bindings/java docs --------------------------------------
-      - name: Build and test
-        working-directory: bindings/java
-        run: mvn javadoc:javadoc
-
-      - name: Copy docs into build
-        run: |
-          cp -r ./bindings/java/target/site/apidocs ./website/static/docs/java
 
       # Build website ---------------------------------------------------
       - name: Install Dependencies

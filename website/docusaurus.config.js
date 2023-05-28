@@ -85,7 +85,7 @@ const config = {
       },
       navbar: {
         logo: {
-          alt: 'Apache OpenDAL(incubating)',
+          alt: 'Apache OpenDAL (incubating)',
           src: 'img/logo.svg',
           srcDark: 'img/logo_dark.svg',
           href: '/',
@@ -95,7 +95,7 @@ const config = {
         items: [
           {
             position: 'right',
-            label: 'Documentation',
+            label: 'Docs',
             items: [
               {
                 label: 'General',
@@ -116,6 +116,10 @@ const config = {
               {
                 label: 'Python Binding',
                 to: 'pathname:///docs/python/'
+              },
+              {
+                label: 'Java Binding',
+                to: 'pathname:///docs/java/'
               },
             ]
           },
@@ -150,11 +154,11 @@ const config = {
           },
           {
             type: 'dropdown',
-            label: 'ASF Links',
+            label: 'ASF',
             position: 'right',
             items: [
               {
-                label: 'Apache Software Foundation',
+                label: 'Foundation',
                 to: 'https://www.apache.org/'
               },
               {

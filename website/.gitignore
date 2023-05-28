@@ -1,5 +1,6 @@
 # Dependencies
 /node_modules
+/.yarn
 
 # Production
 /build
@@ -18,6 +19,3 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Generated docs will be placed in the static folder
-static/docs/

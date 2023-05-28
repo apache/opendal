@@ -63,6 +63,8 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
+      - run: corepack enable
+        working-directory: bindings/nodejs
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
@@ -75,10 +77,6 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
       # Build bindings/nodejs docs --------------------------------------
-      - name: Corepack
-        working-directory: bindings/nodejs
-        run: corepack enable
-
       - name: Install dependencies
         working-directory: bindings/nodejs
         run: yarn install

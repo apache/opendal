@@ -32,7 +32,7 @@
 
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-java</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
 
     <url>https://opendal.apache.org</url>
     <mailingLists>
@@ -61,6 +61,7 @@
 
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
         <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
+        <os-maven-plugin.version>1.7.0</os-maven-plugin.version>
         <spotless.version>2.37.0</spotless.version>
     </properties>
 
@@ -151,7 +152,7 @@
             <extension>
                 <groupId>kr.motd.maven</groupId>
                 <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.0</version>
+                <version>${os-maven-plugin.version}</version>
             </extension>
         </extensions>
 

@@ -52,9 +52,9 @@ pub struct AzblobCore {
     pub container: String,
     pub root: String,
     pub endpoint: String,
-    pub server_side_encryption_customer_key: Option<HeaderValue>,
-    pub server_side_encryption_customer_key_sha256: Option<HeaderValue>,
-    pub server_side_encryption_customer_algorithm: Option<HeaderValue>,
+    pub encryption_key: Option<HeaderValue>,
+    pub encryption_key_sha256: Option<HeaderValue>,
+    pub encryption_algorithm: Option<HeaderValue>,
     pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
@@ -115,14 +115,14 @@ impl AzblobCore {
     }
 
     pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
-        if let Some(v) = &self.server_side_encryption_customer_key {
+        if let Some(v) = &self.encryption_key {
             let mut v = v.clone();
             v.set_sensitive(true);
 
             req = req.header(HeaderName::from_static(constants::X_MS_ENCRYPTION_KEY), v)
         }
 
-        if let Some(v) = &self.server_side_encryption_customer_key_sha256 {
+        if let Some(v) = &self.encryption_key_sha256 {
             let mut v = v.clone();
             v.set_sensitive(true);
 
@@ -132,7 +132,7 @@ impl AzblobCore {
             )
         }
 
-        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+        if let Some(v) = &self.encryption_algorithm {
             let mut v = v.clone();
             v.set_sensitive(true);
 

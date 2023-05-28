@@ -21,12 +21,16 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
-use log::{debug, warn};
+use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use sha2::Digest;
+use sha2::Sha256;
 
 use super::appender::AzblobAppender;
 use super::batch::parse_batch_delete_response;
@@ -59,9 +63,9 @@ pub struct AzblobBuilder {
     endpoint: Option<String>,
     account_name: Option<String>,
     account_key: Option<String>,
-    server_side_encryption_customer_key: Option<String>,
-    server_side_encryption_customer_key_sha256: Option<String>,
-    server_side_encryption_customer_algorithm: Option<String>,
+    encryption_key: Option<String>,
+    encryption_key_sha256: Option<String>,
+    encryption_algorithm: Option<String>,
     sas_token: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -147,45 +151,41 @@ impl AzblobBuilder {
     }
 
     /// Set server_side_encryption_customer_key of this backend.
-    pub fn server_side_encryption_customer_key(
-        &mut self,
-        server_side_encryption_customer_key: &str,
-    ) -> &mut Self {
-        if !server_side_encryption_customer_key.is_empty() {
-            self.server_side_encryption_customer_key =
-                Some(server_side_encryption_customer_key.to_string());
+    pub fn encryption_key(&mut self, encryption_key: &str) -> &mut Self {
+        if !encryption_key.is_empty() {
+            self.encryption_key = Some(encryption_key.to_string());
         }
 
         self
     }
 
     /// Set server_side_encryption_customer_key_sha256 of this backend.
-    pub fn server_side_encryption_customer_key_sha256(
-        &mut self,
-        server_side_encryption_customer_key_sha256: &str,
-    ) -> &mut Self {
-        if !server_side_encryption_customer_key_sha256.is_empty() {
-            self.server_side_encryption_customer_key_sha256 =
-                Some(server_side_encryption_customer_key_sha256.to_string());
+    pub fn encryption_key_sha256(&mut self, encryption_key_sha256: &str) -> &mut Self {
+        if !encryption_key_sha256.is_empty() {
+            self.encryption_key_sha256 = Some(encryption_key_sha256.to_string());
         }
 
         self
     }
 
     /// Set server_side_encryption_customer_algorithm of this backend.
-    pub fn server_side_encryption_customer_algorithm(
-        &mut self,
-        server_side_encryption_customer_algorithm: &str,
-    ) -> &mut Self {
-        if !server_side_encryption_customer_algorithm.is_empty() {
-            if server_side_encryption_customer_algorithm != "AES256" {
-                warn!("Only AES256 is supported for server_side_encryption_customer_algorithm, got {}", server_side_encryption_customer_algorithm);
-            } else {
-                self.server_side_encryption_customer_algorithm =
-                    Some(server_side_encryption_customer_algorithm.to_string());
-            }
+    pub fn encryption_algorithm(&mut self, encryption_algorithm: &str) -> &mut Self {
+        if !encryption_algorithm.is_empty() {
+            self.encryption_algorithm = Some(encryption_algorithm.to_string());
         }
 
+        self
+    }
+
+    /// Enable server side encryption with customer key.
+    ///
+    /// As known as: CPK
+    ///
+    pub fn server_side_encryption_with_customer_key(&mut self, key: &[u8]) -> &mut Self {
+        // Only AES256 is supported for now
+        self.encryption_algorithm = Some("AES256".to_string());
+        self.encryption_key = Some(BASE64_STANDARD.encode(key));
+        self.encryption_key_sha256 = Some(BASE64_STANDARD.encode(Sha256::digest(key).as_slice()));
         self
     }
 
@@ -312,12 +312,11 @@ impl Builder for AzblobBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("account_name").map(|v| builder.account_name(v));
         map.get("account_key").map(|v| builder.account_key(v));
-        map.get("server_side_encryption_customer_key")
-            .map(|v| builder.server_side_encryption_customer_key(v));
-        map.get("server_side_encryption_customer_key_sha256")
-            .map(|v| builder.server_side_encryption_customer_key_sha256(v));
-        map.get("server_side_encryption_customer_algorithm")
-            .map(|v| builder.server_side_encryption_customer_algorithm(v));
+        map.get("encryption_key").map(|v| builder.encryption_key(v));
+        map.get("encryption_key_sha256")
+            .map(|v| builder.encryption_key_sha256(v));
+        map.get("encryption_algorithm")
+            .map(|v| builder.encryption_algorithm(v));
         map.get("sas_token").map(|v| builder.sas_token(v));
 
         builder
@@ -365,29 +364,36 @@ impl Builder for AzblobBuilder {
             ..Default::default()
         };
 
-        let server_side_encryption_customer_key =
-            match &self.server_side_encryption_customer_key {
+        let encryption_key =
+            match &self.encryption_key {
                 None => None,
                 Some(v) => Some(build_header_value(v).map_err(|err| {
                     err.with_context("key", "server_side_encryption_customer_key")
                 })?),
             };
 
-        let server_side_encryption_customer_key_sha256 =
-            match &self.server_side_encryption_customer_key_sha256 {
-                None => None,
-                Some(v) => Some(build_header_value(v).map_err(|err| {
-                    err.with_context("key", "server_side_encryption_customer_key_sha256")
-                })?),
-            };
+        let encryption_key_sha256 = match &self.encryption_key_sha256 {
+            None => None,
+            Some(v) => Some(build_header_value(v).map_err(|err| {
+                err.with_context("key", "server_side_encryption_customer_key_sha256")
+            })?),
+        };
 
-        let server_side_encryption_customer_algorithm =
-            match &self.server_side_encryption_customer_algorithm {
-                None => None,
-                Some(v) => Some(build_header_value(v).map_err(|err| {
-                    err.with_context("key", "server_side_encryption_customer_algorithm")
-                })?),
-            };
+        let encryption_algorithm = match &self.encryption_algorithm {
+            None => None,
+            Some(v) => {
+                if v == "AES256" {
+                    Some(build_header_value(v).map_err(|err| {
+                        err.with_context("key", "server_side_encryption_customer_algorithm")
+                    })?)
+                } else {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "encryption_algorithm value must be AES256",
+                    ));
+                }
+            }
+        };
 
         let cred_loader = AzureStorageLoader::new(config_loader);
 
@@ -399,9 +405,9 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 root,
                 endpoint,
-                server_side_encryption_customer_key,
-                server_side_encryption_customer_key_sha256,
-                server_side_encryption_customer_algorithm,
+                encryption_key,
+                encryption_key_sha256,
+                encryption_algorithm,
                 container: self.container.clone(),
 
                 client,

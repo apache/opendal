@@ -254,18 +254,6 @@ async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
     Ok(op.delete(&path).await?)
 }
 
-fn request_id(env: &mut JNIEnv) -> Result<jlong> {
-    let registry = env
-        .call_static_method(
-            "org/apache/opendal/Operator",
-            "registry",
-            "()Lorg/apache/opendal/Operator$AsyncRegistry;",
-            &[],
-        )?
-        .l()?;
-    Ok(env.call_method(registry, "requestId", "()J", &[])?.j()?)
-}
-
 fn make_object<'local>(
     env: &mut JNIEnv<'local>,
     value: JValueOwned<'local>,
@@ -312,18 +300,21 @@ fn complete_future(id: jlong, result: Result<JValueOwned>) {
     };
 }
 
-fn get_future<'local>(env: &mut JNIEnv<'local>, id: jlong) -> Result<JObject<'local>> {
-    let registry = env
+fn request_id(env: &mut JNIEnv) -> Result<jlong> {
+    Ok(env
         .call_static_method(
-            "org/apache/opendal/Operator",
-            "registry",
-            "()Lorg/apache/opendal/Operator$AsyncRegistry;",
+            "org/apache/opendal/Operator$AsyncRegistry",
+            "requestId",
+            "()J",
             &[],
         )?
-        .l()?;
+        .j()?)
+}
+
+fn get_future<'local>(env: &mut JNIEnv<'local>, id: jlong) -> Result<JObject<'local>> {
     Ok(env
-        .call_method(
-            registry,
+        .call_static_method(
+            "org/apache/opendal/Operator$AsyncRegistry",
             "get",
             "(J)Ljava/util/concurrent/CompletableFuture;",
             &[JValue::Long(id)],

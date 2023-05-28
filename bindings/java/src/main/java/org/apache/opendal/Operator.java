@@ -30,9 +30,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * accesses data asynchronously.
  */
 public class Operator extends NativeObject {
-    private static AsyncRegistry registry() {
-        return AsyncRegistry.INSTANCE;
-    }
 
     /**
      * Singleton to hold all outstanding futures.
@@ -61,11 +58,11 @@ public class Operator extends NativeObject {
          * @return the request ID associated to the obtained future
          */
         @SuppressWarnings("unused")
-        private long requestId() {
+        private static long requestId() {
             final CompletableFuture<?> f = new CompletableFuture<>();
             while (true) {
                 final long requestId = Math.abs(UUID.randomUUID().getLeastSignificantBits());
-                final CompletableFuture<?> prev = registry.putIfAbsent(requestId, f);
+                final CompletableFuture<?> prev = INSTANCE.registry.putIfAbsent(requestId, f);
                 if (prev == null) {
                     return requestId;
                 }
@@ -81,8 +78,8 @@ public class Operator extends NativeObject {
          * @param requestId to identify the future
          * @return the future associated with the request ID
          */
-        private CompletableFuture<?> get(long requestId) {
-            return registry.get(requestId);
+        private static CompletableFuture<?> get(long requestId) {
+            return INSTANCE.registry.get(requestId);
         }
 
         /**
@@ -92,10 +89,10 @@ public class Operator extends NativeObject {
          * @return the future associated with the request ID
          */
         @SuppressWarnings("unchecked")
-        private <T> CompletableFuture<T> take(long requestId) {
+        private static <T> CompletableFuture<T> take(long requestId) {
             final CompletableFuture<?> f = get(requestId);
             if (f != null) {
-                f.whenComplete((r, e) -> registry.remove(requestId));
+                f.whenComplete((r, e) -> INSTANCE.registry.remove(requestId));
             }
             return (CompletableFuture<T>) f;
         }
@@ -121,7 +118,7 @@ public class Operator extends NativeObject {
 
     public CompletableFuture<Void> write(String path, byte[] content) {
         final long requestId = write(nativeHandle, path, content);
-        return registry().take(requestId);
+        return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> append(String path, String content) {
@@ -130,23 +127,23 @@ public class Operator extends NativeObject {
 
     public CompletableFuture<Void> append(String path, byte[] content) {
         final long requestId = append(nativeHandle, path, content);
-        return registry().take(requestId);
+        return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Metadata> stat(String path) {
         final long requestId = stat(nativeHandle, path);
-        final CompletableFuture<Long> f = registry().take(requestId);
+        final CompletableFuture<Long> f = AsyncRegistry.take(requestId);
         return f.thenApply(Metadata::new);
     }
 
     public CompletableFuture<String> read(String path) {
         final long requestId = read(nativeHandle, path);
-        return registry().take(requestId);
+        return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> delete(String path) {
         final long requestId = delete(nativeHandle, path);
-        return registry().take(requestId);
+        return AsyncRegistry.take(requestId);
     }
 
     @Override

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::time::Duration;
 
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
@@ -77,6 +78,18 @@ impl ObsCore {
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
+    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        let cred = if let Some(cred) = self.load_credential().await? {
+            cred
+        } else {
+            return Ok(());
+        };
+
+        self.signer
+            .sign_query(req, duration, &cred)
+            .map_err(new_request_sign_error)
+    }
+
     #[inline]
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         self.client.send(req).await
@@ -91,6 +104,20 @@ impl ObsCore {
         if_match: Option<&str>,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.obs_get_object_request(path, range, if_match, if_none_match)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub fn obs_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -109,13 +136,11 @@ impl ObsCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let mut req = req
+        let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
-
-        self.send(req).await
+        Ok(req)
     }
 
     pub fn obs_put_object_request(
@@ -148,12 +173,25 @@ impl ObsCore {
         Ok(req)
     }
 
-    pub async fn obs_get_head_object(
+    pub async fn obs_head_object(
         &self,
         path: &str,
         if_match: Option<&str>,
         if_none_match: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.obs_head_object_request(path, if_match, if_none_match)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub fn obs_head_object_request(
+        &self,
+        path: &str,
+        if_match: Option<&str>,
+        if_none_match: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -171,13 +209,11 @@ impl ObsCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let mut req = req
+        let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
-
-        self.send(req).await
+        Ok(req)
     }
 
     pub async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {

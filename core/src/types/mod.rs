@@ -33,11 +33,16 @@ mod writer;
 pub use writer::BlockingWriter;
 pub use writer::Writer;
 
+mod appender;
+pub use appender::Appender;
+
 mod list;
 pub use list::BlockingLister;
 pub use list::Lister;
 
 mod operator;
+pub use operator::operator_functions;
+pub use operator::operator_futures;
 pub use operator::BlockingOperator;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;
@@ -56,5 +61,3 @@ pub use scheme::Scheme;
 
 mod capability;
 pub use capability::Capability;
-
-pub mod ops;

@@ -24,15 +24,45 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.apache</groupId>
+        <artifactId>apache</artifactId>
+        <version>29</version>
+    </parent>
+
     <groupId>org.apache.opendal</groupId>
-    <artifactId>java-binding</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <artifactId>opendal-java</artifactId>
+    <version>0.2.0-SNAPSHOT</version>
+
+    <url>https://opendal.apache.org</url>
+    <mailingLists>
+        <mailingList>
+            <name>Develop List</name>
+            <subscribe>dev-subscribe@opendal.apache.org</subscribe>
+            <unsubscribe>dev-unsubscribe@opendal.apache.org</unsubscribe>
+            <post>dev@opendal.apache.org</post>
+            <archive>https://lists.apache.org/list.html?dev@opendal.apache.org</archive>
+        </mailingList>
+    </mailingLists>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <!-- This value is for Reproducible Builds. It will be updated by Maven Release Plugin during releases. -->
+        <project.build.outputTimestamp>10</project.build.outputTimestamp>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <rust-maven-plugin.version>1.0.0</rust-maven-plugin.version>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+
+        <!-- Use camelCase instead of separating by dots to workaround PowerShell parsing. -->
+        <jniClassifier>${os.detected.classifier}</jniClassifier>
+
+        <assertj-version>3.23.1</assertj-version>
+        <lombok.version>1.18.26</lombok.version>
+        <questdb.version>1.0.0</questdb.version>
+
+        <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
+        <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
+        <os-maven-plugin.version>1.7.0</os-maven-plugin.version>
+        <spotless.version>2.37.0</spotless.version>
     </properties>
 
     <dependencyManagement>
@@ -51,86 +81,154 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
         <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
             <groupId>org.questdb</groupId>
             <artifactId>jar-jni</artifactId>
-            <version>${rust-maven-plugin.version}</version>
+            <version>${questdb.version}</version>
         </dependency>
+
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-junit-platform-engine</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-suite</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-
-
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+            </testResource>
+        </testResources>
+
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>${os-maven-plugin.version}</version>
+            </extension>
+        </extensions>
+
         <plugins>
-            <!--
-                The Rust Maven Plugin
-                Here it'll build the `str-reverse` crate and place the cdylib in the target's "classes" directory.
-                Placing it there will have Maven automatically bundle the compiled code in the Jar.
-            -->
             <plugin>
-                <groupId>org.questdb</groupId>
-                <artifactId>rust-maven-plugin</artifactId>
-                <version>${rust-maven-plugin.version}</version>
+                <artifactId>exec-maven-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <version>${exec-maven-plugin.version}</version>
                 <executions>
                     <execution>
-                        <id>opendal-java</id>
+                        <id>compile-native-code</id>
+                        <phase>compile</phase>
                         <goals>
-                            <goal>build</goal>
+                            <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <path>../java</path>
-                            <release>true</release>
-                            <copyTo>${project.build.directory}/classes/org/apache/opendal/rust/libs</copyTo>
-                            <copyWithPlatformDir>true</copyWithPlatformDir>
-                            <extraArgs>
-                                <extraArg>--color=always</extraArg>
-                            </extraArgs>
+                            <executable>python3</executable>
+                            <arguments>
+                                <argument>${project.basedir}/tools/build.py</argument>
+                                <argument>--classifier</argument>
+                                <argument>${jniClassifier}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <!--  Generate the fallback JAR that does not contain the native library.  -->
+                    <execution>
+                        <id>default-jar</id>
+                        <configuration>
+                            <excludes>
+                                <exclude>bindings.properties</exclude>
+                                <exclude>native/**</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                    <!--  Generate the JAR that contains the native library in it.  -->
+                    <execution>
+                        <id>native-jar</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>${jniClassifier}</classifier>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
 
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
                 <configuration>
-                    <encoding>UTF-8</encoding>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <java>
+                        <palantirJavaFormat>
+                            <version>2.30.0</version>
+                        </palantirJavaFormat>
+                        <!-- static imports first, then others, no blank lines  -->
+                        <importOrder>
+                            <order>\#|</order>
+                        </importOrder>
+                        <removeUnusedImports/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0</version>
             </plugin>
         </plugins>
     </build>

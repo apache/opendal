@@ -15,22 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use http::StatusCode;
 
-use std::{fmt::Debug, sync::Arc};
-
-use crate::{
-    ops::{OpDelete, OpRead, OpWrite},
-    raw::{
-        parse_into_metadata, Accessor, AccessorInfo, HttpClient, IncomingAsyncBody, RpDelete,
-        RpRead, RpWrite,
-    },
-    types::Result,
-    Capability, Error, ErrorKind,
-};
-
-use super::{core::GdriveCore, error::parse_error, writer::GdriveWriter};
+use super::core::GdriveCore;
+use super::error::parse_error;
+use super::writer::GdriveWriter;
+use crate::raw::*;
+use crate::types::Result;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {
@@ -56,6 +54,7 @@ impl Accessor for GdriveBackend {
     type BlockingReader = ();
     type Writer = GdriveWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 

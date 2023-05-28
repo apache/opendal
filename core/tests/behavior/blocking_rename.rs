@@ -62,7 +62,7 @@ macro_rules! behavior_blocking_rename_tests {
             behavior_blocking_rename_test!(
                 $service,
 
-                test_rename,
+                test_rename_file,
                 test_rename_non_existing_source,
                 test_rename_source_dir,
                 test_rename_target_dir,
@@ -75,7 +75,7 @@ macro_rules! behavior_blocking_rename_tests {
 }
 
 /// Rename a file and test with stat.
-pub fn test_rename(op: BlockingOperator) -> Result<()> {
+pub fn test_rename_file(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 

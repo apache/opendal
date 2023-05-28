@@ -16,12 +16,14 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
 use log::debug;
 
 use super::backend::GdriveBackend;
-use crate::raw::{normalize_root, HttpClient};
+use crate::raw::normalize_root;
+use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
 

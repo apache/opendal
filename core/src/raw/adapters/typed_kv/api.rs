@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{fmt::Debug, mem::size_of};
+use std::fmt::Debug;
+use std::mem::size_of;
 
 use async_trait::async_trait;
 use bytes::Bytes;

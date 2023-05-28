@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::{Deserialize, Serialize};
-
 use std::collections::HashMap;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GraphApiOnedriveListResponse {

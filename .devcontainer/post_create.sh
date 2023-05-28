@@ -36,3 +36,12 @@ corepack prepare yarn@stable --activate
 sudo apt install -y default-jdk
 echo "export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:/bin/java::")" | sudo tee /etc/profile.d/java_home.sh
 sudo ln -s /usr/lib/jvm/default-java /usr/lib/jvm/default
+
+# Setup for C binding
+sudo apt install -y libgtest-dev cmake
+cd /usr/src/gtest
+sudo cmake CMakeLists.txt
+sudo make
+sudo cp lib/*.a /usr/lib
+sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
+sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a

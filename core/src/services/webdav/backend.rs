@@ -32,7 +32,6 @@ use super::error::parse_error;
 use super::list_response::Multistatus;
 use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -262,6 +261,7 @@ impl Accessor for WebdavBackend {
     type BlockingReader = ();
     type Writer = WebdavWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = WebdavPager;
     type BlockingPager = ();
 

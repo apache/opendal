@@ -20,7 +20,6 @@ use std::mem;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -249,6 +248,7 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
+        type Appender = ();
         type Pager = ();
         type BlockingPager = MockPager;
 

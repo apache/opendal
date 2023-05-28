@@ -35,7 +35,6 @@ use serde::Serialize;
 
 use super::error::parse_error;
 use super::writer::GhacWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -296,6 +295,7 @@ impl Accessor for GhacBackend {
     type BlockingReader = ();
     type Writer = GhacWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 

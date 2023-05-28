@@ -36,7 +36,6 @@ use prometheus::register_int_counter_vec_with_registry;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 
-use crate::ops::*;
 use crate::raw::Accessor;
 use crate::raw::*;
 use crate::*;
@@ -193,6 +192,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     type BlockingReader = PrometheusMetricWrapper<A::BlockingReader>;
     type Writer = PrometheusMetricWrapper<A::Writer>;
     type BlockingWriter = PrometheusMetricWrapper<A::BlockingWriter>;
+    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -296,6 +296,10 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
                 .increment_errors_total(Operation::Write, e.kind());
             e
         })
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

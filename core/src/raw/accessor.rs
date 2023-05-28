@@ -20,7 +20,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -71,6 +70,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingPager is the associated pager that could return in
     /// `blocking_list` operation.
     type BlockingPager: oio::BlockingPage;
+    /// Appender is the associated appender that could return in `append` operation.
+    type Appender: oio::Append;
 
     /// Invoke the `info` operation to get metadata of accessor.
     ///
@@ -129,6 +130,23 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check mode.
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `append` operation on the specified path, returns a
+    /// appended size if operate successful.
+    ///
+    ///  Require [`Capability::append`]
+    ///
+    /// # Behavior
+    ///
+    /// - Input path MUST be file path, DON'T NEED to check mode.
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -371,6 +389,7 @@ impl Accessor for () {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -392,6 +411,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type BlockingReader = T::BlockingReader;
     type Writer = T::Writer;
     type BlockingWriter = T::BlockingWriter;
+    type Appender = T::Appender;
     type Pager = T::Pager;
     type BlockingPager = T::BlockingPager;
 
@@ -408,6 +428,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.as_ref().write(path, args).await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.as_ref().append(path, args).await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -472,6 +496,7 @@ pub type FusedAccessor = Arc<
         BlockingReader = oio::BlockingReader,
         Writer = oio::Writer,
         BlockingWriter = oio::BlockingWriter,
+        Appender = oio::Appender,
         Pager = oio::Pager,
         BlockingPager = oio::BlockingPager,
     >,

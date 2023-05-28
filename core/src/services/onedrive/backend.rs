@@ -31,20 +31,8 @@ use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
-use crate::ops::OpCreateDir;
-use crate::raw::get_parent;
-use crate::raw::RpCreateDir;
-use crate::{
-    ops::{OpDelete, OpList, OpRead, OpStat, OpWrite},
-    raw::{
-        build_abs_path, build_rooted_abs_path, get_basename, new_json_deserialize_error,
-        new_json_serialize_error, new_request_build_error, parse_datetime_from_rfc3339,
-        parse_into_metadata, parse_location, percent_encode_path, Accessor, AccessorInfo,
-        AsyncBody, HttpClient, IncomingAsyncBody, RpDelete, RpList, RpRead, RpStat, RpWrite,
-    },
-    types::Result,
-    Capability, EntryMode, Error, ErrorKind, Metadata,
-};
+use crate::raw::*;
+use crate::*;
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
@@ -78,6 +66,7 @@ impl Accessor for OnedriveBackend {
     type BlockingReader = ();
     type Writer = OneDriveWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = OnedrivePager;
     type BlockingPager = ();
 

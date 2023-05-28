@@ -25,9 +25,6 @@ use futures::StreamExt;
 use http::StatusCode;
 use log::debug;
 use log::warn;
-use opendal::ops::OpRead;
-use opendal::ops::OpStat;
-use opendal::ops::OpWrite;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -75,12 +72,13 @@ macro_rules! behavior_write_tests {
 
                 test_create_dir,
                 test_create_dir_existing,
-                test_write,
+                test_write_only,
                 test_write_with_dir_path,
                 test_write_with_special_chars,
                 test_write_with_cache_control,
                 test_write_with_content_type,
-                test_stat,
+                test_write_with_content_disposition,
+                test_stat_file,
                 test_stat_dir,
                 test_stat_with_special_chars,
                 test_stat_not_cleaned_path,
@@ -104,7 +102,7 @@ macro_rules! behavior_write_tests {
                 test_read_with_special_chars,
                 test_read_with_override_cache_control,
                 test_read_with_override_content_disposition,
-                test_delete,
+                test_delete_file,
                 test_delete_empty_dir,
                 test_delete_with_special_chars,
                 test_delete_not_existing,
@@ -147,7 +145,7 @@ pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
 }
 
 /// Write a single file and test with stat.
-pub async fn test_write(op: Operator) -> Result<()> {
+pub async fn test_write_only(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size) = gen_bytes();
 
@@ -202,11 +200,9 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
     let (content, _) = gen_bytes();
 
     let target_cache_control = "no-cache, no-store, max-age=300";
-
-    let mut op_write = OpWrite::default();
-    op_write = op_write.with_cache_control(target_cache_control);
-
-    op.write_with(&path, op_write, content).await?;
+    op.write_with(&path, content)
+        .cache_control(target_cache_control)
+        .await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -230,11 +226,9 @@ pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     let target_content_type = "application/json";
-
-    let mut op_write = OpWrite::default();
-    op_write = op_write.with_content_type(target_content_type);
-
-    op.write_with(&path, op_write, content).await?;
+    op.write_with(&path, content)
+        .content_type(target_content_type)
+        .await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -249,8 +243,35 @@ pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Write a single file with content disposition should succeed.
+pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
+    if !op.info().capability().write_with_content_disposition {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, size) = gen_bytes();
+
+    let target_content_disposition = "attachment; filename=\"filename.jpg\"";
+    op.write_with(&path, content)
+        .content_disposition(target_content_disposition)
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(
+        meta.content_disposition().expect("content type must exist"),
+        target_content_disposition
+    );
+    assert_eq!(meta.content_length(), size as u64);
+
+    op.delete(&path).await.expect("delete must succeed");
+
+    Ok(())
+}
+
 /// Stat existing file should return metadata
-pub async fn test_stat(op: Operator) -> Result<()> {
+pub async fn test_stat_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size) = gen_bytes();
 
@@ -343,17 +364,14 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_match("\"invalid_etag\"");
-
-    let res = op.stat_with(&path, op_stat).await;
+    let res = op.stat_with(&path).if_match("\"invalid_etag\"").await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_match(meta.etag().expect("etag must exist"));
-
-    let result = op.stat_with(&path, op_stat).await;
+    let result = op
+        .stat_with(&path)
+        .if_match(meta.etag().expect("etag must exist"))
+        .await;
     assert!(result.is_ok());
 
     op.delete(&path).await.expect("delete must succeed");
@@ -378,17 +396,17 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_none_match(meta.etag().expect("etag must exist"));
-
-    let res = op.stat_with(&path, op_stat).await;
+    let res = op
+        .stat_with(&path)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_none_match("\"invalid_etag\"");
-
-    let res = op.stat_with(&path, op_stat).await?;
+    let res = op
+        .stat_with(&path)
+        .if_none_match("\"invalid_etag\"")
+        .await?;
     assert_eq!(res.mode(), meta.mode());
     assert_eq!(res.content_length(), meta.content_length());
 
@@ -620,18 +638,13 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(&path).await?;
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_match("\"invalid_etag\"");
-
-    let res = op.read_with(&path, op_read).await;
+    let res = op.read_with(&path).if_match("\"invalid_etag\"").await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_match(meta.etag().expect("etag must exist"));
-
     let bs = op
-        .read_with(&path, op_read)
+        .read_with(&path)
+        .if_match(meta.etag().expect("etag must exist"))
         .await
         .expect("read must succeed");
     assert_eq!(bs, content);
@@ -656,18 +669,16 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(&path).await?;
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_none_match(meta.etag().expect("etag must exist"));
-
-    let res = op.read_with(&path, op_read).await;
+    let res = op
+        .read_with(&path)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_none_match("\"invalid_etag\"");
-
     let bs = op
-        .read_with(&path, op_read)
+        .read_with(&path)
+        .if_none_match("\"invalid_etag\"")
         .await
         .expect("read must succeed");
     assert_eq!(bs, content);
@@ -857,12 +868,9 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let target_cache_control = "no-cache, no-store, must-revalidate";
-
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_override_cache_control(target_cache_control);
-
     let signed_req = op
-        .presign_read_with(&path, op_read, Duration::from_secs(60))
+        .presign_read_with(&path, Duration::from_secs(60))
+        .override_cache_control(target_cache_control)
         .await
         .expect("sign must succeed");
 
@@ -911,11 +919,9 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
 
     let target_content_disposition = "attachment; filename=foo.txt";
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_override_content_disposition(target_content_disposition);
-
     let signed_req = op
-        .presign_read_with(&path, op_read, Duration::from_secs(60))
+        .presign_read_with(&path, Duration::from_secs(60))
+        .override_content_disposition(target_content_disposition)
         .await
         .expect("presign must succeed");
 
@@ -975,7 +981,7 @@ pub async fn test_writer_abort(op: Operator) -> Result<()> {
 }
 
 /// Delete existing file should succeed.
-pub async fn test_delete(op: Operator) -> Result<()> {
+pub async fn test_delete_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 

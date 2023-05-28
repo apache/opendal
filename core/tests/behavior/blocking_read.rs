@@ -61,7 +61,7 @@ macro_rules! behavior_blocking_read_tests {
             behavior_blocking_read_test!(
                 $service,
 
-                test_stat,
+                test_stat_file_and_dir,
                 test_stat_special_chars,
                 test_stat_not_exist,
                 test_read_full,
@@ -73,7 +73,7 @@ macro_rules! behavior_blocking_read_tests {
 }
 
 /// Stat normal file and dir should return metadata
-pub fn test_stat(op: BlockingOperator) -> Result<()> {
+pub fn test_stat_file_and_dir(op: BlockingOperator) -> Result<()> {
     let meta = op.stat("normal_file")?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);

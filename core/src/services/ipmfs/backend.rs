@@ -30,7 +30,6 @@ use serde::Deserialize;
 use super::error::parse_error;
 use super::pager::IpmfsPager;
 use super::writer::IpmfsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -51,7 +50,6 @@ use crate::*;
 /// - [ ] scan
 /// - [ ] presign
 /// - [ ] blocking
-///
 #[derive(Clone)]
 pub struct IpmfsBackend {
     root: String,
@@ -84,6 +82,7 @@ impl Accessor for IpmfsBackend {
     type BlockingReader = ();
     type Writer = IpmfsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = IpmfsPager;
     type BlockingPager = ();
 

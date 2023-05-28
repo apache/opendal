@@ -41,6 +41,11 @@ pub use write::Write;
 pub use write::WriteOperation;
 pub use write::Writer;
 
+mod append;
+pub use append::Append;
+pub use append::AppendOperation;
+pub use append::Appender;
+
 mod cursor;
 pub use cursor::Cursor;
 pub use cursor::VectorCursor;

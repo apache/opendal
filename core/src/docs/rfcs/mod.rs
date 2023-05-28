@@ -139,3 +139,6 @@ pub mod rfc_2083_writer_sink_api {}
 
 #[doc = include_str!("2133_append_api.md")]
 pub mod rfc_2133_append_api {}
+
+#[doc = include_str!("2299_chain_based_operator_api.md")]
+pub mod rfc_2299_chain_based_operator_api {}

@@ -15,13 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use oay::services::S3Service;
 use oay::Config;
 use opendal::services::Memory;
 use opendal::Operator;
-use std::sync::Arc;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::fmt;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {

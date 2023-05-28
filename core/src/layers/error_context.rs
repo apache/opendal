@@ -25,7 +25,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::TryFutureExt;
 
-use crate::ops::*;
+use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -71,6 +71,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     type BlockingReader = ErrorContextWrapper<A::BlockingReader>;
     type Writer = ErrorContextWrapper<A::Writer>;
     type BlockingWriter = ErrorContextWrapper<A::BlockingWriter>;
+    type Appender = ErrorContextWrapper<A::Appender>;
     type Pager = ErrorContextWrapper<A::Pager>;
     type BlockingPager = ErrorContextWrapper<A::BlockingPager>;
 
@@ -132,6 +133,27 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             })
             .map_err(|err| {
                 err.with_operation(Operation::Write)
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+            .await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner
+            .append(path, args)
+            .map_ok(|(rp, os)| {
+                (
+                    rp,
+                    ErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        inner: os,
+                    },
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Append)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -441,6 +463,25 @@ impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
     fn close(&mut self) -> Result<()> {
         self.inner.close().map_err(|err| {
             err.with_operation(WriteOperation::BlockingClose)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl<T: oio::Append> oio::Append for ErrorContextWrapper<T> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.inner.append(bs).await.map_err(|err| {
+            err.with_operation(AppendOperation::Append)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await.map_err(|err| {
+            err.with_operation(AppendOperation::Close)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

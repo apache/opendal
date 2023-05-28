@@ -29,7 +29,6 @@ use log::debug;
 use super::error::parse_io_error;
 use super::pager::HdfsPager;
 use super::writer::HdfsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -52,6 +51,7 @@ use crate::*;
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [x] blocking
+///
 /// # Differences with webhdfs
 ///
 /// [Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.
@@ -234,6 +234,7 @@ impl Accessor for HdfsBackend {
     type BlockingReader = oio::into_blocking_reader::FdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
+    type Appender = ();
     type Pager = Option<HdfsPager>;
     type BlockingPager = Option<HdfsPager>;
 

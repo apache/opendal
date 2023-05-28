@@ -27,7 +27,6 @@ use std::task::Poll;
 use futures::future::BoxFuture;
 use tokio::io::ReadBuf;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -318,6 +317,7 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
+        type Appender = ();
         type Pager = ();
         type BlockingPager = ();
 

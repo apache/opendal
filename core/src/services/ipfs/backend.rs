@@ -29,7 +29,6 @@ use prost::Message;
 
 use super::error::parse_error;
 use super::ipld::PBNode;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -217,6 +216,7 @@ impl Accessor for IpfsBackend {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = DirStream;
     type BlockingPager = ();
 

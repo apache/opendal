@@ -86,6 +86,15 @@ pub struct Capability {
     /// If operator supports write with cache control natively, it will be true.
     pub write_with_cache_control: bool,
 
+    /// If operator supports append natively, it will be true.
+    pub append: bool,
+    /// If operator supports append with content type natively, it will be true.
+    pub append_with_content_type: bool,
+    /// If operator supports append with content disposition natively, it will be true.
+    pub append_with_content_disposition: bool,
+    /// If operator supports append with cache control natively, it will be true.
+    pub append_with_cache_control: bool,
+
     /// If operator supports create dir natively, it will be true.
     pub create_dir: bool,
 
@@ -141,6 +150,9 @@ impl Debug for Capability {
         }
         if self.write {
             s.push("Write");
+        }
+        if self.append {
+            s.push("Append");
         }
         if self.create_dir {
             s.push("CreateDir");

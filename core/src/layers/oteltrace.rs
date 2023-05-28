@@ -30,7 +30,6 @@ use opentelemetry::trace::Tracer;
 use opentelemetry::Context;
 use opentelemetry::KeyValue;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -73,6 +72,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
     type BlockingReader = OtelTraceWrapper<A::BlockingReader>;
     type Writer = OtelTraceWrapper<A::Writer>;
     type BlockingWriter = OtelTraceWrapper<A::BlockingWriter>;
+    type Appender = A::Appender;
     type Pager = OtelTraceWrapper<A::Pager>;
     type BlockingPager = OtelTraceWrapper<A::BlockingPager>;
 
@@ -114,6 +114,10 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, r)| (rp, OtelTraceWrapper::new(span, r)))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -303,7 +307,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
         self.inner.read(buf)
     }
 
-    fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
 

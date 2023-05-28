@@ -17,17 +17,8 @@
  * under the License.
  */
 
-package org.apache.opendal.exception;
-
-public class OpenDALException extends RuntimeException {
-    private final OpenDALErrorCode errorCode;
-
-    public OpenDALException(OpenDALErrorCode errorCode, String message) {
-        super(message);
-        this.errorCode = errorCode;
-    }
-
-    public OpenDALErrorCode getErrorCode() {
-        return errorCode;
-    }
-}
+/**
+ * This package contains Java bindings over <a href="https://opendal.apache.org/">OpenDAL</a>
+ * via Java Native Interface (JNI).
+ */
+package org.apache.opendal;

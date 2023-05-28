@@ -17,8 +17,6 @@
 
 use anyhow::Result;
 use futures::AsyncReadExt;
-use opendal::ops::OpRead;
-use opendal::ops::OpStat;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -61,7 +59,7 @@ macro_rules! behavior_read_tests {
             behavior_read_test!(
                 $service,
 
-                test_stat,
+                test_stat_file_and_dir,
                 test_stat_special_chars,
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
@@ -84,7 +82,7 @@ macro_rules! behavior_read_tests {
 }
 
 /// Stat normal file and dir should return metadata
-pub async fn test_stat(op: Operator) -> Result<()> {
+pub async fn test_stat_file_and_dir(op: Operator) -> Result<()> {
     let meta = op.stat("normal_file").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
@@ -139,17 +137,14 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_match("invalid_etag");
-
-    let res = op.stat_with(path, op_stat).await;
+    let res = op.stat_with(path).if_match("invalid_etag").await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_match(meta.etag().expect("etag must exist"));
-
-    let result = op.stat_with(path, op_stat).await;
+    let result = op
+        .stat_with(path)
+        .if_match(meta.etag().expect("etag must exist"))
+        .await;
     assert!(result.is_ok());
 
     Ok(())
@@ -167,17 +162,14 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_none_match(meta.etag().expect("etag must exist"));
-
-    let res = op.stat_with(path, op_stat).await;
+    let res = op
+        .stat_with(path)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_stat = OpStat::default();
-    op_stat = op_stat.with_if_none_match("invalid_etag");
-
-    let res = op.stat_with(path, op_stat).await?;
+    let res = op.stat_with(path).if_none_match("invalid_etag").await?;
     assert_eq!(res.mode(), meta.mode());
     assert_eq!(res.content_length(), meta.content_length());
 
@@ -317,18 +309,13 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(path).await?;
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_match("invalid_etag");
-
-    let res = op.read_with(path, op_read).await;
+    let res = op.read_with(path).if_match("invalid_etag").await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_match(meta.etag().expect("etag must exist"));
-
     let bs = op
-        .read_with(path, op_read)
+        .read_with(path)
+        .if_match(meta.etag().expect("etag must exist"))
         .await
         .expect("read must succeed");
     assert_eq!(bs.len(), 262144, "read size");
@@ -351,18 +338,16 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(path).await?;
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_none_match(meta.etag().expect("etag must exist"));
-
-    let res = op.read_with(path, op_read).await;
+    let res = op
+        .read_with(path)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
-    let mut op_read = OpRead::default();
-    op_read = op_read.with_if_none_match("invalid_etag");
-
     let bs = op
-        .read_with(path, op_read)
+        .read_with(path)
+        .if_none_match("invalid_etag")
         .await
         .expect("read must succeed");
     assert_eq!(bs.len(), 262144, "read size");

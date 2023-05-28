@@ -28,11 +28,12 @@ use futures::TryStreamExt;
 use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
-use crate::ops::*;
+use crate::operator_futures::*;
 use crate::raw::*;
 use crate::*;
 
 /// Operator is the entry for all public async APIs.
+///
 /// Developer should manipulate the data from storage service through Operator only by right.
 ///
 /// We will usually do some general checks and data transformations in this layer,
@@ -190,7 +191,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn stat(&self, path: &str) -> Result<Metadata> {
-        self.stat_with(path, OpStat::new()).await
+        self.stat_with(path).await
     }
 
     /// Get current path's metadata **without cache** directly with extra options.
@@ -212,12 +213,11 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ops::OpStat;
     /// use opendal::ErrorKind;
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// if let Err(e) = op.stat_with("test", OpStat::new()).await {
+    /// if let Err(e) = op.stat_with("test").if_match("<etag>").await {
     ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("file not exist")
     ///     }
@@ -225,13 +225,24 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn stat_with(&self, path: &str, args: OpStat) -> Result<Metadata> {
+    pub fn stat_with(&self, path: &str) -> FutureStat {
         let path = normalize_path(path);
 
-        let rp = self.inner().stat(&path, args).await?;
-        let meta = rp.into_metadata();
+        let fut = FutureStat(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpStat::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    let rp = inner.stat(&path, args).await?;
+                    Ok(rp.into_metadata())
+                };
 
-        Ok(meta)
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Get current metadata with cache.
@@ -436,16 +447,65 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use opendal::ops::OpRead;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.read_with("path/to/file", OpRead::new()).await?;
+    /// let bs = op.read_with("path/to/file").await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn read_with(&self, path: &str, args: OpRead) -> Result<Vec<u8>> {
-        self.range_read_with(path, .., args).await
+    pub fn read_with(&self, path: &str) -> FutureRead {
+        let path = normalize_path(path);
+
+        let fut = FutureRead(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "read path is a directory",
+                        )
+                        .with_operation("range_read")
+                        .with_context("service", inner.info().scheme())
+                        .with_context("path", &path));
+                    }
+
+                    let br = args.range();
+                    let (rp, mut s) = inner.read(&path, args).await?;
+
+                    let length = rp.into_metadata().content_length() as usize;
+                    let mut buffer = Vec::with_capacity(length);
+
+                    let dst = buffer.spare_capacity_mut();
+                    let mut buf = ReadBuf::uninit(dst);
+
+                    // Safety: the input buffer is created with_capacity(length).
+                    unsafe { buf.assume_init(length) };
+
+                    // TODO: use native read api
+                    s.read_exact(buf.initialized_mut()).await.map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "read from storage")
+                            .with_operation("range_read")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path)
+                            .with_context("range", br.to_string())
+                            .set_source(err)
+                    })?;
+
+                    // Safety: read_exact makes sure this buffer has been filled.
+                    unsafe { buffer.set_len(length) }
+
+                    Ok(buffer)
+                };
+
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Read the specified range of path into a bytes.
@@ -462,7 +522,6 @@ impl Operator {
     /// ```
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use opendal::ops::OpRead;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -471,77 +530,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        self.range_read_with(path, range, OpRead::new()).await
-    }
-
-    /// Read the specified range of path into a bytes with extra options..
-    ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Operator::range_reader`]
-    ///
-    /// # Notes
-    ///
-    /// - The returning content's length may be smaller than the range specified.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use opendal::ops::OpRead;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op
-    ///     .range_read_with("path/to/file", 1024..2048, OpRead::new())
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn range_read_with(
-        &self,
-        path: &str,
-        range: impl RangeBounds<u64>,
-        args: OpRead,
-    ) -> Result<Vec<u8>> {
-        let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("range_read")
-                    .with_context("service", self.inner().info().scheme())
-                    .with_context("path", &path),
-            );
-        }
-
-        let br = BytesRange::from(range);
-
-        let (rp, mut s) = self.inner().read(&path, args.with_range(br)).await?;
-
-        let length = rp.into_metadata().content_length() as usize;
-        let mut buffer = Vec::with_capacity(length);
-
-        let dst = buffer.spare_capacity_mut();
-        let mut buf = ReadBuf::uninit(dst);
-
-        // Safety: the input buffer is created with_capacity(length).
-        unsafe { buf.assume_init(length) };
-
-        // TODO: use native read api
-        s.read_exact(buf.initialized_mut()).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read from storage")
-                .with_operation("range_read")
-                .with_context("service", self.inner().info().scheme().into_static())
-                .with_context("path", &path)
-                .with_context("range", br.to_string())
-                .set_source(err)
-        })?;
-
-        // Safety: read_exact makes sure this buffer has been filled.
-        unsafe { buffer.set_len(length) }
-
-        Ok(buffer)
+        self.read_with(path).range(range).await
     }
 
     /// Create a new reader which can read the whole path.
@@ -560,7 +549,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn reader(&self, path: &str) -> Result<Reader> {
-        self.reader_with(path, OpRead::default()).await
+        self.reader_with(path).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -582,8 +571,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn range_reader(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Reader> {
-        self.reader_with(path, OpRead::new().with_range(range.into()))
-            .await
+        self.reader_with(path).range(range).await
     }
 
     /// Create a new reader with extra options
@@ -595,28 +583,38 @@ impl Operator {
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
-    /// # use opendal::ops::OpRead;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op
-    ///     .reader_with("path/to/file", OpRead::default().with_range((0..10).into()))
-    ///     .await?;
+    /// let r = op.reader_with("path/to/file").range((0..10)).await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn reader_with(&self, path: &str, args: OpRead) -> Result<Reader> {
+    pub fn reader_with(&self, path: &str) -> FutureReader {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("Operator::range_reader")
-                    .with_context("service", self.info().scheme())
-                    .with_context("path", path),
-            );
-        }
+        let fut = FutureReader(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "read path is a directory",
+                        )
+                        .with_operation("Operator::range_reader")
+                        .with_context("service", inner.info().scheme())
+                        .with_context("path", path));
+                    }
 
-        Reader::create_dir(self.inner().clone(), &path, args).await
+                    Reader::create_dir(inner.clone(), &path, args).await
+                };
+
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 
     /// Write bytes into path.
@@ -642,12 +640,33 @@ impl Operator {
     /// ```
     pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
         let bs = bs.into();
-        self.write_with(
-            path,
-            OpWrite::new().with_content_length(bs.len() as u64),
-            bs,
-        )
-        .await
+        self.write_with(path, bs).await
+    }
+
+    /// Append bytes into path.
+    ///
+    /// # Notes
+    ///
+    /// - Append will make sure all bytes has been written, or an error will be returned.
+    /// - Append will create the file if it does not exist.
+    /// - Append always write bytes to the end of the file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.append("path/to/file", vec![0; 4096]).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn append(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
+        let bs = bs.into();
+        self.append_with(path, bs).await
     }
 
     /// Copy a file from `from` to `to`.
@@ -790,7 +809,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn writer(&self, path: &str) -> Result<Writer> {
-        self.writer_with(path, OpWrite::default()).await
+        self.writer_with(path).await
     }
 
     /// Write multiple bytes into path with extra options.
@@ -805,31 +824,45 @@ impl Operator {
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
-    /// use opendal::ops::OpWrite;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let args = OpWrite::new().with_content_type("application/octet-stream");
-    /// let mut w = op.writer_with("path/to/file", args).await?;
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_type("application/octet-stream")
+    ///     .await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;
     /// w.close().await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn writer_with(&self, path: &str, args: OpWrite) -> Result<Writer> {
+    pub fn writer_with(&self, path: &str) -> FutureWriter {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Operator::writer")
-                    .with_context("service", self.inner().info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
+        let fut = FutureWriter(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpWrite::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "write path is a directory",
+                        )
+                        .with_operation("Operator::writer")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
 
-        Writer::create(self.inner().clone(), &path, args).await
+                    Writer::create(inner, &path, args).await
+                };
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Write data with extra options.
@@ -844,37 +877,181 @@ impl Operator {
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// use bytes::Bytes;
-    /// use opendal::ops::OpWrite;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let args = OpWrite::new().with_content_type("text/plain");
-    /// let _ = op.write_with("path/to/file", args, bs).await?;
+    /// let _ = op
+    ///     .write_with("path/to/file", bs)
+    ///     .content_type("text/plain")
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_with(&self, path: &str, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
+    pub fn write_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureWrite {
+        let path = normalize_path(path);
+        let bs = bs.into();
+
+        let fut = FutureWrite(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpWrite::default().with_content_length(bs.len() as u64), bs),
+            |inner, path, (args, bs)| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "write path is a directory",
+                        )
+                        .with_operation("Operator::write_with")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+
+                    let (_, mut w) = inner.write(&path, args).await?;
+                    w.write(bs).await?;
+                    w.close().await?;
+
+                    Ok(())
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
+    }
+
+    /// Append multiple bytes into path.
+    ///
+    /// Refer to [`Appender`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut a = op.appender("path/to/file").await?;
+    /// a.append(vec![0; 4096]).await?;
+    /// a.append(vec![1; 4096]).await?;
+    /// a.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn appender(&self, path: &str) -> Result<Appender> {
+        self.appender_with(path).await
+    }
+
+    /// Append multiple bytes into path with extra options.
+    ///
+    /// Refer to [`Appender`] for more details.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut a = op
+    ///     .appender_with("path/to/file")
+    ///     .content_type("application/octet-stream")
+    ///     .await?;
+    /// a.append(vec![0; 4096]).await?;
+    /// a.append(vec![1; 4096]).await?;
+    /// a.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn appender_with(&self, path: &str) -> FutureAppender {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("Operator::write_with")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
+        let fut = FutureAppender(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpAppend::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "append path is a directory",
+                        )
+                        .with_operation("Operator::appender")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+                    let ap = Appender::create(inner, &path, args).await?;
+                    Ok(ap)
+                };
 
+                Box::pin(fut)
+            },
+        ));
+
+        fut
+    }
+
+    /// Append bytes with extra options.
+    ///
+    /// # Notes
+    ///
+    /// - Append will make sure all bytes has been written, or an error will be returned.
+    /// - Append will create the file if it does not exist.
+    /// - Append always write bytes to the end of the file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let bs = b"hello, world!".to_vec();
+    /// let _ = op
+    ///     .append_with("path/to/file", bs)
+    ///     .content_type("text/plain")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn append_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureAppend {
+        let path = normalize_path(path);
         let bs = bs.into();
-        let (_, mut w) = self
-            .inner()
-            .write(&path, args.with_content_length(bs.len() as u64))
-            .await?;
-        w.write(bs).await?;
-        w.close().await?;
 
-        Ok(())
+        let fut = FutureAppend(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpAppend::default(), bs),
+            |inner, path, (args, bs)| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::FILE) {
+                        return Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "append path is a directory",
+                        )
+                        .with_operation("Operator::append_with")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+                    let (_, mut a) = inner.append(&path, args).await?;
+                    a.append(bs).await?;
+                    a.close().await?;
+
+                    Ok(())
+                };
+
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     /// Delete the given path.
@@ -1088,7 +1265,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn list(&self, path: &str) -> Result<Lister> {
-        self.list_with(path, OpList::new()).await
+        self.list_with(path).await
     }
 
     /// List given path with OpList.
@@ -1105,14 +1282,16 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
-    /// use opendal::ops::OpList;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let option = OpList::new().with_limit(10).with_start_after("start");
-    /// let mut ds = op.list_with("path/to/dir/", option).await?;
+    /// let mut ds = op
+    ///     .list_with("path/to/dir/")
+    ///     .limit(10)
+    ///     .start_after("start")
+    ///     .await?;
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {
@@ -1137,14 +1316,12 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
-    /// use opendal::ops::OpList;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let option = OpList::new().with_delimiter("");
-    /// let mut ds = op.list_with("path/to/dir/", option).await?;
+    /// let mut ds = op.list_with("path/to/dir/").delimiter("").await?;
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {
@@ -1160,22 +1337,33 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_with(&self, path: &str, op: OpList) -> Result<Lister> {
+    pub fn list_with(&self, path: &str) -> FutureList {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "the path trying to list should end with `/`",
-            )
-            .with_operation("Operator::list")
-            .with_context("service", self.info().scheme().into_static())
-            .with_context("path", &path));
-        }
+        let fut = FutureList(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::DIR) {
+                        return Err(Error::new(
+                            ErrorKind::NotADirectory,
+                            "the path trying to list should end with `/`",
+                        )
+                        .with_operation("Operator::list")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
 
-        let (_, pager) = self.inner().list(&path, op).await?;
+                    let (_, pager) = inner.list(&path, args).await?;
 
-        Ok(Lister::new(pager))
+                    Ok(Lister::new(pager))
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 
     /// List dir in flat way.
@@ -1187,7 +1375,7 @@ impl Operator {
     /// # Notes
     ///
     /// - `scan` will not return the prefix itself.
-    /// - `scan` is an alias of `list_with(OpList::new().with_delimiter(""))`
+    /// - `scan` is an alias of `list_with(path).delimiter("")`
     ///
     /// # Examples
     ///
@@ -1218,27 +1406,9 @@ impl Operator {
     /// # }
     /// ```
     pub async fn scan(&self, path: &str) -> Result<Lister> {
-        let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "the path trying to scan should end with `/`",
-            )
-            .with_operation("list")
-            .with_context("service", self.info().scheme().into_static())
-            .with_context("path", &path));
-        }
-
-        let (_, pager) = self
-            .inner()
-            .list(&path, OpList::new().with_delimiter(""))
-            .await?;
-
-        Ok(Lister::new(pager))
+        self.list_with(path).delimiter("").await
     }
 }
-
 /// Operator presign API.
 impl Operator {
     /// Presign an operation for stat(head).
@@ -1317,28 +1487,33 @@ impl Operator {
     /// use futures::io;
     /// use opendal::Operator;
     /// use std::time::Duration;
-    /// use opendal::ops::OpRead;
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let args = OpRead::new()
-    ///         .with_override_content_disposition("attachment; filename=\"othertext.txt\"");
-    ///     let signed_req = op.presign_read_with("test.txt", args, Duration::from_secs(3600)).await?;
+    ///     let signed_req = op
+    ///         .presign_read_with("test.txt", Duration::from_secs(3600))
+    ///         .override_content_disposition("attachment; filename=\"othertext.txt\"")
+    ///         .await?;
     /// #    Ok(())
     /// # }
     /// ```
-    pub async fn presign_read_with(
-        &self,
-        path: &str,
-        op: OpRead,
-        expire: Duration,
-    ) -> Result<PresignedRequest> {
+    pub fn presign_read_with(&self, path: &str, expire: Duration) -> FuturePresignRead {
         let path = normalize_path(path);
 
-        let op = OpPresign::new(op, expire);
-
-        let rp = self.inner().presign(&path, op).await?;
-        Ok(rp.into_presigned_request())
+        let fut = FuturePresignRead(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpRead::default(), expire),
+            |inner, path, (args, dur)| {
+                let fut = async move {
+                    let op = OpPresign::new(args, dur);
+                    let rp = inner.presign(&path, op).await?;
+                    Ok(rp.into_presigned_request())
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 
     /// Presign an operation for write.
@@ -1368,7 +1543,7 @@ impl Operator {
     /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
     /// ```
     pub async fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
-        self.presign_write_with(path, OpWrite::new(), expire).await
+        self.presign_write_with(path, expire).await
     }
 
     /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -1380,14 +1555,13 @@ impl Operator {
     /// ```no_run
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::ops::OpWrite;
     /// use opendal::Operator;
     /// use std::time::Duration;
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let args = OpWrite::new().with_content_type("text/csv");
-    ///     let signed_req = op.presign_write_with("test", args, Duration::from_secs(3600)).await?;
+    ///     let signed_req = op.presign_write_with("test", Duration::from_secs(3600))
+    ///                        .content_type("text/csv").await?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
@@ -1396,17 +1570,22 @@ impl Operator {
     /// #    Ok(())
     /// # }
     /// ```
-    pub async fn presign_write_with(
-        &self,
-        path: &str,
-        op: OpWrite,
-        expire: Duration,
-    ) -> Result<PresignedRequest> {
+    pub fn presign_write_with(&self, path: &str, expire: Duration) -> FuturePresignWrite {
         let path = normalize_path(path);
 
-        let op = OpPresign::new(op, expire);
-
-        let rp = self.inner().presign(&path, op).await?;
-        Ok(rp.into_presigned_request())
+        let fut = FuturePresignWrite(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            (OpWrite::default(), expire),
+            |inner, path, (args, dur)| {
+                let fut = async move {
+                    let op = OpPresign::new(args, dur);
+                    let rp = inner.presign(&path, op).await?;
+                    Ok(rp.into_presigned_request())
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 }

@@ -26,6 +26,8 @@ mod blocking_read;
 #[macro_use]
 mod blocking_write;
 #[macro_use]
+mod append;
+#[macro_use]
 mod copy;
 #[macro_use]
 mod list;
@@ -69,6 +71,8 @@ macro_rules! behavior_tests {
                     behavior_write_tests!($service);
                     // can_read && can_write && can_blocking
                     behavior_blocking_write_tests!($service);
+                    // can_read && can_write && can_append
+                    behavior_append_tests!($service);
                     // can_read && can_write && can_copy
                     behavior_copy_tests!($service);
                     // can read && can_write && can_blocking && can_copy
@@ -95,6 +99,8 @@ macro_rules! behavior_tests {
 behavior_tests!(Azblob);
 #[cfg(feature = "services-azdfs")]
 behavior_tests!(Azdfs);
+#[cfg(feature = "services-cos")]
+behavior_tests!(Cos);
 #[cfg(feature = "services-dashmap")]
 behavior_tests!(Dashmap);
 #[cfg(feature = "services-fs")]
@@ -137,6 +143,8 @@ behavior_tests!(Supabase);
 behavior_tests!(Sled);
 #[cfg(feature = "services-vercel-artifacts")]
 behavior_tests!(VercelArtifacts);
+#[cfg(feature = "services-wasabi")]
+behavior_tests!(Wasabi);
 #[cfg(feature = "services-webdav")]
 behavior_tests!(Webdav);
 #[cfg(feature = "services-webhdfs")]

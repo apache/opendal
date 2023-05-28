@@ -1,11 +1,11 @@
 {
   "name": "opendal",
   "author": "OpenDAL Contributors <dev@opendal.apache.org>",
-  "version": "0.34.0",
+  "version": "0.35.0",
   "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",
-  "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
+  "description": "Open Data Access Layer: Access data freely",
   "repository": "git@github.com/apache/incubator-opendal.git",
   "napi": {
     "name": "opendal",

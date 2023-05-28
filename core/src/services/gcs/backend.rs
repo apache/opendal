@@ -35,7 +35,6 @@ use super::core::GcsCore;
 use super::error::parse_error;
 use super::pager::GcsPager;
 use super::writer::GcsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -396,6 +395,7 @@ impl Accessor for GcsBackend {
     type BlockingReader = ();
     type Writer = GcsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = GcsPager;
     type BlockingPager = ();
 

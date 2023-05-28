@@ -16,15 +16,14 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::OnedriveBackend;
 use super::error::parse_error;
-use super::graph_model::{
-    OneDriveUploadSessionCreationRequestBody, OneDriveUploadSessionCreationResponseBody,
-};
-use crate::ops::OpWrite;
+use super::graph_model::OneDriveUploadSessionCreationRequestBody;
+use super::graph_model::OneDriveUploadSessionCreationResponseBody;
 use crate::raw::*;
 use crate::*;
 

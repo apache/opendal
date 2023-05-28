@@ -15,18 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-header:
-  license:
-    spdx-id: Apache-2.0
-    copyright-owner: Apache Software Foundation
-
-dependency:
-  files:
-    - Cargo.toml
-  excludes:
-    - name: opendal
-    - name: opendal-c
-    - name: opendal-java
-    - name: opendal-nodejs
-    - name: opendal-python
-    - name: opendal-ruby
+position: 3
+label: 'Services'
+collapsible: true
+collapsed: false
+link:
+  type: generated-index
+  title: Services

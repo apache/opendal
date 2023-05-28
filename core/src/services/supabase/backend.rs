@@ -25,7 +25,6 @@ use log::debug;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::*;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -209,6 +208,7 @@ impl Accessor for SupabaseBackend {
     type BlockingReader = ();
     type Writer = SupabaseWriter;
     type BlockingWriter = ();
+    type Appender = ();
     // todo: implement Pager to support list and scan
     type Pager = ();
     type BlockingPager = ();

@@ -85,33 +85,41 @@ const config = {
       },
       navbar: {
         logo: {
-          alt: 'Apache OpenDAL(incubating)',
+          alt: 'Apache OpenDAL (incubating)',
           src: 'img/logo.svg',
           srcDark: 'img/logo_dark.svg',
-          href: 'https://opendal.apache.org/',
+          href: '/',
           target: '_self',
           height: 32,
         },
         items: [
           {
             position: 'right',
-            label: 'Documentation',
+            label: 'Docs',
             items: [
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs">General</a>'
+                label: 'General',
+                to: '/docs/overview'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust</a>'
+                label: 'Services',
+                to: '/docs/category/services'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js</a>'
+                label: 'Rust Core',
+                to: 'pathname:///docs/rust/opendal/'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/python/">Python</a>'
+                label: 'Node.js Binding',
+                to: 'pathname:///docs/nodejs/'
+              },
+              {
+                label: 'Python Binding',
+                to: 'pathname:///docs/python/'
+              },
+              {
+                label: 'Java Binding',
+                to: 'pathname:///docs/java/'
               },
             ]
           },
@@ -146,11 +154,11 @@ const config = {
           },
           {
             type: 'dropdown',
-            label: 'ASF Links',
+            label: 'ASF',
             position: 'right',
             items: [
               {
-                label: 'Apache Software Foundation',
+                label: 'Foundation',
                 to: 'https://www.apache.org/'
               },
               {

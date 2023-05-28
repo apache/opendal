@@ -39,7 +39,7 @@ echo "> Checkout version branch"
 git checkout -B "${git_branch}"
 
 echo "> Start package"
-git archive --format=tar.gz --output="dist/apache-incubator-opendal-$release_version-src.tar.gz" --prefix="apache-incubator-opendal-$release_version-src/" "$git_branch"
+git archive --format=tar.gz --output="dist/apache-opendal-incubating-$release_version-src.tar.gz" --prefix="apache-opendal-incubating-$release_version-src/" "$git_branch"
 
 cd dist
 echo "> Generate signature"

@@ -20,24 +20,25 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::raw::new_json_deserialize_error;
-use crate::raw::percent_encode_path;
-use crate::raw::HttpClient;
-use crate::Error;
-use crate::ErrorKind;
-
+use http::header;
 use http::request::Builder;
+use http::Request;
+use http::Response;
 use http::StatusCode;
-use http::{header, Request, Response};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
-use crate::{
-    raw::{build_rooted_abs_path, new_request_build_error, AsyncBody, IncomingAsyncBody},
-    types::Result,
-};
-
 use super::error::parse_error;
+use crate::raw::build_rooted_abs_path;
+use crate::raw::new_json_deserialize_error;
+use crate::raw::new_request_build_error;
+use crate::raw::percent_encode_path;
+use crate::raw::AsyncBody;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::types::Result;
+use crate::Error;
+use crate::ErrorKind;
 
 pub struct GdriveCore {
     pub root: String,

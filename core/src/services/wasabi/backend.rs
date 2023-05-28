@@ -39,7 +39,6 @@ use super::core::*;
 use super::error::parse_error;
 use super::pager::WasabiPager;
 use super::writer::WasabiWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -896,6 +895,7 @@ impl Accessor for WasabiBackend {
     type BlockingReader = ();
     type Writer = WasabiWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = WasabiPager;
     type BlockingPager = ();
 
@@ -974,6 +974,13 @@ impl Accessor for WasabiBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.content_length().is_none() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write without content length is not supported",
+            ));
+        }
+
         Ok((
             RpWrite::default(),
             WasabiWriter::new(self.core.clone(), args, path.to_string()),
@@ -1003,7 +1010,7 @@ impl Accessor for WasabiBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.head_object(path, args.if_none_match()).await?;
+        let resp = self.core.head_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -1037,7 +1044,7 @@ impl Accessor for WasabiBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => self.core.head_object_request(path, v.if_none_match())?,
+            PresignOperation::Stat(v) => self.core.head_object_request(path, v)?,
             PresignOperation::Read(v) => self.core.get_object_request(
                 path,
                 v.range(),
@@ -1152,7 +1159,7 @@ mod tests {
         let endpoint_cases = vec![
             Some("s3.wasabisys.com"),
             Some("https://s3.wasabisys.com"),
-            Some("https://s3.us-east-2.amazonaws.com"),
+            Some("https://s3.us-east-2.wasabisys.com"),
             None,
         ];
 

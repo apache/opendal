@@ -21,7 +21,6 @@ use std::mem;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -32,6 +31,8 @@ use crate::*;
 /// # Examples
 ///
 /// ```rust, no_run
+/// use std::collections::HashMap;
+///
 /// use opendal::layers::ImmutableIndexLayer;
 /// use opendal::services;
 /// use opendal::Operator;
@@ -42,7 +43,7 @@ use crate::*;
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_env::<services::Http>()
+/// let op = Operator::from_map::<services::Http>(HashMap::default())
 ///     .unwrap()
 ///     .layer(iil)
 ///     .finish();
@@ -139,6 +140,7 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
+    type Appender = A::Appender;
     type Pager = ImmutableDir;
     type BlockingPager = ImmutableDir;
 
@@ -192,6 +194,10 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.inner.blocking_write(path, args)
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
@@ -284,9 +290,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_iter(
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        ))?
+        let op = Operator::new(Http::from_map({
+            let mut map = HashMap::new();
+            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
+
+            map
+        }))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -322,9 +331,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_iter(
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        ))?
+        let op = Operator::new(Http::from_map({
+            let mut map = HashMap::new();
+            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
+
+            map
+        }))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -366,9 +378,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_iter(
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        ))?
+        let op = Operator::new(Http::from_map({
+            let mut map = HashMap::new();
+            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
+
+            map
+        }))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -427,9 +442,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(Http::from_iter(
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        ))?
+        let op = Operator::new(Http::from_map({
+            let mut map = HashMap::new();
+            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
+
+            map
+        }))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();

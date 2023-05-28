@@ -21,7 +21,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use super::Adapter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -63,6 +62,7 @@ impl<S: Adapter> Accessor for Backend<S> {
     type BlockingReader = oio::Cursor;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
+    type Appender = ();
     type Pager = KvPager;
     type BlockingPager = KvPager;
 

@@ -15,21 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use http::{header, Request, Response, StatusCode};
 use std::fmt::Debug;
 
-use crate::{
-    ops::{OpRead, OpWrite},
-    raw::{
-        new_request_build_error, parse_into_metadata, Accessor, AccessorInfo, AsyncBody,
-        HttpClient, IncomingAsyncBody, RpRead, RpWrite,
-    },
-    types::Result,
-    Capability, Error, ErrorKind,
-};
+use async_trait::async_trait;
+use http::header;
+use http::Request;
+use http::Response;
+use http::StatusCode;
 
-use super::{error::parse_error, writer::VercelArtifactsWriter};
+use super::error::parse_error;
+use super::writer::VercelArtifactsWriter;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Clone)]
 pub struct VercelArtifactsBackend {
@@ -51,6 +48,7 @@ impl Accessor for VercelArtifactsBackend {
     type BlockingReader = ();
     type Writer = VercelArtifactsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 

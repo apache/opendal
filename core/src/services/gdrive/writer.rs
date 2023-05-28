@@ -23,7 +23,6 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 

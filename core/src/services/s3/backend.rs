@@ -40,7 +40,6 @@ use super::error::parse_error;
 use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -953,6 +952,7 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = S3Writer;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = S3Pager;
     type BlockingPager = ();
 

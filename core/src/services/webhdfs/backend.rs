@@ -34,7 +34,6 @@ use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
 use super::pager::WebhdfsPager;
 use super::writer::WebhdfsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -463,6 +462,7 @@ impl Accessor for WebhdfsBackend {
     type BlockingReader = ();
     type Writer = WebhdfsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = WebhdfsPager;
     type BlockingPager = ();
 

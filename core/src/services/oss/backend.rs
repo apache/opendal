@@ -30,11 +30,11 @@ use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
+use super::appender::OssAppender;
 use super::core::*;
 use super::error::parse_error;
 use super::pager::OssPager;
 use super::writer::OssWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -48,6 +48,7 @@ const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 /// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] append
 /// - [x] create_dir
 /// - [x] delete
 /// - [x] copy
@@ -441,6 +442,7 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriter;
     type BlockingWriter = ();
+    type Appender = OssAppender;
     type Pager = OssPager;
     type BlockingPager = ();
 
@@ -467,6 +469,11 @@ impl Accessor for OssBackend {
                 delete: true,
                 create_dir: true,
                 copy: true,
+
+                append: true,
+                append_with_cache_control: true,
+                append_with_content_type: true,
+                append_with_content_disposition: true,
 
                 list: true,
                 list_with_delimiter_slash: true,
@@ -529,6 +536,13 @@ impl Accessor for OssBackend {
         Ok((
             RpWrite::default(),
             OssWriter::new(self.core.clone(), path, args),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            OssAppender::new(self.core.clone(), path, args),
         ))
     }
 

@@ -182,6 +182,41 @@ async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'loc
     Ok(result.into())
 }
 
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+) -> jlong {
+    intern_delete(&mut env, op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_delete(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = env.get_string(&path)?.to_str()?.to_string();
+
+    let runtime = unsafe { RUNTIME.get_unchecked() };
+    runtime.spawn(async move {
+        let result = do_delete(op, path).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
+    });
+
+    Ok(id)
+}
+
+async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
+    Ok(op.delete(&path).await?)
+}
+
 fn request_id(env: &mut JNIEnv) -> Result<jlong> {
     let registry = env
         .call_static_method(

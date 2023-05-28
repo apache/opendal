@@ -24,17 +24,42 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Operator represents an underneath OpenDAL operator that
+ * accesses data asynchronously.
+ */
 public class Operator extends NativeObject {
     private static AsyncRegistry registry() {
         return AsyncRegistry.INSTANCE;
     }
 
+    /**
+     * Singleton to hold all outstanding futures.
+     *
+     * <p>
+     * This is a trick to avoid using global references to pass {@link CompletableFuture}
+     * among language boundary and between multiple native threads.
+     *
+     * @see <a href="https://docs.oracle.com/javase/8/docs/technotes/guides/jni/spec/functions.html#global_references">Global References</a>
+     * @see <a href="https://docs.rs/jni/latest/jni/objects/struct.GlobalRef.html">jni::objects::GlobalRef</a>
+     */
     private enum AsyncRegistry {
         INSTANCE;
 
         private final Map<Long, CompletableFuture<?>> registry = new ConcurrentHashMap<>();
 
-        @SuppressWarnings("unused") // called by jni-rs
+        /**
+         * Request a new {@link CompletableFuture} that is associated with a unique ID.
+         *
+         * <p>
+         * This method is called from native code. The return ID is used by:
+         *
+         * <li>Rust side: {@link #get(long)} the future when the native async op completed</li>
+         * <li>Java side: {@link #take(long)} the future to compose with more actions</li>
+         *
+         * @return the request ID associated to the obtained future
+         */
+        @SuppressWarnings("unused")
         private long requestId() {
             final CompletableFuture<?> f = new CompletableFuture<>();
             while (true) {
@@ -46,10 +71,25 @@ public class Operator extends NativeObject {
             }
         }
 
+        /**
+         * Get the future associated with the request ID.
+         *
+         * <p>
+         * This method is called from native code.
+         *
+         * @param requestId to identify the future
+         * @return the future associated with the request ID
+         */
         private CompletableFuture<?> get(long requestId) {
             return registry.get(requestId);
         }
 
+        /**
+         * Take the future associated with the request ID.
+         *
+         * @param requestId to identify the future
+         * @return the future associated with the request ID
+         */
         @SuppressWarnings("unchecked")
         private <T> CompletableFuture<T> take(long requestId) {
             final CompletableFuture<?> f = get(requestId);
@@ -60,6 +100,16 @@ public class Operator extends NativeObject {
         }
     }
 
+    /**
+     * Construct an OpenDAL operator:
+     *
+     * <p>
+     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
+     * and see what config options each service supports.
+     *
+     * @param schema the name of the underneath service to access data from.
+     * @param map    a map of properties to construct the underneath operator.
+     */
     public Operator(String schema, Map<String, String> map) {
         super(constructor(schema, map));
     }
@@ -80,6 +130,11 @@ public class Operator extends NativeObject {
         return registry().take(requestId);
     }
 
+    public CompletableFuture<Void> delete(String path) {
+        final long requestId = delete(nativeHandle, path);
+        return registry().take(requestId);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -89,5 +144,7 @@ public class Operator extends NativeObject {
 
     private static native long write(long nativeHandle, String path, String content);
 
-    private static native long stat(long nativeHandle, String file);
+    private static native long delete(long nativeHandle, String path);
+
+    private static native long stat(long nativeHandle, String path);
 }

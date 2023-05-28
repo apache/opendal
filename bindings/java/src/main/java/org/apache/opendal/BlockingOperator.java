@@ -22,12 +22,12 @@ package org.apache.opendal;
 import java.util.Map;
 
 /**
- * A blocking operator represents an underneath OpenDAL operator that
+ * BlockingOperator represents an underneath OpenDAL operator that
  * accesses data synchronously.
  */
 public class BlockingOperator extends NativeObject {
     /**
-     * Construct a blocking operator:
+     * Construct an OpenDAL blocking operator:
      *
      * <p>
      * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
@@ -67,5 +67,5 @@ public class BlockingOperator extends NativeObject {
 
     private static native void delete(long nativeHandle, String path);
 
-    private static native long stat(long nativeHandle, String file);
+    private static native long stat(long nativeHandle, String path);
 }

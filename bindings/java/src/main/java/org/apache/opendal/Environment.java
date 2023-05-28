@@ -24,6 +24,9 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Properties;
 
+/**
+ * Environment resolves environment-specific project metadata.
+ */
 public enum Environment {
     INSTANCE;
 

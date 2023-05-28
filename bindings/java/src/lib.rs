@@ -83,6 +83,13 @@ unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
     JNIEnv::from_raw(env).unwrap()
 }
 
+/// # Safety
+///
+/// This function could be only when the lib is loaded.
+unsafe fn get_global_runtime<'local>() -> &'local Runtime {
+    RUNTIME.get_unchecked()
+}
+
 fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String, String>> {
     let map = JMap::from_env(env, params)?;
     let mut iter = map.iter(env)?;

@@ -24,13 +24,13 @@ use jni::objects::JValueOwned;
 use jni::objects::{JByteArray, JClass};
 use jni::sys::jlong;
 use jni::JNIEnv;
+
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::get_current_env;
 use crate::jmap_to_hashmap;
 use crate::Result;
-use crate::RUNTIME;
+use crate::{get_current_env, get_global_runtime};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
@@ -93,8 +93,7 @@ fn intern_write(
     let path = env.get_string(&path)?.to_str()?.to_string();
     let content = env.convert_byte_array(content)?;
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
+    unsafe { get_global_runtime() }.spawn(async move {
         let result = do_write(op, path, content).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -135,8 +134,7 @@ fn intern_append(
     let path = env.get_string(&path)?.to_str()?.to_string();
     let content = env.convert_byte_array(content)?;
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
+    unsafe { get_global_runtime() }.spawn(async move {
         let result = do_append(op, path, content).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
@@ -170,8 +168,7 @@ fn intern_stat(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
     let path = env.get_string(&path)?.to_str()?.to_string();
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
+    unsafe { get_global_runtime() }.spawn(async move {
         let result = do_stat(op, path).await;
         complete_future(id, result.map(JValueOwned::Long))
     });
@@ -206,8 +203,7 @@ fn intern_read(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
     let path = env.get_string(&path)?.to_str()?.to_string();
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
+    unsafe { get_global_runtime() }.spawn(async move {
         let result = do_read(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
@@ -246,8 +242,7 @@ fn intern_delete(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<j
 
     let path = env.get_string(&path)?.to_str()?.to_string();
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
+    unsafe { get_global_runtime() }.spawn(async move {
         let result = do_delete(op, path).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });

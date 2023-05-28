@@ -39,4 +39,6 @@ pub struct FrontendsConfig {
 pub struct S3Config {
     pub enable: bool,
     pub addr: String,
+    #[serde(default = "1000")]
+    pub batch_max_operations: usize,
 }

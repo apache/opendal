@@ -106,6 +106,23 @@ jobs:
         run: |
           cp -r ./bindings/python/docs ./website/static/docs/python
 
+      # Setup java environment ----------------------------------------
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      # Build bindings/java docs --------------------------------------
+      - name: Build and test
+        working-directory: bindings/java
+        run: mvn javadoc:javadoc
+
+      - name: Copy docs into build
+        run: |
+          cp -r ./bindings/java/target/site/apidocs ./website/static/docs/java
+
       # Build website ---------------------------------------------------
       - name: Install Dependencies
         working-directory: website

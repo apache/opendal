@@ -17,4 +17,8 @@
  * under the License.
  */
 
+/**
+ * This package contains Java bindings over <a href="https://opendal.apache.org/">OpenDAL</a>
+ * via Java Native Interface (JNI).
+ */
 package org.apache.opendal;

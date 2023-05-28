@@ -17,11 +17,11 @@
 
 use std::str::FromStr;
 
-use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
+use jni::objects::{JByteArray, JClass};
 use jni::sys::jlong;
 use jni::JNIEnv;
 use opendal::Operator;
@@ -73,7 +73,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     _: JClass,
     op: *mut Operator,
     path: JString,
-    content: JString,
+    content: JByteArray,
 ) -> jlong {
     intern_write(&mut env, op, path, content).unwrap_or_else(|e| {
         e.throw(&mut env);
@@ -85,13 +85,13 @@ fn intern_write(
     env: &mut JNIEnv,
     op: *mut Operator,
     path: JString,
-    content: JString,
+    content: JByteArray,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = env.get_string(&path)?.to_str()?.to_string();
-    let content = env.get_string(&content)?.to_str()?.to_string();
+    let content = env.convert_byte_array(content)?;
 
     let runtime = unsafe { RUNTIME.get_unchecked() };
     runtime.spawn(async move {
@@ -102,7 +102,7 @@ fn intern_write(
     Ok(id)
 }
 
-async fn do_write(op: &mut Operator, path: String, content: String) -> Result<()> {
+async fn do_write(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
     Ok(op.write(&path, content).await?)
 }
 

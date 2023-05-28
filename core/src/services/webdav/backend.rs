@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -28,8 +27,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use percent_encoding::percent_decode_str;
-use reqwest::Url;
 
 use super::error::parse_error;
 use super::list_response::Multistatus;
@@ -468,7 +465,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.send_with_redirect(req, 5).await
     }
 
     pub async fn webdav_put(

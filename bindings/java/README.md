@@ -1,41 +1,59 @@
 # OpenDAL Java Bindings
 
-## Usage
+[![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal-java&smo=true)
+[![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/java/)
 
-You can use the package by adding the dependency as following:
+
+## Getting Started
+
+This project is built upon the native OpenDAL lib. And it is released for multiple platforms that you can use a classifier to specify the platform you are building the application on.
+
+Generally, you can first add the `os-maven-plugin` for automatically detect the classifier based on your platform:
 
 ```xml
-<project>
-  <repositories>
+<build>
+    <extensions>
+        <extension>
+            <groupId>kr.motd.maven</groupId>
+            <artifactId>os-maven-plugin</artifactId>
+            <version>1.7.0</version>
+        </extension>
+    </extensions>
+</build>
+```
+
+Then add the dependency to `opendal-java` as following:
+
+```xml
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal-java</artifactId>
+  <version>${opendal.version}</version>
+  <classifier>${os.detected.classifier}</classifier>
+</dependency>
+```
+
+If you'd rather like the latest snapshots of the upcoming major version, use ASF Maven snapshot repository:
+
+```xml
+<repositories>
     <repository>
-      <id>apache.snapshots</id>
-      <name>Apache Snapshot Repository</name>
-      <url>https://repository.apache.org/snapshots</url>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
+        <id>apache.snapshots</id>
+        <name>Apache Snapshot Repository</name>
+        <url>https://repository.apache.org/snapshots</url>
     </repository>
-  </repositories>
+</repositories>
+```
 
-  <dependencies>
-    <dependency>
-      <groupId>org.apache.opendal</groupId>
-      <artifactId>opendal-java</artifactId>
-      <version>0.1.0-SNAPSHOT</version>
-      <classifier>${os.detected.classifier}</classifier>
-    </dependency>
-  </dependencies>
+... and declare the appropriate dependency version:
 
-  <build>
-      <extensions>
-          <extension>
-              <groupId>kr.motd.maven</groupId>
-              <artifactId>os-maven-plugin</artifactId>
-              <version>1.7.0</version>
-          </extension>
-      </extensions>
-  </build>
-</project>
+```xml
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal-java</artifactId>
+  <version>${opendal.snapshot-version}</version>
+  <classifier>${os.detected.classifier}</classifier>
+</dependency>
 ```
 
 ## Build

@@ -277,7 +277,7 @@ impl HttpClient {
                 prev_resp = self.send(redirect_req).await?;
             }
         };
-        return Ok(resp);
+        Ok(resp)
     }
 }
 
@@ -291,7 +291,7 @@ impl HttpClient {
         // we just ignore extensions of request, because we won't use it
         parts.method = req.method().clone();
         parts.uri = req.uri().clone();
-        parts.version = req.version().clone();
+        parts.version = req.version();
         parts.headers = req.headers().clone();
 
         Request::from_parts(parts, body)

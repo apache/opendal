@@ -27,6 +27,7 @@ import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.util.HashMap;
 import java.util.Map;
+import lombok.Cleanup;
 
 public class StepsTest {
     BlockingOperator op;
@@ -45,19 +46,19 @@ public class StepsTest {
 
     @Then("The blocking file {string} should exist")
     public void the_blocking_file_test_should_exist(String path) {
-        Metadata metadata = op.stat(path);
+        @Cleanup Metadata metadata = op.stat(path);
         assertNotNull(metadata);
     }
 
     @Then("The blocking file {string} entry mode must be file")
     public void the_blocking_file_test_entry_mode_must_be_file(String path) {
-        Metadata metadata = op.stat(path);
+        @Cleanup Metadata metadata = op.stat(path);
         assertTrue(metadata.isFile());
     }
 
     @Then("The blocking file {string} content length must be {int}")
     public void the_blocking_file_test_content_length_must_be_13(String path, int length) {
-        Metadata metadata = op.stat(path);
+        @Cleanup Metadata metadata = op.stat(path);
         assertEquals(metadata.getContentLength(), length);
     }
 

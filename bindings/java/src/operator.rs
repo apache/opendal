@@ -110,6 +110,48 @@ async fn do_write(op: &mut Operator, path: String, content: Vec<u8>) -> Result<(
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_append(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+    content: JByteArray,
+) -> jlong {
+    intern_append(&mut env, op, path, content).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_append(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    path: JString,
+    content: JByteArray,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = env.get_string(&path)?.to_str()?.to_string();
+    let content = env.convert_byte_array(content)?;
+
+    let runtime = unsafe { RUNTIME.get_unchecked() };
+    runtime.spawn(async move {
+        let result = do_append(op, path, content).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
+    });
+
+    Ok(id)
+}
+
+async fn do_append(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
+    Ok(op.append(&path, content).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     mut env: JNIEnv,
     _: JClass,

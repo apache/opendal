@@ -56,6 +56,7 @@
         <jniClassifier>${os.detected.classifier}</jniClassifier>
 
         <assertj-version>3.23.1</assertj-version>
+        <lombok.version>1.18.26</lombok.version>
         <questdb.version>1.0.0</questdb.version>
 
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
@@ -84,10 +85,21 @@
                 <artifactId>assertj-core</artifactId>
                 <version>${assertj-version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.questdb</groupId>
             <artifactId>jar-jni</artifactId>

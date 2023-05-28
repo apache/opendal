@@ -20,30 +20,26 @@
 package org.apache.opendal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import java.util.stream.Collectors;
+import lombok.Cleanup;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class OperatorTest {
-    private Operator op;
-
-    @BeforeEach
-    public void init() {
-        Map<String, String> params = new HashMap<>();
-        params.put("root", "/tmp");
-        this.op = new Operator("Memory", params);
-    }
-
-    @AfterEach
-    public void clean() {
-        this.op.close();
-    }
+    @TempDir
+    private static Path tempDir;
 
     @Test
     public void testCreateAndDelete() {
+        Map<String, String> params = new HashMap<>();
+        params.put("root", "/tmp");
+        @Cleanup Operator op = new Operator("Memory", params);
+
         op.write("testCreateAndDelete", "Odin").join();
         assertThat(op.read("testCreateAndDelete").join()).isEqualTo("Odin");
         op.delete("testCreateAndDelete").join();
@@ -56,5 +52,30 @@ public class OperatorTest {
                     return null;
                 })
                 .join();
+    }
+
+    @Test
+    public void testAppendManyTimes() {
+        Map<String, String> params = new HashMap<>();
+        params.put("root", tempDir.toString());
+        @Cleanup Operator op = new Operator("fs", params);
+
+        String[] trunks = new String[] {"first trunk", "second trunk", "third trunk"};
+
+        for (int i = 0; i < trunks.length; i++) {
+            op.append("testAppendManyTimes", trunks[i]).join();
+            String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
+            assertThat(op.read("testAppendManyTimes").join()).isEqualTo(expected);
+        }
+
+        // write overwrite existing content
+        op.write("testAppendManyTimes", "new attempt").join();
+        assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt");
+
+        for (int i = 0; i < trunks.length; i++) {
+            op.append("testAppendManyTimes", trunks[i]).join();
+            String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
+            assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt" + expected);
+        }
     }
 }

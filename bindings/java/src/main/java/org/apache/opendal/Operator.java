@@ -124,6 +124,15 @@ public class Operator extends NativeObject {
         return registry().take(requestId);
     }
 
+    public CompletableFuture<Void> append(String path, String content) {
+        return append(path, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public CompletableFuture<Void> append(String path, byte[] content) {
+        final long requestId = append(nativeHandle, path, content);
+        return registry().take(requestId);
+    }
+
     public CompletableFuture<Metadata> stat(String path) {
         final long requestId = stat(nativeHandle, path);
         final CompletableFuture<Long> f = registry().take(requestId);
@@ -148,6 +157,8 @@ public class Operator extends NativeObject {
     private static native long read(long nativeHandle, String path);
 
     private static native long write(long nativeHandle, String path, byte[] content);
+
+    private static native long append(long nativeHandle, String path, byte[] content);
 
     private static native long delete(long nativeHandle, String path);
 

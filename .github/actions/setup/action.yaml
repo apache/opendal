@@ -40,6 +40,7 @@ runs:
       run: |
         # Set rocksdb lib path
         echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
+        echo "ROCKSDB_STATIC=true" >> $GITHUB_ENV
 
     - name: Cache rocksdb
       id: cache-rocksdb

@@ -104,7 +104,10 @@ jobs:
 
       - name: Install dependencies
         working-directory: bindings/python
-        run: python -m pip install pdoc
+        run: |
+          set -e
+          python -m pip install -e .
+          python -m pip install pdoc
 
       - name: Build bindings/python Docs
         working-directory: bindings/python

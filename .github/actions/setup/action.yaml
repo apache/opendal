@@ -53,7 +53,7 @@ runs:
           r0-rocksdb-
 
     - name: Build rocksdb if not cached
-      if: steps.cache-primes.outputs.cache-hit != 'true' && runner.os == 'Linux'
+      if: ${{ steps.cache-primes.outputs.cache-hit != 'true' && runner.os == 'Linux' }}
       shell: bash
       run: |
         set -e

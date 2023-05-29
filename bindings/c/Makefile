@@ -38,6 +38,10 @@ test:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(OBJ_DIR)/bdd
 
+.PHONY: doc
+doc:
+	doxygen Doxyfile
+
 .PHONY: clean
 clean:
 	cargo clean

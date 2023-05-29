@@ -78,3 +78,11 @@ make test
 [  PASSED  ] 1 test.
 ```
 
+## Documentations
+The documentation index page source is under `./docs/doxygen/html/index.html`.
+If you want to build the documentations yourself, you could use
+```sh
+# this requires you to install doxygen
+make doc
+```
+

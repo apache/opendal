@@ -17,7 +17,17 @@
 
 name: Docs
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "bindings/**"
+      - ".github/workflows/docs.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -128,7 +138,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      # Set node.js environment -----------------------------------------
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
@@ -146,7 +155,6 @@ jobs:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
-      # Download docs ---------------------------------------------------
       - name: Download rust docs
         uses: actions/download-artifact@v2
         with:
@@ -171,7 +179,6 @@ jobs:
           name: java-docs
           path: ./website/static/docs/java
 
-      # Build website ---------------------------------------------------
       - name: Install Dependencies
         working-directory: website
         run: yarn install
@@ -180,7 +187,6 @@ jobs:
         working-directory: website
         run: yarn build
 
-      # Start deploy --------------------------------------------------
       - name: Copy asf file
         run:  cp .asf.yaml ./website/build/.asf.yaml
 

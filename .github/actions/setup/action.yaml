@@ -41,7 +41,7 @@ runs:
       shell: bash
       run: |
         # Set rocksdb lib path
-        echo "ROCKSDB_LIB_DIR=/tmp/rocksdb" >> $GITHUB_ENV
+        echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
 
     - name: Cache Cargo
       uses: actions/cache@v3

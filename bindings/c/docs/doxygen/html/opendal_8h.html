@@ -544,12 +544,12 @@ Notes</h1>
       </table>
 </div><div class="memdoc">
 <p >Read the data out from path into a [<code>Bytes</code>] blockingly by operator, returns a result with error code. If the error code is not OPENDAL_OK, the <code>data</code> field of the result points to NULL.</p>
-<h1><a class="anchor" id="autotoc_md8"></a>
+<h1><a class="anchor" id="autotoc_md7"></a>
 Safety</h1>
 <p >It is [safe] under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md9"></a>
+<h1><a class="anchor" id="autotoc_md8"></a>
 Panic</h1>
 <ul>
 <li>If the <code>path</code> points to NULL, this function panics </li>
@@ -589,12 +589,12 @@ Panic</h1>
       </table>
 </div><div class="memdoc">
 <p >Write the data into the path blockingly by operator, returns the error code OPENDAL_OK if succeeds, others otherwise</p>
-<h1><a class="anchor" id="autotoc_md6"></a>
+<h1><a class="anchor" id="autotoc_md5"></a>
 Safety</h1>
 <p >It is [safe] under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md7"></a>
+<h1><a class="anchor" id="autotoc_md6"></a>
 Panic</h1>
 <ul>
 <li>If the <code>path</code> points to NULL, this function panics </li>
@@ -648,12 +648,12 @@ Panic</h1>
 </div><div class="memdoc">
 <p >Check whether the path exists.</p>
 <p >If the operation succeeds, no matter the path exists or not, the error code should be opendal_code::OPENDAL_OK. Otherwise, the field <code>is_exist</code> is filled with false, and the error code is set correspondingly.</p>
-<h1><a class="anchor" id="autotoc_md10"></a>
+<h1><a class="anchor" id="autotoc_md9"></a>
 Safety</h1>
 <p >It is [safe] under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md11"></a>
+<h1><a class="anchor" id="autotoc_md10"></a>
 Panic</h1>
 <ul>
 <li>If the <code>path</code> points to NULL, this function panics </li>
@@ -686,27 +686,42 @@ Panic</h1>
         </tr>
       </table>
 </div><div class="memdoc">
-<p >Uses an array of key-value pairs to initialize the operator based on provided scheme.</p>
+<p >Uses an array of key-value pairs to initialize the operator based on provided <code>scheme</code> and <code>options</code>. For each scheme, i.e. Backend, different options could be set, you may reference the <a href="https://opendal.apache.org/docs/category/services/">documentation</a> for each service, especially for the <b>Configuration Part</b>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">scheme</td><td>the service scheme you want to specify, e.g. "fs", "s3", "supabase" </td></tr>
+    <tr><td class="paramname">options</td><td>the options for this operators </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="structopendal__operator__options.html">opendal_operator_options</a> </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>A valid <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> setup with the <code>scheme</code> and <code>options</code> is the construction succeeds. A null <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> if any error happens.</dd></dl>
 <h1><a class="anchor" id="autotoc_md3"></a>
 Example</h1>
-<p >Following is a C example. </p><div class="fragment"><div class="line">opendal_operator_options options = opendal_operator_options_new();</div>
-<div class="line">opendal_operator_options_set(&amp;options, &quot;root&quot;, &quot;/myroot&quot;);</div>
+<p >Following is an example. </p><div class="fragment"><div class="line"><span class="comment">// Allocate a new options</span></div>
+<div class="line"><a class="code hl_struct" href="structopendal__operator__options.html">opendal_operator_options</a> options = <a class="code hl_function" href="opendal_8h.html#a5fc487d22612b761b882da5605891a57">opendal_operator_options_new</a>();</div>
+<div class="line"><span class="comment">// Set the options you need</span></div>
+<div class="line"><a class="code hl_function" href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02">opendal_operator_options_set</a>(&amp;options, <span class="stringliteral">&quot;root&quot;</span>, <span class="stringliteral">&quot;/myroot&quot;</span>);</div>
 <div class="line"> </div>
-<div class="line">opendal_operator_ptr ptr = opendal_operator_new(&quot;memory&quot;, options);</div>
+<div class="line"><span class="comment">// Construct the operator based on the options and scheme</span></div>
+<div class="line"><a class="code hl_struct" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> ptr = <a class="code hl_function" href="opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c">opendal_operator_new</a>(<span class="stringliteral">&quot;memory&quot;</span>, options);</div>
 <div class="line"> </div>
-<div class="line">opendal_operator_options_free(&amp;options);</div>
+<div class="line"><span class="comment">// you could free the options right away since the options is not used afterwards</span></div>
+<div class="line"><a class="code hl_function" href="opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97">opendal_operator_options_free</a>(&amp;options);</div>
 <div class="line"> </div>
-<div class="line">// ... your operations</div>
+<div class="line"><span class="comment">// ... your operations</span></div>
+<div class="ttc" id="aopendal_8h_html_a5fc487d22612b761b882da5605891a57"><div class="ttname"><a href="opendal_8h.html#a5fc487d22612b761b882da5605891a57">opendal_operator_options_new</a></div><div class="ttdeci">struct opendal_operator_options opendal_operator_options_new(void)</div></div>
+<div class="ttc" id="aopendal_8h_html_adbd909253a85b096de0da3a3e9b2530c"><div class="ttname"><a href="opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c">opendal_operator_new</a></div><div class="ttdeci">struct opendal_operator_ptr opendal_operator_new(const char *scheme, struct opendal_operator_options options)</div></div>
+<div class="ttc" id="aopendal_8h_html_ae87a9921870d96d1fd23ccf1f7b51c97"><div class="ttname"><a href="opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97">opendal_operator_options_free</a></div><div class="ttdeci">void opendal_operator_options_free(const struct opendal_operator_options *self)</div></div>
+<div class="ttc" id="aopendal_8h_html_af408af922875eb26c25cef4ddfdede02"><div class="ttname"><a href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02">opendal_operator_options_set</a></div><div class="ttdeci">void opendal_operator_options_set(struct opendal_operator_options *self, const char *key, const char *value)</div></div>
+<div class="ttc" id="astructopendal__operator__options_html"><div class="ttname"><a href="structopendal__operator__options.html">opendal_operator_options</a></div><div class="ttdef"><b>Definition:</b> opendal.h:140</div></div>
+<div class="ttc" id="astructopendal__operator__ptr_html"><div class="ttname"><a href="structopendal__operator__ptr.html">opendal_operator_ptr</a></div><div class="ttdef"><b>Definition:</b> opendal.h:133</div></div>
 </div><!-- fragment --><h1><a class="anchor" id="autotoc_md4"></a>
 Safety</h1>
-<p >This function is unsafe because it deferences and casts the raw pointers.</p>
-<p >It is [safe] under two cases below</p><ul>
-<li>The memory pointed to by <code>scheme</code> must contain a valid nul terminator at the end of the string.</li>
-<li>The <code>scheme</code> points to NULL, this function simply returns you a null <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a></li>
+<p >It is <b>safe</b> under two cases below</p><ul>
+<li>The memory pointed to by <code>scheme</code> contain a valid nul terminator at the end of the string.</li>
+<li>The <code>scheme</code> points to NULL, this function simply returns you a null <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a>. </li>
 </ul>
-<h1><a class="anchor" id="autotoc_md5"></a>
-Returns</h1>
-<p >Returns a result type [<code>opendal_result_op</code>], with operator_ptr. If the construction succeeds the error is nullptr, otherwise it contains the error information. </p>
 
 </div>
 </div>
@@ -780,10 +795,10 @@ Returns</h1>
       </table>
 </div><div class="memdoc">
 <p >Set a Key-Value pair inside <a class="el" href="structopendal__operator__options.html">opendal_operator_options</a></p>
-<h1><a class="anchor" id="autotoc_md14"></a>
+<h1><a class="anchor" id="autotoc_md13"></a>
 Safety</h1>
 <p >This function is unsafe because it dereferences and casts the raw pointers Make sure the pointer of <code>key</code> and <code>value</code> point to a valid string.</p>
-<h1><a class="anchor" id="autotoc_md15"></a>
+<h1><a class="anchor" id="autotoc_md14"></a>
 Example</h1>
 <div class="fragment"><div class="line"><a class="code hl_struct" href="structopendal__operator__options.html">opendal_operator_options</a> options = <a class="code hl_function" href="opendal_8h.html#a5fc487d22612b761b882da5605891a57">opendal_operator_options_new</a>();</div>
 <div class="line"><a class="code hl_function" href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02">opendal_operator_options_set</a>(&amp;options, <span class="stringliteral">&quot;root&quot;</span>, <span class="stringliteral">&quot;/myroot&quot;</span>);</div>
@@ -791,10 +806,6 @@ Example</h1>
 <div class="line"><span class="comment">// .. use your opendal_operator_options</span></div>
 <div class="line"> </div>
 <div class="line"><a class="code hl_function" href="opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97">opendal_operator_options_free</a>(options);</div>
-<div class="ttc" id="aopendal_8h_html_a5fc487d22612b761b882da5605891a57"><div class="ttname"><a href="opendal_8h.html#a5fc487d22612b761b882da5605891a57">opendal_operator_options_new</a></div><div class="ttdeci">struct opendal_operator_options opendal_operator_options_new(void)</div></div>
-<div class="ttc" id="aopendal_8h_html_ae87a9921870d96d1fd23ccf1f7b51c97"><div class="ttname"><a href="opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97">opendal_operator_options_free</a></div><div class="ttdeci">void opendal_operator_options_free(const struct opendal_operator_options *self)</div></div>
-<div class="ttc" id="aopendal_8h_html_af408af922875eb26c25cef4ddfdede02"><div class="ttname"><a href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02">opendal_operator_options_set</a></div><div class="ttdeci">void opendal_operator_options_set(struct opendal_operator_options *self, const char *key, const char *value)</div></div>
-<div class="ttc" id="astructopendal__operator__options_html"><div class="ttname"><a href="structopendal__operator__options.html">opendal_operator_options</a></div><div class="ttdef"><b>Definition:</b> opendal.h:140</div></div>
 </div><!-- fragment --> 
 </div>
 </div>
@@ -825,12 +836,12 @@ Example</h1>
 </div><div class="memdoc">
 <p >Stat the path, return its metadata.</p>
 <p >If the operation succeeds, no matter the path exists or not, the error code should be opendal_code::OPENDAL_OK. Otherwise, the field <code>meata</code> is filled with a NULL pointer, and the error code is set correspondingly.</p>
-<h1><a class="anchor" id="autotoc_md12"></a>
+<h1><a class="anchor" id="autotoc_md11"></a>
 Safety</h1>
 <p >It is [safe] under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md13"></a>
+<h1><a class="anchor" id="autotoc_md12"></a>
 Panic</h1>
 <ul>
 <li>If the <code>path</code> points to NULL, this function panics </li>

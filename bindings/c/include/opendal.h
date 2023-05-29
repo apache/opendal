@@ -201,17 +201,30 @@ extern "C" {
 #endif // __cplusplus
 
 /**
- * Uses an array of key-value pairs to initialize the operator based on provided scheme.
+ * Uses an array of key-value pairs to initialize the operator based on provided `scheme`
+ * and `options`. For each scheme, i.e. Backend, different options could be set, you may
+ * reference the [documentation](https://opendal.apache.org/docs/category/services/) for
+ * each service, especially for the **Configuration Part**.
+ *
+ * @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
+ * @param options the options for this operators
+ * @see opendal_operator_options
+ * @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
+ * succeeds. A null opendal_operator_ptr if any error happens.
  *
  * # Example
  *
- * Following is a C example.
- * ```no_run
+ * Following is an example.
+ * ```C
+ * // Allocate a new options
  * opendal_operator_options options = opendal_operator_options_new();
+ * // Set the options you need
  * opendal_operator_options_set(&options, "root", "/myroot");
  *
+ * // Construct the operator based on the options and scheme
  * opendal_operator_ptr ptr = opendal_operator_new("memory", options);
  *
+ * // you could free the options right away since the options is not used afterwards
  * opendal_operator_options_free(&options);
  *
  * // ... your operations
@@ -219,17 +232,10 @@ extern "C" {
  *
  * # Safety
  *
- * This function is unsafe because it deferences and casts the raw pointers.
- *
- * It is [safe] under two cases below
- * * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
+ * It is **safe** under two cases below
+ * * The memory pointed to by `scheme` contain a valid nul terminator at the end of
  *   the string.
- * * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
- *
- * # Returns
- *
- * Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
- * the error is nullptr, otherwise it contains the error information.
+ * * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
  */
 struct opendal_operator_ptr opendal_operator_new(const char *scheme,
                                                  struct opendal_operator_options options);

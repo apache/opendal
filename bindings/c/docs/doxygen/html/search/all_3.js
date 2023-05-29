@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['hashmap_5fstring_5f_5fstring_0',['HashMap_String__String',['../opendal_8h.html#a4e289398fb4fc6a0389d9b2538e6b07e',1,'opendal.h']]]
+  ['data_0',['data',['../structopendal__bytes.html#af7a7f99a262f8a3912f4d1cddb798c86',1,'opendal_bytes::data()'],['../structopendal__result__read.html#ad8ca467bcbe6d1768e15fcf64fe78e9f',1,'opendal_result_read::data()']]]
 ];

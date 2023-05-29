@@ -17,26 +17,10 @@
 
 name: Setup Rust Builder
 description: 'Prepare Rust Build Environment'
-inputs:
-  cache-key:
-    description: 'the rust cache key suffix'
-    required: false
-    default: ''
 
 runs:
   using: "composite"
   steps:
-    - name: Cache Cargo
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}${{ inputs.cache-key }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          ${{ runner.os }}-cargo
-
     - name: Setup rust related environment variables
       shell: bash
       run: |
@@ -51,3 +35,33 @@ runs:
         echo "RUST_LOG=debug" >> $GITHUB_ENV
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
+
+    - name: Setup rust on linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        # Set rocksdb lib path
+        echo "ROCKSDB_LIB_DIR=/usr/lib" >> $GITHUB_ENV
+
+    - name: Cache Cargo
+      uses: actions/cache@v3
+      if: runner.os == 'Linux'
+      with:
+        path: /usr/lib/rocksdb/
+        key: rocksdb-8.1.1
+        restore-keys: |
+          rocksdb-
+
+    - name: Build rocksdb if not cached
+      if: steps.cache-primes.outputs.cache-hit != 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -e
+        cd /tmp
+        curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
+        tar -xzf rocksdb.tar.gz
+        cd rocksdb-8.1.1
+
+        cmake -DCMAKE_INSTALL_PREFIX=/usr/lib ..
+        make
+        make install

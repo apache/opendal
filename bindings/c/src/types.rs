@@ -24,11 +24,7 @@ use ::opendal as od;
 /// It is also the key struct that OpenDAL's APIs access the real
 /// operator's memory. The use of OperatorPtr is zero cost, it
 /// only returns a reference of the underlying Operator.
-///
-/// The [`opendal_operator_ptr`] also has a transparent layout, allowing you
-/// to check its validity by native boolean operator.
-/// e.g. you could check by (!ptr) on a [`opendal_operator_ptr`]
-#[repr(transparent)]
+#[repr(C)]
 pub struct opendal_operator_ptr {
     ptr: *const od::BlockingOperator,
 }
@@ -46,9 +42,7 @@ impl opendal_operator_ptr {
 
 impl opendal_operator_ptr {
     /// Creates an OperatorPtr will nullptr, indicating this [`opendal_operator_ptr`]
-    /// is invalid. The `transparent` layout also guarantees that if the
-    /// underlying field `ptr` is a nullptr, the [`opendal_operator_ptr`] has the
-    /// same layout as the nullptr.
+    /// is invalid.
     pub(crate) fn null() -> Self {
         Self {
             ptr: std::ptr::null(),
@@ -125,7 +119,7 @@ impl Into<bytes::Bytes> for opendal_bytes {
 /// mode and content_length are required metadata that all services
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `Entry`'s content length could be NULL.
-#[repr(transparent)]
+#[repr(C)]
 pub struct opendal_metadata {
     pub inner: *const od::Metadata,
 }
@@ -183,7 +177,7 @@ impl opendal_metadata {
 }
 
 /// [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
-#[repr(transparent)]
+#[repr(C)]
 pub struct opendal_operator_options {
     inner: *mut HashMap<String, String>,
 }

@@ -19,7 +19,7 @@ use ::opendal as od;
 
 /// The wrapper type for opendal's error, wrapped because of the
 /// orphan rule
-pub struct opendal_error(od::Error);
+struct opendal_error(od::Error);
 
 /// The error code for opendal APIs in C binding
 #[repr(C)]

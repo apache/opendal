@@ -68,7 +68,7 @@ runs:
         mkdir /tmp/rocksdb
         cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb
         make -j$(nproc)
-        make install-static
+        make install
 
         cd ..
         rm -rf /tmp/rocksdb-8.1.1

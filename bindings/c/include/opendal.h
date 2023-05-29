@@ -114,7 +114,7 @@ typedef struct BlockingOperator BlockingOperator;
 typedef struct HashMap_String__String HashMap_String__String;
 
 /*
- Metadata carries all metadata associated with an path.
+ Metadata carries all metadata associated with a path.
 
  # Notes
 

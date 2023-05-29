@@ -24,45 +24,122 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-rust-doc:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
 
-      # Build OpenDAL docs ----------------------------------------------
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          cache-key: "-services-all"
+      
       - uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: '17'
+      
+      - name: Build OpenDAL doc
+        run: cargo doc --lib --no-deps --all-features -p opendal
+        env:
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+      
+      - name: Upload docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: rust-docs
+          path: ./target/doc
+
+  build-java-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           cache-key: "-services-all"
-
-      - name: Build OpenDAL doc
-        run: cargo doc --lib --no-deps --all-features -p opendal
-        env:
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-
-      - name: Copy docs into build
-        run: |
-          cp -r ./target/doc ./website/static/docs/rust
-
-      # Build bindings/java docs --------------------------------------
+      
+      - uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '17'
+      
       - name: Build and test
         working-directory: bindings/java
         run: mvn javadoc:javadoc
+  
+      - name: Upload docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: java-docs
+          path: ./bindings/java/target/site/apidocs
 
-      - name: Copy docs into build
+  build-nodejs-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        working-directory: bindings/nodejs
+        run: yarn install
+      
+      - name: Build bindings/nodejs Docs
+        working-directory: bindings/nodejs
+        run: yarn docs
+      
+      - name: Upload docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: nodejs-docs
+          path: ./bindings/nodejs/docs
+
+  build-python-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        working-directory: bindings/python
         run: |
-          cp -r ./bindings/java/target/site/apidocs ./website/static/docs/java
+          set -e
+          python -m pip install -e .
+          python -m pip install pdoc
+      
+      - name: Build bindings/python Docs
+        working-directory: bindings/python
+        run: pdoc --output-dir ./docs opendal
+      
+      - name: Upload docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: python-docs
+          path: ./bindings/python/docs
+
+  build-website:
+    runs-on: ubuntu-latest
+    needs:
+      - build-rust-doc
+      - build-java-doc
+      - build-nodejs-doc
+      - build-python-doc
+
+    steps:
+      - uses: actions/checkout@v3
 
       # Set node.js environment -----------------------------------------
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
+
       - run: corepack enable
         working-directory: bindings/nodejs
 
@@ -76,39 +153,30 @@ jobs:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
-      # Build bindings/nodejs docs --------------------------------------
-      - name: Install dependencies
-        working-directory: bindings/nodejs
-        run: yarn install
-
-      - name: Build bindings/nodejs Docs
-        working-directory: bindings/nodejs
-        run: yarn docs
-
-      - name: Copy docs into build
-        run: |
-          cp -r ./bindings/nodejs/docs ./website/static/docs/nodejs
-
-      # Setup python environment ----------------------------------------
-      - uses: actions/setup-python@v4
+      # Download docs ---------------------------------------------------
+      - name: Download rust docs
+        uses: actions/download-artifact@v2
         with:
-          python-version: '3.11'
+          name: rust-docs
+          path: ./website/static/docs/rust
+      
+      - name: Download nodejs docs
+        uses: actions/download-artifact@v2
+        with:
+          name: nodejs-docs
+          path: ./website/static/docs/nodejs
 
-      # Build bindings/python docs --------------------------------------
-      - name: Install dependencies
-        working-directory: bindings/python
-        run: |
-          set -e
-          python -m pip install -e .
-          python -m pip install pdoc
+      - name: Download python docs
+        uses: actions/download-artifact@v2
+        with:
+          name: python-docs
+          path: ./website/static/docs/python
 
-      - name: Build bindings/python Docs
-        working-directory: bindings/python
-        run: pdoc --output-dir ./docs opendal
-
-      - name: Copy docs into build
-        run: |
-          cp -r ./bindings/python/docs ./website/static/docs/python
+      - name: Download java docs
+        uses: actions/download-artifact@v2
+        with:
+          name: java-docs
+          path: ./website/static/docs/java
 
       # Build website ---------------------------------------------------
       - name: Install Dependencies

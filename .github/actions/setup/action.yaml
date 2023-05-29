@@ -48,9 +48,9 @@ runs:
       if: runner.os == 'Linux'
       with:
         path: /usr/lib/rocksdb
-        key: rocksdb-8.1.1
+        key: r0-rocksdb-8.1.1
         restore-keys: |
-          rocksdb-
+          r0-rocksdb-
 
     - name: Build rocksdb if not cached
       if: steps.cache-primes.outputs.cache-hit != 'true' && runner.os == 'Linux'

@@ -57,6 +57,9 @@ runs:
       shell: bash
       run: |
         set -e
+
+        sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+
         cd /tmp
         curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
         tar -xzf rocksdb.tar.gz

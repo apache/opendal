@@ -47,7 +47,7 @@ runs:
       uses: actions/cache@v3
       if: runner.os == 'Linux'
       with:
-        path: /usr/lib/rocksdb/
+        path: /usr/lib/rocksdb
         key: rocksdb-8.1.1
         restore-keys: |
           rocksdb-
@@ -62,6 +62,6 @@ runs:
         tar -xzf rocksdb.tar.gz
         cd rocksdb-8.1.1
 
-        cmake -DCMAKE_INSTALL_PREFIX=/usr/lib
+        cmake -DCMAKE_INSTALL_PREFIX=/usr/lib/rocksdb
         make
         make install

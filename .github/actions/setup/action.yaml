@@ -41,13 +41,13 @@ runs:
       shell: bash
       run: |
         # Set rocksdb lib path
-        echo "ROCKSDB_LIB_DIR=/usr/lib" >> $GITHUB_ENV
+        echo "ROCKSDB_LIB_DIR=/tmp/rocksdb" >> $GITHUB_ENV
 
     - name: Cache Cargo
       uses: actions/cache@v3
       if: runner.os == 'Linux'
       with:
-        path: /usr/lib/rocksdb
+        path: /tmp/rocksdb
         key: r0-rocksdb-8.1.1
         restore-keys: |
           r0-rocksdb-
@@ -65,6 +65,10 @@ runs:
         tar -xzf rocksdb.tar.gz
         cd rocksdb-8.1.1
 
-        cmake -DCMAKE_INSTALL_PREFIX=/usr/lib/rocksdb
-        make
-        make install
+        mkdir /tmp/rocksdb
+        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb
+        make static_lib
+        make install-static
+
+        cd ..
+        rm -rf /tmp/rocksdb-8.1.1

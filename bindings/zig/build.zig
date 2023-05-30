@@ -29,7 +29,20 @@ pub fn build(b: *std.Build) void {
     unit_tests.linkSystemLibrary("opendal_c");
     unit_tests.linkLibC();
 
+    const opendal_c = buildOpendalC(b);
+    const make_opendal_c = b.step("opendal_c", "Build opendal_c library");
+    make_opendal_c.dependOn(&opendal_c.step);
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test", "Run opendal tests");
     test_step.dependOn(&run_unit_tests.step);
+}
+fn buildOpendalC(b: *std.Build) *std.Build.Step.Run {
+    const rootdir = (comptime std.fs.path.dirname(@src().file) orelse null) ++ "/";
+    const opendalCdir = rootdir ++ "../c";
+    return b.addSystemCommand(&[_][]const u8{
+        "make",
+        "-C",
+        opendalCdir,
+        "build",
+    });
 }

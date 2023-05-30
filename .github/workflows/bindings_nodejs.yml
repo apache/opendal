@@ -213,7 +213,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node }}
+          node-version: "18"
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack

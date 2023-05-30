@@ -36,7 +36,6 @@ use crate::services::cos::appender::CosAppender;
 use crate::*;
 
 /// Huawei Cloud COS services support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct CosBuilder {

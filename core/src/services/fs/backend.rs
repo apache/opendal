@@ -35,7 +35,6 @@ use crate::raw::*;
 use crate::*;
 
 /// POSIX file system support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct FsBuilder {

@@ -241,20 +241,47 @@ struct opendal_operator_ptr opendal_operator_new(const char *scheme,
                                                  struct opendal_operator_options options);
 
 /**
- * Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
+ * Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
  * if succeeds, others otherwise
+ *
+ * @param ptr The opendal_operator_ptr created previously
+ * @param path The designated path you want to write your bytes in
+ * @param bytes The opendal_byte typed bytes to be written
+ * @see opendal_operator_ptr
+ * @see opendal_bytes
+ * @see opendal_code
+ * @return OPENDAL_OK if succeeds others otherwise
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * //...prepare your opendal_operator_ptr, named ptr for example
+ *
+ * // prepare your data
+ * char* data = "Hello, World!";
+ * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+ *
+ * // now you can write!
+ * opendal_code code = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+ *
+ * // Assert that this succeeds
+ * assert(code == OPENDAL_OK)
+ * ```
  *
  * # Safety
  *
- * It is [safe] under the cases below
+ * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * The `bytes` provided has valid byte in the `data` field and the `len` field is set
+ *   correctly.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr op_ptr,
+enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr ptr,
                                                   const char *path,
                                                   struct opendal_bytes bytes);
 

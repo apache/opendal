@@ -155,8 +155,8 @@ Enumerations</h2></td></tr>
 Functions</h2></td></tr>
 <tr class="memitem:adbd909253a85b096de0da3a3e9b2530c"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c">opendal_operator_new</a> (const char *scheme, struct <a class="el" href="structopendal__operator__options.html">opendal_operator_options</a> options)</td></tr>
 <tr class="separator:adbd909253a85b096de0da3a3e9b2530c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a65bb5923467b45b0a7fc70c18348eb07"><td class="memItemLeft" align="right" valign="top">enum <a class="el" href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2">opendal_code</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#a65bb5923467b45b0a7fc70c18348eb07">opendal_operator_blocking_write</a> (struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> op_ptr, const char *path, struct <a class="el" href="structopendal__bytes.html">opendal_bytes</a> bytes)</td></tr>
-<tr class="separator:a65bb5923467b45b0a7fc70c18348eb07"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a44f96c4a5c9092b47fc2c43ee00526ca"><td class="memItemLeft" align="right" valign="top">enum <a class="el" href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2">opendal_code</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#a44f96c4a5c9092b47fc2c43ee00526ca">opendal_operator_blocking_write</a> (struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> ptr, const char *path, struct <a class="el" href="structopendal__bytes.html">opendal_bytes</a> bytes)</td></tr>
+<tr class="separator:a44f96c4a5c9092b47fc2c43ee00526ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2f6a1631b348c5c283c5a50e3adf253e"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="structopendal__result__read.html">opendal_result_read</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#a2f6a1631b348c5c283c5a50e3adf253e">opendal_operator_blocking_read</a> (struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> op_ptr, const char *path)</td></tr>
 <tr class="separator:a2f6a1631b348c5c283c5a50e3adf253e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a99ee5810971b48a7c8d0851a56bc4623"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="structopendal__result__is__exist.html">opendal_result_is_exist</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#a99ee5810971b48a7c8d0851a56bc4623">opendal_operator_is_exist</a> (struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> op_ptr, const char *path)</td></tr>
@@ -540,12 +540,12 @@ Notes</h1>
       </table>
 </div><div class="memdoc">
 <p >Read the data out from path into a [<code>Bytes</code>] blockingly by operator, returns a result with error code. If the error code is not OPENDAL_OK, the <code>data</code> field of the result points to NULL.</p>
-<h1><a class="anchor" id="autotoc_md7"></a>
+<h1><a class="anchor" id="autotoc_md8"></a>
 Safety</h1>
 <p >It is [safe] under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md8"></a>
+<h1><a class="anchor" id="autotoc_md9"></a>
 Panic</h1>
 <ul>
 <li>If the <code>path</code> points to NULL, this function panics </li>
@@ -553,8 +553,8 @@ Panic</h1>
 
 </div>
 </div>
-<a id="a65bb5923467b45b0a7fc70c18348eb07" name="a65bb5923467b45b0a7fc70c18348eb07"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a65bb5923467b45b0a7fc70c18348eb07">&#9670;&#160;</a></span>opendal_operator_blocking_write()</h2>
+<a id="a44f96c4a5c9092b47fc2c43ee00526ca" name="a44f96c4a5c9092b47fc2c43ee00526ca"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a44f96c4a5c9092b47fc2c43ee00526ca">&#9670;&#160;</a></span>opendal_operator_blocking_write()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -563,7 +563,7 @@ Panic</h1>
           <td class="memname">enum <a class="el" href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2">opendal_code</a> opendal_operator_blocking_write </td>
           <td>(</td>
           <td class="paramtype">struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a>&#160;</td>
-          <td class="paramname"><em>op_ptr</em>, </td>
+          <td class="paramname"><em>ptr</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -584,16 +584,49 @@ Panic</h1>
         </tr>
       </table>
 </div><div class="memdoc">
-<p >Write the data into the path blockingly by operator, returns the error code OPENDAL_OK if succeeds, others otherwise</p>
+<p >Write the <code>bytes</code> into the <code>path</code> blockingly by <code>op_ptr</code>, returns the opendal_code OPENDAL_OK if succeeds, others otherwise</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">ptr</td><td>The <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> created previously </td></tr>
+    <tr><td class="paramname">path</td><td>The designated path you want to write your bytes in </td></tr>
+    <tr><td class="paramname">bytes</td><td>The opendal_byte typed bytes to be written </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> </dd>
+<dd>
+<a class="el" href="structopendal__bytes.html">opendal_bytes</a> </dd>
+<dd>
+<a class="el" href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2">opendal_code</a> </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>OPENDAL_OK if succeeds others otherwise</dd></dl>
 <h1><a class="anchor" id="autotoc_md5"></a>
+Example</h1>
+<p >Following is an example </p><div class="fragment"><div class="line"><span class="comment">//...prepare your opendal_operator_ptr, named ptr for example</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// prepare your data</span></div>
+<div class="line"><span class="keywordtype">char</span>* data = <span class="stringliteral">&quot;Hello, World!&quot;</span>;</div>
+<div class="line"><a class="code hl_struct" href="structopendal__bytes.html">opendal_bytes</a> bytes = <a class="code hl_struct" href="structopendal__bytes.html">opendal_bytes</a> { .<a class="code hl_variable" href="structopendal__bytes.html#af7a7f99a262f8a3912f4d1cddb798c86">data</a> = (uint8_t*)data, .len = 13 };</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// now you can write!</span></div>
+<div class="line"><a class="code hl_enumeration" href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2">opendal_code</a> code = <a class="code hl_function" href="opendal_8h.html#a44f96c4a5c9092b47fc2c43ee00526ca">opendal_operator_blocking_write</a>(ptr, <span class="stringliteral">&quot;/testpath&quot;</span>, bytes);</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Assert that this succeeds</span></div>
+<div class="line">assert(code == <a class="code hl_enumvalue" href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2a4d413135a4d370869796b5fcbb07c9b8">OPENDAL_OK</a>)</div>
+<div class="ttc" id="aopendal_8h_html_a44f96c4a5c9092b47fc2c43ee00526ca"><div class="ttname"><a href="opendal_8h.html#a44f96c4a5c9092b47fc2c43ee00526ca">opendal_operator_blocking_write</a></div><div class="ttdeci">enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr ptr, const char *path, struct opendal_bytes bytes)</div></div>
+<div class="ttc" id="aopendal_8h_html_a6715be152766e5b8f840ce10cf9442c2"><div class="ttname"><a href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2">opendal_code</a></div><div class="ttdeci">opendal_code</div><div class="ttdef"><b>Definition:</b> opendal.h:31</div></div>
+<div class="ttc" id="aopendal_8h_html_a6715be152766e5b8f840ce10cf9442c2a4d413135a4d370869796b5fcbb07c9b8"><div class="ttname"><a href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2a4d413135a4d370869796b5fcbb07c9b8">OPENDAL_OK</a></div><div class="ttdeci">@ OPENDAL_OK</div><div class="ttdef"><b>Definition:</b> opendal.h:35</div></div>
+<div class="ttc" id="astructopendal__bytes_html"><div class="ttname"><a href="structopendal__bytes.html">opendal_bytes</a></div><div class="ttdef"><b>Definition:</b> opendal.h:150</div></div>
+<div class="ttc" id="astructopendal__bytes_html_af7a7f99a262f8a3912f4d1cddb798c86"><div class="ttname"><a href="structopendal__bytes.html#af7a7f99a262f8a3912f4d1cddb798c86">opendal_bytes::data</a></div><div class="ttdeci">const uint8_t * data</div><div class="ttdef"><b>Definition:</b> opendal.h:151</div></div>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md6"></a>
 Safety</h1>
-<p >It is [safe] under the cases below</p><ul>
+<p >It is <b>safe</b> under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
+<li>The <code>bytes</code> provided has valid byte in the <code>data</code> field and the <code>len</code> field is set correctly.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md6"></a>
+<h1><a class="anchor" id="autotoc_md7"></a>
 Panic</h1>
 <ul>
-<li>If the <code>path</code> points to NULL, this function panics </li>
+<li>If the <code>path</code> points to NULL, this function panics, i.e. exits with information </li>
 </ul>
 
 </div>
@@ -644,12 +677,12 @@ Panic</h1>
 </div><div class="memdoc">
 <p >Check whether the path exists.</p>
 <p >If the operation succeeds, no matter the path exists or not, the error code should be opendal_code::OPENDAL_OK. Otherwise, the field <code>is_exist</code> is filled with false, and the error code is set correspondingly.</p>
-<h1><a class="anchor" id="autotoc_md9"></a>
+<h1><a class="anchor" id="autotoc_md10"></a>
 Safety</h1>
 <p >It is [safe] under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md10"></a>
+<h1><a class="anchor" id="autotoc_md11"></a>
 Panic</h1>
 <ul>
 <li>If the <code>path</code> points to NULL, this function panics </li>
@@ -791,10 +824,10 @@ Safety</h1>
       </table>
 </div><div class="memdoc">
 <p >Set a Key-Value pair inside <a class="el" href="structopendal__operator__options.html">opendal_operator_options</a></p>
-<h1><a class="anchor" id="autotoc_md13"></a>
+<h1><a class="anchor" id="autotoc_md14"></a>
 Safety</h1>
 <p >This function is unsafe because it dereferences and casts the raw pointers Make sure the pointer of <code>key</code> and <code>value</code> point to a valid string.</p>
-<h1><a class="anchor" id="autotoc_md14"></a>
+<h1><a class="anchor" id="autotoc_md15"></a>
 Example</h1>
 <div class="fragment"><div class="line"><a class="code hl_struct" href="structopendal__operator__options.html">opendal_operator_options</a> options = <a class="code hl_function" href="opendal_8h.html#a5fc487d22612b761b882da5605891a57">opendal_operator_options_new</a>();</div>
 <div class="line"><a class="code hl_function" href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02">opendal_operator_options_set</a>(&amp;options, <span class="stringliteral">&quot;root&quot;</span>, <span class="stringliteral">&quot;/myroot&quot;</span>);</div>
@@ -832,12 +865,12 @@ Example</h1>
 </div><div class="memdoc">
 <p >Stat the path, return its metadata.</p>
 <p >If the operation succeeds, no matter the path exists or not, the error code should be opendal_code::OPENDAL_OK. Otherwise, the field <code>meata</code> is filled with a NULL pointer, and the error code is set correspondingly.</p>
-<h1><a class="anchor" id="autotoc_md11"></a>
+<h1><a class="anchor" id="autotoc_md12"></a>
 Safety</h1>
 <p >It is [safe] under the cases below</p><ul>
 <li>The memory pointed to by <code>path</code> must contain a valid nul terminator at the end of the string.</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md12"></a>
+<h1><a class="anchor" id="autotoc_md13"></a>
 Panic</h1>
 <ul>
 <li>If the <code>path</code> points to NULL, this function panics </li>
@@ -846,4 +879,22 @@ Panic</h1>
 </div>
 </div>
 </div><!-- contents -->
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+#
+  http://www.apache.org/licenses/LICENSE-2.0
+#
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
 <pre>Copyright © 1970 The Apache Software Foundation. All rights reserved.</pre>

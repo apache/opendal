@@ -17,6 +17,11 @@
 
 name: Setup Rust Builder
 description: 'Prepare Rust Build Environment'
+inputs:
+  need-rocksdb:
+    description: "This setup needs rocksbd or not, default is false"
+    required: true
+    default: "false"
 
 runs:
   using: "composite"
@@ -35,7 +40,7 @@ runs:
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
 
     - name: Setup rust on linux
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && inputs.need-rocksdb
       shell: bash
       run: |
         # Set rocksdb lib path
@@ -45,15 +50,13 @@ runs:
     - name: Cache rocksdb
       id: cache-rocksdb
       uses: actions/cache@v3
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && inputs.need-rocksdb
       with:
         path: /tmp/rocksdb
         key: r0-rocksdb-8.1.1
-        restore-keys: |
-          r0-rocksdb-
 
     - name: Build rocksdb if not cached
-      if: ${{ steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' }}
+      if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb
       shell: bash
       run: |
         set -e

@@ -138,6 +138,29 @@ jobs:
           name: python-docs
           path: ./bindings/python/docs
 
+  build-c-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Build C binding
+        working-directory: "bindings/c"
+        run: make build
+
+      - name: Build Docs
+        working-directory: bindings/c
+        run: make doc
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: c-docs
+          path: ./bindings/c/docs/html
+
   build-website:
     runs-on: ubuntu-latest
     needs:

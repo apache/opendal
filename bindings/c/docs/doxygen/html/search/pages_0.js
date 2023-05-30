@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['apache_20opendal_20c_20binding_0',['Apache OpenDAL C Binding',['../index.html',1,'']]]
+  ['opendal_20c_20binding_20_28wip_29_0',['OpenDAL C Binding (WIP)',['../index.html',1,'']]]
 ];

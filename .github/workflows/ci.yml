@@ -57,6 +57,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-rocksdb: true
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -79,6 +81,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-rocksdb: true
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -124,11 +128,7 @@ jobs:
         run: cargo build -p opendal -p oli -p object_store_opendal
 
   build_all_features:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Checkout python env
@@ -143,6 +143,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-rocksdb: true
 
       - name: Build
         run: cargo build --all-features

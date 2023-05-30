@@ -10,8 +10,7 @@ To build OpenDAL C binding, the following is all you need:
     - If your contribution is related to the files under `./tests`, you may format it before submitting your pull request. But notice that different versions of `clang-format` may format the files differently.
 
 - **GTest(Google Test)** need to be installed to build the BDD (Behavior Driven Development) tests. To see how to build, check [here](https://github.com/google/googletest).
-
-- **(optional) Doxygen** need to be installed to generate documentations
+- (optional) **Doxygen** need to be installed to generate documentations.
 
 For Ubuntu and Debian:
 ```shell

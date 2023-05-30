@@ -64,7 +64,7 @@ macro_rules! behavior_append_tests {
             behavior_append_test!(
                 $service,
 
-                test_append,
+                test_append_create_append,
                 test_append_with_dir_path,
                 test_append_with_cache_control,
                 test_append_with_content_type,
@@ -78,7 +78,7 @@ macro_rules! behavior_append_tests {
 }
 
 /// Test append to a file must success.
-pub async fn test_append(op: Operator) -> Result<()> {
+pub async fn test_append_create_append(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content_one, size_one) = gen_bytes();
     let (content_two, size_two) = gen_bytes();

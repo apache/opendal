@@ -46,7 +46,8 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          cache-key: "-services-rocksdb"
+          need-rocksdb: true
+
       - name: Test
         shell: bash
         working-directory: core

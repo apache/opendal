@@ -111,8 +111,10 @@ typedef enum opendal_code {
  */
 typedef struct BlockingOperator BlockingOperator;
 
+typedef struct HashMap_String__String HashMap_String__String;
+
 /*
- Metadata carries all metadata associated with an path.
+ Metadata carries all metadata associated with a path.
 
  # Notes
 
@@ -133,6 +135,11 @@ typedef struct Metadata Metadata;
  e.g. you could check by (!ptr) on a [`opendal_operator_ptr`]
  */
 typedef const struct BlockingOperator *opendal_operator_ptr;
+
+/*
+ [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
+ */
+typedef struct HashMap_String__String *opendal_operator_options;
 
 /*
  The [`opendal_bytes`] type is a C-compatible substitute for [`Vec`]
@@ -192,17 +199,37 @@ extern "C" {
 #endif // __cplusplus
 
 /*
- Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
- the error is nullptr, otherwise it contains the error information.
+ Uses an array of key-value pairs to initialize the operator based on provided scheme.
+
+ # Example
+
+ Following is a C example.
+ ```no_run
+ opendal_operator_options options = opendal_operator_options_new();
+ opendal_operator_options_set(&options, "root", "/myroot");
+
+ opendal_operator_ptr ptr = opendal_operator_new("memory", options);
+
+ opendal_operator_options_free(&options);
+
+ // ... your operations
+ ```
 
  # Safety
+
+ This function is unsafe because it deferences and casts the raw pointers.
 
  It is [safe] under two cases below
  * The memory pointed to by `scheme` must contain a valid nul terminator at the end of
    the string.
  * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr
+
+ # Returns
+
+ Returns a result type [`opendal_result_op`], with operator_ptr. If the construction succeeds
+ the error is nullptr, otherwise it contains the error information.
  */
-opendal_operator_ptr opendal_operator_new(const char *scheme);
+opendal_operator_ptr opendal_operator_new(const char *scheme, opendal_operator_options options);
 
 /*
  Write the data into the path blockingly by operator, returns the error code OPENDAL_OK
@@ -310,6 +337,39 @@ bool opendal_metadata_is_file(const opendal_metadata *self);
  Return whether the path represents a directory
  */
 bool opendal_metadata_is_dir(const opendal_metadata *self);
+
+/*
+ Construct a heap-allocated opendal_operator_options
+ */
+opendal_operator_options opendal_operator_options_new(void);
+
+/*
+ Set a Key-Value pair inside opendal_operator_options
+
+ # Safety
+
+ This function is unsafe because it dereferences and casts the raw pointers
+ Make sure the pointer of `key` and `value` point to a valid string.
+
+ # Example
+
+ ```C
+ opendal_operator_options options = opendal_operator_options_new();
+ opendal_operator_options_set(&options, "root", "/myroot");
+
+ // .. use your opendal_operator_options
+
+ opendal_operator_options_free(options);
+ ```
+ */
+void opendal_operator_options_set(opendal_operator_options *self,
+                                  const char *key,
+                                  const char *value);
+
+/*
+ Free the allocated memory used by [`opendal_operator_options`]
+ */
+void opendal_operator_options_free(const opendal_operator_options *self);
 
 #ifdef __cplusplus
 } // extern "C"

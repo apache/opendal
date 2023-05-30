@@ -19,6 +19,9 @@
 
 package org.apache.opendal;
 
+/**
+ * Metadata carries all metadata associated with a path.
+ */
 public class Metadata extends NativeObject {
     protected Metadata(long nativeHandle) {
         super(nativeHandle);
@@ -34,6 +37,8 @@ public class Metadata extends NativeObject {
 
     @Override
     protected native void disposeInternal(long handle);
+
     private static native boolean isFile(long nativeHandle);
+
     private static native long getContentLength(long nativeHandle);
 }

@@ -32,67 +32,12 @@ use super::error::parse_error;
 use super::pager::CosPager;
 use super::writer::CosWriter;
 use crate::raw::*;
+use crate::services::cos::appender::CosAppender;
 use crate::*;
 
 /// Huawei Cloud COS services support.
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [x] copy
-/// - [ ] rename
-/// - [x] list
-/// - [x] scan
-/// - [ ] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work directory for backend
-/// - `bucket`: Set the container name for backend
-/// - `endpoint`: Customizable endpoint setting
-/// - `access_key_id`: Set the access_key_id for backend.
-/// - `secret_access_key`: Set the secret_access_key for backend.
-///
-/// You can refer to [`CosBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Cos;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Cos::default();
-///
-///     // set the storage bucket for OpenDAL
-///     builder.bucket("test");
-///     // set the endpoint for OpenDAL
-///     builder.endpoint("https://cos.ap-singapore.myqcloud.com");
-///     // Set the access_key_id and secret_access_key.
-///     //
-///     // OpenDAL will try load credential from the env.
-///     // If credential not set and no valid credential in env, OpenDAL will
-///     // send request without signing like anonymous user.
-///     builder.secret_id("secret_id");
-///     builder.secret_key("secret_access_key");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct CosBuilder {
     root: Option<String>,
@@ -301,7 +246,7 @@ impl Accessor for CosBackend {
     type BlockingReader = ();
     type Writer = CosWriter;
     type BlockingWriter = ();
-    type Appender = ();
+    type Appender = CosAppender;
     type Pager = CosPager;
     type BlockingPager = ();
 
@@ -324,6 +269,11 @@ impl Accessor for CosBackend {
                 write: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
+
+                append: true,
+                append_with_cache_control: true,
+                append_with_content_disposition: true,
+                append_with_content_type: true,
 
                 delete: true,
                 create_dir: true,
@@ -392,6 +342,13 @@ impl Accessor for CosBackend {
         Ok((
             RpWrite::default(),
             CosWriter::new(self.core.clone(), args, path.to_string()),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            CosAppender::new(self.core.clone(), path, args),
         ))
     }
 

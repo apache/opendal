@@ -17,20 +17,20 @@
 
 use std::str::FromStr;
 
-use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
+use jni::objects::{JByteArray, JClass};
 use jni::sys::jlong;
 use jni::JNIEnv;
+
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::get_current_env;
 use crate::jmap_to_hashmap;
 use crate::Result;
-use crate::RUNTIME;
+use crate::{get_current_env, get_global_runtime};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
@@ -72,10 +72,10 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     mut env: JNIEnv,
     _: JClass,
     op: *mut Operator,
-    file: JString,
-    content: JString,
+    path: JString,
+    content: JByteArray,
 ) -> jlong {
-    intern_write(&mut env, op, file, content).unwrap_or_else(|e| {
+    intern_write(&mut env, op, path, content).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -84,26 +84,66 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
 fn intern_write(
     env: &mut JNIEnv,
     op: *mut Operator,
-    file: JString,
-    content: JString,
+    path: JString,
+    content: JByteArray,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let file = env.get_string(&file)?.to_str()?.to_string();
-    let content = env.get_string(&content)?.to_str()?.to_string();
+    let path = env.get_string(&path)?.to_str()?.to_string();
+    let content = env.convert_byte_array(content)?;
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
-        let result = do_write(op, file, content).await;
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_write(op, path, content).await;
         complete_future(id, result.map(|_| JValueOwned::Void))
     });
 
     Ok(id)
 }
 
-async fn do_write(op: &mut Operator, file: String, content: String) -> Result<()> {
-    Ok(op.write(&file, content).await?)
+async fn do_write(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
+    Ok(op.write(&path, content).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_append(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+    content: JByteArray,
+) -> jlong {
+    intern_append(&mut env, op, path, content).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_append(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    path: JString,
+    content: JByteArray,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = env.get_string(&path)?.to_str()?.to_string();
+    let content = env.convert_byte_array(content)?;
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_append(op, path, content).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
+    });
+
+    Ok(id)
+}
+
+async fn do_append(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
+    Ok(op.append(&path, content).await?)
 }
 
 /// # Safety
@@ -114,31 +154,30 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     mut env: JNIEnv,
     _: JClass,
     op: *mut Operator,
-    file: JString,
+    path: JString,
 ) -> jlong {
-    intern_stat(&mut env, op, file).unwrap_or_else(|e| {
+    intern_stat(&mut env, op, path).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_stat(env: &mut JNIEnv, op: *mut Operator, file: JString) -> Result<jlong> {
+fn intern_stat(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let file = env.get_string(&file)?.to_str()?.to_string();
+    let path = env.get_string(&path)?.to_str()?.to_string();
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
-        let result = do_stat(op, file).await;
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_stat(op, path).await;
         complete_future(id, result.map(JValueOwned::Long))
     });
 
     Ok(id)
 }
 
-async fn do_stat(op: &mut Operator, file: String) -> Result<jlong> {
-    let metadata = op.stat(&file).await?;
+async fn do_stat(op: &mut Operator, path: String) -> Result<jlong> {
+    let metadata = op.stat(&path).await?;
     Ok(Box::into_raw(Box::new(metadata)) as jlong)
 }
 
@@ -150,31 +189,30 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read(
     mut env: JNIEnv,
     _: JClass,
     op: *mut Operator,
-    file: JString,
+    path: JString,
 ) -> jlong {
-    intern_read(&mut env, op, file).unwrap_or_else(|e| {
+    intern_read(&mut env, op, path).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_read(env: &mut JNIEnv, op: *mut Operator, file: JString) -> Result<jlong> {
+fn intern_read(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let file = env.get_string(&file)?.to_str()?.to_string();
+    let path = env.get_string(&path)?.to_str()?.to_string();
 
-    let runtime = unsafe { RUNTIME.get_unchecked() };
-    runtime.spawn(async move {
-        let result = do_read(op, file).await;
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_read(op, path).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_read<'local>(op: &mut Operator, file: String) -> Result<JObject<'local>> {
-    let content = op.read(&file).await?;
+async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
+    let content = op.read(&path).await?;
     let content = String::from_utf8(content)?;
 
     let env = unsafe { get_current_env() };
@@ -182,16 +220,38 @@ async fn do_read<'local>(op: &mut Operator, file: String) -> Result<JObject<'loc
     Ok(result.into())
 }
 
-fn request_id(env: &mut JNIEnv) -> Result<jlong> {
-    let registry = env
-        .call_static_method(
-            "org/apache/opendal/Operator",
-            "registry",
-            "()Lorg/apache/opendal/Operator$AsyncRegistry;",
-            &[],
-        )?
-        .l()?;
-    Ok(env.call_method(registry, "requestId", "()J", &[])?.j()?)
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+) -> jlong {
+    intern_delete(&mut env, op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_delete(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = env.get_string(&path)?.to_str()?.to_string();
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_delete(op, path).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
+    });
+
+    Ok(id)
+}
+
+async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
+    Ok(op.delete(&path).await?)
 }
 
 fn make_object<'local>(
@@ -240,18 +300,21 @@ fn complete_future(id: jlong, result: Result<JValueOwned>) {
     };
 }
 
-fn get_future<'local>(env: &mut JNIEnv<'local>, id: jlong) -> Result<JObject<'local>> {
-    let registry = env
+fn request_id(env: &mut JNIEnv) -> Result<jlong> {
+    Ok(env
         .call_static_method(
-            "org/apache/opendal/Operator",
-            "registry",
-            "()Lorg/apache/opendal/Operator$AsyncRegistry;",
+            "org/apache/opendal/Operator$AsyncRegistry",
+            "requestId",
+            "()J",
             &[],
         )?
-        .l()?;
+        .j()?)
+}
+
+fn get_future<'local>(env: &mut JNIEnv<'local>, id: jlong) -> Result<JObject<'local>> {
     Ok(env
-        .call_method(
-            registry,
+        .call_static_method(
+            "org/apache/opendal/Operator$AsyncRegistry",
             "get",
             "(J)Ljava/util/concurrent/CompletableFuture;",
             &[JValue::Long(id)],

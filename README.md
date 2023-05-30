@@ -19,9 +19,9 @@ Major components of the project include:
 - [Rust Core](core/README.md)
 - [Node.js Binding](bindings/nodejs/README.md)
 - [Python Binding](bindings/python/README.md)
-- [C Binding](bindings/c) *working on*
-- [Java Binding](bindings/java) *working on*
-- [Ruby Binding](bindings/ruby) *working on*
+- [C Binding](bindings/c) *being worked on*
+- [Java Binding](bindings/java) *being worked on*
+- [Ruby Binding](bindings/ruby) *being worked on*
 
 **Applications**
 
@@ -36,7 +36,7 @@ Major components of the project include:
 - fs: POSIX alike file system
 - ftp: FTP and FTPS
 - http: HTTP read-only services
-- sftp: [SFTP](https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02) services *working on*
+- sftp: [SFTP](https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02) services *being worked on*
 - webdav: [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service
 
 </details>
@@ -49,7 +49,7 @@ Major components of the project include:
 - obs: [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS)
 - oss: [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS)
 - s3: [AWS S3](https://aws.amazon.com/s3/) alike services
-- supabase: [Supabase Storage](https://supabase.com/docs/guides/storage) Service *working on*
+- supabase: [Supabase Storage](https://supabase.com/docs/guides/storage) Service *being worked on*
 - wasabi: [Wasabi](https://wasabi.com/) Cloud Storage
 
 </details>
@@ -60,7 +60,7 @@ Major components of the project include:
 - azdfs: [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
 - hdfs: [Hadoop Distributed File System](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html)(HDFS)
 - ipfs: [InterPlanetary File System](https://ipfs.tech/) HTTP Gateway
-- ipmfs: [InterPlanetary File System](https://ipfs.tech/) MFS API *working on*
+- ipmfs: [InterPlanetary File System](https://ipfs.tech/) MFS API *being worked on*
 - webhdfs: [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service
 
 </details>
@@ -68,8 +68,8 @@ Major components of the project include:
 <details>
 <summary>Consumer Cloud Storage Service (like gdrive, onedrive)</summary>
 
-- gdrive: [Google Drive](https://www.google.com/drive/) *working on*
-- onedrive: [OneDrive](https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage) *working on*
+- gdrive: [Google Drive](https://www.google.com/drive/) *being worked on*
+- onedrive: [OneDrive](https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage) *being worked on*
 
 </details>
 
@@ -90,7 +90,7 @@ Major components of the project include:
 - ghac: [Github Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service
 - memcached: [Memcached](https://memcached.org/) service
 - moka: [moka](https://github.com/moka-rs/moka) backend
-- vercel_artifacts: [Vercel Remote Caching](https://vercel.com/docs/concepts/monorepos/remote-caching) Service *working on*
+- vercel_artifacts: [Vercel Remote Caching](https://vercel.com/docs/concepts/monorepos/remote-caching) Service *being worked on*
 
 </details>
 

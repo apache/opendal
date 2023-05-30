@@ -17,6 +17,8 @@
 
 use ::opendal as od;
 
+use std::{collections::HashMap, os::raw::c_char};
+
 /// The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
 /// It is also the key struct that OpenDAL's APIs access the real
 /// operator's memory. The use of OperatorPtr is zero cost, it
@@ -176,5 +178,75 @@ impl opendal_metadata {
         Self {
             inner: Box::leak(Box::new(m)),
         }
+    }
+}
+
+/// [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
+#[repr(transparent)]
+pub struct opendal_operator_options {
+    inner: *mut HashMap<String, String>,
+}
+
+impl opendal_operator_options {
+    /// Construct a heap-allocated opendal_operator_options
+    #[no_mangle]
+    pub extern "C" fn opendal_operator_options_new() -> Self {
+        let map: HashMap<String, String> = HashMap::default();
+        Self {
+            inner: Box::leak(Box::new(map)),
+        }
+    }
+
+    /// Set a Key-Value pair inside opendal_operator_options
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it dereferences and casts the raw pointers
+    /// Make sure the pointer of `key` and `value` point to a valid string.
+    ///
+    /// # Example
+    ///
+    /// ```C
+    /// opendal_operator_options options = opendal_operator_options_new();
+    /// opendal_operator_options_set(&options, "root", "/myroot");
+    ///
+    /// // .. use your opendal_operator_options
+    ///
+    /// opendal_operator_options_free(options);
+    /// ```
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_operator_options_set(
+        &mut self,
+        key: *const c_char,
+        value: *const c_char,
+    ) {
+        let k = unsafe { std::ffi::CStr::from_ptr(key) }
+            .to_str()
+            .unwrap()
+            .to_string();
+        let v = unsafe { std::ffi::CStr::from_ptr(value) }
+            .to_str()
+            .unwrap()
+            .to_string();
+        (*self.inner).insert(k, v);
+    }
+
+    /// Returns a reference to the underlying [`HashMap<String, String>`]
+    pub(crate) fn as_ref(&self) -> &HashMap<String, String> {
+        unsafe { &*(self.inner) }
+    }
+
+    /// Returns whether the underlying HashMap points to NULL
+    pub(crate) fn is_null(&self) -> bool {
+        self.inner.is_null()
+    }
+
+    /// Free the allocated memory used by [`opendal_operator_options`]
+    #[no_mangle]
+    pub extern "C" fn opendal_operator_options_free(&self) {
+        if self.inner.is_null() {
+            return;
+        }
+        let _ = unsafe { Box::from_raw(self.inner as *mut HashMap<String, String>) };
     }
 }

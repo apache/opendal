@@ -10,7 +10,7 @@ authors:
     image_url: https://github.com/PsiACE.png
 ---
 
-![OpenDAL successfully entered Apache Incubator](../static/img/blog/opendal-entered-apache-incubator/opendal-entered-apache.png)
+![OpenDAL successfully entered Apache Incubator](opendal-entered-apache.png)
 
 On February 27th, 2023, the [OpenDAL](https://github.com/apache/incubator-opendal) project achieved a milestone by winning the approval to join the incubator of the [Apache Software Foundation](https://www.apache.org/) (ASF), the world's leading open source software organization. On March 15th, the OpenDAL project was officially transferred to the Apache Software Foundation.
 
@@ -18,7 +18,7 @@ This is a significant moment for [Databend](https://github.com/datafuselabs/data
 
 > The Apache Incubator was established in October 2002 to provide a path for projects and codebases that aspire to become part of the Apache Software Foundation. Incubating projects need to follow ASF's governance and operational practices, and use ASF's infrastructure and resources. Incubating projects need to go through a series of stages and evaluations before they can graduate to become top-level projects (TLPs) of ASF.
 
-![Apache OpenDAL Project Incubation Status - Apache Incubator](../static/img/blog/opendal-entered-apache-incubator/incubator-project-opendal.png)
+![Apache OpenDAL Project Incubation Status - Apache Incubator](incubator-project-opendal.png)
 
 _<https://incubator.apache.org/projects/opendal.html>_
 
@@ -30,7 +30,7 @@ There are various kinds of storage services in the market, each with its own uni
 
 OpenDAL provides a unified, simple, efficient, reliable, and observable data access layer that allows developers to seamlessly use different storage services and enjoy the best user experience.
 
-![M*N to M+N with OpenDAL](../static/img/blog/opendal-entered-apache-incubator/opendal-power.png)
+![M*N to M+N with OpenDAL](opendal-power.png)
 
 OpenDAL simplifies the process of interfacing different storage services, and provides features such as automatic retry, request optimization, and observability. With OpenDAL, developers can directly access a bunch of storage services, without having to understand and master the details of specific SDKs.
 
@@ -41,7 +41,7 @@ OpenDAL's features include but are not limited to:
 - Support for various common data operations, including `read`, `write`, `list`, etc.
 - Support for automatic retry, request optimization, and observability mechanisms.
 - Zero cost, directly mapped to API calls.
-- Cross-language bindings: Python, Node.js, C (working on), etc.
+- Cross-language bindings: Python, Node.js, C (being worked on), etc.
 
 ## The Story about OpenDAL
 

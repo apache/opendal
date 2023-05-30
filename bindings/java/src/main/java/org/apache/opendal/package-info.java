@@ -17,38 +17,8 @@
  * under the License.
  */
 
-package org.apache.opendal.exception;
-
-public class ODException extends RuntimeException {
-    private final Code code;
-
-    @SuppressWarnings("unused") // called by jni-rs
-    public ODException(String code, String message) {
-        this(Code.valueOf(code), message);
-    }
-
-    public ODException(Code code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public Code getCode() {
-        return code;
-    }
-
-    public enum Code {
-        Unexpected,
-        Unsupported,
-        ConfigInvalid,
-        NotFound,
-        PermissionDenied,
-        IsADirectory,
-        NotADirectory,
-        AlreadyExists,
-        RateLimited,
-        IsSameFile,
-        ConditionNotMatch,
-        ContentTruncated,
-        ContentIncomplete,
-    }
-}
+/**
+ * This package contains Java bindings over <a href="https://opendal.apache.org/">OpenDAL</a>
+ * via Java Native Interface (JNI).
+ */
+package org.apache.opendal;

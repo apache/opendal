@@ -32,7 +32,7 @@
 
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-java</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
 
     <url>https://opendal.apache.org</url>
     <mailingLists>
@@ -48,16 +48,21 @@
     <properties>
         <!-- This value is for Reproducible Builds. It will be updated by Maven Release Plugin during releases. -->
         <project.build.outputTimestamp>10</project.build.outputTimestamp>
-
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- Use camelCase instead of separating by dots to workaround PowerShell parsing. -->
+        <jniClassifier>${os.detected.classifier}</jniClassifier>
+
+        <assertj-version>3.23.1</assertj-version>
+        <lombok.version>1.18.26</lombok.version>
         <questdb.version>1.0.0</questdb.version>
 
         <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
-
-        <build-helper-maven-plugin.version>3.3.0</build-helper-maven-plugin.version>
+        <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
+        <os-maven-plugin.version>1.7.0</os-maven-plugin.version>
+        <spotless.version>2.37.0</spotless.version>
     </properties>
 
     <dependencyManagement>
@@ -76,10 +81,26 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj-version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.questdb</groupId>
             <artifactId>jar-jni</artifactId>
@@ -106,9 +127,20 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <testResources>
             <testResource>
                 <directory>src/test/resources</directory>
@@ -120,28 +152,29 @@
             <extension>
                 <groupId>kr.motd.maven</groupId>
                 <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.0</version>
+                <version>${os-maven-plugin.version}</version>
             </extension>
         </extensions>
 
         <plugins>
             <plugin>
-                <groupId>org.questdb</groupId>
-                <artifactId>rust-maven-plugin</artifactId>
-                <version>${questdb.version}</version>
+                <artifactId>exec-maven-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <version>${exec-maven-plugin.version}</version>
                 <executions>
                     <execution>
-                        <id>opendal-java</id>
+                        <id>compile-native-code</id>
+                        <phase>compile</phase>
                         <goals>
-                            <goal>build</goal>
+                            <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <path>${project.basedir}</path>
-                            <release>true</release>
-                            <copyTo>${project.build.directory}/classes/native/${os.detected.classifier}</copyTo>
-                            <extraArgs>
-                                <extraArg>--color=always</extraArg>
-                            </extraArgs>
+                            <executable>python3</executable>
+                            <arguments>
+                                <argument>${project.basedir}/tools/build.py</argument>
+                                <argument>--classifier</argument>
+                                <argument>${jniClassifier}</argument>
+                            </arguments>
                         </configuration>
                     </execution>
                 </executions>
@@ -153,46 +186,6 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>prepare-filtered-java-source</id>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <phase>generate-sources</phase>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/generated-sources/java</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>src/main/java-filtered</directory>
-                                    <filtering>true</filtering>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>${build-helper-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>add-source</goal>
-                        </goals>
-                        <configuration>
-                            <sources>
-                                <source>${project.build.directory}/generated-sources/java</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
                     <!--  Generate the fallback JAR that does not contain the native library.  -->
@@ -200,6 +193,7 @@
                         <id>default-jar</id>
                         <configuration>
                             <excludes>
+                                <exclude>bindings.properties</exclude>
                                 <exclude>native/**</exclude>
                             </excludes>
                         </configuration>
@@ -211,10 +205,30 @@
                             <goal>jar</goal>
                         </goals>
                         <configuration>
-                            <classifier>${os.detected.classifier}</classifier>
+                            <classifier>${jniClassifier}</classifier>
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
+                <configuration>
+                    <java>
+                        <palantirJavaFormat>
+                            <version>2.30.0</version>
+                        </palantirJavaFormat>
+                        <!-- static imports first, then others, no blank lines  -->
+                        <importOrder>
+                            <order>\#|</order>
+                        </importOrder>
+                        <removeUnusedImports/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
             </plugin>
         </plugins>
     </build>

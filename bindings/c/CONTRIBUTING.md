@@ -66,23 +66,15 @@ make test
 ```
 
 ```text
-[==========] Running 5 tests from 1 test suite.
+[==========] Running 1 test from 1 test suite.
 [----------] Global test environment set-up.
-[----------] 5 tests from OpendalBddTest
-[ RUN      ] OpendalBddTest.Write
-[       OK ] OpendalBddTest.Write (4 ms)
-[ RUN      ] OpendalBddTest.Exist
-[       OK ] OpendalBddTest.Exist (0 ms)
-[ RUN      ] OpendalBddTest.EntryMode
-[       OK ] OpendalBddTest.EntryMode (0 ms)
-[ RUN      ] OpendalBddTest.ContentLength
-[       OK ] OpendalBddTest.ContentLength (0 ms)
-[ RUN      ] OpendalBddTest.Read
-[       OK ] OpendalBddTest.Read (0 ms)
-[----------] 5 tests from OpendalBddTest (4 ms total)
+[----------] 1 test from OpendalBddTest
+[ RUN      ] OpendalBddTest.FeatureTest
+[       OK ] OpendalBddTest.FeatureTest (0 ms)
+[----------] 1 test from OpendalBddTest (0 ms total)
 
 [----------] Global test environment tear-down
-[==========] 5 tests from 1 test suite ran. (4 ms total)
-[  PASSED  ] 5 tests.
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
 ```
 

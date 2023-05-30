@@ -1,13 +1,69 @@
 # OpenDAL Java Bindings
 
+[![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal-java&smo=true)
+[![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/java/)
+
+
+## Getting Started
+
+This project is built upon the native OpenDAL lib. And it is released for multiple platforms that you can use a classifier to specify the platform you are building the application on.
+
+Generally, you can first add the `os-maven-plugin` for automatically detect the classifier based on your platform:
+
+```xml
+<build>
+    <extensions>
+        <extension>
+            <groupId>kr.motd.maven</groupId>
+            <artifactId>os-maven-plugin</artifactId>
+            <version>1.7.0</version>
+        </extension>
+    </extensions>
+</build>
+```
+
+Then add the dependency to `opendal-java` as following:
+
+```xml
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal-java</artifactId>
+  <version>${opendal.version}</version>
+  <classifier>${os.detected.classifier}</classifier>
+</dependency>
+```
+
+If you'd rather like the latest snapshots of the upcoming major version, use ASF Maven snapshot repository:
+
+```xml
+<repositories>
+    <repository>
+        <id>apache.snapshots</id>
+        <name>Apache Snapshot Repository</name>
+        <url>https://repository.apache.org/snapshots</url>
+    </repository>
+</repositories>
+```
+
+... and declare the appropriate dependency version:
+
+```xml
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal-java</artifactId>
+  <version>${opendal.snapshot-version}</version>
+  <classifier>${os.detected.classifier}</classifier>
+</dependency>
+```
+
 ## Build
 
 This project provides OpenDAL Java bindings with artifact name `opendal-java`. It depends on JDK 8 or later.
 
-Thanks to [rust-maven-plugin](https://github.com/questdb/rust-maven-plugin), we can use Maven to build both Rust dynamic lib and JAR files with one command now:
+You can use Maven to build both Rust dynamic lib and JAR files with one command now:
 
 ```shell
-mvn clean package
+mvn clean package -DskipTests=true
 ```
 
 ## Run tests
@@ -20,76 +76,10 @@ You can run tests with the following command:
 mvn clean verify
 ```
 
-## Deploy snapshots
+Additionally, this project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.
 
-To deploy snapshots, you need to configure your GPG signing key and loacl Maven settings.
-
-### GPG
-
-1. Download GPG from http://www.gnupg.org/download/ or any other method.
-2. Generate [PGP code signing keys](https://infra.apache.org/release-signing.html#generate).
-
-> **Note**: When doing a release you will be asked for your PGP password multiple times unless you set up the gpg-agent. Mac users have reported trouble getting gpg-agent to work. You can also set your gpg-password in the Maven settings file (see below).
-
-### Maven Settings
-
-Your Maven settings (`$HOME/.m2/settings.xml`) file should have the following:
-
-```xml
-<settings>
-    ...
-    <servers>
-        ...
-        <server>
-            <id>apache.website.svnpub</id>
-            <username>Your Apache Username</username>
-            <privateKey>${user.home}/.ssh/id_rsa</privateKey>
-        </server>
-
-        <server>
-            <id>apache.releases.https</id>
-            <username>Your Apache Username</username>
-            <password>APACHE-PASSWORD-ENCODED</password>
-        </server>
-
-        <server>
-            <id>apache.snapshots.https</id>
-            <username>Your Apache Username</username>
-            <password>APACHE-PASSWORD-ENCODED</password>
-        </server>
-        ...
-    </servers>
-
-    <profiles>
-        <profile>
-            <properties>
-                ...
-    	        <gpg.keyname>id-of-your-pgp-key</gpg.keyname>
-                <gpg.passphrase>your-pgp-password</gpg.passphrase> <!-- use this if gpg-agent doesn't work for you -->
-                ...
-            </properties>
-            ...
-        </profile>
-        ...
-    </profiles>
-    ...
-</settings>
-```
-
-> **Note**: You can store encrypted passwords your settings.xml if you want. Read the details here: http://maven.apache.org/guides/mini/guide-encryption.html
-
-### Deploy
-
-Thanks to the [ASF Parent POM](https://maven.apache.org/pom/asf/), deploy a snapshot version requires only an oneliner:
+You can apply the code style with the following command::
 
 ```shell
-mvn -P apache-release deploy
+mvn spotless:apply
 ```
-
-> **Note**: Please ensure that the project version of `opendal-java` in the `pom.xml` file ends with `-SNAPSHOT`.
-
-## Todos
-
-- [ ] ReadMe for usage
-- [ ] Development/Contribution guide.
-- [ ] Cross-platform build for release build.

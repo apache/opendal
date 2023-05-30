@@ -92,6 +92,7 @@ layers-tracing = ["dep:tracing"]
 layers-otel-trace = ["dep:opentelemetry"]
 
 services-azblob = [
+  "dep:sha2",
   "dep:reqsign",
   "reqsign?/services-azblob",
   "reqsign?/reqwest_request",
@@ -206,9 +207,10 @@ reqsign = { version = "0.12.0", default-features = false, optional = true }
 reqwest = { version = "0.11.13", features = [
   "stream",
 ], default-features = false }
-rocksdb = { version = "0.20.1", default-features = false, optional = true }
+rocksdb = { version = "0.21.0", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = { version = "0.10", optional = true }
 sled = { version = "0.34.7", optional = true }
 suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",

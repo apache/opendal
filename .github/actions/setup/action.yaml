@@ -18,30 +18,15 @@
 name: Setup Rust Builder
 description: 'Prepare Rust Build Environment'
 inputs:
-  cache-key:
-    description: 'the rust cache key suffix'
-    required: false
-    default: ''
+  need-rocksdb:
+    description: "This setup needs rocksdb or not"
 
 runs:
   using: "composite"
   steps:
-    - name: Cache Cargo
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}${{ inputs.cache-key }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          ${{ runner.os }}-cargo
-
     - name: Setup rust related environment variables
       shell: bash
       run: |
-        # Update rust to latest stable
-        rustup update stable
         # Disable full debug symbol generation to speed up CI build and keep memory down
         # "1" means line tables only, which is useful for panic tracebacks.
         echo "RUSTFLAGS=-C debuginfo=1" >> $GITHUB_ENV
@@ -51,3 +36,40 @@ runs:
         echo "RUST_LOG=debug" >> $GITHUB_ENV
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
+
+    - name: Setup rust on linux
+      if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
+      shell: bash
+      run: |
+        # Set rocksdb lib path
+        echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
+        echo "ROCKSDB_STATIC=true" >> $GITHUB_ENV
+
+    - name: Cache rocksdb
+      id: cache-rocksdb
+      uses: actions/cache@v3
+      if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
+      with:
+        path: /tmp/rocksdb
+        key: r0-rocksdb-8.1.1
+
+    - name: Build rocksdb if not cached
+      if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'
+      shell: bash
+      run: |
+        set -e
+
+        sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+
+        cd /tmp
+        curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
+        tar -xzf rocksdb.tar.gz
+        cd rocksdb-8.1.1
+
+        mkdir /tmp/rocksdb
+        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb
+        make -j$(nproc)
+        make install
+
+        cd ..
+        rm -rf /tmp/rocksdb-8.1.1

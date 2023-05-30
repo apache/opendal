@@ -19,17 +19,15 @@
 
 package org.apache.opendal;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.opendal.exception.ODException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
-public class ExceptionTest {
+public class BlockingOperatorTest {
     private BlockingOperator op;
 
     @BeforeEach
@@ -46,7 +44,20 @@ public class ExceptionTest {
 
     @Test
     public void testStatNotExistFile() {
-        final ODException exception = assertThrows(ODException.class, () -> op.stat("not_exist_file"));
-        assertEquals(ODException.Code.NotFound, exception.getCode());
+        assertThatExceptionOfType(OpenDALException.class)
+                .isThrownBy(() -> op.stat("nonexistence"))
+                .extracting(OpenDALException::getCode)
+                .isEqualTo(OpenDALException.Code.NotFound);
+    }
+
+    @Test
+    public void testCreateAndDelete() {
+        op.write("testCreateAndDelete", "Odin");
+        assertThat(op.read("testCreateAndDelete")).isEqualTo("Odin");
+        op.delete("testCreateAndDelete");
+        assertThatExceptionOfType(OpenDALException.class)
+                .isThrownBy(() -> op.stat("testCreateAndDelete"))
+                .extracting(OpenDALException::getCode)
+                .isEqualTo(OpenDALException.Code.NotFound);
     }
 }

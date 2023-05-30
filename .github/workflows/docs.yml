@@ -96,7 +96,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: bindings/nodejs
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Build bindings/nodejs Docs
         working-directory: bindings/nodejs
@@ -181,7 +181,7 @@ jobs:
 
       - name: Install Dependencies
         working-directory: website
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Build
         working-directory: website

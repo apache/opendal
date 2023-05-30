@@ -58,7 +58,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Check format
         run: yarn run prettier --check .
@@ -92,7 +92,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
       - name: Build
         run: |
           docker run \
@@ -130,7 +130,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
       - name: Build
         run: yarn build
       - uses: actions/upload-artifact@v3
@@ -182,7 +182,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
@@ -219,7 +219,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Download all artifacts
         uses: actions/download-artifact@v3

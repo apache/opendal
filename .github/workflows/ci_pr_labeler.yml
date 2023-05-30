@@ -20,7 +20,6 @@ name: PR Labeler
 on:
   pull_request_target:
     branches: [main]
-    types: [assigned, opened, synchronize, reopened]
 
 permissions:
   pull-requests: write

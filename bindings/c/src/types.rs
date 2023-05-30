@@ -20,17 +20,26 @@ use std::os::raw::c_char;
 
 use ::opendal as od;
 
-/// The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
-/// It is also the key struct that OpenDAL's APIs access the real
-/// operator's memory. The use of OperatorPtr is zero cost, it
-/// only returns a reference of the underlying Operator.
+/// \brief The opendal_operator_ptr is used to access almost all OpenDAL
+/// APIs. It represents a operator that provides the unified interfaces provided
+/// by OpenDAL.
+///
+/// @see opendal_operator_new This function construct the operator
+/// @see opendal_operator_free This function frees the heap memory of the operator
+///
+/// \note The opendal_operator_ptr actually owns a pointer to
+/// a opendal::BlockingOperator, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_operator_ptr {
     ptr: *const od::BlockingOperator,
 }
 
 impl opendal_operator_ptr {
-    /// Free the allocated operator pointed by [`opendal_operator_ptr`]
+    /// \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
+    ///
+    /// Please only use this for a pointer pointing at a valid opendal_operator_ptr.
+    /// Calling this function on NULL does nothing, but calling this function on pointers
+    /// of other type will lead to segfault.
     #[no_mangle]
     pub extern "C" fn opendal_operator_free(&self) {
         if self.is_null() {

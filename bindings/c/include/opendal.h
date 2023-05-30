@@ -127,10 +127,15 @@ typedef struct HashMap_String__String HashMap_String__String;
 typedef struct Metadata Metadata;
 
 /**
- * The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
- * It is also the key struct that OpenDAL's APIs access the real
- * operator's memory. The use of OperatorPtr is zero cost, it
- * only returns a reference of the underlying Operator.
+ * \brief The opendal_operator_ptr is used to access almost all OpenDAL
+ * APIs. It represents a operator that provides the unified interfaces provided
+ * by OpenDAL.
+ *
+ * @see opendal_operator_new This function construct the operator
+ * @see opendal_operator_free This function frees the heap memory of the operator
+ *
+ * \note The opendal_operator_ptr actually owns a pointer to
+ * a opendal::BlockingOperator, which is inside the Rust core code.
  */
 typedef struct opendal_operator_ptr {
   const struct BlockingOperator *ptr;
@@ -415,7 +420,11 @@ struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator
 struct opendal_result_stat opendal_operator_stat(struct opendal_operator_ptr ptr, const char *path);
 
 /**
- * Free the allocated operator pointed by [`opendal_operator_ptr`]
+ * \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
+ *
+ * Please only use this for a pointer pointing at a valid opendal_operator_ptr.
+ * Calling this function on NULL does nothing, but calling this function on pointers
+ * of other type will lead to segfault.
  */
 void opendal_operator_free(const struct opendal_operator_ptr *self);
 

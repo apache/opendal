@@ -286,64 +286,132 @@ enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr pt
                                                   struct opendal_bytes bytes);
 
 /**
- * Read the data out from path into a [`Bytes`] blockingly by operator, returns
- * a result with error code. If the error code is not OPENDAL_OK, the `data` field
- * of the result points to NULL.
+ * Read the data out from `path` blockingly by operator, returns
+ * an opendal_result_read with error code.
+ *
+ * @param ptr The opendal_operator_ptr created previously
+ * @param path The path you want to read the data out
+ * @see opendal_operator_ptr
+ * @see opendal_result_read
+ * @see opendal_code
+ * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+ * opendal_bytes, the `code` field contains the error code. If the `code` is not OPENDAL_OK,
+ * the `data` field points to NULL.
+ *
+ * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * // ... you have write "Hello, World!" to path "/testpath"
+ *
+ * opendal_result_read r = opendal_operator_blocking_read(ptr, "testpath");
+ * assert(r.code == OPENDAL_OK);
+ *
+ * opendal_bytes *bytes = r.data;
+ * assert(bytes->len == 13);
+ * ```
  *
  * # Safety
  *
- * It is [safe] under the cases below
+ * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_read opendal_operator_blocking_read(struct opendal_operator_ptr op_ptr,
+struct opendal_result_read opendal_operator_blocking_read(struct opendal_operator_ptr ptr,
                                                           const char *path);
 
 /**
- * Check whether the path exists.
+ * \brief Check whether the path exists.
  *
  * If the operation succeeds, no matter the path exists or not,
  * the error code should be opendal_code::OPENDAL_OK. Otherwise,
  * the field `is_exist` is filled with false, and the error code
  * is set correspondingly.
  *
+ * @param ptr The opendal_operator_ptr created previously
+ * @param path The path you want to check existence
+ * @see opendal_operator_ptr
+ * @see opendal_result_is_exist
+ * @see opendal_code
+ * @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
+ * However, it the operation fails, the `is_exist` will contains false and the error code will be
+ * stored in the `code` field.
+ *
+ * # Example
+ *
+ * ```C
+ * // .. you previously wrote some data to path "/mytest/obj"
+ * opendal_result_is_exist e = opendal_operator_is_exist(ptr, "/mytest/obj");
+ * assert(e.code == OPENDAL_OK);
+ * assert(e.is_exist);
+ *
+ * // but you previously did **not** write any data to path "/yourtest/obj"
+ * opendal_result_is_exist e = opendal_operator_is_exist(ptr, "yourtest/obj");
+ * assert(e.code == OPENDAL_OK);
+ * assert(!e.is_exist);
+ * ```
+ *
  * # Safety
  *
- * It is [safe] under the cases below
+ * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator_ptr op_ptr,
+struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator_ptr ptr,
                                                          const char *path);
 
 /**
- * Stat the path, return its metadata.
+ * \brief Stat the path, return its metadata.
  *
- * If the operation succeeds, no matter the path exists or not,
- * the error code should be opendal_code::OPENDAL_OK. Otherwise,
- * the field `meata` is filled with a NULL pointer, and the error code
- * is set correspondingly.
+ * If the operation succeeds, the error code should be
+ * OPENDAL_OK. Otherwise, the field `meta` is filled with
+ * a NULL pointer, and the error code is set correspondingly.
+ *
+ * @param ptr The opendal_operator_ptr created previously
+ * @param path The path you want to stat
+ * @see opendal_operator_ptr
+ * @see opendal_result_stat
+ * @see opendal_metadata
+ * @return Returns opendal_result_stat, containing a metadata and a opendal_code.
+ * If the operation succeeds, the `meta` field would holds a valid metadata and
+ * the `code` field should hold OPENDAL_OK. Otherwise the metadata will contain a
+ * NULL pointer, i.e. invalid, and the `code` will be set correspondingly.
+ *
+ * # Example
+ *
+ * ```C
+ * // ... previously you wrote "Hello, World!" to path "/testpath"
+ * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+ * assert(s.code == OPENDAL_OK);
+ *
+ * opendal_metadata meta = s.meta;
+ *
+ * // ... you could now use your metadata, notice that please only access metadata
+ * // using the APIs provided by OpenDAL
+ * ```
  *
  * # Safety
  *
- * It is [safe] under the cases below
+ * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_stat opendal_operator_stat(struct opendal_operator_ptr op_ptr,
-                                                 const char *path);
+struct opendal_result_stat opendal_operator_stat(struct opendal_operator_ptr ptr, const char *path);
 
 /**
  * Free the allocated operator pointed by [`opendal_operator_ptr`]

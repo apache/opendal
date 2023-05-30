@@ -155,10 +155,10 @@ typedef struct opendal_bytes {
 } opendal_bytes;
 
 /**
- * The Rust-like Result type of opendal C binding, it contains
- * the data that the read operation returns and a error code
+ * The Result type of read operation in opendal C binding, it contains
+ * the data that the read operation returns and a error code.
  * If the read operation failed, the `data` fields should be a nullptr
- * and the error code is NOT OPENDAL_OK.
+ * and the error code is **NOT** OPENDAL_OK.
  */
 typedef struct opendal_result_read {
   struct opendal_bytes *data;
@@ -166,7 +166,7 @@ typedef struct opendal_result_read {
 } opendal_result_read;
 
 /**
- * The result type for [`opendal_operator_is_exist()`], the field `is_exist`
+ * The result type for opendal_operator_is_exist(), the field `is_exist`
  * contains whether the path exists, and the field `code` contains the
  * corresponding error code.
  */
@@ -189,9 +189,8 @@ typedef struct opendal_metadata {
 } opendal_metadata;
 
 /**
- * The result type for [`opendal_operator_stat()`], the meta contains the metadata
- * of the path, the code represents whether the stat operation is successful. Note
- * that the operation could be successful even if the path does not exist.
+ * The result type for opendal_operator_stat(), the field `meta` contains the metadata
+ * of the path, the field `code` represents whether the stat operation is successful.
  */
 typedef struct opendal_result_stat {
   struct opendal_metadata meta;

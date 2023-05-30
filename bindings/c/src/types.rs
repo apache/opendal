@@ -33,6 +33,8 @@ use ::opendal as od;
 /// operator.
 #[repr(C)]
 pub struct opendal_operator_ptr {
+    /// The pointer to the opendal::BlockingOperator in the Rust code.
+    /// Only touch this on judging whether it is NULL.
     ptr: *const od::BlockingOperator,
 }
 
@@ -104,7 +106,9 @@ impl From<&mut od::BlockingOperator> for opendal_operator_ptr {
 /// @see opendal_bytes_free
 #[repr(C)]
 pub struct opendal_bytes {
+    /// Pointing to the byte array on heap
     pub data: *const u8,
+    /// The length of the byte array
     pub len: usize,
 }
 
@@ -149,6 +153,8 @@ impl Into<bytes::Bytes> for opendal_bytes {
 /// @see opendal_metadata_free
 #[repr(C)]
 pub struct opendal_metadata {
+    /// The pointer to the opendal::Metadata in the Rust code.
+    /// Only touch this on judging whether it is NULL.
     pub inner: *const od::Metadata,
 }
 
@@ -249,6 +255,8 @@ impl opendal_metadata {
 /// @see opendal_operator_options_set This function allow you to set the options
 #[repr(C)]
 pub struct opendal_operator_options {
+    /// The pointer to the Rust HashMap<String, String>
+    /// Only touch this on judging whether it is NULL.
     inner: *mut HashMap<String, String>,
 }
 

@@ -140,6 +140,10 @@ typedef struct Metadata Metadata;
  * operator.
  */
 typedef struct opendal_operator_ptr {
+  /**
+   * The pointer to the opendal::BlockingOperator in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
   const struct BlockingOperator *ptr;
 } opendal_operator_ptr;
 
@@ -154,6 +158,10 @@ typedef struct opendal_operator_ptr {
  * @see opendal_operator_options_set This function allow you to set the options
  */
 typedef struct opendal_operator_options {
+  /**
+   * The pointer to the Rust HashMap<String, String>
+   * Only touch this on judging whether it is NULL.
+   */
   struct HashMap_String__String *inner;
 } opendal_operator_options;
 
@@ -167,7 +175,13 @@ typedef struct opendal_operator_options {
  * @see opendal_bytes_free
  */
 typedef struct opendal_bytes {
+  /**
+   * Pointing to the byte array on heap
+   */
   const uint8_t *data;
+  /**
+   * The length of the byte array
+   */
   uintptr_t len;
 } opendal_bytes;
 
@@ -180,7 +194,13 @@ typedef struct opendal_bytes {
  * and the error code is **NOT** OPENDAL_OK.
  */
 typedef struct opendal_result_read {
+  /**
+   * The byte array with length returned by read operations
+   */
   struct opendal_bytes *data;
+  /**
+   * The error code, should be OPENDAL_OK if succeeds
+   */
   enum opendal_code code;
 } opendal_result_read;
 
@@ -190,9 +210,18 @@ typedef struct opendal_result_read {
  * The result type for opendal_operator_is_exist(), the field `is_exist`
  * contains whether the path exists, and the field `code` contains the
  * corresponding error code.
+ *
+ * \note If the opendal_operator_is_exist() fails, the `is_exist` field
+ * will be set to false.
  */
 typedef struct opendal_result_is_exist {
+  /**
+   * Whether the path exists
+   */
   bool is_exist;
+  /**
+   * The error code, should be OPENDAL_OK if succeeds
+   */
   enum opendal_code code;
 } opendal_result_is_exist;
 
@@ -208,6 +237,10 @@ typedef struct opendal_result_is_exist {
  * @see opendal_metadata_free
  */
 typedef struct opendal_metadata {
+  /**
+   * The pointer to the opendal::Metadata in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
   const struct Metadata *inner;
 } opendal_metadata;
 
@@ -218,7 +251,13 @@ typedef struct opendal_metadata {
  * of the path, the field `code` represents whether the stat operation is successful.
  */
 typedef struct opendal_result_stat {
+  /**
+   * The metadata output of the stat
+   */
   struct opendal_metadata meta;
+  /**
+   * The error code, should be OPENDAL_OK if succeeds
+   */
   enum opendal_code code;
 } opendal_result_stat;
 

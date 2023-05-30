@@ -91,7 +91,8 @@ Public Attributes</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >The result type returned by <a class="el" href="opendal_8h.html#a391725f337d0a0897c95227501f3b188" title="Check whether the path exists.">opendal_operator_is_exist()</a>. </p>
-<p >The result type for <a class="el" href="opendal_8h.html#a391725f337d0a0897c95227501f3b188" title="Check whether the path exists.">opendal_operator_is_exist()</a>, the field <code>is_exist</code> contains whether the path exists, and the field <code>code</code> contains the corresponding error code. </p>
+<p >The result type for <a class="el" href="opendal_8h.html#a391725f337d0a0897c95227501f3b188" title="Check whether the path exists.">opendal_operator_is_exist()</a>, the field <code>is_exist</code> contains whether the path exists, and the field <code>code</code> contains the corresponding error code.</p>
+<dl class="section note"><dt>Note</dt><dd>If the <a class="el" href="opendal_8h.html#a391725f337d0a0897c95227501f3b188" title="Check whether the path exists.">opendal_operator_is_exist()</a> fails, the <code>is_exist</code> field will be set to false. </dd></dl>
 </div><h2 class="groupheader">Member Data Documentation</h2>
 <a id="aed685ac0a5c564f0cbdbe36e94ef7c7b" name="aed685ac0a5c564f0cbdbe36e94ef7c7b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aed685ac0a5c564f0cbdbe36e94ef7c7b">&#9670;&#160;</a></span>code</h2>
@@ -104,6 +105,7 @@ Public Attributes</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+<p >The error code, should be OPENDAL_OK if succeeds </p>
 
 </div>
 </div>
@@ -118,6 +120,7 @@ Public Attributes</h2></td></tr>
         </tr>
       </table>
 </div><div class="memdoc">
+<p >Whether the path exists </p>
 
 </div>
 </div>

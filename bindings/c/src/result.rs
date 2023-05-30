@@ -32,7 +32,9 @@ use crate::types::opendal_metadata;
 /// and the error code is **NOT** OPENDAL_OK.
 #[repr(C)]
 pub struct opendal_result_read {
+    /// The byte array with length returned by read operations
     pub data: *mut opendal_bytes,
+    /// The error code, should be OPENDAL_OK if succeeds
     pub code: opendal_code,
 }
 
@@ -41,9 +43,14 @@ pub struct opendal_result_read {
 /// The result type for opendal_operator_is_exist(), the field `is_exist`
 /// contains whether the path exists, and the field `code` contains the
 /// corresponding error code.
+///
+/// \note If the opendal_operator_is_exist() fails, the `is_exist` field
+/// will be set to false.
 #[repr(C)]
 pub struct opendal_result_is_exist {
+    /// Whether the path exists
     pub is_exist: bool,
+    /// The error code, should be OPENDAL_OK if succeeds
     pub code: opendal_code,
 }
 
@@ -53,6 +60,8 @@ pub struct opendal_result_is_exist {
 /// of the path, the field `code` represents whether the stat operation is successful.
 #[repr(C)]
 pub struct opendal_result_stat {
+    /// The metadata output of the stat
     pub meta: opendal_metadata,
+    /// The error code, should be OPENDAL_OK if succeeds
     pub code: opendal_code,
 }

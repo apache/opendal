@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::string;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -729,6 +730,15 @@ impl S3Builder {
     /// Reference: [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
     pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
         self.write_min_size = Some(write_min_size);
+
+        self
+    }
+
+    /// Sets root of this backend.
+    ///
+    /// All operations will happen under this root.
+    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+        self.batch_max_opertaions = Some(batch_max_operations);
 
         self
     }

@@ -61,7 +61,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### CI
 
 - build(bindings/java): prepare for snapshot release (#2301)
-- build(bindings/java): prepare for snapshot release (#2301)
 - build(bindings/java): support multiple platform java bindings  (#2324)
 - ci(binding/nodejs): Use docker to build nodejs binding (#2328)
 - build(bindings/java): prepare for automatically multiple platform deploy (#2335)

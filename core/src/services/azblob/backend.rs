@@ -21,12 +21,16 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use sha2::Digest;
+use sha2::Sha256;
 
 use super::appender::AzblobAppender;
 use super::batch::parse_batch_delete_response;
@@ -59,6 +63,9 @@ pub struct AzblobBuilder {
     endpoint: Option<String>,
     account_name: Option<String>,
     account_key: Option<String>,
+    encryption_key: Option<String>,
+    encryption_key_sha256: Option<String>,
+    encryption_algorithm: Option<String>,
     sas_token: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -140,6 +147,87 @@ impl AzblobBuilder {
             self.account_key = Some(account_key.to_string());
         }
 
+        self
+    }
+
+    /// Set encryption_key of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: Base64-encoded key that matches algorithm specified in `encryption_algorithm`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_key(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_key = Some(v.to_string());
+        }
+
+        self
+    }
+
+    /// Set encryption_key_sha256 of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: Base64-encoded SHA256 digest of the key specified in encryption_key.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_key_sha256(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_key_sha256 = Some(v.to_string());
+        }
+
+        self
+    }
+
+    /// Set encryption_algorithm of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: server-side encryption algorithm. (Available values: `AES256`)
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_algorithm(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_algorithm = Some(v.to_string());
+        }
+
+        self
+    }
+
+    /// Enable server side encryption with customer key.
+    ///
+    /// As known as: CPK
+    ///
+    /// # Args
+    ///
+    /// `key`: Base64-encoded SHA256 digest of the key specified in encryption_key.
+    ///
+    /// # Note
+    ///
+    /// Function that helps the user to set the server-side customer-provided encryption key, the key's SHA256, and the algorithm.
+    /// See [Server-side encryption with customer-provided keys (CPK)](https://learn.microsoft.com/en-us/azure/storage/blobs/encryption-customer-provided-keys)
+    /// for more info.
+    pub fn server_side_encryption_with_customer_key(&mut self, key: &[u8]) -> &mut Self {
+        // Only AES256 is supported for now
+        self.encryption_algorithm = Some("AES256".to_string());
+        self.encryption_key = Some(BASE64_STANDARD.encode(key));
+        self.encryption_key_sha256 = Some(BASE64_STANDARD.encode(Sha256::digest(key).as_slice()));
         self
     }
 
@@ -266,6 +354,11 @@ impl Builder for AzblobBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("account_name").map(|v| builder.account_name(v));
         map.get("account_key").map(|v| builder.account_key(v));
+        map.get("encryption_key").map(|v| builder.encryption_key(v));
+        map.get("encryption_key_sha256")
+            .map(|v| builder.encryption_key_sha256(v));
+        map.get("encryption_algorithm")
+            .map(|v| builder.encryption_algorithm(v));
         map.get("sas_token").map(|v| builder.sas_token(v));
 
         builder
@@ -313,6 +406,37 @@ impl Builder for AzblobBuilder {
             ..Default::default()
         };
 
+        let encryption_key =
+            match &self.encryption_key {
+                None => None,
+                Some(v) => Some(build_header_value(v).map_err(|err| {
+                    err.with_context("key", "server_side_encryption_customer_key")
+                })?),
+            };
+
+        let encryption_key_sha256 = match &self.encryption_key_sha256 {
+            None => None,
+            Some(v) => Some(build_header_value(v).map_err(|err| {
+                err.with_context("key", "server_side_encryption_customer_key_sha256")
+            })?),
+        };
+
+        let encryption_algorithm = match &self.encryption_algorithm {
+            None => None,
+            Some(v) => {
+                if v == "AES256" {
+                    Some(build_header_value(v).map_err(|err| {
+                        err.with_context("key", "server_side_encryption_customer_algorithm")
+                    })?)
+                } else {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "encryption_algorithm value must be AES256",
+                    ));
+                }
+            }
+        };
+
         let cred_loader = AzureStorageLoader::new(config_loader);
 
         let signer = AzureStorageSigner::new();
@@ -323,6 +447,9 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 root,
                 endpoint,
+                encryption_key,
+                encryption_key_sha256,
+                encryption_algorithm,
                 container: self.container.clone(),
 
                 client,

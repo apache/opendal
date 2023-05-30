@@ -17,9 +17,10 @@
 
 use std::str::FromStr;
 
+use jni::objects::JByteArray;
+use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::objects::{JByteArray, JClass};
 use jni::sys::jlong;
 use jni::sys::jstring;
 use jni::JNIEnv;

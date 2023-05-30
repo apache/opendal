@@ -94,6 +94,9 @@ jobs:
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
 
+      - name: Corepack
+        working-directory: bindings/nodejs
+        run: corepack enable
       - name: Install dependencies
         working-directory: bindings/nodejs
         run: yarn install --frozen-lockfile
@@ -152,8 +155,9 @@ jobs:
           cache: yarn
           cache-dependency-path: "website/yarn.lock"
 
-      - run: corepack enable
-        working-directory: bindings/nodejs
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
 
       - name: Download rust docs
         uses: actions/download-artifact@v3

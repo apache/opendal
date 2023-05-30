@@ -734,9 +734,7 @@ impl S3Builder {
         self
     }
 
-    /// Sets root of this backend.
-    ///
-    /// All operations will happen under this root.
+    /// Sets maximum batch operations.
     pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
         self.batch_max_opertaions = Some(batch_max_operations);
 

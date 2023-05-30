@@ -91,7 +91,6 @@ impl Debug for S3Core {
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
-            .field("batch_max_operations", &self.batch_max_operations)
             .finish_non_exhaustive()
     }
 }

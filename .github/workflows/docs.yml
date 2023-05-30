@@ -111,15 +111,15 @@ jobs:
       - uses: actions/setup-python@v3
         with:
           python-version: '3.11'
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
 
-      - name: Install dependencies
+      - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          set -e
-          python -m pip install -e .
-          python -m pip install pdoc
+          python -m pip install -e .[docs]
 
-      - name: Build bindings/python Docs
+      - name: Build Docs
         working-directory: bindings/python
         run: pdoc --output-dir ./docs opendal
 

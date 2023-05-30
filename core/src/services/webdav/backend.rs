@@ -198,7 +198,7 @@ impl Builder for WebdavBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Webdav))
+                    .with_context("service", Scheme::Webdav));
             }
         };
 
@@ -300,9 +300,7 @@ impl Accessor for WebdavBackend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.webdav_get(path, args.range()).await?;
-
         let status = resp.status();
-
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
@@ -451,7 +449,6 @@ impl WebdavBackend {
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
-
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
@@ -468,7 +465,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send(req).await
+        self.client.send_with_redirect(req, 5).await
     }
 
     pub async fn webdav_put(

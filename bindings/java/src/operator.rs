@@ -17,20 +17,21 @@
 
 use std::str::FromStr;
 
+use jni::objects::JByteArray;
+use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
-use jni::objects::{JByteArray, JClass};
 use jni::sys::jlong;
 use jni::JNIEnv;
-
 use opendal::Operator;
 use opendal::Scheme;
 
+use crate::get_current_env;
+use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
 use crate::Result;
-use crate::{get_current_env, get_global_runtime};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_constructor(

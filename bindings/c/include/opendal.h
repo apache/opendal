@@ -114,7 +114,7 @@ typedef struct BlockingOperator BlockingOperator;
 typedef struct HashMap_String__String HashMap_String__String;
 
 /*
- Metadata carries all metadata associated with an path.
+ Metadata carries all metadata associated with a path.
 
  # Notes
 
@@ -209,7 +209,6 @@ extern "C" {
  opendal_operator_options_set(&options, "root", "/myroot");
 
  opendal_operator_ptr ptr = opendal_operator_new("memory", options);
-
  opendal_operator_options_free(&options);
 
  // ... your operations

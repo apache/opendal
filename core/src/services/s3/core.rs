@@ -148,7 +148,7 @@ impl S3Core {
     /// # Note
     ///
     /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
-    //  get or stat.
+    /// get or stat.
     pub fn insert_sse_headers(
         &self,
         mut req: http::request::Builder,

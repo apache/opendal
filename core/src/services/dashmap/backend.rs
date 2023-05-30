@@ -25,7 +25,6 @@ use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DashmapBuilder {

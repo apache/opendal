@@ -15,33 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# NOTE: All configurations could be found here: https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
-github:
-  description: "Apache OpenDAL: access data freely."
-  homepage: https://opendal.apache.org
-  labels:
-    - rust
-    - storage
-    - s3
-    - gcs
-    - azblob
-    - redis
-  enabled_merge_buttons:
-    squash: true
-    merge: false
-    rebase: false
-  protected_branches:
-    main:
-      required_pull_request_reviews:
-        required_approving_review_count: 1
-    gh-pages:
-      whatever: Just a placeholder to make it take effects
+name: PR Labeler
 
-notifications:
-  commits:      commits@opendal.apache.org
-  issues:       commits@opendal.apache.org
-  pullrequests: commits@opendal.apache.org
-  discussions:  commits@opendal.apache.org
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
 
-publish:
-  whoami: gh-pages
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  pr_labeler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: github/issue-labeler@v3.1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          enable-versioned-regex: 0
+          include-title: 1

@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as od;
+use std::collections::HashMap;
+use std::os::raw::c_char;
 
-use std::{collections::HashMap, os::raw::c_char};
+use ::opendal as od;
 
 /// The [`opendal_operator_ptr`] owns a pointer to a [`od::BlockingOperator`].
 /// It is also the key struct that OpenDAL's APIs access the real

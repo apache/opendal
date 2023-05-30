@@ -15,33 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# NOTE: All configurations could be found here: https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
-github:
-  description: "Apache OpenDAL: access data freely."
-  homepage: https://opendal.apache.org
-  labels:
-    - rust
-    - storage
-    - s3
-    - gcs
-    - azblob
-    - redis
-  enabled_merge_buttons:
-    squash: true
-    merge: false
-    rebase: false
-  protected_branches:
-    main:
-      required_pull_request_reviews:
-        required_approving_review_count: 1
-    gh-pages:
-      whatever: Just a placeholder to make it take effects
-
-notifications:
-  commits:      commits@opendal.apache.org
-  issues:       commits@opendal.apache.org
-  pullrequests: commits@opendal.apache.org
-  discussions:  commits@opendal.apache.org
-
-publish:
-  whoami: gh-pages
+changelog:
+  categories:
+    - title: Added
+      labels:
+        - releases-note/feat
+    - title: Changed
+      labels:
+        - releases-note/refactor
+    - title: Fixed
+      labels:
+        - releases-note/fix
+    - title: Docs
+      labels:
+        - releases-note/docs
+    - title: CI
+      labels:
+        - releases-note/ci
+        - releases-note/build
+    - title: Chore
+      labels:
+        - releases-note/chore

@@ -37,6 +37,8 @@ use types::opendal_operator_options;
 use crate::types::opendal_bytes;
 use crate::types::opendal_operator_ptr;
 
+/// \brief Construct an operator based on `scheme` and `options`
+///
 /// Uses an array of key-value pairs to initialize the operator based on provided `scheme`
 /// and `options`. For each scheme, i.e. Backend, different options could be set, you may
 /// reference the [documentation](https://opendal.apache.org/docs/category/services/) for
@@ -48,6 +50,8 @@ use crate::types::opendal_operator_ptr;
 /// @see opendal_operator_options
 /// @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
 /// succeeds. A null opendal_operator_ptr if any error happens.
+///
+/// \remark You may use the `ptr` field of opendal_operator_ptr to check if it is NULL.
 ///
 /// # Example
 ///
@@ -110,6 +114,8 @@ pub unsafe extern "C" fn opendal_operator_new(
     opendal_operator_ptr::from(op)
 }
 
+/// \brief Blockingly write raw bytes to `path`.
+///
 /// Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
 /// if succeeds, others otherwise
 ///
@@ -159,7 +165,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.get_ref();
+    let op = ptr.as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.write(path, bytes) {
         Ok(_) => opendal_code::OPENDAL_OK,
@@ -167,6 +173,8 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
     }
 }
 
+/// \brief Blockingly read the data from `path`.
+///
 /// Read the data out from `path` blockingly by operator, returns
 /// an opendal_result_read with error code.
 ///
@@ -213,7 +221,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.get_ref();
+    let op = ptr.as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     let data = op.read(path);
     match data {
@@ -279,7 +287,7 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.get_ref();
+    let op = ptr.as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.is_exist(path) {
         Ok(e) => opendal_result_is_exist {
@@ -340,7 +348,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.get_ref();
+    let op = ptr.as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.stat(path) {
         Ok(m) => opendal_result_stat {

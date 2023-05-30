@@ -26,7 +26,7 @@
 #include <stdbool.h>
 
 /**
- * The error code for all opendal APIs in C binding
+ * \brief The error code for all opendal APIs in C binding.
  * \todo The error handling is not complete, the error with error message will be
  * added in the future.
  */
@@ -116,7 +116,7 @@ typedef struct BlockingOperator BlockingOperator;
 typedef struct HashMap_String__String HashMap_String__String;
 
 /**
- * Metadata carries all metadata associated with an path.
+ * Metadata carries all metadata associated with a path.
  *
  * # Notes
  *
@@ -127,32 +127,44 @@ typedef struct HashMap_String__String HashMap_String__String;
 typedef struct Metadata Metadata;
 
 /**
- * \brief The opendal_operator_ptr is used to access almost all OpenDAL
- * APIs. It represents a operator that provides the unified interfaces provided
- * by OpenDAL.
+ * \brief Used to access almost all OpenDAL APIs. It represents a
+ * operator that provides the unified interfaces provided by OpenDAL.
  *
  * @see opendal_operator_new This function construct the operator
  * @see opendal_operator_free This function frees the heap memory of the operator
  *
  * \note The opendal_operator_ptr actually owns a pointer to
  * a opendal::BlockingOperator, which is inside the Rust core code.
+ *
+ * \remark You may use the field `ptr` to check whether this is a NULL
+ * operator.
  */
 typedef struct opendal_operator_ptr {
   const struct BlockingOperator *ptr;
 } opendal_operator_ptr;
 
 /**
- * [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
+ * \brief The configuration for the initialization of opendal_operator_ptr.
+ *
+ * \note This is also a heap-allocated struct, please free it after you use it
+ *
+ * @see opendal_operator_new has an example of using opendal_operator_options
+ * @see opendal_operator_options_new This function construct the operator
+ * @see opendal_operator_options_free This function frees the heap memory of the operator
+ * @see opendal_operator_options_set This function allow you to set the options
  */
 typedef struct opendal_operator_options {
   struct HashMap_String__String *inner;
 } opendal_operator_options;
 
 /**
- * The [`opendal_bytes`] type is a C-compatible substitute for [`Vec`]
- * in Rust, it will not be deallocated automatically like what
- * has been done in Rust. Instead, you have to call [`opendal_free_bytes`]
+ * \brief opendal_bytes carries raw-bytes with its length
+ *
+ * The opendal_bytes type is a C-compatible substitute for Vec type
+ * in Rust, it has to be manually freed. You have to call opendal_bytes_free()
  * to free the heap memory to avoid memory leak.
+ *
+ * @see opendal_bytes_free
  */
 typedef struct opendal_bytes {
   const uint8_t *data;
@@ -160,7 +172,9 @@ typedef struct opendal_bytes {
 } opendal_bytes;
 
 /**
- * The Result type of read operation in opendal C binding, it contains
+ * \brief The result type returned by opendal's read operation.
+ *
+ * The result type of read operation in opendal C binding, it contains
  * the data that the read operation returns and a error code.
  * If the read operation failed, the `data` fields should be a nullptr
  * and the error code is **NOT** OPENDAL_OK.
@@ -171,6 +185,8 @@ typedef struct opendal_result_read {
 } opendal_result_read;
 
 /**
+ * \brief The result type returned by opendal_operator_is_exist().
+ *
  * The result type for opendal_operator_is_exist(), the field `is_exist`
  * contains whether the path exists, and the field `code` contains the
  * corresponding error code.
@@ -181,19 +197,23 @@ typedef struct opendal_result_is_exist {
 } opendal_result_is_exist;
 
 /**
- * Metadata carries all metadata associated with an path.
+ * \brief Carries all metadata associated with a path.
  *
- * # Notes
+ * The metadata of the "thing" under a path. Please **only** use the opendal_metadata
+ * with our provided API, e.g. opendal_metadata_content_length().
  *
- * mode and content_length are required metadata that all services
- * should provide during `stat` operation. But in `list` operation,
- * a.k.a., `Entry`'s content length could be NULL.
+ * \note The metadata is also heap-allocated, please call opendal_metadata_free() on this
+ * to free the heap memory.
+ *
+ * @see opendal_metadata_free
  */
 typedef struct opendal_metadata {
   const struct Metadata *inner;
 } opendal_metadata;
 
 /**
+ * \brief The result type returned by opendal_operator_stat().
+ *
  * The result type for opendal_operator_stat(), the field `meta` contains the metadata
  * of the path, the field `code` represents whether the stat operation is successful.
  */
@@ -207,6 +227,8 @@ extern "C" {
 #endif // __cplusplus
 
 /**
+ * \brief Construct an operator based on `scheme` and `options`
+ *
  * Uses an array of key-value pairs to initialize the operator based on provided `scheme`
  * and `options`. For each scheme, i.e. Backend, different options could be set, you may
  * reference the [documentation](https://opendal.apache.org/docs/category/services/) for
@@ -218,6 +240,8 @@ extern "C" {
  * @see opendal_operator_options
  * @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
  * succeeds. A null opendal_operator_ptr if any error happens.
+ *
+ * \remark You may use the `ptr` field of opendal_operator_ptr to check if it is NULL.
  *
  * # Example
  *
@@ -248,6 +272,8 @@ struct opendal_operator_ptr opendal_operator_new(const char *scheme,
                                                  const struct opendal_operator_options *options);
 
 /**
+ * \brief Blockingly write raw bytes to `path`.
+ *
  * Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
  * if succeeds, others otherwise
  *
@@ -293,6 +319,8 @@ enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr pt
                                                   struct opendal_bytes bytes);
 
 /**
+ * \brief Blockingly read the data from `path`.
+ *
  * Read the data out from `path` blockingly by operator, returns
  * an opendal_result_read with error code.
  *
@@ -426,41 +454,91 @@ struct opendal_result_stat opendal_operator_stat(struct opendal_operator_ptr ptr
  * Please only use this for a pointer pointing at a valid opendal_operator_ptr.
  * Calling this function on NULL does nothing, but calling this function on pointers
  * of other type will lead to segfault.
+ *
+ * # Example
+ *
+ * ```C
+ * opendal_operator_ptr ptr = opendal_operator_new("fs", NULL);
+ * // ... use this ptr, maybe some reads and writes
+ *
+ * // free this operator
+ * opendal_operator_free(&ptr);
+ * ```
  */
 void opendal_operator_free(const struct opendal_operator_ptr *self);
 
 /**
- * Frees the heap memory used by the [`opendal_bytes`]
+ * \brief Frees the heap memory used by the opendal_bytes
  */
 void opendal_bytes_free(const struct opendal_bytes *self);
 
 /**
- * Free the allocated metadata
+ * \brief Free the heap-allocated metadata used by opendal_metadata
  */
 void opendal_metadata_free(const struct opendal_metadata *self);
 
 /**
- * Return the content_length of the metadata
+ * \brief Return the content_length of the metadata
+ *
+ * # Example
+ * ```C
+ * // ... previously you wrote "Hello, World!" to path "/testpath"
+ * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+ * assert(s.code == OPENDAL_OK);
+ *
+ * opendal_metadata meta = s.meta;
+ * assert(opendal_metadata_content_length(&meta) == 13);
+ * ```
  */
 uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
 
 /**
- * Return whether the path represents a file
+ * \brief Return whether the path represents a file
+ *
+ * # Example
+ * ```C
+ * // ... previously you wrote "Hello, World!" to path "/testpath"
+ * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+ * assert(s.code == OPENDAL_OK);
+ *
+ * opendal_metadata meta = s.meta;
+ * assert(opendal_metadata_is_file(&meta));
+ * ```
  */
 bool opendal_metadata_is_file(const struct opendal_metadata *self);
 
 /**
- * Return whether the path represents a directory
+ * \brief Return whether the path represents a directory
+ *
+ * # Example
+ * ```C
+ * // ... previously you wrote "Hello, World!" to path "/testpath"
+ * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+ * assert(s.code == OPENDAL_OK);
+ *
+ * opendal_metadata meta = s.meta;
+ *
+ * // this is not a directory
+ * assert(!opendal_metadata_is_dir(&meta));
+ * ```
+ *
+ * \todo This is not a very clear example. A clearer example will be added
+ * after we support opendal_operator_mkdir()
  */
 bool opendal_metadata_is_dir(const struct opendal_metadata *self);
 
 /**
- * Construct a heap-allocated opendal_operator_options
+ * \brief Construct a heap-allocated opendal_operator_options
+ *
+ * @return An empty opendal_operator_option, which could be set by
+ * opendal_operator_option_set().
+ *
+ * @see opendal_operator_option_set
  */
 struct opendal_operator_options opendal_operator_options_new(void);
 
 /**
- * Set a Key-Value pair inside opendal_operator_options
+ * \brief Set a Key-Value pair inside opendal_operator_options
  *
  * # Safety
  *
@@ -483,7 +561,7 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
                                   const char *value);
 
 /**
- * Free the allocated memory used by [`opendal_operator_options`]
+ * \brief Free the allocated memory used by [`opendal_operator_options`]
  */
 void opendal_operator_options_free(const struct opendal_operator_options *self);
 

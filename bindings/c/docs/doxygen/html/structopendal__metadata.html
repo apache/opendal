@@ -77,18 +77,21 @@ $(function() {
 </div><!--header-->
 <div class="contents">
 
+<p>Carries all metadata associated with a path.  
+ <a href="structopendal__metadata.html#details">More...</a></p>
+
 <p><code>#include &lt;<a class="el" href="opendal_8h_source.html">opendal.h</a>&gt;</code></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
-<tr class="memitem:a81c31326329ba31985db302afdbfac72"><td class="memItemLeft" align="right" valign="top">const struct <a class="el" href="opendal_8h.html#a3f1d6f587fc68e6646073890d469ad84">Metadata</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structopendal__metadata.html#a81c31326329ba31985db302afdbfac72">inner</a></td></tr>
+<tr class="memitem:a81c31326329ba31985db302afdbfac72"><td class="memItemLeft" align="right" valign="top">const struct Metadata *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structopendal__metadata.html#a81c31326329ba31985db302afdbfac72">inner</a></td></tr>
 <tr class="separator:a81c31326329ba31985db302afdbfac72"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><p >Metadata carries all metadata associated with an path.</p>
-<h1><a class="anchor" id="autotoc_md2"></a>
-Notes</h1>
-<p >mode and content_length are required metadata that all services should provide during <code>stat</code> operation. But in <code>list</code> operation, a.k.a., <code>Entry</code>'s content length could be NULL. </p>
+<div class="textblock"><p >Carries all metadata associated with a path. </p>
+<p >The metadata of the "thing" under a path. Please <b>only</b> use the <a class="el" href="structopendal__metadata.html" title="Carries all metadata associated with a path.">opendal_metadata</a> with our provided API, e.g. <a class="el" href="opendal_8h.html#ac8e9a9da0f04cb80848e7e42c3b90235" title="Return the content_length of the metadata.">opendal_metadata_content_length()</a>.</p>
+<dl class="section note"><dt>Note</dt><dd>The metadata is also heap-allocated, please call <a class="el" href="opendal_8h.html#a8edd7cec07ae7051e8363da44aa168e6" title="Free the heap-allocated metadata used by opendal_metadata.">opendal_metadata_free()</a> on this to free the heap memory.</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="opendal_8h.html#a8edd7cec07ae7051e8363da44aa168e6" title="Free the heap-allocated metadata used by opendal_metadata.">opendal_metadata_free</a> </dd></dl>
 </div><h2 class="groupheader">Member Data Documentation</h2>
 <a id="a81c31326329ba31985db302afdbfac72" name="a81c31326329ba31985db302afdbfac72"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a81c31326329ba31985db302afdbfac72">&#9670;&#160;</a></span>inner</h2>
@@ -97,7 +100,7 @@ Notes</h1>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">const struct <a class="el" href="opendal_8h.html#a3f1d6f587fc68e6646073890d469ad84">Metadata</a>* opendal_metadata::inner</td>
+          <td class="memname">const struct Metadata* opendal_metadata::inner</td>
         </tr>
       </table>
 </div><div class="memdoc">

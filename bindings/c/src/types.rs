@@ -20,15 +20,17 @@ use std::os::raw::c_char;
 
 use ::opendal as od;
 
-/// \brief The opendal_operator_ptr is used to access almost all OpenDAL
-/// APIs. It represents a operator that provides the unified interfaces provided
-/// by OpenDAL.
+/// \brief Used to access almost all OpenDAL APIs. It represents a
+/// operator that provides the unified interfaces provided by OpenDAL.
 ///
 /// @see opendal_operator_new This function construct the operator
 /// @see opendal_operator_free This function frees the heap memory of the operator
 ///
 /// \note The opendal_operator_ptr actually owns a pointer to
 /// a opendal::BlockingOperator, which is inside the Rust core code.
+///
+/// \remark You may use the field `ptr` to check whether this is a NULL
+/// operator.
 #[repr(C)]
 pub struct opendal_operator_ptr {
     ptr: *const od::BlockingOperator,
@@ -40,6 +42,16 @@ impl opendal_operator_ptr {
     /// Please only use this for a pointer pointing at a valid opendal_operator_ptr.
     /// Calling this function on NULL does nothing, but calling this function on pointers
     /// of other type will lead to segfault.
+    ///
+    /// # Example
+    ///
+    /// ```C
+    /// opendal_operator_ptr ptr = opendal_operator_new("fs", NULL);
+    /// // ... use this ptr, maybe some reads and writes
+    ///
+    /// // free this operator
+    /// opendal_operator_free(&ptr);
+    /// ```
     #[no_mangle]
     pub extern "C" fn opendal_operator_free(&self) {
         if self.is_null() {
@@ -64,7 +76,7 @@ impl opendal_operator_ptr {
     }
 
     /// Returns a reference to the underlying [`od::BlockingOperator`]
-    pub(crate) fn get_ref(&self) -> &od::BlockingOperator {
+    pub(crate) fn as_ref(&self) -> &od::BlockingOperator {
         unsafe { &*(self.ptr) }
     }
 }
@@ -83,14 +95,29 @@ impl From<&mut od::BlockingOperator> for opendal_operator_ptr {
     }
 }
 
-/// The [`opendal_bytes`] type is a C-compatible substitute for [`Vec`]
-/// in Rust, it will not be deallocated automatically like what
-/// has been done in Rust. Instead, you have to call [`opendal_free_bytes`]
+/// \brief opendal_bytes carries raw-bytes with its length
+///
+/// The opendal_bytes type is a C-compatible substitute for Vec type
+/// in Rust, it has to be manually freed. You have to call opendal_bytes_free()
 /// to free the heap memory to avoid memory leak.
+///
+/// @see opendal_bytes_free
 #[repr(C)]
 pub struct opendal_bytes {
     pub data: *const u8,
     pub len: usize,
+}
+
+impl opendal_bytes {
+    /// \brief Frees the heap memory used by the opendal_bytes
+    #[no_mangle]
+    pub extern "C" fn opendal_bytes_free(&self) {
+        unsafe {
+            // this deallocates the vector by reconstructing the vector and letting
+            // it be dropped when its out of scope
+            Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
+        }
+    }
 }
 
 impl opendal_bytes {
@@ -100,16 +127,6 @@ impl opendal_bytes {
         let len = vec.len();
         std::mem::forget(vec); // To avoid deallocation of the vec.
         Self { data, len }
-    }
-
-    /// Frees the heap memory used by the [`opendal_bytes`]
-    #[no_mangle]
-    pub extern "C" fn opendal_bytes_free(&self) {
-        unsafe {
-            // this deallocates the vector by reconstructing the vector and letting
-            // it be dropped when its out of scope
-            Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
-        }
     }
 }
 
@@ -121,20 +138,22 @@ impl Into<bytes::Bytes> for opendal_bytes {
     }
 }
 
-/// Metadata carries all metadata associated with an path.
+/// \brief Carries all metadata associated with a path.
 ///
-/// # Notes
+/// The metadata of the "thing" under a path. Please **only** use the opendal_metadata
+/// with our provided API, e.g. opendal_metadata_content_length().
 ///
-/// mode and content_length are required metadata that all services
-/// should provide during `stat` operation. But in `list` operation,
-/// a.k.a., `Entry`'s content length could be NULL.
+/// \note The metadata is also heap-allocated, please call opendal_metadata_free() on this
+/// to free the heap memory.
+///
+/// @see opendal_metadata_free
 #[repr(C)]
 pub struct opendal_metadata {
     pub inner: *const od::Metadata,
 }
 
 impl opendal_metadata {
-    /// Free the allocated metadata
+    /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
     pub extern "C" fn opendal_metadata_free(&self) {
         if self.inner.is_null() {
@@ -143,7 +162,17 @@ impl opendal_metadata {
         let _ = unsafe { Box::from_raw(self.inner as *mut od::Metadata) };
     }
 
-    /// Return the content_length of the metadata
+    /// \brief Return the content_length of the metadata
+    ///
+    /// # Example
+    /// ```C
+    /// // ... previously you wrote "Hello, World!" to path "/testpath"
+    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// assert(s.code == OPENDAL_OK);
+    ///
+    /// opendal_metadata meta = s.meta;
+    /// assert(opendal_metadata_content_length(&meta) == 13);
+    /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_content_length(&self) -> u64 {
         // Safety: the inner should never be null once constructed
@@ -151,7 +180,17 @@ impl opendal_metadata {
         unsafe { (*self.inner).content_length() }
     }
 
-    /// Return whether the path represents a file
+    /// \brief Return whether the path represents a file
+    ///
+    /// # Example
+    /// ```C
+    /// // ... previously you wrote "Hello, World!" to path "/testpath"
+    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// assert(s.code == OPENDAL_OK);
+    ///
+    /// opendal_metadata meta = s.meta;
+    /// assert(opendal_metadata_is_file(&meta));
+    /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_is_file(&self) -> bool {
         // Safety: the inner should never be null once constructed
@@ -159,7 +198,22 @@ impl opendal_metadata {
         unsafe { (*self.inner).is_file() }
     }
 
-    /// Return whether the path represents a directory
+    /// \brief Return whether the path represents a directory
+    ///
+    /// # Example
+    /// ```C
+    /// // ... previously you wrote "Hello, World!" to path "/testpath"
+    /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
+    /// assert(s.code == OPENDAL_OK);
+    ///
+    /// opendal_metadata meta = s.meta;
+    ///
+    /// // this is not a directory
+    /// assert(!opendal_metadata_is_dir(&meta));
+    /// ```
+    ///
+    /// \todo This is not a very clear example. A clearer example will be added
+    /// after we support opendal_operator_mkdir()
     #[no_mangle]
     pub extern "C" fn opendal_metadata_is_dir(&self) -> bool {
         // Safety: the inner should never be null once constructed
@@ -185,14 +239,26 @@ impl opendal_metadata {
     }
 }
 
-/// [`opendal_operator_options`] represents a series of string type key-value pairs, it may be used for initialization
+/// \brief The configuration for the initialization of opendal_operator_ptr.
+///
+/// \note This is also a heap-allocated struct, please free it after you use it
+///
+/// @see opendal_operator_new has an example of using opendal_operator_options
+/// @see opendal_operator_options_new This function construct the operator
+/// @see opendal_operator_options_free This function frees the heap memory of the operator
+/// @see opendal_operator_options_set This function allow you to set the options
 #[repr(C)]
 pub struct opendal_operator_options {
     inner: *mut HashMap<String, String>,
 }
 
 impl opendal_operator_options {
-    /// Construct a heap-allocated opendal_operator_options
+    /// \brief Construct a heap-allocated opendal_operator_options
+    ///
+    /// @return An empty opendal_operator_option, which could be set by
+    /// opendal_operator_option_set().
+    ///
+    /// @see opendal_operator_option_set
     #[no_mangle]
     pub extern "C" fn opendal_operator_options_new() -> Self {
         let map: HashMap<String, String> = HashMap::default();
@@ -201,7 +267,7 @@ impl opendal_operator_options {
         }
     }
 
-    /// Set a Key-Value pair inside opendal_operator_options
+    /// \brief Set a Key-Value pair inside opendal_operator_options
     ///
     /// # Safety
     ///
@@ -240,7 +306,7 @@ impl opendal_operator_options {
         unsafe { &*(self.inner) }
     }
 
-    /// Free the allocated memory used by [`opendal_operator_options`]
+    /// \brief Free the allocated memory used by [`opendal_operator_options`]
     #[no_mangle]
     pub extern "C" fn opendal_operator_options_free(&self) {
         if self.inner.is_null() {

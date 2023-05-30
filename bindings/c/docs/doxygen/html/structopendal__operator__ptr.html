@@ -77,22 +77,23 @@ $(function() {
 </div><!--header-->
 <div class="contents">
 
-<p>The <a class="el" href="structopendal__operator__ptr.html" title="The opendal_operator_ptr is used to access almost all OpenDAL APIs. It represents a operator that pro...">opendal_operator_ptr</a> is used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces provided by OpenDAL.  
+<p>Used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces provided by OpenDAL.  
  <a href="structopendal__operator__ptr.html#details">More...</a></p>
 
 <p><code>#include &lt;<a class="el" href="opendal_8h_source.html">opendal.h</a>&gt;</code></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
-<tr class="memitem:a17b619ae01bb6471f51f8501ab18dd9b"><td class="memItemLeft" align="right" valign="top">const struct <a class="el" href="opendal_8h.html#a921c82af7df351308a4ce28559718e5e">BlockingOperator</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structopendal__operator__ptr.html#a17b619ae01bb6471f51f8501ab18dd9b">ptr</a></td></tr>
+<tr class="memitem:a17b619ae01bb6471f51f8501ab18dd9b"><td class="memItemLeft" align="right" valign="top">const struct BlockingOperator *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structopendal__operator__ptr.html#a17b619ae01bb6471f51f8501ab18dd9b">ptr</a></td></tr>
 <tr class="separator:a17b619ae01bb6471f51f8501ab18dd9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><p >The <a class="el" href="structopendal__operator__ptr.html" title="The opendal_operator_ptr is used to access almost all OpenDAL APIs. It represents a operator that pro...">opendal_operator_ptr</a> is used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces provided by OpenDAL. </p>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="opendal_8h.html#a2af3e11594601424556c8465e2654a45">opendal_operator_new</a> This function construct the operator </dd>
+<div class="textblock"><p >Used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces provided by OpenDAL. </p>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="opendal_8h.html#a2af3e11594601424556c8465e2654a45" title="Construct an operator based on scheme and options">opendal_operator_new</a> This function construct the operator </dd>
 <dd>
 <a class="el" href="opendal_8h.html#a51db6f1e3b4930990ec30f81e7e96ad1" title="Free the heap-allocated operator pointed by opendal_operator_ptr.">opendal_operator_free</a> This function frees the heap memory of the operator</dd></dl>
-<dl class="section note"><dt>Note</dt><dd>The <a class="el" href="structopendal__operator__ptr.html" title="The opendal_operator_ptr is used to access almost all OpenDAL APIs. It represents a operator that pro...">opendal_operator_ptr</a> actually owns a pointer to a opendal::BlockingOperator, which is inside the Rust core code. </dd></dl>
+<dl class="section note"><dt>Note</dt><dd>The <a class="el" href="structopendal__operator__ptr.html" title="Used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces...">opendal_operator_ptr</a> actually owns a pointer to a opendal::BlockingOperator, which is inside the Rust core code.</dd></dl>
+<dl class="section remark"><dt>Remarks</dt><dd>You may use the field <code>ptr</code> to check whether this is a NULL operator. </dd></dl>
 </div><h2 class="groupheader">Member Data Documentation</h2>
 <a id="a17b619ae01bb6471f51f8501ab18dd9b" name="a17b619ae01bb6471f51f8501ab18dd9b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a17b619ae01bb6471f51f8501ab18dd9b">&#9670;&#160;</a></span>ptr</h2>
@@ -101,7 +102,7 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">const struct <a class="el" href="opendal_8h.html#a921c82af7df351308a4ce28559718e5e">BlockingOperator</a>* opendal_operator_ptr::ptr</td>
+          <td class="memname">const struct BlockingOperator* opendal_operator_ptr::ptr</td>
         </tr>
       </table>
 </div><div class="memdoc">

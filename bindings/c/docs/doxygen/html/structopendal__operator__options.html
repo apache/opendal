@@ -77,15 +77,26 @@ $(function() {
 </div><!--header-->
 <div class="contents">
 
+<p>The configuration for the initialization of <a class="el" href="structopendal__operator__ptr.html" title="Used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces...">opendal_operator_ptr</a>.  
+ <a href="structopendal__operator__options.html#details">More...</a></p>
+
 <p><code>#include &lt;<a class="el" href="opendal_8h_source.html">opendal.h</a>&gt;</code></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-attribs" name="pub-attribs"></a>
 Public Attributes</h2></td></tr>
-<tr class="memitem:a0b4a1a2cd9074140b04836b822a04645"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="opendal_8h.html#a4e289398fb4fc6a0389d9b2538e6b07e">HashMap_String__String</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structopendal__operator__options.html#a0b4a1a2cd9074140b04836b822a04645">inner</a></td></tr>
+<tr class="memitem:a0b4a1a2cd9074140b04836b822a04645"><td class="memItemLeft" align="right" valign="top">struct HashMap_String__String *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structopendal__operator__options.html#a0b4a1a2cd9074140b04836b822a04645">inner</a></td></tr>
 <tr class="separator:a0b4a1a2cd9074140b04836b822a04645"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><p >[<code><a class="el" href="structopendal__operator__options.html">opendal_operator_options</a></code>] represents a series of string type key-value pairs, it may be used for initialization </p>
+<div class="textblock"><p >The configuration for the initialization of <a class="el" href="structopendal__operator__ptr.html" title="Used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces...">opendal_operator_ptr</a>. </p>
+<dl class="section note"><dt>Note</dt><dd>This is also a heap-allocated struct, please free it after you use it</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="opendal_8h.html#a2af3e11594601424556c8465e2654a45" title="Construct an operator based on scheme and options">opendal_operator_new</a> has an example of using <a class="el" href="structopendal__operator__options.html" title="The configuration for the initialization of opendal_operator_ptr.">opendal_operator_options</a> </dd>
+<dd>
+<a class="el" href="opendal_8h.html#a5fc487d22612b761b882da5605891a57" title="Construct a heap-allocated opendal_operator_options.">opendal_operator_options_new</a> This function construct the operator </dd>
+<dd>
+<a class="el" href="opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97" title="Free the allocated memory used by [opendal_operator_options].">opendal_operator_options_free</a> This function frees the heap memory of the operator </dd>
+<dd>
+<a class="el" href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02" title="Set a Key-Value pair inside opendal_operator_options.">opendal_operator_options_set</a> This function allow you to set the options </dd></dl>
 </div><h2 class="groupheader">Member Data Documentation</h2>
 <a id="a0b4a1a2cd9074140b04836b822a04645" name="a0b4a1a2cd9074140b04836b822a04645"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a0b4a1a2cd9074140b04836b822a04645">&#9670;&#160;</a></span>inner</h2>
@@ -94,7 +105,7 @@ Public Attributes</h2></td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">struct <a class="el" href="opendal_8h.html#a4e289398fb4fc6a0389d9b2538e6b07e">HashMap_String__String</a>* opendal_operator_options::inner</td>
+          <td class="memname">struct HashMap_String__String* opendal_operator_options::inner</td>
         </tr>
       </table>
 </div><div class="memdoc">

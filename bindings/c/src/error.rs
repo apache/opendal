@@ -21,7 +21,7 @@ use ::opendal as od;
 /// orphan rule
 struct opendal_error(od::Error);
 
-/// The error code for all opendal APIs in C binding
+/// \brief The error code for all opendal APIs in C binding.
 /// \todo The error handling is not complete, the error with error message will be
 /// added in the future.
 #[repr(C)]

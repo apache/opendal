@@ -21,10 +21,13 @@ The fastest way is:
 To build OpenDAL Zig binding, the following is all you need:
 - **Zig toolchain** is based on **LLVM-toolchain**(clang/++, libcxx, lld).
 
+## Need
+- opendal C binding
+
 ## Build
 To build the library and header file.
 ```shell
-zig build
+zig build opendal_c
 ```
 
 - zig build need add header file `opendal.h` is under `../c/include` 
@@ -36,7 +39,7 @@ zig build uninstall
 ```
 
 ## Test
-To build and run the tests. (Note that you need to install GTest)
+To build and run the tests.
 ```shell
 zig build test -fsummary
 ```

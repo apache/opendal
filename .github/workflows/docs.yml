@@ -158,8 +158,8 @@ jobs:
       - name: Upload docs
         uses: actions/upload-artifact@v3
         with:
-          name: c-docs
-          path: ./bindings/c/docs/html
+          name: C-docs
+          path: ./bindings/c/docs/doxygen/html
 
   build-website:
     runs-on: ubuntu-latest
@@ -168,6 +168,7 @@ jobs:
       - build-java-doc
       - build-nodejs-doc
       - build-python-doc
+      - build-c-doc
 
     steps:
       - uses: actions/checkout@v3
@@ -205,6 +206,12 @@ jobs:
         with:
           name: java-docs
           path: ./website/static/docs/java
+
+      - name: Download C docs
+        uses: actions/download-artifact@v3
+        with:
+          name: C-docs
+          path: ./website/static/docs/c
 
       - name: Install Dependencies
         working-directory: website

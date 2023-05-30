@@ -315,7 +315,7 @@ pub struct S3Builder {
     /// There is no minimum size limit on the last part of your multipart upload
     write_min_size: Option<usize>,
 
-    batch_max_operations: usize,
+    batch_max_opertaions: Option<usize>,
 }
 
 impl Debug for S3Builder {
@@ -325,8 +325,7 @@ impl Debug for S3Builder {
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("region", &self.region)
-            .field("batch_max_operations", &self.batch_max_operations);
+            .field("region", &self.region);
         d.finish_non_exhaustive()
     }
 }
@@ -937,7 +936,7 @@ impl Builder for S3Builder {
                 loader,
                 client,
                 write_min_size,
-                batch_max_operations:self.batch_max_operations,
+                batch_max_operations: self.batch_max_operations,
             }),
         })
     }

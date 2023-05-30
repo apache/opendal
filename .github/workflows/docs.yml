@@ -147,6 +147,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Setup doxygen
+        run: sudo apt-get install doxygen
+
       - name: Build C binding
         working-directory: "bindings/c"
         run: make build

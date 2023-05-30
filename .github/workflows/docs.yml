@@ -56,7 +56,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Upload docs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: rust-docs
           path: ./target/doc
@@ -77,7 +77,7 @@ jobs:
         run: mvn javadoc:javadoc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: java-docs
           path: ./bindings/java/target/site/apidocs
@@ -97,7 +97,7 @@ jobs:
         run: yarn docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: nodejs-docs
           path: ./bindings/nodejs/docs
@@ -124,7 +124,7 @@ jobs:
         run: pdoc --output-dir ./docs opendal
 
       - name: Upload docs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: python-docs
           path: ./bindings/python/docs
@@ -158,25 +158,25 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
 
       - name: Download rust docs
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: rust-docs
           path: ./website/static/docs/rust
 
       - name: Download nodejs docs
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: nodejs-docs
           path: ./website/static/docs/nodejs
 
       - name: Download python docs
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: python-docs
           path: ./website/static/docs/python
 
       - name: Download java docs
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: java-docs
           path: ./website/static/docs/java

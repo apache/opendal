@@ -26,7 +26,9 @@
 #include <stdbool.h>
 
 /**
- * The error code for opendal APIs in C binding
+ * The error code for all opendal APIs in C binding
+ * \todo The error handling is not complete, the error with error message will be
+ * added in the future.
  */
 typedef enum opendal_code {
   /**

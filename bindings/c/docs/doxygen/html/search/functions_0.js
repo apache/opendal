@@ -9,7 +9,7 @@ var searchData=
   ['opendal_5foperator_5fblocking_5fwrite_6',['opendal_operator_blocking_write',['../opendal_8h.html#a44f96c4a5c9092b47fc2c43ee00526ca',1,'opendal.h']]],
   ['opendal_5foperator_5ffree_7',['opendal_operator_free',['../opendal_8h.html#a51db6f1e3b4930990ec30f81e7e96ad1',1,'opendal.h']]],
   ['opendal_5foperator_5fis_5fexist_8',['opendal_operator_is_exist',['../opendal_8h.html#a391725f337d0a0897c95227501f3b188',1,'opendal.h']]],
-  ['opendal_5foperator_5fnew_9',['opendal_operator_new',['../opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c',1,'opendal.h']]],
+  ['opendal_5foperator_5fnew_9',['opendal_operator_new',['../opendal_8h.html#a2af3e11594601424556c8465e2654a45',1,'opendal.h']]],
   ['opendal_5foperator_5foptions_5ffree_10',['opendal_operator_options_free',['../opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97',1,'opendal.h']]],
   ['opendal_5foperator_5foptions_5fnew_11',['opendal_operator_options_new',['../opendal_8h.html#a5fc487d22612b761b882da5605891a57',1,'opendal.h']]],
   ['opendal_5foperator_5foptions_5fset_12',['opendal_operator_options_set',['../opendal_8h.html#af408af922875eb26c25cef4ddfdede02',1,'opendal.h']]],

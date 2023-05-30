@@ -43,7 +43,8 @@ use crate::types::opendal_operator_ptr;
 /// each service, especially for the **Configuration Part**.
 ///
 /// @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
-/// @param options the options for this operators
+/// @param options the pointer to the options for this operators, it could be NULL, which means no
+/// option is set
 /// @see opendal_operator_options
 /// @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
 /// succeeds. A null opendal_operator_ptr if any error happens.
@@ -75,9 +76,9 @@ use crate::types::opendal_operator_ptr;
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,
-    options: opendal_operator_options,
+    options: *const opendal_operator_options,
 ) -> opendal_operator_ptr {
-    if scheme.is_null() || options.is_null() {
+    if scheme.is_null() {
         return opendal_operator_ptr::null();
     }
 
@@ -90,10 +91,11 @@ pub unsafe extern "C" fn opendal_operator_new(
     };
 
     let mut map = HashMap::default();
-    for (k, v) in options.as_ref() {
-        map.insert(k.to_string(), v.to_string());
+    if !options.is_null() {
+        for (k, v) in (*options).as_ref() {
+            map.insert(k.to_string(), v.to_string());
+        }
     }
-
     let op = match scheme {
         od::Scheme::Memory => generate_operator!(od::services::Memory, map),
         _ => {

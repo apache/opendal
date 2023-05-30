@@ -213,7 +213,8 @@ extern "C" {
  * each service, especially for the **Configuration Part**.
  *
  * @param scheme the service scheme you want to specify, e.g. "fs", "s3", "supabase"
- * @param options the options for this operators
+ * @param options the pointer to the options for this operators, it could be NULL, which means no
+ * option is set
  * @see opendal_operator_options
  * @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
  * succeeds. A null opendal_operator_ptr if any error happens.
@@ -244,7 +245,7 @@ extern "C" {
  * * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
  */
 struct opendal_operator_ptr opendal_operator_new(const char *scheme,
-                                                 struct opendal_operator_options options);
+                                                 const struct opendal_operator_options *options);
 
 /**
  * Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK

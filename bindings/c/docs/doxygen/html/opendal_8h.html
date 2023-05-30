@@ -155,8 +155,8 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:adbd909253a85b096de0da3a3e9b2530c"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c">opendal_operator_new</a> (const char *scheme, struct <a class="el" href="structopendal__operator__options.html">opendal_operator_options</a> options)</td></tr>
-<tr class="separator:adbd909253a85b096de0da3a3e9b2530c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2af3e11594601424556c8465e2654a45"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#a2af3e11594601424556c8465e2654a45">opendal_operator_new</a> (const char *scheme, const struct <a class="el" href="structopendal__operator__options.html">opendal_operator_options</a> *options)</td></tr>
+<tr class="separator:a2af3e11594601424556c8465e2654a45"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a44f96c4a5c9092b47fc2c43ee00526ca"><td class="memItemLeft" align="right" valign="top">enum <a class="el" href="opendal_8h.html#a6715be152766e5b8f840ce10cf9442c2">opendal_code</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#a44f96c4a5c9092b47fc2c43ee00526ca">opendal_operator_blocking_write</a> (struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> ptr, const char *path, struct <a class="el" href="structopendal__bytes.html">opendal_bytes</a> bytes)</td></tr>
 <tr class="separator:a44f96c4a5c9092b47fc2c43ee00526ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad1d0f0b4ee604bbf7d226cd5db81471d"><td class="memItemLeft" align="right" valign="top">struct <a class="el" href="structopendal__result__read.html">opendal_result_read</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="opendal_8h.html#ad1d0f0b4ee604bbf7d226cd5db81471d">opendal_operator_blocking_read</a> (struct <a class="el" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> ptr, const char *path)</td></tr>
@@ -334,7 +334,7 @@ Notes</h1>
 </div><div class="memdoc">
 
 <p>The <a class="el" href="structopendal__operator__ptr.html" title="The opendal_operator_ptr is used to access almost all OpenDAL APIs. It represents a operator that pro...">opendal_operator_ptr</a> is used to access almost all OpenDAL APIs. It represents a operator that provides the unified interfaces provided by OpenDAL. </p>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c">opendal_operator_new</a> This function construct the operator </dd>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="opendal_8h.html#a2af3e11594601424556c8465e2654a45">opendal_operator_new</a> This function construct the operator </dd>
 <dd>
 <a class="el" href="opendal_8h.html#a51db6f1e3b4930990ec30f81e7e96ad1" title="Free the heap-allocated operator pointed by opendal_operator_ptr.">opendal_operator_free</a> This function frees the heap memory of the operator</dd></dl>
 <dl class="section note"><dt>Note</dt><dd>The <a class="el" href="structopendal__operator__ptr.html" title="The opendal_operator_ptr is used to access almost all OpenDAL APIs. It represents a operator that pro...">opendal_operator_ptr</a> actually owns a pointer to a opendal::BlockingOperator, which is inside the Rust core code. </dd></dl>
@@ -759,8 +759,8 @@ Panic</h1>
 
 </div>
 </div>
-<a id="adbd909253a85b096de0da3a3e9b2530c" name="adbd909253a85b096de0da3a3e9b2530c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adbd909253a85b096de0da3a3e9b2530c">&#9670;&#160;</a></span>opendal_operator_new()</h2>
+<a id="a2af3e11594601424556c8465e2654a45" name="a2af3e11594601424556c8465e2654a45"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2af3e11594601424556c8465e2654a45">&#9670;&#160;</a></span>opendal_operator_new()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -774,7 +774,7 @@ Panic</h1>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">struct <a class="el" href="structopendal__operator__options.html">opendal_operator_options</a>&#160;</td>
+          <td class="paramtype">const struct <a class="el" href="structopendal__operator__options.html">opendal_operator_options</a> *&#160;</td>
           <td class="paramname"><em>options</em>&#160;</td>
         </tr>
         <tr>
@@ -788,7 +788,7 @@ Panic</h1>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">scheme</td><td>the service scheme you want to specify, e.g. "fs", "s3", "supabase" </td></tr>
-    <tr><td class="paramname">options</td><td>the options for this operators </td></tr>
+    <tr><td class="paramname">options</td><td>the pointer to the options for this operators, it could be NULL, which means no option is set </td></tr>
   </table>
   </dd>
 </dl>
@@ -802,14 +802,14 @@ Example</h1>
 <div class="line"><a class="code hl_function" href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02">opendal_operator_options_set</a>(&amp;options, <span class="stringliteral">&quot;root&quot;</span>, <span class="stringliteral">&quot;/myroot&quot;</span>);</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// Construct the operator based on the options and scheme</span></div>
-<div class="line"><a class="code hl_struct" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> ptr = <a class="code hl_function" href="opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c">opendal_operator_new</a>(<span class="stringliteral">&quot;memory&quot;</span>, options);</div>
+<div class="line"><a class="code hl_struct" href="structopendal__operator__ptr.html">opendal_operator_ptr</a> ptr = <a class="code hl_function" href="opendal_8h.html#a2af3e11594601424556c8465e2654a45">opendal_operator_new</a>(<span class="stringliteral">&quot;memory&quot;</span>, options);</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// you could free the options right away since the options is not used afterwards</span></div>
 <div class="line"><a class="code hl_function" href="opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97">opendal_operator_options_free</a>(&amp;options);</div>
 <div class="line"> </div>
 <div class="line"><span class="comment">// ... your operations</span></div>
+<div class="ttc" id="aopendal_8h_html_a2af3e11594601424556c8465e2654a45"><div class="ttname"><a href="opendal_8h.html#a2af3e11594601424556c8465e2654a45">opendal_operator_new</a></div><div class="ttdeci">struct opendal_operator_ptr opendal_operator_new(const char *scheme, const struct opendal_operator_options *options)</div></div>
 <div class="ttc" id="aopendal_8h_html_a5fc487d22612b761b882da5605891a57"><div class="ttname"><a href="opendal_8h.html#a5fc487d22612b761b882da5605891a57">opendal_operator_options_new</a></div><div class="ttdeci">struct opendal_operator_options opendal_operator_options_new(void)</div></div>
-<div class="ttc" id="aopendal_8h_html_adbd909253a85b096de0da3a3e9b2530c"><div class="ttname"><a href="opendal_8h.html#adbd909253a85b096de0da3a3e9b2530c">opendal_operator_new</a></div><div class="ttdeci">struct opendal_operator_ptr opendal_operator_new(const char *scheme, struct opendal_operator_options options)</div></div>
 <div class="ttc" id="aopendal_8h_html_ae87a9921870d96d1fd23ccf1f7b51c97"><div class="ttname"><a href="opendal_8h.html#ae87a9921870d96d1fd23ccf1f7b51c97">opendal_operator_options_free</a></div><div class="ttdeci">void opendal_operator_options_free(const struct opendal_operator_options *self)</div></div>
 <div class="ttc" id="aopendal_8h_html_af408af922875eb26c25cef4ddfdede02"><div class="ttname"><a href="opendal_8h.html#af408af922875eb26c25cef4ddfdede02">opendal_operator_options_set</a></div><div class="ttdeci">void opendal_operator_options_set(struct opendal_operator_options *self, const char *key, const char *value)</div></div>
 <div class="ttc" id="astructopendal__operator__options_html"><div class="ttname"><a href="structopendal__operator__options.html">opendal_operator_options</a></div><div class="ttdef"><b>Definition:</b> opendal.h:147</div></div>

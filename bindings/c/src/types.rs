@@ -240,11 +240,6 @@ impl opendal_operator_options {
         unsafe { &*(self.inner) }
     }
 
-    /// Returns whether the underlying HashMap points to NULL
-    pub(crate) fn is_null(&self) -> bool {
-        self.inner.is_null()
-    }
-
     /// Free the allocated memory used by [`opendal_operator_options`]
     #[no_mangle]
     pub extern "C" fn opendal_operator_options_free(&self) {

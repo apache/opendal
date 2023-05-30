@@ -58,7 +58,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Check format
         run: yarn run prettier --check .
@@ -92,7 +92,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
         run: |
           docker run \
@@ -130,7 +130,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
         run: yarn build
       - uses: actions/upload-artifact@v3
@@ -182,7 +182,7 @@ jobs:
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
@@ -213,13 +213,13 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node }}
+          node-version: "18"
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Download all artifacts
         uses: actions/download-artifact@v3

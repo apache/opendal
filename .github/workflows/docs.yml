@@ -88,9 +88,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: yarn
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
+
+      - name: Corepack
+        working-directory: bindings/nodejs
+        run: corepack enable
       - name: Install dependencies
         working-directory: bindings/nodejs
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Build bindings/nodejs Docs
         working-directory: bindings/nodejs
@@ -142,20 +151,13 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: '18'
+          cache: yarn
+          cache-dependency-path: "website/yarn.lock"
 
-      - run: corepack enable
-        working-directory: bindings/nodejs
-
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v3
-        id: yarn-cache
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
 
       - name: Download rust docs
         uses: actions/download-artifact@v3
@@ -183,7 +185,7 @@ jobs:
 
       - name: Install Dependencies
         working-directory: website
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Build
         working-directory: website

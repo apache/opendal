@@ -1,0 +1,14 @@
+releases-note/feat:
+    - '^feat'
+releases-note/refactor:
+    - '^refactor'
+releases-note/fix:
+    - '^fix'
+releases-note/docs:
+    - '^doc'
+releases-note/ci:
+    - '^ci'
+releases-note/build:
+    - '^build'
+releases-note/chore:
+    - '^chore'

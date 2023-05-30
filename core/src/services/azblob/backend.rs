@@ -150,28 +150,61 @@ impl AzblobBuilder {
         self
     }
 
-    /// Set server_side_encryption_customer_key of this backend.
-    pub fn encryption_key(&mut self, encryption_key: &str) -> &mut Self {
-        if !encryption_key.is_empty() {
-            self.encryption_key = Some(encryption_key.to_string());
+    /// Set encryption_key of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: Base64-encoded key that matches algorithm specified in `encryption_algorithm`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_key(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_key = Some(v.to_string());
         }
 
         self
     }
 
-    /// Set server_side_encryption_customer_key_sha256 of this backend.
-    pub fn encryption_key_sha256(&mut self, encryption_key_sha256: &str) -> &mut Self {
-        if !encryption_key_sha256.is_empty() {
-            self.encryption_key_sha256 = Some(encryption_key_sha256.to_string());
+    /// Set encryption_key_sha256 of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: Base64-encoded SHA256 digest of the key specified in encryption_key.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_key_sha256(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_key_sha256 = Some(v.to_string());
         }
 
         self
     }
 
-    /// Set server_side_encryption_customer_algorithm of this backend.
-    pub fn encryption_algorithm(&mut self, encryption_algorithm: &str) -> &mut Self {
-        if !encryption_algorithm.is_empty() {
-            self.encryption_algorithm = Some(encryption_algorithm.to_string());
+    /// Set encryption_algorithm of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: server-side encryption algorithm. (Available values: `AES256`)
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_algorithm(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_algorithm = Some(v.to_string());
         }
 
         self
@@ -181,6 +214,15 @@ impl AzblobBuilder {
     ///
     /// As known as: CPK
     ///
+    /// # Args
+    ///
+    /// `key`: Base64-encoded SHA256 digest of the key specified in encryption_key.
+    ///
+    /// # Note
+    ///
+    /// Function that helps the user to set the server-side customer-provided encryption key, the key's SHA256, and the algorithm.
+    /// See [Server-side encryption with customer-provided keys (CPK)](https://learn.microsoft.com/en-us/azure/storage/blobs/encryption-customer-provided-keys)
+    /// for more info.
     pub fn server_side_encryption_with_customer_key(&mut self, key: &[u8]) -> &mut Self {
         // Only AES256 is supported for now
         self.encryption_algorithm = Some("AES256".to_string());

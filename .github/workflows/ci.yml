@@ -43,8 +43,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          cache-key: "-check"
 
       - name: Check license headers
         uses: korandoru/hawkeye@v2.0.0
@@ -59,8 +57,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          cache-key: "-check"
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -83,8 +79,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          cache-key: "-check"
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -149,8 +143,7 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          cache-key: "-build-all-features"
+
       - name: Build
         run: cargo build --all-features
 

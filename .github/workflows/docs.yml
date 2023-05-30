@@ -99,7 +99,7 @@ jobs:
         run: corepack enable
       - name: Install dependencies
         working-directory: bindings/nodejs
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Build bindings/nodejs Docs
         working-directory: bindings/nodejs
@@ -185,7 +185,7 @@ jobs:
 
       - name: Install Dependencies
         working-directory: website
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
 
       - name: Build
         working-directory: website

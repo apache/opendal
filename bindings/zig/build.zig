@@ -56,6 +56,7 @@ pub fn build(b: *std.Build) void {
     // Creates a step for running unit tests.
     const run_unit_tests = b.addRunArtifact(unit_tests);
     const test_step = b.step("test", "Run OpenDAL Zig bindings tests");
+    test_step.dependOn(&libopendal_c.step);
     test_step.dependOn(&run_unit_tests.step);
 }
 

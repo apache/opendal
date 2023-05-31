@@ -1,4 +1,4 @@
-# Capabilities
+## Capabilities
 
 This service can be used to:
 
@@ -15,7 +15,7 @@ This service can be used to:
 - [x] presign
 - [ ] blocking
 
-# Configuration
+## Configuration
 
 - `root`: Set the work dir for backend.
 - `container`: Set the container name for backend.
@@ -25,18 +25,18 @@ This service can be used to:
 
 Refer to public API docs for more information.
 
-# Examples
+## Examples
 
 This example works on [Azurite](https://github.com/Azure/Azurite) for local developments.
 
-## Start local blob service
+### Start local blob service
 
 ```shell
 docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite
 az storage container create --name test --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
 ```
 
-## Init OpenDAL Operator
+### Init OpenDAL Operator
 
 ### Via Builder
 

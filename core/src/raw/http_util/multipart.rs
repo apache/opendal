@@ -22,6 +22,7 @@ use bytes::BytesMut;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::uri::PathAndQuery;
 use http::HeaderMap;
 use http::HeaderName;
 use http::HeaderValue;
@@ -51,7 +52,7 @@ impl<T: Part> Multipart<T> {
     /// Create a new multipart with random boundary.
     pub fn new() -> Self {
         Multipart {
-            boundary: uuid::Uuid::new_v4().to_string(),
+            boundary: format!("opendal-{}", uuid::Uuid::new_v4()),
             parts: Vec::default(),
         }
     }
@@ -236,9 +237,14 @@ impl MixedPart {
         Self {
             part_headers,
             method: parts.method,
-            // TODO: Maybe we should support query too?;
-            uri: Uri::from_str(parts.uri.path())
-                .expect("the uri used to build a mixed part must be valid"),
+            uri: Uri::from_str(
+                parts
+                    .uri
+                    .path_and_query()
+                    .unwrap_or(&PathAndQuery::from_static("/"))
+                    .as_str(),
+            )
+            .expect("the uri used to build a mixed part must be valid"),
             version: parts.version,
             headers: parts.headers,
             content,
@@ -284,7 +290,25 @@ impl Part for MixedPart {
 
         // Write parts headers.
         for (k, v) in self.part_headers.iter() {
-            bs.extend_from_slice(k.as_str().as_bytes());
+            // Trick!
+            //
+            // Azblob could not recognize header names like `content-type`
+            // and requires to use `Content-Type`. So we hardcode the part
+            // headers name here.
+            match k.as_str() {
+                "content-type" => {
+                    bs.extend_from_slice("Content-Type".as_bytes());
+                }
+                "content-id" => {
+                    bs.extend_from_slice("Content-ID".as_bytes());
+                }
+                "content-transfer-encoding" => {
+                    bs.extend_from_slice("Content-Transfer-Encoding".as_bytes());
+                }
+                _ => {
+                    bs.extend_from_slice(k.as_str().as_bytes());
+                }
+            }
             bs.extend_from_slice(b": ");
             bs.extend_from_slice(v.as_bytes());
             bs.extend_from_slice(b"\r\n");

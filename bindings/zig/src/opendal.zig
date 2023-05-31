@@ -84,10 +84,10 @@ test "Opendal BDD test" {
     var r: opendal.opendal_result_read = opendal.opendal_operator_blocking_read(testkit.p, testkit.path);
     defer opendal.opendal_bytes_free(r.data);
     try testing.expect(r.code == opendal.OPENDAL_OK);
-    try testing.expectEqual(std.mem.len(r.data.*.data), std.mem.len(testkit.content));
+    try testing.expectEqual(std.mem.len(testkit.content), r.data.*.len);
 
     var count: usize = 0;
-    while (count < std.mem.len(r.data.*.data)) : (count += 1) {
+    while (count < r.data.*.len) : (count += 1) {
         try testing.expectEqual(testkit.content[count], r.data.*.data[count]);
     }
 }

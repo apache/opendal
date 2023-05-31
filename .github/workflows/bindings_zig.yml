@@ -60,6 +60,10 @@ jobs:
       - name: Check diff
         run: git diff --exit-code
 
-      - name: Build and Run BDD tests
+      - name: Check
+        working-directory: bindings/zig
+        run: zig fmt --check .
+
+      - name: Run tests
         working-directory: bindings/zig
         run: zig build test -fsummary

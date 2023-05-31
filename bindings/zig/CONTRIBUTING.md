@@ -21,14 +21,17 @@ The fastest way is:
 
 ### Bring your own toolbox
 
-To build OpenDAL Zig binding, you need:
+To build OpenDAL Zig binding locally, you need:
 
-- [Zig toolchain](https://ziglang.org/download/) the master version (or >0.11 if avaiable)
-- [OpenDAL C binding](/bindings/c/)
+- [Zig](https://ziglang.org/download) 0.11.0 or higher
+
+> **Note**:
+>
+> 0.11.0 is not released yet. You can use master instead before the official 0.11.0 released.
 
 ## Build
 
-To build the library and header file:
+First, build the C bindings:
 
 ```shell
 zig build libopendal_c
@@ -38,12 +41,6 @@ zig build libopendal_c
 >
 > - `zig build` adds the header file `opendal.h` under `../c/include`
 > - The library is under `../../target/debug` or `../../target/release` after building.
-
-To clean the build results.
-
-```shell
-zig build uninstall
-```
 
 ## Test
 

@@ -1,14 +1,19 @@
 # OpenDAL Zig Binding (WIP)
 
-# Build Zig bindings
+# Build
 
-To compile OpenDAL from source code, you'll need:
-- [Zig 0.11.0 or higher](https://ziglang.org/download), totally portable.
+To compile OpenDAL from source code, you need:
+
+- [Zig](https://ziglang.org/download) 0.11.0 or higher
+
+> **Note**:
+>
+> 0.11.0 is not released yet. You can use master instead before the official 0.11.0 released.
 
 ```bash
-# build opendal_c library (call make -C ../c)
-zig build opendal_c
-# Build and run test
+# build libopendal_c (underneath call make -C ../c)
+zig build libopendal_c
+# build and run unit tests
 zig build test -fsummary
 ```
 

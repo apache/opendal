@@ -39,12 +39,13 @@ pub fn build(b: *std.Build) void {
     // but does not run it.
     const unit_tests = b.addTest(.{
         .root_source_file = .{
-            .path = "src/opendal.zig",
+            .path = "test/bdd.zig",
         },
         .target = target,
         .optimize = optimize,
     });
     unit_tests.addIncludePath("../c/include");
+    unit_tests.addModule("opendal", module(b));
     if (optimize == .Debug) {
         unit_tests.addLibraryPath("../../target/debug");
     } else {
@@ -68,5 +69,13 @@ fn buildLibOpenDAL(b: *std.Build) *std.Build.Step.Run {
         "-C",
         c_bindings_dir,
         "build",
+    });
+}
+
+pub fn module(b: *std.Build) *std.Build.Module {
+    return b.createModule(.{
+        .source_file = .{
+            .path = "src/opendal.zig",
+        },
     });
 }

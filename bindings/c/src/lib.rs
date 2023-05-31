@@ -18,7 +18,6 @@
 #![allow(non_camel_case_types)]
 
 mod error;
-mod macros;
 mod result;
 mod types;
 
@@ -27,15 +26,12 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
-use error::opendal_code;
-use result::opendal_result_is_exist;
-use result::opendal_result_read;
-use result::opendal_result_stat;
-use types::opendal_metadata;
-use types::opendal_operator_options;
 
-use crate::types::opendal_bytes;
-use crate::types::opendal_operator_ptr;
+use crate::error::opendal_code;
+use crate::result::{opendal_result_is_exist, opendal_result_read, opendal_result_stat};
+use crate::types::{
+    opendal_bytes, opendal_metadata, opendal_operator_options, opendal_operator_ptr,
+};
 
 /// \brief Construct an operator based on `scheme` and `options`
 ///
@@ -100,13 +96,13 @@ pub unsafe extern "C" fn opendal_operator_new(
             map.insert(k.to_string(), v.to_string());
         }
     }
-    let op = match scheme {
-        od::Scheme::Memory => generate_operator!(od::services::Memory, map),
-        _ => {
+
+    let op = match od::Operator::via_map(scheme, map) {
+        Ok(o) => o.blocking(),
+        Err(_) => {
             return opendal_operator_ptr::null();
         }
-    }
-    .blocking();
+    };
 
     // this prevents the operator memory from being dropped by the Box
     let op = Box::leak(Box::new(op));

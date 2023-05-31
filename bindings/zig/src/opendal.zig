@@ -61,7 +61,7 @@ pub fn codeToError(code: c.opendal_code) OpendalError!c.opendal_code {
         else => c.OPENDAL_ERROR,
     };
 }
-pub fn errorToCode(err: OpendalError) OpendalError!c_int {
+pub fn errorToCode(err: OpendalError) c_int {
     return switch (err) {
         error.Unexpected => c.OPENDAL_UNEXPECTED,
         error.Unsupported => c.OPENDAL_UNSUPPORTED,
@@ -93,16 +93,16 @@ test "Error Tests" {
     try testing.expectError(error.IsSameFile, codeToError(c.OPENDAL_IS_SAME_FILE));
 
     // Zig error to C code
-    try testing.expectEqual(c.OPENDAL_UNEXPECTED, try errorToCode(error.Unexpected));
-    try testing.expectEqual(c.OPENDAL_UNSUPPORTED, try errorToCode(error.Unsupported));
-    try testing.expectEqual(c.OPENDAL_CONFIG_INVALID, try errorToCode(error.ConfigInvalid));
-    try testing.expectEqual(c.OPENDAL_NOT_FOUND, try errorToCode(error.NotFound));
-    try testing.expectEqual(c.OPENDAL_PERMISSION_DENIED, try errorToCode(error.PermissionDenied));
-    try testing.expectEqual(c.OPENDAL_IS_A_DIRECTORY, try errorToCode(error.IsDirectory));
-    try testing.expectEqual(c.OPENDAL_NOT_A_DIRECTORY, try errorToCode(error.IsNotDirectory));
-    try testing.expectEqual(c.OPENDAL_ALREADY_EXISTS, try errorToCode(error.AlreadyExists));
-    try testing.expectEqual(c.OPENDAL_RATE_LIMITED, try errorToCode(error.RateLimited));
-    try testing.expectEqual(c.OPENDAL_IS_SAME_FILE, try errorToCode(error.IsSameFile));
+    try testing.expectEqual(c.OPENDAL_UNEXPECTED, errorToCode(error.Unexpected));
+    try testing.expectEqual(c.OPENDAL_UNSUPPORTED, errorToCode(error.Unsupported));
+    try testing.expectEqual(c.OPENDAL_CONFIG_INVALID, errorToCode(error.ConfigInvalid));
+    try testing.expectEqual(c.OPENDAL_NOT_FOUND, errorToCode(error.NotFound));
+    try testing.expectEqual(c.OPENDAL_PERMISSION_DENIED, errorToCode(error.PermissionDenied));
+    try testing.expectEqual(c.OPENDAL_IS_A_DIRECTORY, errorToCode(error.IsDirectory));
+    try testing.expectEqual(c.OPENDAL_NOT_A_DIRECTORY, errorToCode(error.IsNotDirectory));
+    try testing.expectEqual(c.OPENDAL_ALREADY_EXISTS, errorToCode(error.AlreadyExists));
+    try testing.expectEqual(c.OPENDAL_RATE_LIMITED, errorToCode(error.RateLimited));
+    try testing.expectEqual(c.OPENDAL_IS_SAME_FILE, errorToCode(error.IsSameFile));
 }
 
 test "Semantic Analyzer" {

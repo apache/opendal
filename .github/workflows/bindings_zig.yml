@@ -55,7 +55,7 @@ jobs:
 
       - name: Build Zig binding
         working-directory: bindings/zig
-        run: zig build opendal_c
+        run: zig build libopendal_c
 
       - name: Check diff
         run: git diff --exit-code

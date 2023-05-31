@@ -36,3 +36,8 @@ excludes = [
 
 [properties]
 inceptionYear = 2023
+
+# allow SLASH_STAR_STYLE licence header for c code and headers
+[mapping.SLASHSTAR_STYLE]
+extensions = ["c", "h"]
+

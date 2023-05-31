@@ -512,9 +512,9 @@ Upload to Amazon S3
         let body = multipart.build();
 
         let expected = r#"--===============7330845974216740156==
-content-type: application/http
-content-transfer-encoding: binary
-content-id: <b29c5de2-0db4-490b-b421-6a51b598bd22+1>
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: <b29c5de2-0db4-490b-b421-6a51b598bd22+1>
 
 PATCH /storage/v1/b/example-bucket/o/obj1 HTTP/1.1
 content-type: application/json
@@ -523,9 +523,9 @@ content-length: 31
 
 {"metadata": {"type": "tabby"}}
 --===============7330845974216740156==
-content-type: application/http
-content-transfer-encoding: binary
-content-id: <b29c5de2-0db4-490b-b421-6a51b598bd22+2>
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: <b29c5de2-0db4-490b-b421-6a51b598bd22+2>
 
 PATCH /storage/v1/b/example-bucket/o/obj2 HTTP/1.1
 content-type: application/json
@@ -534,9 +534,9 @@ content-length: 32
 
 {"metadata": {"type": "tuxedo"}}
 --===============7330845974216740156==
-content-type: application/http
-content-transfer-encoding: binary
-content-id: <b29c5de2-0db4-490b-b421-6a51b598bd22+3>
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: <b29c5de2-0db4-490b-b421-6a51b598bd22+3>
 
 PATCH /storage/v1/b/example-bucket/o/obj3 HTTP/1.1
 content-type: application/json
@@ -614,9 +614,9 @@ content-length: 32
         let body = multipart.build();
 
         let expected = r#"--batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
-content-type: application/http
-content-transfer-encoding: binary
-content-id: 0
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: 0
 
 DELETE /container0/blob0 HTTP/1.1
 x-ms-date: Thu, 14 Jun 2018 16:46:54 GMT
@@ -624,9 +624,9 @@ authorization: SharedKey account:G4jjBXA7LI/RnWKIOQ8i9xH4p76pAQ+4Fs4R1VxasaE=
 content-length: 0
 
 --batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
-content-type: application/http
-content-transfer-encoding: binary
-content-id: 1
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: 1
 
 DELETE /container1/blob1 HTTP/1.1
 x-ms-date: Thu, 14 Jun 2018 16:46:54 GMT
@@ -634,9 +634,9 @@ authorization: SharedKey account:IvCoYDQ+0VcaA/hKFjUmQmIxXv2RT3XwwTsOTHL39HI=
 content-length: 0
 
 --batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
-content-type: application/http
-content-transfer-encoding: binary
-content-id: 2
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: 2
 
 DELETE /container2/blob2 HTTP/1.1
 x-ms-date: Thu, 14 Jun 2018 16:46:54 GMT

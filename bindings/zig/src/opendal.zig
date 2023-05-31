@@ -40,8 +40,8 @@ test "Opendal BDD test" {
             opendal.opendal_operator_options_set(&options, "root", "/myroot");
 
             // Given A new OpenDAL Blocking Operator
-            self.p = opendal.opendal_operator_new(self.scheme, options);
-            std.debug.assert(self.p != null);
+            self.p = opendal.opendal_operator_new(self.scheme, &options);
+            std.debug.assert(self.p.ptr != null);
 
             return self;
         }

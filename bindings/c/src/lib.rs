@@ -59,7 +59,7 @@ use crate::types::{
 /// opendal_operator_options_set(&options, "root", "/myroot");
 ///
 /// // Construct the operator based on the options and scheme
-/// opendal_operator_ptr ptr = opendal_operator_new("memory", options);
+/// opendal_operator_ptr ptr = opendal_operator_new("memory", &options);
 ///
 /// // you could free the options right away since the options is not used afterwards
 /// opendal_operator_options_free(&options);

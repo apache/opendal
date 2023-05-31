@@ -1,74 +1,110 @@
-pub const opendal = @cImport(@cInclude("opendal.h"));
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+pub const c = @cImport(@cInclude("opendal.h"));
+
+// Zig code get values C code
+pub const Code = enum(c.opendal_code) {
+    OK = c.OPENDAL_OK,
+    ERROR = c.OPENDAL_ERROR,
+    UNEXPECTED = c.OPENDAL_UNEXPECTED,
+    UNSUPPORTED = c.OPENDAL_UNSUPPORTED,
+    CONFIG_INVALID = c.OPENDAL_CONFIG_INVALID,
+    NOT_FOUND = c.OPENDAL_NOT_FOUND,
+    PERMISSION_DENIED = c.OPENDAL_PERMISSION_DENIED,
+    IS_A_DIRECTORY = c.OPENDAL_IS_A_DIRECTORY,
+    NOT_A_DIRECTORY = c.OPENDAL_NOT_A_DIRECTORY,
+    ALREADY_EXISTS = c.OPENDAL_ALREADY_EXISTS,
+    RATE_LIMITED = c.OPENDAL_RATE_LIMITED,
+    IS_SAME_FILE = c.OPENDAL_IS_SAME_FILE,
+};
+
+pub const OpendalError = error{
+    Unexpected,
+    Unsupported,
+    ConfigInvalid,
+    NotFound,
+    PermissionDenied,
+    IsDirectory,
+    IsNotDirectory,
+    AlreadyExists,
+    RateLimited,
+    IsSameFile,
+};
+
+pub fn codeToError(code: c.opendal_code) OpendalError!c.opendal_code {
+    return switch (code) {
+        c.OPENDAL_UNEXPECTED => error.Unexpected,
+        c.OPENDAL_UNSUPPORTED => error.Unsupported,
+        c.OPENDAL_NOT_FOUND => error.NotFound,
+        c.OPENDAL_CONFIG_INVALID => error.ConfigInvalid,
+        c.OPENDAL_PERMISSION_DENIED => error.PermissionDenied,
+        c.OPENDAL_IS_A_DIRECTORY => error.IsDirectory,
+        c.OPENDAL_NOT_A_DIRECTORY => error.IsNotDirectory,
+        c.OPENDAL_ALREADY_EXISTS => error.AlreadyExists,
+        c.OPENDAL_RATE_LIMITED => error.RateLimited,
+        c.OPENDAL_IS_SAME_FILE => error.IsSameFile,
+        else => c.OPENDAL_ERROR,
+    };
+}
+pub fn errorToCode(err: OpendalError) c_int {
+    return switch (err) {
+        error.Unexpected => c.OPENDAL_UNEXPECTED,
+        error.Unsupported => c.OPENDAL_UNSUPPORTED,
+        error.ConfigInvalid => c.OPENDAL_CONFIG_INVALID,
+        error.NotFound => c.OPENDAL_NOT_FOUND,
+        error.PermissionDenied => c.OPENDAL_PERMISSION_DENIED,
+        error.IsDirectory => c.OPENDAL_IS_A_DIRECTORY,
+        error.IsNotDirectory => c.OPENDAL_NOT_A_DIRECTORY,
+        error.AlreadyExists => c.OPENDAL_ALREADY_EXISTS,
+        error.RateLimited => c.OPENDAL_RATE_LIMITED,
+        error.IsSameFile => c.OPENDAL_IS_SAME_FILE,
+    };
+}
 
 const std = @import("std");
 const testing = std.testing;
 
-test "Opendal BDD test" {
-    const c_str = [*:0]const u8; // const char*
-    // const zig_str = []const u8;
+test "Error Tests" {
+    // C code to Zig error
+    try testing.expectError(error.Unexpected, codeToError(c.OPENDAL_UNEXPECTED));
+    try testing.expectError(error.Unsupported, codeToError(c.OPENDAL_UNSUPPORTED));
+    try testing.expectError(error.ConfigInvalid, codeToError(c.OPENDAL_CONFIG_INVALID));
+    try testing.expectError(error.NotFound, codeToError(c.OPENDAL_NOT_FOUND));
+    try testing.expectError(error.PermissionDenied, codeToError(c.OPENDAL_PERMISSION_DENIED));
+    try testing.expectError(error.IsDirectory, codeToError(c.OPENDAL_IS_A_DIRECTORY));
+    try testing.expectError(error.IsNotDirectory, codeToError(c.OPENDAL_NOT_A_DIRECTORY));
+    try testing.expectError(error.AlreadyExists, codeToError(c.OPENDAL_ALREADY_EXISTS));
+    try testing.expectError(error.RateLimited, codeToError(c.OPENDAL_RATE_LIMITED));
+    try testing.expectError(error.IsSameFile, codeToError(c.OPENDAL_IS_SAME_FILE));
 
-    const OpendalBddTest = struct {
-        p: opendal.opendal_operator_ptr,
-        scheme: c_str,
-        path: c_str,
-        content: c_str,
+    // Zig error to C code
+    try testing.expectEqual(c.OPENDAL_UNEXPECTED, errorToCode(error.Unexpected));
+    try testing.expectEqual(c.OPENDAL_UNSUPPORTED, errorToCode(error.Unsupported));
+    try testing.expectEqual(c.OPENDAL_CONFIG_INVALID, errorToCode(error.ConfigInvalid));
+    try testing.expectEqual(c.OPENDAL_NOT_FOUND, errorToCode(error.NotFound));
+    try testing.expectEqual(c.OPENDAL_PERMISSION_DENIED, errorToCode(error.PermissionDenied));
+    try testing.expectEqual(c.OPENDAL_IS_A_DIRECTORY, errorToCode(error.IsDirectory));
+    try testing.expectEqual(c.OPENDAL_NOT_A_DIRECTORY, errorToCode(error.IsNotDirectory));
+    try testing.expectEqual(c.OPENDAL_ALREADY_EXISTS, errorToCode(error.AlreadyExists));
+    try testing.expectEqual(c.OPENDAL_RATE_LIMITED, errorToCode(error.RateLimited));
+    try testing.expectEqual(c.OPENDAL_IS_SAME_FILE, errorToCode(error.IsSameFile));
+}
 
-        pub fn init() Self {
-            var self: Self = undefined;
-            self.scheme = "memory";
-            self.path = "test";
-            self.content = "Hello, World!";
-
-            var options: opendal.opendal_operator_options = opendal.opendal_operator_options_new();
-            opendal.opendal_operator_options_set(&options, "root", "/myroot");
-
-            // Given A new OpenDAL Blocking Operator
-            self.p = opendal.opendal_operator_new(self.scheme, options);
-            defer opendal.opendal_operator_options_free(&options);
-            // try testing.expect(self.p != null);
-            return self;
-        }
-        pub fn deinit(self: *Self) void {
-            opendal.opendal_operator_free(&self.p);
-        }
-
-        const Self = @This();
-    };
-    var bddTest = OpendalBddTest.init();
-    defer bddTest.deinit();
-
-    // When Blocking write path "test" with content "Hello, World!"
-    const data: opendal.opendal_bytes = .{
-        .data = bddTest.content,
-        // c_str hasn't len field (.* is ptr)
-        .len = std.mem.len(bddTest.content),
-    };
-    const code = opendal.opendal_operator_blocking_write(bddTest.p, bddTest.path, data);
-    try testing.expectEqual(code, opendal.OPENDAL_OK);
-
-    // The blocking file "test" should exist
-    var e: opendal.opendal_result_is_exist = opendal.opendal_operator_is_exist(bddTest.p, bddTest.path);
-    try testing.expectEqual(e.code, opendal.OPENDAL_OK);
-    try testing.expect(e.is_exist);
-
-    // The blocking file "test" entry mode must be file
-    var s: opendal.opendal_result_stat = opendal.opendal_operator_stat(bddTest.p, bddTest.path);
-    try testing.expectEqual(s.code, opendal.OPENDAL_OK);
-    var meta: opendal.opendal_metadata = s.meta;
-    try testing.expect(opendal.opendal_metadata_is_file(&meta));
-
-    // The blocking file "test" content length must be 13
-    try testing.expectEqual(opendal.opendal_metadata_content_length(&meta), 13);
-    defer opendal.opendal_metadata_free(&meta);
-
-    // The blocking file "test" must have content "Hello, World!"
-    var r: opendal.opendal_result_read = opendal.opendal_operator_blocking_read(bddTest.p, bddTest.path);
-    defer opendal.opendal_bytes_free(r.data);
-    try testing.expect(r.code == opendal.OPENDAL_OK);
-    try testing.expectEqual(std.mem.len(r.data.*.data), std.mem.len(bddTest.content));
-
-    var count: usize = 0;
-    while (count < std.mem.len(r.data.*.data)) : (count += 1) {
-        try testing.expectEqual(bddTest.content[count], r.data.*.data[count]);
-    }
+test "Semantic Analyzer" {
+    testing.refAllDecls(@This());
 }

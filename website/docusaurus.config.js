@@ -121,6 +121,10 @@ const config = {
                 label: 'Java Binding',
                 to: 'pathname:///docs/java/'
               },
+              {
+                label: 'C Binding',
+                to: 'pathname:///docs/c/'
+              },
             ]
           },
           {

@@ -78,6 +78,7 @@ Reference: [Protecting data using server-side encryption](https://docs.aws.amazo
 ### Basic Setup
 
 ```rust
+/// ```no_run
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -116,6 +117,7 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
 ```
 
 ### S3 with SSE-C

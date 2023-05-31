@@ -21,10 +21,9 @@ const std = @import("std");
 const testing = std.testing;
 
 test "Opendal BDD test" {
-    const c_str = [*:0]const u8; // const char*
-    // const zig_str = []const u8;
+    const c_str = [*:0]const u8; // define a type for 'const char*' in C
 
-    const OpendalBddTest = struct {
+    const OpendalBDDTest = struct {
         p: opendal.opendal_operator_ptr,
         scheme: c_str,
         path: c_str,
@@ -37,39 +36,42 @@ test "Opendal BDD test" {
             self.content = "Hello, World!";
 
             var options: opendal.opendal_operator_options = opendal.opendal_operator_options_new();
+            defer opendal.opendal_operator_options_free(&options);
             opendal.opendal_operator_options_set(&options, "root", "/myroot");
 
             // Given A new OpenDAL Blocking Operator
             self.p = opendal.opendal_operator_new(self.scheme, options);
-            defer opendal.opendal_operator_options_free(&options);
-            // try testing.expect(self.p != null);
+            std.debug.assert(self.p != null);
+
             return self;
         }
+
         pub fn deinit(self: *Self) void {
             opendal.opendal_operator_free(&self.p);
         }
 
         const Self = @This();
     };
-    var bddTest = OpendalBddTest.init();
-    defer bddTest.deinit();
+
+    var testkit = OpendalBDDTest.init();
+    defer testkit.deinit();
 
     // When Blocking write path "test" with content "Hello, World!"
     const data: opendal.opendal_bytes = .{
-        .data = bddTest.content,
-        // c_str hasn't len field (.* is ptr)
-        .len = std.mem.len(bddTest.content),
+        .data = testkit.content,
+        // c_str does not have len field (.* is ptr)
+        .len = std.mem.len(testkit.content),
     };
-    const code = opendal.opendal_operator_blocking_write(bddTest.p, bddTest.path, data);
+    const code = opendal.opendal_operator_blocking_write(testkit.p, testkit.path, data);
     try testing.expectEqual(code, opendal.OPENDAL_OK);
 
     // The blocking file "test" should exist
-    var e: opendal.opendal_result_is_exist = opendal.opendal_operator_is_exist(bddTest.p, bddTest.path);
+    var e: opendal.opendal_result_is_exist = opendal.opendal_operator_is_exist(testkit.p, testkit.path);
     try testing.expectEqual(e.code, opendal.OPENDAL_OK);
     try testing.expect(e.is_exist);
 
     // The blocking file "test" entry mode must be file
-    var s: opendal.opendal_result_stat = opendal.opendal_operator_stat(bddTest.p, bddTest.path);
+    var s: opendal.opendal_result_stat = opendal.opendal_operator_stat(testkit.p, testkit.path);
     try testing.expectEqual(s.code, opendal.OPENDAL_OK);
     var meta: opendal.opendal_metadata = s.meta;
     try testing.expect(opendal.opendal_metadata_is_file(&meta));
@@ -79,13 +81,13 @@ test "Opendal BDD test" {
     defer opendal.opendal_metadata_free(&meta);
 
     // The blocking file "test" must have content "Hello, World!"
-    var r: opendal.opendal_result_read = opendal.opendal_operator_blocking_read(bddTest.p, bddTest.path);
+    var r: opendal.opendal_result_read = opendal.opendal_operator_blocking_read(testkit.p, testkit.path);
     defer opendal.opendal_bytes_free(r.data);
     try testing.expect(r.code == opendal.OPENDAL_OK);
-    try testing.expectEqual(std.mem.len(r.data.*.data), std.mem.len(bddTest.content));
+    try testing.expectEqual(std.mem.len(r.data.*.data), std.mem.len(testkit.content));
 
     var count: usize = 0;
     while (count < std.mem.len(r.data.*.data)) : (count += 1) {
-        try testing.expectEqual(bddTest.content[count], r.data.*.data[count]);
+        try testing.expectEqual(testkit.content[count], r.data.*.data[count]);
     }
 }

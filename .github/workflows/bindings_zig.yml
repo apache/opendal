@@ -27,6 +27,8 @@ on:
     branches:
       - main
     paths:
+      - "core/**"
+      - "bindings/c/**"
       - "bindings/zig/**"
       - ".github/workflows/bindings_zig.yml"
   workflow_dispatch:
@@ -43,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: korandoru/setup-zig@v1
         with:
           version: master # 0.11.0 (nightly/master)
           #version: 0.11.0 # TODO: replace to stable version - wait new zig release
@@ -52,12 +54,12 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Build Zig binding
-        working-directory: "bindings/zig"
+        working-directory: bindings/zig
         run: zig build opendal_c
 
       - name: Check diff
         run: git diff --exit-code
 
       - name: Build and Run BDD tests
-        working-directory: "bindings/zig"
+        working-directory: bindings/zig
         run: zig build test -fsummary

@@ -1,4 +1,5 @@
 # Contributing
+
 - [Contributing](#contributing)
    - [Setup](#setup)
       - [Using a dev container environment](#using-a-dev-container-environment)
@@ -11,6 +12,7 @@
 ## Setup
 
 ### Using a dev container environment
+
 OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
 
 The fastest way is:
@@ -18,28 +20,35 @@ The fastest way is:
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
 
 ### Bring your own toolbox
-To build OpenDAL Zig binding, the following is all you need:
-- **Zig toolchain** is based on **LLVM-toolchain**(clang/++, libcxx, lld).
 
-## Need
-- opendal C binding
+To build OpenDAL Zig binding, you need:
+
+- [Zig toolchain](https://ziglang.org/download/) the master version (or >0.11 if avaiable)
+- [OpenDAL C binding](/bindings/c/)
 
 ## Build
-To build the library and header file.
+
+To build the library and header file:
+
 ```shell
 zig build opendal_c
 ```
 
-- zig build need add header file `opendal.h` is under `../c/include` 
-- The library is under `../../target/debug` or `../../target/release` after building.
+> **Note**:
+>
+> - `zig build` adds the header file `opendal.h` under `../c/include`
+> - The library is under `../../target/debug` or `../../target/release` after building.
 
 To clean the build results.
+
 ```shell
 zig build uninstall
 ```
 
 ## Test
+
 To build and run the tests.
+
 ```shell
 zig build test -fsummary
 ```

@@ -31,7 +31,7 @@ To build OpenDAL Zig binding, you need:
 To build the library and header file:
 
 ```shell
-zig build opendal_c
+zig build libopendal_c
 ```
 
 > **Note**:

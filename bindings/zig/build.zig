@@ -29,6 +29,12 @@ pub fn build(b: *std.Build) void {
         },
         .dependencies = &.{},
     });
+
+    // Creates a step for building the dependent C bindings
+    const libopendal_c = buildLibOpenDAL(b);
+    const build_libopendal_c = b.step("libopendal_c", "Build OpenDAL C bindings");
+    build_libopendal_c.dependOn(&libopendal_c.step);
+
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const unit_tests = b.addTest(.{
@@ -39,27 +45,27 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     unit_tests.addIncludePath("../c/include");
-    if (optimize == .Debug)
-        unit_tests.addLibraryPath("../../target/debug")
-    else
+    if (optimize == .Debug) {
+        unit_tests.addLibraryPath("../../target/debug");
+    } else {
         unit_tests.addLibraryPath("../../target/release");
+    }
     unit_tests.linkSystemLibrary("opendal_c");
     unit_tests.linkLibC();
 
-    const opendal_c = buildOpendalC(b);
-    const make_opendal_c = b.step("opendal_c", "Build opendal_c library");
-    make_opendal_c.dependOn(&opendal_c.step);
+    // Creates a step for running unit tests.
     const run_unit_tests = b.addRunArtifact(unit_tests);
-    const test_step = b.step("test", "Run opendal tests");
+    const test_step = b.step("test", "Run OpenDAL Zig bindings tests");
     test_step.dependOn(&run_unit_tests.step);
 }
-fn buildOpendalC(b: *std.Build) *std.Build.Step.Run {
-    const rootdir = (comptime std.fs.path.dirname(@src().file) orelse null) ++ "/";
-    const opendalCdir = rootdir ++ "../c";
+
+fn buildLibOpenDAL(b: *std.Build) *std.Build.Step.Run {
+    const basedir = comptime std.fs.path.dirname(@src().file) orelse null;
+    const c_bindings_dir = basedir ++ "/../c";
     return b.addSystemCommand(&[_][]const u8{
         "make",
         "-C",
-        opendalCdir,
+        c_bindings_dir,
         "build",
     });
 }

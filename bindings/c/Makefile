@@ -16,10 +16,13 @@
 # under the License.
 
 RPATH=$(PWD)/../../target/debug
+OBJ_DIR=./build
+DOC_DIR=./docs
+
 CXXFLAGS=-I./include -std=c++14
 LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
+
 LIBS=-lopendal_c -lgtest -lpthread
-OBJ_DIR=./build
 
 .PHONY: all
 all: build test
@@ -38,7 +41,14 @@ test:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(OBJ_DIR)/bdd
 
+.PHONY: doc
+doc:
+	mkdir -p $(DOC_DIR)
+	doxygen Doxyfile
+
 .PHONY: clean
 clean:
 	cargo clean
 	rm -rf $(OBJ_DIR)
+	rm -rf $(DOC_DIR)
+

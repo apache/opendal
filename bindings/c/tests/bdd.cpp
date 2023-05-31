@@ -40,8 +40,8 @@ protected:
         opendal_operator_options_set(&options, "root", "/myroot");
 
         // Given A new OpenDAL Blocking Operator
-        this->p = opendal_operator_new(scheme.c_str(), options);
-        EXPECT_TRUE(this->p);
+        this->p = opendal_operator_new(scheme.c_str(), &options);
+        EXPECT_TRUE(this->p.ptr);
 
         opendal_operator_options_free(&options);
     }

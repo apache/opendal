@@ -78,7 +78,6 @@ Reference: [Protecting data using server-side encryption](https://docs.aws.amazo
 ### Basic Setup
 
 ```rust
-/// ```no_run
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -93,8 +92,10 @@ async fn main() -> Result<()> {
     //
     // NOTE: the root must be absolute path.
     builder.root("/path/to/dir");
-    // Set the bucket name, this is required.
+    // Set the bucket name. This is required.
     builder.bucket("test");
+    // Set the region. This is only required for aws s3.
+    builder.region("us-east-1");
     // Set the endpoint.
     //
     // For examples:
@@ -133,6 +134,12 @@ async fn main() -> Result<()> {
     let mut builder = S3::default();
 
     // Setup builders
+    builder.root("/path/to/dir");
+    builder.bucket("test");
+    builder.region("us-east-1");
+    builder.endpoint("https://s3.amazonaws.com");
+    builder.access_key_id("access_key_id");
+    builder.secret_access_key("secret_access_key");
 
     // Enable SSE-C
     builder.server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
@@ -159,7 +166,13 @@ async fn main() -> Result<()> {
     let mut builder = S3::default();
 
     // Setup builders
-
+    builder.root("/path/to/dir");
+    builder.bucket("test");
+    builder.region("us-east-1");
+    builder.endpoint("https://s3.amazonaws.com");
+    builder.access_key_id("access_key_id");
+    builder.secret_access_key("secret_access_key");
+    
     // Enable SSE-KMS with aws managed kms key
     builder.server_side_encryption_with_aws_managed_kms_key();
 
@@ -185,6 +198,12 @@ async fn main() -> Result<()> {
     let mut builder = S3::default();
 
     // Setup builders
+    builder.root("/path/to/dir");
+    builder.bucket("test");
+    builder.region("us-east-1");
+    builder.endpoint("https://s3.amazonaws.com");
+    builder.access_key_id("access_key_id");
+    builder.secret_access_key("secret_access_key");
 
     // Enable SSE-KMS with customer managed kms key
     builder.server_side_encryption_with_customer_managed_kms_key("aws_kms_key_id");
@@ -211,6 +230,12 @@ async fn main() -> Result<()> {
     let mut builder = S3::default();
 
     // Setup builders
+    builder.root("/path/to/dir");
+    builder.bucket("test");
+    builder.region("us-east-1");
+    builder.endpoint("https://s3.amazonaws.com");
+    builder.access_key_id("access_key_id");
+    builder.secret_access_key("secret_access_key");
 
     // Enable SSE-S3
     builder.server_side_encryption_with_s3_key();

@@ -2121,9 +2121,9 @@ dependencies = [
 
 [[package]]
 name = "madsim"
-version = "0.2.21"
+version = "0.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d3f6f28042419b0a63a7db6a8b4f74db021453d567f76cdbfd81494eeec0b22"
+checksum = "7777a8bc4e68878b6e5433ac7b9bc196d9ccdfeef1f7cb3d23193cb997a520c9"
 dependencies = [
  "ahash",
  "async-channel",
@@ -2137,6 +2137,7 @@ dependencies = [
  "libc",
  "madsim-macros",
  "naive-timer",
+ "panic-message",
  "rand 0.8.5",
  "rand_xoshiro",
  "rustversion",
@@ -3013,6 +3014,12 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
+
+[[package]]
+name = "panic-message"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "384e52fd8fbd4cbe3c317e8216260c21a0f9134de108cea8a4dd4e7e152c472d"
 
 [[package]]
 name = "parking"

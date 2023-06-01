@@ -107,6 +107,7 @@ macro_rules! behavior_write_tests {
                 test_delete_with_special_chars,
                 test_delete_not_existing,
                 test_delete_stream,
+                test_remove_one_file,
                 test_writer_write,
                 test_writer_abort,
                 test_writer_futures_copy,
@@ -1033,6 +1034,21 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     op.delete(&path).await?;
+
+    Ok(())
+}
+
+/// Remove one file
+pub async fn test_remove_one_file(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    op.remove(vec![path.clone()]).await?;
+
+    // Stat it again to check.
+    assert!(!op.is_exist(&path).await?);
 
     Ok(())
 }

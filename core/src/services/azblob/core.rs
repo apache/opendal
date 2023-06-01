@@ -37,6 +37,8 @@ use crate::raw::*;
 use crate::*;
 
 mod constants {
+    pub const X_MS_VERSION: &str = "x-ms-version";
+
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
@@ -58,7 +60,6 @@ pub struct AzblobCore {
     pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
-    pub batch_signer: AzureStorageSigner,
 }
 
 impl Debug for AzblobCore {
@@ -99,14 +100,22 @@ impl AzblobCore {
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_credential().await?;
+        // Insert x-ms-version header for normal requests.
+        req.headers_mut().insert(
+            HeaderName::from_static(constants::X_MS_VERSION),
+            // 2022-11-02 is the version supported by Azurite V3 and
+            // used by Azure Portal, We use this version to make
+            // sure most our developer happy.
+            //
+            // In the future, we could allow users to configure this value.
+            HeaderValue::from_static("2022-11-02"),
+        );
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
     async fn batch_sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_credential().await?;
-        self.batch_signer
-            .sign(req, &cred)
-            .map_err(new_request_sign_error)
+        self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
     #[inline]
@@ -537,8 +546,8 @@ impl AzblobCore {
 
         for (idx, path) in paths.iter().enumerate() {
             let mut req = self.azblob_delete_blob_request(path)?;
-
             self.batch_sign(&mut req).await?;
+
             multipart = multipart.part(
                 MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
             );

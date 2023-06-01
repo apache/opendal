@@ -103,6 +103,11 @@ impl TimeoutLayer {
 
     /// Set speed for TimeoutLayer with given value.
     ///
+    /// # Notes
+    ///
+    /// The speed should be the lower bound of the IO speed. Set this value too
+    /// low could result in all write operations failed.
+    ///
     /// # Panics
     ///
     /// This function will panic if speed is 0.

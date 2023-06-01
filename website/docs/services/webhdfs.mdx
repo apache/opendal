@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
 import { Operator } from "opendal";
 
 async function main() {
-  const op = new Operator("fs", {
+  const op = new Operator("webhdfs", {
     endpoint: "http://127.0.0.1:9870",
     root: "/path/to/dir",
     delegation: "delegation_token",
@@ -57,7 +57,7 @@ async function main() {
 ```python
 import opendal
 
-op = opendal.Operator("fs",
+op = opendal.Operator("webhdfs",
     endpoint="http://127.0.0.1:9870",
     root="/path/to/dir",
     delegation="delegation_token",

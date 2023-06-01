@@ -30,46 +30,7 @@ use crate::*;
 
 /// Sled service support.
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] ~~list~~
-/// - [ ] scan
-/// - [ ] ~~presign~~
-/// - [x] blocking
-///
-/// # Configuration
-///
-/// - `datadir`: Set the path to the sled data directory
-///
-/// You can refer to [`SledBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Sled;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let mut builder = Sled::default();
-///     builder.datadir("/tmp/opendal/sled");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SledBuilder {
     /// That path to the sled data directory.

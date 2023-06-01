@@ -76,7 +76,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use opendal::services::Hdfs;
-use opendal::Object;
 use opendal::Operator;
 
 #[tokio::main]

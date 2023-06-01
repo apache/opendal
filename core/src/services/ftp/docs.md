@@ -30,7 +30,6 @@ You can refer to [`FtpBuilder`]'s docs for more information
 ```rust
 use anyhow::Result;
 use opendal::services::Ftp;
-use opendal::Object;
 use opendal::Operator;
 
 #[tokio::main]

@@ -42,7 +42,6 @@ You can refer to [`RocksdbBuilder`]'s docs for more information.
 ```rust
 use anyhow::Result;
 use opendal::services::Rocksdb;
-use opendal::Object;
 use opendal::Operator;
 
 #[tokio::main]

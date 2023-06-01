@@ -37,7 +37,7 @@ use crate::*;
 ///
 /// - For IO operations like `read`, `write`, and `append`, we will set a timeout
 ///   for each single IO operation.
-/// - For other operations like `stat`, `delete`, the timeout is for the whole
+/// - For other operations like `stat`, and `delete`, the timeout is for the whole
 ///   operation.
 ///
 /// Besides, we will also set a slow speed for each IO operation. If the IO

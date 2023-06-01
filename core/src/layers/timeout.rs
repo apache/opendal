@@ -106,7 +106,7 @@ impl TimeoutLayer {
     /// # Notes
     ///
     /// The speed should be the lower bound of the IO speed. Set this value too
-    /// low could result in all write operations failed.
+    /// large could result in all write operations failing.
     ///
     /// # Panics
     ///

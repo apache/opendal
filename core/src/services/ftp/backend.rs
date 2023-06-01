@@ -46,53 +46,7 @@ use crate::*;
 
 /// FTP and FTPS services support.
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `endpoint`: Set the endpoint for connection
-/// - `root`: Set the work directory for backend
-/// - `user`: Set the login user
-/// - `password`: Set the login password
-///
-/// You can refer to [`FtpBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Ftp;
-/// use opendal::Object;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Ftp::default();
-///
-///     builder.endpoint("127.0.0.1");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FtpBuilder {
     endpoint: Option<String>,

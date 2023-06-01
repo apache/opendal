@@ -31,7 +31,6 @@ You can refer to [`RedisBuilder`]'s docs for more information
 ```rust
 use anyhow::Result;
 use opendal::services::Redis;
-use opendal::Object;
 use opendal::Operator;
 
 #[tokio::main]

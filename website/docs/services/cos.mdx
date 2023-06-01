@@ -1,5 +1,5 @@
 ---
-title: Cos
+title: COS
 ---
 
 Huawei Cloud COS services support.
@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     map.insert("endpoint".to_string(), "https://cos.ap-singapore.myqcloud.com".to_string());
     map.insert("secret_id".to_string(), "secret_id".to_string());
     map.insert("secret_key".to_string(), "secret_access_key".to_string());
-    
+
     let op: Operator = Operator::via_map(Scheme::Cos, map)?;
     Ok(())
 }

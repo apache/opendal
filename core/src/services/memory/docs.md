@@ -1,0 +1,38 @@
+## Capabilities
+
+This service can be used to:
+
+- [x] stat
+- [x] read
+- [x] write
+- [x] create_dir
+- [x] delete
+- [ ] copy
+- [ ] rename
+- [ ] list
+- [x] scan
+- [ ] presign
+- [ ] blocking
+
+## Example
+
+### Via Builder
+
+
+```rust
+use std::sync::Arc;
+
+use anyhow::Result;
+use opendal::services::Memory;
+use opendal::Operator;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut builder = Memory::default();
+    builder.root("/tmp");
+
+    let op: Operator = Operator::new(builder)?.finish();
+
+    Ok(())
+}
+```

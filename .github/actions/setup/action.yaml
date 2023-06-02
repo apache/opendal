@@ -39,12 +39,20 @@ runs:
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
 
-    - name: Cache nextest
+    - name: Cache nextest on linux
       id: cache-nextest
       uses: actions/cache@v3
-      if: inputs.need-nextest == 'true'
+      if: inputs.need-nextest == 'true' && runner.os == 'Linux'
       with:
         path: ~/.cargo/bin/cargo-nextest
+        key: r0-${{runner.os}}-nextest-0.9.53
+
+    - name: Cache nextest on windows
+      id: cache-nextest
+      uses: actions/cache@v3
+      if: inputs.need-nextest == 'true' && runner.os == 'Windows'
+      with:
+        path: C:\Users\runneradmin\.cargo\bin\cargo-nextest.exe
         key: r0-${{runner.os}}-nextest-0.9.53
 
     - name: Build nextest if not cached

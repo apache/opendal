@@ -48,12 +48,10 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run services_fs
+        run: cargo test run services_fs
         env:
           OPENDAL_FS_TEST: on
           OPENDAL_FS_ROOT: ${{ runner.temp }}/

@@ -47,14 +47,6 @@ runs:
         path: ~/.cargo/bin/cargo-nextest
         key: r0-${{runner.os}}-nextest-0.9.53
 
-    - name: Cache nextest on windows
-      id: cache-nextest
-      uses: actions/cache@v3
-      if: inputs.need-nextest == 'true' && runner.os == 'Windows'
-      with:
-        path: C:\Users\runneradmin\.cargo\bin\cargo-nextest.exe
-        key: r0-${{runner.os}}-nextest-0.9.53
-
     - name: Build nextest if not cached
       if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'
       shell: bash

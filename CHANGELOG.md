@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.36.1] - 2023-06-02
+
+### Added
+- feat(services/webdav): support redirection when get 302/307 response during read operation by @Yansongsongsong in https://github.com/apache/incubator-opendal/pull/2256
+- feat: Add Zig Bindings Module by @kassane in https://github.com/apache/incubator-opendal/pull/2374
+- feat: Implement Timeout Layer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2395
+
+### Changed
+- refactor(bindings/zig): enable tests and more by @tisonkun in https://github.com/apache/incubator-opendal/pull/2375
+- refactor(bindings/zig): add errors handler and module test by @kassane in https://github.com/apache/incubator-opendal/pull/2381
+- refactor(http_util): Adopt reqwest's redirect support by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2390
+
+### Fixed
+- fix(bindings/zig): reflect C interface changes by @tisonkun in https://github.com/apache/incubator-opendal/pull/2378
+- fix(services/azblob): Fix batch delete doesn't work on azure by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2382
+
+### Docs
+- docs: service doc for s3 by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2376
+- docs(bindings/C): The documentation for OpenDAL C binding by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/2373
+- docs: add link for c binding by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2380
+- docs: docs for kv services by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2396
+- docs: docs for fs related services by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2397
+- docs(bindings/java): do not release snapshot versions anymore by @tisonkun in https://github.com/apache/incubator-opendal/pull/2398
+
+### CI
+- ci: Enable semantic PRs by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2370
+- ci: improve licenserc settings by @tisonkun in https://github.com/apache/incubator-opendal/pull/2377
+- build(deps): bump reqwest from 0.11.15 to 0.11.18 by @dependabot in https://github.com/apache/incubator-opendal/pull/2389
+- build(deps): bump pyo3 from 0.18.2 to 0.18.3 by @dependabot in https://github.com/apache/incubator-opendal/pull/2388
+- ci: Enable nextest for all behavior tests by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2400
+
+### Chore
+- chore(bindings/python): upgrade maturin to 1.0 by @messense in https://github.com/apache/incubator-opendal/pull/2369
+- chore: Fix license headers for release/labler by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2371
+
 ## [v0.36.0] - 2023-05-30
 
 ### Added
@@ -2236,6 +2271,7 @@ ing large files (#2231)
 
 Hello, OpenDAL!
 
+[v0.36.1]: https://github.com/apache/incubator-opendal/compare/v0.36.0...v0.36.1
 [v0.36.0]: https://github.com/apache/incubator-opendal/compare/v0.35.0...v0.36.0
 [v0.35.0]: https://github.com/apache/incubator-opendal/compare/v0.34.0...v0.35.0
 [v0.34.0]: https://github.com/apache/incubator-opendal/compare/v0.33.3...v0.34.0

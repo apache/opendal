@@ -53,13 +53,13 @@ jobs:
           ipfs files ls /opendal-testdata -l
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test ipfs --features services-ipfs -- --show-output
+        run: cargo nextest run ipfs --features services-ipfs
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_IPFS_TEST: on
           OPENDAL_IPFS_ROOT: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/
           OPENDAL_IPFS_ENDPOINT: "http://127.0.0.1:8080"

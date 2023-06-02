@@ -38,20 +38,16 @@ concurrency:
 
 jobs:
   memory:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test memory -- --show-output
+        run: cargo nextest run memory
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_MEMORY_TEST: on

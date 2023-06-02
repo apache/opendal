@@ -39,7 +39,7 @@ concurrency:
 jobs:
   azure_azdfs:
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'apache' }}
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
@@ -47,10 +47,8 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test azdfs -- --show-output
+        run: cargo nextest run azdfs
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_AZDFS_TEST: ${{ secrets.OPENDAL_AZDFS_TEST }}
           OPENDAL_AZDFS_FILESYSTEM: ${{ secrets.OPENDAL_AZDFS_FILESYSTEM }}
           OPENDAL_AZDFS_ENDPOINT: ${{ secrets.OPENDAL_AZDFS_ENDPOINT }}

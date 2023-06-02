@@ -48,13 +48,13 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test ipmfs -- --show-output
+        run: cargo nextest run ipmfs
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_IPFS_TEST: on
           OPENDAL_IPFS_ROOT: /opendal/
           OPENDAL_IPFS_ENDPOINT: "http://127.0.0.1:5001"

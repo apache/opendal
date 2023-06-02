@@ -20,6 +20,8 @@ description: 'Prepare Rust Build Environment'
 inputs:
   need-rocksdb:
     description: "This setup needs rocksdb or not"
+  need-nextest:
+    description: "This setup needs nextest or not"
 
 runs:
   using: "composite"
@@ -36,6 +38,19 @@ runs:
         echo "RUST_LOG=debug" >> $GITHUB_ENV
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
+
+    - name: Cache nextest
+      id: cache-nextest
+      uses: actions/cache@v3
+      if: runner.os == 'Linux' && inputs.need-nextest == 'true'
+      with:
+        path: ~/.cargo/bin/cargo-nextest
+        key: r0-nextest-0.9.53
+
+    - name: Build nextest if not cached
+      if: steps.cache-nextest.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-nextest == 'true'
+      shell: bash
+      run: cargo install cargo-nextest@v0.9.53 --locked
 
     - name: Setup rust on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'

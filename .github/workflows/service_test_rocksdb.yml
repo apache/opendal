@@ -36,8 +36,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-
-
 jobs:
   rocksdb:
     runs-on: ubuntu-latest
@@ -47,14 +45,13 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
+          need-nextest: true
 
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test rocksdb --features services-rocksdb -- --show-output --test-threads=1
+        run: cargo nextest run rocksdb --features services-rocksdb -j=1
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_ROCKSDB_TEST: on
           OPENDAL_ROCKSDB_ROOT: /
           OPENDAL_ROCKSDB_DATADIR: /tmp/opendal/rocksdb/

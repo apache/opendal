@@ -45,7 +45,7 @@ runs:
       if: inputs.need-nextest == 'true'
       with:
         path: ~/.cargo/bin/cargo-nextest
-        key: r0-nextest-0.9.53
+        key: r0-${{runner.os}}-nextest-0.9.53
 
     - name: Build nextest if not cached
       if: steps.cache-nextest.outputs.cache-hit != 'true' && inputs.need-nextest == 'true'

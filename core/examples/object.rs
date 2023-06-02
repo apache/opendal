@@ -23,7 +23,7 @@ use opendal::Operator;
 use opendal::Result;
 
 /// Visit [`opendal::services`] for more service related config.
-/// Visit [`opendal::Object`] for more object level APIs.
+/// Visit [`opendal::Operator`] for more operator level APIs.
 #[tokio::main]
 async fn main() -> Result<()> {
     let _ = tracing_subscriber::fmt()

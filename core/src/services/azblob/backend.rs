@@ -440,7 +440,6 @@ impl Builder for AzblobBuilder {
         let cred_loader = AzureStorageLoader::new(config_loader);
 
         let signer = AzureStorageSigner::new();
-        let batch_signer = AzureStorageSigner::new().omit_service_version();
 
         debug!("backend build finished: {:?}", &self);
         Ok(AzblobBackend {
@@ -455,7 +454,6 @@ impl Builder for AzblobBuilder {
                 client,
                 loader: cred_loader,
                 signer,
-                batch_signer,
             }),
             has_sas_token: self.sas_token.is_some(),
         })

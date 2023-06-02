@@ -33,29 +33,6 @@ Then add the dependency to `opendal-java` as following:
 </dependency>
 ```
 
-If you'd rather like the latest snapshots of the upcoming major version, use ASF Maven snapshot repository:
-
-```xml
-<repositories>
-    <repository>
-        <id>apache.snapshots</id>
-        <name>Apache Snapshot Repository</name>
-        <url>https://repository.apache.org/snapshots</url>
-    </repository>
-</repositories>
-```
-
-... and declare the appropriate dependency version:
-
-```xml
-<dependency>
-  <groupId>org.apache.opendal</groupId>
-  <artifactId>opendal-java</artifactId>
-  <version>${opendal.snapshot-version}</version>
-  <classifier>${os.detected.classifier}</classifier>
-</dependency>
-```
-
 ## Build
 
 This project provides OpenDAL Java bindings with artifact name `opendal-java`. It depends on JDK 8 or later.

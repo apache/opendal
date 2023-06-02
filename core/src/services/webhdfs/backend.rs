@@ -41,72 +41,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 ///
-/// There two implementations of WebHDFS REST API:
-///
-/// - Native via HDFS Namenode and Datanode, data are transferred between nodes directly.
-/// - [HttpFS](https://hadoop.apache.org/docs/stable/hadoop-hdfs-httpfs/index.html) is a gateway before hdfs nodes, data are proxied.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [ ] blocking
-///
-/// # Differences with hdfs
-///
-/// [Hdfs][crate::services::Hdfs] is powered by HDFS's native java client. Users need to setup the hdfs services correctly. But webhdfs can access from HTTP API and no extra setup needed.
-///
-/// # Configurations
-///
-/// - `root`: The root path of the WebHDFS service.
-/// - `endpoint`: The endpoint of the WebHDFS service.
-/// - `delegation`: The delegation token for WebHDFS.
-///
-/// Refer to [`Builder`]'s public API docs for more information
-///
-/// # Examples
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Webhdfs;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let mut builder = Webhdfs::default();
-///     // set the root for WebHDFS, all operations will happen under this root
-///     //
-///     // Note:
-///     // if the root is not exists, the builder will automatically create the
-///     // root directory for you
-///     // if the root exists and is a directory, the builder will continue working
-///     // if the root exists and is a folder, the builder will fail on building backend
-///     builder.root("/path/to/dir");
-///     // set the endpoint of webhdfs namenode, controlled by dfs.namenode.http-address
-///     // default is http://127.0.0.1:9870
-///     builder.endpoint("http://127.0.0.1:9870");
-///     // set the delegation_token for builder
-///     builder.delegation("delegation_token");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct WebhdfsBuilder {
     root: Option<String>,
@@ -268,32 +203,21 @@ impl WebhdfsBackend {
             url += format!("&{auth}").as_str();
         }
 
-        let req = Request::put(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let mut req = Request::put(&url);
 
         // mkdir does not redirect
         if path.ends_with('/') {
-            return Ok(req);
+            return req.body(AsyncBody::Empty).map_err(new_request_build_error);
         }
 
-        let resp = self.client.send(req).await?;
-
-        // should be a 307 TEMPORARY_REDIRECT
-        if resp.status() != StatusCode::TEMPORARY_REDIRECT {
-            return Err(parse_error(resp).await?);
-        }
-        let re_url = self.follow_redirect(resp)?;
-
-        let mut re_builder = Request::put(re_url);
         if let Some(size) = size {
-            re_builder = re_builder.header(CONTENT_LENGTH, size.to_string());
+            req = req.header(CONTENT_LENGTH, size.to_string());
         }
         if let Some(content_type) = content_type {
-            re_builder = re_builder.header(CONTENT_TYPE, content_type);
+            req = req.header(CONTENT_TYPE, content_type);
         }
 
-        re_builder.body(body).map_err(new_request_build_error)
+        req.body(body).map_err(new_request_build_error)
     }
 
     async fn webhdfs_open_request(
@@ -358,17 +282,6 @@ impl WebhdfsBackend {
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
         let req = self.webhdfs_open_request(path, &range).await?;
-        let resp = self.client.send(req).await?;
-
-        // webhdfs namenode will redirect us to datanode for data transfer.
-        if resp.status() != StatusCode::TEMPORARY_REDIRECT {
-            return Err(parse_error(resp).await?);
-        }
-
-        let location = self.follow_redirect(resp)?;
-        let req = Request::get(&location)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
         self.client.send(req).await
     }
 
@@ -407,27 +320,6 @@ impl WebhdfsBackend {
             .map_err(new_request_build_error)?;
 
         self.client.send(req).await
-    }
-
-    /// get redirect destination from 307 TEMPORARY_REDIRECT http response
-    fn follow_redirect(&self, resp: Response<IncomingAsyncBody>) -> Result<String> {
-        let location = parse_location(resp.headers())?.ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "webhdfs expect to have redirect location but got none",
-            )
-        })?;
-
-        let location = if location.starts_with('/') {
-            // location starts with `/` means it's a relative path to current
-            // endpoint. We should prepend the endpoint to it so that we can
-            // send request to the correct location.
-            format!("{}/{location}", self.endpoint)
-        } else {
-            location.to_string()
-        };
-
-        Ok(location)
     }
 
     async fn check_root(&self) -> Result<()> {

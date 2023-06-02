@@ -26,6 +26,9 @@ pub use immutable_index::ImmutableIndexLayer;
 mod logging;
 pub use logging::LoggingLayer;
 
+mod timeout;
+pub use timeout::TimeoutLayer;
+
 #[cfg(feature = "layers-chaos")]
 mod chaos;
 #[cfg(feature = "layers-chaos")]

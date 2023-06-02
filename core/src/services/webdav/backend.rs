@@ -465,7 +465,7 @@ impl WebdavBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.client.send_with_redirect(req, 5).await
+        self.client.send(req).await
     }
 
     pub async fn webdav_put(

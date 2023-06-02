@@ -41,63 +41,12 @@ use crate::*;
 
 /// SFTP services support. (only works on unix)
 ///
-/// Warning: Maximum number of file holdings is depend on the remote system configuration.
-/// For example, the default value is 255 in macos, and 1024 in linux. If you want to open
+/// Warning: Maximum number of file holdings is depending on the remote system configuration.
+///
+/// For example, the default value is 255 in macOS, and 1024 in linux. If you want to open
 /// lots of files, you should pay attention to close the file after using it.
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] append
-/// - [x] create_dir
-/// - [x] delete
-/// - [x] copy
-/// - [x] rename
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `endpoint`: Set the endpoint for connection
-/// - `root`: Set the work directory for backend, default to `/home/$USER/`
-/// - `user`: Set the login user
-/// - `key`: Set the public key for login
-/// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
-/// - `enable_copy`: Set whether the remote server has copy-file extension
-///
-/// It doesn't support password login, you can use public key instead.
-///
-/// You can refer to [`SftpBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Sftp;
-/// use opendal::Object;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Sftp::default();
-///
-///     builder.endpoint("127.0.0.1").user("test").key("test_key");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
-///     Ok(())
-/// }
-/// ```
-
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SftpBuilder {
     endpoint: Option<String>,

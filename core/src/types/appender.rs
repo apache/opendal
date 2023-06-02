@@ -101,7 +101,6 @@ impl Appender {
     }
 }
 
-#[allow(dead_code)]
 enum State {
     Idle(Option<oio::Appender>),
     Write(BoxFuture<'static, Result<(usize, oio::Appender)>>),

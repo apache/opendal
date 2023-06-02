@@ -312,7 +312,6 @@ mod tests {
 
     #[derive(Debug)]
     struct Test<A: Accessor> {
-        #[allow(dead_code)]
         inner: Option<A>,
         deleted: Arc<Mutex<bool>>,
     }

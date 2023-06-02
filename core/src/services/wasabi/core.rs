@@ -53,13 +53,12 @@ mod constants {
         "x-amz-server-side-encryption-aws-kms-key-id";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
-    #[allow(dead_code)]
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
         "x-amz-copy-source-server-side-encryption-customer-algorithm";
-    #[allow(dead_code)]
+
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
         "x-amz-copy-source-server-side-encryption-customer-key";
-    #[allow(dead_code)]
+
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
         "x-amz-copy-source-server-side-encryption-customer-key-md5";
 

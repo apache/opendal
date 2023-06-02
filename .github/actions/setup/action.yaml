@@ -45,6 +45,7 @@ runs:
       if: inputs.need-nextest == 'true' && runner.os == 'Linux'
       with:
         path: ~/.cargo/bin/cargo-nextest
+        # TODO: remove the runner.os while bumping version
         key: r0-${{runner.os}}-nextest-0.9.53
 
     - name: Build nextest if not cached

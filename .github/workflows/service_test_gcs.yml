@@ -49,7 +49,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test gcs
+        run: cargo nextest run gcs
         env:
           OPENDAL_GCS_TEST: ${{ secrets.OPENDAL_GCS_TEST }}
           OPENDAL_GCS_ROOT: ${{ secrets.OPENDAL_GCS_ROOT }}

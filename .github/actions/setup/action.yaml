@@ -50,7 +50,7 @@ runs:
     - name: Build nextest if not cached
       if: steps.cache-nextest.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-nextest == 'true'
       shell: bash
-      run: cargo install cargo-nextest@v0.9.53 --locked
+      run: cargo install cargo-nextest@0.9.53 --locked
 
     - name: Setup rust on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'

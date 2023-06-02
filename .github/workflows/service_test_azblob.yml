@@ -63,7 +63,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test nextest run
+        run: cargo nextest run azblob
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

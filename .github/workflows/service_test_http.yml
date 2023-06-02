@@ -58,7 +58,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test http -- --show-output
+        run: cargo nextest run http
         env:
           OPENDAL_HTTP_TEST: on
           OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080

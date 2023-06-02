@@ -47,6 +47,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
 
       - name: Install nginx full for dav_ext modules
         run: sudo apt install nginx-full
@@ -61,10 +63,8 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test webdav -- --show-output
+        run: cargo nextest run webdav
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
 
@@ -78,6 +78,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
 
       - name: Install nginx full for dav_ext modules
         run: sudo apt install nginx-full
@@ -93,10 +95,8 @@ jobs:
       - name: Test empty password
         shell: bash
         working-directory: core
-        run: cargo test webdav -- --show-output
+        run: cargo nextest run webdav
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_WEBDAV_USERNAME: foo
@@ -104,25 +104,21 @@ jobs:
       - name: Test with password
         shell: bash
         working-directory: core
-        run: cargo test webdav -- --show-output
+        run: cargo nextest run webdav
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_WEBDAV_USERNAME: bar
           OPENDAL_WEBDAV_PASSWORD: bar
 
   nginx_with_redirect:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
 
       - name: Install nginx full for dav_ext modules
         run: sudo apt install nginx-full
@@ -134,18 +130,16 @@ jobs:
           mkdir -p /tmp/static
           mkdir -p /var/lib/nginx
           # make nginx worker has permission to operate it
-          chmod a+rw /tmp/static/ 
+          chmod a+rw /tmp/static/
           # make nginx worker has permission to operate it
-          sudo chmod 777 /var/lib/nginx/body 
+          sudo chmod 777 /var/lib/nginx/body
           nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
 
       - name: Test with redirect
         shell: bash
         working-directory: core
         run: |
-          cargo test webdav -- --show-output
+          cargo nextest run webdav
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8081

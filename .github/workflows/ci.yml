@@ -165,8 +165,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Install cargo-nextest
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+        with:
+          need-nextest: true
       - name: Test
         run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
         env:

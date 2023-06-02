@@ -54,14 +54,14 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Test
         shell: bash
         timeout-minutes: 10
         working-directory: core
-        run: cargo test sftp --features services-sftp -- --show-output
+        run: cargo nextest run sftp --features services-sftp
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_SFTP_TEST: on
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
           OPENDAL_SFTP_ROOT: /upload/sftp_test/

@@ -39,11 +39,13 @@ concurrency:
 jobs:
   ghac:
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'apache' }}
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
 
       - name: Configure Cache Env
         uses: actions/github-script@v6
@@ -55,10 +57,8 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test ghac -- --show-output
+        run: cargo nextest run ghac
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_GHAC_TEST: ${{ secrets.OPENDAL_GHAC_TEST }}
           OPENDAL_GHAC_ENABLE_CREATE_SIMULATION: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

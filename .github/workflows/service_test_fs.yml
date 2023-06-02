@@ -51,7 +51,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test run services_fs
+        run: cargo test services_fs
         env:
           OPENDAL_FS_TEST: on
           OPENDAL_FS_ROOT: ${{ runner.temp }}/

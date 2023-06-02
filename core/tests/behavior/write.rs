@@ -19,6 +19,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Result;
+use futures::io::BufReader;
+use futures::io::Cursor;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
@@ -1134,7 +1136,9 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
         Err(err) => return Err(err.into()),
     };
 
-    futures::io::copy(&mut content.as_slice(), &mut w).await?;
+    // Wrap a buf reader here to make sure content is read in 1MiB chunks.
+    let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
+    futures::io::copy_buf(&mut cursor, &mut w).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

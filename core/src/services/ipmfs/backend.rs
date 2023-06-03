@@ -33,23 +33,9 @@ use super::writer::IpmfsWriter;
 use crate::raw::*;
 use crate::*;
 
-/// Backend for IPFS service
+/// IPFS Mutable File System (IPMFS) backend.
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [ ] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [x] list
-/// - [ ] scan
-/// - [ ] presign
-/// - [ ] blocking
+#[doc = include_str!("docs.md")]
 #[derive(Clone)]
 pub struct IpmfsBackend {
     root: String,

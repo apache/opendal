@@ -1,4 +1,4 @@
-Aliyun Object Storage Service (OSS) support
+
 
 # Capabilities
 

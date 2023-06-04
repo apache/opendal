@@ -351,7 +351,9 @@ impl Builder for OssBuilder {
             )
             .with_context("service", Scheme::Oss));
         }
-        let batch_max_operations =self.batch_max_operations.unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
+        let batch_max_operations = self
+            .batch_max_operations
+            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
         debug!("Backend build finished");
 
         Ok(OssBackend {

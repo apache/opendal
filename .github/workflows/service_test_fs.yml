@@ -41,6 +41,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_ERROR_LOG: ${{ runner.temp }}/sccache_log.txt
+      SCCACHE_LOG: debug
       RUSTC_WRAPPER: "sccache"
     strategy:
       matrix:
@@ -58,7 +60,15 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
+        timeout-minutes: 10
         run: cargo test services_fs
         env:
           OPENDAL_FS_TEST: on
           OPENDAL_FS_ROOT: ${{ runner.temp }}/
+
+      - name: Upload Log File
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: Sccache Logs
+          path: ${{ runner.temp }}/sccache_log.txt

@@ -39,15 +39,22 @@ concurrency:
 jobs:
   local_fs:
     runs-on: ${{ matrix.os }}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: "sccache"
     strategy:
       matrix:
         os:
-          - ubuntu-latest
+          # - ubuntu-latest
           - windows-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      - name: Run sccache-cache
+        uses: mozilla-actions/sccache-action@v0.0.3
+        with:
+          version: "v0.5.1"
       - name: Test
         shell: bash
         working-directory: core

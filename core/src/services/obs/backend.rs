@@ -27,10 +27,10 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::ObsCore;
 use super::error::parse_error;
 use super::pager::ObsPager;
 use super::writer::ObsWriter;
+use super::{appender::ObsAppender, core::ObsCore};
 use crate::raw::*;
 use crate::*;
 
@@ -300,7 +300,7 @@ impl Accessor for ObsBackend {
     type BlockingReader = ();
     type Writer = ObsWriter;
     type BlockingWriter = ();
-    type Appender = ();
+    type Appender = ObsAppender;
     type Pager = ObsPager;
     type BlockingPager = ();
 
@@ -321,6 +321,10 @@ impl Accessor for ObsBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_with_content_type: true,
+                write_with_cache_control: true,
+
+                append: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
 

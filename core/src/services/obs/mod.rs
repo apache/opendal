@@ -22,3 +22,4 @@ mod core;
 mod error;
 mod pager;
 mod writer;
+mod appender;

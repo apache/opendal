@@ -325,8 +325,9 @@ impl Accessor for ObsBackend {
                 write_with_cache_control: true,
 
                 append: true,
-                write_with_content_type: true,
-                write_with_cache_control: true,
+                append_with_cache_control: true,
+                append_with_content_disposition: true,
+                append_with_content_type: true,
 
                 delete: true,
                 create_dir: true,
@@ -427,6 +428,13 @@ impl Accessor for ObsBackend {
         Ok((
             RpWrite::default(),
             ObsWriter::new(self.core.clone(), args, path.to_string()),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            ObsAppender::new(self.core.clone(), path, args),
         ))
     }
 

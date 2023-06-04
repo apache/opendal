@@ -27,8 +27,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-const X_OBS_BLOB_TYPE: &str = "x-obs-blob-type";
-const X_OBS_BLOB_APPEND_OFFSET: &str = "x-obs-blob-append-offset";
+pub const X_OBS_NEXT_APPEND_POSITION: &str = "x-obs-next-append-position";
 
 pub struct ObsAppender {
     core: Arc<ObsCore>,
@@ -53,7 +52,88 @@ impl ObsAppender {
 #[async_trait]
 impl oio::Append for ObsAppender {
     async fn append(&mut self, bs: Bytes) -> Result<()> {
-        Ok(())
+        // If the position is not set, we need to get the current position.
+        if self.position.is_none() {
+            let resp = self.core.obs_head_object(&self.path, None, None).await?;
+
+            let status = resp.status();
+            match status {
+                StatusCode::OK => {
+                    let position = resp
+                        .headers()
+                        .get( X_OBS_NEXT_APPEND_POSITION)
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v|v.parse::<u64>().ok())
+                        .ok_or_else(|| Error::new(ErrorKind::Unexpected, "missing x-obs-next-append-position, the object may not be appendable"))?;
+                    self.position = Some(position);
+                }
+
+                StatusCode::NOT_FOUND => {
+                    self.position = Some(0);
+                }
+
+                _ => {
+                    return Err(parse_error(resp).await?);
+                }
+            }
+        }
+
+        let mut req = self.core.obs_append_object_request(
+            &self.path,
+            self.position.expect("position is not set"),
+            bs.len(),
+            &self.op,
+            AsyncBody::Bytes(bs),
+        )?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let position = resp
+                    .headers()
+                    .get(X_OBS_NEXT_APPEND_POSITION)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "missing x-obs-next-append-position, the object may not be appendable",
+                        )
+                    })?;
+                self.position = Some(position);
+                Ok(())
+            }
+
+            StatusCode::CONFLICT => {
+                // The object is not appendable or the position is not match with the object's length.
+                // If the position is not match, we could get the current position and retry.
+                let position = resp
+                    .headers()
+                    .get(X_OBS_NEXT_APPEND_POSITION)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "missing x-obs-next-append-position, the object may not be appendable",
+                        )
+                    })?;
+                self.position = Some(position);
+
+                // Then return the error to the caller, so the caller could retry.
+                Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "the position is not match with the object's length. position has been updated.",
+            ))
+            }
+
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn close(&mut self) -> Result<()> {

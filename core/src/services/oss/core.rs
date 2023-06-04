@@ -65,6 +65,7 @@ pub struct OssCore {
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
     pub write_min_size: usize,
+    pub batch_max_operations: usize,
 }
 
 impl Debug for OssCore {

@@ -39,7 +39,7 @@ use crate::raw::*;
 use crate::*;
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
-const DEFAULT_BATCH_MAX_OPERATIONS: usize=1000;
+const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 /// Aliyun Object Storage Service (OSS) support
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -62,7 +62,7 @@ pub struct OssBuilder {
     /// the size of each part, and the range is 5MB ~ 5 GB.
     write_min_size: Option<usize>,
     /// batch_max_operations
-    batch_max_operations : Option<usize>,
+    batch_max_operations: Option<usize>,
 }
 
 impl Debug for OssBuilder {

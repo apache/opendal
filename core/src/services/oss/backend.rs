@@ -39,6 +39,7 @@ use crate::raw::*;
 use crate::*;
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
+const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 /// Aliyun Object Storage Service (OSS) support
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -60,6 +61,8 @@ pub struct OssBuilder {
     http_client: Option<HttpClient>,
     /// the size of each part, and the range is 5MB ~ 5 GB.
     write_min_size: Option<usize>,
+    /// batch_max_operations
+    batch_max_operations: Option<usize>,
 }
 
 impl Debug for OssBuilder {
@@ -237,6 +240,13 @@ impl OssBuilder {
 
         self
     }
+
+    /// Set maximum batch operations of this backend.
+    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+        self.batch_max_operations = Some(batch_max_operations);
+
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -260,6 +270,8 @@ impl Builder for OssBuilder {
             .map(|v| builder.server_side_encryption_key_id(v));
         map.get("write_min_size")
             .map(|v| builder.write_min_size(v.parse::<usize>().unwrap()));
+        map.get("batch_max_operations")
+            .map(|v| builder.batch_max_operations(v.parse::<usize>().unwrap()));
         builder
     }
 
@@ -339,6 +351,9 @@ impl Builder for OssBuilder {
             )
             .with_context("service", Scheme::Oss));
         }
+        let batch_max_operations = self
+            .batch_max_operations
+            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
         debug!("Backend build finished");
 
         Ok(OssBackend {
@@ -354,6 +369,7 @@ impl Builder for OssBuilder {
                 server_side_encryption,
                 server_side_encryption_key_id,
                 write_min_size,
+                batch_max_operations,
             }),
         })
     }
@@ -414,7 +430,7 @@ impl Accessor for OssBackend {
                 presign_write: true,
 
                 batch: true,
-                batch_max_operations: Some(1000),
+                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });

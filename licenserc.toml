@@ -28,10 +28,6 @@ excludes = [
   # Website generated files
   "website/build",
   "website/.docusaurus",
-
-  # ascii is licensed under MIT from memcache-async
-  "core/src/services/memcached/MIT-ascii.txt",
-  "core/src/services/memcached/ascii.rs",
 ]
 
 [properties]

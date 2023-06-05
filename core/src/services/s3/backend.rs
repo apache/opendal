@@ -55,7 +55,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 });
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
-
+const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 ///
@@ -93,6 +93,8 @@ pub struct S3Builder {
     /// the part size of s3 multipart upload, which should be 5 MiB to 5 GiB.
     /// There is no minimum size limit on the last part of your multipart upload
     write_min_size: Option<usize>,
+    /// batch_max_operations
+    batch_max_operations: Option<usize>,
 }
 
 impl Debug for S3Builder {
@@ -510,6 +512,12 @@ impl S3Builder {
 
         self
     }
+    /// Set maximum batch operations of this backend.
+    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+        self.batch_max_operations = Some(batch_max_operations);
+
+        self
+    }
 }
 
 impl Builder for S3Builder {
@@ -696,7 +704,9 @@ impl Builder for S3Builder {
             )
             .with_context("service", Scheme::S3));
         }
-
+        let batch_max_operations = self
+            .batch_max_operations
+            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
         debug!("backend build finished");
         Ok(S3Backend {
             core: Arc::new(S3Core {
@@ -714,6 +724,7 @@ impl Builder for S3Builder {
                 loader,
                 client,
                 write_min_size,
+                batch_max_operations,
             }),
         })
     }
@@ -773,7 +784,7 @@ impl Accessor for S3Backend {
                 presign_write: true,
 
                 batch: true,
-                batch_max_operations: Some(1000),
+                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });

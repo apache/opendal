@@ -235,6 +235,61 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
     }
 }
 
+/// \brief Blockingly delete the object in `path`.
+///
+/// Delete the object in `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
+/// if succeeds, others otherwise
+///
+/// @param ptr The opendal_operator_ptr created previously
+/// @param path The designated path you want to delete
+/// @see opendal_operator_ptr
+/// @see opendal_code
+/// @return OPENDAL_OK if succeeds others otherwise
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// //...prepare your opendal_operator_ptr, named ptr for example
+///
+/// // prepare your data
+/// char* data = "Hello, World!";
+/// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
+/// opendal_code code = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+///
+/// // now you can delete!
+/// opendal_code code = opendal_operator_blocking_delete(ptr, "/testpath");
+///
+/// // Assert that this succeeds
+/// assert(code == OPENDAL_OK)
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_blocking_delete(
+    ptr: opendal_operator_ptr,
+    path: *const c_char,
+) -> opendal_code {
+    if path.is_null() {
+        panic!("The path given is pointing at NULL");
+    }
+
+    let op = ptr.as_ref();
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    match op.delete(path) {
+        Ok(_) => opendal_code::OPENDAL_OK,
+        Err(e) => opendal_code::from_opendal_error(e),
+    }
+}
+
 /// \brief Check whether the path exists.
 ///
 /// If the operation succeeds, no matter the path exists or not,

@@ -82,6 +82,18 @@ TEST_F(OpendalBddTest, FeatureTest)
     for (int i = 0; i < r.data->len; i++) {
         EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
     }
+
+    // The blocking file should be deleted
+    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(code, OPENDAL_OK);
+    e = opendal_operator_is_exist(this->p, this->path.c_str());
+    EXPECT_EQ(e.code, OPENDAL_OK);
+    EXPECT_FALSE(e.is_exist);
+
+    // The deletion operation should be idempotent
+    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(code, OPENDAL_OK);
+
     opendal_bytes_free(r.data);
 }
 

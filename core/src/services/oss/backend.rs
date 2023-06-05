@@ -430,7 +430,7 @@ impl Accessor for OssBackend {
                 presign_write: true,
 
                 batch: true,
-                batch_max_operations: Some(1000),
+                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });

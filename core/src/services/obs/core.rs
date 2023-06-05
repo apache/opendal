@@ -19,11 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
-use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION};
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION};
 use http::Request;
 use http::Response;
 use reqsign::HuaweicloudObsCredential;
@@ -232,8 +232,7 @@ impl ObsCore {
         self.send(req).await
     }
 
-
-    pub async fn obs_append_object_request(
+    pub fn obs_append_object_request(
         &self,
         path: &str,
         position: u64,
@@ -268,7 +267,6 @@ impl ObsCore {
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }
-
 
     pub async fn obs_copy_object(
         &self,

@@ -326,8 +326,8 @@ impl Accessor for ObsBackend {
 
                 append: true,
                 append_with_cache_control: true,
-                append_with_content_disposition: true,
                 append_with_content_type: true,
+                append_with_content_disposition: true,
 
                 delete: true,
                 create_dir: true,

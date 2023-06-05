@@ -19,7 +19,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use http::header::CONTENT_LENGTH;
 use http::StatusCode;
 
 use super::core::*;

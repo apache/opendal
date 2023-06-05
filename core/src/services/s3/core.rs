@@ -82,6 +82,7 @@ pub struct S3Core {
     pub loader: AwsLoader,
     pub client: HttpClient,
     pub write_min_size: usize,
+    pub batch_max_operations: usize,
 }
 
 impl Debug for S3Core {

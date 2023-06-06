@@ -1,6 +1,8 @@
 # Upgrade to v0.37
 
+In v0.37.0, OpenDAL bump the version of `reqsign` to v0.13.0.
 
+There are no public API and raw API changes.
 
 # Upgrade to v0.36
 

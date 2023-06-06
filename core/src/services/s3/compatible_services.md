@@ -97,3 +97,17 @@ To connect to wasabi, we need to set:
 - `bucket`: The bucket name of wasabi.
 
 > Refer to [What are the service URLs for Wasabi's different storage regions?](https://wasabi-support.zendesk.com/hc/en-us/articles/360015106031) for more details.
+
+### Cloudflare R2
+
+[Cloudflare R2](https://developers.cloudflare.com/r2/) provides s3 compatible API.
+
+> Cloudflare R2 Storage allows developers to store large amounts of unstructured data without the costly egress bandwidth fees associated with typical cloud storage services.
+
+
+To connect to r2, we need to set:
+
+- `endpoint`: The endpoint of r2, for example: `https://<account_id>.r2.cloudflarestorage.com`
+- `bucket`: The bucket name of r2.
+- `region`: When you create a new bucket, the data location is set to Automatic by default. So please use `auto` for region.
+- `batch_max_operations`: R2's delete objects will return `Internal Error` if the batch is larger than `700`. Please set this value `<= 700` to make sure batch delete work as expected.

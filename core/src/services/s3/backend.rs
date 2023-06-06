@@ -560,7 +560,11 @@ impl Builder for S3Builder {
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.allow_anonymous());
         map.get("default_storage_class")
-            .map(|v| builder.default_storage_class(v));
+            .map(|v: &String| builder.default_storage_class(v));
+        map.get("write_min_size")
+            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
+        map.get("batch_max_operations")
+            .map(|v| builder.batch_max_operations(v.parse().expect("input must be a number")));
 
         builder
     }

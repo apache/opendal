@@ -102,6 +102,10 @@ const config = {
                 to: '/docs/overview'
               },
               {
+                label: 'Contributing',
+                to: '/docs/category/contributing'
+              },
+              {
                 label: 'Services',
                 to: '/docs/category/services'
               },

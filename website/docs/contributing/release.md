@@ -201,9 +201,9 @@ The vote PASSED with 3 binding +1 and 0 -1 vote:
 
 Binding votes:
 
-- Xuanwo (binding)
-- Sundyli (binding)
-- Chojan Shang (binding)
+- xxx
+- yyy
+- zzz
 
 Vote thread: ${vote_thread_url}
 

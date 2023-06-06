@@ -359,11 +359,11 @@ The notable changes since ${release_version} include:
 Please refer to the change log for the complete list of changes:
 https://github.com/apache/incubator-opendal/releases/tag/v${release_version}
 
-Apache Kvrocks website: https://opendal.apache.org/
+Apache OpenDAL website: https://opendal.apache.org/
 
 Download Links: https://opendal.apache.org/download
 
-Kvrocks Resources:
+OpenDAL Resources:
 - Issue: https://github.com/apache/incubator-opendal/issues
 - Mailing list: dev@opendal.apache.org
 

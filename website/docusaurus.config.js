@@ -152,8 +152,8 @@ const config = {
             ]
           },
           {
-            to: `${repoAddress}/releases`,
-            label: 'Releases',
+            to: '/download',
+            label: 'Download',
             position: 'right'
           },
           {

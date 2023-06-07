@@ -429,7 +429,6 @@ impl Accessor for GcsBackend {
 
                 batch: true,
                 batch_max_operations: Some(100),
-                copy: true,
                 presign: true,
                 presign_stat: true,
                 presign_read: true,

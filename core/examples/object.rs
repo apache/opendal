@@ -23,11 +23,11 @@ use opendal::Operator;
 use opendal::Result;
 
 /// Visit [`opendal::services`] for more service related config.
-/// Visit [`opendal::Object`] for more object level APIs.
+/// Visit [`opendal::Operator`] for more operator level APIs.
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _ = env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("debug")
         .try_init();
 
     // Pick a builder and configure it.

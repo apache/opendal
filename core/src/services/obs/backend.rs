@@ -27,11 +27,10 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::ObsCore;
 use super::error::parse_error;
 use super::pager::ObsPager;
 use super::writer::ObsWriter;
-use crate::ops::*;
+use super::{appender::ObsAppender, core::ObsCore};
 use crate::raw::*;
 use crate::*;
 
@@ -41,12 +40,16 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
-/// - [ ] presign
+/// - [x] presign
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -297,6 +300,7 @@ impl Accessor for ObsBackend {
     type BlockingReader = ();
     type Writer = ObsWriter;
     type BlockingWriter = ();
+    type Appender = ObsAppender;
     type Pager = ObsPager;
     type BlockingPager = ();
 
@@ -312,6 +316,7 @@ impl Accessor for ObsBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
@@ -319,9 +324,23 @@ impl Accessor for ObsBackend {
                 write_with_content_type: true,
                 write_with_cache_control: true,
 
-                list: true,
-                scan: true,
+                append: true,
+                append_with_cache_control: true,
+                append_with_content_type: true,
+                append_with_content_disposition: true,
+
+                delete: true,
+                create_dir: true,
                 copy: true,
+
+                list: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
 
                 ..Default::default()
             });
@@ -329,7 +348,39 @@ impl Accessor for ObsBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let mut req = match args.operation() {
+            PresignOperation::Stat(v) => {
+                self.core
+                    .obs_head_object_request(path, v.if_match(), v.if_none_match())?
+            }
+            PresignOperation::Read(v) => self.core.obs_get_object_request(
+                path,
+                v.range(),
+                v.if_match(),
+                v.if_none_match(),
+            )?,
+            PresignOperation::Write(v) => self.core.obs_put_object_request(
+                path,
+                None,
+                v.content_type(),
+                v.cache_control(),
+                AsyncBody::Empty,
+            )?,
+        };
+        self.core.sign_query(&mut req, args.expire()).await?;
+
+        // We don't need this request anymore, consume it directly.
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
+    }
+
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
                 .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
@@ -343,7 +394,7 @@ impl Accessor for ObsBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -380,6 +431,13 @@ impl Accessor for ObsBackend {
         ))
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            ObsAppender::new(self.core.clone(), path, args),
+        ))
+    }
+
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let resp = self.core.obs_copy_object(from, to).await?;
 
@@ -402,7 +460,7 @@ impl Accessor for ObsBackend {
 
         let resp = self
             .core
-            .obs_get_head_object(path, args.if_match(), args.if_none_match())
+            .obs_head_object(path, args.if_match(), args.if_none_match())
             .await?;
 
         let status = resp.status();
@@ -433,14 +491,7 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            ObsPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            ObsPager::new(self.core.clone(), path, "", args.limit()),
+            ObsPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 }

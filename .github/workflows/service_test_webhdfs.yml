@@ -66,14 +66,14 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
 
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test webhdfs -- --show-output
+        run: cargo nextest run webhdfs
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_WEBHDFS_TEST: on
           OPENDAL_WEBHDFS_ROOT: /
           OPENDAL_WEBHDFS_ENDPOINT: http://127.0.0.1:9870

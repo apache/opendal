@@ -25,7 +25,6 @@ use bytes::Bytes;
 use futures::FutureExt;
 use tracing::Span;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -138,6 +137,7 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     type BlockingReader = TracingWrapper<A::BlockingReader>;
     type Writer = TracingWrapper<A::Writer>;
     type BlockingWriter = TracingWrapper<A::BlockingWriter>;
+    type Appender = A::Appender;
     type Pager = TracingWrapper<A::Pager>;
     type BlockingPager = TracingWrapper<A::BlockingPager>;
 
@@ -151,7 +151,7 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.create_dir(path, args).await
     }
 
@@ -169,6 +169,10 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -200,14 +204,6 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.inner
-            .scan(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, TracingWrapper::new(Span::current(), s))))
-            .await
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
     }
@@ -218,7 +214,7 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args)
     }
 
@@ -260,13 +256,6 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, it)| (rp, TracingWrapper::new(Span::current(), it)))
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.inner
-            .blocking_scan(path, args)
             .map(|(rp, it)| (rp, TracingWrapper::new(Span::current(), it)))
     }
 }

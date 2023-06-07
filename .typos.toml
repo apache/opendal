@@ -17,6 +17,7 @@
 
 [default.extend-words]
 # Random strings.
+"Dum" = "Dum"
 "ba" = "ba"
 # Showed up in examples.
 "thw" = "thw"

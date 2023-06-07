@@ -29,58 +29,12 @@ use prost::Message;
 
 use super::error::parse_error;
 use super::ipld::PBNode;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [ ] ~~write~~
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work directory for backend
-/// - `endpoint`: Customizable endpoint setting
-///
-/// You can refer to [`IpfsBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Ipfs;
-/// use opendal::Object;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Ipfs::default();
-///
-///     // set the endpoint for OpenDAL
-///     builder.endpoint("https://ipfs.io");
-///     // set the root for OpenDAL
-///     builder.root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default, Clone, Debug)]
 pub struct IpfsBuilder {
     endpoint: Option<String>,
@@ -212,6 +166,7 @@ impl Accessor for IpfsBackend {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -220,9 +175,14 @@ impl Accessor for IpfsBackend {
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
+
                 list: true,
+                list_with_delimiter_slash: true,
 
                 ..Default::default()
             });

@@ -38,6 +38,7 @@ default = [
   "rustls",
   "services-azblob",
   "services-azdfs",
+  "services-cos",
   "services-fs",
   "services-gcs",
   "services-ghac",
@@ -91,6 +92,7 @@ layers-tracing = ["dep:tracing"]
 layers-otel-trace = ["dep:opentelemetry"]
 
 services-azblob = [
+  "dep:sha2",
   "dep:reqsign",
   "reqsign?/services-azblob",
   "reqsign?/reqwest_request",
@@ -98,6 +100,11 @@ services-azblob = [
 services-azdfs = [
   "dep:reqsign",
   "reqsign?/services-azblob",
+  "reqsign?/reqwest_request",
+]
+services-cos = [
+  "dep:reqsign",
+  "reqsign?/services-tencent",
   "reqsign?/reqwest_request",
 ]
 services-dashmap = ["dep:dashmap"]
@@ -108,6 +115,7 @@ services-gcs = [
   "reqsign?/services-google",
   "reqsign?/reqwest_request",
 ]
+services-gdrive = []
 services-ghac = []
 services-hdfs = ["dep:hdrs"]
 services-http = []
@@ -121,6 +129,7 @@ services-obs = [
   "reqsign?/services-huaweicloud",
   "reqsign?/reqwest_request",
 ]
+services-onedrive = []
 services-oss = [
   "dep:reqsign",
   "reqsign?/services-aliyun",
@@ -133,8 +142,10 @@ services-s3 = [
   "reqsign?/services-aws",
   "reqsign?/reqwest_request",
 ]
+services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
 services-sled = ["dep:sled"]
 services-supabase = []
+services-vercel-artifacts = []
 services-wasabi = [
   "dep:reqsign",
   "reqsign?/services-aws",
@@ -161,8 +172,9 @@ bb8 = { version = "0.8", optional = true }
 bytes = "1.2"
 chrono = "0.4.24"
 dashmap = { version = "5.4", optional = true }
+dirs = { version = "5.0.1", optional = true }
 flagset = "0.4"
-futures = { version = "0.3", features = ["alloc"] }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }
 http = "0.2.5"
 hyper = "0.14"
@@ -174,6 +186,11 @@ metrics = { version = "0.20", optional = true }
 minitrace = { version = "0.4.0", optional = true }
 moka = { version = "0.10", optional = true, features = ["future"] }
 once_cell = "1"
+openssh = { version = "0.9.9", optional = true }
+openssh-sftp-client = { version = "0.13.5", optional = true, features = [
+  "openssh",
+  "tracing",
+] }
 opentelemetry = { version = "0.19.0", optional = true }
 parking_lot = "0.12"
 percent-encoding = "2"
@@ -186,14 +203,14 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = { version = "0.9.1", default-features = false, optional = true }
-reqwest = { version = "0.11.13", features = [
-  "multipart",
+reqsign = { version = "0.13.0", default-features = false, optional = true }
+reqwest = { version = "0.11.18", features = [
   "stream",
 ], default-features = false }
-rocksdb = { version = "0.20.1", default-features = false, optional = true }
+rocksdb = { version = "0.21.0", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = { version = "0.10", optional = true }
 sled = { version = "0.34.7", optional = true }
 suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
@@ -204,10 +221,8 @@ tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
-cfg-if = "1"
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
-env_logger = "0.10"
 opentelemetry = { version = "0.19", default-features = false, features = [
   "trace",
 ] }
@@ -219,5 +234,8 @@ sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.17"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "tracing-log",
+] }
 wiremock = "0.5"

@@ -23,7 +23,6 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
-use opendal::ops::OpList;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Operator;
@@ -47,14 +46,13 @@ macro_rules! behavior_list_test {
                     match OPERATOR.as_ref() {
                         Some(op) if op.info().can_read()
                             && op.info().can_write()
-                            && (op.info().can_list()
-                                || op.info().can_scan()) => RUNTIME.block_on($crate::list::$test(op.clone())),
+                            && op.info().can_list()
+                                 => RUNTIME.block_on($crate::list::$test(op.clone())),
                         Some(_) => {
                             log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
                             Ok(())
                         },
                         None => {
-                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
                             Ok(())
                         }
                     }
@@ -305,8 +303,7 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
         .collect::<Vec<_>>()
         .await;
 
-    let option = OpList::new().with_start_after(&given[2]);
-    let mut objects = op.list_with(dir, option).await?;
+    let mut objects = op.list_with(dir).start_after(&given[2]).await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();

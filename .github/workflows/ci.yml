@@ -43,11 +43,9 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-        with:
-          cache-key: "-check"
 
       - name: Check license headers
-        uses: korandoru/hawkeye@v2.0.0
+        uses: korandoru/hawkeye@v2.1.0
 
       - name: Cargo format
         run: cargo fmt --all -- --check
@@ -60,7 +58,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          cache-key: "-check"
+          need-rocksdb: true
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -84,7 +82,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          cache-key: "-check"
+          need-rocksdb: true
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -103,8 +101,8 @@ jobs:
   check_msrv:
     runs-on: ubuntu-latest
     env:
-      # OpenDAL's MSRV is 1.64.
-      OPENDAL_MSRV: "1.64"
+      # OpenDAL's MSRV is 1.65.
+      OPENDAL_MSRV: "1.65"
     steps:
       - uses: actions/checkout@v3
       - name: Setup msrv of rust
@@ -130,11 +128,7 @@ jobs:
         run: cargo build -p opendal -p oli -p object_store_opendal
 
   build_all_features:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Checkout python env
@@ -150,7 +144,8 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          cache-key: "-build-all-features"
+          need-rocksdb: true
+
       - name: Build
         run: cargo build --all-features
 
@@ -170,8 +165,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Install cargo-nextest
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+        with:
+          need-nextest: true
       - name: Test
         run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
         env:

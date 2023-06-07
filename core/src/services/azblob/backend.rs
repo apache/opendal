@@ -21,18 +21,22 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use http::header::CONTENT_TYPE;
 use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
+use sha2::Digest;
+use sha2::Sha256;
 
+use super::appender::AzblobAppender;
 use super::batch::parse_batch_delete_response;
 use super::error::parse_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
 use crate::types::Metadata;
@@ -51,81 +55,7 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 /// Azure Storage Blob services support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] copy
-/// - [x] list
-/// - [x] scan
-/// - [x] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-/// - `container`: Set the container name for backend.
-/// - `endpoint`: Set the endpoint for backend.
-/// - `account_name`: Set the account_name for backend.
-/// - `account_key`: Set the account_key for backend.
-///
-/// Refer to public API docs for more information.
-///
-/// # Example
-///
-/// This example works on [Azurite](https://github.com/Azure/Azurite) for local developments.
-///
-/// ## Start local blob service
-///
-/// ```shell
-/// docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite
-/// az storage container create --name test --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-/// ```
-///
-/// ## Init OpenDAL Operator
-///
-/// ### Via Builder
-///
-/// ```no_run
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Azblob;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create azblob backend builder.
-///     let mut builder = Azblob::default();
-///     // Set the root for azblob, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/path/to/dir");
-///     // Set the container name, this is required.
-///     builder.container("test");
-///     // Set the endpoint, this is required.
-///     //
-///     // For examples:
-///     // - "http://127.0.0.1:10000/devstoreaccount1"
-///     // - "https://accountname.blob.core.windows.net"
-///     builder.endpoint("http://127.0.0.1:10000/devstoreaccount1");
-///     // Set the account_name and account_key.
-///     //
-///     // OpenDAL will try load credential from the env.
-///     // If credential not set and no valid credential in env, OpenDAL will
-///     // send request without signing like anonymous user.
-///     builder.account_name("devstoreaccount1");
-///     builder.account_key("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
-///
-///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct AzblobBuilder {
     root: Option<String>,
@@ -133,6 +63,9 @@ pub struct AzblobBuilder {
     endpoint: Option<String>,
     account_name: Option<String>,
     account_key: Option<String>,
+    encryption_key: Option<String>,
+    encryption_key_sha256: Option<String>,
+    encryption_algorithm: Option<String>,
     sas_token: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -214,6 +147,87 @@ impl AzblobBuilder {
             self.account_key = Some(account_key.to_string());
         }
 
+        self
+    }
+
+    /// Set encryption_key of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: Base64-encoded key that matches algorithm specified in `encryption_algorithm`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_key(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_key = Some(v.to_string());
+        }
+
+        self
+    }
+
+    /// Set encryption_key_sha256 of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: Base64-encoded SHA256 digest of the key specified in encryption_key.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_key_sha256(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_key_sha256 = Some(v.to_string());
+        }
+
+        self
+    }
+
+    /// Set encryption_algorithm of this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: server-side encryption algorithm. (Available values: `AES256`)
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn encryption_algorithm(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.encryption_algorithm = Some(v.to_string());
+        }
+
+        self
+    }
+
+    /// Enable server side encryption with customer key.
+    ///
+    /// As known as: CPK
+    ///
+    /// # Args
+    ///
+    /// `key`: Base64-encoded SHA256 digest of the key specified in encryption_key.
+    ///
+    /// # Note
+    ///
+    /// Function that helps the user to set the server-side customer-provided encryption key, the key's SHA256, and the algorithm.
+    /// See [Server-side encryption with customer-provided keys (CPK)](https://learn.microsoft.com/en-us/azure/storage/blobs/encryption-customer-provided-keys)
+    /// for more info.
+    pub fn server_side_encryption_with_customer_key(&mut self, key: &[u8]) -> &mut Self {
+        // Only AES256 is supported for now
+        self.encryption_algorithm = Some("AES256".to_string());
+        self.encryption_key = Some(BASE64_STANDARD.encode(key));
+        self.encryption_key_sha256 = Some(BASE64_STANDARD.encode(Sha256::digest(key).as_slice()));
         self
     }
 
@@ -340,6 +354,11 @@ impl Builder for AzblobBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("account_name").map(|v| builder.account_name(v));
         map.get("account_key").map(|v| builder.account_key(v));
+        map.get("encryption_key").map(|v| builder.encryption_key(v));
+        map.get("encryption_key_sha256")
+            .map(|v| builder.encryption_key_sha256(v));
+        map.get("encryption_algorithm")
+            .map(|v| builder.encryption_algorithm(v));
         map.get("sas_token").map(|v| builder.sas_token(v));
 
         builder
@@ -384,24 +403,57 @@ impl Builder for AzblobBuilder {
                 .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
             account_key: self.account_key.clone(),
             sas_token: self.sas_token.clone(),
+            ..Default::default()
+        };
+
+        let encryption_key =
+            match &self.encryption_key {
+                None => None,
+                Some(v) => Some(build_header_value(v).map_err(|err| {
+                    err.with_context("key", "server_side_encryption_customer_key")
+                })?),
+            };
+
+        let encryption_key_sha256 = match &self.encryption_key_sha256 {
+            None => None,
+            Some(v) => Some(build_header_value(v).map_err(|err| {
+                err.with_context("key", "server_side_encryption_customer_key_sha256")
+            })?),
+        };
+
+        let encryption_algorithm = match &self.encryption_algorithm {
+            None => None,
+            Some(v) => {
+                if v == "AES256" {
+                    Some(build_header_value(v).map_err(|err| {
+                        err.with_context("key", "server_side_encryption_customer_algorithm")
+                    })?)
+                } else {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "encryption_algorithm value must be AES256",
+                    ));
+                }
+            }
         };
 
         let cred_loader = AzureStorageLoader::new(config_loader);
 
         let signer = AzureStorageSigner::new();
-        let batch_signer = AzureStorageSigner::new().omit_service_version();
 
         debug!("backend build finished: {:?}", &self);
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
                 root,
                 endpoint,
+                encryption_key,
+                encryption_key_sha256,
+                encryption_algorithm,
                 container: self.container.clone(),
 
                 client,
                 loader: cred_loader,
                 signer,
-                batch_signer,
             }),
             has_sas_token: self.sas_token.is_some(),
         })
@@ -445,6 +497,7 @@ impl Accessor for AzblobBackend {
     type BlockingReader = ();
     type Writer = AzblobWriter;
     type BlockingWriter = ();
+    type Appender = AzblobAppender;
     type Pager = AzblobPager;
     type BlockingPager = ();
 
@@ -460,6 +513,7 @@ impl Accessor for AzblobBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
                 read_with_override_content_disposition: true,
@@ -468,21 +522,34 @@ impl Accessor for AzblobBackend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
 
+                append: true,
+                append_with_cache_control: true,
+                append_with_content_type: true,
+
                 delete: true,
                 create_dir: true,
-                list: true,
-                scan: true,
                 copy: true,
+
+                list: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
                 presign: self.has_sas_token,
+                presign_stat: self.has_sas_token,
+                presign_read: self.has_sas_token,
+                presign_write: self.has_sas_token,
+
                 batch: true,
+                batch_delete: true,
                 batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+
                 ..Default::default()
             });
 
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
                 .azblob_put_blob_request(path, Some(0), None, None, AsyncBody::Empty)?;
@@ -496,7 +563,7 @@ impl Accessor for AzblobBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -537,6 +604,13 @@ impl Accessor for AzblobBackend {
         Ok((
             RpWrite::default(),
             AzblobWriter::new(self.core.clone(), args, path.to_string()),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            AzblobAppender::new(self.core.clone(), path, args),
         ))
     }
 
@@ -591,22 +665,11 @@ impl Accessor for AzblobBackend {
         let op = AzblobPager::new(
             self.core.clone(),
             path.to_string(),
-            "/".to_string(),
+            args.delimiter().to_string(),
             args.limit(),
         );
 
         Ok((RpList::default(), op))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let op = AzblobPager::new(
-            self.core.clone(),
-            path.to_string(),
-            "".to_string(),
-            args.limit(),
-        );
-
-        Ok((RpScan::default(), op))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -648,6 +711,7 @@ impl Accessor for AzblobBackend {
                 "batch delete limit exceeded",
             ));
         }
+
         // construct and complete batch request
         let resp = self.core.azblob_batch_delete(&paths).await?;
 

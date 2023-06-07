@@ -32,7 +32,6 @@ use super::error::parse_error;
 use super::list_response::Multistatus;
 use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -42,8 +41,11 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
 /// - [x] copy
 /// - [x] rename
 /// - [x] list
@@ -196,7 +198,7 @@ impl Builder for WebdavBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Webdav))
+                    .with_context("service", Scheme::Webdav));
             }
         };
 
@@ -259,6 +261,7 @@ impl Accessor for WebdavBackend {
     type BlockingReader = ();
     type Writer = WebdavWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = WebdavPager;
     type BlockingPager = ();
 
@@ -267,19 +270,28 @@ impl Accessor for WebdavBackend {
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
+
                 write: true,
-                list: true,
+                create_dir: true,
+                delete: true,
                 copy: true,
                 rename: true,
+
+                list: true,
+                list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 
         ma
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         self.ensure_parent_path(path).await?;
 
         let abs_path = build_abs_path(&self.root, path);
@@ -288,9 +300,7 @@ impl Accessor for WebdavBackend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.webdav_get(path, args.range()).await?;
-
         let status = resp.status();
-
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_metadata(path, resp.headers())?;
@@ -392,7 +402,14 @@ impl Accessor for WebdavBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if args.delimiter() != "/" {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "webdav only support delimiter `/`",
+            ));
+        }
+
         let mut header_map = HeaderMap::new();
         header_map.insert("Depth", "1".parse().unwrap());
         header_map.insert(header::CONTENT_TYPE, "application/xml".parse().unwrap());
@@ -432,8 +449,7 @@ impl WebdavBackend {
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
-
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
+        let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
@@ -620,7 +636,7 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {
+    async fn create_internal(&self, abs_path: &str) -> Result<RpCreateDir> {
         let resp = if abs_path.ends_with('/') {
             self.webdav_mkcol(abs_path, None, None, AsyncBody::Empty)
                 .await?
@@ -641,7 +657,7 @@ impl WebdavBackend {
             // create existing file will return no_content
             | StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }

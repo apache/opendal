@@ -84,27 +84,50 @@ const config = {
         disableSwitch: true
       },
       navbar: {
-        title: 'OpenDAL (incubating)',
+        logo: {
+          alt: 'Apache OpenDAL (incubating)',
+          src: 'img/logo.svg',
+          srcDark: 'img/logo_dark.svg',
+          href: '/',
+          target: '_self',
+          height: 32,
+        },
         items: [
           {
             position: 'right',
-            label: 'Documentation',
+            label: 'Docs',
             items: [
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs">General</a>'
+                label: 'General',
+                to: '/docs/overview'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/rust/opendal">Rust</a>'
+                label: 'Contributing',
+                to: '/docs/category/contributing'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/nodejs/">Node.js</a>'
+                label: 'Services',
+                to: '/docs/category/services'
               },
               {
-                type: 'html',
-                value: '<a class="dropdown__link" href="/docs/python/">Python</a>'
+                label: 'Rust Core',
+                to: 'pathname:///docs/rust/opendal/'
+              },
+              {
+                label: 'Node.js Binding',
+                to: 'pathname:///docs/nodejs/'
+              },
+              {
+                label: 'Python Binding',
+                to: 'pathname:///docs/python/'
+              },
+              {
+                label: 'Java Binding',
+                to: 'pathname:///docs/java/'
+              },
+              {
+                label: 'C Binding',
+                to: 'pathname:///docs/c/'
               },
             ]
           },
@@ -133,17 +156,17 @@ const config = {
             ]
           },
           {
-            to: `${repoAddress}/releases`,
-            label: 'Releases',
+            to: '/download',
+            label: 'Download',
             position: 'right'
           },
           {
             type: 'dropdown',
-            label: 'ASF Links',
+            label: 'ASF',
             position: 'right',
             items: [
               {
-                label: 'Apache Software Foundation',
+                label: 'Foundation',
                 to: 'https://www.apache.org/'
               },
               {

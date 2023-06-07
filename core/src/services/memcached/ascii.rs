@@ -1,55 +1,62 @@
-// Copyright 2017 vavrusa <marek@vavrusa.com>
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
 //
-// Licensed under the MIT License (see MIT-ascii.txt);
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
-use core::fmt::Display;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::marker::Unpin;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::io::BufReader;
+use tokio::net::TcpStream;
 
-use futures::io::AsyncBufReadExt;
-use futures::io::AsyncRead;
-use futures::io::AsyncReadExt;
-use futures::io::AsyncWrite;
-use futures::io::AsyncWriteExt;
-use futures::io::BufReader;
+use super::backend::parse_io_error;
+use crate::*;
 
-/// Memcache ASCII protocol implementation.
-pub struct Protocol<S> {
-    io: BufReader<S>,
+pub struct Connection {
+    io: BufReader<TcpStream>,
     buf: Vec<u8>,
 }
 
-impl<S> Protocol<S>
-where
-    S: AsyncRead + AsyncWrite + Unpin,
-{
-    /// Creates the ASCII protocol on a stream.
-    pub fn new(io: S) -> Self {
+impl Connection {
+    pub fn new(io: TcpStream) -> Self {
         Self {
             io: BufReader::new(io),
             buf: Vec::new(),
         }
     }
 
-    /// Returns the value for given key as bytes. If the value doesn't exist, [`ErrorKind::NotFound`] is returned.
-    pub async fn get<K: AsRef<[u8]>>(&mut self, key: K) -> Result<Vec<u8>, Error> {
+    pub async fn get(&mut self, key: &str) -> Result<Option<Vec<u8>>> {
         // Send command
         let writer = self.io.get_mut();
         writer
-            .write_all(&[b"get ", key.as_ref(), b"\r\n"].concat())
-            .await?;
-        writer.flush().await?;
+            .write_all(&[b"get ", key.as_bytes(), b"\r\n"].concat())
+            .await
+            .map_err(parse_io_error)?;
+        writer.flush().await.map_err(parse_io_error)?;
 
         // Read response header
-        let header = self.read_line().await?;
-        let header = std::str::from_utf8(header).map_err(|_| ErrorKind::InvalidData)?;
+        let header = self.read_header().await?;
 
         // Check response header and parse value length
         if header.contains("ERROR") {
-            return Err(Error::new(ErrorKind::Other, header));
+            return Err(
+                Error::new(ErrorKind::Unexpected, "unexpected data received")
+                    .with_context("message", header),
+            );
         } else if header.starts_with("END") {
-            return Err(ErrorKind::NotFound.into());
+            return Ok(None);
         }
 
         // VALUE <key> <flags> <bytes> [<cas unique>]\r\n
@@ -57,89 +64,109 @@ where
             .split(' ')
             .nth(3)
             .and_then(|len| len.trim_end().parse().ok())
-            .ok_or(ErrorKind::InvalidData)?;
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "invalid data received"))?;
 
         // Read value
         let mut buffer: Vec<u8> = vec![0; length];
-        self.io.read_exact(&mut buffer).await?;
+        self.io
+            .read_exact(&mut buffer)
+            .await
+            .map_err(parse_io_error)?;
 
         // Read the trailing header
         self.read_line().await?; // \r\n
         self.read_line().await?; // END\r\n
 
-        Ok(buffer)
+        Ok(Some(buffer))
     }
 
-    /// Set key to given value and don't wait for response.
-    pub async fn set<K: Display>(
-        &mut self,
-        key: K,
-        val: &[u8],
-        expiration: u32,
-    ) -> Result<(), Error> {
+    pub async fn set(&mut self, key: &str, val: &[u8], expiration: u32) -> Result<()> {
         let header = format!("set {} 0 {} {}\r\n", key, expiration, val.len());
-        self.io.write_all(header.as_bytes()).await?;
-        self.io.write_all(val).await?;
-        self.io.write_all(b"\r\n").await?;
-        self.io.flush().await?;
+        self.io
+            .write_all(header.as_bytes())
+            .await
+            .map_err(parse_io_error)?;
+        self.io.write_all(val).await.map_err(parse_io_error)?;
+        self.io.write_all(b"\r\n").await.map_err(parse_io_error)?;
+        self.io.flush().await.map_err(parse_io_error)?;
 
         // Read response header
-        let header = self.read_line().await?;
-        let header = std::str::from_utf8(header).map_err(|_| ErrorKind::InvalidData)?;
+        let header = self.read_header().await?;
+
         // Check response header and make sure we got a `STORED`
         if header.contains("STORED") {
             return Ok(());
         } else if header.contains("ERROR") {
-            return Err(Error::new(ErrorKind::Other, header));
+            return Err(
+                Error::new(ErrorKind::Unexpected, "unexpected data received")
+                    .with_context("message", header),
+            );
         }
         Ok(())
     }
 
-    /// Delete a key and don't wait for response.
-    pub async fn delete<K: Display>(&mut self, key: K) -> Result<(), Error> {
+    pub async fn delete(&mut self, key: &str) -> Result<()> {
         let header = format!("delete {}\r\n", key);
-        self.io.write_all(header.as_bytes()).await?;
-        self.io.flush().await?;
+        self.io
+            .write_all(header.as_bytes())
+            .await
+            .map_err(parse_io_error)?;
+        self.io.flush().await.map_err(parse_io_error)?;
 
         // Read response header
-        let header = self.read_line().await?;
-        let header = std::str::from_utf8(header).map_err(|_| ErrorKind::InvalidData)?;
+        let header = self.read_header().await?;
+
         // Check response header and parse value length
-        if header.contains("NOT_FOUND") {
+        if header.contains("NOT_FOUND") || header.starts_with("END") {
             return Ok(());
-        } else if header.starts_with("END") {
-            return Err(ErrorKind::NotFound.into());
         } else if header.contains("ERROR") || !header.contains("DELETED") {
-            return Err(Error::new(ErrorKind::Other, header));
+            return Err(
+                Error::new(ErrorKind::Unexpected, "unexpected data received")
+                    .with_context("message", header),
+            );
         }
         Ok(())
     }
 
-    /// Return the version of the remote server.
-    pub async fn version(&mut self) -> Result<String, Error> {
-        self.io.write_all(b"version\r\n").await?;
-        self.io.flush().await?;
+    pub async fn version(&mut self) -> Result<String> {
+        self.io
+            .write_all(b"version\r\n")
+            .await
+            .map_err(parse_io_error)?;
+        self.io.flush().await.map_err(parse_io_error)?;
 
         // Read response header
-        let header = {
-            let buf = self.read_line().await?;
-            std::str::from_utf8(buf).map_err(|_| Error::from(ErrorKind::InvalidData))?
-        };
+        let header = self.read_header().await?;
 
         if !header.starts_with("VERSION") {
-            return Err(Error::new(ErrorKind::Other, header));
+            return Err(
+                Error::new(ErrorKind::Unexpected, "unexpected data received")
+                    .with_context("message", header),
+            );
         }
         let version = header.trim_start_matches("VERSION ").trim_end();
         Ok(version.to_string())
     }
 
-    async fn read_line(&mut self) -> Result<&[u8], Error> {
+    async fn read_line(&mut self) -> Result<&[u8]> {
         let Self { io, buf } = self;
         buf.clear();
-        io.read_until(b'\n', buf).await?;
+        io.read_until(b'\n', buf).await.map_err(parse_io_error)?;
         if buf.last().copied() != Some(b'\n') {
-            return Err(ErrorKind::UnexpectedEof.into());
+            return Err(Error::new(
+                ErrorKind::ContentIncomplete,
+                "unexpected eof, the response must be incomplete",
+            ));
         }
         Ok(&buf[..])
+    }
+
+    async fn read_header(&mut self) -> Result<&str> {
+        let header = self.read_line().await?;
+        let header = std::str::from_utf8(header).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "invalid data received").set_source(err)
+        })?;
+
+        Ok(header)
     }
 }

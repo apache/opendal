@@ -30,82 +30,18 @@ use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
+use super::appender::OssAppender;
 use super::core::*;
 use super::error::parse_error;
 use super::pager::OssPager;
 use super::writer::OssWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
+const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
+const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 /// Aliyun Object Storage Service (OSS) support
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] copy
-/// - [x] list
-/// - [x] scan
-/// - [ ] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-/// - `bucket`: Set the container name for backend.
-/// - `endpoint`: Set the endpoint for backend.
-/// - `presign_endpoint`: Set the endpoint for presign.
-/// - `access_key_id`: Set the access_key_id for backend.
-/// - `access_key_secret`: Set the access_key_secret for backend.
-/// - `role_arn`: Set the role of backend.
-/// - `oidc_token`: Set the oidc_token for backend.
-/// - `allow_anonymous`: Set the backend access OSS in anonymous way.
-///
-/// Refer to [`OssBuilder`]'s public API docs for more information.
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Oss;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create OSS backend builder.
-///     let mut builder = Oss::default();
-///     // Set the root for oss, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/path/to/dir");
-///     // Set the bucket name, this is required.
-///     builder.bucket("test");
-///     // Set the endpoint.
-///     //
-///     // For example:
-///     // - "https://oss-ap-northeast-1.aliyuncs.com"
-///     // - "https://oss-hangzhou.aliyuncs.com"
-///     builder.endpoint("https://oss-cn-beijing.aliyuncs.com");
-///     // Set the access_key_id and access_key_secret.
-///     //
-///     // OpenDAL will try load credential from the env.
-///     // If credential not set and no valid credential in env, OpenDAL will
-///     // send request without signing like anonymous user.
-///     builder.access_key_id("access_key_id");
-///     builder.access_key_secret("access_key_secret");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OssBuilder {
     root: Option<String>,
@@ -123,6 +59,10 @@ pub struct OssBuilder {
     access_key_secret: Option<String>,
 
     http_client: Option<HttpClient>,
+    /// the size of each part, and the range is 5MB ~ 5 GB.
+    write_min_size: Option<usize>,
+    /// batch_max_operations
+    batch_max_operations: Option<usize>,
 }
 
 impl Debug for OssBuilder {
@@ -292,6 +232,21 @@ impl OssBuilder {
         }
         self
     }
+
+    /// set the minimum size of unsized write, it should be greater than 5 MB.
+    /// Reference: [OSS Multipart upload](https://www.alibabacloud.com/help/en/object-storage-service/latest/multipart-upload-6)
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
+
+        self
+    }
+
+    /// Set maximum batch operations of this backend.
+    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+        self.batch_max_operations = Some(batch_max_operations);
+
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -313,6 +268,10 @@ impl Builder for OssBuilder {
             .map(|v| builder.server_side_encryption(v));
         map.get("server_side_encryption_key_id")
             .map(|v| builder.server_side_encryption_key_id(v));
+        map.get("write_min_size")
+            .map(|v| builder.write_min_size(v.parse::<usize>().unwrap()));
+        map.get("batch_max_operations")
+            .map(|v| builder.batch_max_operations(v.parse::<usize>().unwrap()));
         builder
     }
 
@@ -384,6 +343,17 @@ impl Builder for OssBuilder {
 
         let signer = AliyunOssSigner::new(bucket);
 
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 5 * 1024 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::Oss));
+        }
+        let batch_max_operations = self
+            .batch_max_operations
+            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
         debug!("Backend build finished");
 
         Ok(OssBackend {
@@ -398,6 +368,8 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
+                write_min_size,
+                batch_max_operations,
             }),
         })
     }
@@ -415,6 +387,7 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriter;
     type BlockingWriter = ();
+    type Appender = OssAppender;
     type Pager = OssPager;
     type BlockingPager = ();
 
@@ -430,6 +403,7 @@ impl Accessor for OssBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
@@ -437,13 +411,26 @@ impl Accessor for OssBackend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                delete: true,
+                create_dir: true,
+                copy: true,
+
+                append: true,
+                append_with_cache_control: true,
+                append_with_content_type: true,
+                append_with_content_disposition: true,
 
                 list: true,
-                scan: true,
-                copy: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
                 presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
                 batch: true,
-                batch_max_operations: Some(1000),
+                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });
@@ -451,7 +438,7 @@ impl Accessor for OssBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self
             .core
             .oss_put_object(path, None, None, None, None, AsyncBody::Empty)
@@ -461,7 +448,7 @@ impl Accessor for OssBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -494,6 +481,13 @@ impl Accessor for OssBackend {
         Ok((
             RpWrite::default(),
             OssWriter::new(self.core.clone(), path, args),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            OssAppender::new(self.core.clone(), path, args),
         ))
     }
 
@@ -549,14 +543,7 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            OssPager::new(self.core.clone(), path, "/", args.limit()),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            OssPager::new(self.core.clone(), path, "", args.limit()),
+            OssPager::new(self.core.clone(), path, args.delimiter(), args.limit()),
         ))
     }
 

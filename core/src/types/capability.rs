@@ -43,7 +43,7 @@ use std::fmt::Debug;
 /// - Operation with sub operations should be named like `presign_read`.
 /// - Operation with variants should be named like `read_can_seek`.
 /// - Operation with arguments should be named like `read_with_range`.
-/// - Operation with limtations should be named like `batch_max_operations`.
+/// - Operation with limitations should be named like `batch_max_operations`.
 #[derive(Copy, Clone, Default)]
 pub struct Capability {
     /// If operator supports stat natively, it will be true.
@@ -86,11 +86,26 @@ pub struct Capability {
     /// If operator supports write with cache control natively, it will be true.
     pub write_with_cache_control: bool,
 
+    /// If operator supports append natively, it will be true.
+    pub append: bool,
+    /// If operator supports append with content type natively, it will be true.
+    pub append_with_content_type: bool,
+    /// If operator supports append with content disposition natively, it will be true.
+    pub append_with_content_disposition: bool,
+    /// If operator supports append with cache control natively, it will be true.
+    pub append_with_cache_control: bool,
+
     /// If operator supports create dir natively, it will be true.
     pub create_dir: bool,
 
     /// If operator supports delete natively, it will be true.
     pub delete: bool,
+
+    /// If operator supports copy natively, it will be true.
+    pub copy: bool,
+
+    /// If operator supports rename natively, it will be true.
+    pub rename: bool,
 
     /// If operator supports list natively, it will be true.
     pub list: bool,
@@ -98,17 +113,10 @@ pub struct Capability {
     pub list_with_limit: bool,
     /// If backend supports list with start after, it will be true.
     pub list_with_start_after: bool,
-
-    /// If operator supports scan natively, it will be true.
-    pub scan: bool,
-    /// If backend supports scan with limit, it will be true.
-    pub scan_with_limit: bool,
-
-    /// If operator supports copy natively, it will be true.
-    pub copy: bool,
-
-    /// If operator supports rename natively, it will be true.
-    pub rename: bool,
+    /// If backend support list with using slash as delimiter.
+    pub list_with_delimiter_slash: bool,
+    /// If backend supports list without delimiter.
+    pub list_without_delimiter: bool,
 
     /// If operator supports presign natively, it will be true.
     pub presign: bool,
@@ -134,14 +142,17 @@ impl Debug for Capability {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = vec![];
 
-        if self.read {
-            s.push("Read");
-        }
         if self.stat {
             s.push("Stat");
         }
+        if self.read {
+            s.push("Read");
+        }
         if self.write {
             s.push("Write");
+        }
+        if self.append {
+            s.push("Append");
         }
         if self.create_dir {
             s.push("CreateDir");
@@ -149,17 +160,14 @@ impl Debug for Capability {
         if self.delete {
             s.push("Delete");
         }
-        if self.list {
-            s.push("List");
-        }
-        if self.scan {
-            s.push("Scan");
-        }
         if self.copy {
             s.push("Copy");
         }
         if self.rename {
             s.push("Rename");
+        }
+        if self.list {
+            s.push("List");
         }
         if self.presign {
             s.push("Presign");

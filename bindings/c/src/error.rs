@@ -19,15 +19,17 @@ use ::opendal as od;
 
 /// The wrapper type for opendal's error, wrapped because of the
 /// orphan rule
-pub struct opendal_error(od::Error);
+struct opendal_error(od::Error);
 
-/// The error code for opendal APIs in C binding
+/// \brief The error code for all opendal APIs in C binding.
+/// \todo The error handling is not complete, the error with error message will be
+/// added in the future.
 #[repr(C)]
 pub enum opendal_code {
     /// All is well
     OPENDAL_OK,
     /// General error
-    // todo: make details in the `opendal_error *`
+    // \todo: make details in the `opendal_error *`
     OPENDAL_ERROR,
     /// returning it back. For example, s3 returns an internal service error.
     OPENDAL_UNEXPECTED,

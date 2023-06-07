@@ -36,6 +36,7 @@
 - [redis](https://docs.rs/opendal/latest/opendal/services/struct.Redis.html): [Redis](https://redis.io/) services support.
 - [rocksdb](https://docs.rs/opendal/latest/opendal/services/struct.Rocksdb.html): [RocksDB](http://rocksdb.org/) services support.
 - [s3](https://docs.rs/opendal/latest/opendal/services/struct.S3.html): [AWS S3](https://aws.amazon.com/s3/) alike services.
+- [sftp](https://docs.rs/opendal/latest/opendal/services/struct.Sftp.html): [SFTP](https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02) services support.
 - [sled](https://docs.rs/opendal/latest/opendal/services/sled/struct.Sled.html): [sled](https://crates.io/crates/sled) services support.
 - [webdav](https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html): [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service Support.
 - [webhdfs](https://docs.rs/opendal/latest/opendal/services/struct.Webhdfs.html): [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service Support.
@@ -80,7 +81,7 @@ async fn main() -> Result<()> {
     builder.bucket("test");
 
     // Init an operator
-    let op = Operator::create(builder)?
+    let op = Operator::new(builder)?
         // Init with logging layer enabled.
         .layer(LoggingLayer::default())
         .finish();
@@ -101,6 +102,7 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
 ```
 
 ## Contributing

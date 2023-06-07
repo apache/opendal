@@ -36,7 +36,6 @@ use prometheus::register_int_counter_vec_with_registry;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 
-use crate::ops::*;
 use crate::raw::Accessor;
 use crate::raw::*;
 use crate::*;
@@ -54,7 +53,7 @@ use crate::*;
 /// use prometheus::Encoder;
 ///
 /// /// Visit [`opendal::services`] for more service related config.
-/// /// Visit [`opendal::Object`] for more object level APIs.
+/// /// Visit [`opendal::Operator`] for more operator level APIs.
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.
@@ -193,6 +192,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     type BlockingReader = PrometheusMetricWrapper<A::BlockingReader>;
     type Writer = PrometheusMetricWrapper<A::Writer>;
     type BlockingWriter = PrometheusMetricWrapper<A::BlockingWriter>;
+    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -200,7 +200,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         &self.inner
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.stats
             .requests_total
             .with_label_values(&[&self.scheme])
@@ -298,6 +298,10 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.stats
             .requests_total
@@ -365,26 +369,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.stats
-            .requests_total
-            .with_label_values(&[&self.scheme, Operation::Scan.into_static()])
-            .inc();
-
-        let timer = self
-            .stats
-            .requests_duration_seconds
-            .with_label_values(&[&self.scheme, Operation::Scan.into_static()])
-            .start_timer();
-
-        let scan_res = self.inner.scan(path, args).await;
-        timer.observe_duration();
-        scan_res.map_err(|e| {
-            self.stats.increment_errors_total(Operation::Scan, e.kind());
-            e
-        })
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.stats
             .requests_total
@@ -427,7 +411,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         })
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.stats
             .requests_total
             .with_label_values(&[&self.scheme, Operation::BlockingCreateDir.into_static()])
@@ -571,26 +555,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         result.map_err(|e| {
             self.stats
                 .increment_errors_total(Operation::BlockingList, e.kind());
-            e
-        })
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.stats
-            .requests_total
-            .with_label_values(&[&self.scheme, Operation::BlockingScan.into_static()])
-            .inc();
-
-        let timer = self
-            .stats
-            .requests_duration_seconds
-            .with_label_values(&[&self.scheme, Operation::BlockingScan.into_static()])
-            .start_timer();
-        let result = self.inner.blocking_scan(path, args);
-        timer.observe_duration();
-        result.map_err(|e| {
-            self.stats
-                .increment_errors_total(Operation::BlockingScan, e.kind());
             e
         })
     }

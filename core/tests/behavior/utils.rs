@@ -25,8 +25,10 @@ use std::usize;
 
 use bytes::Bytes;
 use log::debug;
+use log::warn;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
+use opendal::layers::TimeoutLayer;
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
@@ -38,7 +40,11 @@ use sha2::Sha256;
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
 pub fn init_service<B: Builder>() -> Option<Operator> {
-    let _ = env_logger::builder().is_test(true).try_init();
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        .with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
     let _ = dotenvy::dotenv();
 
     let prefix = format!("opendal_{}_", B::SCHEME);
@@ -54,6 +60,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
     let turn_on_test = cfg.get("test").cloned().unwrap_or_default();
 
     if turn_on_test != "on" && turn_on_test != "true" {
+        warn!("service {} not initiated, ignored", B::SCHEME);
         return None;
     }
 
@@ -78,6 +85,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
 
     let op = op
         .layer(LoggingLayer::default())
+        .layer(TimeoutLayer::new())
         .layer(RetryLayer::new())
         .finish();
 

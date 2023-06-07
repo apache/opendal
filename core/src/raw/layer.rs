@@ -19,7 +19,6 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -46,7 +45,6 @@ use crate::*;
 /// use std::sync::Arc;
 ///
 /// use async_trait::async_trait;
-/// use opendal::ops::*;
 /// use opendal::raw::*;
 /// use opendal::*;
 ///
@@ -63,6 +61,7 @@ use crate::*;
 ///     type BlockingReader = A::BlockingReader;
 ///     type Writer = A::Writer;
 ///     type BlockingWriter = A::BlockingWriter;
+///     type Appender = A::Appender;
 ///     type Pager = A::Pager;
 ///     type BlockingPager = A::BlockingPager;
 ///
@@ -94,20 +93,16 @@ use crate::*;
 ///         self.inner.blocking_write(path, args)
 ///     }
 ///
+///     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+///         self.inner.append(path, args).await
+///     }
+///
 ///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
 ///         self.inner.list(path, args).await
 ///     }
 ///
 ///     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
 ///         self.inner.blocking_list(path, args)
-///     }
-///
-///     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-///         self.inner.scan(path, args).await
-///     }
-///
-///     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-///         self.inner.blocking_scan(path, args)
 ///     }
 /// }
 ///
@@ -142,6 +137,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type BlockingReader: oio::BlockingRead;
     type Writer: oio::Write;
     type BlockingWriter: oio::BlockingWrite;
+    type Appender: oio::Append;
     type Pager: oio::Page;
     type BlockingPager: oio::BlockingPage;
 
@@ -151,13 +147,15 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner().create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)>;
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)>;
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)>;
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().copy(from, to, args).await
@@ -177,8 +175,6 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)>;
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)>;
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.inner().batch(args).await
     }
@@ -187,7 +183,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().presign(path, args).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner().blocking_create_dir(path, args)
     }
 
@@ -212,8 +208,6 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)>;
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)>;
 }
 
 #[async_trait]
@@ -222,6 +216,7 @@ impl<L: LayeredAccessor> Accessor for L {
     type BlockingReader = L::BlockingReader;
     type Writer = L::Writer;
     type BlockingWriter = L::BlockingWriter;
+    type Appender = L::Appender;
     type Pager = L::Pager;
     type BlockingPager = L::BlockingPager;
 
@@ -229,7 +224,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).metadata()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         (self as &L).create_dir(path, args).await
     }
 
@@ -239,6 +234,10 @@ impl<L: LayeredAccessor> Accessor for L {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         (self as &L).write(path, args).await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        (self as &L).append(path, args).await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -261,10 +260,6 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).list(path, args).await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        (self as &L).scan(path, args).await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         (self as &L).batch(args).await
     }
@@ -273,7 +268,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).presign(path, args).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         (self as &L).blocking_create_dir(path, args)
     }
 
@@ -303,10 +298,6 @@ impl<L: LayeredAccessor> Accessor for L {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         (self as &L).blocking_list(path, args)
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        (self as &L).blocking_scan(path, args)
     }
 }
 
@@ -343,6 +334,7 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
+        type Appender = ();
         type Pager = ();
         type BlockingPager = ();
 

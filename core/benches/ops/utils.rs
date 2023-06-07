@@ -31,8 +31,17 @@ fn service<AB: Builder>() -> Option<Operator> {
         return None;
     }
 
+    let prefix = format!("opendal_{}_", AB::SCHEME);
+    let envs = env::vars()
+        .filter_map(move |(k, v)| {
+            k.to_lowercase()
+                .strip_prefix(&prefix)
+                .map(|k| (k.to_string(), v))
+        })
+        .collect();
+
     Some(
-        Operator::from_env::<AB>()
+        Operator::from_map::<AB>(envs)
             .unwrap_or_else(|_| panic!("init {} must succeed", AB::SCHEME))
             .finish(),
     )
@@ -45,6 +54,8 @@ pub fn services() -> Vec<(&'static str, Option<Operator>)> {
         ("fs", service::<services::Fs>()),
         ("s3", service::<services::S3>()),
         ("memory", service::<services::Memory>()),
+        #[cfg(feature = "services-moka")]
+        ("moka", service::<services::Moka>()),
     ]
 }
 

@@ -18,16 +18,15 @@
 use std::fmt::Display;
 use std::io;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
 use futures::future::BoxFuture;
-use futures::ready;
 use futures::AsyncWrite;
 use futures::FutureExt;
 
-use crate::ops::OpWrite;
 use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
@@ -57,6 +56,11 @@ use crate::*;
 pub struct Writer {
     state: State,
 }
+
+/// # Safety
+///
+/// Writer will only be accessed by `&mut Self`
+unsafe impl Sync for Writer {}
 
 impl Writer {
     /// Create a new writer.

@@ -29,108 +29,12 @@ use log::debug;
 use super::error::parse_io_error;
 use super::pager::HdfsPager;
 use super::writer::HdfsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 ///
-/// A distributed file system that provides high-throughput access to application data.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [x] blocking
-///
-/// # Differences with webhdfs
-///
-/// [Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.
-///
-/// # Features
-///
-/// HDFS support needs to enable feature `services-hdfs`.
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-/// - `name_node`: Set the name node for backend.
-///
-/// Refer to [`HdfsBuilder`]'s public API docs for more information.
-///
-/// # Environment
-///
-/// HDFS needs some environment set correctly.
-///
-/// - `JAVA_HOME`: the path to java home, could be found via `java -XshowSettings:properties -version`
-/// - `HADOOP_HOME`: the path to hadoop home, opendal relays on this env to discover hadoop jars and set `CLASSPATH` automatically.
-///
-/// Most of the time, setting `JAVA_HOME` and `HADOOP_HOME` is enough. But there are some edge cases:
-///
-/// - If meeting errors like the following:
-///
-/// ```shell
-/// error while loading shared libraries: libjvm.so: cannot open shared object file: No such file or directory
-/// ```
-///
-/// Java's lib are not including in pkg-config find path, please set `LD_LIBRARY_PATH`:
-///
-/// ```shell
-/// export LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${LD_LIBRARY_PATH}
-/// ```
-///
-/// The path of `libjvm.so` could be different, please keep an eye on it.
-///
-/// - If meeting errors like the following:
-///
-/// ```shell
-/// (unable to get stack trace for java.lang.NoClassDefFoundError exception: ExceptionUtils::getStackTrace error.)
-/// ```
-///
-/// `CLASSPATH` is not set correctly or your hadoop installation is incorrect.
-///  
-/// To set `CLASSPATH`:
-/// ```shell
-/// export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':'):${CLASSPATH}
-/// ```
-///
-/// # Example
-///
-/// ### Via Builder
-///
-/// ```no_run
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Hdfs;
-/// use opendal::Object;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create fs backend builder.
-///     let mut builder = Hdfs::default();
-///     // Set the name node for hdfs.
-///     builder.name_node("hdfs://127.0.0.1:9000");
-///     // Set the root for hdfs, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/tmp");
-///
-///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct HdfsBuilder {
     root: Option<String>,
@@ -230,6 +134,7 @@ impl Accessor for HdfsBackend {
     type BlockingReader = oio::into_blocking_reader::FdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
+    type Appender = ();
     type Pager = Option<HdfsPager>;
     type BlockingPager = Option<HdfsPager>;
 
@@ -238,23 +143,33 @@ impl Accessor for HdfsBackend {
         am.set_scheme(Scheme::Hdfs)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_seek: true,
+                read_with_range: true,
+
                 write: true,
+                create_dir: true,
+                delete: true,
+
                 list: true,
+                list_with_delimiter_slash: true,
+
                 blocking: true,
+
                 ..Default::default()
             });
 
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
         self.client.create_dir(&p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -387,12 +302,12 @@ impl Accessor for HdfsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = build_rooted_abs_path(&self.root, path);
 
         self.client.create_dir(&p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

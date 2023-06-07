@@ -21,8 +21,6 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::time::Duration;
 
-use backon::ExponentialBuilder;
-use backon::Retryable;
 use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
@@ -32,7 +30,6 @@ use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
 use reqsign::AwsCredential;
 use reqsign::AwsLoader;
 use reqsign::AwsV4Signer;
@@ -73,9 +70,6 @@ mod constants {
     pub const OVERWRITE: &str = "Overwrite";
 }
 
-static BACKOFF: Lazy<ExponentialBuilder> =
-    Lazy::new(|| ExponentialBuilder::default().with_jitter());
-
 pub struct WasabiCore {
     pub bucket: String,
     pub endpoint: String,
@@ -105,15 +99,21 @@ impl Debug for WasabiCore {
 impl WasabiCore {
     /// If credential is not found, we will not sign the request.
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
-        let cred = { || self.loader.load() }
-            .retry(&*BACKOFF)
+        let cred = self
+            .loader
+            .load()
             .await
             .map_err(new_request_credential_error)?;
 
         if let Some(cred) = cred {
             Ok(Some(cred))
         } else {
-            Ok(None)
+            // Mark this error as temporary since it could be caused by AWS STS.
+            Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "no valid credential found, please check configuration or try again",
+            )
+            .set_temporary())
         }
     }
 
@@ -207,11 +207,7 @@ impl WasabiCore {
 }
 
 impl WasabiCore {
-    pub fn head_object_request(
-        &self,
-        path: &str,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -220,8 +216,12 @@ impl WasabiCore {
 
         req = self.insert_sse_headers(req, false);
 
-        if let Some(if_none_match) = if_none_match {
-            req = req.header(http::header::IF_NONE_MATCH, if_none_match);
+        if let Some(v) = args.if_match() {
+            req = req.header(http::header::IF_MATCH, v);
+        }
+
+        if let Some(v) = args.if_none_match() {
+            req = req.header(http::header::IF_NONE_MATCH, v);
         }
 
         let req = req
@@ -346,9 +346,9 @@ impl WasabiCore {
     pub async fn head_object(
         &self,
         path: &str,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.head_object_request(path, if_none_match)?;
+        let mut req = self.head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 

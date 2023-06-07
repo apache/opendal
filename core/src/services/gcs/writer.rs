@@ -23,7 +23,6 @@ use http::StatusCode;
 
 use super::core::GcsCore;
 use super::error::parse_error;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
@@ -35,11 +34,12 @@ pub struct GcsWriter {
     location: Option<String>,
     written: u64,
     buffer: oio::VectorCursor,
-    buffer_size: usize,
+    write_fixed_size: usize,
 }
 
 impl GcsWriter {
     pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
+        let write_fixed_size = core.write_fixed_size;
         GcsWriter {
             core,
             path: path.to_string(),
@@ -48,17 +48,7 @@ impl GcsWriter {
             location: None,
             written: 0,
             buffer: oio::VectorCursor::new(),
-            // The chunk size should be a multiple of 256 KiB
-            // (256 x 1024 bytes), unless it's the last chunk
-            // that completes the upload.
-            //
-            // Larger chunk sizes typically make uploads faster,
-            // but note that there's a tradeoff between speed and
-            // memory usage. It's recommended that you use at least
-            // 8 MiB for the chunk size.
-            //
-            // TODO: allow this value to be configured.
-            buffer_size: 8 * 1024 * 1024,
+            write_fixed_size,
         }
     }
 
@@ -151,16 +141,16 @@ impl oio::Write for GcsWriter {
 
         self.buffer.push(bs);
         // Return directly if the buffer is not full
-        if self.buffer.len() <= self.buffer_size {
+        if self.buffer.len() <= self.write_fixed_size {
             return Ok(());
         }
 
-        let bs = self.buffer.peak_exact(self.buffer_size);
+        let bs = self.buffer.peak_exact(self.write_fixed_size);
 
         match self.write_part(location, bs).await {
             Ok(_) => {
-                self.buffer.take(self.buffer_size);
-                self.written += self.buffer_size as u64;
+                self.buffer.take(self.write_fixed_size);
+                self.written += self.write_fixed_size as u64;
                 Ok(())
             }
             Err(e) => {
@@ -172,9 +162,26 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    // TODO: we can cancel the upload by sending a DELETE request to the location
     async fn abort(&mut self) -> Result<()> {
-        Ok(())
+        let location = if let Some(location) = &self.location {
+            location
+        } else {
+            return Ok(());
+        };
+
+        let resp = self.core.gcs_abort_resumable_upload(location).await?;
+
+        match resp.status().as_u16() {
+            // gcs returns 499 if the upload aborted successfully
+            // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
+            499 => {
+                resp.into_body().consume().await?;
+                self.location = None;
+                self.buffer.clear();
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn close(&mut self) -> Result<()> {

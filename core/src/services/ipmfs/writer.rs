@@ -39,10 +39,7 @@ impl IpmfsWriter {
 #[async_trait]
 impl oio::Write for IpmfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let resp = self
-            .backend
-            .ipmfs_write(&self.path, AsyncBody::Multipart("data".to_string(), bs))
-            .await?;
+        let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();
 

@@ -35,24 +35,28 @@ use super::core::GcsCore;
 use super::error::parse_error;
 use super::pager::GcsPager;
 use super::writer::GcsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
-
+/// It's recommended that you use at least 8 MiB for the chunk size.
+const DEFAULT_WRITE_FIXED_SIZE: usize = 8 * 1024 * 1024;
 /// Google Cloud Storage service.
 ///
 /// # Capabilities
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [x] copy
+/// - [ ] rename
 /// - [x] list
 /// - [x] scan
-/// - [x] copy
 /// - [x] presign
 /// - [ ] blocking
 ///
@@ -120,6 +124,9 @@ pub struct GcsBuilder {
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
     predefined_acl: Option<String>,
     default_storage_class: Option<String>,
+
+    /// the fixed size writer uses to flush into underlying storage.
+    write_fixed_size: Option<usize>,
 }
 
 impl GcsBuilder {
@@ -237,6 +244,16 @@ impl GcsBuilder {
         };
         self
     }
+
+    /// The buffer size should be a multiple of 256 KiB (256 x 1024 bytes), unless it's the last chunk that completes the upload.
+    /// Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
+    /// It's recommended that you use at least 8 MiB for the chunk size.
+    /// Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
+    pub fn write_fixed_size(&mut self, fixed_buffer_size: usize) -> &mut Self {
+        self.write_fixed_size = Some(fixed_buffer_size);
+
+        self
+    }
 }
 
 impl Debug for GcsBuilder {
@@ -336,6 +353,17 @@ impl Builder for GcsBuilder {
 
         let signer = GoogleSigner::new("storage");
 
+        let write_fixed_size = self.write_fixed_size.unwrap_or(DEFAULT_WRITE_FIXED_SIZE);
+        // GCS requires write must align with 256 KiB.
+        if write_fixed_size % (256 * 1024) != 0 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write fixed buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::Gcs)
+            .with_context("write_fixed_size", write_fixed_size.to_string()));
+        }
+
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
                 endpoint,
@@ -347,6 +375,7 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.predefined_acl.clone(),
                 default_storage_class: self.default_storage_class.clone(),
+                write_fixed_size,
             }),
         };
 
@@ -366,6 +395,7 @@ impl Accessor for GcsBackend {
     type BlockingReader = ();
     type Writer = GcsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = GcsPager;
     type BlockingPager = ();
 
@@ -381,28 +411,36 @@ impl Accessor for GcsBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
                 write: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                delete: true,
+                copy: true,
 
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
-                scan: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
+
                 batch: true,
                 batch_max_operations: Some(100),
                 copy: true,
                 presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
 
                 ..Default::default()
             });
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req = self
             .core
             .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
@@ -413,7 +451,7 @@ impl Accessor for GcsBackend {
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
-            Ok(RpCreate::default())
+            Ok(RpCreateDir::default())
         } else {
             Err(parse_error(resp).await?)
         }
@@ -515,19 +553,13 @@ impl Accessor for GcsBackend {
             GcsPager::new(
                 self.core.clone(),
                 path,
-                "/",
+                args.delimiter(),
                 args.limit(),
                 args.start_after(),
             ),
         ))
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            GcsPager::new(self.core.clone(), path, "", args.limit(), None),
-        ))
-    }
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
         if ops.len() > 100 {

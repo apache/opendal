@@ -37,7 +37,6 @@ use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
@@ -65,6 +64,8 @@ pub struct OssCore {
     pub client: HttpClient,
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
+    pub write_min_size: usize,
+    pub batch_max_operations: usize,
 }
 
 impl Debug for OssCore {
@@ -175,6 +176,46 @@ impl OssCore {
         }
 
         if let Some(cache_control) = cache_control {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // set sse headers
+        req = self.insert_sse_headers(req);
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+        Ok(req)
+    }
+
+    pub fn oss_append_object_request(
+        &self,
+        path: &str,
+        position: u64,
+        size: usize,
+        args: &OpAppend,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let endpoint = self.get_endpoint(false);
+        let url = format!(
+            "{}/{}?append&position={}",
+            endpoint,
+            percent_encode_path(&p),
+            position
+        );
+
+        let mut req = Request::post(&url);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 

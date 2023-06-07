@@ -62,6 +62,11 @@ impl OperatorInfo {
         self.0.capability().write
     }
 
+    /// Check if current backend supports [`Accessor::append`] or not.
+    pub fn can_append(&self) -> bool {
+        self.0.capability().append
+    }
+
     /// Check if current backend supports [`Accessor::copy`] or not.
     pub fn can_copy(&self) -> bool {
         self.0.capability().copy
@@ -75,11 +80,6 @@ impl OperatorInfo {
     /// Check if current backend supports [`Accessor::list`] or not.
     pub fn can_list(&self) -> bool {
         self.0.capability().list
-    }
-
-    /// Check if current backend supports [`Accessor::scan`] or not.
-    pub fn can_scan(&self) -> bool {
-        self.0.capability().scan
     }
 
     /// Check if current backend supports [`Accessor::presign`] or not.

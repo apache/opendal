@@ -346,7 +346,7 @@ impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
     }
 }
 
-impl std::io::Read for dyn BlockingRead {
+impl io::Read for dyn BlockingRead {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let this: &mut dyn BlockingRead = &mut *self;
@@ -355,7 +355,7 @@ impl std::io::Read for dyn BlockingRead {
     }
 }
 
-impl std::io::Seek for dyn BlockingRead {
+impl io::Seek for dyn BlockingRead {
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         let this: &mut dyn BlockingRead = &mut *self;

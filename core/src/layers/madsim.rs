@@ -39,7 +39,6 @@ use madsim::net::Endpoint;
 #[cfg(madsim)]
 use madsim::net::Payload;
 
-use crate::ops::*;
 use crate::raw::oio;
 use crate::raw::oio::Entry;
 use crate::raw::*;
@@ -150,6 +149,7 @@ impl LayeredAccessor for MadsimAccessor {
     type BlockingReader = ();
     type Writer = MadsimWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = MadsimPager;
     type BlockingPager = ();
 
@@ -221,14 +221,18 @@ impl LayeredAccessor for MadsimAccessor {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Pager)> {
+    async fn append(
+        &self,
+        path: &str,
+        args: OpAppend,
+    ) -> crate::Result<(RpAppend, Self::Appender)> {
         Err(Error::new(
             ErrorKind::Unsupported,
-            "will be supported in the future",
+            "will not be supported in MadsimLayer",
         ))
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> crate::Result<(RpScan, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Pager)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
@@ -262,17 +266,6 @@ impl LayeredAccessor for MadsimAccessor {
         path: &str,
         args: OpList,
     ) -> crate::Result<(RpList, Self::BlockingPager)> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "will not be supported in MadsimLayer",
-        ))
-    }
-
-    fn blocking_scan(
-        &self,
-        path: &str,
-        args: OpScan,
-    ) -> crate::Result<(RpScan, Self::BlockingPager)> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will not be supported in MadsimLayer",

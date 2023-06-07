@@ -152,6 +152,22 @@ export class Operator {
    */
   writeSync(path: string, content: Buffer | string): void
   /**
+   * Append bytes into path.
+   *
+   * ### Notes
+   *
+   * - It always appends content to the end of the file.
+   * - It will create file if the path not exists.
+   *
+   * ### Example
+   * ```javascript
+   * await op.append("path/to/file", Buffer.from("hello world"));
+   * // or
+   * await op.append("path/to/file", "hello world");
+   * ```
+   */
+  append(path: string, content: Buffer | string): Promise<void>
+  /**
    * Copy file according to given `from` and `to` path.
    *
    * ### Example
@@ -201,7 +217,7 @@ export class Operator {
    * ### Example
    * ```javascript
    * const lister = await op.scan("/path/to/dir/");
-   * while (true)) {
+   * while (true) {
    *   const entry = await lister.next();
    *   if (entry === null) {
    *     break;
@@ -224,7 +240,7 @@ export class Operator {
    * ### Example
    * ```javascript
    * const lister = op.scan_sync(/path/to/dir/");
-   * while (true)) {
+   * while (true) {
    *   const entry = lister.next();
    *   if (entry === null) {
    *     break;
@@ -292,7 +308,7 @@ export class Operator {
    * ### Example
    * ```javascript
    * const lister = await op.list("path/to/dir/");
-   * while (true)) {
+   * while (true) {
    *   const entry = await lister.next();
    *   if (entry === null) {
    *     break;
@@ -315,7 +331,7 @@ export class Operator {
    * ### Example
    * ```javascript
    * const lister = op.listSync("path/to/dir/");
-   * while (true)) {
+   * while (true) {
    *   const entry = lister.next();
    *   if (entry === null) {
    *     break;

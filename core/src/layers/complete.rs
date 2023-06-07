@@ -25,7 +25,6 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::ops::*;
 use crate::raw::oio::into_reader::RangeReader;
 use crate::raw::oio::to_flat_pager;
 use crate::raw::oio::to_hierarchy_pager;
@@ -225,23 +224,48 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
-        let capability = self.meta.capability();
-        let (can_list, can_scan) = (capability.list, capability.scan);
-
-        if can_list {
-            let (rp, p) = self.inner.list(path, args).await?;
-            Ok((rp, CompletePager::AlreadyComplete(p)))
-        } else if can_scan {
-            let (_, p) = self.inner.scan(path, OpScan::new()).await?;
-            let p = to_hierarchy_pager(p, path);
-            Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-        } else {
-            Err(
+        let cap = self.meta.capability();
+        if !cap.list {
+            return Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
                     .with_context("service", self.meta.scheme())
                     .with_operation("list"),
-            )
+            );
         }
+
+        let delimiter = args.delimiter();
+
+        if delimiter.is_empty() {
+            return if cap.list_without_delimiter {
+                let (rp, p) = self.inner.list(path, args).await?;
+                Ok((rp, CompletePager::AlreadyComplete(p)))
+            } else {
+                let p = to_flat_pager(
+                    self.inner.clone(),
+                    path,
+                    args.with_delimiter("/").limit().unwrap_or(1000),
+                );
+                Ok((RpList::default(), CompletePager::NeedFlat(p)))
+            };
+        }
+
+        if delimiter == "/" {
+            return if cap.list_with_delimiter_slash {
+                let (rp, p) = self.inner.list(path, args).await?;
+                Ok((rp, CompletePager::AlreadyComplete(p)))
+            } else {
+                let (_, p) = self.inner.list(path, args.with_delimiter("")).await?;
+                let p = to_hierarchy_pager(p, path);
+                Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
+            };
+        }
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "list with other delimiter is not supported",
+        )
+        .with_context("service", self.meta.scheme())
+        .with_context("delimiter", delimiter))
     }
 
     fn complete_blocking_list(
@@ -249,69 +273,49 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
-        let capability = self.meta.capability();
-        let (can_list, can_scan) = (capability.list, capability.scan);
-
-        if can_list {
-            let (rp, p) = self.inner.blocking_list(path, args)?;
-            Ok((rp, CompletePager::AlreadyComplete(p)))
-        } else if can_scan {
-            let (_, p) = self.inner.blocking_scan(path, OpScan::new())?;
-            let p = to_hierarchy_pager(p, path);
-            Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
-        } else {
-            Err(
+        let cap = self.meta.capability();
+        if !cap.list {
+            return Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
                     .with_context("service", self.meta.scheme())
                     .with_operation("list"),
-            )
+            );
         }
-    }
 
-    async fn complete_scan(
-        &self,
-        path: &str,
-        args: OpScan,
-    ) -> Result<(RpScan, CompletePager<A, A::Pager>)> {
-        let capability = self.meta.capability();
-        let (can_list, can_scan) = (capability.list, capability.scan);
+        let delimiter = args.delimiter();
 
-        if can_scan {
-            let (rp, p) = self.inner.scan(path, args).await?;
-            Ok((rp, CompletePager::AlreadyComplete(p)))
-        } else if can_list {
-            let p = to_flat_pager(self.inner.clone(), path, args.limit().unwrap_or(1000));
-            Ok((RpScan::default(), CompletePager::NeedFlat(p)))
-        } else {
-            Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_context("service", self.meta.scheme())
-                    .with_operation("scan"),
-            )
+        if delimiter.is_empty() {
+            return if cap.list_without_delimiter {
+                let (rp, p) = self.inner.blocking_list(path, args)?;
+                Ok((rp, CompletePager::AlreadyComplete(p)))
+            } else {
+                let p = to_flat_pager(
+                    self.inner.clone(),
+                    path,
+                    args.with_delimiter("/").limit().unwrap_or(1000),
+                );
+                Ok((RpList::default(), CompletePager::NeedFlat(p)))
+            };
         }
-    }
 
-    fn complete_blocking_scan(
-        &self,
-        path: &str,
-        args: OpScan,
-    ) -> Result<(RpScan, CompletePager<A, A::BlockingPager>)> {
-        let capability = self.meta.capability();
-        let (can_list, can_scan) = (capability.list, capability.scan);
-
-        if can_scan {
-            let (rp, p) = self.inner.blocking_scan(path, args)?;
-            Ok((rp, CompletePager::AlreadyComplete(p)))
-        } else if can_list {
-            let p = to_flat_pager(self.inner.clone(), path, args.limit().unwrap_or(1000));
-            Ok((RpScan::default(), CompletePager::NeedFlat(p)))
-        } else {
-            Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_context("service", self.meta.scheme())
-                    .with_operation("scan"),
-            )
+        if delimiter == "/" {
+            return if cap.list_with_delimiter_slash {
+                let (rp, p) = self.inner.blocking_list(path, args)?;
+                Ok((rp, CompletePager::AlreadyComplete(p)))
+            } else {
+                let (_, p) = self.inner.blocking_list(path, args.with_delimiter(""))?;
+                let p: ToHierarchyPager<<A as Accessor>::BlockingPager> =
+                    to_hierarchy_pager(p, path);
+                Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
+            };
         }
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "list with other delimiter is not supported",
+        )
+        .with_context("service", self.meta.scheme())
+        .with_context("delimiter", delimiter))
     }
 }
 
@@ -322,6 +326,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
     type Writer = CompleteWriter<A::Writer>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
+    type Appender = CompleteAppender<A::Appender>;
     type Pager = CompletePager<A, A::Pager>;
     type BlockingPager = CompletePager<A, A::BlockingPager>;
 
@@ -370,20 +375,19 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
             .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner
+            .append(path, args)
+            .await
+            .map(|(rp, a)| (rp, CompleteAppender::new(a)))
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.complete_list(path, args).await
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.complete_blocking_list(path, args)
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.complete_scan(path, args).await
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.complete_blocking_scan(path, args)
     }
 }
 
@@ -645,6 +649,54 @@ where
         })?;
 
         w.close()?;
+        self.inner = None;
+        Ok(())
+    }
+}
+
+pub struct CompleteAppender<A> {
+    inner: Option<A>,
+}
+
+impl<A> CompleteAppender<A> {
+    pub fn new(inner: A) -> CompleteAppender<A> {
+        CompleteAppender { inner: Some(inner) }
+    }
+}
+
+/// Check if the appender has been closed while debug_assertions enabled.
+/// This code will never be executed in release mode.
+#[cfg(debug_assertions)]
+impl<A> Drop for CompleteAppender<A> {
+    fn drop(&mut self) {
+        if self.inner.is_some() {
+            // Do we need to panic here?
+            log::warn!("appender has not been closed, must be a bug")
+        }
+    }
+}
+
+#[async_trait]
+impl<A> oio::Append for CompleteAppender<A>
+where
+    A: oio::Append,
+{
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let a = self
+            .inner
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
+
+        a.append(bs).await
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        let a = self
+            .inner
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
+
+        a.close().await?;
         self.inner = None;
         Ok(())
     }

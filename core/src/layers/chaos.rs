@@ -25,7 +25,6 @@ use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -107,6 +106,7 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
     type BlockingReader = ChaosReader<A::BlockingReader>;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
+    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -135,20 +135,16 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
         self.inner.blocking_write(path, args)
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner.list(path, args).await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.inner.scan(path, args).await
-    }
-
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.inner.blocking_list(path, args)
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.inner.blocking_scan(path, args)
     }
 }
 

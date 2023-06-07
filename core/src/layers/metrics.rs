@@ -33,7 +33,6 @@ use metrics::register_histogram;
 use metrics::Counter;
 use metrics::Histogram;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -160,9 +159,6 @@ struct MetricsHandler {
     requests_total_list: Counter,
     requests_duration_seconds_list: Histogram,
 
-    requests_total_scan: Counter,
-    requests_duration_seconds_scan: Histogram,
-
     requests_total_presign: Counter,
     requests_duration_seconds_presign: Histogram,
 
@@ -189,9 +185,6 @@ struct MetricsHandler {
 
     requests_total_blocking_list: Counter,
     requests_duration_seconds_blocking_list: Histogram,
-
-    requests_total_blocking_scan: Counter,
-    requests_duration_seconds_blocking_scan: Histogram,
 }
 
 impl MetricsHandler {
@@ -284,17 +277,6 @@ impl MetricsHandler {
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::List.into_static(),
-            ),
-
-            requests_total_scan: register_counter!(
-                METRIC_REQUESTS_TOTAL,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::Scan.into_static(),
-            ),
-            requests_duration_seconds_scan: register_histogram!(
-                METRIC_REQUESTS_DURATION_SECONDS,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::Scan.into_static(),
             ),
 
             requests_total_presign: register_counter!(
@@ -394,17 +376,6 @@ impl MetricsHandler {
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingList.into_static(),
             ),
-
-            requests_total_blocking_scan: register_counter!(
-                METRIC_REQUESTS_TOTAL,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::BlockingScan.into_static(),
-            ),
-            requests_duration_seconds_blocking_scan: register_histogram!(
-                METRIC_REQUESTS_DURATION_SECONDS,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::BlockingScan.into_static(),
-            ),
         }
     }
 
@@ -441,6 +412,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type BlockingReader = MetricWrapper<A::BlockingReader>;
     type Writer = MetricWrapper<A::Writer>;
     type BlockingWriter = MetricWrapper<A::BlockingWriter>;
+    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -460,7 +432,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         result
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.handle.requests_total_create.increment(1);
 
         let start = Instant::now();
@@ -538,6 +510,10 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .await
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner.append(path, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.handle.requests_total_stat.increment(1);
 
@@ -595,25 +571,6 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.handle.requests_total_scan.increment(1);
-
-        let start = Instant::now();
-
-        self.inner
-            .scan(path, args)
-            .inspect_ok(|_| {
-                let dur = start.elapsed().as_secs_f64();
-
-                self.handle.requests_duration_seconds_scan.record(dur);
-            })
-            .inspect_err(|e| {
-                self.handle
-                    .increment_errors_total(Operation::Scan, e.kind());
-            })
-            .await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.handle.requests_total_batch.increment(1);
 
@@ -646,7 +603,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.handle.requests_total_blocking_create.increment(1);
 
         let start = Instant::now();
@@ -771,24 +728,6 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         result.map_err(|e| {
             self.handle
                 .increment_errors_total(Operation::BlockingList, e.kind());
-            e
-        })
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.handle.requests_total_blocking_scan.increment(1);
-
-        let start = Instant::now();
-        let result = self.inner.blocking_scan(path, args);
-        let dur = start.elapsed().as_secs_f64();
-
-        self.handle
-            .requests_duration_seconds_blocking_scan
-            .record(dur);
-
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::BlockingScan, e.kind());
             e
         })
     }

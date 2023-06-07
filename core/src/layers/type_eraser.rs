@@ -20,7 +20,6 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -58,6 +57,7 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
     type BlockingReader = oio::BlockingReader;
     type Writer = oio::Writer;
     type BlockingWriter = oio::BlockingWriter;
+    type Appender = oio::Appender;
     type Pager = oio::Pager;
     type BlockingPager = oio::BlockingPager;
 
@@ -91,6 +91,13 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
             .map(|(rp, w)| (rp, Box::new(w) as oio::BlockingWriter))
     }
 
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.inner
+            .append(path, args)
+            .await
+            .map(|(rp, a)| (rp, Box::new(a) as oio::Appender))
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
@@ -101,19 +108,6 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.inner
-            .scan(path, args)
-            .await
-            .map(|(rp, p)| (rp, Box::new(p) as oio::Pager))
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.inner
-            .blocking_scan(path, args)
             .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
     }
 }

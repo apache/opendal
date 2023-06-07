@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Duration;
@@ -30,11 +31,10 @@ use backon::ExponentialBackoff;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
-use futures::ready;
 use futures::FutureExt;
 use log::warn;
 
-use crate::ops::*;
+use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -161,6 +161,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type BlockingReader = RetryWrapper<A::BlockingReader>;
     type Writer = RetryWrapper<A::Writer>;
     type BlockingWriter = RetryWrapper<A::BlockingWriter>;
+    type Appender = RetryWrapper<A::Appender>;
     type Pager = RetryWrapper<A::Pager>;
     type BlockingPager = RetryWrapper<A::BlockingPager>;
 
@@ -168,7 +169,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         &self.inner
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         { || self.inner.create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -211,6 +212,23 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Write, dur.as_secs_f64(), err)
+            })
+            .map(|v| {
+                v.map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
+                    .map_err(|e| e.set_persistent())
+            })
+            .await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        { || self.inner.append(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Append, dur.as_secs_f64(), err)
             })
             .map(|v| {
                 v.map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
@@ -295,62 +313,31 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        { || self.inner.scan(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::Scan, dur.as_secs_f64(), err)
-            })
-            .map(|v| {
-                v.map(|(l, p)| {
-                    let pager = RetryWrapper::new(p, path, self.builder.clone());
-                    (l, pager)
-                })
-                .map_err(|e| e.set_persistent())
-            })
-            .await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        { || self.inner.batch(args.clone()).map(Err::<(), _>) }
-            .retry(&self.builder)
-            .when(|res| match res {
-                Ok(rp) => rp.results().iter().any(|(_, v)| {
-                    if let Err(e) = v {
-                        e.is_temporary()
-                    } else {
-                        false
-                    }
-                }),
-                Err(err) => err.is_temporary(),
-            })
-            .notify(|res, dur| match res {
-                Ok(rp) => warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::Batch, dur.as_secs_f64(),
-                    rp.results().iter().filter_map(|(_, v)| {
-                        if let Err(e) = v  {
-                            if e.is_temporary() {
-                                return Some(e);
-                            }
-                        }
-                        None
-                }).collect::<Vec<_>>()),
-                Err(err) => warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::Batch, dur.as_secs_f64(), err),
-            })
-            .map(|v| v.unwrap_err().map_err(|e| e.set_persistent()))
-            .await
+        {
+            || async {
+                let rp = self.inner.batch(args.clone()).await?;
+                let mut nrp = Vec::with_capacity(rp.results().len());
+                for (path, result) in rp.into_results() {
+                    let result = result?;
+                    nrp.push((path, Ok(result)))
+                }
+                Ok(RpBatch::new(nrp))
+            }
+        }
+        .retry(&self.builder)
+        .when(|e: &Error| e.is_temporary())
+        .notify(|err, dur| {
+            warn!(
+                target: "opendal::service",
+                "operation={} -> retry after {}s: error={:?}",
+                Operation::Batch, dur.as_secs_f64(), err)
+        })
+        .await
+        .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         { || self.inner.blocking_create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -431,24 +418,6 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::BlockingList, dur.as_secs_f64(), err)
-            })
-            .call()
-            .map(|(rp, p)| {
-                let p = RetryWrapper::new(p, path, self.builder.clone());
-                (rp, p)
-            })
-            .map_err(|e| e.set_persistent())
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        { || self.inner.blocking_scan(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::BlockingScan, dur.as_secs_f64(), err)
             })
             .call()
             .map(|(rp, p)| {
@@ -753,6 +722,51 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for RetryWrapper<R> {
 }
 
 #[async_trait]
+impl<A: oio::Append> oio::Append for RetryWrapper<A> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.append(bs.clone()).await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> appender retry after {}s: error={:?}",
+                              AppendOperation::Append, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.close().await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> appender retry after {}s: error={:?}",
+                              AppendOperation::Close, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+}
+
+#[async_trait]
 impl<P: oio::Page> oio::Page for RetryWrapper<P> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut backoff = self.builder.build();
@@ -839,6 +853,7 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
+        type Appender = ();
         type Pager = MockPager;
         type BlockingPager = ();
 
@@ -846,6 +861,8 @@ mod tests {
             let mut am = AccessorInfo::default();
             am.set_capability(Capability {
                 list: true,
+                list_with_delimiter_slash: true,
+                list_without_delimiter: true,
                 batch: true,
                 ..Default::default()
             });
@@ -1023,7 +1040,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_read() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())
@@ -1045,7 +1062,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_list() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())
@@ -1069,7 +1086,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_batch() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let builder = MockBuilder::default();
         // set to a lower delay to make it run faster

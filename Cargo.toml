@@ -19,6 +19,7 @@
 debug = true
 
 [workspace]
+default-members = ["core"]
 members = [
   "core",
 
@@ -39,8 +40,8 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.64"
-version = "0.33.2"
+rust-version = "1.65"
+version = "0.37.0"
 
 [workspace.dependencies]
-opendal = { version = "0.33", path = "core" }
+opendal = { version = "0.37", path = "core" }

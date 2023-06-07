@@ -46,3 +46,4 @@
 //! - [`kv::Adapter`]: Adapter for Key Value Services like in-memory map, `redis`.
 
 pub mod kv;
+pub mod typed_kv;

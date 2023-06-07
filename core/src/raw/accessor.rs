@@ -20,7 +20,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -66,11 +65,13 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
     type BlockingWriter: oio::BlockingWrite;
-    /// Pager is the associated page that return in `list` or `scan` operation.
+    /// Pager is the associated page that return in `list` operation.
     type Pager: oio::Page;
     /// BlockingPager is the associated pager that could return in
-    /// `blocking_list` or `scan` operation.
+    /// `blocking_list` operation.
     type BlockingPager: oio::BlockingPage;
+    /// Appender is the associated appender that could return in `append` operation.
+    type Appender: oio::Append;
 
     /// Invoke the `info` operation to get metadata of accessor.
     ///
@@ -93,7 +94,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST match with EntryMode, DON'T NEED to check mode.
     /// - Create on existing dir SHOULD succeed.
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -129,6 +130,23 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check mode.
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `append` operation on the specified path, returns a
+    /// appended size if operate successful.
+    ///
+    ///  Require [`Capability::append`]
+    ///
+    /// # Behavior
+    ///
+    /// - Input path MUST be file path, DON'T NEED to check mode.
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -219,18 +237,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
-    /// Invoke the `scan` operation on the specified path.
-    ///
-    /// Require [`Capability::scan`]
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
     /// Invoke the `presign` operation on the specified path.
     ///
     /// Require [`Capability::presign`]
@@ -264,7 +270,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// This operation is the blocking version of [`Accessor::create_dir`]
     ///
     /// Require [`Capability::create_dir`] and [`Capability::blocking`]
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -374,18 +380,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
             "operation is not supported",
         ))
     }
-
-    /// Invoke the `blocking_scan` operation on the specified path.
-    ///
-    /// Require [`Capability::scan`] and [`Capability::blocking`]
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
 }
 
 /// Dummy implementation of accessor.
@@ -395,6 +389,7 @@ impl Accessor for () {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -416,6 +411,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type BlockingReader = T::BlockingReader;
     type Writer = T::Writer;
     type BlockingWriter = T::BlockingWriter;
+    type Appender = T::Appender;
     type Pager = T::Pager;
     type BlockingPager = T::BlockingPager;
 
@@ -423,7 +419,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().info()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.as_ref().create_dir(path, args).await
     }
 
@@ -432,6 +428,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.as_ref().write(path, args).await
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        self.as_ref().append(path, args).await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -451,9 +451,6 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.as_ref().list(path, args).await
     }
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        self.as_ref().scan(path, args).await
-    }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.as_ref().batch(args).await
@@ -463,7 +460,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().presign(path, args).await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.as_ref().blocking_create_dir(path, args)
     }
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -490,10 +487,6 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.as_ref().blocking_list(path, args)
     }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        self.as_ref().blocking_scan(path, args)
-    }
 }
 
 /// FusedAccessor is the type erased accessor with `Arc<dyn Accessor>`.
@@ -503,6 +496,7 @@ pub type FusedAccessor = Arc<
         BlockingReader = oio::BlockingReader,
         Writer = oio::Writer,
         BlockingWriter = oio::BlockingWriter,
+        Appender = oio::Appender,
         Pager = oio::Pager,
         BlockingPager = oio::BlockingPager,
     >,

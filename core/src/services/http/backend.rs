@@ -29,7 +29,6 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -39,8 +38,13 @@ use crate::*;
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [ ] ~~write~~
+/// - [ ] ~~create_dir~~
+/// - [ ] ~~delete~~
+/// - [ ] ~~copy~~
+/// - [ ] ~~rename~~
 /// - [ ] ~~list~~
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
@@ -251,6 +255,7 @@ impl Accessor for HttpBackend {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -265,6 +270,7 @@ impl Accessor for HttpBackend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
 
@@ -400,7 +406,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -426,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_via_basic_auth() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let (username, password) = ("your_username", "your_password");
 
@@ -456,7 +462,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_via_bearer_auth() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let token = "your_token";
 
@@ -486,7 +492,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stat() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("HEAD"))
@@ -508,7 +514,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_with() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -527,9 +533,7 @@ mod tests {
         builder.root("/");
         let op = Operator::new(builder)?.finish();
 
-        let match_bs = op
-            .read_with("hello", OpRead::new().with_if_none_match("*"))
-            .await?;
+        let match_bs = op.read_with("hello").if_none_match("*").await?;
         assert_eq!(match_bs, b"Hello, World!");
 
         Ok(())
@@ -537,7 +541,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stat_with() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let mock_server = MockServer::start().await;
         Mock::given(method("HEAD"))
@@ -551,9 +555,7 @@ mod tests {
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         let op = Operator::new(builder)?.finish();
-        let bs = op
-            .stat_with("hello", OpStat::new().with_if_none_match("*"))
-            .await?;
+        let bs = op.stat_with("hello").if_none_match("*").await?;
 
         assert_eq!(bs.mode(), EntryMode::FILE);
         assert_eq!(bs.content_length(), 128);

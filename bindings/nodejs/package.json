@@ -1,11 +1,11 @@
 {
   "name": "opendal",
   "author": "OpenDAL Contributors <dev@opendal.apache.org>",
-  "version": "0.33.2",
+  "version": "0.37.0",
   "license": "Apache-2.0",
   "main": "index.js",
   "types": "index.d.ts",
-  "description": "Open Data Access Layer: Access data freely, painlessly, and efficiently",
+  "description": "Open Data Access Layer: Access data freely",
   "repository": "git@github.com/apache/incubator-opendal.git",
   "napi": {
     "name": "opendal",
@@ -53,7 +53,7 @@
     "benny": "^3.7.1",
     "dotenv": "^16.0.3",
     "prettier": "^2.8.4",
-    "typedoc": "^0.23.28",
+    "typedoc": "^0.24",
     "typescript": "^5.0.2"
   },
   "engines": {
@@ -88,5 +88,5 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
-  "packageManager": "yarn@3.4.1+sha224.cca891d4a8671d4898aba3426674bb734dbbf88cef82dd4dacd71c9f"
+  "packageManager": "yarn@3.5.1"
 }

@@ -19,9 +19,9 @@ use http::Request;
 
 use crate::*;
 
-/// Reply for `create` operation
+/// Reply for `create_dir` operation
 #[derive(Debug, Clone, Default)]
-pub struct RpCreate {}
+pub struct RpCreateDir {}
 
 /// Reply for `delete` operation
 #[derive(Debug, Clone, Default)]
@@ -30,10 +30,6 @@ pub struct RpDelete {}
 /// Reply for `list` operation.
 #[derive(Debug, Clone, Default)]
 pub struct RpList {}
-
-/// Reply for `scan` operation.
-#[derive(Debug, Clone, Default)]
-pub struct RpScan {}
 
 /// Reply for `presign` operation.
 #[derive(Debug, Clone)]
@@ -194,6 +190,17 @@ pub struct RpWrite {}
 
 impl RpWrite {
     /// Create a new reply for `write`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+/// Reply for `append` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpAppend {}
+
+impl RpAppend {
+    /// Create a new reply for `append`.
     pub fn new() -> Self {
         Self {}
     }

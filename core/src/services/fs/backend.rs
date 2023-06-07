@@ -17,7 +17,6 @@
 
 use std::cmp::min;
 use std::collections::HashMap;
-use std::io;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
@@ -26,63 +25,17 @@ use async_compat::Compat;
 use async_trait::async_trait;
 use chrono::DateTime;
 use log::debug;
-use tokio::fs;
 use uuid::Uuid;
 
+use super::appender::FsAppender;
 use super::error::parse_io_error;
 use super::pager::FsPager;
 use super::writer::FsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 /// POSIX file system support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] copy
-/// - [x] rename
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [x] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-///
-/// Refer to [`FsBuilder`]'s public API docs for more information.
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Fs;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create fs backend builder.
-///     let mut builder = Fs::default();
-///     // Set the root for fs, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/tmp");
-///
-///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct FsBuilder {
     root: Option<PathBuf>,
@@ -154,7 +107,7 @@ impl Builder for FsBuilder {
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
-            if e.kind() == io::ErrorKind::NotFound {
+            if e.kind() == std::io::ErrorKind::NotFound {
                 std::fs::create_dir_all(&root).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "create root dir failed")
                         .with_operation("Builder::build")
@@ -169,7 +122,7 @@ impl Builder for FsBuilder {
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir {
             if let Err(e) = std::fs::metadata(d) {
-                if e.kind() == io::ErrorKind::NotFound {
+                if e.kind() == std::io::ErrorKind::NotFound {
                     std::fs::create_dir_all(d).map_err(|e| {
                         Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
                             .with_operation("Builder::build")
@@ -281,7 +234,9 @@ impl FsBackend {
             })?
             .to_path_buf();
 
-        fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
+        tokio::fs::create_dir_all(&parent)
+            .await
+            .map_err(parse_io_error)?;
 
         Ok(p)
     }
@@ -293,6 +248,7 @@ impl Accessor for FsBackend {
     type BlockingReader = oio::into_blocking_reader::FdReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
+    type Appender = FsAppender<tokio::fs::File>;
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
     type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
 
@@ -301,27 +257,40 @@ impl Accessor for FsBackend {
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root.to_string_lossy())
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_seek: true,
+                read_with_range: true,
+
                 write: true,
                 write_without_content_length: true,
                 create_dir: true,
+                delete: true,
+
+                append: true,
+
                 list: true,
+                list_with_delimiter_slash: true,
+
                 copy: true,
                 rename: true,
                 blocking: true,
+
                 ..Default::default()
             });
 
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        fs::create_dir_all(&p).await.map_err(parse_io_error)?;
+        tokio::fs::create_dir_all(&p)
+            .await
+            .map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     /// # Notes
@@ -338,7 +307,7 @@ impl Accessor for FsBackend {
 
         let p = self.root.join(path.trim_end_matches('/'));
 
-        let mut f = fs::OpenOptions::new()
+        let mut f = tokio::fs::OpenOptions::new()
             .read(true)
             .open(&p)
             .await
@@ -419,6 +388,20 @@ impl Accessor for FsBackend {
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
+    async fn append(&self, path: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        let path = Self::ensure_write_abs_path(&self.root, path).await?;
+
+        let f = tokio::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(&path)
+            .await
+            .map_err(parse_io_error)?;
+
+        Ok((RpAppend::new(), FsAppender::new(f)))
+    }
+
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         let from = self.root.join(from.trim_end_matches('/'));
 
@@ -483,9 +466,9 @@ impl Accessor for FsBackend {
         match meta {
             Ok(meta) => {
                 if meta.is_dir() {
-                    fs::remove_dir(&p).await.map_err(parse_io_error)?;
+                    tokio::fs::remove_dir(&p).await.map_err(parse_io_error)?;
                 } else {
-                    fs::remove_file(&p).await.map_err(parse_io_error)?;
+                    tokio::fs::remove_file(&p).await.map_err(parse_io_error)?;
                 }
 
                 Ok(RpDelete::default())
@@ -501,7 +484,7 @@ impl Accessor for FsBackend {
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == io::ErrorKind::NotFound {
+                return if e.kind() == std::io::ErrorKind::NotFound {
                     Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
@@ -514,12 +497,12 @@ impl Accessor for FsBackend {
         Ok((RpList::default(), Some(rd)))
     }
 
-    fn blocking_create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         std::fs::create_dir_all(p).map_err(parse_io_error)?;
 
-        Ok(RpCreate::default())
+        Ok(RpCreateDir::default())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -686,7 +669,7 @@ impl Accessor for FsBackend {
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == io::ErrorKind::NotFound {
+                return if e.kind() == std::io::ErrorKind::NotFound {
                     Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))

@@ -20,54 +20,48 @@
 import React from 'react';
 import clsx from 'clsx';
 import styles from './styles.module.css';
-import Link from "@docusaurus/Link";
+import FeatureLanguages from './_feature_languages.mdx';
+import FeatureServices from './_feature_services.mdx';
+import FeatureLayers from './_feature_layers.mdx';
+import MDXContent from '@theme/MDXContent';
 
 const FeatureList = [
   {
-    title: 'Access data freely',
-    Svg: require('@site/static/img/undraw_adventure.svg').default,
+    title: 'Languages',
     description: (
       <>
-        <div>Access different storage services in the same way</div>
-        <div>Behavior tests for all services</div>
-        <div>Cross language/project bindings (working on)</div>
+        <MDXContent>
+          <FeatureLanguages />
+        </MDXContent>
       </>
     ),
   },
   {
-    title: 'Access data painlessly',
-    Svg: require('@site/static/img/undraw_i_can_fly.svg').default,
+    title: 'Services',
     description: (
       <>
-        <div><b>100%</b> documents covered</div>
-        <div>Powerful <Link href="https://docs.rs/opendal/latest/opendal/layers/index.html">Layers</Link></div>
-        <div>Automatic <Link href="https://docs.rs/opendal/latest/opendal/layers/struct.RetryLayer.html">retry</Link> support</div>
-        <div>Full observability: <Link href="https://docs.rs/opendal/latest/opendal/layers/struct.LoggingLayer.html">logging</Link>, <Link
-          href="https://docs.rs/opendal/latest/opendal/layers/struct.TracingLayer.html">tracing</Link>, <Link href="https://docs.rs/opendal/latest/opendal/layers/struct.MetricsLayer.html">metrics</Link>.</div>
-        <div><Link href="https://docs.rs/opendal/latest/opendal/layers/struct.ChaosLayer.html">Native chaos testing</Link></div>
+        <MDXContent>
+          <FeatureServices />
+        </MDXContent>
       </>
     ),
   },
   {
-    title: 'Access data efficiently',
-    Svg: require('@site/static/img/undraw_outer_space.svg').default,
+    title: 'Layers',
     description: (
       <>
-        <div>Zero cost: Maps to API calls directly</div>
-        <div>Best effort: Automatically selects best read/seek/next based on services</div>
-        <div>Avoid extra calls: Reuses metadata when possible</div>
+        <MDXContent>
+          <FeatureLayers />
+        </MDXContent>
       </>
     ),
   },
 ];
 
-function Feature({Svg, title, description}) {
+function Feature({ Svg, title, description }) {
   return (
     <div className={clsx('col col--4')}>
-      <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
-      </div>
-      <div className="text--center padding-horiz--md">
+      <div className="padding-horiz--md">
         <h3>{title}</h3>
         <div>{description}</div>
       </div>

@@ -35,7 +35,6 @@ use serde::Serialize;
 
 use super::error::parse_error;
 use super::writer::GhacWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -67,13 +66,17 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 ///
 /// This service can be used to:
 ///
+/// - [x] stat
 /// - [x] read
 /// - [x] write
+/// - [x] create_dir
+/// - [x] delete
+/// - [x] copy
+/// - [ ] rename
 /// - [ ] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
+/// - [ ] scan
+/// - [ ] presign
 /// - [ ] blocking
-///
 /// # Notes
 ///
 /// This service is mainly provided by github actions.
@@ -292,6 +295,7 @@ impl Accessor for GhacBackend {
     type BlockingReader = ();
     type Writer = GhacWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -301,19 +305,25 @@ impl Accessor for GhacBackend {
             .set_root(&self.root)
             .set_name(&self.version)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
+
                 write: true,
+                create_dir: true,
+                delete: true,
 
                 ..Default::default()
             });
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         // ignore creation of dir.
         if path.ends_with('/') {
-            return Ok(RpCreate::default());
+            return Ok(RpCreateDir::default());
         }
         if !self.enable_create_simulation {
             return Err(Error::new(
@@ -333,7 +343,7 @@ impl Accessor for GhacBackend {
             reserve_resp.cache_id
         } else if resp.status().as_u16() == StatusCode::CONFLICT {
             // If the file is already exist, just return Ok.
-            return Ok(RpCreate::default());
+            return Ok(RpCreateDir::default());
         } else {
             return Err(parse_error(resp)
                 .await
@@ -360,7 +370,7 @@ impl Accessor for GhacBackend {
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
-            Ok(RpCreate::default())
+            Ok(RpCreateDir::default())
         } else {
             Err(parse_error(resp)
                 .await

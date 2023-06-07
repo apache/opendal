@@ -2,8 +2,6 @@
 
 ## Installation
 
-### Node.js
-
 ```shell
 npm install opendal
 ```
@@ -31,35 +29,10 @@ main();
 
 ## Contributing
 
-- Install latest `Rust`
-- Install `Node.js@10+` which fully supported `Node-API`
-
-We are using `corepack` to specific package manager:
-
-```shell
-corepack enable
-```
-
-`corepack` is distributed with Node.js, so you do not need to specifically look for a way to install it.
-
-### Build
-
-```bash
-# Install dependencies.
-yarn
-# Build from source.
-yarn build
-# Build from source with debug info.
-yarn build:debug
-```
-
-### Test
-
-```bash
-yarn test
-```
-
-We use [`Cucumber`](https://cucumber.io/) for behavior testing. Refer to [here](https://cucumber.io/docs/guides/overview/) for more information about `Cucumber`.
+- Start with [Contributing Guide](CONTRIBUTING.md).
+- Submit [Issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or feature requests.
+- Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
+- Talk to community at [Discord](https://discord.gg/XQy8yGR2dg).
 
 ## License
 

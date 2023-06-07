@@ -44,7 +44,6 @@ macro_rules! behavior_rename_test {
                             Ok(())
                         },
                         None => {
-                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
                             Ok(())
                         }
                     }
@@ -61,7 +60,7 @@ macro_rules! behavior_rename_tests {
             behavior_rename_test!(
                 $service,
 
-                test_rename,
+                test_rename_file,
                 test_rename_non_existing_source,
                 test_rename_source_dir,
                 test_rename_target_dir,
@@ -75,7 +74,7 @@ macro_rules! behavior_rename_tests {
 }
 
 /// Rename a file and test with stat.
-pub async fn test_rename(op: Operator) -> Result<()> {
+pub async fn test_rename_file(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 

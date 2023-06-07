@@ -18,37 +18,38 @@
 
 set -e
 
-if [ -z "${OPENDAL_VERSION}" ]; then
-	echo "OPENDAL_VERSION is unset"
-	exit 1
-else
-	echo "var is set to '$OPENDAL_VERSION'"
+YELLOW="\033[37;1m"
+GREEN="\033[32;1m"
+ENDCOLOR="\033[0m"
+
+if [ "$#" -ne 1 ]; then
+  echo "Usage: $0 {YOUR RELEASE TAR FILE}" >&2
+  exit 1
 fi
 
-# tar source code
-release_version=${OPENDAL_VERSION}
-# rc versions
-rc_version=${OPENDAL_VERSION_RC:rc1}
-# Corresponding git repository branch
-git_branch=release-${release_version}-${rc_version}
+PKG=$1
 
-echo "> Checkout release"
-svn co "https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version}-${rc_version}/" incubator-opendal-release-verify
-cd incubator-opendal-release-verify
+if [ ! -f "$PKG" ]; then
+    echo "File '$PKG' does not exist."
+    exit 1
+fi
 
 echo "> Check signature"
-for i in *.tar.gz; do
-	echo "$i"
-	gpg --verify "$i.asc" "$i"
-done
-echo "> Check sha512sum"
-for i in *.tar.gz; do
-	echo "$i"
-	sha512sum --check "$i.sha512"
-done
+gpg --verify "$PKG.asc" "$PKG"
 
-echo "> Check content"
-tar -xvf "apache-incubator-opendal-${release_version}-src.tar.gz"
-echo "> Check license"
-cd "apache-incubator-opendal-${release_version}-src"
-docker run -it --rm -v "$(pwd):/github/workspace" -u "$(id -u):$(id -g)" ghcr.io/korandoru/hawkeye-native check
+if [ $? -eq 0 ]
+then
+    printf $GREEN"Success to verify the gpg sign"$ENDCOLOR"\n"
+else
+    printf $YELLOW"Failed to verify the gpg sign"$ENDCOLOR"\n"
+fi
+
+echo "> Check sha512sum"
+sha512sum --check "$PKG.sha512"
+
+if [ $? -eq 0 ]
+then
+    printf $GREEN"Success to verify the checksum"$ENDCOLOR"\n"
+else
+    printf $YELLOW"Failed to verify the checksum"$ENDCOLOR"\n"
+fi

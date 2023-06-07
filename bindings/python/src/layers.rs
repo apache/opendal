@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use ::opendal as od;
-use chrono::Duration;
-use pyo3::exceptions::PyOverflowError;
 use pyo3::prelude::*;
 
 #[derive(FromPyObject)]
@@ -73,8 +73,8 @@ impl RetryLayer {
         max_times: Option<usize>,
         factor: Option<f32>,
         jitter: bool,
-        max_delay: Option<Duration>,
-        min_delay: Option<Duration>,
+        max_delay: Option<f64>,
+        min_delay: Option<f64>,
     ) -> PyResult<Self> {
         let mut retry = od::layers::RetryLayer::default();
         if let Some(max_times) = max_times {
@@ -87,18 +87,10 @@ impl RetryLayer {
             retry = retry.with_jitter();
         }
         if let Some(max_delay) = max_delay {
-            retry = retry.with_max_delay(
-                max_delay
-                    .to_std()
-                    .map_err(|err| PyOverflowError::new_err(err.to_string()))?,
-            );
+            retry = retry.with_max_delay(Duration::from_micros((max_delay * 1000000.0) as u64));
         }
         if let Some(min_delay) = min_delay {
-            retry = retry.with_min_delay(
-                min_delay
-                    .to_std()
-                    .map_err(|err| PyOverflowError::new_err(err.to_string()))?,
-            );
+            retry = retry.with_min_delay(Duration::from_micros((min_delay * 1000000.0) as u64));
         }
         Ok(Self(retry))
     }

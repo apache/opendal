@@ -41,54 +41,12 @@ use tokio::sync::OnceCell;
 use super::pager::FtpPager;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 /// FTP and FTPS services support.
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `endpoint`: set the endpoint for connection
-/// - `root`: Set the work directory for backend
-/// - `credential`:  login credentials
-/// - `tls`: tls mode
-///
-/// You can refer to [`FtpBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Ftp;
-/// use opendal::Object;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Ftp::default();
-///
-///     builder.endpoint("127.0.0.1");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FtpBuilder {
     endpoint: Option<String>,
@@ -309,6 +267,7 @@ impl Accessor for FtpBackend {
     type BlockingReader = ();
     type Writer = FtpWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = FtpPager;
     type BlockingPager = ();
 
@@ -317,16 +276,25 @@ impl Accessor for FtpBackend {
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
+                read_with_range: true,
+
                 write: true,
+                delete: true,
+                create_dir: true,
+
                 list: true,
+                list_with_delimiter_slash: true,
+
                 ..Default::default()
             });
 
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut ftp_stream = self.ftp_connect(Operation::CreateDir).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
@@ -348,7 +316,7 @@ impl Accessor for FtpBackend {
             }
         }
 
-        return Ok(RpCreate::default());
+        return Ok(RpCreateDir::default());
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

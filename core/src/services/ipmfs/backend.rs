@@ -21,6 +21,7 @@ use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -29,11 +30,12 @@ use serde::Deserialize;
 use super::error::parse_error;
 use super::pager::IpmfsPager;
 use super::writer::IpmfsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Backend for IPFS service
+/// IPFS Mutable File System (IPMFS) backend.
+///
+#[doc = include_str!("docs.md")]
 #[derive(Clone)]
 pub struct IpmfsBackend {
     root: String,
@@ -66,6 +68,7 @@ impl Accessor for IpmfsBackend {
     type BlockingReader = ();
     type Writer = IpmfsWriter;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = IpmfsPager;
     type BlockingPager = ();
 
@@ -74,9 +77,17 @@ impl Accessor for IpmfsBackend {
         am.set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
+
                 write: true,
+                delete: true,
+
+                list: true,
+                list_with_delimiter_slash: true,
 
                 ..Default::default()
             });
@@ -84,7 +95,7 @@ impl Accessor for IpmfsBackend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self.ipmfs_mkdir(path).await?;
 
         let status = resp.status();
@@ -92,7 +103,7 @@ impl Accessor for IpmfsBackend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -281,7 +292,7 @@ impl IpmfsBackend {
     pub async fn ipmfs_write(
         &self,
         path: &str,
-        body: AsyncBody,
+        body: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -291,9 +302,10 @@ impl IpmfsBackend {
             percent_encode_path(&p)
         );
 
-        let req = Request::post(url);
+        let multipart = Multipart::new().part(FormDataPart::new("data").content(body));
 
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req: http::request::Builder = Request::post(url);
+        let req = multipart.apply(req)?;
 
         self.client.send(req).await
     }

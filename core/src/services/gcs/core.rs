@@ -24,7 +24,6 @@ use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
 use bytes::BytesMut;
-
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -55,6 +54,8 @@ pub struct GcsCore {
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
+
+    pub write_fixed_size: usize,
 }
 
 impl Debug for GcsCore {
@@ -579,6 +580,20 @@ Content-Length: 0
                 ),
             )
             .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn gcs_abort_resumable_upload(
+        &self,
+        location: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = Request::delete(location)
+            .header(CONTENT_LENGTH, 0)
+            .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

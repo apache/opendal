@@ -20,7 +20,10 @@ use http::StatusCode;
 use serde::Deserialize;
 use serde_json::from_slice;
 
-use crate::{raw::*, Error, ErrorKind, Result};
+use crate::raw::*;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -36,8 +39,29 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
-    // todo: the supabase error has status code 4XX, handle all that
-    let (kind, retryable) = match parts.status {
+    let (mut kind, mut retryable) = (ErrorKind::Unexpected, false);
+    let (message, _) = from_slice::<SupabaseError>(&bs)
+        .map(|sb_err| {
+            (kind, retryable) = parse_supabase_error(&sb_err);
+            (format!("{sb_err:?}"), Some(sb_err))
+        })
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    Ok(err)
+}
+
+// Return the error kind and whether it is retryable
+fn parse_supabase_error(err: &SupabaseError) -> (ErrorKind, bool) {
+    let code = err.status_code.parse::<u16>().unwrap();
+    let status_code = StatusCode::from_u16(code).unwrap();
+    match status_code {
+        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
@@ -48,17 +72,5 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
-    };
-
-    let (message, _) = from_slice::<SupabaseError>(&bs)
-        .map(|sb_err| (format!("{sb_err:?}"), Some(sb_err)))
-        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
-
-    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
-
-    if retryable {
-        err = err.set_temporary();
     }
-
-    Ok(err)
 }

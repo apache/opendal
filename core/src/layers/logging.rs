@@ -29,7 +29,6 @@ use log::log;
 use log::trace;
 use log::Level;
 
-use crate::ops::*;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;
@@ -105,9 +104,17 @@ impl LoggingLayer {
     /// For example: accessor returns NotFound.
     ///
     /// `None` means disable the log for error.
-    pub fn with_error_level(mut self, level: Option<Level>) -> Self {
-        self.error_level = level;
-        self
+    pub fn with_error_level(mut self, level: Option<&str>) -> Result<Self> {
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.error_level = Some(level);
+        } else {
+            self.error_level = None;
+        }
+        Ok(self)
     }
 
     /// Setting the log level while unexpected failure happened.
@@ -115,9 +122,17 @@ impl LoggingLayer {
     /// For example: accessor returns Unexpected network error.
     ///
     /// `None` means disable the log for failure.
-    pub fn with_failure_level(mut self, level: Option<Level>) -> Self {
-        self.failure_level = level;
-        self
+    pub fn with_failure_level(mut self, level: Option<&str>) -> Result<Self> {
+        if let Some(level_str) = level {
+            let level = level_str.parse().map_err(|_| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid log level")
+                    .with_context("level", level_str)
+            })?;
+            self.failure_level = Some(level);
+        } else {
+            self.failure_level = None;
+        }
+        Ok(self)
     }
 }
 
@@ -174,6 +189,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type BlockingReader = LoggingReader<A::BlockingReader>;
     type Writer = LoggingWriter<A::Writer>;
     type BlockingWriter = LoggingWriter<A::BlockingWriter>;
+    type Appender = LoggingAppender<A::Appender>;
     type Pager = LoggingPager<A::Pager>;
     type BlockingPager = LoggingPager<A::BlockingPager>;
 
@@ -200,7 +216,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         result
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -316,6 +332,51 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::Write,
+                        path,
+                        self.err_status(&err)
+                    )
+                };
+                err
+            })
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::Append,
+            path
+        );
+
+        self.inner
+            .append(path, args)
+            .await
+            .map(|(rp, a)| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} -> start appending",
+                    self.scheme,
+                    Operation::Append,
+                    path,
+                );
+                let a = LoggingAppender::new(
+                    self.scheme,
+                    Operation::Append,
+                    path,
+                    a,
+                    self.failure_level,
+                );
+                (rp, a)
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Append,
                         path,
                         self.err_status(&err)
                     )
@@ -530,54 +591,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.scheme,
-            Operation::Scan,
-            path
-        );
-
-        self.inner
-            .scan(path, args)
-            .map(|v| match v {
-                Ok((rp, v)) => {
-                    debug!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} -> start scanning",
-                        self.scheme,
-                        Operation::Scan,
-                        path
-                    );
-                    let streamer = LoggingPager::new(
-                        self.scheme,
-                        path,
-                        Operation::Scan,
-                        v,
-                        self.error_level,
-                        self.failure_level,
-                    );
-                    Ok((rp, streamer))
-                }
-                Err(err) => {
-                    if let Some(lvl) = self.err_level(&err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} -> {}: {err:?}",
-                            self.scheme,
-                            Operation::Scan,
-                            path,
-                            self.err_status(&err)
-                        );
-                    }
-                    Err(err)
-                }
-            })
-            .await
-    }
-
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
             target: LOGGING_TARGET,
@@ -656,7 +669,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    fn blocking_create_dir(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -975,51 +988,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingList,
-                        path,
-                        self.err_status(&err)
-                    );
-                }
-                err
-            })
-    }
-
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.scheme,
-            Operation::BlockingScan,
-            path
-        );
-
-        self.inner
-            .blocking_scan(path, args)
-            .map(|(rp, v)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> start scanning",
-                    self.scheme,
-                    Operation::BlockingScan,
-                    path
-                );
-                let li = LoggingPager::new(
-                    self.scheme,
-                    path,
-                    Operation::BlockingScan,
-                    v,
-                    self.error_level,
-                    self.failure_level,
-                );
-                (rp, li)
-            })
-            .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
-                        Operation::BlockingScan,
                         path,
                         self.err_status(&err)
                     );
@@ -1493,6 +1461,98 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                         WriteOperation::BlockingClose,
                         self.path,
                         self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+}
+
+pub struct LoggingAppender<A> {
+    scheme: Scheme,
+    op: Operation,
+    path: String,
+
+    failure_level: Option<Level>,
+
+    inner: A,
+}
+
+impl<A> LoggingAppender<A> {
+    fn new(
+        scheme: Scheme,
+        op: Operation,
+        path: &str,
+        appender: A,
+        failure_level: Option<Level>,
+    ) -> Self {
+        Self {
+            scheme,
+            op,
+            path: path.to_string(),
+
+            failure_level,
+
+            inner: appender,
+        }
+    }
+}
+
+#[async_trait]
+impl<A: oio::Append> oio::Append for LoggingAppender<A> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let len = bs.len();
+
+        match self.inner.append(bs).await {
+            Ok(_) => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} -> data append {}B",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    len
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> data append failed: {err:?}",
+                        self.scheme,
+                        self.op,
+                        self.path,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        match self.inner.close().await {
+            Ok(_) => {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} -> data appended finished",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> data appender close failed: {err:?}",
+                        self.scheme,
+                        self.op,
+                        self.path,
                     )
                 }
                 Err(err)

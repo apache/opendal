@@ -32,15 +32,8 @@ function HomepageHeader() {
       <div className="container">
         <h1 className="hero__title">{siteConfig.title}</h1>
         <p className="hero__subtitle">
-          <b>Open</b> <b>D</b>ata <b>A</b>ccess <b>L</b>ayer: Access data <b>freely</b>, <b>painlessly</b>, and <b>efficiently</b>
+          Open <b>D</b>ata <b>A</b>ccess <b>L</b>ayer: Access data freely
         </p>
-        <div className={styles.buttons}>
-          <a
-            className="button button--secondary button--lg"
-            href="/docs/rust/opendal">
-            Get Start
-          </a>
-        </div>
       </div>
     </header>
   );
@@ -50,7 +43,7 @@ export default function Home() {
   const { siteConfig } = useDocusaurusContext();
   return (
     <Layout
-      description="OpenDAL is the Open Data Access Layer to freely, painlessly, and efficiently access data.">
+      description="OpenDAL is the Open Data Access Layer to access data freely.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

@@ -23,8 +23,6 @@ use std::str::FromStr;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use reqwest::redirect::Policy;
-use reqwest::Url;
 
 use super::body::IncomingAsyncBody;
 use super::parse_content_length;
@@ -60,8 +58,6 @@ impl HttpClient {
         builder = builder.no_brotli();
         // Make sure we don't enable auto deflate decompress.
         builder = builder.no_deflate();
-        // Redirect will be handled by ourselves.
-        builder = builder.redirect(Policy::none());
 
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);
@@ -89,19 +85,14 @@ impl HttpClient {
             .client
             .request(
                 parts.method,
-                Url::from_str(&url).expect("input request url must be valid"),
+                reqwest::Url::from_str(&url).expect("input request url must be valid"),
             )
             .version(parts.version)
             .headers(parts.headers);
 
-        req_builder = if let AsyncBody::Multipart(field, r) = body {
-            let mut form = reqwest::multipart::Form::new();
-            let part = reqwest::multipart::Part::stream(AsyncBody::Bytes(r));
-            form = form.part(field, part);
-
-            req_builder.multipart(form)
-        } else {
-            req_builder.body(body)
+        req_builder = match body {
+            AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
+            AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
         };
 
         let mut resp = req_builder.send().await.map_err(|err| {

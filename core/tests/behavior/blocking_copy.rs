@@ -46,7 +46,6 @@ macro_rules! behavior_blocking_copy_test {
                             Ok(())
                         },
                         None => {
-                            log::warn!("service {} not initiated, ignored", opendal::Scheme::$service);
                             Ok(())
                         }
                     }
@@ -63,7 +62,7 @@ macro_rules! behavior_blocking_copy_tests {
             behavior_blocking_copy_test!(
                 $service,
 
-                test_copy,
+                test_copy_file,
                 test_copy_non_existing_source,
                 test_copy_source_dir,
                 test_copy_target_dir,
@@ -76,7 +75,7 @@ macro_rules! behavior_blocking_copy_tests {
 }
 
 /// Copy a file and test with stat.
-pub fn test_copy(op: BlockingOperator) -> Result<()> {
+pub fn test_copy_file(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 

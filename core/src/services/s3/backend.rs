@@ -37,9 +37,9 @@ use reqsign::AwsV4Signer;
 
 use super::core::*;
 use super::error::parse_error;
+use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -54,228 +54,12 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
+const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
+const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] copy
-/// - [x] list
-/// - [x] scan
-/// - [x] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-/// - `bucket`: Set the container name for backend.
-/// - `endpoint`: Set the endpoint for backend.
-/// - `region`: Set the region for backend.
-/// - `access_key_id`: Set the access_key_id for backend.
-/// - `secret_access_key`: Set the secret_access_key for backend.
-/// - `security_token`: Set the security_token for backend.
-/// - `default_storage_class`: Set the default storage_class for backend.
-/// - `server_side_encryption`: Set the server_side_encryption for backend.
-/// - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
-/// - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
-/// - `server_side_encryption_customer_key`: Set the server_side_encryption_customer_key for backend.
-/// - `server_side_encryption_customer_key_md5`: Set the server_side_encryption_customer_key_md5 for backend.
-/// - `disable_config_load`: Disable aws config load from env
-/// - `enable_virtual_host_style`: Enable virtual host style.
-///
-/// Refer to [`S3Builder`]'s public API docs for more information.
-///
-/// # Temporary security credentials
-///
-/// OpenDAL now provides support for S3 temporary security credentials in IAM.
-///
-/// The way to take advantage of this feature is to build your S3 backend with `Builder::security_token`.
-///
-/// But OpenDAL will not refresh the temporary security credentials, please keep in mind to refresh those credentials in time.
-///
-/// # Server Side Encryption
-///
-/// OpenDAL provides full support of S3 Server Side Encryption(SSE) features.
-///
-/// The easiest way to configure them is to use helper functions like
-///
-/// - SSE-KMS: `server_side_encryption_with_aws_managed_kms_key`
-/// - SSE-KMS: `server_side_encryption_with_customer_managed_kms_key`
-/// - SSE-S3: `server_side_encryption_with_s3_key`
-/// - SSE-C: `server_side_encryption_with_customer_key`
-///
-/// If those functions don't fulfill need, low-level options are also provided:
-///
-/// - Use service managed kms key
-///   - `server_side_encryption="aws:kms"`
-/// - Use customer provided kms key
-///   - `server_side_encryption="aws:kms"`
-///   - `server_side_encryption_aws_kms_key_id="your-kms-key"`
-/// - Use S3 managed key
-///   - `server_side_encryption="AES256"`
-/// - Use customer key
-///   - `server_side_encryption_customer_algorithm="AES256"`
-///   - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
-///   - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
-///
-/// After SSE have been configured, all requests send by this backed will attach those headers.
-///
-/// Reference: [Protecting data using server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html)
-///
-/// # Example
-///
-/// ## Basic Setup
-///
-/// ```no_run
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::S3;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create s3 backend builder.
-///     let mut builder = S3::default();
-///     // Set the root for s3, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/path/to/dir");
-///     // Set the bucket name, this is required.
-///     builder.bucket("test");
-///     // Set the endpoint.
-///     //
-///     // For examples:
-///     // - "https://s3.amazonaws.com"
-///     // - "http://127.0.0.1:9000"
-///     // - "https://oss-ap-northeast-1.aliyuncs.com"
-///     // - "https://cos.ap-seoul.myqcloud.com"
-///     //
-///     // Default to "https://s3.amazonaws.com"
-///     builder.endpoint("https://s3.amazonaws.com");
-///     // Set the access_key_id and secret_access_key.
-///     //
-///     // OpenDAL will try load credential from the env.
-///     // If credential not set and no valid credential in env, OpenDAL will
-///     // send request without signing like anonymous user.
-///     builder.access_key_id("access_key_id");
-///     builder.secret_access_key("secret_access_key");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// ## S3 with SSE-C
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use log::info;
-/// use opendal::services::S3;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
-///
-///     // Setup builders
-///
-///     // Enable SSE-C
-///     builder.server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
-///
-///     let op = Operator::new(builder)?.finish();
-///     info!("operator: {:?}", op);
-///
-///     // Writing your testing code here.
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// ## S3 with SSE-KMS and aws managed kms key
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use log::info;
-/// use opendal::services::S3;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
-///
-///     // Setup builders
-///
-///     // Enable SSE-KMS with aws managed kms key
-///     builder.server_side_encryption_with_aws_managed_kms_key();
-///
-///     let op = Operator::new(builder)?.finish();
-///     info!("operator: {:?}", op);
-///
-///     // Writing your testing code here.
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// ## S3 with SSE-KMS and customer managed kms key
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use log::info;
-/// use opendal::services::S3;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
-///
-///     // Setup builders
-///
-///     // Enable SSE-KMS with customer managed kms key
-///     builder.server_side_encryption_with_customer_managed_kms_key("aws_kms_key_id");
-///
-///     let op = Operator::new(builder)?.finish();
-///     info!("operator: {:?}", op);
-///
-///     // Writing your testing code here.
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// ## S3 with SSE-S3
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use log::info;
-/// use opendal::services::S3;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let mut builder = S3::default();
-///
-///     // Setup builders
-///
-///     // Enable SSE-S3
-///     builder.server_side_encryption_with_s3_key();
-///
-///     let op = Operator::new(builder)?.finish();
-///     info!("operator: {:?}", op);
-///
-///     // Writing your testing code here.
-///
-///     Ok(())
-/// }
-/// ```
-///
-/// # Compatible Services
+#[doc = include_str!("docs.md")]
 #[doc = include_str!("compatible_services.md")]
 #[derive(Default)]
 pub struct S3Builder {
@@ -300,10 +84,17 @@ pub struct S3Builder {
 
     disable_config_load: bool,
     disable_ec2_metadata: bool,
+    allow_anonymous: bool,
     enable_virtual_host_style: bool,
 
     http_client: Option<HttpClient>,
     customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+
+    /// the part size of s3 multipart upload, which should be 5 MiB to 5 GiB.
+    /// There is no minimum size limit on the last part of your multipart upload
+    write_min_size: Option<usize>,
+    /// batch_max_operations
+    batch_max_operations: Option<usize>,
 }
 
 impl Debug for S3Builder {
@@ -360,10 +151,12 @@ impl S3Builder {
         self
     }
 
-    /// Region represent the signing region of this endpoint.
+    /// Region represent the signing region of this endpoint. This is required
+    /// if you are using the default AWS S3 endpoint.
     ///
+    /// If using a custom endpoint,
     /// - If region is set, we will take user's input first.
-    /// - If not, we will use `us-east-1` as default.
+    /// - If not, the default `us-east-1` will be used.
     pub fn region(&mut self, region: &str) -> &mut Self {
         if !region.is_empty() {
             self.region = Some(region.to_string())
@@ -620,6 +413,13 @@ impl S3Builder {
         self
     }
 
+    /// Allow anonymous will allow opendal to send request without signing
+    /// when credentail is not loaded.
+    pub fn allow_anonymous(&mut self) -> &mut Self {
+        self.allow_anonymous = true;
+        self
+    }
+
     /// Enable virtual host style so that opendal will send API requests
     /// in virtual host style instead of path style.
     ///
@@ -704,6 +504,20 @@ impl S3Builder {
 
         endpoint
     }
+
+    /// set the minimum size of unsized write, it should be greater than 5 MB.
+    /// Reference: [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
+
+        self
+    }
+    /// Set maximum batch operations of this backend.
+    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+        self.batch_max_operations = Some(batch_max_operations);
+
+        self
+    }
 }
 
 impl Builder for S3Builder {
@@ -742,8 +556,15 @@ impl Builder for S3Builder {
         map.get("enable_virtual_host_style")
             .filter(|v| *v == "on" || *v == "true")
             .map(|_| builder.enable_virtual_host_style());
+        map.get("allow_anonymous")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.allow_anonymous());
         map.get("default_storage_class")
-            .map(|v| builder.default_storage_class(v));
+            .map(|v: &String| builder.default_storage_class(v));
+        map.get("write_min_size")
+            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
+        map.get("batch_max_operations")
+            .map(|v| builder.batch_max_operations(v.parse().expect("input must be a number")));
 
         builder
     }
@@ -848,10 +669,18 @@ impl Builder for S3Builder {
         }
 
         if cfg.region.is_none() {
-            // region is required to make signer work.
-            //
-            // If we don't know region after loading from builder and env.
-            // We will use `us-east-1` as default.
+            // AWS S3 requires region to be set.
+            if self.endpoint.is_none()
+                || self.endpoint.as_deref() == Some("https://s3.amazonaws.com")
+            {
+                return Err(Error::new(ErrorKind::ConfigInvalid, "region is missing")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::S3));
+            }
+
+            // For other compatible services, if we don't know region
+            // after loading from builder and env, we can use `us-east-1`
+            // as default.
             cfg.region = Some("us-east-1".to_string());
         }
 
@@ -862,7 +691,7 @@ impl Builder for S3Builder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg).with_allow_anonymous();
+        let mut loader = AwsLoader::new(client.client(), cfg);
         if self.disable_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
         }
@@ -871,7 +700,17 @@ impl Builder for S3Builder {
         }
 
         let signer = AwsV4Signer::new("s3", &region);
-
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 5 * 1024 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::S3));
+        }
+        let batch_max_operations = self
+            .batch_max_operations
+            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
         debug!("backend build finished");
         Ok(S3Backend {
             core: Arc::new(S3Core {
@@ -884,9 +723,12 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
+                allow_anonymous: self.allow_anonymous,
                 signer,
                 loader,
                 client,
+                write_min_size,
+                batch_max_operations,
             }),
         })
     }
@@ -904,6 +746,7 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = S3Writer;
     type BlockingWriter = ();
+    type Appender = ();
     type Pager = S3Pager;
     type BlockingPager = ();
 
@@ -919,24 +762,33 @@ impl Accessor for S3Backend {
 
                 read: true,
                 read_can_next: true,
+                read_with_range: true,
                 read_with_if_match: true,
                 read_with_if_none_match: true,
+                read_with_override_cache_control: true,
                 read_with_override_content_disposition: true,
 
                 write: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_without_content_length: true,
+                create_dir: true,
+                delete: true,
+                copy: true,
 
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
+                list_without_delimiter: true,
+                list_with_delimiter_slash: true,
 
-                scan: true,
-                copy: true,
                 presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+
                 batch: true,
-                batch_max_operations: Some(1000),
+                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });
@@ -944,7 +796,7 @@ impl Accessor for S3Backend {
         am
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
                 .s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
@@ -958,7 +810,7 @@ impl Accessor for S3Backend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+                Ok(RpCreateDir::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -1050,17 +902,10 @@ impl Accessor for S3Backend {
             S3Pager::new(
                 self.core.clone(),
                 path,
-                "/",
+                args.delimiter(),
                 args.limit(),
                 args.start_after(),
             ),
-        ))
-    }
-
-    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        Ok((
-            RpScan::default(),
-            S3Pager::new(self.core.clone(), path, "", args.limit(), None),
         ))
     }
 
@@ -1128,10 +973,15 @@ impl Accessor for S3Backend {
             for i in result.error {
                 let path = build_rel_path(&self.core.root, &i.key);
 
-                batched_result.push((
-                    path,
-                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                ));
+                // set the error kind and mark temporary if retryable
+                let (kind, retryable) =
+                    parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
+                let mut err = Error::new(kind, &format!("{i:?}"));
+                if retryable {
+                    err = err.set_temporary();
+                }
+
+                batched_result.push((path, Err(err)));
             }
 
             Ok(RpBatch::new(batched_result))
@@ -1168,7 +1018,7 @@ mod tests {
 
     #[test]
     fn test_build_endpoint() {
-        let _ = env_logger::try_init();
+        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let endpoint_cases = vec![
             Some("s3.amazonaws.com"),

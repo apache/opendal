@@ -24,7 +24,6 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
@@ -42,6 +41,7 @@ pub struct S3Writer {
 
 impl S3Writer {
     pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite) -> Self {
+        let buffer_size = core.write_min_size;
         S3Writer {
             core,
             path: path.to_string(),
@@ -50,13 +50,7 @@ impl S3Writer {
             upload_id: None,
             parts: vec![],
             buffer: oio::VectorCursor::new(),
-            // The part size must be 5 MiB to 5 GiB. There is no minimum
-            // size limit on the last part of your multipart upload.
-            //
-            // We pick the default value as 8 MiB for better throughput.
-            //
-            // TODO: allow this value to be configured.
-            buffer_size: 8 * 1024 * 1024,
+            buffer_size,
         }
     }
 

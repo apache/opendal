@@ -21,7 +21,7 @@ use std::ops::RangeBounds;
 use bytes::Bytes;
 use flagset::FlagSet;
 
-use crate::ops::*;
+use super::operator_functions::*;
 use crate::raw::*;
 use crate::*;
 
@@ -448,12 +448,7 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        let bs = bs.into();
-        self.write_with(
-            path,
-            OpWrite::new().with_content_length(bs.len() as u64),
-            bs,
-        )
+        self.write_with(path, bs).call()
     }
 
     /// Copy a file from `from` to `to`.
@@ -583,35 +578,42 @@ impl BlockingOperator {
     /// # use opendal::Result;
     /// # use opendal::BlockingOperator;
     /// use bytes::Bytes;
-    /// use opendal::ops::OpWrite;
     ///
     /// # async fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
-    /// let ow = OpWrite::new().with_content_type("text/plain");
-    /// let _ = op.write_with("hello.txt", ow, bs)?;
+    /// let _ = op
+    ///     .write_with("hello.txt", bs)
+    ///     .content_type("text/plain")
+    ///     .call()?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn write_with(&self, path: &str, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
+    pub fn write_with(&self, path: &str, bs: impl Into<Bytes>) -> FunctionWrite {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("BlockingOperator::write_with")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
-
         let bs = bs.into();
-        let (_, mut w) = self
-            .inner()
-            .blocking_write(&path, args.with_content_length(bs.len() as u64))?;
-        w.write(bs)?;
-        w.close()?;
 
-        Ok(())
+        FunctionWrite(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            (OpWrite::default().with_content_length(bs.len() as u64), bs),
+            |inner, path, (args, bs)| {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                            .with_operation("BlockingOperator::write_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
+
+                let (_, mut w) = inner.blocking_write(&path, args)?;
+                w.write(bs)?;
+                w.close()?;
+
+                Ok(())
+            },
+        ))
     }
 
     /// Write multiple bytes into given path.

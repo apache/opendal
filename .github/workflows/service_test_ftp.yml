@@ -77,13 +77,13 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test ftp --features services-ftp -- --show-output
+        run: cargo nextest run ftp --features services-ftp
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_FTP_TEST: on
           OPENDAL_FTP_ENDPOINT: ftp://127.0.0.1:2121
           OPENDAL_FTP_ROOT: /

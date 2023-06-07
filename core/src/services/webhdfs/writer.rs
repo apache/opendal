@@ -21,7 +21,6 @@ use http::StatusCode;
 
 use super::backend::WebhdfsBackend;
 use super::error::parse_error;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 

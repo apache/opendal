@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -25,93 +25,75 @@ extern "C" {
 
 class OpendalBddTest : public ::testing::Test {
 protected:
-    // Setup code for the fixture
     opendal_operator_ptr p;
     std::string scheme;
     std::string path;
     std::string content;
 
-    // the fixture setup is an operator write, which will be
-    // run at the beginning of every tests
     void SetUp() override
     {
-        // construct the memory operator
         this->scheme = std::string("memory");
         this->path = std::string("test");
         this->content = std::string("Hello, World!");
 
-        this->p = opendal_operator_new(scheme.c_str());
+        opendal_operator_options options = opendal_operator_options_new();
+        opendal_operator_options_set(&options, "root", "/myroot");
 
-        EXPECT_TRUE(this->p);
+        // Given A new OpenDAL Blocking Operator
+        this->p = opendal_operator_new(scheme.c_str(), &options);
+        EXPECT_TRUE(this->p.ptr);
 
-        const opendal_bytes data = {
-            .data = (uint8_t*)this->content.c_str(),
-            .len = this->content.length(),
-        };
-
-        opendal_code code = opendal_operator_blocking_write(this->p, this->path.c_str(), data);
-
-        EXPECT_EQ(code, OPENDAL_OK);
+        opendal_operator_options_free(&options);
     }
 
-    // Teardown code for the fixture, free the operator
-    void TearDown() override
-    {
-        opendal_operator_free(&this->p);
-    }
+    void TearDown() override { opendal_operator_free(&this->p); }
 };
 
-// do nothing, the fixture does the Write Test
-TEST_F(OpendalBddTest, Write)
+// Scenario: OpenDAL Blocking Operations
+TEST_F(OpendalBddTest, FeatureTest)
 {
-}
+    // When Blocking write path "test" with content "Hello, World!"
+    const opendal_bytes data = {
+        .data = (uint8_t*)this->content.c_str(),
+        .len = this->content.length(),
+    };
+    opendal_code code = opendal_operator_blocking_write(this->p, this->path.c_str(), data);
+    EXPECT_EQ(code, OPENDAL_OK);
 
-// The path must exist
-TEST_F(OpendalBddTest, Exist)
-{
-    opendal_result_is_exist r = opendal_operator_is_exist(this->p, this->path.c_str());
+    // The blocking file "test" should exist
+    opendal_result_is_exist e = opendal_operator_is_exist(this->p, this->path.c_str());
+    EXPECT_EQ(e.code, OPENDAL_OK);
+    EXPECT_TRUE(e.is_exist);
 
-    EXPECT_EQ(r.code, OPENDAL_OK);
-    EXPECT_TRUE(r.is_exist);
-}
-
-// The entry mode must be file
-TEST_F(OpendalBddTest, EntryMode)
-{
-    opendal_result_stat r = opendal_operator_stat(this->p, this->path.c_str());
-    EXPECT_EQ(r.code, OPENDAL_OK);
-
-    opendal_metadata meta = r.meta;
+    // The blocking file "test" entry mode must be file
+    opendal_result_stat s = opendal_operator_stat(this->p, this->path.c_str());
+    EXPECT_EQ(s.code, OPENDAL_OK);
+    opendal_metadata meta = s.meta;
     EXPECT_TRUE(opendal_metadata_is_file(&meta));
 
-    opendal_metadata_free(&meta);
-}
-
-// The content length must be consistent
-TEST_F(OpendalBddTest, ContentLength)
-{
-    opendal_result_stat r = opendal_operator_stat(this->p, this->path.c_str());
-    EXPECT_EQ(r.code, OPENDAL_OK);
-
-    opendal_metadata meta = r.meta;
+    // The blocking file "test" content length must be 13
     EXPECT_EQ(opendal_metadata_content_length(&meta), 13);
-
     opendal_metadata_free(&meta);
-}
 
-// We must read the correct content
-TEST_F(OpendalBddTest, Read)
-{
+    // The blocking file "test" must have content "Hello, World!"
     struct opendal_result_read r = opendal_operator_blocking_read(this->p, this->path.c_str());
-
     EXPECT_EQ(r.code, OPENDAL_OK);
     EXPECT_EQ(r.data->len, this->content.length());
-
     for (int i = 0; i < r.data->len; i++) {
         EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
     }
 
-    // free the bytes's heap memory
+    // The blocking file should be deleted
+    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(code, OPENDAL_OK);
+    e = opendal_operator_is_exist(this->p, this->path.c_str());
+    EXPECT_EQ(e.code, OPENDAL_OK);
+    EXPECT_FALSE(e.is_exist);
+
+    // The deletion operation should be idempotent
+    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(code, OPENDAL_OK);
+
     opendal_bytes_free(r.data);
 }
 

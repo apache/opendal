@@ -82,6 +82,7 @@ pub struct S3Core {
     pub loader: AwsLoader,
     pub client: HttpClient,
     pub write_min_size: usize,
+    pub batch_max_operations: usize,
 }
 
 impl Debug for S3Core {
@@ -148,7 +149,7 @@ impl S3Core {
     /// # Note
     ///
     /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
-    //  get or stat.
+    /// get or stat.
     pub fn insert_sse_headers(
         &self,
         mut req: http::request::Builder,

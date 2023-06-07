@@ -36,67 +36,17 @@ use super::error::is_sftp_protocol_error;
 use super::pager::SftpPager;
 use super::utils::SftpReader;
 use super::writer::SftpWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 /// SFTP services support. (only works on unix)
 ///
-/// Warning: Maximum number of file holdings is depend on the remote system configuration.
-/// For example, the default value is 255 in macos, and 1024 in linux. If you want to open
+/// Warning: Maximum number of file holdings is depending on the remote system configuration.
+///
+/// For example, the default value is 255 in macOS, and 1024 in linux. If you want to open
 /// lots of files, you should pay attention to close the file after using it.
 ///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [x] rename
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `endpoint`: Set the endpoint for connection
-/// - `root`: Set the work directory for backend, default to `/home/$USER/`
-/// - `user`: Set the login user
-/// - `key`: Set the public key for login
-/// - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
-///
-/// It doesn't support password login, you can use public key instead.
-///
-/// You can refer to [`SftpBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Sftp;
-/// use opendal::Object;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Sftp::default();
-///
-///     builder.endpoint("127.0.0.1").user("test").key("test_key");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
-///     Ok(())
-/// }
-/// ```
-
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SftpBuilder {
     endpoint: Option<String>,
@@ -104,6 +54,7 @@ pub struct SftpBuilder {
     user: Option<String>,
     key: Option<String>,
     known_hosts_strategy: Option<String>,
+    enable_copy: bool,
 }
 
 impl Debug for SftpBuilder {
@@ -174,6 +125,14 @@ impl SftpBuilder {
 
         self
     }
+
+    /// set enable_copy for sftp backend.
+    /// It requires the server supports copy-file extension.
+    pub fn enable_copy(&mut self, enable_copy: bool) -> &mut Self {
+        self.enable_copy = enable_copy;
+
+        self
+    }
 }
 
 impl Builder for SftpBuilder {
@@ -225,6 +184,7 @@ impl Builder for SftpBuilder {
             user,
             key: self.key.clone(),
             known_hosts_strategy,
+            copyable: self.enable_copy,
             client: tokio::sync::OnceCell::new(),
         })
     }
@@ -250,6 +210,7 @@ pub struct SftpBackend {
     user: String,
     key: Option<String>,
     known_hosts_strategy: KnownHosts,
+    copyable: bool,
     client: tokio::sync::OnceCell<Sftp>,
 }
 
@@ -265,7 +226,7 @@ impl Accessor for SftpBackend {
     type BlockingReader = ();
     type Writer = SftpWriter;
     type BlockingWriter = ();
-    type Appender = ();
+    type Appender = SftpWriter;
     type Pager = Option<SftpPager>;
     type BlockingPager = ();
 
@@ -278,6 +239,7 @@ impl Accessor for SftpBackend {
 
                 read: true,
                 read_with_range: true,
+                read_can_seek: true,
 
                 write: true,
                 write_without_content_length: true,
@@ -288,7 +250,9 @@ impl Accessor for SftpBackend {
                 list_with_limit: true,
                 list_with_delimiter_slash: true,
 
+                copy: self.copyable,
                 rename: true,
+                append: true,
 
                 ..Default::default()
             });
@@ -371,6 +335,25 @@ impl Accessor for SftpBackend {
         let file = client.create(&path).await?;
 
         Ok((RpWrite::new(), SftpWriter::new(file)))
+    }
+
+    async fn append(&self, path: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        if let Some((dir, _)) = path.rsplit_once('/') {
+            self.create_dir(dir, OpCreateDir::default()).await?;
+        }
+
+        let client = self.connect().await?;
+
+        let mut fs = client.fs();
+        fs.set_cwd(&self.root);
+        let path = fs.canonicalize(path).await?;
+
+        let mut option = client.options();
+        option.append(true).create(true);
+
+        let file = option.open(path).await?;
+
+        Ok((RpAppend::new(), SftpWriter::new(file)))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

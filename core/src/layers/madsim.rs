@@ -39,7 +39,6 @@ use madsim::net::Endpoint;
 #[cfg(madsim)]
 use madsim::net::Payload;
 
-use crate::ops::*;
 use crate::raw::oio;
 use crate::raw::oio::Entry;
 use crate::raw::*;

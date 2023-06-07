@@ -59,15 +59,18 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 // Return the error kind and whether it is retryable
 fn parse_supabase_error(err: &SupabaseError) -> (ErrorKind, bool) {
     let code = err.status_code.parse::<u16>().unwrap();
-    if code == StatusCode::CONFLICT.as_u16() && err.error == "Duplicate" {
-        (ErrorKind::AlreadyExists, false)
-    } else if code == StatusCode::NOT_FOUND.as_u16() {
-        (ErrorKind::NotFound, false)
-    } else if code == StatusCode::FORBIDDEN.as_u16() {
-        (ErrorKind::PermissionDenied, false)
-    } else if code == StatusCode::PRECONDITION_FAILED.as_u16() {
-        (ErrorKind::ConditionNotMatch, false)
-    } else {
-        (ErrorKind::Unexpected, false)
+    let status_code = StatusCode::from_u16(code).unwrap();
+    match status_code {
+        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
     }
 }

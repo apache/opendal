@@ -18,6 +18,7 @@
 mod backend;
 pub use backend::ObsBuilder as Obs;
 
+mod appender;
 mod core;
 mod error;
 mod pager;

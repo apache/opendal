@@ -19,7 +19,6 @@ use std::fmt::Debug;
 
 use async_trait::async_trait;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -46,7 +45,6 @@ use crate::*;
 /// use std::sync::Arc;
 ///
 /// use async_trait::async_trait;
-/// use opendal::ops::*;
 /// use opendal::raw::*;
 /// use opendal::*;
 ///
@@ -96,7 +94,7 @@ use crate::*;
 ///     }
 ///
 ///     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-///        self.inner.append(path, args).await
+///         self.inner.append(path, args).await
 ///     }
 ///
 ///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {

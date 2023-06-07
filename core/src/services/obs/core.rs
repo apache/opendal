@@ -19,11 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
-use http::header::CACHE_CONTROL;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION};
 use http::Request;
 use http::Response;
 use reqsign::HuaweicloudObsCredential;
@@ -230,6 +230,42 @@ impl ObsCore {
         self.sign(&mut req).await?;
 
         self.send(req).await
+    }
+
+    pub fn obs_append_object_request(
+        &self,
+        path: &str,
+        position: u64,
+        size: usize,
+        args: &OpAppend,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}?append&position={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            position
+        );
+
+        let mut req = Request::post(&url);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+        Ok(req)
     }
 
     pub async fn obs_copy_object(

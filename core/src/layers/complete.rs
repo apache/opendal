@@ -25,7 +25,6 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::ops::*;
 use crate::raw::oio::into_reader::RangeReader;
 use crate::raw::oio::to_flat_pager;
 use crate::raw::oio::to_hierarchy_pager;
@@ -670,7 +669,7 @@ impl<A> CompleteAppender<A> {
 #[cfg(debug_assertions)]
 impl<A> Drop for CompleteAppender<A> {
     fn drop(&mut self) {
-        if self.inner.is_none() {
+        if self.inner.is_some() {
             // Do we need to panic here?
             log::warn!("appender has not been closed, must be a bug")
         }

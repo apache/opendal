@@ -18,6 +18,7 @@
 mod backend;
 pub use backend::OssBuilder as Oss;
 
+mod appender;
 mod core;
 mod error;
 mod pager;

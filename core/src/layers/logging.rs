@@ -29,7 +29,6 @@ use log::log;
 use log::trace;
 use log::Level;
 
-use crate::ops::*;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
 use crate::raw::*;

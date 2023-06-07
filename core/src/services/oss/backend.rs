@@ -30,87 +30,18 @@ use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
+use super::appender::OssAppender;
 use super::core::*;
 use super::error::parse_error;
 use super::pager::OssPager;
 use super::writer::OssWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
+const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 /// Aliyun Object Storage Service (OSS) support
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [x] copy
-/// - [ ] rename
-/// - [x] list
-/// - [x] scan
-/// - [x] presign
-/// - [ ] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-/// - `bucket`: Set the container name for backend.
-/// - `endpoint`: Set the endpoint for backend.
-/// - `presign_endpoint`: Set the endpoint for presign.
-/// - `access_key_id`: Set the access_key_id for backend.
-/// - `access_key_secret`: Set the access_key_secret for backend.
-/// - `role_arn`: Set the role of backend.
-/// - `oidc_token`: Set the oidc_token for backend.
-/// - `allow_anonymous`: Set the backend access OSS in anonymous way.
-///
-/// Refer to [`OssBuilder`]'s public API docs for more information.
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Oss;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create OSS backend builder.
-///     let mut builder = Oss::default();
-///     // Set the root for oss, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/path/to/dir");
-///     // Set the bucket name, this is required.
-///     builder.bucket("test");
-///     // Set the endpoint.
-///     //
-///     // For example:
-///     // - "https://oss-ap-northeast-1.aliyuncs.com"
-///     // - "https://oss-hangzhou.aliyuncs.com"
-///     builder.endpoint("https://oss-cn-beijing.aliyuncs.com");
-///     // Set the access_key_id and access_key_secret.
-///     //
-///     // OpenDAL will try load credential from the env.
-///     // If credential not set and no valid credential in env, OpenDAL will
-///     // send request without signing like anonymous user.
-///     builder.access_key_id("access_key_id");
-///     builder.access_key_secret("access_key_secret");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OssBuilder {
     root: Option<String>,
@@ -130,6 +61,8 @@ pub struct OssBuilder {
     http_client: Option<HttpClient>,
     /// the size of each part, and the range is 5MB ~ 5 GB.
     write_min_size: Option<usize>,
+    /// batch_max_operations
+    batch_max_operations: Option<usize>,
 }
 
 impl Debug for OssBuilder {
@@ -307,6 +240,13 @@ impl OssBuilder {
 
         self
     }
+
+    /// Set maximum batch operations of this backend.
+    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+        self.batch_max_operations = Some(batch_max_operations);
+
+        self
+    }
 }
 
 impl Builder for OssBuilder {
@@ -330,6 +270,8 @@ impl Builder for OssBuilder {
             .map(|v| builder.server_side_encryption_key_id(v));
         map.get("write_min_size")
             .map(|v| builder.write_min_size(v.parse::<usize>().unwrap()));
+        map.get("batch_max_operations")
+            .map(|v| builder.batch_max_operations(v.parse::<usize>().unwrap()));
         builder
     }
 
@@ -409,6 +351,9 @@ impl Builder for OssBuilder {
             )
             .with_context("service", Scheme::Oss));
         }
+        let batch_max_operations = self
+            .batch_max_operations
+            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
         debug!("Backend build finished");
 
         Ok(OssBackend {
@@ -424,6 +369,7 @@ impl Builder for OssBuilder {
                 server_side_encryption,
                 server_side_encryption_key_id,
                 write_min_size,
+                batch_max_operations,
             }),
         })
     }
@@ -441,7 +387,7 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriter;
     type BlockingWriter = ();
-    type Appender = ();
+    type Appender = OssAppender;
     type Pager = OssPager;
     type BlockingPager = ();
 
@@ -469,6 +415,11 @@ impl Accessor for OssBackend {
                 create_dir: true,
                 copy: true,
 
+                append: true,
+                append_with_cache_control: true,
+                append_with_content_type: true,
+                append_with_content_disposition: true,
+
                 list: true,
                 list_with_delimiter_slash: true,
                 list_without_delimiter: true,
@@ -479,7 +430,7 @@ impl Accessor for OssBackend {
                 presign_write: true,
 
                 batch: true,
-                batch_max_operations: Some(1000),
+                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });
@@ -530,6 +481,13 @@ impl Accessor for OssBackend {
         Ok((
             RpWrite::default(),
             OssWriter::new(self.core.clone(), path, args),
+        ))
+    }
+
+    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        Ok((
+            RpAppend::default(),
+            OssAppender::new(self.core.clone(), path, args),
         ))
     }
 

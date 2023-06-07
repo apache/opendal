@@ -27,63 +27,15 @@ use chrono::DateTime;
 use log::debug;
 use uuid::Uuid;
 
+use super::appender::FsAppender;
 use super::error::parse_io_error;
 use super::pager::FsPager;
 use super::writer::FsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
 /// POSIX file system support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [x] copy
-/// - [x] rename
-/// - [x] list
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [x] blocking
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-///
-/// Refer to [`FsBuilder`]'s public API docs for more information.
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Fs;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create fs backend builder.
-///     let mut builder = Fs::default();
-///     // Set the root for fs, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/tmp");
-///
-///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct FsBuilder {
     root: Option<PathBuf>,
@@ -296,7 +248,7 @@ impl Accessor for FsBackend {
     type BlockingReader = oio::into_blocking_reader::FdReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
-    type Appender = ();
+    type Appender = FsAppender<tokio::fs::File>;
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
     type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
 
@@ -315,6 +267,8 @@ impl Accessor for FsBackend {
                 write_without_content_length: true,
                 create_dir: true,
                 delete: true,
+
+                append: true,
 
                 list: true,
                 list_with_delimiter_slash: true,
@@ -432,6 +386,20 @@ impl Accessor for FsBackend {
             .map_err(parse_io_error)?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
+    }
+
+    async fn append(&self, path: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        let path = Self::ensure_write_abs_path(&self.root, path).await?;
+
+        let f = tokio::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(&path)
+            .await
+            .map_err(parse_io_error)?;
+
+        Ok((RpAppend::new(), FsAppender::new(f)))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

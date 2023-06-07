@@ -51,9 +51,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test services_fs -- --show-output
+        run: cargo test services_fs
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_FS_TEST: on
           OPENDAL_FS_ROOT: ${{ runner.temp }}/

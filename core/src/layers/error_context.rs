@@ -25,7 +25,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::TryFutureExt;
 
-use crate::ops::*;
 use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;

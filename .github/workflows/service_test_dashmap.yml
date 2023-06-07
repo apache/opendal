@@ -47,11 +47,11 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test dashmap --features services-dashmap -- --show-output
+        run: cargo nextest run dashmap --features services-dashmap
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_DASHMAP_TEST: on

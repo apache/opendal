@@ -22,7 +22,7 @@ use flagset::FlagSet;
 use crate::raw::*;
 use crate::*;
 
-/// Metadata carries all metadata associated with an path.
+/// Metadata carries all metadata associated with a path.
 ///
 /// # Notes
 ///

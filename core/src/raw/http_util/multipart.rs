@@ -25,6 +25,7 @@ use bytes::BytesMut;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::uri::PathAndQuery;
 use http::HeaderMap;
 use http::HeaderName;
 use http::HeaderValue;
@@ -54,7 +55,7 @@ impl<T: Part> Multipart<T> {
     /// Create a new multipart with random boundary.
     pub fn new() -> Self {
         Multipart {
-            boundary: uuid::Uuid::new_v4().to_string(),
+            boundary: format!("opendal-{}", uuid::Uuid::new_v4()),
             parts: Vec::default(),
         }
     }
@@ -249,9 +250,14 @@ impl MixedPart {
         Self {
             part_headers,
             method: parts.method,
-            // TODO: Maybe we should support query too?;
-            uri: Uri::from_str(parts.uri.path())
-                .expect("the uri used to build a mixed part must be valid"),
+            uri: Uri::from_str(
+                parts
+                    .uri
+                    .path_and_query()
+                    .unwrap_or(&PathAndQuery::from_static("/"))
+                    .as_str(),
+            )
+            .expect("the uri used to build a mixed part must be valid"),
             version: parts.version,
             headers: parts.headers,
             content,
@@ -297,7 +303,25 @@ impl Part for MixedPart {
 
         // Write parts headers.
         for (k, v) in self.part_headers.iter() {
-            bs.extend_from_slice(k.as_str().as_bytes());
+            // Trick!
+            //
+            // Azblob could not recognize header names like `content-type`
+            // and requires to use `Content-Type`. So we hardcode the part
+            // headers name here.
+            match k.as_str() {
+                "content-type" => {
+                    bs.extend_from_slice("Content-Type".as_bytes());
+                }
+                "content-id" => {
+                    bs.extend_from_slice("Content-ID".as_bytes());
+                }
+                "content-transfer-encoding" => {
+                    bs.extend_from_slice("Content-Transfer-Encoding".as_bytes());
+                }
+                _ => {
+                    bs.extend_from_slice(k.as_str().as_bytes());
+                }
+            }
             bs.extend_from_slice(b": ");
             bs.extend_from_slice(v.as_bytes());
             bs.extend_from_slice(b"\r\n");
@@ -542,9 +566,9 @@ Upload to Amazon S3
         let body = multipart.build();
 
         let expected = r#"--===============7330845974216740156==
-content-type: application/http
-content-transfer-encoding: binary
-content-id: <b29c5de2-0db4-490b-b421-6a51b598bd22+1>
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: <b29c5de2-0db4-490b-b421-6a51b598bd22+1>
 
 PATCH /storage/v1/b/example-bucket/o/obj1 HTTP/1.1
 content-type: application/json
@@ -553,9 +577,9 @@ content-length: 31
 
 {"metadata": {"type": "tabby"}}
 --===============7330845974216740156==
-content-type: application/http
-content-transfer-encoding: binary
-content-id: <b29c5de2-0db4-490b-b421-6a51b598bd22+2>
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: <b29c5de2-0db4-490b-b421-6a51b598bd22+2>
 
 PATCH /storage/v1/b/example-bucket/o/obj2 HTTP/1.1
 content-type: application/json
@@ -564,9 +588,9 @@ content-length: 32
 
 {"metadata": {"type": "tuxedo"}}
 --===============7330845974216740156==
-content-type: application/http
-content-transfer-encoding: binary
-content-id: <b29c5de2-0db4-490b-b421-6a51b598bd22+3>
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: <b29c5de2-0db4-490b-b421-6a51b598bd22+3>
 
 PATCH /storage/v1/b/example-bucket/o/obj3 HTTP/1.1
 content-type: application/json
@@ -644,9 +668,9 @@ content-length: 32
         let body = multipart.build();
 
         let expected = r#"--batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
-content-type: application/http
-content-transfer-encoding: binary
-content-id: 0
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: 0
 
 DELETE /container0/blob0 HTTP/1.1
 x-ms-date: Thu, 14 Jun 2018 16:46:54 GMT
@@ -654,9 +678,9 @@ authorization: SharedKey account:G4jjBXA7LI/RnWKIOQ8i9xH4p76pAQ+4Fs4R1VxasaE=
 content-length: 0
 
 --batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
-content-type: application/http
-content-transfer-encoding: binary
-content-id: 1
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: 1
 
 DELETE /container1/blob1 HTTP/1.1
 x-ms-date: Thu, 14 Jun 2018 16:46:54 GMT
@@ -664,9 +688,9 @@ authorization: SharedKey account:IvCoYDQ+0VcaA/hKFjUmQmIxXv2RT3XwwTsOTHL39HI=
 content-length: 0
 
 --batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
-content-type: application/http
-content-transfer-encoding: binary
-content-id: 2
+Content-Type: application/http
+Content-Transfer-Encoding: binary
+Content-ID: 2
 
 DELETE /container2/blob2 HTTP/1.1
 x-ms-date: Thu, 14 Jun 2018 16:46:54 GMT

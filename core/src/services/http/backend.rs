@@ -29,7 +29,6 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -534,9 +533,7 @@ mod tests {
         builder.root("/");
         let op = Operator::new(builder)?.finish();
 
-        let match_bs = op
-            .read_with("hello", OpRead::new().with_if_none_match("*"))
-            .await?;
+        let match_bs = op.read_with("hello").if_none_match("*").await?;
         assert_eq!(match_bs, b"Hello, World!");
 
         Ok(())
@@ -558,9 +555,7 @@ mod tests {
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         let op = Operator::new(builder)?.finish();
-        let bs = op
-            .stat_with("hello", OpStat::new().with_if_none_match("*"))
-            .await?;
+        let bs = op.stat_with("hello").if_none_match("*").await?;
 
         assert_eq!(bs.mode(), EntryMode::FILE);
         assert_eq!(bs.content_length(), 128);

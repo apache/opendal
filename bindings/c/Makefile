@@ -16,17 +16,22 @@
 # under the License.
 
 RPATH=$(PWD)/../../target/debug
+OBJ_DIR=./build
+DOC_DIR=./docs
+
+CCFLAGS=-I./include
 CXXFLAGS=-I./include -std=c++14
 LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
-LIBS=-lopendal_c -lgtest
-OBJ_DIR=./build
+
+LIBS=-lopendal_c -lgtest -lpthread
 
 .PHONY: all
-all: build test
+all: build test examples
 
 .PHONY: format
 format:
 	find . -name '*.cpp' -exec clang-format -i --style=WebKit --verbose {} \;
+	find . -name '*.c' -exec clang-format -i --style=WebKit --verbose {} \;
 
 .PHONY: build
 build:
@@ -38,7 +43,30 @@ test:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(OBJ_DIR)/bdd
 
+.PHONY: doc
+doc:
+	mkdir -p $(DOC_DIR)
+	doxygen Doxyfile
+
+# build examples begin
+EXAMPLES=$(wildcard ./examples/*.c)
+EXAMPLE_OBJECTS=$(EXAMPLES:.c=.o)
+EXAMPLE_TARGETS=$(EXAMPLES:.c=)
+.PHONY: examples
+examples: $(EXAMPLE_TARGETS)
+
+$(EXAMPLE_TARGETS): % : %.o
+	$(CC) $(CCFLAGS) -o $@ $< $(LDFLAGS) $(LIBS)
+
+%.o: %.c
+	$(CC) $(CCFLAGS) -c $< -o $@
+# build examples end
+
 .PHONY: clean
 clean:
 	cargo clean
+	rm -rf $(EXAMPLE_OBJECTS)
+	rm -rf $(EXAMPLE_TARGETS)
 	rm -rf $(OBJ_DIR)
+	rm -rf $(DOC_DIR)
+

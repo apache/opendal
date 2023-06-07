@@ -25,7 +25,6 @@ use bytes::Bytes;
 use futures::FutureExt;
 use minitrace::prelude::*;
 
-use crate::ops::*;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;

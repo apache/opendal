@@ -19,53 +19,52 @@
 
 package org.apache.opendal;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import lombok.Cleanup;
 
 public class StepsTest {
-    Operator operator;
+    BlockingOperator op;
 
     @Given("A new OpenDAL Blocking Operator")
     public void a_new_open_dal_blocking_operator() {
         Map<String, String> params = new HashMap<>();
         params.put("root", "/tmp");
-        this.operator = new Operator("Memory", params);
+        op = new BlockingOperator("Memory", params);
     }
 
     @When("Blocking write path {string} with content {string}")
-    public void blocking_write_path_test_with_content_hello_world(String fileName, String content) {
-        this.operator.write(fileName, content);
+    public void blocking_write_path_test_with_content_hello_world(String path, String content) {
+        op.write(path, content);
     }
 
     @Then("The blocking file {string} should exist")
-    public void the_blocking_file_test_should_exist(String fileName) {
-        Metadata metadata = this.operator.stat(fileName);
+    public void the_blocking_file_test_should_exist(String path) {
+        @Cleanup Metadata metadata = op.stat(path);
         assertNotNull(metadata);
     }
 
-
     @Then("The blocking file {string} entry mode must be file")
-    public void the_blocking_file_test_entry_mode_must_be_file(String fileName) {
-        Metadata metadata = this.operator.stat(fileName);
+    public void the_blocking_file_test_entry_mode_must_be_file(String path) {
+        @Cleanup Metadata metadata = op.stat(path);
         assertTrue(metadata.isFile());
     }
 
     @Then("The blocking file {string} content length must be {int}")
-    public void the_blocking_file_test_content_length_must_be_13(String fileName, int length) {
-        Metadata metadata = this.operator.stat(fileName);
+    public void the_blocking_file_test_content_length_must_be_13(String path, int length) {
+        @Cleanup Metadata metadata = op.stat(path);
         assertEquals(metadata.getContentLength(), length);
     }
 
     @Then("The blocking file {string} must have content {string}")
-    public void the_blocking_file_test_must_have_content_hello_world(String fileName, String content) {
-        String readContent = this.operator.read(fileName);
+    public void the_blocking_file_test_must_have_content_hello_world(String path, String content) {
+        String readContent = op.read(path);
         assertEquals(content, readContent);
     }
 }

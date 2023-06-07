@@ -62,52 +62,7 @@ fn build_operator(
     map: HashMap<String, String>,
     layers: Vec<layers::Layer>,
 ) -> PyResult<od::Operator> {
-    use od::services::*;
-
-    let op = match scheme {
-        od::Scheme::Azblob => od::Operator::from_map::<Azblob>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Azdfs => od::Operator::from_map::<Azdfs>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Fs => od::Operator::from_map::<Fs>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Gcs => od::Operator::from_map::<Gcs>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Ghac => od::Operator::from_map::<Ghac>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Http => od::Operator::from_map::<Http>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Ipmfs => od::Operator::from_map::<Ipmfs>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Memory => od::Operator::from_map::<Memory>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Obs => od::Operator::from_map::<Obs>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Oss => od::Operator::from_map::<Oss>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::S3 => od::Operator::from_map::<S3>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Webdav => od::Operator::from_map::<Webdav>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        od::Scheme::Webhdfs => od::Operator::from_map::<Webhdfs>(map)
-            .map_err(format_pyerr)?
-            .finish(),
-        _ => Err(PyNotImplementedError::new_err(format!(
-            "unsupported scheme `{scheme}`"
-        )))?,
-    };
+    let op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
 
     add_layers(op, layers)
 }

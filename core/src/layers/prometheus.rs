@@ -36,7 +36,6 @@ use prometheus::register_int_counter_vec_with_registry;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 
-use crate::ops::*;
 use crate::raw::Accessor;
 use crate::raw::*;
 use crate::*;
@@ -54,7 +53,7 @@ use crate::*;
 /// use prometheus::Encoder;
 ///
 /// /// Visit [`opendal::services`] for more service related config.
-/// /// Visit [`opendal::Object`] for more object level APIs.
+/// /// Visit [`opendal::Operator`] for more operator level APIs.
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.

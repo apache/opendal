@@ -25,22 +25,7 @@ use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] list
-/// - [x] scan
-/// - [ ] presign
-/// - [ ] blocking
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DashmapBuilder {
     root: Option<String>,

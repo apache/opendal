@@ -30,7 +30,6 @@ use opentelemetry::trace::Tracer;
 use opentelemetry::Context;
 use opentelemetry::KeyValue;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

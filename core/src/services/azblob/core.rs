@@ -26,6 +26,7 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
+use http::HeaderValue;
 use http::Request;
 use http::Response;
 use reqsign::AzureStorageCredential;
@@ -36,20 +37,29 @@ use crate::raw::*;
 use crate::*;
 
 mod constants {
+    pub const X_MS_VERSION: &str = "x-ms-version";
+
     pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
     pub const X_MS_COPY_SOURCE: &str = "x-ms-copy-source";
     pub const X_MS_BLOB_CACHE_CONTROL: &str = "x-ms-blob-cache-control";
+    pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
+
+    // Server-side encryption with customer-provided headers
+    pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
+    pub const X_MS_ENCRYPTION_KEY_SHA256: &str = "x-ms-encryption-key-sha256";
+    pub const X_MS_ENCRYPTION_ALGORITHM: &str = "x-ms-encryption-algorithm";
 }
 
 pub struct AzblobCore {
     pub container: String,
     pub root: String,
     pub endpoint: String,
-
+    pub encryption_key: Option<HeaderValue>,
+    pub encryption_key_sha256: Option<HeaderValue>,
+    pub encryption_algorithm: Option<HeaderValue>,
     pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
-    pub batch_signer: AzureStorageSigner,
 }
 
 impl Debug for AzblobCore {
@@ -90,19 +100,58 @@ impl AzblobCore {
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_credential().await?;
+        // Insert x-ms-version header for normal requests.
+        req.headers_mut().insert(
+            HeaderName::from_static(constants::X_MS_VERSION),
+            // 2022-11-02 is the version supported by Azurite V3 and
+            // used by Azure Portal, We use this version to make
+            // sure most our developer happy.
+            //
+            // In the future, we could allow users to configure this value.
+            HeaderValue::from_static("2022-11-02"),
+        );
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
     async fn batch_sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_credential().await?;
-        self.batch_signer
-            .sign(req, &cred)
-            .map_err(new_request_sign_error)
+        self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 
     #[inline]
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         self.client.send(req).await
+    }
+
+    pub fn insert_sse_headers(&self, mut req: http::request::Builder) -> http::request::Builder {
+        if let Some(v) = &self.encryption_key {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(HeaderName::from_static(constants::X_MS_ENCRYPTION_KEY), v)
+        }
+
+        if let Some(v) = &self.encryption_key_sha256 {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_MS_ENCRYPTION_KEY_SHA256),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.encryption_algorithm {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_MS_ENCRYPTION_ALGORITHM),
+                v,
+            )
+        }
+
+        req
     }
 }
 
@@ -137,6 +186,9 @@ impl AzblobCore {
         }
 
         let mut req = Request::get(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
 
         if !range.is_full() {
             // azblob doesn't support read with suffix range.
@@ -206,6 +258,10 @@ impl AzblobCore {
         );
 
         let mut req = Request::put(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
         if let Some(cache_control) = cache_control {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
@@ -228,6 +284,118 @@ impl AzblobCore {
         Ok(req)
     }
 
+    /// For appendable object, it could be created by `put` an empty blob
+    /// with `x-ms-blob-type` header set to `AppendBlob`.
+    /// And it's just initialized with empty content.
+    ///
+    /// If want to append content to it, we should use the following method `azblob_append_blob_request`.
+    ///
+    /// # Notes
+    ///
+    /// Appendable blob's custom header could only be set when it's created.
+    ///
+    /// The following custom header could be set:
+    /// - `content-type`
+    /// - `x-ms-blob-cache-control`
+    ///
+    /// # Reference
+    ///
+    /// https://learn.microsoft.com/en-us/rest/api/storageservices/put-blob
+    pub fn azblob_init_appendable_blob_request(
+        &self,
+        path: &str,
+        content_type: Option<&str>,
+        cache_control: Option<&str>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::put(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        // The content-length header must be set to zero
+        // when creating an appendable blob.
+        req = req.header(CONTENT_LENGTH, 0);
+        req = req.header(
+            HeaderName::from_static(constants::X_MS_BLOB_TYPE),
+            "AppendBlob",
+        );
+
+        if let Some(ty) = content_type {
+            req = req.header(CONTENT_TYPE, ty)
+        }
+
+        if let Some(cache_control) = cache_control {
+            req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    /// Append content to an appendable blob.
+    /// The content will be appended to the end of the blob.
+    ///
+    /// # Notes
+    ///
+    /// - The maximum size of the content could be appended is 4MB.
+    /// - `Append Block` succeeds only if the blob already exists.
+    /// - It does not need to provide append position.
+    /// - But it could use append position to verify the content is appended to the right position.
+    ///
+    /// Since the `appendpos` only returned by the append operation response,
+    /// we could not use it when we want to append content to the blob first time.
+    /// (The first time of the appender, not the blob)
+    ///
+    /// # Reference
+    ///
+    /// https://learn.microsoft.com/en-us/rest/api/storageservices/append-block
+    pub fn azblob_append_blob_request(
+        &self,
+        path: &str,
+        size: usize,
+        position: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}/{}?comp=appendblock",
+            self.endpoint,
+            self.container,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::put(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        if let Some(pos) = position {
+            req = req.header(
+                HeaderName::from_static(constants::X_MS_BLOB_CONDITION_APPENDPOS),
+                pos.to_string(),
+            );
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
     pub fn azblob_head_blob_request(
         &self,
         path: &str,
@@ -244,6 +412,9 @@ impl AzblobCore {
         );
 
         let mut req = Request::head(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
 
         if let Some(if_none_match) = if_none_match {
             req = req.header(IF_NONE_MATCH, if_none_match);
@@ -375,8 +546,8 @@ impl AzblobCore {
 
         for (idx, path) in paths.iter().enumerate() {
             let mut req = self.azblob_delete_blob_request(path)?;
-
             self.batch_sign(&mut req).await?;
+
             multipart = multipart.part(
                 MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
             );

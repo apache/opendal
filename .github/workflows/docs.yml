@@ -17,107 +17,213 @@
 
 name: Docs
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "bindings/**"
+      - ".github/workflows/docs.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-rust-doc:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
 
-      # Build opendal docs ----------------------------------------------
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: '11'
-
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
-          cache-key: "-services-all"
+          need-rocksdb: true
 
-      - uses: actions-rs/cargo@v1
+      - uses: actions/setup-java@v3
         with:
-          command: doc
-          args: --lib --no-deps --all-features -p opendal
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build OpenDAL doc
+        run: cargo doc --lib --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
-      - name: Copy docs into build
-        run: |
-          cp -r ./target/doc ./website/static/docs/rust
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: rust-docs
+          path: ./target/doc
 
-      # Set node.js environment -----------------------------------------
+  build-java-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build and test
+        working-directory: bindings/java
+        run: mvn javadoc:javadoc
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: java-docs
+          path: ./bindings/java/target/site/apidocs
+
+  build-nodejs-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: '18'
+          cache: yarn
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
 
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-
-      - uses: actions/cache@v3
-        id: yarn-cache
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-
-      # Build bindings/nodejs docs --------------------------------------
       - name: Corepack
         working-directory: bindings/nodejs
         run: corepack enable
-
       - name: Install dependencies
         working-directory: bindings/nodejs
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Build bindings/nodejs Docs
         working-directory: bindings/nodejs
         run: yarn docs
 
-      - name: Copy docs into build
-        run: |
-          cp -r ./bindings/nodejs/docs ./website/static/docs/nodejs
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: nodejs-docs
+          path: ./bindings/nodejs/docs
 
-      # Setup python environment ----------------------------------------
-      - uses: actions/setup-python@v4
+  build-python-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v3
         with:
           python-version: '3.11'
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
 
-      # Build bindings/python docs --------------------------------------
-      - name: Install dependencies
+      - name: Build and install dependencies
         working-directory: bindings/python
         run: |
-          set -e
-          python -m pip install -e .
-          python -m pip install pdoc
+          python -m pip install -e .[docs]
 
-      - name: Build bindings/python Docs
+      - name: Build Docs
         working-directory: bindings/python
         run: pdoc --output-dir ./docs opendal
 
-      - name: Copy docs into build
-        run: |
-          cp -r ./bindings/python/docs ./website/static/docs/python
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-docs
+          path: ./bindings/python/docs
 
-      # Build website ---------------------------------------------------
+  build-c-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup doxygen
+        run: sudo apt-get install doxygen
+
+      - name: Build C binding
+        working-directory: "bindings/c"
+        run: make build
+
+      - name: Build Docs
+        working-directory: bindings/c
+        run: make doc
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: C-docs
+          path: ./bindings/c/docs/doxygen/html
+
+  build-website:
+    runs-on: ubuntu-latest
+    needs:
+      - build-rust-doc
+      - build-java-doc
+      - build-nodejs-doc
+      - build-python-doc
+      - build-c-doc
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: yarn
+          cache-dependency-path: "website/yarn.lock"
+
+      - name: Corepack
+        working-directory: website
+        run: corepack enable
+
+      - name: Download rust docs
+        uses: actions/download-artifact@v3
+        with:
+          name: rust-docs
+          path: ./website/static/docs/rust
+
+      - name: Download nodejs docs
+        uses: actions/download-artifact@v3
+        with:
+          name: nodejs-docs
+          path: ./website/static/docs/nodejs
+
+      - name: Download python docs
+        uses: actions/download-artifact@v3
+        with:
+          name: python-docs
+          path: ./website/static/docs/python
+
+      - name: Download java docs
+        uses: actions/download-artifact@v3
+        with:
+          name: java-docs
+          path: ./website/static/docs/java
+
+      - name: Download C docs
+        uses: actions/download-artifact@v3
+        with:
+          name: C-docs
+          path: ./website/static/docs/c
+
       - name: Install Dependencies
         working-directory: website
-        run: |
-          yarn install
+        run: yarn install --immutable
 
       - name: Build
         working-directory: website
-        run: |
-          yarn build
+        run: yarn build
 
-      # Start deploy --------------------------------------------------
       - name: Copy asf file
         run:  cp .asf.yaml ./website/build/.asf.yaml
 

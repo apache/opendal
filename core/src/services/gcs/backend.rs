@@ -35,7 +35,6 @@ use super::core::GcsCore;
 use super::error::parse_error;
 use super::pager::GcsPager;
 use super::writer::GcsWriter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

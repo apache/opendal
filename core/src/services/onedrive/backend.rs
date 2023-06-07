@@ -31,40 +31,8 @@ use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
-use crate::ops::OpCreateDir;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::raw::build_abs_path;
-use crate::raw::build_rooted_abs_path;
-use crate::raw::get_basename;
-use crate::raw::get_parent;
-use crate::raw::new_json_deserialize_error;
-use crate::raw::new_json_serialize_error;
-use crate::raw::new_request_build_error;
-use crate::raw::parse_datetime_from_rfc3339;
-use crate::raw::parse_into_metadata;
-use crate::raw::parse_location;
-use crate::raw::percent_encode_path;
-use crate::raw::Accessor;
-use crate::raw::AccessorInfo;
-use crate::raw::AsyncBody;
-use crate::raw::HttpClient;
-use crate::raw::IncomingAsyncBody;
-use crate::raw::RpCreateDir;
-use crate::raw::RpDelete;
-use crate::raw::RpList;
-use crate::raw::RpRead;
-use crate::raw::RpStat;
-use crate::raw::RpWrite;
-use crate::types::Result;
-use crate::Capability;
-use crate::EntryMode;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Metadata;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Clone)]
 pub struct OnedriveBackend {
@@ -125,31 +93,13 @@ impl Accessor for OnedriveBackend {
 
         let status = resp.status();
 
-        if status.is_redirection() {
-            let headers = resp.headers();
-            let location = parse_location(headers)?;
-            match location {
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::ContentIncomplete,
-                        "redirect location not found in response",
-                    ));
-                }
-                Some(location) => {
-                    let resp = self.onedrive_get_redirection(location).await?;
-                    let meta = parse_into_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-        } else {
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                    let meta = parse_into_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
 
-                _ => Err(parse_error(resp).await?),
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -300,19 +250,6 @@ impl OnedriveBackend {
         );
 
         let mut req = Request::get(&url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn onedrive_get_redirection(&self, url: &str) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::get(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);

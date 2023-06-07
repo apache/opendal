@@ -37,11 +37,6 @@ on:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - '18'
     runs-on: ubuntu-latest
 
     # Notes: this defaults only apply on run tasks.
@@ -56,14 +51,14 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
 
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Check format
         run: yarn run prettier --check .
@@ -78,11 +73,6 @@ jobs:
         run: yarn test
 
   linux:
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - '18'
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
 
@@ -96,15 +86,23 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 18
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
-        run: yarn build
+        run: |
+          docker run \
+            -v ${{ github.workspace }}:/build \
+            -e NAPI_TARGET=x86_64-unknown-linux-gnu \
+            -w /build/bindings/nodejs \
+            ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian \
+            bash -c "yarn build"
+          # change owner to current user
+          sudo chown -R 1001:121 *.node
       - uses: actions/upload-artifact@v3
         with:
           name: bindings-linux
@@ -113,11 +111,6 @@ jobs:
         run: yarn test
 
   windows:
-    strategy:
-      fail-fast: false
-      matrix:
-        node:
-          - '18'
     runs-on: windows-latest
     if: "startsWith(github.ref, 'refs/tags/')"
 
@@ -131,13 +124,13 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
         run: yarn build
       - uses: actions/upload-artifact@v3
@@ -148,11 +141,10 @@ jobs:
         run: yarn test
 
   macos:
+    runs-on: macos-latest
+    if: "startsWith(github.ref, 'refs/tags/')"
     strategy:
-      fail-fast: false
       matrix:
-        node:
-          - '18'
         settings:
           - target: x86_64-apple-darwin
             test: yarn test
@@ -171,8 +163,6 @@ jobs:
               export NAPI_TARGET=aarch64-apple-darwin;
               yarn build
               strip -x *.node
-    runs-on: macos-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
 
     # Notes: this defaults only apply on run tasks.
     defaults:
@@ -186,13 +176,13 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '18'
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
@@ -223,13 +213,13 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node }}
+          node-version: "18"
           cache: yarn
           cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Corepack
         run: corepack enable
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --immutable
 
       - name: Download all artifacts
         uses: actions/download-artifact@v3

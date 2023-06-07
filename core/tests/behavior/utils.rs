@@ -28,6 +28,7 @@ use log::debug;
 use log::warn;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
+use opendal::layers::TimeoutLayer;
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
@@ -84,6 +85,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
 
     let op = op
         .layer(LoggingLayer::default())
+        .layer(TimeoutLayer::new())
         .layer(RetryLayer::new())
         .finish();
 

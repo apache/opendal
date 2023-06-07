@@ -535,12 +535,11 @@ async fn connect_sftp(
     let sftp = Sftp::from_session(session, SftpOptions::default()).await?;
 
     let mut fs = sftp.fs();
-    fs.set_cwd("/");
 
     let paths = Path::new(&root).components();
-    let mut current = PathBuf::from("/");
+    let mut current = PathBuf::new();
     for p in paths {
-        current = current.join(p);
+        current.push(p);
         let res = fs.create_dir(p).await;
 
         if let Err(e) = res {

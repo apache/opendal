@@ -60,6 +60,7 @@ pub struct AzblobCore {
     pub client: HttpClient,
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
+    pub batch_max_operations: usize,
 }
 
 impl Debug for AzblobCore {

@@ -53,7 +53,6 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 const AZBLOB_BATCH_LIMIT: usize = 256;
-
 /// Azure Storage Blob services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
@@ -68,6 +67,7 @@ pub struct AzblobBuilder {
     encryption_algorithm: Option<String>,
     sas_token: Option<String>,
     http_client: Option<HttpClient>,
+    batch_max_operations: Option<usize>,
 }
 
 impl Debug for AzblobBuilder {
@@ -257,6 +257,13 @@ impl AzblobBuilder {
         self
     }
 
+    /// Set maximum batch operations of this backend.
+    pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
+        self.batch_max_operations = Some(batch_max_operations);
+
+        self
+    }
+
     /// from_connection_string will make a builder from connection string
     ///
     /// connection string looks like:
@@ -360,6 +367,8 @@ impl Builder for AzblobBuilder {
         map.get("encryption_algorithm")
             .map(|v| builder.encryption_algorithm(v));
         map.get("sas_token").map(|v| builder.sas_token(v));
+        map.get("batch_max_operations")
+            .map(|v| builder.batch_max_operations(v.parse::<usize>().unwrap()));
 
         builder
     }
@@ -441,6 +450,8 @@ impl Builder for AzblobBuilder {
 
         let signer = AzureStorageSigner::new();
 
+        let batch_max_operations = self.batch_max_operations.unwrap_or(AZBLOB_BATCH_LIMIT);
+
         debug!("backend build finished: {:?}", &self);
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
@@ -454,6 +465,7 @@ impl Builder for AzblobBuilder {
                 client,
                 loader: cred_loader,
                 signer,
+                batch_max_operations,
             }),
             has_sas_token: self.sas_token.is_some(),
         })
@@ -541,7 +553,7 @@ impl Accessor for AzblobBackend {
 
                 batch: true,
                 batch_delete: true,
-                batch_max_operations: Some(AZBLOB_BATCH_LIMIT),
+                batch_max_operations: Some(self.core.batch_max_operations),
 
                 ..Default::default()
             });

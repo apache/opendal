@@ -19,6 +19,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Result;
+use futures::io::BufReader;
+use futures::io::Cursor;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
@@ -107,6 +109,7 @@ macro_rules! behavior_write_tests {
                 test_delete_with_special_chars,
                 test_delete_not_existing,
                 test_delete_stream,
+                test_remove_one_file,
                 test_writer_write,
                 test_writer_abort,
                 test_writer_futures_copy,
@@ -1037,6 +1040,21 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Remove one file
+pub async fn test_remove_one_file(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    op.remove(vec![path.clone()]).await?;
+
+    // Stat it again to check.
+    assert!(!op.is_exist(&path).await?);
+
+    Ok(())
+}
+
 /// Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
     let dir = uuid::Uuid::new_v4().to_string();
@@ -1118,7 +1136,9 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
         Err(err) => return Err(err.into()),
     };
 
-    futures::io::copy(&mut content.as_slice(), &mut w).await?;
+    // Wrap a buf reader here to make sure content is read in 1MiB chunks.
+    let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
+    futures::io::copy_buf(&mut cursor, &mut w).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -40,8 +40,8 @@ protected:
         opendal_operator_options_set(&options, "root", "/myroot");
 
         // Given A new OpenDAL Blocking Operator
-        this->p = opendal_operator_new(scheme.c_str(), options);
-        EXPECT_TRUE(this->p);
+        this->p = opendal_operator_new(scheme.c_str(), &options);
+        EXPECT_TRUE(this->p.ptr);
 
         opendal_operator_options_free(&options);
     }
@@ -82,6 +82,18 @@ TEST_F(OpendalBddTest, FeatureTest)
     for (int i = 0; i < r.data->len; i++) {
         EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
     }
+
+    // The blocking file should be deleted
+    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(code, OPENDAL_OK);
+    e = opendal_operator_is_exist(this->p, this->path.c_str());
+    EXPECT_EQ(e.code, OPENDAL_OK);
+    EXPECT_FALSE(e.is_exist);
+
+    // The deletion operation should be idempotent
+    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(code, OPENDAL_OK);
+
     opendal_bytes_free(r.data);
 }
 

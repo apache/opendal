@@ -45,7 +45,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Check license headers
-        uses: korandoru/hawkeye@v2.0.0
+        uses: korandoru/hawkeye@v2.1.0
 
       - name: Cargo format
         run: cargo fmt --all -- --check
@@ -165,8 +165,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Install cargo-nextest
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+        with:
+          need-nextest: true
       - name: Test
         run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
         env:

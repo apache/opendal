@@ -50,6 +50,7 @@ async fn main() -> Result<()> {
 ### Python
 
 ```python
+import opendal
 import asyncio
 
 async def main():

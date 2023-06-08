@@ -1,3 +1,61 @@
+# Upgrade to v0.37
+
+In v0.37.0, OpenDAL bump the version of `reqsign` to v0.13.0.
+
+There are no public API and raw API changes.
+
+# Upgrade to v0.36
+
+## Public API
+
+In v0.36, OpenDAL improving the `xxx_with` API by allow it to be called in chain:
+
+After this change, all `xxx_with` alike call will be changed from
+
+```rust
+let bs = op.read_with(
+  "path/to/file",
+  OpRead::new()
+    .with_range(0..=1024)
+    .with_if_match("<etag>")
+    .with_if_none_match("<etag>")
+    .with_override_cache_control("<cache_control>")
+    .with_override_content_disposition("<content_disposition>")
+  ).await?;
+```
+
+to
+
+```rust
+let bs = op.read_with("path/to/file")
+  .range(0..=1024)
+  .if_match("<etag>")
+  .if_none_match("<etag>")
+  .override_cache_control("<cache_control>")
+  .override_content_disposition("<content_disposition>")
+  .await?;
+```
+
+For blocking API calls, we will need a `call()` at the end:
+
+```rust
+let bs = bop.read_with("path/to/file")
+  .range(0..=1024)
+  .if_match("<etag>")
+  .if_none_match("<etag>")
+  .override_cache_control("<cache_control>")
+  .override_content_disposition("<content_disposition>")
+  .call()?;
+```
+
+Along with this change, users don't need to call `OpXxx` anymore so we moved it to `raw` API.
+
+More detailes could be found at [RFC: Chain Based Operator API][crate::docs::rfcs::rfc_2299_chain_based_operator_api].
+
+## Raw API
+
+Migrated `opendal::ops` to `opendal::raw::ops`.
+
 # Upgrade to v0.35
 
 ## Public API

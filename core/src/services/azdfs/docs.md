@@ -2,7 +2,7 @@ As known as `abfs`, `azdfs` or `azdls`.
 
 This service will visist the [ABFS](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver) URI supported by [Azure Data Lake Storage Gen2](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).
 
-# Capabilities
+## Capabilities
 
 This service can be used to:
 
@@ -18,7 +18,7 @@ This service can be used to:
 - [ ] presign
 - [ ] blocking
 
-# Configuration
+## Configuration
 
 - `root`: Set the work dir for backend.
 - `filesystem`: Set the filesystem name for backend.
@@ -28,9 +28,7 @@ This service can be used to:
 
 Refer to public API docs for more information.
 
-# Example
-
-## Init OpenDAL Operator
+## Example
 
 ### Via Builder
 

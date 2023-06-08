@@ -16,6 +16,8 @@
 // under the License.
 
 use anyhow::Result;
+use futures::io::BufReader;
+use futures::io::Cursor;
 use log::warn;
 use opendal::EntryMode;
 use opendal::ErrorKind;
@@ -209,7 +211,9 @@ pub async fn test_appender_futures_copy(op: Operator) -> Result<()> {
         Err(err) => return Err(err.into()),
     };
 
-    futures::io::copy(&mut content.as_slice(), &mut a).await?;
+    // Wrap a buf reader here to make sure content is read in 1MiB chunks.
+    let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
+    futures::io::copy(&mut cursor, &mut a).await?;
     a.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

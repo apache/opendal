@@ -102,6 +102,10 @@ const config = {
                 to: '/docs/overview'
               },
               {
+                label: 'Contributing',
+                to: '/docs/category/contributing'
+              },
+              {
                 label: 'Services',
                 to: '/docs/category/services'
               },
@@ -120,6 +124,10 @@ const config = {
               {
                 label: 'Java Binding',
                 to: 'pathname:///docs/java/'
+              },
+              {
+                label: 'C Binding',
+                to: 'pathname:///docs/c/'
               },
             ]
           },
@@ -148,8 +156,8 @@ const config = {
             ]
           },
           {
-            to: `${repoAddress}/releases`,
-            label: 'Releases',
+            to: '/download',
+            label: 'Download',
             position: 'right'
           },
           {

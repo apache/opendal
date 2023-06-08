@@ -23,6 +23,8 @@ use std::fmt::Write;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::HeaderName;
+use http::HeaderValue;
 use http::Request;
 use http::Response;
 use reqsign::AzureStorageCredential;
@@ -33,6 +35,7 @@ use crate::raw::*;
 use crate::*;
 
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
+const X_MS_VERSION: &str = "x-ms-version";
 
 pub struct AzdfsCore {
     pub filesystem: String,
@@ -74,6 +77,16 @@ impl AzdfsCore {
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_credential().await?;
+        // Insert x-ms-version header for normal requests.
+        req.headers_mut().insert(
+            HeaderName::from_static(X_MS_VERSION),
+            // 2022-11-02 is the version supported by Azurite V3 and
+            // used by Azure Portal, We use this version to make
+            // sure most our developer happy.
+            //
+            // In the future, we could allow users to configure this value.
+            HeaderValue::from_static("2022-11-02"),
+        );
         self.signer.sign(req, &cred).map_err(new_request_sign_error)
     }
 

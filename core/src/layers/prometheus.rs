@@ -53,7 +53,7 @@ use crate::*;
 /// use prometheus::Encoder;
 ///
 /// /// Visit [`opendal::services`] for more service related config.
-/// /// Visit [`opendal::Object`] for more object level APIs.
+/// /// Visit [`opendal::Operator`] for more operator level APIs.
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.

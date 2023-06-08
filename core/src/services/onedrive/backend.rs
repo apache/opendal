@@ -93,31 +93,13 @@ impl Accessor for OnedriveBackend {
 
         let status = resp.status();
 
-        if status.is_redirection() {
-            let headers = resp.headers();
-            let location = parse_location(headers)?;
-            match location {
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::ContentIncomplete,
-                        "redirect location not found in response",
-                    ));
-                }
-                Some(location) => {
-                    let resp = self.onedrive_get_redirection(location).await?;
-                    let meta = parse_into_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-        } else {
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                    let meta = parse_into_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
 
-                _ => Err(parse_error(resp).await?),
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -268,19 +250,6 @@ impl OnedriveBackend {
         );
 
         let mut req = Request::get(&url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn onedrive_get_redirection(&self, url: &str) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::get(url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
         req = req.header(header::AUTHORIZATION, auth_header_content);

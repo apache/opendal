@@ -1,4 +1,4 @@
-# Capabilities
+## Capabilities
 
 This service can be used to:
 
@@ -14,7 +14,7 @@ This service can be used to:
 - [ ] presign
 - [ ] blocking
 
-# Configuration
+## Configuration
 
 - `root`: Set the work directory for backend
 - `bucket`: Set the container name for backend
@@ -24,9 +24,9 @@ This service can be used to:
 
 You can refer to [`CosBuilder`]'s docs for more information
 
-# Example
+## Example
 
-## Via Builder
+### Via Builder
 
 ```rust
 use anyhow::Result;

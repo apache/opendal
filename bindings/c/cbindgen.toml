@@ -19,9 +19,9 @@
 # for detailed documentation of every option here.
 
 cpp_compat = true
-documentation_style = "c"
+documentation_style = "doxy"
 header = """
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information

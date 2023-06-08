@@ -23,8 +23,6 @@ use std::str::FromStr;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use reqwest::redirect::Policy;
-use reqwest::Url;
 
 use super::body::IncomingAsyncBody;
 use super::parse_content_length;
@@ -60,8 +58,6 @@ impl HttpClient {
         builder = builder.no_brotli();
         // Make sure we don't enable auto deflate decompress.
         builder = builder.no_deflate();
-        // Redirect will be handled by ourselves.
-        builder = builder.redirect(Policy::none());
 
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);
@@ -89,7 +85,7 @@ impl HttpClient {
             .client
             .request(
                 parts.method,
-                Url::from_str(&url).expect("input request url must be valid"),
+                reqwest::Url::from_str(&url).expect("input request url must be valid"),
             )
             .version(parts.version)
             .headers(parts.headers);

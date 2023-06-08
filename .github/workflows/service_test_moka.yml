@@ -38,20 +38,16 @@ concurrency:
 
 jobs:
   moka:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test moka --features services-moka -- --show-output
+        run: cargo nextest run moka --features services-moka
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_MOKA_TEST: on

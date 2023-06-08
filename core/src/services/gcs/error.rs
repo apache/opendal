@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
+use http::response::Parts;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
@@ -49,11 +51,8 @@ struct GcsErrorDetail {
     reason: String,
 }
 
-/// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
-
+/// Parse error content into Error.
+pub fn parse_error_content(parts: Parts, bs: Bytes) -> Result<Error> {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
@@ -79,6 +78,14 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     }
 
     Ok(err)
+}
+
+/// Parse error response into Error.
+pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+    let (parts, body) = resp.into_parts();
+    let bs = body.bytes().await?;
+
+    parse_error_content(parts, bs)
 }
 
 #[cfg(test)]

@@ -570,31 +570,43 @@ impl Accessor for GcsBackend {
         }
 
         let paths: Vec<String> = ops.into_iter().map(|(p, _)| p).collect();
-        let keys: Vec<String> = paths.clone();
-        let resp = self.core.gcs_delete_objects(paths).await?;
+        let resp = self.core.gcs_delete_objects(paths.clone()).await?;
 
         let status = resp.status();
 
         if let StatusCode::OK = status {
-            let bs: bytes::Bytes = resp.into_body().bytes().await?;
-            let result: DeleteObjectsJsonResponse =
-                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+            let content_type = parse_content_type(resp.headers())?.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "gcs batch delete response content type is empty",
+                )
+            })?;
+            let boundary = content_type
+                .strip_prefix("multipart/mixed; boundary=")
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "gcs batch delete response content type is not multipart/mixed",
+                    )
+                })?
+                .trim_matches('"');
+            let multipart: Multipart<MixedPart> = Multipart::new()
+                .with_boundary(boundary)
+                .parse(resp.into_body().bytes().await?)?;
+            let parts = multipart.into_parts();
 
-            let mut batched_result = Vec::with_capacity(result.delete_result.len());
-            assert_eq!(batched_result.len(), keys.len() + 1);
-            for (i, _) in keys.iter().enumerate().take(result.delete_result.len()) {
+            let mut batched_result = Vec::with_capacity(parts.len());
+
+            for (i, part) in parts.into_iter().enumerate() {
+                let resp = part.into_response();
+                // TODO: maybe we can take it directly?
+                let path = paths[i].clone();
+
                 // deleting not existing objects is ok
-                if result.delete_result[i].status == "200"
-                    || result.delete_result[i].status == "404"
-                {
-                    let path = build_rel_path(&self.core.root, &keys[i]);
+                if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
                     batched_result.push((path, Ok(RpDelete::default().into())));
                 } else {
-                    let path = build_rel_path(&self.core.root, &keys[i]);
-                    batched_result.push((
-                        path,
-                        Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                    ));
+                    batched_result.push((path, Err(parse_error(resp).await?)));
                 }
             }
 
@@ -669,19 +681,6 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"contentType": "image/png",`
     content_type: String,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct DeleteObjectsJsonResponse {
-    delete_result: Vec<DeletetObjectJsonResponse>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct DeletetObjectJsonResponse {
-    status: String,
-    date: String,
 }
 
 #[cfg(test)]

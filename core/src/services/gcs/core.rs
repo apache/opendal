@@ -371,6 +371,13 @@ impl GcsCore {
     }
 
     pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.gcs_delete_object_request(path)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -380,13 +387,9 @@ impl GcsCore {
             percent_encode_path(&p)
         );
 
-        let mut req = Request::delete(&url)
+        Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
-        self.send(req).await
+            .map_err(new_request_build_error)
     }
 
     pub async fn gcs_delete_objects(
@@ -394,46 +397,21 @@ impl GcsCore {
         paths: Vec<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
-        let mut req = Request::post(&uri);
-        // TODO: use random boundary instead.
-        req = req.header(
-            CONTENT_TYPE,
-            "multipart/mixed; boundary=\"===opendal-gcs-batch-delete-boundary===\"",
-        );
 
-        let mut batch_req_body = BytesMut::default();
+        let mut multipart = Multipart::new();
 
-        for path in paths {
-            let p = build_abs_path(&self.root, &path);
-            let mut req_body = BytesMut::default();
-            write!(
-                &mut req_body,
-                "--===opendal-gcs-batch-delete-boundary===
-Content-Type: application/http
+        for (idx, path) in paths.iter().enumerate() {
+            let req = self.gcs_delete_object_request(path)?;
 
-DELETE {}/storage/v1/b/{}/o/{}
-Content-Length: 0
-",
-                self.endpoint,
-                self.bucket,
-                percent_encode_path(&p)
-            )
-            .unwrap();
-            batch_req_body.extend_from_slice(&req_body);
+            multipart = multipart.part(
+                MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
+            );
         }
-        write!(
-            &mut batch_req_body,
-            "--===opendal-gcs-batch-delete-boundary==="
-        )
-        .unwrap();
 
-        let bs = batch_req_body.freeze();
-        let mut req = req
-            .header(CONTENT_LENGTH, bs.len())
-            .body(AsyncBody::Bytes(bs))
-            .map_err(new_request_build_error)?;
+        let req = Request::post(uri);
+        let mut req = multipart.apply(req)?;
+
         self.sign(&mut req).await?;
-
         self.send(req).await
     }
 

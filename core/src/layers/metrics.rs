@@ -864,6 +864,21 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
             })
     }
 
+    async fn sink(
+        &mut self,
+        size: u64,
+        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        self.inner
+            .sink(size, s)
+            .await
+            .map(|_| self.bytes += size)
+            .map_err(|err| {
+                self.handle.increment_errors_total(self.op, err.kind());
+                err
+            })
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());

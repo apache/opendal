@@ -29,6 +29,8 @@ use crate::*;
 pub enum WriteOperation {
     /// Operation for [`Write::write`]
     Write,
+    /// Operation for [`Write::sink`]
+    Sink,
     /// Operation for [`Write::abort`]
     Abort,
     /// Operation for [`Write::close`]
@@ -58,6 +60,7 @@ impl From<WriteOperation> for &'static str {
 
         match v {
             Write => "Writer::write",
+            Sink => "Writer::sink",
             Abort => "Writer::abort",
             Close => "Writer::close",
             BlockingWrite => "BlockingWriter::write",
@@ -83,7 +86,7 @@ pub type Writer = Box<dyn Write>;
 /// the whole data.
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
-    /// Write given into writer.
+    /// Write given bytes into writer.
     ///
     /// # Notes
     ///
@@ -93,10 +96,11 @@ pub trait Write: Unpin + Send + Sync {
     /// Please make sure `write` is safe to re-enter.
     async fn write(&mut self, bs: Bytes) -> Result<()>;
 
+    /// Sink given stream into writer.
     async fn sink(
         &mut self,
-        size: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+        _size: u64,
+        _s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
     ) -> Result<()>;
 
     /// Abort the pending writer.

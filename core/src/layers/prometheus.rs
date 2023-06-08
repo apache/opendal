@@ -684,6 +684,26 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             })
     }
 
+    async fn sink(
+        &mut self,
+        size: u64,
+        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        self.inner
+            .sink(size, s)
+            .await
+            .map(|_| {
+                self.stats
+                    .bytes_total
+                    .with_label_values(&[&self.scheme, Operation::Write.into_static()])
+                    .observe(size as f64)
+            })
+            .map_err(|err| {
+                self.stats.increment_errors_total(self.op, err.kind());
+                err
+            })
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
             self.stats.increment_errors_total(self.op, err.kind());

@@ -1343,6 +1343,42 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
+    async fn sink(
+        &mut self,
+        size: u64,
+        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        match self.inner.sink(size, s).await {
+            Ok(_) => {
+                self.written += size;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} written={} -> data sink {}B",
+                    self.scheme,
+                    WriteOperation::Sink,
+                    self.path,
+                    self.written,
+                    size
+                );
+                Ok(())
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} written={} -> data sink failed: {err:?}",
+                        self.scheme,
+                        WriteOperation::Sink,
+                        self.path,
+                        self.written,
+                    )
+                }
+                Err(err)
+            }
+        }
+    }
+
     async fn abort(&mut self) -> Result<()> {
         match self.inner.abort().await {
             Ok(_) => {

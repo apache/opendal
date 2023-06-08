@@ -330,6 +330,17 @@ impl oio::Write for MadsimWriter {
         }
     }
 
+    async fn sink(
+        &mut self,
+        size: u64,
+        s: Box<dyn futures::Stream<Item = crate::Result<Bytes>> + Send>,
+    ) -> crate::Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "will be supported in the future",
+        ))
+    }
+
     async fn abort(&mut self) -> crate::Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

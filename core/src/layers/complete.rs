@@ -568,6 +568,31 @@ where
         Ok(())
     }
 
+    async fn sink(
+        &mut self,
+        size: u64,
+        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        if let Some(total_size) = self.size {
+            if self.written + size > total_size {
+                return Err(Error::new(
+                    ErrorKind::ContentTruncated,
+                    &format!(
+                        "writer got too much data, expect: {size}, actual: {}",
+                        self.written + size
+                    ),
+                ));
+            }
+        }
+
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        w.sink(size, s).await?;
+        self.written += size;
+        Ok(())
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")

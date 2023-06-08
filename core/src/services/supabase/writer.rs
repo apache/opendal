@@ -75,6 +75,17 @@ impl oio::Write for SupabaseWriter {
         self.upload(bs).await
     }
 
+    async fn sink(
+        &mut self,
+        _size: u64,
+        _s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "Write::sink is not supported",
+        ))
+    }
+
     async fn abort(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

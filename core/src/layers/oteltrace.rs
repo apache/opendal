@@ -322,6 +322,14 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
         self.inner.write(bs).await
     }
 
+    async fn sink(
+        &mut self,
+        size: u64,
+        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
+    ) -> Result<()> {
+        self.inner.sink(size, s).await
+    }
+
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await
     }

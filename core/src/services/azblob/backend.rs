@@ -67,7 +67,6 @@ pub struct AzblobBuilder {
     encryption_algorithm: Option<String>,
     sas_token: Option<String>,
     http_client: Option<HttpClient>,
-    /// batch_max_operations
     batch_max_operations: Option<usize>,
 }
 

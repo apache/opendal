@@ -371,6 +371,13 @@ impl GcsCore {
     }
 
     pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.gcs_delete_object_request(path)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    pub fn gcs_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -380,12 +387,31 @@ impl GcsCore {
             percent_encode_path(&p)
         );
 
-        let mut req = Request::delete(&url)
+        Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+            .map_err(new_request_build_error)
+    }
+
+    pub async fn gcs_delete_objects(
+        &self,
+        paths: Vec<String>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let uri = format!("{}/batch/storage/v1", self.endpoint);
+
+        let mut multipart = Multipart::new();
+
+        for (idx, path) in paths.iter().enumerate() {
+            let req = self.gcs_delete_object_request(path)?;
+
+            multipart = multipart.part(
+                MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
+            );
+        }
+
+        let req = Request::post(uri);
+        let mut req = multipart.apply(req)?;
 
         self.sign(&mut req).await?;
-
         self.send(req).await
     }
 

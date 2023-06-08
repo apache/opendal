@@ -20,6 +20,7 @@ use std::str::FromStr;
 
 use bytes::Bytes;
 use bytes::BytesMut;
+use futures::stream;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -36,6 +37,7 @@ use http::Version;
 
 use super::new_request_build_error;
 use super::AsyncBody;
+use super::IncomingAsyncBody;
 use crate::*;
 
 /// Multipart is a builder for multipart/form-data.
@@ -72,6 +74,11 @@ impl<T: Part> Multipart<T> {
         self
     }
 
+    /// Into parts.
+    pub fn into_parts(self) -> Vec<T> {
+        self.parts
+    }
+
     /// Parse a response with multipart body into Multipart.
     pub fn parse(mut self, bs: Bytes) -> Result<Self> {
         let s = String::from_utf8(bs.to_vec()).map_err(|err| {
@@ -87,7 +94,7 @@ impl<T: Part> Multipart<T> {
             .collect::<Vec<&str>>();
 
         for part in parts {
-            if part.is_empty() || part == "--" {
+            if part.is_empty() || part.starts_with("--") {
                 continue;
             }
 
@@ -300,7 +307,7 @@ impl MixedPart {
     }
 
     /// Consume a mixed part to build a response.
-    pub fn into_response(mut self) -> Response<AsyncBody> {
+    pub fn into_response(mut self) -> Response<IncomingAsyncBody> {
         let mut builder = Response::builder();
 
         builder = builder.status(self.status_code.unwrap_or(StatusCode::OK));
@@ -308,10 +315,10 @@ impl MixedPart {
         // Swap headers directly instead of copy the entire map.
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
-        let body = match self.content.is_empty() {
-            true => AsyncBody::Empty,
-            false => AsyncBody::Bytes(self.content),
-        };
+        let bs: Bytes = self.content;
+        let length = bs.len();
+        let body =
+            IncomingAsyncBody::new(Box::new(stream::iter(vec![Ok(bs)])), Some(length as u64));
 
         builder
             .body(body)

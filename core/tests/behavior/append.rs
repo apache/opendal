@@ -213,7 +213,7 @@ pub async fn test_appender_futures_copy(op: Operator) -> Result<()> {
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
-    futures::io::copy(&mut cursor, &mut a).await?;
+    futures::io::copy_buf(&mut cursor, &mut a).await?;
     a.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

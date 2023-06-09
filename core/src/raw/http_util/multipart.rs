@@ -251,7 +251,7 @@ pub struct MixedPart {
 }
 
 impl MixedPart {
-    /// Create a new mixed part with gien uri.
+    /// Create a new mixed part with given uri.
     pub fn new(uri: &str) -> Self {
         let mut part_headers = HeaderMap::new();
         part_headers.insert(CONTENT_TYPE, "application/http".parse().unwrap());

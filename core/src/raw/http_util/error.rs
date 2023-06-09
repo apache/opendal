@@ -98,7 +98,7 @@ pub fn new_request_build_error(err: http::Error) -> Error {
 pub fn new_request_credential_error(err: anyhow::Error) -> Error {
     Error::new(
         ErrorKind::Unexpected,
-        "loading credentail to sign http request",
+        "loading credential to sign http request",
     )
     .set_temporary()
     .with_operation("reqsign::LoadCredential")

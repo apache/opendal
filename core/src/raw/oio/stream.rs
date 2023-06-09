@@ -25,7 +25,7 @@ pub type Streamer = Box<dyn Stream>;
 
 /// Stream is the trait that OpenDAL accepts for sinking data.
 ///
-/// It's nearly the same with [`futures::Stream`], but it satified
+/// It's nearly the same with [`futures::Stream`], but it satisfied
 /// `Unpin` + `Send` + `Sync`. And the item is `Result<Bytes>`.
 pub trait Stream: Unpin + Send + Sync {
     /// Poll next item `Result<Bytes>` from the stream.

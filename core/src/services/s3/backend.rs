@@ -414,7 +414,7 @@ impl S3Builder {
     }
 
     /// Allow anonymous will allow opendal to send request without signing
-    /// when credentail is not loaded.
+    /// when credential is not loaded.
     pub fn allow_anonymous(&mut self) -> &mut Self {
         self.allow_anonymous = true;
         self

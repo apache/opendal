@@ -155,7 +155,7 @@
 //! vendors that provide s3-like RESTful APIs, and our s3 service is
 //! implemented to support all of them, not just AWS S3.
 //!
-//! Obviously, we can use `duck` as scheme, let's add a new variant in [`Scheme`], and implement all reqired functions like `Scheme::from_str` and `Scheme::into_static`:
+//! Obviously, we can use `duck` as scheme, let's add a new variant in [`Scheme`], and implement all required functions like `Scheme::from_str` and `Scheme::into_static`:
 //!
 //! ```ignore
 //! pub enum Scheme {

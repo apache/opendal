@@ -174,6 +174,13 @@ impl oio::Write for OssWriter {
         }
     }
 
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "Write::sink is not supported",
+        ))
+    }
+
     // TODO: we can cancel the upload by sending an abort request.
     async fn abort(&mut self) -> Result<()> {
         Err(Error::new(

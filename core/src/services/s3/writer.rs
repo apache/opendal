@@ -192,6 +192,13 @@ impl oio::Write for S3Writer {
         }
     }
 
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "Write::sink is not supported",
+        ))
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let upload_id = if let Some(upload_id) = &self.upload_id {
             upload_id

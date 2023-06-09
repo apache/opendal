@@ -162,6 +162,13 @@ impl oio::Write for GcsWriter {
         }
     }
 
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "Write::sink is not supported",
+        ))
+    }
+
     async fn abort(&mut self) -> Result<()> {
         let location = if let Some(location) = &self.location {
             location

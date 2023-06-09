@@ -38,6 +38,7 @@ use http::Version;
 use super::new_request_build_error;
 use super::AsyncBody;
 use super::IncomingAsyncBody;
+use crate::raw::oio::into_stream;
 use crate::*;
 
 /// Multipart is a builder for multipart/form-data.
@@ -250,7 +251,7 @@ pub struct MixedPart {
 }
 
 impl MixedPart {
-    /// Create a new mixed part with gien uri.
+    /// Create a new mixed part with given uri.
     pub fn new(uri: &str) -> Self {
         let mut part_headers = HeaderMap::new();
         part_headers.insert(CONTENT_TYPE, "application/http".parse().unwrap());
@@ -283,6 +284,7 @@ impl MixedPart {
         let content = match body {
             AsyncBody::Empty => Bytes::new(),
             AsyncBody::Bytes(bs) => bs,
+            AsyncBody::Stream(_) => panic!("multipart request can't contain stream body"),
         };
 
         Self {
@@ -317,8 +319,10 @@ impl MixedPart {
 
         let bs: Bytes = self.content;
         let length = bs.len();
-        let body =
-            IncomingAsyncBody::new(Box::new(stream::iter(vec![Ok(bs)])), Some(length as u64));
+        let body = IncomingAsyncBody::new(
+            Box::new(into_stream::from_futures_stream(stream::iter(vec![Ok(bs)]))),
+            Some(length as u64),
+        );
 
         builder
             .body(body)

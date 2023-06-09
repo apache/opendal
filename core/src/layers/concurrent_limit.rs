@@ -308,6 +308,10 @@ impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
         self.inner.abort().await
     }
 
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        self.inner.sink(size, s).await
+    }
+
     async fn close(&mut self) -> Result<()> {
         self.inner.close().await
     }

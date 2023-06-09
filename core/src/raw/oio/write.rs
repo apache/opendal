@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 use bytes::Bytes;
 
+use crate::raw::*;
 use crate::*;
 
 /// WriteOperation is the name for APIs of Writer.
@@ -29,6 +30,8 @@ use crate::*;
 pub enum WriteOperation {
     /// Operation for [`Write::write`]
     Write,
+    /// Operation for [`Write::sink`]
+    Sink,
     /// Operation for [`Write::abort`]
     Abort,
     /// Operation for [`Write::close`]
@@ -58,6 +61,7 @@ impl From<WriteOperation> for &'static str {
 
         match v {
             Write => "Writer::write",
+            Sink => "Writer::sink",
             Abort => "Writer::abort",
             Close => "Writer::close",
             BlockingWrite => "BlockingWriter::write",
@@ -83,7 +87,7 @@ pub type Writer = Box<dyn Write>;
 /// the whole data.
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
-    /// Write given into writer.
+    /// Write given bytes into writer.
     ///
     /// # Notes
     ///
@@ -92,6 +96,9 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// Please make sure `write` is safe to re-enter.
     async fn write(&mut self, bs: Bytes) -> Result<()>;
+
+    /// Sink given stream into writer.
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
@@ -106,6 +113,13 @@ impl Write for () {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::Write")
+    }
+
+    async fn sink(&mut self, _: u64, _: oio::Streamer) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support sink",
+        ))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -130,6 +144,10 @@ impl Write for () {
 impl<T: Write + ?Sized> Write for Box<T> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         (**self).write(bs).await
+    }
+
+    async fn sink(&mut self, n: u64, s: oio::Streamer) -> Result<()> {
+        (**self).sink(n, s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

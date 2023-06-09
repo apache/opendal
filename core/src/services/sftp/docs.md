@@ -18,7 +18,7 @@ This service can be used to:
 ## Configuration
 
 - `endpoint`: Set the endpoint for connection
-- `root`: Set the work directory for backend, default to `/home/$USER/`
+- `root`: Set the work directory for backend. It uses the default directory set by the remote `sftp-server` as default
 - `user`: Set the login user
 - `key`: Set the public key for login
 - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`

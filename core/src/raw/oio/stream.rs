@@ -17,14 +17,18 @@
 
 use bytes::Bytes;
 
-use crate::raw::*;
 use crate::*;
 use std::task::{Context, Poll};
 
 /// Streamer is a type erased [`Stream`].
 pub type Streamer = Box<dyn Stream>;
 
+/// Stream is the trait that OpenDAL accepts for sinking data.
+///
+/// It's nearly the same with [`futures::Stream`], but it satified
+/// `Unpin` + `Send` + `Sync`. And the item is `Result<Bytes>`.
 pub trait Stream: Unpin + Send + Sync {
+    /// Poll next item `Result<Bytes>` from the stream.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>>;
 }
 

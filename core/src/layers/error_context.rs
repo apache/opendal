@@ -442,11 +442,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         })
     }
 
-    async fn sink(
-        &mut self,
-        size: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         self.inner.sink(size, s).await.map_err(|err| {
             err.with_operation(WriteOperation::Sink)
                 .with_context("service", self.scheme)

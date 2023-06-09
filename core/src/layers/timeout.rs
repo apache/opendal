@@ -349,11 +349,7 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
             })?
     }
 
-    async fn sink(
-        &mut self,
-        size: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         let timeout = self.io_timeout(size);
 
         tokio::time::timeout(timeout, self.inner.sink(size, s))

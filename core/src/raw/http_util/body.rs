@@ -25,7 +25,6 @@ use std::task::Poll;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
-use futures::Stream;
 use futures::StreamExt;
 
 use crate::raw::*;
@@ -42,10 +41,8 @@ pub enum AsyncBody {
     /// Body with bytes.
     Bytes(Bytes),
     /// Body with stream.
-    Stream(Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>),
+    Stream(oio::Streamer),
 }
-
-type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>;
 
 /// IncomingAsyncBody carries the content returned by remote servers.
 ///

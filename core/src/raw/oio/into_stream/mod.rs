@@ -15,4 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod from_response;
+//! into_stream will provide different implementations to convert into
+//! [`oio::Stream`][crate::raw::oio::Stream]
+
+mod from_futures_stream;
+pub use from_futures_stream::from_futures_stream;

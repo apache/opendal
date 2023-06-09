@@ -1343,11 +1343,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
-    async fn sink(
-        &mut self,
-        size: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         match self.inner.sink(size, s).await {
             Ok(_) => {
                 self.written += size;

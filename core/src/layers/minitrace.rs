@@ -323,11 +323,7 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
             .await
     }
 
-    async fn sink(
-        &mut self,
-        size: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         self.inner
             .sink(size, s)
             .in_span(Span::enter_with_parent(

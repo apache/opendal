@@ -338,11 +338,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
         Ok(())
     }
 
-    async fn sink(
-        &mut self,
-        _size: u64,
-        _s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

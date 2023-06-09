@@ -27,6 +27,7 @@ use http::Response;
 use super::body::IncomingAsyncBody;
 use super::parse_content_length;
 use super::AsyncBody;
+use crate::raw::oio::into_stream;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -144,7 +145,10 @@ impl HttpClient {
                 .set_source(err)
         });
 
-        let body = IncomingAsyncBody::new(Box::new(stream), content_length);
+        let body = IncomingAsyncBody::new(
+            Box::new(into_stream::from_futures_stream(stream)),
+            content_length,
+        );
 
         let resp = hr.body(body).expect("response must build succeed");
 

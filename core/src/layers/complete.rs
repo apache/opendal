@@ -568,11 +568,7 @@ where
         Ok(())
     }
 
-    async fn sink(
-        &mut self,
-        size: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         if let Some(total_size) = self.size {
             if self.written + size > total_size {
                 return Err(Error::new(

@@ -18,16 +18,28 @@
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
+use futures::TryStreamExt;
 
 use crate::raw::*;
 use crate::*;
 
-pub struct ResponseStream {
-    inner: reqwest::Response,
+/// Convert given futures stream into [`oio::Stream`].
+pub fn from_futures_stream<S>(stream: S) -> FromFuturesStream<S>
+where
+    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
+{
+    FromFuturesStream { inner: stream }
 }
 
-impl oio::Stream for ResponseStream {
+pub struct FromFuturesStream<S> {
+    inner: S,
+}
+
+impl<S> oio::Stream for FromFuturesStream<S>
+where
+    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
+{
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.poll_next(cx)
+        self.inner.try_poll_next_unpin(cx)
     }
 }

@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 use bytes::Bytes;
 
+use crate::raw::*;
 use crate::*;
 
 /// WriteOperation is the name for APIs of Writer.
@@ -97,11 +98,7 @@ pub trait Write: Unpin + Send + Sync {
     async fn write(&mut self, bs: Bytes) -> Result<()>;
 
     /// Sink given stream into writer.
-    async fn sink(
-        &mut self,
-        _size: u64,
-        _s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()>;
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
@@ -118,11 +115,7 @@ impl Write for () {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
-    async fn sink(
-        &mut self,
-        _: u64,
-        _: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, _: u64, _: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support sink",
@@ -153,11 +146,7 @@ impl<T: Write + ?Sized> Write for Box<T> {
         (**self).write(bs).await
     }
 
-    async fn sink(
-        &mut self,
-        n: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, n: u64, s: oio::Streamer) -> Result<()> {
         (**self).sink(n, s).await
     }
 

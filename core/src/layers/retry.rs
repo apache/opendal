@@ -649,11 +649,7 @@ impl<R: oio::Write> oio::Write for RetryWrapper<R> {
     }
 
     /// Sink will move the input stream, so we can't retry it.
-    async fn sink(
-        &mut self,
-        size: u64,
-        s: Box<dyn futures::Stream<Item = Result<Bytes>> + Send>,
-    ) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         self.inner.sink(size, s).await
     }
 

@@ -38,6 +38,7 @@ use http::Version;
 use super::new_request_build_error;
 use super::AsyncBody;
 use super::IncomingAsyncBody;
+use crate::raw::oio::into_stream;
 use crate::*;
 
 /// Multipart is a builder for multipart/form-data.
@@ -318,8 +319,10 @@ impl MixedPart {
 
         let bs: Bytes = self.content;
         let length = bs.len();
-        let body =
-            IncomingAsyncBody::new(Box::new(stream::iter(vec![Ok(bs)])), Some(length as u64));
+        let body = IncomingAsyncBody::new(
+            Box::new(into_stream::from_futures_stream(stream::iter(vec![Ok(bs)]))),
+            Some(length as u64),
+        );
 
         builder
             .body(body)

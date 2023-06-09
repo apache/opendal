@@ -55,7 +55,7 @@ jobs:
           echo "sed -i -e 's#ForceCommand internal-sftp#ForceCommand internal-sftp -d /upload#' /etc/ssh/sshd_config" > "$tmpScript"
           chmod +x "$tmpScript"
           docker run \
-              -v "$tmpScript:/etc/sftp.d/change_root_dir"
+              -v "$tmpScript:/etc/sftp.d/change_root_dir" \
               -v `pwd`/target/ssh/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \
               --ulimit nofile=65536:65536 \
               -p 2223:22 -d atmoz/sftp \

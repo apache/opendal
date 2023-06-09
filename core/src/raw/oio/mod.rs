@@ -30,9 +30,8 @@ pub use read::ReadExt;
 pub use read::ReadOperation;
 pub use read::Reader;
 
-pub mod into_reader;
-
 pub mod into_blocking_reader;
+pub mod into_reader;
 
 mod write;
 pub use write::BlockingWrite;
@@ -45,6 +44,12 @@ mod append;
 pub use append::Append;
 pub use append::AppendOperation;
 pub use append::Appender;
+
+mod stream;
+pub use stream::Stream;
+pub use stream::Streamer;
+
+pub mod into_stream;
 
 mod cursor;
 pub use cursor::Cursor;

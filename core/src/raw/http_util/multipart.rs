@@ -283,6 +283,7 @@ impl MixedPart {
         let content = match body {
             AsyncBody::Empty => Bytes::new(),
             AsyncBody::Bytes(bs) => bs,
+            AsyncBody::Stream(_) => panic!("multipart request can't contain stream body"),
         };
 
         Self {

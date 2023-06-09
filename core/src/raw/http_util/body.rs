@@ -41,6 +41,8 @@ pub enum AsyncBody {
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
+    /// Body with stream.
+    Stream(Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>),
 }
 
 type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>;
@@ -58,7 +60,7 @@ pub struct IncomingAsyncBody {
     ///
     /// After [TAIT](https://rust-lang.github.io/rfcs/2515-type_alias_impl_trait.html)
     /// has been stable, we can change `IncomingAsyncBody` into `IncomingAsyncBody<S>`.
-    inner: BytesStream,
+    inner: oio::Streamer,
     size: Option<u64>,
     consumed: u64,
     chunk: Option<Bytes>,
@@ -66,7 +68,7 @@ pub struct IncomingAsyncBody {
 
 impl IncomingAsyncBody {
     /// Construct a new incoming async body
-    pub fn new(s: BytesStream, size: Option<u64>) -> Self {
+    pub fn new(s: oio::Streamer, size: Option<u64>) -> Self {
         Self {
             inner: s,
             size,

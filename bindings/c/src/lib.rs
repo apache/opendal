@@ -28,6 +28,7 @@ use std::str::FromStr;
 
 use ::opendal as od;
 use result::opendal_result_list;
+use types::opendal_blocking_lister;
 
 use crate::error::opendal_code;
 use crate::result::opendal_result_is_exist;
@@ -455,19 +456,15 @@ pub unsafe extern "C" fn opendal_operator_blocking_list(
     let op = ptr.as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.list(path) {
-        Ok(lister) => {
-            opendal_result_list {
-                lister: Box::leak(Box::new(lister)),
-                code: opendal_code::OPENDAL_OK,
-            }
-        }
+        Ok(lister) => opendal_result_list {
+            lister: opendal_blocking_lister::from_inner(lister),
+            code: opendal_code::OPENDAL_OK,
+        },
 
-        Err(e) => {
-            opendal_result_list {
-                lister: std::ptr::null(),
-                code: opendal_code::from_opendal_error(e),
-            }
-        }
+        Err(e) => opendal_result_list {
+            lister: std::ptr::null(),
+            code: opendal_code::from_opendal_error(e),
+        },
     }
 }
 

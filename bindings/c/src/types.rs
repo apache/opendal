@@ -313,3 +313,48 @@ impl opendal_operator_options {
         let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
     }
 }
+
+#[repr(C)]
+pub struct opendal_blocking_lister {
+    inner: *mut od::BlockingLister,
+}
+
+impl opendal_blocking_lister {
+    pub(crate) fn from_inner(lister: od::BlockingLister) -> *const Self {
+        Box::leak(Box::new(lister))
+    }
+
+    /// nullable
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_lister_next(&self) -> *const opendal_list_entry {
+        let e = (*self.inner).next().unwrap_or_else(|| {
+            return std::ptr::null();
+        });
+
+        match e {
+            Ok(e) => opendal_list_entry::from_inner(e),
+            Err(e) => std::ptr::null(),
+        }
+    }
+}
+
+#[repr(C)]
+pub struct opendal_list_entry {
+    inner: *const od::Entry,
+}
+
+impl opendal_list_entry {
+    pub(crate) fn from_inner(entry: od::Entry) -> *const Self {
+        Box::leak(Box::new(entry))
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *const c_char {
+        unimplemented!()
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *const c_char {
+        unimplemented!()
+    }
+}

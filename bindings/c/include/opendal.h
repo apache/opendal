@@ -121,6 +121,11 @@ typedef struct BlockingLister BlockingLister;
  */
 typedef struct BlockingOperator BlockingOperator;
 
+/**
+ * Entry is the file/dir entry returned by `Lister`.
+ */
+typedef struct Entry Entry;
+
 typedef struct HashMap_String__String HashMap_String__String;
 
 /**
@@ -269,10 +274,18 @@ typedef struct opendal_result_stat {
   enum opendal_code code;
 } opendal_result_stat;
 
+typedef struct opendal_blocking_lister {
+  struct BlockingLister *inner;
+} opendal_blocking_lister;
+
 typedef struct opendal_result_list {
-  const struct BlockingLister *lister;
+  struct opendal_blocking_lister lister;
   enum opendal_code code;
 } opendal_result_list;
+
+typedef struct opendal_list_entry {
+  const struct Entry *inner;
+} opendal_list_entry;
 
 #ifdef __cplusplus
 extern "C" {
@@ -690,6 +703,15 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
  * \brief Free the allocated memory used by [`opendal_operator_options`]
  */
 void opendal_operator_options_free(const struct opendal_operator_options *options);
+
+/**
+ * nullable
+ */
+const struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lister *self);
+
+const char *opendal_list_entry_path(const struct opendal_list_entry *self);
+
+const char *opendal_list_entry_name(const struct opendal_list_entry *self);
 
 #ifdef __cplusplus
 } // extern "C"

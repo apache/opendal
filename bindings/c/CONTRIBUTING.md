@@ -62,7 +62,7 @@ make clean
 ## Test
 To build and run the tests. (Note that you need to install GTest)
 ```shell
-make test
+make tests
 ```
 
 ```text

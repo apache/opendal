@@ -38,10 +38,12 @@ build:
 	mkdir -p $(OBJ_DIR)
 	cargo build
 
-.PHONY: test
-test:
+.PHONY: tests
+tests:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/list.cpp -o $(OBJ_DIR)/list $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(OBJ_DIR)/bdd
+	$(OBJ_DIR)/list
 
 .PHONY: doc
 doc:

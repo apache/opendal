@@ -29,11 +29,10 @@ protected:
 
   // set up a brand new operator
   void SetUp() override {
-    this->scheme = std::string("memory");
     opendal_operator_options options = opendal_operator_options_new();
     opendal_operator_options_set(&options, "root", "/myroot");
 
-    this->p = opendal_operator_new(scheme.c_str(), &options);
+    this->p = opendal_operator_new("memory", &options);
     EXPECT_TRUE(this->p.ptr);
 
     opendal_operator_options_free(&options);
@@ -43,13 +42,13 @@ protected:
 };
 
 // Basic usecase of list
-TEST_F(OpendalBddTest, ListDirTest) {}
+TEST_F(OpendalListTest, ListDirTest) {}
 
 // Try list an empty directory
-TEST_F(OpendalBddTest, ListEmptyDirTest) {}
+TEST_F(OpendalListTest, ListEmptyDirTest) {}
 
 // Try list a directory that does not exist
-TEST_F(OpendalBddTest, ListNotExistDirTest) {}
+TEST_F(OpendalListTest, ListNotExistDirTest) {}
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);

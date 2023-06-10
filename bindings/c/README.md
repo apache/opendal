@@ -97,7 +97,7 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 - To build and run the **tests**. (Note that you need to install GTest)
 
   ```sh
-  make test
+  make tests
   ```
 
 - To build the **examples**

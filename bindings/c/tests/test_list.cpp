@@ -23,17 +23,33 @@ extern "C" {
 #include "opendal.h"
 }
 
-class OpendalBddTest : public ::testing::Test {
+class OpendalListTest : public ::testing::Test {
 protected:
   opendal_operator_ptr p;
 
-  void SetUp() override {}
+  // set up a brand new operator
+  void SetUp() override {
+    this->scheme = std::string("memory");
+    opendal_operator_options options = opendal_operator_options_new();
+    opendal_operator_options_set(&options, "root", "/myroot");
 
-  void TearDown() override {}
+    this->p = opendal_operator_new(scheme.c_str(), &options);
+    EXPECT_TRUE(this->p.ptr);
+
+    opendal_operator_options_free(&options);
+  }
+
+  void TearDown() override { opendal_operator_free(&this->p); }
 };
 
-// Scenario: OpenDAL Blocking Operations
-TEST_F(OpendalBddTest, FeatureTest) {}
+// Basic usecase of list
+TEST_F(OpendalBddTest, ListDirTest) {}
+
+// Try list an empty directory
+TEST_F(OpendalBddTest, ListEmptyDirTest) {}
+
+// Try list a directory that does not exist
+TEST_F(OpendalBddTest, ListNotExistDirTest) {}
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);

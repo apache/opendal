@@ -32,6 +32,36 @@ use crate::raw::*;
 use crate::*;
 
 /// ThrottleLayer can help users to control the max bandwidth that used by OpenDAL.
+///
+/// # Throttle
+///
+///
+///
+///
+///
+///
+/// For example:
+///
+///
+/// # Note
+///
+///
+///
+///
+/// # Examples
+///
+/// ```
+/// use anyhow::Result;
+/// use opendal::layers::ThrottleLayer;
+/// use opendal::services;
+/// use opendal::Operator;
+/// use opendal::Scheme;
+///
+/// let _ = Operator::new(services::Memory::default())
+///     .expect("must init")
+///     .layer(ThrottleLayer::new(9 * 1024))  // 9kiB/s
+///     .finish();
+/// ```
 #[derive(Clone)]
 pub struct ThrottleLayer {
     max_burst: u32,
@@ -41,9 +71,7 @@ impl ThrottleLayer {
     /// Create a new ThrottleLayer will specify quota
     pub fn new(max_burst: u32) -> Self {
         assert!(max_burst > 0);
-        Self {
-            max_burst
-        }
+        Self { max_burst }
     }
 }
 
@@ -198,10 +226,8 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
                     // the query is valid but the Decider can not accommodate them.
                     NegativeMultiDecision::BatchNonConforming(_, not_until) => {
                         // We can either change buf_length or we can wait until the rate limiter has enough capacity to accommodate the request.
-                        let wait_time = not_until
-                            .wait_time_from(DefaultClock::default().now())
-                            .as_secs();
-                        tokio::time::sleep(Duration::from_secs(wait_time)).await;
+                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
+                        tokio::time::sleep(wait_time).await;
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                     NegativeMultiDecision::InsufficientCapacity(_) => {
@@ -217,7 +243,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
                                 // not a single cell can be allowed through the rate limiter for now
                                 let wait_time =
                                     negative.wait_time_from(DefaultClock::default().now());
-                                tokio::time::sleep(Duration::from_secs(wait_time)).await;
+                                tokio::time::sleep(wait_time).await;
                             }
                         }
                     }
@@ -250,10 +276,8 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
                     // the query is valid but the Decider can not accommodate them.
                     NegativeMultiDecision::BatchNonConforming(_, not_until) => {
                         // We can either change buf_length or we can wait until the rate limiter has enough capacity to accommodate the request.
-                        let wait_time = not_until
-                            .wait_time_from(DefaultClock::default().now())
-                            .as_secs();
-                        std::thread::sleep(Duration::from_secs(wait_time));
+                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
+                        std::thread::sleep(wait_time);
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                     NegativeMultiDecision::InsufficientCapacity(_) => {
@@ -269,7 +293,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
                                 // not a single cell can be allowed through the rate limiter for now
                                 let wait_time =
                                     negative.wait_time_from(DefaultClock::default().now());
-                                std::thread::sleep(Duration::from_secs(wait_time));
+                                std::thread::sleep(wait_time);
                             }
                         }
                     }
@@ -299,10 +323,8 @@ impl<R: oio::Append> oio::Append for ThrottleWrapper<R> {
                     // the query is valid but the Decider can not accommodate them.
                     NegativeMultiDecision::BatchNonConforming(_, not_until) => {
                         // We can either change buf_length or we can wait until the rate limiter has enough capacity to accommodate the request.
-                        let wait_time = not_until
-                            .wait_time_from(DefaultClock::default().now())
-                            .as_secs();
-                        tokio::time::sleep(Duration::from_secs(wait_time)).await;
+                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
+                        tokio::time::sleep(wait_time).await;
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                     NegativeMultiDecision::InsufficientCapacity(_) => {
@@ -318,7 +340,7 @@ impl<R: oio::Append> oio::Append for ThrottleWrapper<R> {
                                 // not a single cell can be allowed through the rate limiter for now
                                 let wait_time =
                                     negative.wait_time_from(DefaultClock::default().now());
-                                tokio::time::sleep(Duration::from_secs(wait_time)).await;
+                                tokio::time::sleep(wait_time).await;
                             }
                         }
                     }

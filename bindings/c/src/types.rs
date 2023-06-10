@@ -320,32 +320,49 @@ pub struct opendal_blocking_lister {
 }
 
 impl opendal_blocking_lister {
-    pub(crate) fn from_inner(lister: od::BlockingLister) -> *const Self {
-        Box::leak(Box::new(lister))
+    pub(crate) fn from_lister(lister: od::BlockingLister) -> Self {
+        Self {
+            inner: Box::leak(Box::new(lister)),
+        }
+    }
+
+    pub(crate) fn null() -> Self {
+        Self {
+            inner: std::ptr::null_mut(),
+        }
     }
 
     /// nullable
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_lister_next(&self) -> *const opendal_list_entry {
-        let e = (*self.inner).next().unwrap_or_else(|| {
-            return std::ptr::null();
-        });
+    pub unsafe extern "C" fn opendal_lister_next(&self) -> opendal_list_entry {
+        let e = (*self.inner).next();
+        if e.is_none() {
+            return opendal_list_entry::null();
+        }
 
-        match e {
-            Ok(e) => opendal_list_entry::from_inner(e),
-            Err(e) => std::ptr::null(),
+        match e.unwrap() {
+            Ok(e) => opendal_list_entry::from_entry(e),
+            Err(_) => opendal_list_entry::null(),
         }
     }
 }
 
 #[repr(C)]
 pub struct opendal_list_entry {
-    inner: *const od::Entry,
+    inner: *mut od::Entry,
 }
 
 impl opendal_list_entry {
-    pub(crate) fn from_inner(entry: od::Entry) -> *const Self {
-        Box::leak(Box::new(entry))
+    pub(crate) fn from_entry(entry: od::Entry) -> Self {
+        Self {
+            inner: Box::leak(Box::new(entry)),
+        }
+    }
+
+    pub(crate) fn null() -> Self {
+        Self {
+            inner: std::ptr::null_mut(),
+        }
     }
 
     #[no_mangle]

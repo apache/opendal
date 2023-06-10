@@ -17,7 +17,9 @@
  * under the License.
  */
 
+#include "common.hpp"
 #include "gtest/gtest.h"
+#include <cstring>
 
 extern "C" {
 #include "opendal.h"
@@ -42,7 +44,58 @@ protected:
 };
 
 // Basic usecase of list
-TEST_F(OpendalListTest, ListDirTest) {}
+TEST_F(OpendalListTest, ListDirTest) {
+  std::string dname = "some_random_dir_name_152312dbfas";
+  std::string fname = "some_random_file_name_2138912rbf";
+
+  // 4 MiB of random bytes
+  uintptr_t nbytes = 4 * 1024 * 1024;
+  auto rand = generateRandomBytes(4 * 1024 * 1024);
+  auto random_bytes = reinterpret_cast<uint8_t *>(rand.data());
+
+  std::string path = dname + "/" + fname;
+  opendal_bytes data = {
+      .data = random_bytes,
+      .len = nbytes,
+  };
+
+  EXPECT_EQ(opendal_operator_blocking_write(this->p, path.c_str(), data),
+            OPENDAL_OK);
+
+  opendal_result_list l =
+      opendal_operator_blocking_list(this->p, (dname + "/").c_str());
+  EXPECT_EQ(l.code, OPENDAL_OK);
+
+  opendal_blocking_lister lister = l.lister;
+
+  // start checking the lister's result
+  bool found = false;
+
+  opendal_list_entry entry = opendal_lister_next(&lister);
+  while (entry.inner) {
+    const char *de_path = opendal_list_entry_path(&entry);
+
+    opendal_result_stat s = opendal_operator_stat(this->p, de_path);
+    EXPECT_EQ(s.code, OPENDAL_OK);
+
+    opendal_metadata meta = s.meta;
+
+    if (!strcmp(de_path, path.c_str())) {
+      found = true;
+
+      EXPECT_TRUE(opendal_metadata_is_file(&meta));
+      EXPECT_EQ(opendal_metadata_content_length(&meta), nbytes);
+    }
+
+    entry = opendal_lister_next(&lister);
+  }
+
+  EXPECT_TRUE(found);
+
+  // delete
+  EXPECT_EQ(opendal_operator_blocking_delete(this->p, path.c_str()),
+            OPENDAL_OK);
+}
 
 // Try list an empty directory
 TEST_F(OpendalListTest, ListEmptyDirTest) {}

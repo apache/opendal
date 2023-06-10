@@ -21,7 +21,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -79,6 +78,7 @@ impl SftpBuilder {
     }
 
     /// set root path for sftp backend.
+    /// It uses the default directory set by the remote `sftp-server` as default.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
             None
@@ -155,7 +155,7 @@ impl Builder for SftpBuilder {
             .root
             .clone()
             .map(|r| normalize_root(r.as_str()))
-            .unwrap_or(format!("/home/{}/", user));
+            .unwrap_or_default();
 
         let known_hosts_strategy = match &self.known_hosts_strategy {
             Some(v) => {
@@ -527,29 +527,29 @@ async fn connect_sftp(
         session.control_directory("/private/tmp/.opendal/");
     }
 
-    session.server_alive_interval(Duration::from_secs(5));
     session.known_hosts_check(known_hosts_strategy);
 
     let session = session.connect(&endpoint).await?;
 
     let sftp = Sftp::from_session(session, SftpOptions::default()).await?;
 
-    let mut fs = sftp.fs();
-    fs.set_cwd("/");
+    if !root.is_empty() {
+        let mut fs = sftp.fs();
 
-    let paths = Path::new(&root).components();
-    let mut current = PathBuf::from("/");
-    for p in paths {
-        current = current.join(p);
-        let res = fs.create_dir(p).await;
+        let paths = Path::new(&root).components();
+        let mut current = PathBuf::new();
+        for p in paths {
+            current.push(p);
+            let res = fs.create_dir(p).await;
 
-        if let Err(e) = res {
-            // ignore error if dir already exists
-            if !is_sftp_protocol_error(&e) {
-                return Err(e.into());
+            if let Err(e) = res {
+                // ignore error if dir already exists
+                if !is_sftp_protocol_error(&e) {
+                    return Err(e.into());
+                }
             }
+            fs.set_cwd(&current);
         }
-        fs.set_cwd(&current);
     }
 
     debug!("sftp connection created at {}", root);

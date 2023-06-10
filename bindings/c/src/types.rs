@@ -350,11 +350,11 @@ impl opendal_list_entry {
 
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *const c_char {
-        unimplemented!()
+        (*self.inner).path().as_ptr() as *const c_char
     }
 
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *const c_char {
-        unimplemented!()
+        (*self.inner).name().as_ptr() as *const c_char
     }
 }

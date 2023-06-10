@@ -39,7 +39,6 @@ concurrency:
 jobs:
   sftp-test:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
       - name: Setup sftp
@@ -51,16 +50,6 @@ jobs:
               --ulimit nofile=65536:65536 \
               -p 2222:22 -d atmoz/sftp \
               foo::::upload
-          tmpScript="$(mktemp)"
-          echo "sed -i -e 's#ForceCommand internal-sftp#ForceCommand internal-sftp -d /upload#' /etc/ssh/sshd_config" > "$tmpScript"
-          chmod +x "$tmpScript"
-          docker run \
-              -v "$tmpScript:/etc/sftp.d/change_root_dir" \
-              -v `pwd`/target/ssh/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \
-              --ulimit nofile=65536:65536 \
-              -p 2223:22 -d atmoz/sftp \
-              foo::::upload
-
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -77,14 +66,36 @@ jobs:
           OPENDAL_SFTP_USER: foo
           OPENDAL_SFTP_KEY: ${{ github.workspace }}/target/ssh/id_rsa
           OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY: accept
-      - name: Test (with default root)
+
+  sftp-test-default-root:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup sftp
+        run: |
+          mkdir -p target/ssh
+          ssh-keygen -t rsa -b 4096 -f target/ssh/id_rsa -q -N "" < /dev/null
+          tmpScript="$(mktemp)"
+          echo "sed -i -e 's#ForceCommand internal-sftp#ForceCommand internal-sftp -d /upload#' /etc/ssh/sshd_config" > "$tmpScript"
+          chmod +x "$tmpScript"
+          docker run \
+              -v "$tmpScript:/etc/sftp.d/change_root_dir" \
+              -v `pwd`/target/ssh/id_rsa.pub:/home/foo/.ssh/keys/id_rsa.pub:ro \
+              --ulimit nofile=65536:65536 \
+              -p 2222:22 -d atmoz/sftp \
+              foo::::upload
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      - name: Test
         shell: bash
         timeout-minutes: 10
         working-directory: core
         run: cargo nextest run sftp --features services-sftp
         env:
           OPENDAL_SFTP_TEST: on
-          OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2223
+          OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
           OPENDAL_SFTP_USER: foo
           OPENDAL_SFTP_KEY: ${{ github.workspace }}/target/ssh/id_rsa
           OPENDAL_SFTP_KNOWN_HOSTS_STRATEGY: accept

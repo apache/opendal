@@ -78,6 +78,7 @@ impl SftpBuilder {
     }
 
     /// set root path for sftp backend.
+    /// It uses the default directory set by the remote `sftp-server` as default.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
             None

@@ -34,14 +34,16 @@ use crate::*;
 /// ThrottleLayer can help users to control the max bandwidth that used by OpenDAL.
 #[derive(Clone)]
 pub struct ThrottleLayer {
-    // TODO: NonZeroU32 or u32, since user enter 0 will cause panic
     max_burst: u32,
 }
 
 impl ThrottleLayer {
     /// Create a new ThrottleLayer will specify quota
     pub fn new(max_burst: u32) -> Self {
-        Self { max_burst }
+        assert!(max_burst > 0);
+        Self {
+            max_burst
+        }
     }
 }
 

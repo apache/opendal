@@ -82,6 +82,14 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
+ * BlockingLister is designed to list entries at given path in a blocking
+ * manner.
+ *
+ * Users can construct Lister by `blocking_list` or `blocking_scan`.
+ */
+typedef struct BlockingLister BlockingLister;
+
+/**
  * BlockingOperator is the entry for all public blocking APIs.
  *
  * Read [`concepts`][docs::concepts] for know more about [`Operator`].
@@ -260,6 +268,11 @@ typedef struct opendal_result_stat {
    */
   enum opendal_code code;
 } opendal_result_stat;
+
+typedef struct opendal_result_list {
+  const struct BlockingLister *lister;
+  enum opendal_code code;
+} opendal_result_list;
 
 #ifdef __cplusplus
 extern "C" {
@@ -530,6 +543,36 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  */
 struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_ptr *ptr,
                                                  const char *path);
+
+/**
+ * \brief Blockingly list the objects in `path`.
+ *
+ * List the object in `path` blockingly by `op_ptr`
+ *
+ * @param ptr The opendal_operator_ptr created previously
+ * @param path The designated path you want to delete
+ * @see opendal_operator_ptr
+ * @see opendal_code
+ * @return
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_list opendal_operator_blocking_list(struct opendal_operator_ptr ptr,
+                                                          const char *path);
 
 /**
  * \brief Free the heap-allocated operator pointed by opendal_operator_ptr.

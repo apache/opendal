@@ -20,6 +20,8 @@
 //! "opendal_result_opendal_operator_ptr", which is unacceptable. Therefore,
 //! we are defining all Result types here
 
+use ::opendal as od;
+
 use crate::error::opendal_code;
 use crate::types::opendal_bytes;
 use crate::types::opendal_metadata;
@@ -65,3 +67,10 @@ pub struct opendal_result_stat {
     /// The error code, should be OPENDAL_OK if succeeds
     pub code: opendal_code,
 }
+
+#[repr(C)]
+pub struct opendal_result_list {
+    pub lister: *const od::BlockingLister,
+    pub code: opendal_code,
+}
+

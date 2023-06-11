@@ -684,8 +684,7 @@ impl BlockingOperator {
     ///
     /// # Notes
     ///
-    /// If underlying services support delete in batch, we will use batch
-    /// delete instead.
+    /// We don't support batch delete now.
     ///
     /// # Examples
     ///

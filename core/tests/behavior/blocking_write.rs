@@ -84,6 +84,7 @@ macro_rules! behavior_blocking_write_tests {
                 test_fuzz_offset_reader,
                 test_fuzz_part_reader,
                 test_delete_file,
+                test_remove_one_file,
             );
         )*
     };
@@ -411,5 +412,10 @@ pub fn test_delete_file(op: BlockingOperator) -> Result<()> {
     // Stat it again to check.
     assert!(!op.is_exist(&path)?);
 
+    Ok(())
+}
+
+/// Remove one file
+pub fn test_remove_one_file(op: BlockingOperator) -> Result<()> {
     Ok(())
 }

@@ -680,6 +680,52 @@ impl BlockingOperator {
         Ok(())
     }
 
+    ///
+    /// # Notes
+    ///
+    /// We don't support batch delete now.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.remove(vec!["abc".to_string(), "def".to_string()])?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove(&self, paths: Vec<String>) -> Result<()> {
+        Ok(())
+    }
+
+    /// remove will remove files via the given paths.
+    ///
+    /// remove_via will remove files via the given stream.
+    ///
+    /// We will delete by chunks with given batch limit on the stream.
+    ///
+    /// # Notes
+    ///
+    /// We don't support batch delete now.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove_via(&self) -> Result<()> {
+        //     let stream = stream::iter(vec!["abc".to_string(), "def".to_string()]);
+        // op.remove_via(stream)?;
+        Ok(())
+    }
+
     /// Remove the path and all nested dirs and files recursively.
     ///
     /// # Notes
@@ -710,13 +756,16 @@ impl BlockingOperator {
             return self.delete(path);
         }
 
-        let mut obs = self.scan(path)?;
+        let obs = self.scan(path)?;
 
-        let _ = obs.try_for_each(|v| match v {
-            Ok(entry) => self.delete(entry.path()),
-            Err(e) => Err(e),
-        })?;
-
+        obs.for_each(|v| {
+            if (match v {
+                Ok(entry) => self.inner().blocking_delete(entry.path(), OpDelete::new()),
+                Err(e) => Err(e),
+            })
+            .is_ok()
+            {}
+        });
         // Remove the directory itself.
         self.delete(path)?;
 

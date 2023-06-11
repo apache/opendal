@@ -68,6 +68,7 @@ macro_rules! behavior_blocking_list_tests {
                 test_list_dir,
                 test_list_non_exist_dir,
                 test_scan,
+                test_remove_all,
             );
         )*
     };
@@ -150,5 +151,36 @@ pub fn test_scan(op: BlockingOperator) -> Result<()> {
     assert!(actual.contains("x/y"));
     assert!(actual.contains("x/x/y"));
     assert!(actual.contains("x/x/x/y"));
+    Ok(())
+}
+
+// Remove all should remove all in this path.
+pub fn test_remove_all(op: BlockingOperator) -> Result<()> {
+    let parent = uuid::Uuid::new_v4().to_string();
+
+    let expected = vec![
+        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+    ];
+
+    for path in expected.iter() {
+        if path.ends_with('/') {
+            op.create_dir(&format!("{parent}/{path}"))?;
+        } else {
+            op.write(&format!("{parent}/{path}"), "test_scan")?;
+        }
+    }
+
+    op.remove_all(&format!("{parent}/x/"))?;
+
+    for path in expected.iter() {
+        if path.ends_with('/') {
+            continue;
+        }
+        assert!(
+            !op.is_exist(&format!("{parent}/{path}"))?,
+            "{parent}/{path} should be removed"
+        )
+    }
+
     Ok(())
 }

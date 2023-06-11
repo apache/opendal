@@ -59,19 +59,19 @@ use crate::*;
 ///
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(ThrottleLayer::new(9 * 1024))  // 9kiB/s
+///     .layer(ThrottleLayer::new(9 * 1024))  // limit speed at 9kiB/s
 ///     .finish();
 /// ```
 #[derive(Clone)]
 pub struct ThrottleLayer {
-    max_burst: u32,
+    max_burst_byte: u32,
 }
 
 impl ThrottleLayer {
     /// Create a new ThrottleLayer will specify quota
-    pub fn new(max_burst: u32) -> Self {
-        assert!(max_burst > 0);
-        Self { max_burst }
+    pub fn new(max_burst_byte: u32) -> Self {
+        assert!(max_burst_byte > 0);
+        Self { max_burst_byte }
     }
 }
 
@@ -80,7 +80,7 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
 
     fn layer(&self, accessor: A) -> Self::Output {
         let rate_limiter = Arc::new(
-            RateLimiter::direct(Quota::per_second(NonZeroU32::new(self.max_burst).unwrap()))
+            RateLimiter::direct(Quota::per_second(NonZeroU32::new(self.max_burst_byte).unwrap()))
                 // More info about middleware: https://docs.rs/governor/latest/governor/middleware/index.html
                 .with_middleware::<StateInformationMiddleware>(),
         );

@@ -680,6 +680,50 @@ impl BlockingOperator {
         Ok(())
     }
 
+    /// Remove the path and all nested dirs and files recursively.
+    ///
+    /// # Notes
+    ///
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.remove_all("path/to/dir")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove_all(&self, path: &str) -> Result<()> {
+        let meta = match self.stat(path) {
+            Ok(metadata) => metadata,
+
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+
+            Err(e) => return Err(e),
+        };
+
+        if meta.mode() != EntryMode::DIR {
+            return self.delete(path);
+        }
+
+        let mut obs = self.scan(path)?;
+
+        let _ = obs.try_for_each(|v| match v {
+            Ok(entry) => self.delete(entry.path()),
+            Err(e) => Err(e),
+        })?;
+
+        // Remove the directory itself.
+        self.delete(path)?;
+
+        Ok(())
+    }
+
     /// List current dir path.
     ///
     /// This function will create a new handle to list entries.

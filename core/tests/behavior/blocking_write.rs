@@ -416,6 +416,6 @@ pub fn test_delete_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Remove one file
-pub fn test_remove_one_file(op: BlockingOperator) -> Result<()> {
+pub fn test_remove_one_file(_op: BlockingOperator) -> Result<()> {
     Ok(())
 }

@@ -696,7 +696,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn remove(&self, paths: Vec<String>) -> Result<()> {
+    pub fn remove(&self, _paths: Vec<String>) -> Result<()> {
         Ok(())
     }
 

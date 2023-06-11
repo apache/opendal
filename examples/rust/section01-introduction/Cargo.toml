@@ -16,10 +16,13 @@
 # under the License.
 
 [package]
-name = "day01"
+name = "section01-introduction"
 version = "0.1.0"
-edition = "2023"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+opendal = { version = "0.34.0", features = ["services-webdav", "services-gdrive"] }
+tokio = { version = "1.27", features = ["full"] }
+anyhow = { version = "1.0.30", features = ["std"] }

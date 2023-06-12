@@ -44,7 +44,9 @@ use crate::*;
 ///
 ///
 /// # Note
-///
+/// The burst size should be larger than any possible byte length to allow it to pass through
+/// TODO: if the burst size is smaller than the max byte length, might cause potential dead lock
+/// Quota: https://docs.rs/governor/latest/governor/struct.Quota.html#examples
 ///
 ///
 ///
@@ -99,6 +101,7 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
     }
 }
 
+// TODO: drop StateInformationMiddleware
 type SharedRateLimiter =
     Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, StateInformationMiddleware>>;
 
@@ -222,41 +225,23 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 #[async_trait]
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     async fn write(&mut self, mut bs: Bytes) -> Result<()> {
-        // Note: for self.inner.write(bs), it's possible that the given bs length is less than the total content length.
-        // Users will call write multiple times to write the whole data.
-
         let mut buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
-        while !bs.is_empty() {
-            match self.limiter.check_n(buf_length) {
-                Ok(_) => self.inner.write(bs.split_to(buf_length as usize)).await,
-                Err(negative) => match negative {
-                    // the query is valid but the Decider can not accommodate them.
-                    NegativeMultiDecision::BatchNonConforming(_, not_until) => {
-                        // We can either change buf_length or we can wait until the rate limiter has enough capacity to accommodate the request.
-                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
-                        tokio::time::sleep(wait_time).await;
-                    }
-                    // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => {
-                        // Allow a single cell through the rate limiter.
-                        // If the rate limit is reached, check returns information about the earliest time that a cell might be allowed through again.
-                        buf_length: NonZeroU32 = match self.limiter.check() {
-                            Ok(snapshot) => {
-                                /// If this state snapshot is based on a negative rate limiting
-                                /// outcome, this method returns 0. (So unwrap() is safe here...right?)
-                                NonZeroU32::new(snapshot.remaining_burst_capacity()).unwrap()
-                            }
-                            Err(negative) => {
-                                // not a single cell can be allowed through the rate limiter for now
-                                let wait_time =
-                                    negative.wait_time_from(DefaultClock::default().now());
-                                tokio::time::sleep(wait_time).await;
-                            }
-                        }
-                    }
-                },
-            }
+        match self.limiter.check_n(buf_length) {
+            Ok(_) => self.inner.write(bs.split_to(buf_length as usize)).await?,
+            Err(negative) => match negative {
+                // the query is valid but the Decider can not accommodate them.
+                NegativeMultiDecision::BatchNonConforming(_, not_until) => {
+                    let wait_time = not_until.wait_time_from(DefaultClock::default().now());
+                    // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
+                    tokio::time::sleep(wait_time).await;
+                }
+                // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
+                NegativeMultiDecision::InsufficientCapacity(_) => Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "InsufficientCapacity duo to max_burst_byte smaller than the request size",
+                )),
+            },
         }
         return Ok(());
     }
@@ -272,9 +257,6 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
     fn write(&mut self, mut bs: Bytes) -> Result<()> {
-        // Note: for self.inner.write(bs), it's possible that the given bs length is less than the total content length.
-        // Users will call write multiple times to write the whole data.
-
         let mut buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         while !bs.is_empty() {
@@ -283,28 +265,15 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
                 Err(negative) => match negative {
                     // the query is valid but the Decider can not accommodate them.
                     NegativeMultiDecision::BatchNonConforming(_, not_until) => {
-                        // We can either change buf_length or we can wait until the rate limiter has enough capacity to accommodate the request.
                         let wait_time = not_until.wait_time_from(DefaultClock::default().now());
-                        std::thread::sleep(wait_time);
+                        // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
+                        tokio::time::sleep(wait_time)
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => {
-                        // Allow a single cell through the rate limiter.
-                        // If the rate limit is reached, check returns information about the earliest time that a cell might be allowed through again.
-                        buf_length: NonZeroU32 = match self.limiter.check() {
-                            Ok(snapshot) => {
-                                /// If this state snapshot is based on a negative rate limiting
-                                /// outcome, this method returns 0. (So unwrap() is safe here...right?)
-                                NonZeroU32::new(snapshot.remaining_burst_capacity()).unwrap()
-                            }
-                            Err(negative) => {
-                                // not a single cell can be allowed through the rate limiter for now
-                                let wait_time =
-                                    negative.wait_time_from(DefaultClock::default().now());
-                                std::thread::sleep(wait_time);
-                            }
-                        }
-                    }
+                    NegativeMultiDecision::InsufficientCapacity(_) => Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "InsufficientCapacity duo to max_burst_byte smaller than the request size",
+                    )),
                 },
             }
         }
@@ -319,41 +288,23 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
 #[async_trait]
 impl<R: oio::Append> oio::Append for ThrottleWrapper<R> {
     async fn append(&mut self, mut bs: Bytes) -> Result<()> {
-        // Note: for self.inner.write(bs), it's possible that the given bs length is less than the total content length.
-        // Users will call write multiple times to write the whole data.
-
         let mut buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
-        while !bs.is_empty() {
-            match self.limiter.check_n(buf_length) {
-                Ok(_) => self.inner.append(bs.split_to(buf_length as usize)),
-                Err(negative) => match negative {
-                    // the query is valid but the Decider can not accommodate them.
-                    NegativeMultiDecision::BatchNonConforming(_, not_until) => {
-                        // We can either change buf_length or we can wait until the rate limiter has enough capacity to accommodate the request.
-                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
-                        tokio::time::sleep(wait_time).await;
-                    }
-                    // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => {
-                        // Allow a single cell through the rate limiter.
-                        // If the rate limit is reached, check returns information about the earliest time that a cell might be allowed through again.
-                        buf_length: NonZeroU32 = match self.limiter.check() {
-                            Ok(snapshot) => {
-                                /// If this state snapshot is based on a negative rate limiting
-                                /// outcome, this method returns 0. (So unwrap() is safe here...right?)
-                                NonZeroU32::new(snapshot.remaining_burst_capacity()).unwrap()
-                            }
-                            Err(negative) => {
-                                // not a single cell can be allowed through the rate limiter for now
-                                let wait_time =
-                                    negative.wait_time_from(DefaultClock::default().now());
-                                tokio::time::sleep(wait_time).await;
-                            }
-                        }
-                    }
-                },
-            }
+        match self.limiter.check_n(buf_length) {
+            Ok(_) => self.inner.append(bs.split_to(buf_length as usize)).await?,
+            Err(negative) => match negative {
+                // the query is valid but the Decider can not accommodate them.
+                NegativeMultiDecision::BatchNonConforming(_, not_until) => {
+                    let wait_time = not_until.wait_time_from(DefaultClock::default().now());
+                    // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
+                    tokio::time::sleep(wait_time).await;
+                }
+                // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
+                NegativeMultiDecision::InsufficientCapacity(_) => Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "InsufficientCapacity duo to max_burst_byte smaller than the request size",
+                )),
+            },
         }
         return Ok(());
     }

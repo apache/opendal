@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
 
     // if the 'root' path haven't been set, then the `file_path` below should be `section01-introduction/tmp/1.txt`.
     let file_path = "1.txt";
+    op.write(file_path, "This is OpenDAL usage documentation section01-introduction.").await?;
 
     // read the file and print its content.
     let read_file = op.read(file_path).await?;
@@ -51,7 +52,7 @@ async fn main() -> Result<()> {
     println!("{}", content);
 
     // delete the file.
-    // op.delete(file_path).await?;
+    op.delete(file_path).await?;
 
     Ok(())
 }

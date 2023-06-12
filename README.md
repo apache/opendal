@@ -98,7 +98,7 @@ Major components of the project include:
 
 ## Documentation
 
-The documentation is available at <https://opendal.apache.org>.
+The documentation is available at <https://opendal.apache.org>. Checkout [here](./examples/) for the usage examples(still working on).
 
 We are engaged in a practice we call "documentation as code". You can also view the documentation directly in project's source code. And we welcome you to contribute to the documentation.
 

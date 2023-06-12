@@ -44,6 +44,6 @@ The main.rs file is the entry point for your Rust application. It typically cont
 
 In this section, we chose `Fs` service as example because it is simple and don't need extra work to set up, all service available can be found [here](https://docs.rs/opendal/latest/opendal/services/index.html).
 
-This is a independent project, the `src/main.rs` provide a example usage about `Fs`. It `read` a file and print its content to console, overwrite some new content to it and read & print content again to verify the `write` operator has been taken effect, copy a new file and then delete the old one.
+This is a independent project, the `src/main.rs` provide a example usage about `Fs`. It `read` a file and print its content to console, overwrite some new content to it and read & print content again to verify the `write` operator has been taken effect and then delete the file.
 
 Use `cargo run` to run this project. Just take a try.

@@ -61,7 +61,7 @@ use crate::*;
 ///
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(ThrottleLayer::new(9 * 1024))  // limit speed at 9kiB/s
+///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024))  // limit speed at 9kiB/s and burst size at 10MiB
 ///     .finish();
 /// ```
 #[derive(Clone)]
@@ -86,14 +86,10 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
     type LayeredAccessor = ThrottleAccessor<A>;
 
     fn layer(&self, accessor: A) -> Self::Output {
-        let rate_limiter = Arc::new(
-            RateLimiter::direct(
-                Quota::per_second(NonZeroU32::new(self.replenish_byte_rate).unwrap())
-                    .allow_burst(NonZeroU32::new(self.max_burst_byte).unwrap()),
-            )
-            // More info about middleware: https://docs.rs/governor/latest/governor/middleware/index.html
-            .with_middleware::<StateInformationMiddleware>(),
-        );
+        let rate_limiter = Arc::new(RateLimiter::direct(
+            Quota::per_second(NonZeroU32::new(self.replenish_byte_rate).unwrap())
+                .allow_burst(NonZeroU32::new(self.max_burst_byte).unwrap()),
+        ));
         ThrottleAccessor {
             inner: accessor,
             rate_limiter,
@@ -101,9 +97,7 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
     }
 }
 
-// TODO: drop StateInformationMiddleware
-type SharedRateLimiter =
-    Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, StateInformationMiddleware>>;
+type SharedRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>;
 
 #[derive(Debug, Clone)]
 pub struct ThrottleAccessor<A: Accessor> {

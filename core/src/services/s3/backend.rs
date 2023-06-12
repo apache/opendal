@@ -969,14 +969,13 @@ impl Accessor for S3Backend {
                 let path = build_rel_path(&self.core.root, &i.key);
                 batched_result.push((path, Ok(RpDelete::default().into())));
             }
-            // TODO: we should handle those errors with code.
             for i in result.error {
                 let path = build_rel_path(&self.core.root, &i.key);
 
                 // set the error kind and mark temporary if retryable
                 let (kind, retryable) =
                     parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err = Error::new(kind, &format!("{i:?}"));
+                let mut err: Error = Error::new(kind, &format!("{i:?}"));
                 if retryable {
                     err = err.set_temporary();
                 }

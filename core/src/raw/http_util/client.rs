@@ -77,7 +77,9 @@ impl HttpClient {
 
     /// Send a request in async way.
     pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
-        let url = req.uri().to_string();
+        // Uri stores all string alike data in `Bytes` which means
+        // the clone here is cheap.
+        let uri = req.uri().clone();
         let is_head = req.method() == http::Method::HEAD;
 
         let (parts, body) = req.into_parts();
@@ -86,7 +88,7 @@ impl HttpClient {
             .client
             .request(
                 parts.method,
-                reqwest::Url::from_str(&url).expect("input request url must be valid"),
+                reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
             )
             .version(parts.version)
             .headers(parts.headers);
@@ -113,7 +115,7 @@ impl HttpClient {
 
             let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
                 .with_operation("http_util::Client::send_async")
-                .with_context("url", &url)
+                .with_context("url", uri.to_string())
                 .set_source(err);
             if is_temporary {
                 oerr = oerr.set_temporary();
@@ -132,7 +134,10 @@ impl HttpClient {
 
         let mut hr = Response::builder()
             .version(resp.version())
-            .status(resp.status());
+            .status(resp.status())
+            // Insert uri into response extension so that we can fetch
+            // it later.
+            .extension(uri.clone());
         // Swap headers directly instead of copy the entire map.
         mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
 
@@ -141,7 +146,7 @@ impl HttpClient {
             // it to interrupt so we can retry it.
             Error::new(ErrorKind::Unexpected, "read data from http stream")
                 .map(|v| if err.is_body() { v.set_temporary() } else { v })
-                .with_context("url", &url)
+                .with_context("url", uri.to_string())
                 .set_source(err)
         });
 

@@ -64,14 +64,19 @@ use crate::*;
 /// ```
 #[derive(Clone)]
 pub struct ThrottleLayer {
+    replenish_byte_rate: u32,
     max_burst_byte: u32,
 }
 
 impl ThrottleLayer {
     /// Create a new ThrottleLayer will specify quota
-    pub fn new(max_burst_byte: u32) -> Self {
+    pub fn new(replenish_byte_rate: u32, max_burst_byte: u32) -> Self {
+        assert!(replenish_byte_rate > 0);
         assert!(max_burst_byte > 0);
-        Self { max_burst_byte }
+        Self {
+            replenish_byte_rate,
+            max_burst_byte,
+        }
     }
 }
 
@@ -80,9 +85,12 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
 
     fn layer(&self, accessor: A) -> Self::Output {
         let rate_limiter = Arc::new(
-            RateLimiter::direct(Quota::per_second(NonZeroU32::new(self.max_burst_byte).unwrap()))
-                // More info about middleware: https://docs.rs/governor/latest/governor/middleware/index.html
-                .with_middleware::<StateInformationMiddleware>(),
+            RateLimiter::direct(
+                Quota::per_second(NonZeroU32::new(self.replenish_byte_rate).unwrap())
+                    .allow_burst(NonZeroU32::new(self.max_burst_byte).unwrap()),
+            )
+            // More info about middleware: https://docs.rs/governor/latest/governor/middleware/index.html
+            .with_middleware::<StateInformationMiddleware>(),
         );
         ThrottleAccessor {
             inner: accessor,

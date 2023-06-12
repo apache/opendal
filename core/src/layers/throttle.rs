@@ -24,34 +24,34 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Duration;
 use governor::clock::{Clock, DefaultClock, QuantaInstant};
-use governor::middleware::{RateLimitingMiddleware, StateInformationMiddleware, StateSnapshot};
+use governor::middleware::{
+    NoOpMiddleware, RateLimitingMiddleware, StateInformationMiddleware, StateSnapshot,
+};
 use governor::state::{InMemoryState, NotKeyed};
 use governor::{NegativeMultiDecision, NotUntil, Quota, RateLimiter, RatelimitedStream};
 
 use crate::raw::*;
 use crate::*;
 
-/// ThrottleLayer can help users to control the max bandwidth that used by OpenDAL.
+/// Add a bandwidth rate limiter to the underlying services.
 ///
 /// # Throttle
 ///
-///
-///
-///
-///
-///
-/// For example:
-///
+/// There are several algorithms when it come to rate limiting techniques.
+/// This throttle layer uses Generic Cell Rate Algorithm (GCRA) provided by
+/// [Governor](https://docs.rs/governor/latest/governor/index.html).
+/// By setting the `replenish_byte_rate` and `max_burst_byte`, we can control the byte flow rate of underlying services.
 ///
 /// # Note
-/// The burst size should be larger than any possible byte length to allow it to pass through
-/// TODO: if the burst size is smaller than the max byte length, might cause potential dead lock
-/// Quota: https://docs.rs/governor/latest/governor/struct.Quota.html#examples
 ///
+/// When setting the ThrottleLayer, always consider the largest possible operation size as the burst size,
+/// as **the burst size should be larger than any possible byte length to allow it to pass through**.
 ///
+/// Read more about [Quota](https://docs.rs/governor/latest/governor/struct.Quota.html#examples)
 ///
 /// # Examples
 ///
+/// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::ThrottleLayer;
@@ -61,7 +61,7 @@ use crate::*;
 ///
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
-///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024))  // limit speed at 9kiB/s and burst size at 10MiB
+///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024))
 ///     .finish();
 /// ```
 #[derive(Clone)]
@@ -71,7 +71,8 @@ pub struct ThrottleLayer {
 }
 
 impl ThrottleLayer {
-    /// Create a new ThrottleLayer will specify quota
+    /// Quota takes replenish_byte_rate and max_burst_byte as NonZeroU32 types, so setting them to <= 0 will trigger a panic.
+    /// NonZeroU32 can store an integer from 1 to 4,294,967,295 (2^32 - 1).
     pub fn new(replenish_byte_rate: u32, max_burst_byte: u32) -> Self {
         assert!(replenish_byte_rate > 0);
         assert!(max_burst_byte > 0);
@@ -97,7 +98,10 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
     }
 }
 
-type SharedRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>;
+/// Share an atomic RateLimiter instance across all threads in one operator.
+/// If want to add more observability in the future, replace the default NoOpMiddleware with other middleware types.
+/// Read more about [Middleware](https://docs.rs/governor/latest/governor/middleware/index.html)
+type SharedRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>;
 
 #[derive(Debug, Clone)]
 pub struct ThrottleAccessor<A: Accessor> {
@@ -232,7 +236,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
                 }
                 // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                 NegativeMultiDecision::InsufficientCapacity(_) => Err(Error::new(
-                    ErrorKind::ConfigInvalid,
+                    ErrorKind::RateLimited,
                     "InsufficientCapacity duo to max_burst_byte smaller than the request size",
                 )),
             },
@@ -265,7 +269,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                     NegativeMultiDecision::InsufficientCapacity(_) => Err(Error::new(
-                        ErrorKind::ConfigInvalid,
+                        ErrorKind::RateLimited,
                         "InsufficientCapacity duo to max_burst_byte smaller than the request size",
                     )),
                 },
@@ -295,7 +299,7 @@ impl<R: oio::Append> oio::Append for ThrottleWrapper<R> {
                 }
                 // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                 NegativeMultiDecision::InsufficientCapacity(_) => Err(Error::new(
-                    ErrorKind::ConfigInvalid,
+                    ErrorKind::RateLimited,
                     "InsufficientCapacity duo to max_burst_byte smaller than the request size",
                 )),
             },

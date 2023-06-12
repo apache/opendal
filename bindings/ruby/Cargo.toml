@@ -35,7 +35,7 @@ name = "opendal_ruby"
 [dependencies]
 magnus = { version = "0.5", features = ["bytes-crate"] }
 opendal.workspace = true
-rb-sys = { version = "0.9.72", default-features = false }
+rb-sys = { version = "0.9.77", default-features = false }
 
 [build-dependencies]
 rb-sys-env = "0.1.2"

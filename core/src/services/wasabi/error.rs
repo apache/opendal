@@ -71,7 +71,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     Ok(err)
 }
 
-/// Returns the Errorkind of this code and whether the error is retryable.
+/// Returns the `Error kind` of this code and whether the error is retryable.
 /// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
 pub fn parse_wasabi_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {

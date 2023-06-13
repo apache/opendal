@@ -98,7 +98,7 @@ Major components of the project include:
 
 ## Examples
 
-The examples is available at [here](./examples/).
+The examples are available at [here](./examples/).
 
 ## Documentation
 

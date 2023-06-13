@@ -1,6 +1,6 @@
-# Chapter-00: Setup Your First Rust Project
+# Chapter-00: Set up Your First Rust Project
 
-Welcome to our first chapter. In this example we will setup our first rust project with OpenDAL.
+Welcome to our first chapter. In this example we will set up our first rust project with OpenDAL.
 
 ## Install Rust
 
@@ -10,7 +10,7 @@ After rust has been installed, we will have the following components:
 
 - `rustup`: [rustup](https://rust-lang.github.io/rustup/) is a command-line toolchain manager for the Rust programming language. It allows you to easily install, manage, and update different versions of the Rust compiler and associated tools on your system.
 - `cargo`: [cargo](https://doc.rust-lang.org/cargo/index.html) is the package manager and build system for the Rust programming language. It is designed to make it easy to develop, build, and manage Rust projects.
-- `rustc`: [rustc](https://rustc-dev-guide.rust-lang.org/) is the official compiler for the Rust programming language. It takes Rust source code as input and translates it into machine-readable instructions that can be executed by the computer's hardware. Most of time, `rustc` will be called by `cargo` and we don't need to use it directly.
+- `rustc`: [rustc](https://rustc-dev-guide.rust-lang.org/) is the official compiler for the Rust programming language. It takes Rust source code as input and translates it into machine-readable instructions that can be executed by the computer's hardware. Most time, `rustc` will be called by `cargo` and we don't need to use it directly.
 
 We can use `cargo --version` to check if it works as expected:
 

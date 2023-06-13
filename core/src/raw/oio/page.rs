@@ -57,7 +57,7 @@ impl From<PageOperation> for &'static str {
     }
 }
 
-/// Page trait is used by [`crate::raw::Accessor`] to implement `list`
+/// Page trait is used by [`raw::Accessor`] to implement `list`
 /// or `scan` operation.
 #[async_trait]
 pub trait Page: Send + Sync + 'static {

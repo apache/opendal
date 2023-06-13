@@ -63,7 +63,7 @@ const files = [
 ]
 
 const textDecoder = new TextDecoder()
-const filenams = await Promise.all(
+const filenames = await Promise.all(
   files.map(async (data) => {
     const filename = `${crypto.randomUUID()}-${data.name}-read-bench`
     await s3.putObject(filename, textDecoder.decode(data.file))
@@ -77,7 +77,7 @@ files.map((data, i) => {
       group: `read ${data.name}`,
     },
     async () => {
-      await opendal.read(filenams[i])
+      await opendal.read(filenames[i])
     },
   )
   Deno.bench(
@@ -86,7 +86,7 @@ files.map((data, i) => {
       group: `read ${data.name}`,
     },
     async () => {
-      await s3.getObject(filenams[i])
+      await s3.getObject(filenames[i])
     },
   )
 })

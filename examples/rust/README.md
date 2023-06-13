@@ -2,7 +2,7 @@
 
 Thank you for using OpenDAL Rust Core!
 
-The goal of these documents is to give you everything you need to start using OpenDAL Rust Core. We will start with the Rust basics and move on to more OpenDAL features. After reading and using all these examples, we hope you will become a master of OpenDAL and empowered to build your bravo applications!
+The goal of these documents is to give you everything you need to start using OpenDAL Rust Core. We will start with the Rust basics and move on to more OpenDAL features. After reading and using all these examples, we hope you will become a master of OpenDAL and be empowered to build your bravo applications!
 
 ## Layout
 
@@ -12,4 +12,4 @@ It's a good idea to start reading from the first chapter. It's also ok to pick t
 
 ## Contents
 
-- [Chapter-00: Setup Your First Rust Project](./00-setup/README.md)
+- [Chapter-00: Set up Your First Rust Project](./00-setup/README.md)

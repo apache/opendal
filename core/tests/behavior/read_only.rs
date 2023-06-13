@@ -75,6 +75,7 @@ macro_rules! behavior_read_tests {
                 test_read_not_exist,
                 test_read_with_dir_path,
                 test_read_with_if_match,
+                test_read_with_if_match_strict,
                 test_read_with_if_none_match,
             );
         )*
@@ -356,6 +357,41 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
         "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
         "read content"
     );
+
+    Ok(())
+}
+
+pub async fn test_read_with_if_match_strict(op: Operator) -> Result<()> {
+    let op = op.with_strict();
+    let capability = op.info().capability();
+
+    let path = "normal_file";
+
+    let meta = op.stat(path).await?;
+
+    let res = op.read_with(path).if_match("invalid_etag").await;
+    assert!(res.is_err());
+    if capability.read_with_if_match {
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    } else {
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::UnsupportedOption);
+    }
+
+    let bs = op
+        .read_with(path)
+        .if_match(meta.etag().expect("etag must exist"))
+        .await;
+    if !capability.read_with_if_match {
+        assert_eq!(bs.unwrap_err().kind(), ErrorKind::UnsupportedOption);
+    } else {
+        let bs = bs.expect("read must succeed");
+        assert_eq!(bs.len(), 262144, "read size");
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&bs)),
+            "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+            "read content"
+        );
+    }
 
     Ok(())
 }

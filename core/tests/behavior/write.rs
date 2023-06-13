@@ -96,6 +96,7 @@ macro_rules! behavior_write_tests {
                 test_reader_tail,
                 test_read_not_exist,
                 test_read_with_if_match,
+                test_read_with_if_match_strict,
                 test_read_with_if_none_match,
                 test_fuzz_range_reader,
                 test_fuzz_offset_reader,
@@ -651,6 +652,43 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
         .await
         .expect("read must succeed");
     assert_eq!(bs, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Read with if_match should match, else get a ConditionNotMatch error.
+/// Return an UnsupportedOption error when the option is not supported.
+pub async fn test_read_with_if_match_strict(op: Operator) -> Result<()> {
+    let capability = op.info().capability();
+    let op = op.with_strict();
+
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+
+    let res = op.read_with(&path).if_match("\"invalid_etag\"").await;
+    assert!(res.is_err());
+    if capability.read_with_if_match {
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+    } else {
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::UnsupportedOption);
+    }
+
+    if capability.read_with_if_match {
+        let bs = op
+            .read_with(&path)
+            .if_match(meta.etag().expect("etag must exist"))
+            .await
+            .expect("read must succeed");
+        assert_eq!(bs, content);
+    }
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

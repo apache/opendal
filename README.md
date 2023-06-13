@@ -96,11 +96,13 @@ Major components of the project include:
 
 > Welcome to add any services that are not currently supported [here](https://github.com/apache/incubator-opendal/issues/5).
 
+## Examples
+
+The examples is available at [here](./examples/).
+
 ## Documentation
 
-The documentation is available at <https://opendal.apache.org>. Checkout [here](./examples/) for the usage examples(still working on).
-
-We are engaged in a practice we call "documentation as code". You can also view the documentation directly in project's source code. And we welcome you to contribute to the documentation.
+The documentation is available at <https://opendal.apache.org>.
 
 ## Contribute
 
@@ -108,9 +110,9 @@ OpenDAL is an active open-source project. We are always open to people who want 
 
 - Start with [Contributing Guide](CONTRIBUTING.md).
 - Submit [Issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or feature requests.
+- Discuss at [dev mailing list](mailto:dev-subscribe@opendal.apache.org) ([subscribe](mailto:dev-subscribe@opendal.apache.org?subject=(send%20this%20email%20to%20subscribe)) / [unsubscribe](mailto:dev-unsubscribe@opendal.apache.org?subject=(send%20this%20email%20to%20unsubscribe)) / [archives](https://lists.apache.org/list.html?dev@opendal.apache.org))
 - Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
 - Talk to community directly at [Discord](https://discord.gg/XQy8yGR2dg).
-- [Subscribe our dev mailing list](mailto:dev-subscribe@opendal.apache.org), then you can use it to ask questions, discuss design and implementation, etc. View the archive at <https://lists.apache.org/list.html?dev@opendal.apache.org>.
 
 ## Who is using OpenDAL?
 

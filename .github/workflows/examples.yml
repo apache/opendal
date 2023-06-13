@@ -15,15 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "section01-introduction"
-version = "0.1.0"
-edition = "2021"
+name: Examples
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "examples/**"
 
-[dependencies]
-opendal = { version = "0.37.0" }
-tokio = { version = "1.27", features = ["full"] }
-anyhow = { version = "1.0.30", features = ["std"] }
-futures = { version = "0.3" }
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  rust-00-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - name: Test
+        shell: bash
+        working-directory: examples/rust/00-setup
+        run: cargo run

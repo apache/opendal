@@ -355,6 +355,28 @@ impl<A: Accessor> OperatorBuilder<A> {
         }
     }
 
+    /// Enable the strict mode for the built Operator.
+    ///
+    /// In strict mode, Operator will return error when the given
+    /// operation arguments contain options that are unsupported by
+    /// the service. By default (without calling this method), all
+    /// unsupported options are ignored silently.
+    ///
+    /// # Notes
+    ///
+    /// `OperatorBuilder::with_strict()` uses static dispatch which
+    /// is zero cost. `Operator::with_strict()` uses dynamic dispatch
+    /// which has a bit runtime overhead with an extra vtable lookup
+    /// and unable to inline.
+    ///
+    /// It's always recommended to use `OperatorBuilder::with_strict()`.
+    #[must_use]
+    pub fn with_strict(
+        self,
+    ) -> OperatorBuilder<<CapabilityCheckLayer as Layer<A>>::LayeredAccessor> {
+        self.layer(CapabilityCheckLayer)
+    }
+
     /// Finish the building to construct an Operator.
     pub fn finish(self) -> Operator {
         let ob = self.layer(TypeEraseLayer);

@@ -696,7 +696,11 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn remove(&self, _paths: Vec<String>) -> Result<()> {
+    pub fn remove(&self, paths: Vec<String>) -> Result<()> {
+        for path in paths.iter() {
+            self.delete(path)?;
+        }
+
         Ok(())
     }
 
@@ -720,9 +724,7 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn remove_via(&self) -> Result<()> {
-        //     let stream = stream::iter(vec!["abc".to_string(), "def".to_string()]);
-        // op.remove_via(stream)?;
+    pub fn remove_via(&self, input: impl Iterator) -> Result<()> {
         Ok(())
     }
 
@@ -758,14 +760,15 @@ impl BlockingOperator {
 
         let obs = self.scan(path)?;
 
-        obs.for_each(|v| {
-            if (match v {
-                Ok(entry) => self.inner().blocking_delete(entry.path(), OpDelete::new()),
-                Err(e) => Err(e),
-            })
-            .is_ok()
-            {}
-        });
+        for v in obs {
+            match v {
+                Ok(entry) => {
+                    let Ok(_) = self.inner().blocking_delete(entry.path(), OpDelete::new()) else { return Err(e) };
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
         // Remove the directory itself.
         self.delete(path)?;
 

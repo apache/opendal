@@ -39,7 +39,7 @@ use crate::*;
 /// There are several algorithms when it come to rate limiting techniques.
 /// This throttle layer uses Generic Cell Rate Algorithm (GCRA) provided by
 /// [Governor](https://docs.rs/governor/latest/governor/index.html).
-/// By setting the `replenish_byte_rate` and `max_burst_byte`, we can control the byte flow rate of underlying services.
+/// By setting the `bandwidth` and `burst`, we can control the byte flow rate of underlying services.
 ///
 /// # Note
 ///
@@ -65,19 +65,21 @@ use crate::*;
 /// ```
 #[derive(Clone)]
 pub struct ThrottleLayer {
-    replenish_byte_rate: u32,
-    max_burst_byte: u32,
+    bandwidth: NonZeroU32,
+    burst: NonZeroU32,
 }
 
 impl ThrottleLayer {
-    /// Quota takes replenish_byte_rate and max_burst_byte as NonZeroU32 types, so setting them to <= 0 will trigger a panic.
-    /// NonZeroU32 can store an integer from 1 to 4,294,967,295 (2^32 - 1).
-    pub fn new(replenish_byte_rate: u32, max_burst_byte: u32) -> Self {
-        assert!(replenish_byte_rate > 0);
-        assert!(max_burst_byte > 0);
+    /// Create a new `ThrottleLayer` with given bandwidth and burst.
+    ///
+    /// - bandwidth: the maximum number of bytes allowed to pass through per second.
+    /// - burst: the maximum number of bytes allowed to pass through at once.
+    pub fn new(bandwidth: u32, burst: u32) -> Self {
+        assert!(bandwidth > 0);
+        assert!(burst > 0);
         Self {
-            replenish_byte_rate,
-            max_burst_byte,
+            bandwidth: NonZeroU32::new(bandwidth).unwrap(),
+            burst: NonZeroU32::new(burst).unwrap(),
         }
     }
 }
@@ -87,8 +89,7 @@ impl<A: Accessor> Layer<A> for ThrottleLayer {
 
     fn layer(&self, accessor: A) -> Self::LayeredAccessor {
         let rate_limiter = Arc::new(RateLimiter::direct(
-            Quota::per_second(NonZeroU32::new(self.replenish_byte_rate).unwrap())
-                .allow_burst(NonZeroU32::new(self.max_burst_byte).unwrap()),
+            Quota::per_second(self.bandwidth).allow_burst(self.burst),
         ));
         ThrottleAccessor {
             inner: accessor,
@@ -235,10 +236,12 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
                         tokio::time::sleep(wait_time).await;
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => return Err(Error::new(
-                        ErrorKind::RateLimited,
-                        "InsufficientCapacity duo to max_burst_byte smaller than the request size",
-                    )),
+                    NegativeMultiDecision::InsufficientCapacity(_) => {
+                        return Err(Error::new(
+                            ErrorKind::RateLimited,
+                            "InsufficientCapacity due to burst size being smaller than the request size",
+                        ))
+                    }
                 },
             }
         }
@@ -271,10 +274,12 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
                         thread::sleep(wait_time);
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => return Err(Error::new(
-                        ErrorKind::RateLimited,
-                        "InsufficientCapacity duo to max_burst_byte smaller than the request size",
-                    )),
+                    NegativeMultiDecision::InsufficientCapacity(_) => {
+                        return Err(Error::new(
+                            ErrorKind::RateLimited,
+                            "InsufficientCapacity due to burst size being smaller than the request size",
+                        ))
+                    }
                 },
             }
         }
@@ -300,10 +305,12 @@ impl<R: oio::Append> oio::Append for ThrottleWrapper<R> {
                         tokio::time::sleep(wait_time).await;
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => return Err(Error::new(
-                        ErrorKind::RateLimited,
-                        "InsufficientCapacity duo to max_burst_byte smaller than the request size",
-                    )),
+                    NegativeMultiDecision::InsufficientCapacity(_) => {
+                        return Err(Error::new(
+                            ErrorKind::RateLimited,
+                            "InsufficientCapacity due to burst size being smaller than the request size",
+                        ))
+                    }
                 },
             }
         }

@@ -53,9 +53,6 @@ pub enum ErrorKind {
     Unexpected,
     /// Underlying service doesn't support this operation.
     Unsupported,
-    /// The given argument contains some options that are not supported by the
-    /// underlying service.
-    UnsupportedOption,
 
     /// The config for backend is invalid.
     ConfigInvalid,
@@ -122,7 +119,6 @@ impl From<ErrorKind> for &'static str {
         match v {
             ErrorKind::Unexpected => "Unexpected",
             ErrorKind::Unsupported => "Unsupported",
-            ErrorKind::UnsupportedOption => "UnsupportedOption",
             ErrorKind::ConfigInvalid => "ConfigInvalid",
             ErrorKind::NotFound => "NotFound",
             ErrorKind::PermissionDenied => "PermissionDenied",

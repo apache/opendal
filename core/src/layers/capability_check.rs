@@ -21,60 +21,7 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 
 use crate::raw::*;
-use crate::types::Error;
-use crate::types::ErrorKind;
 use crate::types::Result;
-use crate::Capability;
-
-trait CheckCapability {
-    // TODO: Should we return the unsupported option in the result?
-    fn check_capability(&self, cap: &Capability) -> bool;
-}
-
-macro_rules! impl_check_fn_item {
-    ($self:ident, $cap:ident @ $opt_ident:ident => $cap_ident:ident, $($rest:tt)*) => {
-        impl_check_fn_item!($self, $cap @ $opt_ident => $cap_ident);
-        impl_check_fn_item!($self, $cap @ $($rest)*);
-    };
-    ($self:ident, $cap:ident @ $opt_ident:ident => $cap_ident:ident) => {
-        let has_opt = $self.$opt_ident().is_some();
-        if has_opt && !$cap.$cap_ident {
-            return false;
-        }
-    };
-    ($self:ident, $cap:ident @) => {};
-}
-
-macro_rules! impl_check_fn {
-    ($op_type:ty { $($body:tt)* }) => {
-        impl CheckCapability for $op_type {
-            fn check_capability(&self, cap: &Capability) -> bool {
-                impl_check_fn_item!(self, cap @ $($body)*);
-                true
-            }
-        }
-    };
-}
-
-impl_check_fn!(OpRead {
-    if_match => read_with_if_match,
-    if_none_match => read_with_if_none_match,
-    override_cache_control => read_with_override_cache_control,
-    override_content_disposition => read_with_override_content_disposition,
-});
-
-macro_rules! check_capability {
-    ($msg:literal, $self:ident, $args:ident) => {
-        let meta = $self.metadata();
-        if !$args.check_capability(&meta.capability()) {
-            return Err(Error::new(
-                ErrorKind::UnsupportedOption,
-                "args contain unsupported options",
-            )
-            .with_operation($msg));
-        }
-    };
-}
 
 /// Check whether the given operation arguments are supported by the
 /// underlying services.
@@ -126,7 +73,6 @@ impl<A: Accessor> LayeredAccessor for CapabilityCheckedAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        check_capability!("read", self, args);
         self.inner().read(path, args).await
     }
 
@@ -171,7 +117,6 @@ impl<A: Accessor> LayeredAccessor for CapabilityCheckedAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        check_capability!("blocking_read", self, args);
         self.inner().blocking_read(path, args)
     }
 

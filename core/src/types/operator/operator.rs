@@ -28,7 +28,6 @@ use futures::TryStreamExt;
 use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
-use crate::layers::CapabilityCheckLayer;
 use crate::operator_futures::*;
 use crate::raw::*;
 use crate::*;
@@ -105,14 +104,6 @@ impl Operator {
         let mut op = self.clone();
         op.limit = limit;
         op
-    }
-
-    /// Enable the strict mode for the built Operator.
-    ///
-    /// This is similar to [`OperatorBuilder::with_strict`], but will
-    /// bring more runtime overhead due to the dynamic dispatch.
-    pub fn with_strict(self) -> Self {
-        self.layer(CapabilityCheckLayer)
     }
 
     /// Get information of underlying accessor.

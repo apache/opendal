@@ -63,9 +63,6 @@ pub(crate) use type_eraser::TypeEraseLayer;
 mod error_context;
 pub(crate) use error_context::ErrorContextLayer;
 
-mod capability_check;
-pub(crate) use capability_check::CapabilityCheckLayer;
-
 mod complete;
 pub(crate) use complete::CompleteLayer;
 

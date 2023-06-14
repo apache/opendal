@@ -64,9 +64,8 @@ pub async fn test_read_file(op: Operator) -> Result<()> {
     let res = op.read("normal_file").await;
 
     if op.info().can_read() {
-        match res {
-            Err(err) => assert_ne!(err.kind(), ErrorKind::Unsupported),
-            Ok(_) => {}
+        if let Err(err) = res {
+            assert_ne!(err.kind(), ErrorKind::Unsupported);
         };
     } else {
         assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
@@ -82,9 +81,8 @@ pub async fn test_presign(op: Operator) -> Result<()> {
     let res = op.presign_read(&path, Duration::from_secs(3600)).await;
 
     if op.info().can_presign() {
-        match res {
-            Err(err) => assert_ne!(err.kind(), ErrorKind::Unsupported),
-            Ok(_) => {}
+        if let Err(err) = res {
+            assert_ne!(err.kind(), ErrorKind::Unsupported);
         };
     } else {
         assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);

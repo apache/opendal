@@ -46,9 +46,9 @@ use crate::*;
 ///
 /// # Internal
 ///
-/// So far CompleteLayer will do two completion:
+/// So far `CompleteLayer` will do the following things:
 ///
-/// ## Read
+/// ## Read Completion
 ///
 /// OpenDAL requires all reader implements [`oio::Read`] and
 /// [`oio::BlockingRead`]. However, not all services have the
@@ -105,7 +105,7 @@ use crate::*;
 ///
 /// In this way, we can reduce the extra cost of dropping reader.
 ///
-/// ## List
+/// ## List Completion
 ///
 /// There are two styles of list, but not all services support both of
 /// them. CompleteLayer will add those capabilities in a zero cost way.
@@ -117,6 +117,12 @@ use crate::*;
 /// - If only `flat`, with [`oio::to_flat_pager`].
 /// - if only `hierarchy`, with [`oio::to_hierarchy_pager`].
 /// - If neither not supported, something must be wrong.
+///
+/// ## Capability Check
+///
+/// Before performing any operations, `CompleteLayer` will first check
+/// the operation against capability of the underlying service. If the
+/// operation is not supported, an error will be returned directly.
 ///
 /// [`AccessorHint`]: crate::raw::AccessorHint
 pub struct CompleteLayer;
@@ -152,6 +158,13 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
         let capability = self.meta.capability();
+        if !capability.read {
+            return Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_operation("read"),
+            );
+        }
+
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
 
@@ -201,6 +214,13 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
         let capability = self.meta.capability();
+        if !capability.read {
+            return Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_operation("blocking_read"),
+            );
+        }
+
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
 
@@ -388,6 +408,18 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.complete_blocking_list(path, args)
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let capability = self.meta.capability();
+        if !capability.presign {
+            return Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_operation("presign"),
+            );
+        }
+
+        self.inner.presign(path, args).await
     }
 }
 

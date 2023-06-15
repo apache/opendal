@@ -15,35 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+[package]
+name = "opendal-hs"
+publish = false
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
+[lib]
+crate-type = ["cdylib"]
+doc = false
 
-  "bin/oli",
-  "bin/oay",
-]
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.37.0"
-
-[workspace.dependencies]
-opendal = { version = "0.37", path = "core" }
+[dependencies]
+opendal.workspace = true

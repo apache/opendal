@@ -48,7 +48,7 @@ compiled using version 3.10.1.0 of the Cabal library
 
 ```shell
 cargo build
-LIBRARY_PATH=../../target/debug LD_LIBRARY_PATH=../../target/debug cabal build
+LIBRARY_PATH=../../target/debug cabal build
 ```
 
 To clean up the build:
@@ -63,7 +63,7 @@ cabal clean
 We use [`tasty`](https://hackage.haskell.org/package/tasty) as the test framework. To run the tests:
 
 ```shell
-cabal test
+LD_LIBRARY_PATH=../../target/debug cabal test
 ```
 
 ```text

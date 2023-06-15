@@ -8,16 +8,13 @@ import qualified Data.HashMap.Strict as HashMap
 
 main :: IO ()
 main = do
-  op <- createOp "memory" HashMap.empty
-    case op of
-      Left e -> assertFailure $ "Failed to create operator, " ++ e
-      Right op' -> do
-        _ <- writeOp op' "key1" "value1"
-        _ <- writeOp op' "key2" "value2"
-        value1 <- readOp op' "key1"
-        value2 <- readOp op' "key2"
-        value1 @?= Right "value1"
-        value2 @?= Right "value2"
+    Right op <- operator "memory" HashMap.empty
+    _ <- write op "key1" "value1"
+    _ <- write op "key2" "value2"
+    value1 <- read op "key1"
+    value2 <- read op "key2"
+    value1 @?= "value1"
+    value2 @?= "value2"
 ```
 
 ## Build

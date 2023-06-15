@@ -34,6 +34,7 @@ source-repository head
 library
     exposed-modules:
         OpenDAL
+    other-modules:
         OpenDAL.FFI
     hs-source-dirs:   haskell-src
     default-language: Haskell2010

@@ -17,19 +17,12 @@
 
 [package]
 name = "opendal-hs"
-publish = false
-
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
-opendal.workspace = true
+opendal = { path = "../../core" }

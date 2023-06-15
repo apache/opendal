@@ -41,8 +41,6 @@ mod read_only;
 mod rename;
 #[macro_use]
 mod write;
-#[macro_use]
-mod capability;
 
 mod utils;
 
@@ -91,8 +89,6 @@ macro_rules! behavior_tests {
                     behavior_blocking_list_tests!($service);
                     // can_list && !can_write
                     behavior_list_only_tests!($service);
-                    // unconditional for capability test
-                    behavior_capability_check_tests!($service);
                 }
          )*
         }

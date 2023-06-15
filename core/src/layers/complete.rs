@@ -159,10 +159,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
         let capability = self.meta.capability();
         if !capability.read {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_operation("read"),
-            );
+            return new_capability_unsupported_error(Operation::Read);
         }
 
         let seekable = capability.read_can_seek;
@@ -215,10 +212,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
         let capability = self.meta.capability();
         if !capability.read {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_operation("blocking_read"),
-            );
+            return new_capability_unsupported_error(Operation::BlockingRead);
         }
 
         let seekable = capability.read_can_seek;
@@ -413,10 +407,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let capability = self.meta.capability();
         if !capability.presign {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_operation("presign"),
-            );
+            return new_capability_unsupported_error(Operation::Presign);
         }
 
         self.inner.presign(path, args).await
@@ -752,5 +743,121 @@ where
         a.close().await?;
         self.inner = None;
         Ok(())
+    }
+}
+
+fn new_capability_unsupported_error<R>(operation: Operation) -> Result<R> {
+    Err(Error::new(ErrorKind::Unsupported, "operation is not supported").with_operation(operation))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::time::Duration;
+
+    use async_trait::async_trait;
+    use http::HeaderMap;
+    use http::Method as HttpMethod;
+
+    use super::*;
+
+    #[derive(Default)]
+    struct MockBuilder {
+        capability: Capability,
+    }
+
+    impl MockBuilder {
+        fn with_capacity(mut self, capability: Capability) -> Self {
+            self.capability = capability;
+            self
+        }
+    }
+
+    impl Builder for MockBuilder {
+        const SCHEME: Scheme = Scheme::Custom("mock");
+        type Accessor = MockService;
+
+        fn from_map(_: HashMap<String, String>) -> Self {
+            Self::default()
+        }
+
+        fn build(&mut self) -> Result<Self::Accessor> {
+            Ok(MockService {
+                capability: self.capability,
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockService {
+        capability: Capability,
+    }
+
+    #[async_trait]
+    impl Accessor for MockService {
+        type Reader = ();
+        type BlockingReader = ();
+        type Writer = ();
+        type BlockingWriter = ();
+        type Appender = ();
+        type Pager = ();
+        type BlockingPager = ();
+
+        fn info(&self) -> AccessorInfo {
+            let mut info = AccessorInfo::default();
+            info.set_capability(self.capability);
+
+            info
+        }
+
+        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+            Ok((RpRead::new(0), ()))
+        }
+
+        async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+            Ok((RpWrite::new(), ()))
+        }
+
+        async fn presign(&self, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Ok(RpPresign::new(PresignedRequest::new(
+                HttpMethod::POST,
+                "https://example.com/presign".parse().expect("should parse"),
+                HeaderMap::new(),
+            )))
+        }
+    }
+
+    /// Perform the test against different capability preconditions.
+    macro_rules! capability_test {
+        ($cap_field:ident, |$arg:ident| { $($body:tt)* }) => {
+            let res_builder = |$arg: Operator| async move {
+                let res = { $($body)* };
+                res.await.err()
+            };
+
+            let builder = MockBuilder::default().with_capacity(Capability {
+                $cap_field: false,
+                ..Default::default()
+            });
+            let op = Operator::new(builder).expect("should build").finish();
+            let res = res_builder(op.clone()).await;
+            assert_eq!(res.expect("should not be None").kind(), ErrorKind::Unsupported);
+
+            let builder = MockBuilder::default().with_capacity(Capability {
+                $cap_field: true,
+                ..Default::default()
+            });
+            let op = Operator::new(builder).expect("should build").finish();
+            let res = res_builder(op.clone()).await;
+            assert!(res.is_none());
+        };
+    }
+
+    #[tokio::test]
+    async fn test_capability() {
+        capability_test!(read, |op| { op.read("/path/to/mock_file") });
+        capability_test!(presign, |op| {
+            op.presign_read("/path/to/mock_file", Duration::from_secs(1))
+        });
     }
 }

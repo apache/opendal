@@ -13,3 +13,4 @@ It's a good idea to start reading from the first chapter. It's also ok to pick t
 ## Contents
 
 - [Chapter-00: Set up Your First Rust Project](./00-setup/README.md)
+- [Chapter-01: Initiate OpenDAL Operator](./01-init-operator/README.md)

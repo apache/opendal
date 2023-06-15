@@ -1,0 +1,9 @@
+[package]
+name = "init-operator"
+
+edition = "2021"
+version = "0.1.0"
+
+[dependencies]
+futures = "0.3"
+opendal = "0.37"

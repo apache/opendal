@@ -48,7 +48,7 @@ compiled using version 3.10.1.0 of the Cabal library
 
 ```shell
 cargo build
-LIBRARY_PATH=../../target/debug cabal build
+LIBRARY_PATH=../../target/debug LD_LIBRARY_PATH=../../target/debug cabal build
 ```
 
 To clean up the build:
@@ -81,6 +81,7 @@ If you don't want to specify `LIBRARY_PATH` every time, you can use [`direnv`](h
 
 ```shell
 export LIBRARY_PATH=../../target/debug:LIBRARY_PATH
+export LD_LIBRARY_PATH=../../target/debug:LD_LIBRARY_PATH
 ```
 
 If you are using [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell) in VSCode, you may need to add the following configuration to your `settings.json`:

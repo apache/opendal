@@ -52,3 +52,7 @@ wget -q https://github.com/marler8997/zigup/releases/download/v2022_08_25/zigup.
 unzip zigup.ubuntu-latest-x86_64.zip -d /usr/bin
 chmod +x /usr/bin/zigup
 zigup master #TODO: replace to 0.11.0 (stable)
+
+# Setup for Haskell binding
+sudo apt install -y ghc cabal-install
+cabal update

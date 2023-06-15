@@ -43,7 +43,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup@v2
+      - name: Setup Haskell toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghc cabal-install
+          cabal update
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Build & Test

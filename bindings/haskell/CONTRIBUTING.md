@@ -77,7 +77,7 @@ Test suite logged to:
 
 ## Misc
 
-If you don't want to specify `LIBRARY_PATH` every time, you can use [`direnv`](https://direnv.net/) to set the environment variable automatically. Add the following to your `.envrc`:
+If you don't want to specify `LIBRARY_PATH` and `LD_LIBRARY_PATH` every time, you can use [`direnv`](https://direnv.net/) to set the environment variable automatically. Add the following to your `.envrc`:
 
 ```shell
 export LIBRARY_PATH=../../target/debug:LIBRARY_PATH

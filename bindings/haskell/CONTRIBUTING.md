@@ -48,7 +48,7 @@ compiled using version 3.10.1.0 of the Cabal library
 
 ```shell
 cargo build
-LIBRARY_PATH=../../build/debug cabal build
+LIBRARY_PATH=../../target/debug cabal build
 ```
 
 To clean up the build:

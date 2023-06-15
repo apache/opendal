@@ -25,7 +25,18 @@ use std::os::raw::c_char;
 use std::ptr;
 use std::str::FromStr;
 
-// FFI wrapper for via_map function
+/// # Safety
+///
+/// * The `keys`, `values`, `len` are valid from `HashMap`.
+/// * The memory pointed to by `scheme` contain a valid nul terminator at the end of
+///   the string.
+/// * The `result` is a valid pointer, and has available memory to write to.
+///
+/// # Panics
+///
+/// * If `keys` or `values` are not valid pointers.
+/// * If `len` is not the same for `keys` and `values`.
+/// * If `result` is not a valid pointer.
 #[no_mangle]
 pub unsafe extern "C" fn via_map_ffi(
     scheme: *const c_char,
@@ -72,6 +83,13 @@ pub unsafe extern "C" fn via_map_ffi(
     *result = res;
 }
 
+/// # Safety
+///
+/// * `operator` is a valid pointer to a `BlockingOperator`.
+///
+/// # Panics
+///
+/// * If `operator` is not a valid pointer.
 #[no_mangle]
 pub unsafe extern "C" fn free_operator(operator: *mut od::BlockingOperator) {
     if !operator.is_null() {
@@ -97,6 +115,13 @@ impl ByteSlice {
         ByteSlice { data, len }
     }
 
+    /// # Safety
+    ///
+    /// * `ptr` is a valid pointer to a `ByteSlice`.
+    ///
+    /// # Panics
+    ///
+    /// * If `ptr` is not a valid pointer.
     #[no_mangle]
     pub unsafe extern "C" fn free_byteslice(ptr: *mut c_char, len: usize) {
         if !ptr.is_null() {
@@ -105,12 +130,22 @@ impl ByteSlice {
     }
 }
 
-impl Into<Vec<u8>> for &mut ByteSlice {
-    fn into(self) -> Vec<u8> {
-        unsafe { Vec::from_raw_parts(self.data as *mut u8, self.len, self.len) }
+impl From<&mut ByteSlice> for Vec<u8> {
+    fn from(val: &mut ByteSlice) -> Self {
+        unsafe { Vec::from_raw_parts(val.data as *mut u8, val.len, val.len) }
     }
 }
 
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
 #[no_mangle]
 pub unsafe extern "C" fn blocking_read(
     op: *mut od::BlockingOperator,
@@ -140,6 +175,19 @@ pub unsafe extern "C" fn blocking_read(
     *result = res;
 }
 
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `bytes` is a valid pointer to a byte array.
+/// * `len` is the length of `bytes`.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `bytes` is not a valid pointer, or `len` is more than the length of `bytes`.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
 #[no_mangle]
 pub unsafe extern "C" fn blocking_write(
     op: *mut od::BlockingOperator,

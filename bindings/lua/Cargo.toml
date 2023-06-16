@@ -15,36 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+[package]
+name = "opendal-lua"
+publish = false
+version = "0.1.0"
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
 
-  "bin/oli",
-  "bin/oay",
-]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.37.0"
+[lib]
+crate-type = ["cdylib"]
 
-[workspace.dependencies]
-opendal = { version = "0.37", path = "core" }
+[dependencies]
+mlua = { version = "0.8", features = ["lua54", "vendored", "module"] }
+opendal.workspace = true

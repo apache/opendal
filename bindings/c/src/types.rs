@@ -138,7 +138,7 @@ impl opendal_bytes {
 impl Into<bytes::Bytes> for opendal_bytes {
     fn into(self) -> bytes::Bytes {
         let slice = unsafe { std::slice::from_raw_parts(self.data, self.len) };
-        bytes::Bytes::from_static(slice)
+        bytes::Bytes::copy_from_slice(slice)
     }
 }
 

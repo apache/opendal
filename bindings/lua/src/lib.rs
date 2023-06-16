@@ -127,6 +127,13 @@ fn operator_close<'a>(_: &'a Lua, operator: LuaTable<'a>) -> LuaResult<()> {
     Ok(())
 }
 
+
+fn hello(_: &Lua, name: String) -> LuaResult<()> {
+    println!("hello, {}!", name);
+    Ok(())
+}
+
+
 #[mlua::lua_module]
 fn opendal(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
@@ -134,6 +141,7 @@ fn opendal(lua: &Lua) -> LuaResult<LuaTable> {
     operator.set("new", lua.create_function(operator_new)?)?;
 
     exports.set("operator", operator)?;
+    exports.set("hello", lua.create_function(hello)?)?;
 
     Ok(exports)
 }

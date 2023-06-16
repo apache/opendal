@@ -27,5 +27,4 @@ if err ~= nil then
     return
 end
 op:write("test.txt","hello world")
-print("read: ", op:read("/tmp/test.txt"))
-op:close()
+print("read: ", op:read("test.txt"))

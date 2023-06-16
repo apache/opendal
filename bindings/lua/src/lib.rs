@@ -17,9 +17,9 @@
 
 use std::{collections::HashMap, str::FromStr};
 
+use ::opendal as od;
 use mlua::prelude::*;
 use mlua::UserData;
-use ::opendal as od;
 
 #[derive(Clone)]
 struct ODOperator {
@@ -28,8 +28,11 @@ struct ODOperator {
 
 impl UserData for ODOperator {}
 
-fn operator_new<'a>(lua: &'a Lua, (schema, option):  (String, LuaTable<'a>))-> LuaResult<LuaTable<'a>> {
-    if schema.len() == 0 {
+fn operator_new<'a>(
+    lua: &'a Lua,
+    (schema, option): (String, LuaTable<'a>),
+) -> LuaResult<LuaTable<'a>> {
+    if schema.is_empty() {
         return Err(LuaError::external("schema is empty"));
     }
 
@@ -43,7 +46,6 @@ fn operator_new<'a>(lua: &'a Lua, (schema, option):  (String, LuaTable<'a>))-> L
         Ok(s) => s,
         Err(e) => return Err(LuaError::external(e)),
     };
-
 
     let op = match od::Operator::via_map(od_schema, map) {
         Ok(o) => o.blocking(),
@@ -63,7 +65,7 @@ fn operator_new<'a>(lua: &'a Lua, (schema, option):  (String, LuaTable<'a>))-> L
     Ok(operator)
 }
 
-fn operator_is_exist<'a>(_: &'a Lua, (operator, path):  (LuaTable<'a>, String))-> LuaResult<bool> {
+fn operator_is_exist<'a>(_: &'a Lua, (operator, path): (LuaTable<'a>, String)) -> LuaResult<bool> {
     let op = operator.get::<_, ODOperator>("_operator")?;
     let op = op.operator;
 
@@ -75,35 +77,7 @@ fn operator_is_exist<'a>(_: &'a Lua, (operator, path):  (LuaTable<'a>, String))-
     }
 }
 
-// fn operator_stat<'a>(lua: &'a Lua, (operator, path):  (LuaTable<'a>, String))-> LuaResult<LuaTable<'a>> {
-//     let op = operator.get::<_, ODOperator>("_operator")?;
-//     let op = op.operator;
-
-//     let path = path.as_str();
-//     let res = op.stat(path);
-//     match res {
-//         Ok(meta) => {
-//             let lua_meta = lua.create_table()?;
-//             let entry = match meta.mode {
-//                 Some(e) => e,
-//                 None => return Err(LuaError::external("entry is empty")),
-//             };
-
-//             lua_meta.set("size", meta.size)?;
-//             lua_meta.set("is_dir", meta.is_dir)?;
-//             lua_meta.set("is_file", meta.is_file)?;
-//             lua_meta.set("is_symlink", meta.is_symlink)?;
-//             lua_meta.set("is_fifo", meta.is_fifo)?;
-//             for (key, value) in meta {
-//                 lua_meta.set(key, value)?;
-//             }
-//             Ok(lua_meta)
-//         },
-//         Err(e) => Err(LuaError::external(e)),
-//     }
-// }
-
-fn operator_delete<'a>(_: &'a Lua, (operator, path):  (LuaTable<'a>, String))-> LuaResult<()> {
+fn operator_delete<'a>(_: &'a Lua, (operator, path): (LuaTable<'a>, String)) -> LuaResult<()> {
     let op = operator.get::<_, ODOperator>("_operator")?;
     let op = op.operator;
 
@@ -115,7 +89,10 @@ fn operator_delete<'a>(_: &'a Lua, (operator, path):  (LuaTable<'a>, String))-> 
     }
 }
 
-fn operator_write<'a>(_: &'a Lua, (operator, path, bytes):  (LuaTable<'a>, String, String))-> LuaResult<()> {
+fn operator_write<'a>(
+    _: &'a Lua,
+    (operator, path, bytes): (LuaTable<'a>, String, String),
+) -> LuaResult<()> {
     let op = operator.get::<_, ODOperator>("_operator")?;
     let op = op.operator;
 
@@ -127,7 +104,10 @@ fn operator_write<'a>(_: &'a Lua, (operator, path, bytes):  (LuaTable<'a>, Strin
     }
 }
 
-fn operator_read<'a>(lua: &'a Lua, (operator, path):  (LuaTable<'a>, String))-> LuaResult<LuaString<'a>> {
+fn operator_read<'a>(
+    lua: &'a Lua,
+    (operator, path): (LuaTable<'a>, String),
+) -> LuaResult<LuaString<'a>> {
     let op = operator.get::<_, ODOperator>("_operator")?;
     let op = op.operator;
 
@@ -144,13 +124,6 @@ fn operator_close<'a>(_: &'a Lua, operator: LuaTable<'a>) -> LuaResult<()> {
     Ok(())
 }
 
-
-fn hello(_: &Lua, name: String) -> LuaResult<()> {
-    println!("hello, {}!", name);
-    Ok(())
-}
-
-
 #[mlua::lua_module]
 fn opendal(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
@@ -158,7 +131,6 @@ fn opendal(lua: &Lua) -> LuaResult<LuaTable> {
     operator.set("new", lua.create_function(operator_new)?)?;
 
     exports.set("operator", operator)?;
-    exports.set("hello", lua.create_function(hello)?)?;
 
     Ok(exports)
 }

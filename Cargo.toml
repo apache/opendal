@@ -31,6 +31,7 @@ members = [
   "bindings/ruby",
   "bindings/java",
   "bindings/haskell",
+  "bindings/lua",
 
   "bin/oli",
   "bin/oay",

@@ -27,15 +27,40 @@ basicTests :: TestTree
 basicTests =
   testGroup
     "Basic Tests"
-    [ testCase "read and write to memory" testReadAndWriteToMemory
+    [ testCase "test-memory" testMemory
+    , testCase "test-fs" testFs
     ]
 
-testReadAndWriteToMemory :: Assertion
-testReadAndWriteToMemory = do
-  Right op <- createOp "memory" HashMap.empty
-  _ <- writeOp op "key1" "value1"
-  _ <- writeOp op "key2" "value2"
-  value1 <- readOp op "key1"
-  value2 <- readOp op "key2"
-  value1 @?= Right "value1"
-  value2 @?= Right "value2"
+testMemory :: Assertion
+testMemory = do
+  Right op <- newOp "memory" $ HashMap.empty
+  writeOp op "key1" "value1" >>= (@?= Right ())
+  writeOp op "key2" "value2" >>= (@?= Right ())
+  readOp op "key1" >>= (@?= Right "value1")
+  readOp op "key2" >>= (@?= Right "value2")
+  isExistOp op "key1" >>= (@?= Right True)
+  isExistOp op "key2" >>= (@?= Right True)
+  createDirOp op "dir1/" >>= (@?= Right ())
+  isExistOp op "dir1/" >>= (@?= Right True)
+  deleteOp op "key1" >>= (@?= Right ())
+  isExistOp op "key1" >>= (@?= Right False)
+
+testFs :: Assertion
+testFs = do
+  Right op <- newOp "fs" $ HashMap.fromList [("root", "/tmp/opendal-test")]
+  writeOp op "key1" "value1" >>= (@?= Right ())
+  writeOp op "key2" "value2" >>= (@?= Right ())
+  readOp op "key1" >>= (@?= Right "value1")
+  readOp op "key2" >>= (@?= Right "value2")
+  isExistOp op "key1" >>= (@?= Right True)
+  isExistOp op "key2" >>= (@?= Right True)
+  createDirOp op "dir1/" >>= (@?= Right ())
+  isExistOp op "dir1/" >>= (@?= Right True)
+  copyOp op "key1" "key3" >>= (@?= Right ())
+  isExistOp op "key3" >>= (@?= Right True)
+  isExistOp op "key1" >>= (@?= Right True)
+  renameOp op "key2" "key4" >>= (@?= Right ())
+  isExistOp op "key4" >>= (@?= Right True)
+  isExistOp op "key2" >>= (@?= Right False)
+  deleteOp op "key1" >>= (@?= Right ())
+  isExistOp op "key1" >>= (@?= Right False)

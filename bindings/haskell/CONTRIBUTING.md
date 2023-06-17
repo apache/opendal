@@ -80,14 +80,14 @@ Test suite logged to:
 If you don't want to specify `LIBRARY_PATH` and `LD_LIBRARY_PATH` every time, you can use [`direnv`](https://direnv.net/) to set the environment variable automatically. Add the following to your `.envrc`:
 
 ```shell
-export LIBRARY_PATH=../../target/debug:LIBRARY_PATH
-export LD_LIBRARY_PATH=../../target/debug:LD_LIBRARY_PATH
+export LIBRARY_PATH=../../target/debug:$LIBRARY_PATH
+export LD_LIBRARY_PATH=../../target/debug:$LD_LIBRARY_PATH
 ```
 
 If you are using [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell) in VSCode, you may need to add the following configuration to your `settings.json`:
 
 ```json
 "haskell.serverEnvironment": {
-    "LIBRARY_PATH": "../../target/debug:LIBRARY_PATH"
+    "LIBRARY_PATH": "../../target/debug:$LIBRARY_PATH"
 },
 ```

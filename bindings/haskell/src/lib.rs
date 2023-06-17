@@ -21,8 +21,8 @@ use ::opendal as od;
 use result::FFIResult;
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::mem;
 use std::os::raw::c_char;
-use std::ptr;
 use std::str::FromStr;
 
 /// # Safety
@@ -76,8 +76,8 @@ pub unsafe extern "C" fn via_map_ffi(
         .collect::<HashMap<String, String>>();
 
     let res = match od::Operator::via_map(scheme, map) {
-        Ok(operator) => FFIResult::ok(Box::into_raw(Box::new(operator.blocking()))),
-        Err(_) => FFIResult::err("Failed to create Operator via map"),
+        Ok(operator) => FFIResult::ok(operator.blocking()),
+        Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
     };
 
     *result = res;
@@ -168,8 +168,8 @@ pub unsafe extern "C" fn blocking_read(
     };
 
     let res = match op.read(path_str) {
-        Ok(bytes) => FFIResult::ok(Box::into_raw(Box::new(ByteSlice::from_vec(bytes)))),
-        Err(_) => FFIResult::err("Failed to read from Operator"),
+        Ok(bytes) => FFIResult::ok(ByteSlice::from_vec(bytes)),
+        Err(e) => FFIResult::err_with_source("Failed to read", e),
     };
 
     *result = res;
@@ -213,9 +213,227 @@ pub unsafe extern "C" fn blocking_write(
 
     let bytes = Vec::from_raw_parts(bytes as *mut u8, len, len);
 
-    let res = match op.write(path_str, bytes) {
-        Ok(()) => FFIResult::ok(ptr::null_mut()),
-        Err(_) => FFIResult::err("Failed to read from Operator"),
+    let res = match op.write(path_str, bytes.clone()) {
+        Ok(()) => FFIResult::ok(()),
+        Err(e) => FFIResult::err_with_source("Failed to write", e),
+    };
+
+    *result = res;
+
+    // bytes memory is controlled by Haskell, we can't drop it here
+    mem::forget(bytes);
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_is_exist(
+    op: *mut od::BlockingOperator,
+    path: *const c_char,
+    result: *mut FFIResult<bool>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.is_exist(path_str) {
+        Ok(exist) => FFIResult::ok(exist),
+        Err(e) => FFIResult::err_with_source("Failed to check if path exists", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_create_dir(
+    op: *mut od::BlockingOperator,
+    path: *const c_char,
+    result: *mut FFIResult<()>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.create_dir(path_str) {
+        Ok(()) => FFIResult::ok(()),
+        Err(e) => FFIResult::err_with_source("Failed to create directory", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path_from` is a valid pointer to a nul terminated string.
+/// * `path_to` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_copy(
+    op: *mut od::BlockingOperator,
+    path_from: *const c_char,
+    path_to: *const c_char,
+    result: *mut FFIResult<()>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_from_str = match CStr::from_ptr(path_from).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let path_to_str = match CStr::from_ptr(path_to).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.copy(path_from_str, path_to_str) {
+        Ok(()) => FFIResult::ok(()),
+        Err(e) => FFIResult::err_with_source("Failed to copy", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path_from` is a valid pointer to a nul terminated string.
+/// * `path_to` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_rename(
+    op: *mut od::BlockingOperator,
+    path_from: *const c_char,
+    path_to: *const c_char,
+    result: *mut FFIResult<()>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_from_str = match CStr::from_ptr(path_from).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let path_to_str = match CStr::from_ptr(path_to).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.rename(path_from_str, path_to_str) {
+        Ok(()) => FFIResult::ok(()),
+        Err(e) => FFIResult::err_with_source("Failed to rename", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_delete(
+    op: *mut od::BlockingOperator,
+    path: *const c_char,
+    result: *mut FFIResult<()>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.delete(path_str) {
+        Ok(()) => FFIResult::ok(()),
+        Err(e) => FFIResult::err_with_source("Failed to delete", e),
     };
 
     *result = res;

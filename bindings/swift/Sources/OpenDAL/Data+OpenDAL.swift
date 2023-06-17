@@ -15,13 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// A type that represents an underlying service for Operators.
-public protocol Service {
-    /// The scheme for this service.
-    static var scheme: String { get }
-}
+import Foundation
+import COpenDAL
 
-/// In memory service support. (BTreeMap Based)
-public struct MemoryService: Service {
-    public static let scheme = "memory"
+extension Data {
+    /// Creates a new data by managing `opendal_bytes` as its
+    /// underlying buffer.
+    ///
+    /// This can be used to read data from Rust with zero-copying.
+    /// The underlying buffer will be freed when the data gets
+    /// deallocated.
+    init?(openDALBytes: UnsafeMutablePointer<opendal_bytes>) {
+        guard let address = UnsafeRawPointer(openDALBytes.pointee.data) else {
+            return nil
+        }
+        let length = Int(openDALBytes.pointee.len)
+        self.init(bytesNoCopy: .init(mutating: address),
+                  count: length,
+                  deallocator: .custom({ _, _ in
+            opendal_bytes_free(openDALBytes)
+        }))
+    }
 }

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import Foundation
 import COpenDAL
 
 public enum OperatorError: Error {
@@ -23,7 +24,7 @@ public enum OperatorError: Error {
 }
 
 /// A type used to access almost all OpenDAL APIs.
-public class Operator<S: Service> {
+public class Operator {
     var nativeOp: opendal_operator_ptr
     
     deinit {
@@ -36,7 +37,7 @@ public class Operator<S: Service> {
     ///
     /// - Parameter options: The option map for creating the operator.
     /// - Throws: `OperatorError` value that indicates an error if failed.
-    public init(options: [String : String]) throws {
+    public init(scheme: String, options: [String : String]) throws {
         var nativeOptions = opendal_operator_options_new()
         nativeOp = withUnsafeMutablePointer(to: &nativeOptions) { nativeOptionsPtr in
             defer {
@@ -47,7 +48,7 @@ public class Operator<S: Service> {
                 opendal_operator_options_set(nativeOptionsPtr, option.key, option.value)
             }
             
-            return opendal_operator_new(S.scheme, nativeOptionsPtr)
+            return opendal_operator_new(scheme, nativeOptionsPtr)
         }
         
         guard nativeOp.ptr != nil else {
@@ -60,15 +61,10 @@ public class Operator<S: Service> {
     /// - Parameter data: The content to be written.
     /// - Parameter path: The destination path for writing the data.
     /// - Throws: `OperatorError` value that indicates an error if failed to write.
-    public func blockingWrite<D: COWData>(_ data: D, to path: String) throws {
-        let code = data.withBorrowedPointer { dataPointer in
-            // FIXME: The C binding has a bug that assumes any buffer are with
-            // static lifetime, we must leak the buffer here as a workaround.
-            let copied = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: dataPointer.count)
-            dataPointer.copyBytes(to: .init(start: copied.baseAddress, count: copied.count))
-            
-            let bytes = opendal_bytes(data: copied.baseAddress,
-                                      len: UInt(copied.count))
+    public func blockingWrite(_ data: Data, to path: String) throws {
+        let code = data.withUnsafeBytes { dataPointer in
+            let address = dataPointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+            let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count))
             return opendal_operator_blocking_write(nativeOp, path, bytes)
         }
         
@@ -82,12 +78,12 @@ public class Operator<S: Service> {
     /// - Parameter path: Path of the data to read.
     /// - Returns: `NativeData` object if the data exists.
     /// - Throws: `OperatorError` value that indicates an error if failed to read.
-    public func blockingRead(_ path: String) throws -> NativeData {
+    public func blockingRead(_ path: String) throws -> Data? {
         let result = opendal_operator_blocking_read(nativeOp, path)
         guard result.code == OPENDAL_OK else {
             throw OperatorError.operationError(result.code.rawValue)
         }
         
-        return .init(nativeBytesPtr: result.data)
+        return .init(openDALBytes: result.data)
     }
 }

@@ -20,18 +20,20 @@ import XCTest
 
 final class OpenDALTests: XCTestCase {
     func testSimple() throws {
-        let op = try Operator<MemoryService>(options: [
+        let op = try Operator(scheme: "memory", options: [
             "root": "/myroot"
         ])
         
         let testContents = Data([1, 2, 3, 4])
         try op.blockingWrite(testContents, to: "test")
         
-        let readResult = try op.blockingRead("test")
-        readResult.withBorrowedData { readContents in
-            for (testByte, readByte) in zip(testContents, readContents) {
-                XCTAssertEqual(testByte, readByte)
-            }
+        guard let readContents = try op.blockingRead("test") else {
+            XCTFail("Expected a `Data`")
+            return
+        }
+        
+        for (testByte, readByte) in zip(testContents, readContents) {
+            XCTAssertEqual(testByte, readByte)
         }
         
         XCTAssertThrowsError(try op.blockingRead("test_not_exists"))

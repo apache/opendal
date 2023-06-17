@@ -37,7 +37,7 @@ public class Operator {
     ///
     /// - Parameter options: The option map for creating the operator.
     /// - Throws: `OperatorError` value that indicates an error if failed.
-    public init(scheme: String, options: [String : String]) throws {
+    public init(scheme: String, options: [String : String] = [:]) throws {
         var nativeOptions = opendal_operator_options_new()
         nativeOp = withUnsafeMutablePointer(to: &nativeOptions) { nativeOptionsPtr in
             defer {

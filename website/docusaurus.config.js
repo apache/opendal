@@ -44,6 +44,20 @@ const config = {
     locales: ['en'],
   },
 
+  plugins: [
+    [
+      'content-docs',
+      ({
+        id: 'community',
+        path: 'community',
+        routeBasePath: 'community',
+        sidebarPath: require.resolve('./community/sidebars.js'),
+        showLastUpdateAuthor: true,
+        showLastUpdateTime: true,
+      })
+    ]
+  ],
+
   presets: [
     [
       '@docusaurus/preset-classic',
@@ -102,10 +116,6 @@ const config = {
                 to: '/docs/overview'
               },
               {
-                label: 'Contributing',
-                to: '/docs/category/contributing'
-              },
-              {
                 label: 'Services',
                 to: '/docs/category/services'
               },
@@ -141,6 +151,11 @@ const config = {
             label: 'Community',
             position: 'right',
             items: [
+              {
+                label: 'Contributing',
+                to: '/community/contributing/release',
+                activeBaseRegex: `/community/`
+              },
               {
                 label: 'Source Code',
                 to: repoAddress

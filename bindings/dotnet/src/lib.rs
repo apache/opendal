@@ -1,4 +1,48 @@
+use std::collections::HashMap;
+use std::os::raw::c_char;
+use std::str::FromStr;
+
 #[no_mangle]
-pub extern "C" fn my_add(x: i32, y: i32) -> i32 {
-    x + y
+pub extern "C" fn blocking_operator_construct(
+    scheme: *const c_char,
+) -> *const opendal::BlockingOperator {
+    if scheme.is_null() {
+        return std::ptr::null();
+    }
+
+    let scheme = match opendal::Scheme::from_str(unsafe {
+        std::ffi::CStr::from_ptr(scheme).to_str().unwrap()
+    }) {
+        Ok(scheme) => scheme,
+        Err(_) => return std::ptr::null(),
+    };
+
+    let map = HashMap::default();
+
+    let op = match opendal::Operator::via_map(scheme, map) {
+        Ok(op) => op.blocking(),
+        Err(_) => return std::ptr::null(),
+    };
+
+    Box::leak(Box::new(op))
+}
+
+#[no_mangle]
+pub extern "C" fn blocking_operator_write(
+    op: *const opendal::BlockingOperator,
+    path: *const c_char,
+) {
+    let op = unsafe { &*(op) };
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    op.write(path, "12345").unwrap();
+}
+
+#[no_mangle]
+pub extern "C" fn blocking_operator_read(
+    op: *const opendal::BlockingOperator,
+    path: *const c_char,
+) {
+    let op = unsafe { &*(op) };
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    let res = op.read(path).unwrap();
 }

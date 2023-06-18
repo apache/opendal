@@ -15,7 +15,6 @@ public class UnitTest1
     [Fact]
     public void Test1()
     {
-        var x = BlockingOperator.my_add(1, 2);
-        output.WriteLine("{0}", x);
+        output.WriteLine("{0}", 42);
     }
 }

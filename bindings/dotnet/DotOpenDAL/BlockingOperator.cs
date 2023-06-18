@@ -23,6 +23,41 @@ namespace DotOpenDAL;
 
 public class BlockingOperator
 {
-    [DllImport("opendal_dotnet", EntryPoint = "my_add", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-    public static extern int my_add(int x, int y);
+    private readonly IntPtr op;
+
+    public BlockingOperator()
+    {
+        op = blocking_operator_construct("memory");
+    }
+
+    public void Write(string path)
+    {
+        blocking_operator_write(op, path);
+    }
+
+    public string Read(string path)
+    {
+        return blocking_operator_read(op, path);
+    }
+
+    [DllImport(
+        "opendal_dotnet",
+        EntryPoint = "blocking_operator_construct",
+        CallingConvention = CallingConvention.Cdecl,
+        CharSet = CharSet.Unicode)]
+    private static extern IntPtr blocking_operator_construct(string scheme);
+
+    [DllImport(
+        "opendal_dotnet",
+        EntryPoint = "blocking_operator_read",
+        CallingConvention = CallingConvention.Cdecl,
+        CharSet = CharSet.Unicode)]
+    private static extern void blocking_operator_write(IntPtr op, string path);
+
+    [DllImport(
+        "opendal_dotnet",
+        EntryPoint = "blocking_operator_read",
+        CallingConvention = CallingConvention.Cdecl,
+        CharSet = CharSet.Unicode)]
+    private static extern string blocking_operator_read(IntPtr op, string path);
 }

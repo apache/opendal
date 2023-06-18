@@ -48,35 +48,23 @@ impl opendal_operator_ptr {
     /// # Example
     ///
     /// ```C
-    /// opendal_operator_ptr ptr = opendal_operator_new("fs", NULL);
+    /// opendal_operator_ptr *ptr = opendal_operator_new("fs", NULL);
     /// // ... use this ptr, maybe some reads and writes
     ///
     /// // free this operator
-    /// opendal_operator_free(&ptr);
+    /// opendal_operator_free(ptr);
     /// ```
     #[no_mangle]
-    pub extern "C" fn opendal_operator_free(&self) {
-        if self.is_null() {
+    pub unsafe extern "C" fn opendal_operator_free(op: *const opendal_operator_ptr) {
+        if op.is_null() || unsafe { (*op).ptr.is_null() } {
             return;
         }
-        let _ = unsafe { Box::from_raw(self.ptr as *mut od::BlockingOperator) };
+        let _ = unsafe { Box::from_raw((*op).ptr as *mut od::BlockingOperator) };
+        let _ = unsafe { Box::from_raw(op as *mut opendal_operator_ptr) };
     }
 }
 
 impl opendal_operator_ptr {
-    /// Creates an OperatorPtr will nullptr, indicating this [`opendal_operator_ptr`]
-    /// is invalid.
-    pub(crate) fn null() -> Self {
-        Self {
-            ptr: std::ptr::null(),
-        }
-    }
-
-    /// Returns whether this points to NULL
-    pub(crate) fn is_null(&self) -> bool {
-        self.ptr.is_null()
-    }
-
     /// Returns a reference to the underlying [`od::BlockingOperator`]
     pub(crate) fn as_ref(&self) -> &od::BlockingOperator {
         unsafe { &*(self.ptr) }
@@ -176,8 +164,8 @@ impl opendal_metadata {
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
     /// assert(s.code == OPENDAL_OK);
     ///
-    /// opendal_metadata meta = s.meta;
-    /// assert(opendal_metadata_content_length(&meta) == 13);
+    /// opendal_metadata *meta = s.meta;
+    /// assert(opendal_metadata_content_length(meta) == 13);
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_content_length(&self) -> u64 {
@@ -194,8 +182,8 @@ impl opendal_metadata {
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
     /// assert(s.code == OPENDAL_OK);
     ///
-    /// opendal_metadata meta = s.meta;
-    /// assert(opendal_metadata_is_file(&meta));
+    /// opendal_metadata *meta = s.meta;
+    /// assert(opendal_metadata_is_file(meta));
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_is_file(&self) -> bool {
@@ -212,10 +200,10 @@ impl opendal_metadata {
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
     /// assert(s.code == OPENDAL_OK);
     ///
-    /// opendal_metadata meta = s.meta;
+    /// opendal_metadata *meta = s.meta;
     ///
     /// // this is not a directory
-    /// assert(!opendal_metadata_is_dir(&meta));
+    /// assert(!opendal_metadata_is_dir(meta));
     /// ```
     ///
     /// \todo This is not a very clear example. A clearer example will be added
@@ -229,17 +217,10 @@ impl opendal_metadata {
 }
 
 impl opendal_metadata {
-    /// Return a null metadata
-    pub(crate) fn null() -> Self {
-        Self {
-            inner: std::ptr::null(),
-        }
-    }
-
     /// Convert a Rust core [`od::Metadata`] into a heap allocated C-compatible
     /// [`opendal_metadata`]
-    pub(crate) fn from_metadata(m: od::Metadata) -> Self {
-        Self {
+    pub(crate) fn from_metadata(m: od::Metadata) -> *const Self {
+        &Self {
             inner: Box::leak(Box::new(m)),
         }
     }
@@ -268,11 +249,13 @@ impl opendal_operator_options {
     ///
     /// @see opendal_operator_option_set
     #[no_mangle]
-    pub extern "C" fn opendal_operator_options_new() -> Self {
+    pub extern "C" fn opendal_operator_options_new() -> *mut Self {
         let map: HashMap<String, String> = HashMap::default();
-        Self {
+        let options = Self {
             inner: Box::leak(Box::new(map)),
-        }
+        };
+
+        Box::leak(Box::new(options))
     }
 
     /// \brief Set a Key-Value pair inside opendal_operator_options
@@ -285,8 +268,8 @@ impl opendal_operator_options {
     /// # Example
     ///
     /// ```C
-    /// opendal_operator_options options = opendal_operator_options_new();
-    /// opendal_operator_options_set(&options, "root", "/myroot");
+    /// opendal_operator_options *options = opendal_operator_options_new();
+    /// opendal_operator_options_set(options, "root", "/myroot");
     ///
     /// // .. use your opendal_operator_options
     ///
@@ -316,10 +299,13 @@ impl opendal_operator_options {
 
     /// \brief Free the allocated memory used by [`opendal_operator_options`]
     #[no_mangle]
-    pub extern "C" fn opendal_operator_options_free(&self) {
-        if self.inner.is_null() {
+    pub unsafe extern "C" fn opendal_operator_options_free(
+        options: *const opendal_operator_options,
+    ) {
+        if options.is_null() || unsafe { (*options).inner.is_null() } {
             return;
         }
-        let _ = unsafe { Box::from_raw(self.inner as *mut HashMap<String, String>) };
+        let _ = unsafe { Box::from_raw((*options).inner as *mut HashMap<String, String>) };
+        let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
     }
 }

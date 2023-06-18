@@ -254,7 +254,7 @@ typedef struct opendal_result_stat {
   /**
    * The metadata output of the stat
    */
-  struct opendal_metadata meta;
+  const struct opendal_metadata *meta;
   /**
    * The error code, should be OPENDAL_OK if succeeds
    */
@@ -287,15 +287,15 @@ extern "C" {
  * Following is an example.
  * ```C
  * // Allocate a new options
- * opendal_operator_options options = opendal_operator_options_new();
+ * opendal_operator_options *options = opendal_operator_options_new();
  * // Set the options you need
- * opendal_operator_options_set(&options, "root", "/myroot");
+ * opendal_operator_options_set(options, "root", "/myroot");
  *
  * // Construct the operator based on the options and scheme
- * opendal_operator_ptr ptr = opendal_operator_new("memory", &options);
+ * const opendal_operator_ptr *ptr = opendal_operator_new("memory", options);
  *
  * // you could free the options right away since the options is not used afterwards
- * opendal_operator_options_free(&options);
+ * opendal_operator_options_free(options);
  *
  * // ... your operations
  * ```
@@ -307,8 +307,8 @@ extern "C" {
  *   the string.
  * * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
  */
-struct opendal_operator_ptr opendal_operator_new(const char *scheme,
-                                                 const struct opendal_operator_options *options);
+const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
+                                                        const struct opendal_operator_options *options);
 
 /**
  * \brief Blockingly write raw bytes to `path`.
@@ -353,7 +353,7 @@ struct opendal_operator_ptr opendal_operator_new(const char *scheme,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr ptr,
+enum opendal_code opendal_operator_blocking_write(const struct opendal_operator_ptr *ptr,
                                                   const char *path,
                                                   struct opendal_bytes bytes);
 
@@ -398,7 +398,7 @@ enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr pt
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_read opendal_operator_blocking_read(struct opendal_operator_ptr ptr,
+struct opendal_result_read opendal_operator_blocking_read(const struct opendal_operator_ptr *ptr,
                                                           const char *path);
 
 /**
@@ -441,7 +441,7 @@ struct opendal_result_read opendal_operator_blocking_read(struct opendal_operato
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_delete(struct opendal_operator_ptr ptr,
+enum opendal_code opendal_operator_blocking_delete(const struct opendal_operator_ptr *ptr,
                                                    const char *path);
 
 /**
@@ -485,7 +485,7 @@ enum opendal_code opendal_operator_blocking_delete(struct opendal_operator_ptr p
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator_ptr ptr,
+struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator_ptr *ptr,
                                                          const char *path);
 
 /**
@@ -512,7 +512,7 @@ struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
+ * const opendal_metadata *meta = s.meta;
  *
  * // ... you could now use your metadata, notice that please only access metadata
  * // using the APIs provided by OpenDAL
@@ -528,7 +528,8 @@ struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_stat opendal_operator_stat(struct opendal_operator_ptr ptr, const char *path);
+struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_ptr *ptr,
+                                                 const char *path);
 
 /**
  * \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
@@ -540,14 +541,14 @@ struct opendal_result_stat opendal_operator_stat(struct opendal_operator_ptr ptr
  * # Example
  *
  * ```C
- * opendal_operator_ptr ptr = opendal_operator_new("fs", NULL);
+ * opendal_operator_ptr *ptr = opendal_operator_new("fs", NULL);
  * // ... use this ptr, maybe some reads and writes
  *
  * // free this operator
- * opendal_operator_free(&ptr);
+ * opendal_operator_free(ptr);
  * ```
  */
-void opendal_operator_free(const struct opendal_operator_ptr *self);
+void opendal_operator_free(const struct opendal_operator_ptr *op);
 
 /**
  * \brief Frees the heap memory used by the opendal_bytes
@@ -568,8 +569,8 @@ void opendal_metadata_free(const struct opendal_metadata *self);
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
- * assert(opendal_metadata_content_length(&meta) == 13);
+ * opendal_metadata *meta = s.meta;
+ * assert(opendal_metadata_content_length(meta) == 13);
  * ```
  */
 uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
@@ -583,8 +584,8 @@ uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
- * assert(opendal_metadata_is_file(&meta));
+ * opendal_metadata *meta = s.meta;
+ * assert(opendal_metadata_is_file(meta));
  * ```
  */
 bool opendal_metadata_is_file(const struct opendal_metadata *self);
@@ -598,10 +599,10 @@ bool opendal_metadata_is_file(const struct opendal_metadata *self);
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
+ * opendal_metadata *meta = s.meta;
  *
  * // this is not a directory
- * assert(!opendal_metadata_is_dir(&meta));
+ * assert(!opendal_metadata_is_dir(meta));
  * ```
  *
  * \todo This is not a very clear example. A clearer example will be added
@@ -617,7 +618,7 @@ bool opendal_metadata_is_dir(const struct opendal_metadata *self);
  *
  * @see opendal_operator_option_set
  */
-struct opendal_operator_options opendal_operator_options_new(void);
+struct opendal_operator_options *opendal_operator_options_new(void);
 
 /**
  * \brief Set a Key-Value pair inside opendal_operator_options
@@ -630,8 +631,8 @@ struct opendal_operator_options opendal_operator_options_new(void);
  * # Example
  *
  * ```C
- * opendal_operator_options options = opendal_operator_options_new();
- * opendal_operator_options_set(&options, "root", "/myroot");
+ * opendal_operator_options *options = opendal_operator_options_new();
+ * opendal_operator_options_set(options, "root", "/myroot");
  *
  * // .. use your opendal_operator_options
  *
@@ -645,7 +646,7 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
 /**
  * \brief Free the allocated memory used by [`opendal_operator_options`]
  */
-void opendal_operator_options_free(const struct opendal_operator_options *self);
+void opendal_operator_options_free(const struct opendal_operator_options *options);
 
 #ifdef __cplusplus
 } // extern "C"

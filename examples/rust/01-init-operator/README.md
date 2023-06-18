@@ -99,6 +99,7 @@ fn init_operator_via_builder() -> Result<Operator> {
     builder.bucket("example");
     builder.access_key_id("access_key_id");
     builder.secret_access_key("secret_access_key");
+    builder.region("us-east-1");
 
     let op = Operator::new(builder)?.finish();
     Ok(op)
@@ -130,6 +131,7 @@ fn init_operator_via_map() -> Result<Operator> {
         "secret_access_key".to_string(),
         "secret_access_key".to_string(),
     );
+    map.insert("region".to_string(), "us-east-1".to_string());
 
     let op = Operator::via_map(Scheme::S3, map)?;
     Ok(op)

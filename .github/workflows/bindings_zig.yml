@@ -66,4 +66,4 @@ jobs:
 
       - name: Run tests
         working-directory: bindings/zig
-        run: zig build test -fsummary
+        run: zig build test

@@ -61,7 +61,7 @@ pub struct opendal_result_is_exist {
 #[repr(C)]
 pub struct opendal_result_stat {
     /// The metadata output of the stat
-    pub meta: opendal_metadata,
+    pub meta: *const opendal_metadata,
     /// The error code, should be OPENDAL_OK if succeeds
     pub code: opendal_code,
 }

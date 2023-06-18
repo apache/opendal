@@ -56,7 +56,7 @@ impl opendal_operator_ptr {
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_operator_free(&self) {
-        if self.is_null() {
+        if self.ptr.is_null() {
             return;
         }
         let _ = unsafe { Box::from_raw(self.ptr as *mut od::BlockingOperator) };
@@ -64,19 +64,6 @@ impl opendal_operator_ptr {
 }
 
 impl opendal_operator_ptr {
-    /// Creates an OperatorPtr will nullptr, indicating this [`opendal_operator_ptr`]
-    /// is invalid.
-    pub(crate) fn null() -> Self {
-        Self {
-            ptr: std::ptr::null(),
-        }
-    }
-
-    /// Returns whether this points to NULL
-    pub(crate) fn is_null(&self) -> bool {
-        self.ptr.is_null()
-    }
-
     /// Returns a reference to the underlying [`od::BlockingOperator`]
     pub(crate) fn as_ref(&self) -> &od::BlockingOperator {
         unsafe { &*(self.ptr) }
@@ -229,17 +216,10 @@ impl opendal_metadata {
 }
 
 impl opendal_metadata {
-    /// Return a null metadata
-    pub(crate) fn null() -> Self {
-        Self {
-            inner: std::ptr::null(),
-        }
-    }
-
     /// Convert a Rust core [`od::Metadata`] into a heap allocated C-compatible
     /// [`opendal_metadata`]
-    pub(crate) fn from_metadata(m: od::Metadata) -> Self {
-        Self {
+    pub(crate) fn from_metadata(m: od::Metadata) -> *const Self {
+        &Self {
             inner: Box::leak(Box::new(m)),
         }
     }
@@ -268,9 +248,9 @@ impl opendal_operator_options {
     ///
     /// @see opendal_operator_option_set
     #[no_mangle]
-    pub extern "C" fn opendal_operator_options_new() -> Self {
+    pub extern "C" fn opendal_operator_options_new() -> *mut Self {
         let map: HashMap<String, String> = HashMap::default();
-        Self {
+        &mut Self {
             inner: Box::leak(Box::new(map)),
         }
     }

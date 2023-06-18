@@ -254,7 +254,7 @@ typedef struct opendal_result_stat {
   /**
    * The metadata output of the stat
    */
-  struct opendal_metadata meta;
+  const struct opendal_metadata *meta;
   /**
    * The error code, should be OPENDAL_OK if succeeds
    */
@@ -307,8 +307,8 @@ extern "C" {
  *   the string.
  * * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
  */
-struct opendal_operator_ptr opendal_operator_new(const char *scheme,
-                                                 const struct opendal_operator_options *options);
+const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
+                                                        const struct opendal_operator_options *options);
 
 /**
  * \brief Blockingly write raw bytes to `path`.
@@ -353,7 +353,7 @@ struct opendal_operator_ptr opendal_operator_new(const char *scheme,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr ptr,
+enum opendal_code opendal_operator_blocking_write(const struct opendal_operator_ptr *ptr,
                                                   const char *path,
                                                   struct opendal_bytes bytes);
 
@@ -398,7 +398,7 @@ enum opendal_code opendal_operator_blocking_write(struct opendal_operator_ptr pt
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_read opendal_operator_blocking_read(struct opendal_operator_ptr ptr,
+struct opendal_result_read opendal_operator_blocking_read(const struct opendal_operator_ptr *ptr,
                                                           const char *path);
 
 /**
@@ -441,7 +441,7 @@ struct opendal_result_read opendal_operator_blocking_read(struct opendal_operato
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_delete(struct opendal_operator_ptr ptr,
+enum opendal_code opendal_operator_blocking_delete(const struct opendal_operator_ptr *ptr,
                                                    const char *path);
 
 /**
@@ -485,7 +485,7 @@ enum opendal_code opendal_operator_blocking_delete(struct opendal_operator_ptr p
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator_ptr ptr,
+struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator_ptr *ptr,
                                                          const char *path);
 
 /**
@@ -528,7 +528,8 @@ struct opendal_result_is_exist opendal_operator_is_exist(struct opendal_operator
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_stat opendal_operator_stat(struct opendal_operator_ptr ptr, const char *path);
+struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_ptr *ptr,
+                                                 const char *path);
 
 /**
  * \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
@@ -617,7 +618,7 @@ bool opendal_metadata_is_dir(const struct opendal_metadata *self);
  *
  * @see opendal_operator_option_set
  */
-struct opendal_operator_options opendal_operator_options_new(void);
+struct opendal_operator_options *opendal_operator_options_new(void);
 
 /**
  * \brief Set a Key-Value pair inside opendal_operator_options

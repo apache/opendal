@@ -77,16 +77,16 @@ use crate::types::{
 pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,
     options: *const opendal_operator_options,
-) -> opendal_operator_ptr {
+) -> *const opendal_operator_ptr {
     if scheme.is_null() {
-        return opendal_operator_ptr::null();
+        return std::ptr::null();
     }
 
     let scheme_str = unsafe { std::ffi::CStr::from_ptr(scheme).to_str().unwrap() };
     let scheme = match od::Scheme::from_str(scheme_str) {
         Ok(s) => s,
         Err(_) => {
-            return opendal_operator_ptr::null();
+            return std::ptr::null();
         }
     };
 
@@ -100,14 +100,14 @@ pub unsafe extern "C" fn opendal_operator_new(
     let op = match od::Operator::via_map(scheme, map) {
         Ok(o) => o.blocking(),
         Err(_) => {
-            return opendal_operator_ptr::null();
+            return std::ptr::null();
         }
     };
 
     // this prevents the operator memory from being dropped by the Box
-    let op = Box::leak(Box::new(op));
+    let op = opendal_operator_ptr::from(Box::leak(Box::new(op)));
 
-    opendal_operator_ptr::from(op)
+    &op
 }
 
 /// \brief Blockingly write raw bytes to `path`.
@@ -153,7 +153,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_blocking_write(
-    ptr: opendal_operator_ptr,
+    ptr: *const opendal_operator_ptr,
     path: *const c_char,
     bytes: opendal_bytes,
 ) -> opendal_code {
@@ -161,7 +161,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.as_ref();
+    let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.write(path, bytes) {
         Ok(_) => opendal_code::OPENDAL_OK,
@@ -210,14 +210,14 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_blocking_read(
-    ptr: opendal_operator_ptr,
+    ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_read {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.as_ref();
+    let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     let data = op.read(path);
     match data {
@@ -275,14 +275,14 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_blocking_delete(
-    ptr: opendal_operator_ptr,
+    ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_code {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.as_ref();
+    let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.delete(path) {
         Ok(_) => opendal_code::OPENDAL_OK,
@@ -331,14 +331,14 @@ pub unsafe extern "C" fn opendal_operator_blocking_delete(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_is_exist(
-    ptr: opendal_operator_ptr,
+    ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_is_exist {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.as_ref();
+    let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.is_exist(path) {
         Ok(e) => opendal_result_is_exist {
@@ -392,14 +392,14 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_stat(
-    ptr: opendal_operator_ptr,
+    ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_stat {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.as_ref();
+    let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.stat(path) {
         Ok(m) => opendal_result_stat {
@@ -407,7 +407,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
             code: opendal_code::OPENDAL_OK,
         },
         Err(err) => opendal_result_stat {
-            meta: opendal_metadata::null(),
+            meta: std::ptr::null(),
             code: opendal_code::from_opendal_error(err),
         },
     }

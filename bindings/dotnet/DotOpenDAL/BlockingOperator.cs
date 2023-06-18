@@ -17,8 +17,12 @@
  * under the License.
  */
 
+using System.Runtime.InteropServices;
+
 namespace DotOpenDAL;
 
 public class BlockingOperator
 {
+    [DllImport("opendal_dotnet", EntryPoint = "my_add", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int my_add(int x, int y);
 }

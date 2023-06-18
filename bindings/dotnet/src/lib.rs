@@ -47,8 +47,12 @@ pub extern "C" fn blocking_operator_write(
 pub extern "C" fn blocking_operator_read(
     op: *const opendal::BlockingOperator,
     path: *const c_char,
-) {
+) -> *const c_char {
     let op = unsafe { &*(op) };
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
-    let res = op.read(path).unwrap();
+    let mut res = op.read(path).unwrap();
+    res.push(0);
+    std::ffi::CString::from_vec_with_nul(res)
+        .unwrap()
+        .into_raw()
 }

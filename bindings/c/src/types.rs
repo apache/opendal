@@ -55,11 +55,12 @@ impl opendal_operator_ptr {
     /// opendal_operator_free(ptr);
     /// ```
     #[no_mangle]
-    pub extern "C" fn opendal_operator_free(&self) {
-        if self.ptr.is_null() {
+    pub unsafe extern "C" fn opendal_operator_free(op: *const opendal_operator_ptr) {
+        if op.is_null() || unsafe { (*op).ptr.is_null() } {
             return;
         }
-        let _ = unsafe { Box::from_raw(self.ptr as *mut od::BlockingOperator) };
+        let _ = unsafe { Box::from_raw((*op).ptr as *mut od::BlockingOperator) };
+        let _ = unsafe { Box::from_raw(op as *mut opendal_operator_ptr) };
     }
 }
 
@@ -250,9 +251,11 @@ impl opendal_operator_options {
     #[no_mangle]
     pub extern "C" fn opendal_operator_options_new() -> *mut Self {
         let map: HashMap<String, String> = HashMap::default();
-        &mut Self {
+        let options = Self {
             inner: Box::leak(Box::new(map)),
-        }
+        };
+
+        Box::leak(Box::new(options))
     }
 
     /// \brief Set a Key-Value pair inside opendal_operator_options
@@ -296,10 +299,13 @@ impl opendal_operator_options {
 
     /// \brief Free the allocated memory used by [`opendal_operator_options`]
     #[no_mangle]
-    pub extern "C" fn opendal_operator_options_free(&self) {
-        if self.inner.is_null() {
+    pub unsafe extern "C" fn opendal_operator_options_free(
+        options: *const opendal_operator_options,
+    ) {
+        if options.is_null() || unsafe { (*options).inner.is_null() } {
             return;
         }
-        let _ = unsafe { Box::from_raw(self.inner as *mut HashMap<String, String>) };
+        let _ = unsafe { Box::from_raw((*options).inner as *mut HashMap<String, String>) };
+        let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
     }
 }

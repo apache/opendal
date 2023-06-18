@@ -107,7 +107,7 @@ pub unsafe extern "C" fn opendal_operator_new(
     // this prevents the operator memory from being dropped by the Box
     let op = opendal_operator_ptr::from(Box::leak(Box::new(op)));
 
-    &op
+    Box::leak(Box::new(op))
 }
 
 /// \brief Blockingly write raw bytes to `path`.

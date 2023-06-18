@@ -20,7 +20,7 @@ OBJ_DIR=./build
 DOC_DIR=./docs
 
 CCFLAGS=-I./include
-CXXFLAGS=-I./include -std=c++14
+CXXFLAGS=-I./include -std=c++14 -g
 LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
 
 LIBS=-lopendal_c -lgtest -lpthread

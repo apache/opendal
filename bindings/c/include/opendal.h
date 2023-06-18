@@ -548,7 +548,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * opendal_operator_free(ptr);
  * ```
  */
-void opendal_operator_free(const struct opendal_operator_ptr *self);
+void opendal_operator_free(const struct opendal_operator_ptr *op);
 
 /**
  * \brief Frees the heap memory used by the opendal_bytes
@@ -646,7 +646,7 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
 /**
  * \brief Free the allocated memory used by [`opendal_operator_options`]
  */
-void opendal_operator_options_free(const struct opendal_operator_options *self);
+void opendal_operator_options_free(const struct opendal_operator_options *options);
 
 #ifdef __cplusplus
 } // extern "C"

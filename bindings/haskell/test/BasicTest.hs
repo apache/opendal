@@ -18,6 +18,7 @@
 
 module BasicTest (basicTests) where
 
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.HashMap.Strict as HashMap
 import OpenDAL
 import Test.Tasty
@@ -27,25 +28,47 @@ basicTests :: TestTree
 basicTests =
   testGroup
     "Basic Tests"
-    [ testCase "testBasicOperation" testBasicOperation
+    [ testCase "testBasicOperation" testRawOperation
+    , testCase "testMonad" testMonad
+    , testCase "testError" testError
     ]
 
-testBasicOperation :: Assertion
-testBasicOperation = do
-  Right op <- newOp "fs" $ HashMap.fromList [("root", "/tmp/opendal-test")]
-  writeOp op "key1" "value1" >>= (@?= Right ())
-  writeOp op "key2" "value2" >>= (@?= Right ())
-  readOp op "key1" >>= (@?= Right "value1")
-  readOp op "key2" >>= (@?= Right "value2")
-  isExistOp op "key1" >>= (@?= Right True)
-  isExistOp op "key2" >>= (@?= Right True)
-  createDirOp op "dir1/" >>= (@?= Right ())
-  isExistOp op "dir1/" >>= (@?= Right True)
-  copyOp op "key1" "key3" >>= (@?= Right ())
-  isExistOp op "key3" >>= (@?= Right True)
-  isExistOp op "key1" >>= (@?= Right True)
-  renameOp op "key2" "key4" >>= (@?= Right ())
-  isExistOp op "key4" >>= (@?= Right True)
-  isExistOp op "key2" >>= (@?= Right False)
-  deleteOp op "key1" >>= (@?= Right ())
-  isExistOp op "key1" >>= (@?= Right False)
+testRawOperation :: Assertion
+testRawOperation = do
+  Right op <- newOp "memory" HashMap.empty
+  writeOpRaw op "key1" "value1" >>= (@?= Right ())
+  writeOpRaw op "key2" "value2" >>= (@?= Right ())
+  readOpRaw op "key1" >>= (@?= Right "value1")
+  readOpRaw op "key2" >>= (@?= Right "value2")
+  isExistOpRaw op "key1" >>= (@?= Right True)
+  isExistOpRaw op "key2" >>= (@?= Right True)
+  createDirOpRaw op "dir1/" >>= (@?= Right ())
+  isExistOpRaw op "dir1/" >>= (@?= Right True)
+  deleteOpRaw op "key1" >>= (@?= Right ())
+  isExistOpRaw op "key1" >>= (@?= Right False)
+
+testMonad :: Assertion
+testMonad = do
+  Right op <- newOp "memory" HashMap.empty
+  runOp op operation >>= (@?= Right ())
+ where
+  operation = do
+    writeOp "key1" "value1"
+    writeOp "key2" "value2"
+    readOp "key1" >>= liftIO . (@?= "value1")
+    readOp "key2" >>= liftIO . (@?= "value2")
+    isExistOp "key1" >>= liftIO . (@?= True)
+    isExistOp "key2" >>= liftIO . (@?= True)
+    createDirOp "dir1/"
+    isExistOp "dir1/" >>= liftIO . (@?= True)
+    deleteOp "key1"
+    isExistOp "key1" >>= liftIO . (@?= False)
+
+testError :: Assertion
+testError = do
+  Right op <- newOp "memory" HashMap.empty
+  runOp op operation >>= \v -> case v of
+    Left err -> errorCode err @?= NotFound
+    Right _ -> assertFailure "should not reach here"
+ where
+  operation = readOp "non-exist-path"

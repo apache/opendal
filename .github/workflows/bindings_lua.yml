@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings lua CI
+name: Bindings Lua CI
 
 on:
   push:

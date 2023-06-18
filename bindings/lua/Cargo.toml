@@ -34,5 +34,5 @@ rust-version.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-mlua = { version = "0.8", features = ["lua54", "vendored", "module"] }
+mlua = { version = "0.8", features = ["lua52", "vendored", "module"] }
 opendal.workspace = true

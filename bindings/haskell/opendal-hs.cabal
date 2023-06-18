@@ -40,10 +40,11 @@ library
     default-language: Haskell2010
     extra-libraries:  opendal_hs
     ghc-options:      -Wall
-    build-depends:    
+    build-depends:
         base >=4.10.0.0 && <5,
         unordered-containers >=0.2.0.0, 
-        bytestring >=0.11.0.0
+        bytestring >=0.11.0.0,
+        mtl >=2.2.0.0
 
 test-suite opendal-hs-test
     type:             exitcode-stdio-1.0
@@ -56,6 +57,7 @@ test-suite opendal-hs-test
     build-depends:    
         base,
         unordered-containers,
+        mtl,
         opendal-hs,
         tasty,
         tasty-hunit

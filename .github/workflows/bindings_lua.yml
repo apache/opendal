@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings Zig CI
+name: Bindings Lua CI
 
 on:
   push:
@@ -27,10 +27,8 @@ on:
     branches:
       - main
     paths:
-      - "core/**"
-      - "bindings/c/**"
-      - "bindings/zig/**"
-      - ".github/workflows/bindings_zig.yml"
+      - "bindings/lua/**"
+      - ".github/workflows/bindings_lua.yml"
   workflow_dispatch:
 
 concurrency:
@@ -45,25 +43,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: korandoru/setup-zig@v1
-        with:
-          zig-version: master # 0.11.0 (nightly/master)
-          #zig-version: 0.11.0 # TODO: replace to stable version - wait new zig release
-
+      - name: Setup lua toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua-busted
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-
-      - name: Build Zig binding
-        working-directory: bindings/zig
-        run: zig build libopendal_c
-
-      - name: Check diff
-        run: git diff --exit-code
-
-      - name: Check
-        working-directory: bindings/zig
-        run: zig fmt --check .
-
-      - name: Run tests
-        working-directory: bindings/zig
-        run: zig build test --summary all
+      - name: Build & Test
+        working-directory: "bindings/lua"
+        run: |
+          cargo build
+          mv ../../target/debug/libopendal_lua.so opendal.so
+          busted test/opendal_test.lua

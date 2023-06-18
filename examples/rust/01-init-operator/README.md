@@ -96,7 +96,7 @@ Let's take look over `init_operator_via_builder` function first.
 ```rust
 fn init_operator_via_builder() -> Result<Operator> {
     let mut builder = S3::default();
-    builder.bucket("exampl");
+    builder.bucket("example");
     builder.access_key_id("access_key_id");
     builder.secret_access_key("secret_access_key");
 

@@ -38,6 +38,25 @@ pub(super) struct FileStatusesWrapper {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
+pub(super) struct DirectoryListingWrapper {
+    pub directory_listing: DirectoryListing,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct DirectoryListing {
+    pub partial_listing: PartialListing,
+    pub remaining_entries: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub(super) struct PartialListing {
+    pub file_statuses: FileStatuses,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub(super) struct FileStatuses {
     pub file_status: Vec<FileStatus>,
 }
@@ -161,5 +180,72 @@ mod test {
         assert_eq!(entries[0].mode(), EntryMode::FILE);
         assert_eq!(entries[1].path(), "listing/directory/bar/");
         assert_eq!(entries[1].mode(), EntryMode::DIR);
+    }
+
+    #[tokio::test]
+    async fn test_list_status_batch() {
+        let json = r#"
+{
+    "DirectoryListing": {
+        "partialListing": {
+            "FileStatuses": {
+                "FileStatus": [
+                    {
+                        "accessTime": 0,
+                        "blockSize": 0,
+                        "childrenNum": 0,
+                        "fileId": 16387,
+                        "group": "supergroup",
+                        "length": 0,
+                        "modificationTime": 1473305882563,
+                        "owner": "andrew",
+                        "pathSuffix": "bardir",
+                        "permission": "755",
+                        "replication": 0,
+                        "storagePolicy": 0,
+                        "type": "DIRECTORY"
+                    },
+                    {
+                        "accessTime": 1473305896945,
+                        "blockSize": 1024,
+                        "childrenNum": 0,
+                        "fileId": 16388,
+                        "group": "supergroup",
+                        "length": 0,
+                        "modificationTime": 1473305896965,
+                        "owner": "andrew",
+                        "pathSuffix": "bazfile",
+                        "permission": "644",
+                        "replication": 3,
+                        "storagePolicy": 0,
+                        "type": "FILE"
+                    }
+                ]
+            }
+        },
+        "remainingEntries": 2
+    }
+}
+        "#;
+
+        let file_statuses = serde_json::from_str::<DirectoryListingWrapper>(json)
+            .expect("must success")
+            .directory_listing
+            .partial_listing
+            .file_statuses
+            .file_status;
+
+        let mut pager = WebhdfsPager::new("listing/directory", file_statuses);
+        let mut entries = vec![];
+        while let Some(oes) = pager.next().await.expect("must success") {
+            entries.extend(oes);
+        }
+
+        entries.sort_by(|a, b| a.path().cmp(b.path()));
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].path(), "listing/directory/bardir/");
+        assert_eq!(entries[0].mode(), EntryMode::DIR);
+        assert_eq!(entries[1].path(), "listing/directory/bazfile");
+        assert_eq!(entries[1].mode(), EntryMode::FILE);
     }
 }

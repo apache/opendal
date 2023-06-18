@@ -25,7 +25,7 @@ import Foreign.C.Types
 data RawOperator
 
 data FFIResult = FFIResult
-  { success :: Bool
+  { ffiCode :: CUInt
   , dataPtr :: Ptr ()
   , errorMessage :: CString
   }
@@ -33,22 +33,22 @@ data FFIResult = FFIResult
 
 instance Storable FFIResult where
   sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: Ptr ()) + sizeOf (undefined :: CString)
-  alignment _ = alignment (undefined :: CIntPtr)
+  alignment _ = alignment (undefined :: CSize)
   peek ptr = do
-    s <- ((/= (0 :: CSize)) <$> peekByteOff ptr successOffset)
+    s <- peekByteOff ptr codeOffset
     d <- peekByteOff ptr dataPtrOffset
     errMsg <- peekByteOff ptr errorMessageOffset
     return $ FFIResult s d errMsg
    where
-    successOffset = 0
+    codeOffset = 0
     dataPtrOffset = sizeOf (undefined :: CSize)
     errorMessageOffset = dataPtrOffset + sizeOf (undefined :: Ptr ())
   poke ptr (FFIResult s d errMsg) = do
-    pokeByteOff ptr successOffset (fromBool s :: CSize)
+    pokeByteOff ptr codeOffset s
     pokeByteOff ptr dataPtrOffset d
     pokeByteOff ptr errorMessageOffset errMsg
    where
-    successOffset = 0
+    codeOffset = 0
     dataPtrOffset = sizeOf (undefined :: CSize)
     errorMessageOffset = dataPtrOffset + sizeOf (undefined :: Ptr ())
 
@@ -59,7 +59,7 @@ data ByteSlice = ByteSlice
 
 instance Storable ByteSlice where
   sizeOf _ = sizeOf (undefined :: Ptr CChar) + sizeOf (undefined :: CSize)
-  alignment _ = alignment (undefined :: Ptr CChar)
+  alignment _ = alignment (undefined :: CSize)
   peek ptr = do
     bsDataPtr <- peekByteOff ptr dataOffset
     len <- peekByteOff ptr lenOffset
@@ -81,3 +81,8 @@ foreign import ccall "&free_operator" c_free_operator :: FunPtr (Ptr RawOperator
 foreign import ccall "free_byteslice" c_free_byteslice :: Ptr CChar -> CSize -> IO ()
 foreign import ccall "blocking_read" c_blocking_read :: Ptr RawOperator -> CString -> Ptr FFIResult -> IO ()
 foreign import ccall "blocking_write" c_blocking_write :: Ptr RawOperator -> CString -> Ptr CChar -> CSize -> Ptr FFIResult -> IO ()
+foreign import ccall "blocking_is_exist" c_blocking_is_exist :: Ptr RawOperator -> CString -> Ptr FFIResult -> IO ()
+foreign import ccall "blocking_create_dir" c_blocking_create_dir :: Ptr RawOperator -> CString -> Ptr FFIResult -> IO ()
+foreign import ccall "blocking_copy" c_blocking_copy :: Ptr RawOperator -> CString -> CString -> Ptr FFIResult -> IO ()
+foreign import ccall "blocking_rename" c_blocking_rename :: Ptr RawOperator -> CString -> CString -> Ptr FFIResult -> IO ()
+foreign import ccall "blocking_delete" c_blocking_delete :: Ptr RawOperator -> CString -> Ptr FFIResult -> IO ()

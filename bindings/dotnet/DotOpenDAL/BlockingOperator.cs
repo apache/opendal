@@ -35,9 +35,9 @@ public class BlockingOperator
         blocking_operator_write(Op, path);
     }
 
-    public string Read(string path)
+    public string Read(string path, string content)
     {
-        return blocking_operator_read(Op, path);
+        return blocking_operator_read(Op, path, content);
     }
 
     [DllImport(
@@ -59,5 +59,5 @@ public class BlockingOperator
         EntryPoint = "blocking_operator_read",
         CallingConvention = CallingConvention.Cdecl,
         CharSet = CharSet.Auto)]
-    private static extern string blocking_operator_read(IntPtr op, string path);
+    private static extern string blocking_operator_read(IntPtr op, string path, string content);
 }

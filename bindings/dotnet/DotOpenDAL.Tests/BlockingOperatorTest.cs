@@ -21,23 +21,23 @@ using Xunit.Abstractions;
 
 namespace DotOpenDAL.Tests;
 
-public class UnitTest1
+public class BlockingOperatorTest
 {
 
     private readonly ITestOutputHelper output;
 
-    public UnitTest1(ITestOutputHelper output)
+    public BlockingOperatorTest(ITestOutputHelper output)
     {
         this.output = output;
     }
 
     [Fact]
-    public void Test1()
+    public void TestReadWrite()
     {
         var op = new BlockingOperator();
         output.WriteLine("{0}", op.Op.ToString());
         op.Write("test");
-        var result = op.Read("test");
+        var result = op.Read("test", "12345");
         output.WriteLine("{0}", result);
     }
 }

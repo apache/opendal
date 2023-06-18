@@ -1,3 +1,5 @@
+// swift-tools-version: 5.7
+
 // Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -15,9 +17,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-module COpenDAL [system] {
-    header "../../include/opendal.h"
-    link "opendal_c"
-    
-    export *
-}
+import Foundation
+import PackageDescription
+
+let packageRoot = (#file as NSString).deletingLastPathComponent
+
+let package = Package(
+    name: "OpenDAL",
+    products: [
+        .library(
+            name: "OpenDAL",
+            targets: ["OpenDAL"]),
+    ],
+    targets: [
+        .systemLibrary(name: "COpenDAL"),
+        .target(
+            name: "OpenDAL",
+            dependencies: ["COpenDAL"],
+            linkerSettings: [
+                .unsafeFlags(["-L\(packageRoot)/Sources/COpenDAL/lib"]),
+            ]),
+        .testTarget(
+            name: "OpenDALTests",
+            dependencies: ["OpenDAL"]),
+    ]
+)

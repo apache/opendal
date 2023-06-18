@@ -16,10 +16,11 @@
 # under the License.
 
 C_BINDING_SRC_DIR=../c
+SWIFT_PKG_DIR=./OpenDAL
 ROOT_DIR=../..
 
-INCLUDE_DIR=./include
-LIB_DIR=./lib
+INCLUDE_DIR=$(SWIFT_PKG_DIR)/Sources/COpenDAL/include
+LIB_DIR=$(SWIFT_PKG_DIR)/Sources/COpenDAL/lib
 DIRS=$(INCLUDE_DIR) $(LIB_DIR)
 
 .PHONY: all
@@ -27,21 +28,20 @@ all: build-swift
 
 .PHONY: build-c
 build-c: $(DIRS)
-	cd $(C_BINDING_SRC_DIR)
 	cargo build --release --manifest-path $(C_BINDING_SRC_DIR)/Cargo.toml
 	cp $(C_BINDING_SRC_DIR)/include/* $(INCLUDE_DIR)
 	cp $(ROOT_DIR)/target/release/libopendal_c.a $(LIB_DIR)
 
 .PHONY: build-swift
 build-swift: build-c
-	swift build
+	cd $(SWIFT_PKG_DIR) && swift build
 
 .PHONY: test
 test: build-c
-	swift test
+	cd $(SWIFT_PKG_DIR) && swift test
 
 $(DIRS):
-	mkdir $@
+	mkdir -p $@
 
 .PHONY: clean
 clean:

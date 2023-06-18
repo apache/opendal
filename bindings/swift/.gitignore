@@ -4,9 +4,10 @@
 /*.xcodeproj
 xcuserdata/
 DerivedData/
-.swiftpm/config/registries.json
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
 
-/include
-/lib
+/OpenDAL/.build
+/OpenDAL/.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+/OpenDAL/.swiftpm/config/registries.json
+/OpenDAL/Sources/COpenDAL/include
+/OpenDAL/Sources/COpenDAL/lib

@@ -17,11 +17,15 @@ Major components of the project include:
 **Libraries**
 
 - [Rust Core](core/README.md)
+- [C Binding](bindings/c/README.md) *not released*
+- [Haskell Binding](bindings/haskell/README.md) *not released*
+- [Java Binding](bindings/java/README.md)
+- [Lua Binding](bindings/lua/README.md) *not released*
 - [Node.js Binding](bindings/nodejs/README.md)
 - [Python Binding](bindings/python/README.md)
-- [C Binding](bindings/c) *being worked on*
-- [Java Binding](bindings/java) *being worked on*
-- [Ruby Binding](bindings/ruby) *being worked on*
+- [Ruby Binding](bindings/ruby/README.md) *not released*
+- [Swift Binding](bindings/swift/README.md) *not released*
+- [Zig Binding](bindings/zig/README.md) *not released*
 
 **Applications**
 
@@ -45,6 +49,7 @@ Major components of the project include:
 <summary>Object Storage Services (like s3, gcs, azblob)</summary>
 
 - azblob: [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services
+- cos: [Tencent Cloud Object Storage](https://www.tencentcloud.com/products/cos) services
 - gcs: [Google Cloud Storage](https://cloud.google.com/storage) Service
 - obs: [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS)
 - oss: [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS)

@@ -680,7 +680,33 @@ impl BlockingOperator {
         Ok(())
     }
 
+    /// remove will remove files via the given paths.
     ///
+    /// remove_via will remove files via the given vector iterators.
+    ///
+    /// # Notes
+    ///
+    /// We don't support batch delete now.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let stream = vec!["abc".to_string(), "def".to_string()].into_iter();
+    /// op.remove_via(stream)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove_via(&self, input: impl Iterator<Item = String>) -> Result<()> {
+        for path in input {
+            self.delete(&path)?;
+        }
+        Ok(())
+    }
+
     /// # Notes
     ///
     /// We don't support batch delete now.
@@ -697,34 +723,8 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn remove(&self, paths: Vec<String>) -> Result<()> {
-        for path in paths.iter() {
-            self.delete(path)?;
-        }
+        self.remove_via(paths.into_iter())?;
 
-        Ok(())
-    }
-
-    /// remove will remove files via the given paths.
-    ///
-    /// remove_via will remove files via the given stream.
-    ///
-    /// We will delete by chunks with given batch limit on the stream.
-    ///
-    /// # Notes
-    ///
-    /// We don't support batch delete now.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// # use opendal::BlockingOperator;
-    /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn remove_via(&self, input: impl Iterator) -> Result<()> {
         Ok(())
     }
 
@@ -763,7 +763,8 @@ impl BlockingOperator {
         for v in obs {
             match v {
                 Ok(entry) => {
-                    let Ok(_) = self.inner().blocking_delete(entry.path(), OpDelete::new()) else { return Err(e) };
+                    self.inner()
+                        .blocking_delete(entry.path(), OpDelete::new())?;
                 }
                 Err(e) => return Err(e),
             }

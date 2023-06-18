@@ -416,6 +416,16 @@ pub fn test_delete_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Remove one file
-pub fn test_remove_one_file(_op: BlockingOperator) -> Result<()> {
+pub fn test_remove_one_file(op: BlockingOperator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content).expect("write must succeed");
+
+    op.remove(vec![path.clone()])?;
+
+    // Stat it again to check.
+    assert!(!op.is_exist(&path)?);
+
     Ok(())
 }

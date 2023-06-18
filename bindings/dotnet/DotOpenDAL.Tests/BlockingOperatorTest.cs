@@ -25,7 +25,7 @@ public class BlockingOperatorTest
     public void TestReadWrite()
     {
         var op = new BlockingOperator();
-        var content = "12345";
+        var content = "123456";
         Assert.NotEqual(op.Op, IntPtr.Zero);
         op.Write("test", content);
         var result = op.Read("test");

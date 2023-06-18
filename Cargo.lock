@@ -2776,7 +2776,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-dotnet"
-version = "0.37.0"
+version = "0.1.0"
 dependencies = [
  "opendal",
 ]

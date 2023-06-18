@@ -1,0 +1,13 @@
+.DS_Store
+/.build
+/Packages
+/*.xcodeproj
+xcuserdata/
+DerivedData/
+.netrc
+
+/OpenDAL/.build
+/OpenDAL/.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+/OpenDAL/.swiftpm/config/registries.json
+/OpenDAL/Sources/COpenDAL/include
+/OpenDAL/Sources/COpenDAL/lib

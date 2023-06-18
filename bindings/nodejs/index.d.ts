@@ -212,7 +212,7 @@ export class Operator {
    *
    * This function will create a new handle to list entries.
    *
-   * An error will be returned if given path doesn’t end with /.
+   * An error will be returned if given path doesn't end with /.
    *
    * ### Example
    * ```javascript
@@ -235,7 +235,7 @@ export class Operator {
    *
    * This function will create a new handle to list entries.
    *
-   * An error will be returned if given path doesn’t end with /.
+   * An error will be returned if given path doesn't end with /.
    *
    * ### Example
    * ```javascript

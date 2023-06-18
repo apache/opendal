@@ -58,16 +58,8 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         .map(|err| (format!("{err:?}"), Some(err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    // All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
     if let Some(wasabi_err) = wasabi_err {
-        (kind, retryable) = match wasabi_err.code.as_str() {
-            // > Your socket connection to the server was not read from
-            // > or written to within the timeout period."
-            //
-            // It's Ok for us to retry it again.
-            "RequestTimeout" => (ErrorKind::Unexpected, true),
-            _ => (kind, retryable),
-        }
+        (kind, retryable) = parse_wasabi_error_code(&wasabi_err.code).unwrap_or((kind, retryable));
     }
 
     let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
@@ -77,6 +69,34 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     }
 
     Ok(err)
+}
+
+/// Returns the `Error kind` of this code and whether the error is retryable.
+/// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
+pub fn parse_wasabi_error_code(code: &str) -> Option<(ErrorKind, bool)> {
+    match code {
+        // > Your socket connection to the server was not read from
+        // > or written to within the timeout period."
+        //
+        // It's Ok for us to retry it again.
+        "RequestTimeout" => Some((ErrorKind::Unexpected, true)),
+        // > An internal error occurred. Try again.
+        "InternalError" => Some((ErrorKind::Unexpected, true)),
+        // > A conflicting conditional operation is currently in progress
+        // > against this resource. Try again.
+        "OperationAborted" => Some((ErrorKind::Unexpected, true)),
+        // > Please reduce your request rate.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "SlowDown" => Some((ErrorKind::RateLimited, true)),
+        // > Service is unable to handle request.
+        //
+        // ServiceUnavailable is considered a retryable error because it typically
+        // indicates a temporary issue with the service or server, such as high load,
+        // maintenance, or an internal problem.
+        "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

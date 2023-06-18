@@ -20,6 +20,7 @@ debug = true
 
 [workspace]
 default-members = ["core"]
+exclude = ["examples"]
 members = [
   "core",
 
@@ -29,6 +30,9 @@ members = [
   "bindings/python",
   "bindings/ruby",
   "bindings/java",
+  "bindings/haskell",
+  "bindings/lua",
+  "bindings/dotnet",
 
   "bin/oli",
   "bin/oay",

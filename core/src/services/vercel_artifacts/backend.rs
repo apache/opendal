@@ -54,7 +54,7 @@ impl Accessor for VercelArtifactsBackend {
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
-        ma.set_scheme(crate::Scheme::VercelArtifacts)
+        ma.set_scheme(Scheme::VercelArtifacts)
             .set_capability(Capability {
                 read: true,
                 read_can_next: true,

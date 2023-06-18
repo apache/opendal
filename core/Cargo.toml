@@ -75,6 +75,7 @@ layers-all = [
   "layers-prometheus",
   "layers-tracing",
   "layers-minitrace",
+  "layers-throttle",
 ]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
@@ -90,6 +91,8 @@ layers-minitrace = ["dep:minitrace"]
 layers-tracing = ["dep:tracing"]
 # Enable layers oteltrace support.
 layers-otel-trace = ["dep:opentelemetry"]
+# Enable layers throttle support.
+layers-throttle = ["dep:governor"]
 
 services-azblob = [
   "dep:sha2",
@@ -174,7 +177,8 @@ chrono = "0.4.24"
 dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }
 flagset = "0.4"
-futures = { version = "0.3", default-features = false, features = ["alloc"] }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+governor = { version = "0.5", optional = true, features = ["std"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }
 http = "0.2.5"
 hyper = "0.14"

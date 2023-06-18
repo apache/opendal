@@ -65,7 +65,7 @@ fn bench_read_full(c: &mut Criterion, name: &str, op: Operator) {
             })
         });
 
-        std::mem::drop(temp_data);
+        drop(temp_data);
     }
 
     group.finish()
@@ -149,7 +149,7 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
             );
         }
 
-        std::mem::drop(temp_data);
+        drop(temp_data);
     }
 
     group.finish()

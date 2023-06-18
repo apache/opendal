@@ -127,7 +127,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86d6b683edf8d1119fe420a94f8a7e389239666aa72e65495d91c00462510151"
 dependencies = [
  "anstyle 1.0.0",
- "bstr",
+ "bstr 1.4.0",
  "doc-comment",
  "predicates 3.0.1",
  "predicates-core",
@@ -437,9 +437,9 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.60.1"
+version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "062dddbc1ba4aca46de6338e2bf87771414c335f7b2f2036e8f3e9befebf88e6"
+checksum = "c6720a8b7b2d39dd533285ed438d458f65b31b5c257e6ac7bb3d7e82844dd722"
 dependencies = [
  "bitflags 1.3.2",
  "cexpr",
@@ -452,6 +452,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -508,6 +509,15 @@ dependencies = [
  "atomic-waker",
  "fastrand",
  "futures-lite",
+]
+
+[[package]]
+name = "bstr"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba3569f383e8f1598449f1a423e72e99569137b47740b1da11ef19af3d5c3223"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -1526,6 +1536,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "governor"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c390a940a5d157878dd057c78680a33ce3415bcd05b4799509ea44210914b4d5"
+dependencies = [
+ "cfg-if",
+ "dashmap",
+ "futures",
+ "futures-timer",
+ "no-std-compat",
+ "nonzero_ext",
+ "parking_lot 0.12.1",
+ "quanta 0.9.3",
+ "rand 0.8.5",
+ "smallvec",
+]
+
+[[package]]
 name = "h2"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2111,6 +2139,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "lua-src"
+version = "546.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cb00c1380f1b4b4928dd211c07301ffa34872a239e590bd3219d9e5b213face"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "luajit-src"
+version = "210.4.5+resty2cf5186"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27b7992a40e602786272d84c6f2beca44a588ededcfd57b48ec6f82008a7cb97"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "mach"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2319,6 +2365,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "mlua"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07366ed2cd22a3b000aed076e2b68896fb46f06f1f5786c5962da73c0af01577"
+dependencies = [
+ "bstr 0.2.17",
+ "cc",
+ "lua-src",
+ "luajit-src",
+ "mlua_derive",
+ "num-traits",
+ "once_cell",
+ "pkg-config",
+ "rustc-hash",
+]
+
+[[package]]
+name = "mlua_derive"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9214e60d3cf1643013b107330fcd374ccec1e4ba1eef76e7e5da5e8202e71c0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "moka"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2333,7 +2407,7 @@ dependencies = [
  "num_cpus",
  "once_cell",
  "parking_lot 0.12.1",
- "quanta",
+ "quanta 0.10.1",
  "rustc_version",
  "scheduled-thread-pool",
  "skeptic",
@@ -2426,6 +2500,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "no-std-compat"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b93853da6d84c2e3c7d730d6473e8817692dd89be387eb01b94d7f108ecb5b8c"
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2434,6 +2514,12 @@ dependencies = [
  "memchr",
  "minimal-lexical",
 ]
+
+[[package]]
+name = "nonzero_ext"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "normalize-line-endings"
@@ -2636,6 +2722,7 @@ dependencies = [
  "dotenvy",
  "flagset",
  "futures",
+ "governor",
  "hdrs",
  "http",
  "hyper",
@@ -2688,6 +2775,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-dotnet"
+version = "0.37.0"
+dependencies = [
+ "opendal",
+]
+
+[[package]]
+name = "opendal-hs"
+version = "0.1.0"
+dependencies = [
+ "opendal",
+]
+
+[[package]]
 name = "opendal-java"
 version = "0.37.0"
 dependencies = [
@@ -2697,6 +2798,14 @@ dependencies = [
  "once_cell",
  "opendal",
  "tokio",
+]
+
+[[package]]
+name = "opendal-lua"
+version = "0.1.0"
+dependencies = [
+ "mlua",
+ "opendal",
 ]
 
 [[package]]
@@ -3466,6 +3575,22 @@ dependencies = [
 
 [[package]]
 name = "quanta"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20afe714292d5e879d8b12740aa223c6a88f118af41870e8b6196e39a02238a8"
+dependencies = [
+ "crossbeam-utils",
+ "libc",
+ "mach",
+ "once_cell",
+ "raw-cpuid",
+ "wasi 0.10.0+wasi-snapshot-preview1",
+ "web-sys",
+ "winapi",
+]
+
+[[package]]
+name = "quanta"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7e31331286705f455e56cca62e0e717158474ff02b7936c1fa596d983f4ae27"
@@ -3628,20 +3753,20 @@ dependencies = [
 
 [[package]]
 name = "rb-sys"
-version = "0.9.72"
+version = "0.9.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e36bdb8be5f395264fb4345a5f6c13dac307ed3be3bccf6305b57835981c605"
+checksum = "91447d8cbb45afb5c915bad4dd44bd4b4e9be37648122409ceca75302cb81683"
 dependencies = [
  "rb-sys-build",
 ]
 
 [[package]]
 name = "rb-sys-build"
-version = "0.9.72"
+version = "0.9.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b56f8993adac385ed6208f0dc62f99181eb0676dea50bac7bc3d36a86bb9429b"
+checksum = "20673c1cfbd57b2db6c066b796352f07d241c45b210fd15b269dec54fa240380"
 dependencies = [
- "bindgen 0.60.1",
+ "bindgen 0.62.0",
  "lazy_static",
  "proc-macro2",
  "quote",

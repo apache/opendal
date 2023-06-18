@@ -72,7 +72,7 @@ impl Accessor for OnedriveBackend {
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
-        ma.set_scheme(crate::Scheme::Onedrive)
+        ma.set_scheme(Scheme::Onedrive)
             .set_root(&self.root)
             .set_capability(Capability {
                 read: true,

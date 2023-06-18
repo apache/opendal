@@ -19,17 +19,19 @@ use std::collections::HashMap;
 use std::os::raw::c_char;
 use std::str::FromStr;
 
+/// # Safety
+///
+/// Not yet.
 #[no_mangle]
-pub extern "C" fn blocking_operator_construct(
+pub unsafe extern "C" fn blocking_operator_construct(
     scheme: *const c_char,
 ) -> *const opendal::BlockingOperator {
     if scheme.is_null() {
         return std::ptr::null();
     }
 
-    let scheme = match opendal::Scheme::from_str(unsafe {
-        std::ffi::CStr::from_ptr(scheme).to_str().unwrap()
-    }) {
+    let scheme = match opendal::Scheme::from_str(std::ffi::CStr::from_ptr(scheme).to_str().unwrap())
+    {
         Ok(scheme) => scheme,
         Err(_) => return std::ptr::null(),
     };
@@ -47,25 +49,31 @@ pub extern "C" fn blocking_operator_construct(
     Box::leak(Box::new(op))
 }
 
+/// # Safety
+///
+/// Not yet.
 #[no_mangle]
-pub extern "C" fn blocking_operator_write(
+pub unsafe extern "C" fn blocking_operator_write(
     op: *const opendal::BlockingOperator,
     path: *const c_char,
     content: *const c_char,
 ) {
-    let op = unsafe { &*(op) };
-    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
-    let content = unsafe { std::ffi::CStr::from_ptr(content).to_str().unwrap() };
+    let op = &*(op);
+    let path = std::ffi::CStr::from_ptr(path).to_str().unwrap();
+    let content = std::ffi::CStr::from_ptr(content).to_str().unwrap();
     op.write(path, content.to_owned()).unwrap()
 }
 
+/// # Safety
+///
+/// Not yet.
 #[no_mangle]
-pub extern "C" fn blocking_operator_read(
+pub unsafe extern "C" fn blocking_operator_read(
     op: *const opendal::BlockingOperator,
     path: *const c_char,
 ) -> *const c_char {
-    let op = unsafe { &*(op) };
-    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    let op = &*(op);
+    let path = std::ffi::CStr::from_ptr(path).to_str().unwrap();
     let mut res = op.read(path).unwrap();
     res.push(0);
     std::ffi::CString::from_vec_with_nul(res)

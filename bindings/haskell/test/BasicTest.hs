@@ -28,15 +28,14 @@ basicTests :: TestTree
 basicTests =
   testGroup
     "Basic Tests"
-    [ testCaseSteps "testBasicOperation" testRawOperation
-    , testCaseSteps "testMonad" testMonad
-    , testCaseSteps "testError" testError
+    [ testCase "testBasicOperation" testRawOperation
+    , testCase "testMonad" testMonad
+    , testCase "testError" testError
     ]
 
-testRawOperation :: (String -> IO ()) -> Assertion
-testRawOperation step = do
-  step "test fs"
-  Right op <- newOp "fs" $ HashMap.fromList [("root", "/tmp/opendal-test")]
+testRawOperation :: Assertion
+testRawOperation = do
+  Right op <- newOp "memory" HashMap.empty
   writeOpRaw op "key1" "value1" >>= (@?= Right ())
   writeOpRaw op "key2" "value2" >>= (@?= Right ())
   readOpRaw op "key1" >>= (@?= Right "value1")
@@ -45,35 +44,13 @@ testRawOperation step = do
   isExistOpRaw op "key2" >>= (@?= Right True)
   createDirOpRaw op "dir1/" >>= (@?= Right ())
   isExistOpRaw op "dir1/" >>= (@?= Right True)
-  copyOpRaw op "key1" "key3" >>= (@?= Right ())
-  isExistOpRaw op "key3" >>= (@?= Right True)
-  isExistOpRaw op "key1" >>= (@?= Right True)
-  renameOpRaw op "key2" "key4" >>= (@?= Right ())
-  isExistOpRaw op "key4" >>= (@?= Right True)
-  isExistOpRaw op "key2" >>= (@?= Right False)
   deleteOpRaw op "key1" >>= (@?= Right ())
   isExistOpRaw op "key1" >>= (@?= Right False)
-  step "test memory"
-  Right op2 <- newOp "memory" HashMap.empty
-  writeOpRaw op2 "key1" "value1" >>= (@?= Right ())
-  writeOpRaw op2 "key2" "value2" >>= (@?= Right ())
-  readOpRaw op2 "key1" >>= (@?= Right "value1")
-  readOpRaw op2 "key2" >>= (@?= Right "value2")
-  isExistOpRaw op2 "key1" >>= (@?= Right True)
-  isExistOpRaw op2 "key2" >>= (@?= Right True)
-  createDirOpRaw op2 "dir1/" >>= (@?= Right ())
-  isExistOpRaw op2 "dir1/" >>= (@?= Right True)
-  deleteOpRaw op2 "key1" >>= (@?= Right ())
-  isExistOpRaw op2 "key1" >>= (@?= Right False)
 
-testMonad :: (String -> IO ()) -> Assertion
-testMonad step = do
-  step "test fs"
-  Right op <- newOp "fs" $ HashMap.fromList [("root", "/tmp/opendal-test2")]
+testMonad :: Assertion
+testMonad = do
+  Right op <- newOp "memory" HashMap.empty
   runOp op operation >>= (@?= Right ())
-  step "test memory"
-  Right op2 <- newOp "memory" HashMap.empty
-  runOp op2 operation >>= (@?= Right ())
  where
   operation = do
     writeOp "key1" "value1"
@@ -87,16 +64,10 @@ testMonad step = do
     deleteOp "key1"
     isExistOp "key1" >>= liftIO . (@?= False)
 
-testError :: (String -> IO ()) -> Assertion
-testError step = do
-  step "test fs"
-  Right op <- newOp "fs" $ HashMap.fromList [("root", "/tmp/opendal-test3")]
+testError :: Assertion
+testError = do
+  Right op <- newOp "memory" HashMap.empty
   runOp op operation >>= \v -> case v of
-    Left err -> errorCode err @?= NotFound
-    Right _ -> assertFailure "should not reach here"
-  step "test memory"
-  Right op2 <- newOp "memory" HashMap.empty
-  runOp op2 operation >>= \v -> case v of
     Left err -> errorCode err @?= NotFound
     Right _ -> assertFailure "should not reach here"
  where

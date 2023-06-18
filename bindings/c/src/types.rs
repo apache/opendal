@@ -48,11 +48,11 @@ impl opendal_operator_ptr {
     /// # Example
     ///
     /// ```C
-    /// opendal_operator_ptr ptr = opendal_operator_new("fs", NULL);
+    /// opendal_operator_ptr *ptr = opendal_operator_new("fs", NULL);
     /// // ... use this ptr, maybe some reads and writes
     ///
     /// // free this operator
-    /// opendal_operator_free(&ptr);
+    /// opendal_operator_free(ptr);
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_operator_free(&self) {
@@ -163,8 +163,8 @@ impl opendal_metadata {
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
     /// assert(s.code == OPENDAL_OK);
     ///
-    /// opendal_metadata meta = s.meta;
-    /// assert(opendal_metadata_content_length(&meta) == 13);
+    /// opendal_metadata *meta = s.meta;
+    /// assert(opendal_metadata_content_length(meta) == 13);
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_content_length(&self) -> u64 {
@@ -181,8 +181,8 @@ impl opendal_metadata {
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
     /// assert(s.code == OPENDAL_OK);
     ///
-    /// opendal_metadata meta = s.meta;
-    /// assert(opendal_metadata_is_file(&meta));
+    /// opendal_metadata *meta = s.meta;
+    /// assert(opendal_metadata_is_file(meta));
     /// ```
     #[no_mangle]
     pub extern "C" fn opendal_metadata_is_file(&self) -> bool {
@@ -199,10 +199,10 @@ impl opendal_metadata {
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
     /// assert(s.code == OPENDAL_OK);
     ///
-    /// opendal_metadata meta = s.meta;
+    /// opendal_metadata *meta = s.meta;
     ///
     /// // this is not a directory
-    /// assert(!opendal_metadata_is_dir(&meta));
+    /// assert(!opendal_metadata_is_dir(meta));
     /// ```
     ///
     /// \todo This is not a very clear example. A clearer example will be added
@@ -265,8 +265,8 @@ impl opendal_operator_options {
     /// # Example
     ///
     /// ```C
-    /// opendal_operator_options options = opendal_operator_options_new();
-    /// opendal_operator_options_set(&options, "root", "/myroot");
+    /// opendal_operator_options *options = opendal_operator_options_new();
+    /// opendal_operator_options_set(options, "root", "/myroot");
     ///
     /// // .. use your opendal_operator_options
     ///

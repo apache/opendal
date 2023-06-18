@@ -287,15 +287,15 @@ extern "C" {
  * Following is an example.
  * ```C
  * // Allocate a new options
- * opendal_operator_options options = opendal_operator_options_new();
+ * opendal_operator_options *options = opendal_operator_options_new();
  * // Set the options you need
- * opendal_operator_options_set(&options, "root", "/myroot");
+ * opendal_operator_options_set(options, "root", "/myroot");
  *
  * // Construct the operator based on the options and scheme
- * opendal_operator_ptr ptr = opendal_operator_new("memory", &options);
+ * const opendal_operator_ptr *ptr = opendal_operator_new("memory", options);
  *
  * // you could free the options right away since the options is not used afterwards
- * opendal_operator_options_free(&options);
+ * opendal_operator_options_free(options);
  *
  * // ... your operations
  * ```
@@ -512,7 +512,7 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
+ * const opendal_metadata *meta = s.meta;
  *
  * // ... you could now use your metadata, notice that please only access metadata
  * // using the APIs provided by OpenDAL
@@ -541,11 +541,11 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * # Example
  *
  * ```C
- * opendal_operator_ptr ptr = opendal_operator_new("fs", NULL);
+ * opendal_operator_ptr *ptr = opendal_operator_new("fs", NULL);
  * // ... use this ptr, maybe some reads and writes
  *
  * // free this operator
- * opendal_operator_free(&ptr);
+ * opendal_operator_free(ptr);
  * ```
  */
 void opendal_operator_free(const struct opendal_operator_ptr *self);
@@ -569,8 +569,8 @@ void opendal_metadata_free(const struct opendal_metadata *self);
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
- * assert(opendal_metadata_content_length(&meta) == 13);
+ * opendal_metadata *meta = s.meta;
+ * assert(opendal_metadata_content_length(meta) == 13);
  * ```
  */
 uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
@@ -584,8 +584,8 @@ uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
- * assert(opendal_metadata_is_file(&meta));
+ * opendal_metadata *meta = s.meta;
+ * assert(opendal_metadata_is_file(meta));
  * ```
  */
 bool opendal_metadata_is_file(const struct opendal_metadata *self);
@@ -599,10 +599,10 @@ bool opendal_metadata_is_file(const struct opendal_metadata *self);
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
  * assert(s.code == OPENDAL_OK);
  *
- * opendal_metadata meta = s.meta;
+ * opendal_metadata *meta = s.meta;
  *
  * // this is not a directory
- * assert(!opendal_metadata_is_dir(&meta));
+ * assert(!opendal_metadata_is_dir(meta));
  * ```
  *
  * \todo This is not a very clear example. A clearer example will be added
@@ -631,8 +631,8 @@ struct opendal_operator_options *opendal_operator_options_new(void);
  * # Example
  *
  * ```C
- * opendal_operator_options options = opendal_operator_options_new();
- * opendal_operator_options_set(&options, "root", "/myroot");
+ * opendal_operator_options *options = opendal_operator_options_new();
+ * opendal_operator_options_set(options, "root", "/myroot");
  *
  * // .. use your opendal_operator_options
  *

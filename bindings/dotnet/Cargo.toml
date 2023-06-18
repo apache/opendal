@@ -15,31 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-headerPath = "Apache-2.0-ASF.txt"
+[package]
+name = "opendal-dotnet"
+publish = false
 
-excludes = [
-  # Examples are served as public domain content.
-  "examples",
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
-  # Well known generated files
-  "**/Cargo.lock",
-  "**/yarn.lock",
+[lib]
+crate-type = ["cdylib"]
+doc = false
 
-  # Python binding related files
-  "**/venv/**",
-
-  # Website generated files
-  "website/build",
-  "website/.docusaurus",
-
-  # Documents
-  "**/*.md",
-  "**/*.mdx",
-]
-
-[properties]
-inceptionYear = 2023
-
-[mapping.SLASHSTAR_STYLE]
-# use SLASH_STAR_STYLE licence header for C/C++ and C# code
-extensions = ["c", "cc", "cpp", "h", "hpp", "cs"]
+[dependencies]
+opendal.workspace = true

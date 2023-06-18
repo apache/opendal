@@ -34,10 +34,13 @@ pub extern "C" fn blocking_operator_construct(
 pub extern "C" fn blocking_operator_write(
     op: *const opendal::BlockingOperator,
     path: *const c_char,
+    _content: *const c_char,
 ) {
     let op = unsafe { &*(op) };
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
-    println!("path={path}");
+    println!("path={path:?}");
+    // let content = unsafe { std::ffi::CStr::from_ptr(content).to_str().unwrap() };
+    // println!("content={content:?}");
     op.write(path, "12345").unwrap();
     let res = op.read(path).unwrap();
     println!("res={res:?}");
@@ -50,8 +53,10 @@ pub extern "C" fn blocking_operator_read(
 ) -> *const c_char {
     let op = unsafe { &*(op) };
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    println!("path={path:?}");
     let mut res = op.read(path).unwrap();
     res.push(0);
+    println!("res={res:?}");
     std::ffi::CString::from_vec_with_nul(res)
         .unwrap()
         .into_raw()

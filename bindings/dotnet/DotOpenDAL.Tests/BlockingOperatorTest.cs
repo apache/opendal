@@ -17,27 +17,18 @@
  * under the License.
  */
 
-using Xunit.Abstractions;
-
 namespace DotOpenDAL.Tests;
 
 public class BlockingOperatorTest
 {
-
-    private readonly ITestOutputHelper output;
-
-    public BlockingOperatorTest(ITestOutputHelper output)
-    {
-        this.output = output;
-    }
-
     [Fact]
     public void TestReadWrite()
     {
         var op = new BlockingOperator();
-        output.WriteLine("{0}", op.Op.ToString());
-        op.Write("test");
-        var result = op.Read("test", "12345");
-        output.WriteLine("{0}", result);
+        var content = "12345";
+        Assert.NotEqual(op.Op, IntPtr.Zero);
+        op.Write("test", content);
+        var result = op.Read("test");
+        Assert.Equal(content, result);
     }
 }

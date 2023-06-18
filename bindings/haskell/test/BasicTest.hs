@@ -27,26 +27,11 @@ basicTests :: TestTree
 basicTests =
   testGroup
     "Basic Tests"
-    [ testCase "test-memory" testMemory
-    , testCase "test-fs" testFs
+    [ testCase "testBasicOperation" testBasicOperation
     ]
 
-testMemory :: Assertion
-testMemory = do
-  Right op <- newOp "memory" $ HashMap.empty
-  writeOp op "key1" "value1" >>= (@?= Right ())
-  writeOp op "key2" "value2" >>= (@?= Right ())
-  readOp op "key1" >>= (@?= Right "value1")
-  readOp op "key2" >>= (@?= Right "value2")
-  isExistOp op "key1" >>= (@?= Right True)
-  isExistOp op "key2" >>= (@?= Right True)
-  createDirOp op "dir1/" >>= (@?= Right ())
-  isExistOp op "dir1/" >>= (@?= Right True)
-  deleteOp op "key1" >>= (@?= Right ())
-  isExistOp op "key1" >>= (@?= Right False)
-
-testFs :: Assertion
-testFs = do
+testBasicOperation :: Assertion
+testBasicOperation = do
   Right op <- newOp "fs" $ HashMap.fromList [("root", "/tmp/opendal-test")]
   writeOp op "key1" "value1" >>= (@?= Right ())
   writeOp op "key2" "value2" >>= (@?= Right ())

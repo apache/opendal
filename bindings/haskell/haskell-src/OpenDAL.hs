@@ -17,6 +17,8 @@
 
 module OpenDAL (
   Operator,
+  OpenDALError,
+  ErrorCode (..),
   newOp,
   readOp,
   writeOp,

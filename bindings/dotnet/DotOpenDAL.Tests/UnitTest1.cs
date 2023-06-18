@@ -15,6 +15,10 @@ public class UnitTest1
     [Fact]
     public void Test1()
     {
-        output.WriteLine("{0}", 42);
+        var op = new BlockingOperator();
+        output.WriteLine("{0}", op.Op.ToString());
+        op.Write("test");
+        var result = op.Read("test");
+        output.WriteLine("{0}", result);
     }
 }

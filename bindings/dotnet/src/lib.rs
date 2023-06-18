@@ -17,11 +17,14 @@ pub extern "C" fn blocking_operator_construct(
         Err(_) => return std::ptr::null(),
     };
 
-    let map = HashMap::default();
-
+    let mut map = HashMap::default();
+    map.insert("root".to_string(), "/tmp".to_string());
     let op = match opendal::Operator::via_map(scheme, map) {
         Ok(op) => op.blocking(),
-        Err(_) => return std::ptr::null(),
+        Err(err) => {
+            println!("err={err:?}");
+            return std::ptr::null();
+        }
     };
 
     Box::leak(Box::new(op))
@@ -34,7 +37,10 @@ pub extern "C" fn blocking_operator_write(
 ) {
     let op = unsafe { &*(op) };
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    println!("path={path}");
     op.write(path, "12345").unwrap();
+    let res = op.read(path).unwrap();
+    println!("res={res:?}");
 }
 
 #[no_mangle]

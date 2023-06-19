@@ -24,7 +24,7 @@ test "Opendal BDD test" {
     const c_str = [*:0]const u8; // define a type for 'const char*' in C
 
     const OpendalBDDTest = struct {
-        p: opendal.c.opendal_operator_ptr,
+        p: [*c]const opendal.c.opendal_operator_ptr,
         scheme: c_str,
         path: c_str,
         content: c_str,
@@ -35,19 +35,18 @@ test "Opendal BDD test" {
             self.path = "test";
             self.content = "Hello, World!";
 
-            var options: opendal.c.opendal_operator_options = opendal.c.opendal_operator_options_new();
-            defer opendal.c.opendal_operator_options_free(&options);
-            opendal.c.opendal_operator_options_set(&options, "root", "/myroot");
+            var options: [*c] opendal.c.opendal_operator_options = opendal.c.opendal_operator_options_new();
+            defer opendal.c.opendal_operator_options_free(options);
+            opendal.c.opendal_operator_options_set(options, "root", "/myroot");
 
             // Given A new OpenDAL Blocking Operator
-            self.p = opendal.c.opendal_operator_new(self.scheme, &options);
-            std.debug.assert(self.p.ptr != null);
+            self.p = opendal.c.opendal_operator_new(self.scheme, options);
 
             return self;
         }
 
         pub fn deinit(self: *Self) void {
-            opendal.c.opendal_operator_free(&self.p);
+            opendal.c.opendal_operator_free(self.p);
         }
 
         const Self = @This();
@@ -73,12 +72,12 @@ test "Opendal BDD test" {
     // The blocking file "test" entry mode must be file
     var s: opendal.c.opendal_result_stat = opendal.c.opendal_operator_stat(testkit.p, testkit.path);
     try testing.expectEqual(s.code, @enumToInt(Code.OK));
-    var meta: opendal.c.opendal_metadata = s.meta;
-    try testing.expect(opendal.c.opendal_metadata_is_file(&meta));
+    var meta: [*c]const opendal.c.opendal_metadata = s.meta;
+    try testing.expect(opendal.c.opendal_metadata_is_file(meta));
 
     // The blocking file "test" content length must be 13
-    try testing.expectEqual(opendal.c.opendal_metadata_content_length(&meta), 13);
-    defer opendal.c.opendal_metadata_free(&meta);
+    try testing.expectEqual(opendal.c.opendal_metadata_content_length(meta), 13);
+    defer opendal.c.opendal_metadata_free(meta);
 
     // The blocking file "test" must have content "Hello, World!"
     var r: opendal.c.opendal_result_read = opendal.c.opendal_operator_blocking_read(testkit.p, testkit.path);

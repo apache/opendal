@@ -35,7 +35,7 @@ test "Opendal BDD test" {
             self.path = "test";
             self.content = "Hello, World!";
 
-            var options: [*c] opendal.c.opendal_operator_options = opendal.c.opendal_operator_options_new();
+            var options: [*c]opendal.c.opendal_operator_options = opendal.c.opendal_operator_options_new();
             defer opendal.c.opendal_operator_options_free(options);
             opendal.c.opendal_operator_options_set(options, "root", "/myroot");
 

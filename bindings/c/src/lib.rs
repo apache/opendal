@@ -407,7 +407,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
             code: opendal_code::OPENDAL_OK,
         },
         Err(err) => opendal_result_stat {
-            meta: std::ptr::null(),
+            meta: std::ptr::null_mut(),
             code: opendal_code::from_opendal_error(err),
         },
     }

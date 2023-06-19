@@ -158,14 +158,14 @@ impl opendal_metadata {
 
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
-    pub extern "C" fn opendal_metadata_free(&self) {
-        if self.inner.is_null() {
-            return;
+    pub extern "C" fn opendal_metadata_free(&mut self) {
+        if !self.inner.is_null() {
+            unsafe {
+                mem::drop(Box::from_raw(self.inner));
+            }
         }
 
-        unsafe {
-            mem::drop(Box::from_raw(self.inner));
-        }
+        unsafe { mem::drop(Box::from_raw(self as *mut Self)) }
     }
 
     /// \brief Return the content_length of the metadata

@@ -72,7 +72,7 @@ test "Opendal BDD test" {
     // The blocking file "test" entry mode must be file
     var s: opendal.c.opendal_result_stat = opendal.c.opendal_operator_stat(testkit.p, testkit.path);
     try testing.expectEqual(s.code, @enumToInt(Code.OK));
-    var meta: [*c] opendal.c.opendal_metadata = s.meta;
+    var meta: [*c]opendal.c.opendal_metadata = s.meta;
     try testing.expect(opendal.c.opendal_metadata_is_file(meta));
 
     // The blocking file "test" content length must be 13

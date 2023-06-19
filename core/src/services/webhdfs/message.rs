@@ -79,10 +79,24 @@ pub enum FileStatusType {
     File,
 }
 
+impl Default for DirectoryListing {
+    fn default() -> Self {
+        Self {
+            partial_listing: PartialListing {
+                file_statuses: FileStatuses {
+                    file_status: vec![],
+                },
+            },
+            remaining_entries: 0,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::raw::oio::Page;
+    use crate::services::webhdfs::backend::WebhdfsBackend;
     use crate::services::webhdfs::pager::WebhdfsPager;
     use crate::EntryMode;
 
@@ -168,7 +182,12 @@ mod test {
             .file_statuses
             .file_status;
 
-        let mut pager = WebhdfsPager::new("listing/directory", file_statuses);
+        let mut pager = WebhdfsPager::new(
+            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap(),
+            "listing/directory",
+            file_statuses,
+        );
+        pager.disable_list_batch();
         let mut entries = vec![];
         while let Some(oes) = pager.next().await.expect("must success") {
             entries.extend(oes);
@@ -228,24 +247,27 @@ mod test {
 }
         "#;
 
-        let file_statuses = serde_json::from_str::<DirectoryListingWrapper>(json)
+        let directory_listing = serde_json::from_str::<DirectoryListingWrapper>(json)
             .expect("must success")
-            .directory_listing
-            .partial_listing
-            .file_statuses
-            .file_status;
+            .directory_listing;
 
-        let mut pager = WebhdfsPager::new("listing/directory", file_statuses);
+        let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
+        let mut pager = WebhdfsPager::new(
+            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap(),
+            "listing/directory",
+            file_statuses,
+        );
+        // TODO: need to setup local hadoop cluster to test list status batch
+        pager.disable_list_batch();
         let mut entries = vec![];
         while let Some(oes) = pager.next().await.expect("must success") {
             entries.extend(oes);
         }
 
-        entries.sort_by(|a, b| a.path().cmp(b.path()));
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].path(), "listing/directory/bardir/");
-        assert_eq!(entries[0].mode(), EntryMode::DIR);
-        assert_eq!(entries[1].path(), "listing/directory/bazfile");
-        assert_eq!(entries[1].mode(), EntryMode::FILE);
+        assert_eq!(entries[0].path(), "listing/directory/bazfile");
+        assert_eq!(entries[0].mode(), EntryMode::FILE);
+        assert_eq!(entries[1].path(), "listing/directory/bardir/");
+        assert_eq!(entries[1].mode(), EntryMode::DIR);
     }
 }

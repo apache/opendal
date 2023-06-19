@@ -241,7 +241,7 @@ typedef struct opendal_metadata {
    * The pointer to the opendal::Metadata in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
-  const struct Metadata *inner;
+  struct Metadata *inner;
 } opendal_metadata;
 
 /**

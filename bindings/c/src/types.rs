@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::mem;
 use std::os::raw::c_char;
 
 use ::opendal as od;
@@ -143,17 +144,28 @@ impl Into<bytes::Bytes> for opendal_bytes {
 pub struct opendal_metadata {
     /// The pointer to the opendal::Metadata in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    pub inner: *const od::Metadata,
+    pub inner: *mut od::Metadata,
 }
 
 impl opendal_metadata {
+    /// Convert a Rust core [`od::Metadata`] into a heap allocated C-compatible
+    /// [`opendal_metadata`]
+    pub(crate) fn new(m: od::Metadata) -> Self {
+        Self {
+            inner: Box::into_raw(Box::new(m)),
+        }
+    }
+
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
     pub extern "C" fn opendal_metadata_free(&self) {
         if self.inner.is_null() {
             return;
         }
-        let _ = unsafe { Box::from_raw(self.inner as *mut od::Metadata) };
+
+        unsafe {
+            mem::drop(Box::from_raw(self.inner));
+        }
     }
 
     /// \brief Return the content_length of the metadata
@@ -171,7 +183,7 @@ impl opendal_metadata {
     pub extern "C" fn opendal_metadata_content_length(&self) -> u64 {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { (*self.inner).content_length() }
+        unsafe { (&*self.inner).content_length() }
     }
 
     /// \brief Return whether the path represents a file
@@ -189,7 +201,9 @@ impl opendal_metadata {
     pub extern "C" fn opendal_metadata_is_file(&self) -> bool {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { (*self.inner).is_file() }
+        let m = unsafe { &*self.inner };
+
+        m.is_file()
     }
 
     /// \brief Return whether the path represents a directory
@@ -212,17 +226,7 @@ impl opendal_metadata {
     pub extern "C" fn opendal_metadata_is_dir(&self) -> bool {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { (*self.inner).is_dir() }
-    }
-}
-
-impl opendal_metadata {
-    /// Convert a Rust core [`od::Metadata`] into a heap allocated C-compatible
-    /// [`opendal_metadata`]
-    pub(crate) fn from_metadata(m: od::Metadata) -> *const Self {
-        &Self {
-            inner: Box::leak(Box::new(m)),
-        }
+        unsafe { (&*self.inner).is_dir() }
     }
 }
 

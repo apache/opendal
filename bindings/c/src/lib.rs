@@ -403,7 +403,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.stat(path) {
         Ok(m) => opendal_result_stat {
-            meta: opendal_metadata::from_metadata(m),
+            meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
             code: opendal_code::OPENDAL_OK,
         },
         Err(err) => opendal_result_stat {

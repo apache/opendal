@@ -183,7 +183,7 @@ impl opendal_metadata {
     pub extern "C" fn opendal_metadata_content_length(&self) -> u64 {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { (&*self.inner).content_length() }
+        unsafe { (*self.inner).content_length() }
     }
 
     /// \brief Return whether the path represents a file
@@ -226,7 +226,7 @@ impl opendal_metadata {
     pub extern "C" fn opendal_metadata_is_dir(&self) -> bool {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { (&*self.inner).is_dir() }
+        unsafe { (*self.inner).is_dir() }
     }
 }
 

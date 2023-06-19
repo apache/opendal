@@ -69,7 +69,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     // The blocking file "test" entry mode must be file
     opendal_result_stat s = opendal_operator_stat(this->p, this->path.c_str());
     EXPECT_EQ(s.code, OPENDAL_OK);
-    const opendal_metadata *meta = s.meta;
+    opendal_metadata *meta = s.meta;
     EXPECT_TRUE(opendal_metadata_is_file(meta));
 
     // The blocking file "test" content length must be 13

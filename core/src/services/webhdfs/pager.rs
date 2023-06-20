@@ -16,8 +16,11 @@
 // under the License.
 
 use async_trait::async_trait;
+use http::StatusCode;
 
 use super::backend::WebhdfsBackend;
+use super::error::parse_error;
+use super::message::DirectoryListingWrapper;
 use super::message::FileStatus;
 use super::message::FileStatusType;
 use crate::raw::*;
@@ -27,7 +30,6 @@ pub struct WebhdfsPager {
     backend: WebhdfsBackend,
     path: String,
     statuses: Vec<FileStatus>,
-    disable_list_batch: bool,
     batch_start_after: Option<String>,
     remaining_entries: u32,
 }
@@ -39,13 +41,8 @@ impl WebhdfsPager {
             path: path.to_string(),
             batch_start_after: statuses.last().map(|f| f.path_suffix.clone()),
             statuses,
-            disable_list_batch: false,
             remaining_entries: 0,
         }
-    }
-
-    pub(super) fn disable_list_batch(&mut self) {
-        self.disable_list_batch = true;
     }
 
     pub(super) fn set_remaining_entries(&mut self, remaining_entries: u32) {
@@ -66,19 +63,36 @@ impl oio::Page for WebhdfsPager {
             return Ok(None);
         }
 
-        return if self.disable_list_batch {
-            self.webhdfs_get_next_list_statuses()
-        } else {
-            let req = self
-                .backend
-                .webhdfs_list_status_batch_request(&self.path, &self.batch_start_after)?;
-            let resp = self.backend.client.send(req).await?;
-            let directory_listing = self.backend.webhdfs_list_status_batch_parse(resp).await?;
-            self.remaining_entries = directory_listing.remaining_entries;
-            let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
-            self.batch_start_after = file_statuses.last().map(|f| f.path_suffix.clone());
-            self.statuses.extend(file_statuses);
-            self.webhdfs_get_next_list_statuses()
+        return match self.backend.disable_list_batch {
+            true => self.webhdfs_get_next_list_statuses(),
+            false => {
+                let req = self
+                    .backend
+                    .webhdfs_list_status_batch_request(&self.path, &self.batch_start_after)?;
+                let resp = self.backend.client.send(req).await?;
+
+                match resp.status() {
+                    StatusCode::OK => {
+                        let bs = resp.into_body().bytes().await?;
+                        let directory_listing =
+                            serde_json::from_slice::<DirectoryListingWrapper>(&bs)
+                                .map_err(new_json_deserialize_error)?;
+                        let file_statuses = directory_listing
+                            .directory_listing
+                            .partial_listing
+                            .file_statuses
+                            .file_status;
+                        self.remaining_entries =
+                            directory_listing.directory_listing.remaining_entries;
+                        self.batch_start_after =
+                            file_statuses.last().map(|f| f.path_suffix.clone());
+                        self.statuses.extend(file_statuses);
+                        self.webhdfs_get_next_list_statuses()
+                    }
+                    StatusCode::NOT_FOUND => self.webhdfs_get_next_list_statuses(),
+                    _ => Err(parse_error(resp).await?),
+                }
+            }
         };
     }
 }

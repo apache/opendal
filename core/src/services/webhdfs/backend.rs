@@ -29,9 +29,7 @@ use tokio::sync::OnceCell;
 
 use super::error::parse_error;
 use super::message::BooleanResp;
-use super::message::DirectoryListing;
 use super::message::DirectoryListingWrapper;
-use super::message::FileStatus;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
@@ -50,6 +48,7 @@ pub struct WebhdfsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     delegation: Option<String>,
+    disable_list_batch: bool,
 }
 
 impl Debug for WebhdfsBuilder {
@@ -107,6 +106,17 @@ impl WebhdfsBuilder {
         }
         self
     }
+
+    /// Disable batch listing
+    ///
+    /// # Note
+    ///
+    /// When listing a directory, the backend will try to list all files in one request.
+    /// If the directory contains too many files, the request may fail.
+    pub fn disable_list_batch(&mut self, disable: bool) -> &mut Self {
+        self.disable_list_batch = disable;
+        self
+    }
 }
 
 impl Builder for WebhdfsBuilder {
@@ -119,6 +129,8 @@ impl Builder for WebhdfsBuilder {
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("delegation").map(|v| builder.delegation(v));
+        map.get("disable_list_batch")
+            .map(|v| builder.disable_list_batch(v.parse().unwrap_or(false)));
 
         builder
     }
@@ -162,6 +174,7 @@ impl Builder for WebhdfsBuilder {
             auth,
             client,
             root_checker: OnceCell::new(),
+            disable_list_batch: self.disable_list_batch,
         };
 
         Ok(backend)
@@ -176,6 +189,7 @@ pub struct WebhdfsBackend {
     auth: Option<String>,
     root_checker: OnceCell<()>,
 
+    pub disable_list_batch: bool,
     pub client: HttpClient,
 }
 
@@ -193,6 +207,7 @@ impl WebhdfsBackend {
             auth,
             client,
             root_checker: OnceCell::new(),
+            disable_list_batch: false,
         })
     }
 
@@ -323,58 +338,6 @@ impl WebhdfsBackend {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         Ok(req)
-    }
-
-    /// parse the response of LISTSTATUS_BATCH
-    ///
-    /// # Note
-    ///
-    /// - if the response is 200, return the DirectoryListing
-    /// - if the response is 404, return an empty DirectoryListing
-    /// - otherwise, return an error
-    pub(super) async fn webhdfs_list_status_batch_parse(
-        &self,
-        resp: Response<IncomingAsyncBody>,
-    ) -> Result<DirectoryListing> {
-        match resp.status() {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-
-                let directory_listing = serde_json::from_slice::<DirectoryListingWrapper>(&bs)
-                    .map_err(new_json_deserialize_error)?
-                    .directory_listing;
-
-                Ok(directory_listing)
-            }
-            StatusCode::NOT_FOUND => Ok(DirectoryListing::default()),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    /// parse the response of LISTSTATUS
-    ///
-    /// # Note
-    ///
-    /// - if the response is 200, return the FileStatuses
-    /// - if the response is 404, return an empty FileStatuses
-    /// - otherwise, return an error
-    async fn webhdfs_list_status_parse(
-        &self,
-        resp: Response<IncomingAsyncBody>,
-    ) -> Result<Vec<FileStatus>> {
-        match resp.status() {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-                let file_statuses = serde_json::from_slice::<FileStatusesWrapper>(&bs)
-                    .map_err(new_json_deserialize_error)?
-                    .file_statuses
-                    .file_status;
-
-                Ok(file_statuses)
-            }
-            StatusCode::NOT_FOUND => Ok(vec![]),
-            _ => Err(parse_error(resp).await?),
-        }
     }
 
     async fn webhdfs_read_file(
@@ -596,29 +559,44 @@ impl Accessor for WebhdfsBackend {
 
         let path = path.trim_end_matches('/');
 
-        // batch status listing by default, if failed, fallback to non-batch listing
-        let req = self.webhdfs_list_status_batch_request(path, &None)?;
-        let resp = self.client.send(req).await?;
-
-        match self.webhdfs_list_status_batch_parse(resp).await {
-            Ok(directory_listing) => {
-                let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
-                let mut objects = WebhdfsPager::new(self.clone(), path, file_statuses);
-                objects.set_remaining_entries(directory_listing.remaining_entries);
-                Ok((RpList::default(), objects))
-            }
-            Err(_) => {
-                // API doesn't support batch listing, fallback to non-batch listing
-                let req = self.webhdfs_list_status_request(path)?;
-                let resp = self.client.send(req).await?;
-                match self.webhdfs_list_status_parse(resp).await {
-                    Ok(file_statuses) => {
-                        let mut objects = WebhdfsPager::new(self.clone(), path, file_statuses);
-                        objects.disable_list_batch();
-                        Ok((RpList::default(), objects))
-                    }
-                    Err(e) => Err(e),
+        if !self.disable_list_batch {
+            let req = self.webhdfs_list_status_batch_request(path, &None)?;
+            let resp = self.client.send(req).await?;
+            match resp.status() {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
+                    let directory_listing = serde_json::from_slice::<DirectoryListingWrapper>(&bs)
+                        .map_err(new_json_deserialize_error)?
+                        .directory_listing;
+                    let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
+                    let mut objects = WebhdfsPager::new(self.clone(), path, file_statuses);
+                    objects.set_remaining_entries(directory_listing.remaining_entries);
+                    Ok((RpList::default(), objects))
                 }
+                StatusCode::NOT_FOUND => {
+                    let objects = WebhdfsPager::new(self.clone(), path, vec![]);
+                    Ok((RpList::default(), objects))
+                }
+                _ => Err(parse_error(resp).await?),
+            }
+        } else {
+            let req = self.webhdfs_list_status_request(path)?;
+            let resp = self.client.send(req).await?;
+            match resp.status() {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
+                    let file_statuses = serde_json::from_slice::<FileStatusesWrapper>(&bs)
+                        .map_err(new_json_deserialize_error)?
+                        .file_statuses
+                        .file_status;
+                    let objects = WebhdfsPager::new(self.clone(), path, file_statuses);
+                    Ok((RpList::default(), objects))
+                }
+                StatusCode::NOT_FOUND => {
+                    let objects = WebhdfsPager::new(self.clone(), path, vec![]);
+                    Ok((RpList::default(), objects))
+                }
+                _ => Err(parse_error(resp).await?),
             }
         }
     }

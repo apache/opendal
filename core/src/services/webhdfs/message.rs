@@ -182,12 +182,11 @@ mod test {
             .file_statuses
             .file_status;
 
-        let mut pager = WebhdfsPager::new(
-            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap(),
-            "listing/directory",
-            file_statuses,
-        );
-        pager.disable_list_batch();
+        let mut backend =
+            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap();
+        backend.disable_list_batch = true;
+
+        let mut pager = WebhdfsPager::new(backend, "listing/directory", file_statuses);
         let mut entries = vec![];
         while let Some(oes) = pager.next().await.expect("must success") {
             entries.extend(oes);
@@ -252,22 +251,22 @@ mod test {
             .directory_listing;
 
         let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
-        let mut pager = WebhdfsPager::new(
-            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap(),
-            "listing/directory",
-            file_statuses,
-        );
+        let mut backend =
+            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap();
         // TODO: need to setup local hadoop cluster to test list status batch
-        pager.disable_list_batch();
+        backend.disable_list_batch = true;
+
+        let mut pager = WebhdfsPager::new(backend, "listing/directory", file_statuses);
         let mut entries = vec![];
         while let Some(oes) = pager.next().await.expect("must success") {
             entries.extend(oes);
         }
 
+        entries.sort_by(|a, b| a.path().cmp(b.path()));
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].path(), "listing/directory/bazfile");
-        assert_eq!(entries[0].mode(), EntryMode::FILE);
-        assert_eq!(entries[1].path(), "listing/directory/bardir/");
-        assert_eq!(entries[1].mode(), EntryMode::DIR);
+        assert_eq!(entries[0].path(), "listing/directory/bardir/");
+        assert_eq!(entries[0].mode(), EntryMode::DIR);
+        assert_eq!(entries[1].path(), "listing/directory/bazfile");
+        assert_eq!(entries[1].mode(), EntryMode::FILE);
     }
 }

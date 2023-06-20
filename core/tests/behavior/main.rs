@@ -103,6 +103,8 @@ behavior_tests!(Azdfs);
 behavior_tests!(Cos);
 #[cfg(feature = "services-dashmap")]
 behavior_tests!(Dashmap);
+#[cfg(feature = "services-dropbox")]
+behavior_tests!(Dropbox);
 #[cfg(feature = "services-fs")]
 behavior_tests!(Fs);
 #[cfg(feature = "services-ftp")]

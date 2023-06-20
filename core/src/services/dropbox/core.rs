@@ -80,7 +80,8 @@ impl DropboxCore {
         if let Some(mime) = content_type {
             request_builder = request_builder.header(header::CONTENT_TYPE, mime);
         } else {
-            request_builder = request_builder.header(header::CONTENT_TYPE, "application/octet-stream");
+            request_builder =
+                request_builder.header(header::CONTENT_TYPE, "application/octet-stream");
         }
         let request = self
             .build_auth_header(request_builder)

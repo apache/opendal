@@ -61,4 +61,4 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run dropbox --features=services-dropbox
+        run: cargo test dropbox --features=services-dropbox

@@ -111,8 +111,8 @@ impl WebhdfsBuilder {
     ///
     /// # Note
     ///
-    /// When listing a directory, the backend will try to list all files in one request.
-    /// If the directory contains too many files, the request may fail.
+    /// When listing a directory, the backend will default to use batch listing.
+    /// If disable, the backend will list all files/directories in one request.
     pub fn disable_list_batch(&mut self, disable: bool) -> &mut Self {
         self.disable_list_batch = disable;
         self

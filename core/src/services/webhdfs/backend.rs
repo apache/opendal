@@ -325,6 +325,13 @@ impl WebhdfsBackend {
         Ok(req)
     }
 
+    /// parse the response of LISTSTATUS_BATCH
+    ///
+    /// # Note
+    ///
+    /// - if the response is 200, return the DirectoryListing
+    /// - if the response is 404, return an empty DirectoryListing
+    /// - otherwise, return an error
     pub(super) async fn webhdfs_list_status_batch_parse(
         &self,
         resp: Response<IncomingAsyncBody>,
@@ -344,6 +351,13 @@ impl WebhdfsBackend {
         }
     }
 
+    /// parse the response of LISTSTATUS
+    ///
+    /// # Note
+    ///
+    /// - if the response is 200, return the FileStatuses
+    /// - if the response is 404, return an empty FileStatuses
+    /// - otherwise, return an error
     async fn webhdfs_list_status_parse(
         &self,
         resp: Response<IncomingAsyncBody>,

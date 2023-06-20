@@ -54,10 +54,7 @@ impl WebhdfsPager {
 impl oio::Page for WebhdfsPager {
     /// Returns the next page of entries.
     ///
-    /// Note:
-    ///
-    /// - if disable_list_batch is false, then we will query the backend with the batch_start_after
-    /// - if disable_list_batch is true, then we will use the fallback method
+    /// Note: default list status with batch, calling next will query for next batch if `remaining_entries` > 0.
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.statuses.is_empty() && self.remaining_entries == 0 {
             return Ok(None);

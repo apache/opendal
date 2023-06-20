@@ -25,12 +25,10 @@ public enum OperatorError: Error {
 
 /// A type used to access almost all OpenDAL APIs.
 public class Operator {
-    var nativeOp: opendal_operator_ptr
+    var nativeOp: UnsafePointer<opendal_operator_ptr>
     
     deinit {
-        withUnsafePointer(to: &nativeOp) { nativeOpPtr in
-            opendal_operator_free(nativeOpPtr)
-        }
+        opendal_operator_free(nativeOp)
     }
     
     /// Creates an operator with the given options.
@@ -38,22 +36,24 @@ public class Operator {
     /// - Parameter options: The option map for creating the operator.
     /// - Throws: `OperatorError` value that indicates an error if failed.
     public init(scheme: String, options: [String : String] = [:]) throws {
-        var nativeOptions = opendal_operator_options_new()
-        nativeOp = withUnsafeMutablePointer(to: &nativeOptions) { nativeOptionsPtr in
-            defer {
-                opendal_operator_options_free(nativeOptionsPtr)
-            }
+        let nativeOptions = opendal_operator_options_new()
+        defer {
+            opendal_operator_options_free(nativeOptions)
+        }
             
-            for option in options {
-                opendal_operator_options_set(nativeOptionsPtr, option.key, option.value)
-            }
-            
-            return opendal_operator_new(scheme, nativeOptionsPtr)
+        for option in options {
+            opendal_operator_options_set(nativeOptions, option.key, option.value)
         }
         
-        guard nativeOp.ptr != nil else {
+        guard let nativeOp = opendal_operator_new(scheme, nativeOptions) else {
             throw OperatorError.failedToBuild
         }
+        
+        guard nativeOp.pointee.ptr != nil else {
+            throw OperatorError.failedToBuild
+        }
+
+        self.nativeOp = nativeOp
     }
     
     /// Blockingly write the data to a given path.

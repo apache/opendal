@@ -118,6 +118,7 @@ services-gcs = [
   "reqsign?/services-google",
   "reqsign?/reqwest_request",
 ]
+services-dropbox = []
 services-gdrive = []
 services-ghac = []
 services-hdfs = ["dep:hdrs"]

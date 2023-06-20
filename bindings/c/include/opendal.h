@@ -241,7 +241,7 @@ typedef struct opendal_metadata {
    * The pointer to the opendal::Metadata in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
-  const struct Metadata *inner;
+  struct Metadata *inner;
 } opendal_metadata;
 
 /**
@@ -254,7 +254,7 @@ typedef struct opendal_result_stat {
   /**
    * The metadata output of the stat
    */
-  const struct opendal_metadata *meta;
+  struct opendal_metadata *meta;
   /**
    * The error code, should be OPENDAL_OK if succeeds
    */
@@ -558,7 +558,7 @@ void opendal_bytes_free(const struct opendal_bytes *self);
 /**
  * \brief Free the heap-allocated metadata used by opendal_metadata
  */
-void opendal_metadata_free(const struct opendal_metadata *self);
+void opendal_metadata_free(struct opendal_metadata *self);
 
 /**
  * \brief Return the content_length of the metadata

@@ -129,13 +129,9 @@ impl Builder for WebhdfsBuilder {
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("delegation").map(|v| builder.delegation(v));
-        map.get("disable_list_batch").map(|v| {
-            if v == "true" {
-                builder.disable_list_batch();
-            } else {
-                // do nothing
-            }
-        });
+        map.get("disable_list_batch")
+            .map(|v| v == "true")
+            .map(|_v| builder.disable_list_batch());
 
         builder
     }

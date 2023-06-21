@@ -19,17 +19,21 @@ use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use crate::raw::{build_rooted_abs_path, new_json_serialize_error, HttpClient};
-
 use bytes::Bytes;
+use http::header;
 use http::request::Builder;
-use http::{header, Request, Response};
-use serde::{Deserialize, Serialize};
+use http::Request;
+use http::Response;
+use serde::Deserialize;
+use serde::Serialize;
 
-use crate::{
-    raw::{new_request_build_error, AsyncBody, IncomingAsyncBody},
-    types::Result,
-};
+use crate::raw::build_rooted_abs_path;
+use crate::raw::new_json_serialize_error;
+use crate::raw::new_request_build_error;
+use crate::raw::AsyncBody;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::types::Result;
 
 pub struct DropboxCore {
     pub token: String,
@@ -50,9 +54,8 @@ impl DropboxCore {
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
         };
-        let request_payload = serde_json::to_string(&download_args)
-            .map_err(new_json_serialize_error)
-            .unwrap();
+        let request_payload =
+            serde_json::to_string(&download_args).map_err(new_json_serialize_error)?;
         let request = self
             .build_auth_header(Request::post(&url))
             .header("Dropbox-API-Arg", request_payload)
@@ -84,9 +87,7 @@ impl DropboxCore {
             .build_auth_header(request_builder)
             .header(
                 "Dropbox-API-Arg",
-                serde_json::to_string(&args)
-                    .map_err(new_json_serialize_error)
-                    .unwrap(),
+                serde_json::to_string(&args).map_err(new_json_serialize_error)?,
             )
             .body(body)
             .map_err(new_request_build_error)?;
@@ -99,14 +100,13 @@ impl DropboxCore {
         let args = DropboxDeleteArgs {
             path: build_rooted_abs_path(&self.root, path),
         };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
         let request = self
             .build_auth_header(Request::post(&url))
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(
-                serde_json::to_string(&args)
-                    .map_err(new_json_serialize_error)
-                    .unwrap(),
-            )))
+            .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
         self.client.send(request).await
     }

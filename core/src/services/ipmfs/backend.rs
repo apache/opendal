@@ -34,7 +34,6 @@ use crate::raw::*;
 use crate::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Clone)]
 pub struct IpmfsBackend {

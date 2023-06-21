@@ -15,36 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use http::StatusCode;
 
-use std::{fmt::Debug, sync::Arc};
-
-use super::{core::DropboxCore, error::parse_error, writer::DropboxWriter};
-use crate::{
-    raw::{
-        parse_into_metadata, Accessor, AccessorInfo, HttpClient, IncomingAsyncBody, OpDelete,
-        OpRead, OpWrite, RpDelete, RpRead, RpWrite,
-    },
-    types::Result,
-    Capability, Error, ErrorKind,
-};
+use super::core::DropboxCore;
+use super::error::parse_error;
+use super::writer::DropboxWriter;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
-    core: Arc<DropboxCore>,
-}
-
-impl DropboxBackend {
-    pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
-        DropboxBackend {
-            core: Arc::new(DropboxCore {
-                token: access_token,
-                client: http_client,
-                root,
-            }),
-        }
-    }
+    pub core: Arc<DropboxCore>,
 }
 
 #[async_trait]
@@ -59,7 +44,7 @@ impl Accessor for DropboxBackend {
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
-        ma.set_scheme(crate::Scheme::Dropbox)
+        ma.set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
             .set_capability(Capability {
                 read: true,

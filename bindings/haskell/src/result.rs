@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{
-    ffi::{c_char, CString},
-    ptr,
-};
+use std::ffi::c_char;
+use std::ffi::CString;
+use std::ptr;
 
 use ::opendal as od;
 

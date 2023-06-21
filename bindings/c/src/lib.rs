@@ -28,10 +28,13 @@ use std::str::FromStr;
 use ::opendal as od;
 
 use crate::error::opendal_code;
-use crate::result::{opendal_result_is_exist, opendal_result_read, opendal_result_stat};
-use crate::types::{
-    opendal_bytes, opendal_metadata, opendal_operator_options, opendal_operator_ptr,
-};
+use crate::result::opendal_result_is_exist;
+use crate::result::opendal_result_read;
+use crate::result::opendal_result_stat;
+use crate::types::opendal_bytes;
+use crate::types::opendal_metadata;
+use crate::types::opendal_operator_options;
+use crate::types::opendal_operator_ptr;
 
 /// \brief Construct an operator based on `scheme` and `options`
 ///

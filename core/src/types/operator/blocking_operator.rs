@@ -680,6 +680,102 @@ impl BlockingOperator {
         Ok(())
     }
 
+    /// remove will remove files via the given paths.
+    ///
+    /// remove_via will remove files via the given vector iterators.
+    ///
+    /// # Notes
+    ///
+    /// We don't support batch delete now.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let stream = vec!["abc".to_string(), "def".to_string()].into_iter();
+    /// op.remove_via(stream)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove_via(&self, input: impl Iterator<Item = String>) -> Result<()> {
+        for path in input {
+            self.delete(&path)?;
+        }
+        Ok(())
+    }
+
+    /// # Notes
+    ///
+    /// We don't support batch delete now.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.remove(vec!["abc".to_string(), "def".to_string()])?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove(&self, paths: Vec<String>) -> Result<()> {
+        self.remove_via(paths.into_iter())?;
+
+        Ok(())
+    }
+
+    /// Remove the path and all nested dirs and files recursively.
+    ///
+    /// # Notes
+    ///
+    /// We don't support batch delete now.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.remove_all("path/to/dir")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn remove_all(&self, path: &str) -> Result<()> {
+        let meta = match self.stat(path) {
+            Ok(metadata) => metadata,
+
+            Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+
+            Err(e) => return Err(e),
+        };
+
+        if meta.mode() != EntryMode::DIR {
+            return self.delete(path);
+        }
+
+        let obs = self.scan(path)?;
+
+        for v in obs {
+            match v {
+                Ok(entry) => {
+                    self.inner()
+                        .blocking_delete(entry.path(), OpDelete::new())?;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        // Remove the directory itself.
+        self.delete(path)?;
+
+        Ok(())
+    }
+
     /// List current dir path.
     ///
     /// This function will create a new handle to list entries.

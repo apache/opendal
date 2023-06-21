@@ -98,41 +98,12 @@ instance Storable ByteSlice where
     dataOffset = 0
     lenOffset = sizeOf (undefined :: Ptr ())
 
-data FFIBytesContentRange = FFIBytesContentRange
-  { ffibcrStart :: Word64
-  , ffibcrEnd :: Word64
-  , ffibcrSize :: Word64
-  }
-  deriving (Eq, Show)
-
-instance Storable FFIBytesContentRange where
-  sizeOf _ = sizeOf (undefined :: Word64) * 3
-  alignment _ = alignment (undefined :: CSize)
-  peek ptr = do
-    start <- peekByteOff ptr startOffset
-    end <- peekByteOff ptr endOffset
-    size <- peekByteOff ptr sizeOffset
-    return $ FFIBytesContentRange start end size
-   where
-    startOffset = 0
-    endOffset = sizeOf (undefined :: Word64)
-    sizeOffset = endOffset + sizeOf (undefined :: Word64)
-  poke ptr (FFIBytesContentRange start end size) = do
-    pokeByteOff ptr startOffset start
-    pokeByteOff ptr endOffset end
-    pokeByteOff ptr sizeOffset size
-   where
-    startOffset = 0
-    endOffset = sizeOf (undefined :: Word64)
-    sizeOffset = endOffset + sizeOf (undefined :: Word64)
-
 data FFIMetadata = FFIMetadata
   { ffiMode :: CUInt
   , ffiCacheControl :: CString
   , ffiContentDisposition :: CString
   , ffiContentLength :: CULong
   , ffiContentMD5 :: CString
-  , ffiContentRange :: FFIMaybe FFIBytesContentRange
   , ffiContentType :: CString
   , ffiETag :: CString
   , ffiLastModified :: FFIMaybe CTime
@@ -140,7 +111,7 @@ data FFIMetadata = FFIMetadata
   deriving (Show)
 
 instance Storable FFIMetadata where
-  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: CString) * 5 + sizeOf (undefined :: CULong) + sizeOf (undefined :: FFIMaybe FFIBytesContentRange) + sizeOf (undefined :: FFIMaybe CTime)
+  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: CString) * 5 + sizeOf (undefined :: CULong) + sizeOf (undefined :: FFIMaybe CTime)
   alignment _ = alignment (undefined :: CSize)
   peek ptr = do
     mode <- peekByteOff ptr modeOffset
@@ -148,41 +119,37 @@ instance Storable FFIMetadata where
     contentDisposition <- peekByteOff ptr contentDispositionOffset
     contentLength <- peekByteOff ptr contentLengthOffset
     contentMD5 <- peekByteOff ptr contentMD5Offset
-    contentRange <- peekByteOff ptr contentRangeOffset
     contentType <- peekByteOff ptr contentTypeOffset
     eTag <- peekByteOff ptr eTagOffset
     lastModified <- peekByteOff ptr lastModifiedOffset
-    return $ FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentRange contentType eTag lastModified
+    return $ FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified
    where
     modeOffset = 0
     cacheControlOffset = modeOffset + sizeOf (undefined :: CSize)
     contentDispositionOffset = cacheControlOffset + sizeOf (undefined :: CString)
     contentLengthOffset = contentDispositionOffset + sizeOf (undefined :: CString)
     contentMD5Offset = contentLengthOffset + sizeOf (undefined :: CULong)
-    contentRangeOffset = contentMD5Offset + sizeOf (undefined :: CString)
-    contentTypeOffset = contentRangeOffset + sizeOf (undefined :: FFIMaybe FFIBytesContentRange)
+    contentTypeOffset = contentMD5Offset + sizeOf (undefined :: CString)
     eTagOffset = contentTypeOffset + sizeOf (undefined :: CString)
     lastModifiedOffset = eTagOffset + sizeOf (undefined :: CString)
-  poke ptr (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentRange contentType eTag lastModified) = do
+  poke ptr (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified) = do
     pokeByteOff ptr modeOffset mode
     pokeByteOff ptr cacheControlOffset cacheControl
     pokeByteOff ptr contentDispositionOffset contentDisposition
     pokeByteOff ptr contentLengthOffset contentLength
     pokeByteOff ptr contentMD5Offset contentMD5
-    pokeByteOff ptr contentRangeOffset contentRange
     pokeByteOff ptr contentTypeOffset contentType
     pokeByteOff ptr eTagOffset eTag
     pokeByteOff ptr lastModifiedOffset lastModified
    where
     modeOffset = 0
     cacheControlOffset = modeOffset + sizeOf (undefined :: CSize)
-    contentDispositionOffset = cacheControlOffset + sizeOf (undefined :: FFIMaybe CString)
-    contentLengthOffset = contentDispositionOffset + sizeOf (undefined :: FFIMaybe CString)
+    contentDispositionOffset = cacheControlOffset + sizeOf (undefined :: CString)
+    contentLengthOffset = contentDispositionOffset + sizeOf (undefined :: CString)
     contentMD5Offset = contentLengthOffset + sizeOf (undefined :: CULong)
-    contentRangeOffset = contentMD5Offset + sizeOf (undefined :: FFIMaybe CString)
-    contentTypeOffset = contentRangeOffset + sizeOf (undefined :: FFIMaybe FFIBytesContentRange)
-    eTagOffset = contentTypeOffset + sizeOf (undefined :: FFIMaybe CString)
-    lastModifiedOffset = eTagOffset + sizeOf (undefined :: FFIMaybe CString)
+    contentTypeOffset = contentMD5Offset + sizeOf (undefined :: CString)
+    eTagOffset = contentTypeOffset + sizeOf (undefined :: CString)
+    lastModifiedOffset = eTagOffset + sizeOf (undefined :: CString)
 
 foreign import ccall "via_map_ffi"
   c_via_map_ffi ::

@@ -89,38 +89,12 @@ pub enum EntryMode {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct BytesContentRange {
-    start: FFIOption<u64>,
-    end: FFIOption<u64>,
-    size: FFIOption<u64>,
-}
-
-impl From<od::raw::BytesContentRange> for BytesContentRange {
-    fn from(val: od::raw::BytesContentRange) -> Self {
-        let (start, end) = match val.range() {
-            Some(r) => (Some(r.start), Some(r.end)),
-            None => (None, None),
-        };
-
-        let size = val.size();
-
-        BytesContentRange {
-            start: start.into(),
-            end: end.into(),
-            size: size.into(),
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug)]
 pub struct Metadata {
     mode: EntryMode,
     cache_control: *const c_char,
     content_disposition: *const c_char,
     content_length: u64,
     content_md5: *const c_char,
-    content_range: FFIOption<BytesContentRange>,
     content_type: *const c_char,
     etag: *const c_char,
     last_modified: FFIOption<i64>,
@@ -151,8 +125,6 @@ impl From<od::Metadata> for Metadata {
             None => std::ptr::null(),
         };
 
-        let content_range = val.content_range().map(|r| r.into()).into();
-
         let content_type = match val.content_type() {
             Some(s) => unsafe { leak_str(s.to_string()) },
             None => std::ptr::null(),
@@ -171,7 +143,6 @@ impl From<od::Metadata> for Metadata {
             content_disposition,
             content_length,
             content_md5,
-            content_range,
             content_type,
             etag,
             last_modified,

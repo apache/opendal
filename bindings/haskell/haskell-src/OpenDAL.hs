@@ -82,7 +82,6 @@ data Metadata = Metadata
   , mContentDisposition :: Maybe String
   , mContentLength :: Integer
   , mContentMD5 :: Maybe String
-  , mContentRange :: Maybe BytesContentRange
   , mContentType :: Maybe String
   , mETag :: Maybe String
   , mLastModified :: Maybe POSIXTime
@@ -171,14 +170,6 @@ parseEntryMode 0 = File
 parseEntryMode 1 = Dir
 parseEntryMode _ = Unknown
 
-parseFFIBytesContentRange :: FFIBytesContentRange -> BytesContentRange
-parseFFIBytesContentRange (FFIBytesContentRange start end total) =
-  BytesContentRange
-    { bcrStart = toInteger start
-    , bcrEnd = toInteger end
-    , bcrTotal = toInteger total
-    }
-
 parseCString :: CString -> IO (Maybe String)
 parseCString value | value == nullPtr = return Nothing
 parseCString value = do
@@ -187,13 +178,12 @@ parseCString value = do
   return $ Just value'
 
 parseFFIMetadata :: FFIMetadata -> IO Metadata
-parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentRange contentType eTag lastModified) = do
+parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified) = do
   let mode' = parseEntryMode $ fromIntegral mode
   cacheControl' <- parseCString cacheControl
   contentDisposition' <- parseCString contentDisposition
   let contentLength' = toInteger contentLength
   contentMD5' <- parseCString contentMD5
-  let contentRange' = parseFFIBytesContentRange <$> parseFFIMaybe contentRange
   contentType' <- parseCString contentType
   eTag' <- parseCString eTag
   let lastModified' = realToFrac <$> parseFFIMaybe lastModified
@@ -204,7 +194,6 @@ parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength
       , mContentDisposition = contentDisposition'
       , mContentLength = contentLength'
       , mContentMD5 = contentMD5'
-      , mContentRange = contentRange'
       , mContentType = contentType'
       , mETag = eTag'
       , mLastModified = lastModified'

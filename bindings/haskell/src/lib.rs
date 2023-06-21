@@ -16,6 +16,7 @@
 // under the License.
 
 mod result;
+mod types;
 
 use ::opendal as od;
 use result::FFIResult;
@@ -24,6 +25,7 @@ use std::ffi::CStr;
 use std::mem;
 use std::os::raw::c_char;
 use std::str::FromStr;
+use types::{ByteSlice, Metadata};
 
 /// # Safety
 ///
@@ -94,45 +96,6 @@ pub unsafe extern "C" fn via_map_ffi(
 pub unsafe extern "C" fn free_operator(operator: *mut od::BlockingOperator) {
     if !operator.is_null() {
         drop(Box::from_raw(operator));
-    }
-}
-
-#[repr(C)]
-#[derive(Debug)]
-pub struct ByteSlice {
-    data: *mut c_char,
-    len: usize,
-}
-
-impl ByteSlice {
-    fn from_vec(vec: Vec<u8>) -> Self {
-        let data = vec.as_ptr() as *mut c_char;
-        let len = vec.len();
-
-        // Leak the memory to pass the ownership to Haskell
-        std::mem::forget(vec);
-
-        ByteSlice { data, len }
-    }
-
-    /// # Safety
-    ///
-    /// * `ptr` is a valid pointer to a `ByteSlice`.
-    ///
-    /// # Panics
-    ///
-    /// * If `ptr` is not a valid pointer.
-    #[no_mangle]
-    pub unsafe extern "C" fn free_byteslice(ptr: *mut c_char, len: usize) {
-        if !ptr.is_null() {
-            drop(Vec::from_raw_parts(ptr, len, len));
-        }
-    }
-}
-
-impl From<&mut ByteSlice> for Vec<u8> {
-    fn from(val: &mut ByteSlice) -> Self {
-        unsafe { Vec::from_raw_parts(val.data as *mut u8, val.len, val.len) }
     }
 }
 
@@ -433,6 +396,45 @@ pub unsafe extern "C" fn blocking_delete(
 
     let res = match op.delete(path_str) {
         Ok(()) => FFIResult::ok(()),
+        Err(e) => FFIResult::err_with_source("Failed to delete", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_stat(
+    op: *mut od::BlockingOperator,
+    path: *const c_char,
+    result: *mut FFIResult<Metadata>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.stat(path_str) {
+        Ok(meta) => FFIResult::ok(meta.into()),
         Err(e) => FFIResult::err_with_source("Failed to delete", e),
     };
 

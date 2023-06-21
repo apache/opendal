@@ -2785,6 +2785,7 @@ dependencies = [
 name = "opendal-hs"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "opendal",
 ]
 

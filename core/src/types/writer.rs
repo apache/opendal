@@ -26,6 +26,7 @@ use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::AsyncWrite;
 use futures::FutureExt;
+use futures::TryStreamExt;
 
 use crate::raw::oio::Write;
 use crate::raw::*;
@@ -85,6 +86,28 @@ impl Writer {
         } else {
             unreachable!(
                 "writer state invalid while write, expect Idle, actual {}",
+                self.state
+            );
+        }
+    }
+
+    /// Sink into writer.
+    ///
+    /// sink will read data from given streamer and write them into writer
+    /// directly without extra in-memory buffer.
+    pub async fn sink<S, T>(&mut self, size: u64, s: S) -> Result<()>
+    where
+        S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
+        T: Into<Bytes>,
+    {
+        if let State::Idle(Some(w)) = &mut self.state {
+            let s = Box::new(oio::into_stream::from_futures_stream(
+                s.map_ok(|v| v.into()),
+            ));
+            w.sink(size, s).await
+        } else {
+            unreachable!(
+                "writer state invalid while pipe_form, expect Idle, actual {}",
                 self.state
             );
         }

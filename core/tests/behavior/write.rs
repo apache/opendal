@@ -21,6 +21,7 @@ use std::time::Duration;
 use anyhow::Result;
 use futures::io::BufReader;
 use futures::io::Cursor;
+use futures::stream;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
@@ -111,6 +112,7 @@ macro_rules! behavior_write_tests {
                 test_delete_stream,
                 test_remove_one_file,
                 test_writer_write,
+                test_writer_sink,
                 test_writer_abort,
                 test_writer_futures_copy,
                 test_fuzz_unsized_writer,
@@ -1099,6 +1101,41 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
     };
     w.write(content_a.clone()).await?;
     w.write(content_b.clone()).await?;
+    w.close().await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), (size * 2) as u64);
+
+    let bs = op.read(&path).await?;
+    assert_eq!(bs.len(), size * 2, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", Sha256::digest(content_a)),
+        "read content a"
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[size..])),
+        format!("{:x}", Sha256::digest(content_b)),
+        "read content b"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Streaming data into writer
+pub async fn test_writer_sink(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let size = 5 * 1024 * 1024; // write file with 5 MiB
+    let content_a = gen_fixed_bytes(size);
+    let content_b = gen_fixed_bytes(size);
+    let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
+
+    let mut w = op
+        .writer_with(&path)
+        .content_length(2 * size as u64)
+        .await?;
+    w.sink(2 * size as u64, stream).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

@@ -24,37 +24,12 @@ use http::StatusCode;
 use super::core::DropboxCore;
 use super::error::parse_error;
 use super::writer::DropboxWriter;
-use crate::raw::parse_into_metadata;
-use crate::raw::Accessor;
-use crate::raw::AccessorInfo;
-use crate::raw::HttpClient;
-use crate::raw::IncomingAsyncBody;
-use crate::raw::OpDelete;
-use crate::raw::OpRead;
-use crate::raw::OpWrite;
-use crate::raw::RpDelete;
-use crate::raw::RpRead;
-use crate::raw::RpWrite;
-use crate::types::Result;
-use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
-    core: Arc<DropboxCore>,
-}
-
-impl DropboxBackend {
-    pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
-        DropboxBackend {
-            core: Arc::new(DropboxCore {
-                token: access_token,
-                client: http_client,
-                root,
-            }),
-        }
-    }
+    pub core: Arc<DropboxCore>,
 }
 
 #[async_trait]
@@ -69,7 +44,7 @@ impl Accessor for DropboxBackend {
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
-        ma.set_scheme(crate::Scheme::Dropbox)
+        ma.set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
             .set_capability(Capability {
                 read: true,

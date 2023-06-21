@@ -54,9 +54,8 @@ impl DropboxCore {
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
         };
-        let request_payload = serde_json::to_string(&download_args)
-            .map_err(new_json_serialize_error)
-            .unwrap();
+        let request_payload =
+            serde_json::to_string(&download_args).map_err(new_json_serialize_error)?;
         let request = self
             .build_auth_header(Request::post(&url))
             .header("Dropbox-API-Arg", request_payload)
@@ -88,9 +87,7 @@ impl DropboxCore {
             .build_auth_header(request_builder)
             .header(
                 "Dropbox-API-Arg",
-                serde_json::to_string(&args)
-                    .map_err(new_json_serialize_error)
-                    .unwrap(),
+                serde_json::to_string(&args).map_err(new_json_serialize_error)?,
             )
             .body(body)
             .map_err(new_request_build_error)?;
@@ -103,14 +100,13 @@ impl DropboxCore {
         let args = DropboxDeleteArgs {
             path: build_rooted_abs_path(&self.root, path),
         };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
         let request = self
             .build_auth_header(Request::post(&url))
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(Bytes::from(
-                serde_json::to_string(&args)
-                    .map_err(new_json_serialize_error)
-                    .unwrap(),
-            )))
+            .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
         self.client.send(request).await
     }

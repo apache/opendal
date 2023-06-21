@@ -18,11 +18,11 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use super::backend::DropboxBackend;
-use crate::raw::normalize_root;
-use crate::raw::HttpClient;
-use crate::Scheme;
+use super::core::DropboxCore;
+use crate::raw::*;
 use crate::*;
 
 /// [Dropbox](https://www.dropbox.com/) backend support.
@@ -63,21 +63,9 @@ use crate::*;
 /// async fn main() -> Result<()> {
 ///     // create backend builder
 ///     let mut builder = Dropbox::default();
-///
-///     builder.access_token("x").root("/");
+///     builder.access_token("<token>");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///     let content = "who are you";
-///
-///     let write = op
-///         .write_with("abc2.txt", content)
-///         .content_type("application/octet-stream")
-///         .content_length(content.len() as u64)
-///         .await?;
-///     let read = op.read("abc2.txt").await?;
-///     let s = String::from_utf8(read).unwrap();
-///     println!("{}", s);
-///     let delete = op.delete("abc.txt").await?;
 ///     Ok(())
 /// }
 /// ```
@@ -140,12 +128,22 @@ impl Builder for DropboxBuilder {
                     .with_context("service", Scheme::Dropbox)
             })?
         };
-        match self.access_token.clone() {
-            Some(access_token) => Ok(DropboxBackend::new(root, access_token, client)),
-            None => Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "access_token is required",
-            )),
-        }
+        let token = match self.access_token.clone() {
+            Some(access_token) => access_token,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token is required",
+                ))
+            }
+        };
+
+        Ok(DropboxBackend {
+            core: Arc::new(DropboxCore {
+                root,
+                token,
+                client,
+            }),
+        })
     }
 }

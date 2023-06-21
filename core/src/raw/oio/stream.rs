@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::Context;
+use std::task::Poll;
+
 use bytes::Bytes;
 
 use crate::*;
-use std::task::{Context, Poll};
 
 /// Streamer is a type erased [`Stream`].
 pub type Streamer = Box<dyn Stream>;

@@ -40,7 +40,6 @@ const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
 /// [Redis](https://redis.io/) services support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct RedisBuilder {

@@ -19,17 +19,21 @@ use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use crate::raw::{build_rooted_abs_path, new_json_serialize_error, HttpClient};
-
 use bytes::Bytes;
+use http::header;
 use http::request::Builder;
-use http::{header, Request, Response};
-use serde::{Deserialize, Serialize};
+use http::Request;
+use http::Response;
+use serde::Deserialize;
+use serde::Serialize;
 
-use crate::{
-    raw::{new_request_build_error, AsyncBody, IncomingAsyncBody},
-    types::Result,
-};
+use crate::raw::build_rooted_abs_path;
+use crate::raw::new_json_serialize_error;
+use crate::raw::new_request_build_error;
+use crate::raw::AsyncBody;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::types::Result;
 
 pub struct DropboxCore {
     pub token: String,

@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
-
 use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
 use super::backend::DropboxBackend;
-use crate::raw::{normalize_root, HttpClient};
+use crate::raw::normalize_root;
+use crate::raw::HttpClient;
 use crate::Scheme;
 use crate::*;
 
@@ -54,9 +55,9 @@ use crate::*;
 ///
 /// ```
 /// use anyhow::Result;
+/// use opendal::raw::OpWrite;
 /// use opendal::services::Dropbox;
 /// use opendal::Operator;
-/// use opendal::raw::OpWrite;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -68,10 +69,11 @@ use crate::*;
 ///     let op: Operator = Operator::new(builder)?.finish();
 ///     let content = "who are you";
 ///
-///
-///     let write = op.write_with("abc2.txt", content)
+///     let write = op
+///         .write_with("abc2.txt", content)
 ///         .content_type("application/octet-stream")
-///         .content_length(content.len() as u64).await?;
+///         .content_length(content.len() as u64)
+///         .await?;
 ///     let read = op.read("abc2.txt").await?;
 ///     let s = String::from_utf8(read).unwrap();
 ///     println!("{}", s);

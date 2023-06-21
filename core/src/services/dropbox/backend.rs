@@ -15,20 +15,30 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use http::StatusCode;
 
-use std::{fmt::Debug, sync::Arc};
-
-use super::{core::DropboxCore, error::parse_error, writer::DropboxWriter};
-use crate::{
-    raw::{
-        parse_into_metadata, Accessor, AccessorInfo, HttpClient, IncomingAsyncBody, OpDelete,
-        OpRead, OpWrite, RpDelete, RpRead, RpWrite,
-    },
-    types::Result,
-    Capability, Error, ErrorKind,
-};
+use super::core::DropboxCore;
+use super::error::parse_error;
+use super::writer::DropboxWriter;
+use crate::raw::parse_into_metadata;
+use crate::raw::Accessor;
+use crate::raw::AccessorInfo;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::raw::OpDelete;
+use crate::raw::OpRead;
+use crate::raw::OpWrite;
+use crate::raw::RpDelete;
+use crate::raw::RpRead;
+use crate::raw::RpWrite;
+use crate::types::Result;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
 
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {

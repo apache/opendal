@@ -80,9 +80,8 @@ mod tests {
     use futures::stream;
     use serde_json::from_reader;
 
-    use crate::raw::oio::into_stream;
-
     use super::*;
+    use crate::raw::oio::into_stream;
 
     /// Error response example from https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Error%20Responses
     #[tokio::test]

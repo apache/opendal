@@ -18,15 +18,20 @@
 use std::io::SeekFrom;
 use std::num::NonZeroU32;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 use std::thread;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use governor::clock::{Clock, DefaultClock};
+use governor::clock::Clock;
+use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
-use governor::state::{InMemoryState, NotKeyed};
-use governor::{NegativeMultiDecision, Quota, RateLimiter};
+use governor::state::InMemoryState;
+use governor::state::NotKeyed;
+use governor::NegativeMultiDecision;
+use governor::Quota;
+use governor::RateLimiter;
 
 use crate::raw::oio::Streamer;
 use crate::raw::*;

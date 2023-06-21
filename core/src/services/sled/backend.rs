@@ -29,7 +29,6 @@ use crate::Scheme;
 use crate::*;
 
 /// Sled service support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SledBuilder {

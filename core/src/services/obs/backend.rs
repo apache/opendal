@@ -27,10 +27,11 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
+use super::appender::ObsAppender;
+use super::core::ObsCore;
 use super::error::parse_error;
 use super::pager::ObsPager;
 use super::writer::ObsWriter;
-use super::{appender::ObsAppender, core::ObsCore};
 use crate::raw::*;
 use crate::*;
 

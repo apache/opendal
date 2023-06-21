@@ -45,7 +45,6 @@ use crate::raw::*;
 use crate::*;
 
 /// FTP and FTPS services support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FtpBuilder {

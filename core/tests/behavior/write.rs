@@ -1125,6 +1125,11 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
 
 /// Streaming data into writer
 pub async fn test_writer_sink(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !(cap.write && cap.write_can_sink) {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);

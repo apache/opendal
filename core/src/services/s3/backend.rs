@@ -58,7 +58,6 @@ const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
-///
 #[doc = include_str!("docs.md")]
 #[doc = include_str!("compatible_services.md")]
 #[derive(Default)]
@@ -969,14 +968,13 @@ impl Accessor for S3Backend {
                 let path = build_rel_path(&self.core.root, &i.key);
                 batched_result.push((path, Ok(RpDelete::default().into())));
             }
-            // TODO: we should handle those errors with code.
             for i in result.error {
                 let path = build_rel_path(&self.core.root, &i.key);
 
                 // set the error kind and mark temporary if retryable
                 let (kind, retryable) =
                     parse_s3_error_code(i.code.as_str()).unwrap_or((ErrorKind::Unexpected, false));
-                let mut err = Error::new(kind, &format!("{i:?}"));
+                let mut err: Error = Error::new(kind, &format!("{i:?}"));
                 if retryable {
                     err = err.set_temporary();
                 }

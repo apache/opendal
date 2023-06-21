@@ -17,7 +17,7 @@
 
 //! OpenDAL is the Open Data Access Layer to **freely** access data.
 //!
-//! - Documentation: All docs are carried byself, visit [`docs`] for more.
+//! - Documentation: All docs are carried by self, visit [`docs`] for more.
 //! - Services: All supported services could be found at [`services`].
 //! - Layers: All builtin layer could be found at [`layers`].
 //! - Features: All features could be found at [`features`][docs::features].

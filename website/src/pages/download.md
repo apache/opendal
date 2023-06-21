@@ -11,9 +11,10 @@ Apache OpenDAL(incubating) is released as a source artifact.
 
 ## Releases
 
-|Name|Archive|Signature|Checksum|
-|---|---|---|---|
-|0.36.0-incubating|[tarball](https://dlcdn.apache.org/incubator/opendal/0.36.0/apache-opendal-incubating-0.36.0-src.tar.gz)|[asc](https://dlcdn.apache.org/incubator/opendal/0.36.0/apache-opendal-incubating-0.36.0-src.tar.gz.asc)|[sha512](https://dlcdn.apache.org/incubator/opendal/0.36.0/apache-opendal-incubating-0.36.0-src.tar.gz.sha512)|
+| Name              | Archive                                                                                                  | Signature                                                                                                | Checksum                                                                                                       |
+|-------------------|----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| 0.37.0-incubating | [tarball](https://dlcdn.apache.org/incubator/opendal/0.37.0/apache-opendal-incubating-0.37.0-src.tar.gz) | [asc](https://dlcdn.apache.org/incubator/opendal/0.37.0/apache-opendal-incubating-0.37.0-src.tar.gz.asc) | [sha512](https://dlcdn.apache.org/incubator/opendal/0.37.0/apache-opendal-incubating-0.37.0-src.tar.gz.sha512) |
+| 0.36.0-incubating | [tarball](https://dlcdn.apache.org/incubator/opendal/0.36.0/apache-opendal-incubating-0.36.0-src.tar.gz) | [asc](https://dlcdn.apache.org/incubator/opendal/0.36.0/apache-opendal-incubating-0.36.0-src.tar.gz.asc) | [sha512](https://dlcdn.apache.org/incubator/opendal/0.36.0/apache-opendal-incubating-0.36.0-src.tar.gz.sha512) |
 
 For older releases, please check the [archive](https://dlcdn.apache.org/incubator/opendal/).
 

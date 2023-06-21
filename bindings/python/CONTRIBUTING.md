@@ -1,7 +1,7 @@
 # Contributing
 
 - [Setup](#setup)
-  - [Using a devcontainer environment](#using-a-devcontainer-environment)
+  - [Using a dev container environment](#using-a-devcontainer-environment)
   - [Bring your own toolbox](#bring-your-own-toolbox)
 - [Prepare](#prepare)
 - [Build](#build)

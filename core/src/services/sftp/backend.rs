@@ -44,7 +44,6 @@ use crate::*;
 ///
 /// For example, the default value is 255 in macOS, and 1024 in linux. If you want to open
 /// lots of files, you should pay attention to close the file after using it.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SftpBuilder {

@@ -33,7 +33,6 @@ use crate::raw::*;
 use crate::*;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct HdfsBuilder {

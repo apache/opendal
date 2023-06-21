@@ -17,11 +17,15 @@ Major components of the project include:
 **Libraries**
 
 - [Rust Core](core/README.md)
+- [C Binding](bindings/c/README.md) *not released*
+- [Haskell Binding](bindings/haskell/README.md) *not released*
+- [Java Binding](bindings/java/README.md)
+- [Lua Binding](bindings/lua/README.md) *not released*
 - [Node.js Binding](bindings/nodejs/README.md)
 - [Python Binding](bindings/python/README.md)
-- [C Binding](bindings/c) *being worked on*
-- [Java Binding](bindings/java) *being worked on*
-- [Ruby Binding](bindings/ruby) *being worked on*
+- [Ruby Binding](bindings/ruby/README.md) *not released*
+- [Swift Binding](bindings/swift/README.md) *not released*
+- [Zig Binding](bindings/zig/README.md) *not released*
 
 **Applications**
 
@@ -45,6 +49,7 @@ Major components of the project include:
 <summary>Object Storage Services (like s3, gcs, azblob)</summary>
 
 - azblob: [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services
+- cos: [Tencent Cloud Object Storage](https://www.tencentcloud.com/products/cos) services
 - gcs: [Google Cloud Storage](https://cloud.google.com/storage) Service
 - obs: [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS)
 - oss: [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS)
@@ -96,11 +101,13 @@ Major components of the project include:
 
 > Welcome to add any services that are not currently supported [here](https://github.com/apache/incubator-opendal/issues/5).
 
+## Examples
+
+The examples are available at [here](./examples/).
+
 ## Documentation
 
 The documentation is available at <https://opendal.apache.org>.
-
-We are engaged in a practice we call "documentation as code". You can also view the documentation directly in project's source code. And we welcome you to contribute to the documentation.
 
 ## Contribute
 
@@ -108,9 +115,9 @@ OpenDAL is an active open-source project. We are always open to people who want 
 
 - Start with [Contributing Guide](CONTRIBUTING.md).
 - Submit [Issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or feature requests.
+- Discuss at [dev mailing list](mailto:dev-subscribe@opendal.apache.org) ([subscribe](mailto:dev-subscribe@opendal.apache.org?subject=(send%20this%20email%20to%20subscribe)) / [unsubscribe](mailto:dev-unsubscribe@opendal.apache.org?subject=(send%20this%20email%20to%20unsubscribe)) / [archives](https://lists.apache.org/list.html?dev@opendal.apache.org))
 - Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
 - Talk to community directly at [Discord](https://discord.gg/XQy8yGR2dg).
-- [Subscribe our dev mailing list](mailto:dev-subscribe@opendal.apache.org), then you can use it to ask questions, discuss design and implementation, etc. View the archive at <https://lists.apache.org/list.html?dev@opendal.apache.org>.
 
 ## Who is using OpenDAL?
 
@@ -120,6 +127,7 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - [mozilla/sccache](https://github.com/mozilla/sccache/): `sccache` is [`ccache`](https://github.com/ccache/ccache) with cloud storage
 - [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
+- [OctoBase](https://github.com/toeverything/OctoBase): the open-source database behind [AFFiNE](https://github.com/toeverything/affine), local-first, yet collaborative.
 
 ## License
 

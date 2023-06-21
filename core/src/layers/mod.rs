@@ -76,5 +76,10 @@ pub use self::madsim::MadsimServer;
 
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;
+
+#[cfg(feature = "layers-throttle")]
+mod throttle;
 #[cfg(feature = "layers-otel-trace")]
 pub use self::oteltrace::OtelTraceLayer;
+#[cfg(feature = "layers-throttle")]
+pub use self::throttle::ThrottleLayer;

@@ -68,6 +68,8 @@ pub enum Scheme {
     Onedrive,
     /// [gdrive][crate::services::Gdrive]: GoogleDrive services.
     Gdrive,
+    /// [dropbox][crate::services::Dropbox]: Dropbox services.
+    Dropbox,
     /// [oss][crate::services::Oss]: Aliyun Object Storage Services
     Oss,
     /// [redis][crate::services::Redis]: Redis services
@@ -175,6 +177,7 @@ impl From<Scheme> for &'static str {
             Scheme::Obs => "obs",
             Scheme::Onedrive => "onedrive",
             Scheme::Gdrive => "gdrive",
+            Scheme::Dropbox => "dropbox",
             Scheme::Redis => "redis",
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",

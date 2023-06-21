@@ -52,7 +52,7 @@ pub fn build(b: *std.Build) void {
         unit_tests.addLibraryPath("../../target/release");
     }
     unit_tests.linkSystemLibrary("opendal_c");
-    unit_tests.linkLibC();
+    unit_tests.linkLibCpp();
 
     // Creates a step for running unit tests.
     const run_unit_tests = b.addRunArtifact(unit_tests);

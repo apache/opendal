@@ -33,7 +33,6 @@ use crate::raw::*;
 use crate::*;
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone, Debug)]
 pub struct IpfsBuilder {

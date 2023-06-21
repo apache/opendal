@@ -17,7 +17,7 @@
 
 use bytes::Buf;
 use http::Response;
-use http::StatusCode;
+use http::Uri;
 use quick_xml::de;
 use serde::Deserialize;
 
@@ -41,16 +41,14 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
-    let (mut kind, mut retryable) = match parts.status {
-        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
-            (ErrorKind::ConditionNotMatch, false)
-        }
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+    let (mut kind, mut retryable) = match parts.status.as_u16() {
+        403 => (ErrorKind::PermissionDenied, false),
+        404 => (ErrorKind::NotFound, false),
+        304 | 412 => (ErrorKind::ConditionNotMatch, false),
+        // Service like R2 could return 499 error with a message like:
+        // Client Disconnect, we should retry it.
+        499 => (ErrorKind::Unexpected, true),
+        500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
 
@@ -68,10 +66,14 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         err = err.set_temporary();
     }
 
+    if let Some(uri) = parts.extensions.get::<Uri>() {
+        err = err.with_context("uri", uri.to_string());
+    }
+
     Ok(err)
 }
 
-/// Returns the Errorkind of this code and whether the error is retryable.
+/// Returns the `Error kind` of this code and whether the error is retryable.
 /// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
 pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {

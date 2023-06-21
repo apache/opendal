@@ -26,7 +26,6 @@ use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// In memory service support. (BTreeMap Based)
-///
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MemoryBuilder {

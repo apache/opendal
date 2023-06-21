@@ -19,11 +19,12 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
+use http::header::CACHE_CONTROL;
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION};
 use http::Request;
 use http::Response;
 use reqsign::HuaweicloudObsCredential;

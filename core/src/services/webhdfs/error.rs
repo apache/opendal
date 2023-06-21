@@ -51,7 +51,7 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         // passing invalid arguments will return BAD_REQUEST
-        // should be unretryable
+        // should be un-retryable
         StatusCode::BAD_REQUEST => (ErrorKind::Unexpected, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -80,9 +80,8 @@ mod tests {
     use futures::stream;
     use serde_json::from_reader;
 
-    use crate::raw::oio::into_stream;
-
     use super::*;
+    use crate::raw::oio::into_stream;
 
     /// Error response example from https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Error%20Responses
     #[tokio::test]

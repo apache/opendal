@@ -28,7 +28,6 @@ use crate::Result;
 use crate::*;
 
 /// RocksDB service support.
-///
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default, Debug)]
 pub struct RocksdbBuilder {

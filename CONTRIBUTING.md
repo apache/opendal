@@ -11,7 +11,7 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
     - [Merge Style](#merge-style)
     - [CI](#ci)
 - [Setup](#setup)
-  - [Using a devcontainer environment](#using-a-devcontainer-environment)
+  - [Using a dev container environment](#using-a-devcontainer-environment)
   - [Bring your own toolbox](#bring-your-own-toolbox)
 - [Code of Conduct](#code-of-conduct)
 
@@ -63,7 +63,7 @@ Currently, OpenDAL uses GitHub Actions to run tests. The workflows are defined i
 
 For small or first-time contributions, we recommend the dev container method. Prefer to do it yourself? That's fine too!
 
-### Using a devcontainer environment
+### Using a dev container environment
 
 OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
 

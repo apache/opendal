@@ -37,6 +37,7 @@ use reqsign::AwsV4Signer;
 
 use super::core::*;
 use super::error::parse_error;
+use super::error::parse_wasabi_error_code;
 use super::pager::WasabiPager;
 use super::writer::WasabiWriter;
 use crate::raw::*;
@@ -1101,10 +1102,15 @@ impl Accessor for WasabiBackend {
             for i in result.error {
                 let path = build_rel_path(&self.core.root, &i.key);
 
-                batched_result.push((
-                    path,
-                    Err(Error::new(ErrorKind::Unexpected, &format!("{i:?}"))),
-                ));
+                // set the error kind and mark temporary if retryable
+                let (kind, retryable) =
+                    parse_wasabi_error_code(&i.code).unwrap_or((ErrorKind::Unexpected, false));
+                let mut err: Error = Error::new(kind, &format!("{i:?}"));
+                if retryable {
+                    err = err.set_temporary();
+                }
+
+                batched_result.push((path, Err(err)));
             }
 
             Ok(RpBatch::new(batched_result))

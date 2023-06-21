@@ -42,26 +42,26 @@ pub(super) struct DirectoryListingWrapper {
     pub directory_listing: DirectoryListing,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct DirectoryListing {
     pub partial_listing: PartialListing,
     pub remaining_entries: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub(super) struct PartialListing {
     pub file_statuses: FileStatuses,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub(super) struct FileStatuses {
     pub file_status: Vec<FileStatus>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileStatus {
     pub length: u64,
@@ -72,33 +72,17 @@ pub struct FileStatus {
     pub ty: FileStatusType,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum FileStatusType {
     Directory,
+    #[default]
     File,
-}
-
-impl Default for DirectoryListing {
-    fn default() -> Self {
-        Self {
-            partial_listing: PartialListing {
-                file_statuses: FileStatuses {
-                    file_status: vec![],
-                },
-            },
-            remaining_entries: 0,
-        }
-    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::raw::oio::Page;
-    use crate::services::webhdfs::backend::WebhdfsBackend;
-    use crate::services::webhdfs::pager::WebhdfsPager;
-    use crate::EntryMode;
 
     #[test]
     fn test_file_status() {
@@ -182,22 +166,16 @@ mod test {
             .file_statuses
             .file_status;
 
-        let mut backend =
-            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap();
-        backend.disable_list_batch = true;
-
-        let mut pager = WebhdfsPager::new(backend, "listing/directory", file_statuses);
-        let mut entries = vec![];
-        while let Some(oes) = pager.next().await.expect("must success") {
-            entries.extend(oes);
-        }
-
-        entries.sort_by(|a, b| a.path().cmp(b.path()));
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].path(), "listing/directory/a.patch");
-        assert_eq!(entries[0].mode(), EntryMode::FILE);
-        assert_eq!(entries[1].path(), "listing/directory/bar/");
-        assert_eq!(entries[1].mode(), EntryMode::DIR);
+        // we should check the value of FileStatusWrapper directly.
+        assert_eq!(file_statuses.len(), 2);
+        assert_eq!(file_statuses[0].length, 24930);
+        assert_eq!(file_statuses[0].modification_time, 1320171722771);
+        assert_eq!(file_statuses[0].path_suffix, "a.patch");
+        assert_eq!(file_statuses[0].ty, FileStatusType::File);
+        assert_eq!(file_statuses[1].length, 0);
+        assert_eq!(file_statuses[1].modification_time, 1320895981256);
+        assert_eq!(file_statuses[1].path_suffix, "bar");
+        assert_eq!(file_statuses[1].ty, FileStatusType::Directory);
     }
 
     #[tokio::test]
@@ -250,23 +228,22 @@ mod test {
             .expect("must success")
             .directory_listing;
 
-        let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
-        let mut backend =
-            WebhdfsBackend::new("/webhdfs/v1", "http://localhost:9870", None).unwrap();
-        // TODO: need to setup local hadoop cluster to test list status batch
-        backend.disable_list_batch = true;
-
-        let mut pager = WebhdfsPager::new(backend, "listing/directory", file_statuses);
-        let mut entries = vec![];
-        while let Some(oes) = pager.next().await.expect("must success") {
-            entries.extend(oes);
-        }
-
-        entries.sort_by(|a, b| a.path().cmp(b.path()));
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].path(), "listing/directory/bardir/");
-        assert_eq!(entries[0].mode(), EntryMode::DIR);
-        assert_eq!(entries[1].path(), "listing/directory/bazfile");
-        assert_eq!(entries[1].mode(), EntryMode::FILE);
+        assert_eq!(directory_listing.remaining_entries, 2);
+        assert_eq!(
+            directory_listing
+                .partial_listing
+                .file_statuses
+                .file_status
+                .len(),
+            2
+        );
+        assert_eq!(
+            directory_listing.partial_listing.file_statuses.file_status[0].path_suffix,
+            "bardir"
+        );
+        assert_eq!(
+            directory_listing.partial_listing.file_statuses.file_status[1].path_suffix,
+            "bazfile"
+        );
     }
 }

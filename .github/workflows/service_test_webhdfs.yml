@@ -77,3 +77,13 @@ jobs:
           OPENDAL_WEBHDFS_TEST: on
           OPENDAL_WEBHDFS_ROOT: /
           OPENDAL_WEBHDFS_ENDPOINT: http://127.0.0.1:9870
+
+      - name: Test with disable_list_batch
+        shell: bash
+        working-directory: core
+        run: cargo nextest run webhdfs
+        env:
+          OPENDAL_WEBHDFS_TEST: on
+          OPENDAL_WEBHDFS_ROOT: /
+          OPENDAL_WEBHDFS_ENDPOINT: http://127.0.0.1:9870
+          OPENDAL_WEBHDFS_DISABLE_LIST_BATCH: true

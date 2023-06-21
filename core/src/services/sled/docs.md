@@ -10,7 +10,7 @@ This service can be used to:
 - [ ] copy
 - [ ] rename
 - [ ] ~~list~~
-- [ ] scan
+- [x] scan
 - [ ] ~~presign~~
 - [x] blocking
 

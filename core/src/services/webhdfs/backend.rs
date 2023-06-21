@@ -113,8 +113,8 @@ impl WebhdfsBuilder {
     ///
     /// When listing a directory, the backend will default to use batch listing.
     /// If disable, the backend will list all files/directories in one request.
-    pub fn disable_list_batch(&mut self, disable: bool) -> &mut Self {
-        self.disable_list_batch = disable;
+    pub fn disable_list_batch(&mut self) -> &mut Self {
+        self.disable_list_batch = true;
         self
     }
 }
@@ -129,8 +129,13 @@ impl Builder for WebhdfsBuilder {
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("delegation").map(|v| builder.delegation(v));
-        map.get("disable_list_batch")
-            .map(|v| builder.disable_list_batch(v.parse().unwrap_or(false)));
+        map.get("disable_list_batch").map(|v| {
+            if v == "true" {
+                builder.disable_list_batch();
+            } else {
+                // do nothing
+            }
+        });
 
         builder
     }

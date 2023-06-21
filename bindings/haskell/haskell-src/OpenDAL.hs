@@ -20,6 +20,9 @@ module OpenDAL (
   Operator,
   OpenDALError (..),
   ErrorCode (..),
+  EntryMode (..),
+  BytesContentRange (..),
+  Metadata (..),
   OpMonad,
   MonadOperation (..),
   runOp,
@@ -31,6 +34,7 @@ module OpenDAL (
   copyOpRaw,
   renameOpRaw,
   deleteOpRaw,
+  statOpRaw,
 ) where
 
 import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
@@ -39,9 +43,9 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Time.Clock.POSIX
 import Foreign
 import Foreign.C.String
-import Foreign.C.Types (CChar)
 import OpenDAL.FFI
 
 newtype Operator = Operator (ForeignPtr RawOperator)
@@ -63,6 +67,28 @@ data ErrorCode
 data OpenDALError = OpenDALError {errorCode :: ErrorCode, message :: String}
   deriving (Eq, Show)
 
+data EntryMode = File | Dir | Unknown deriving (Eq, Show)
+
+data BytesContentRange = BytesContentRange
+  { bcrStart :: Integer
+  , bcrEnd :: Integer
+  , bcrTotal :: Integer
+  }
+  deriving (Eq, Show)
+
+data Metadata = Metadata
+  { mMode :: EntryMode
+  , mCacheControl :: Maybe String
+  , mContentDisposition :: Maybe String
+  , mContentLength :: Integer
+  , mContentMD5 :: Maybe String
+  , mContentRange :: Maybe BytesContentRange
+  , mContentType :: Maybe String
+  , mETag :: Maybe String
+  , mLastModified :: Maybe POSIXTime
+  }
+  deriving (Eq, Show)
+
 newtype OpMonad a = OpMonad (ReaderT Operator (ExceptT OpenDALError IO) a)
   deriving
     ( Functor
@@ -81,6 +107,7 @@ class (Monad m) => MonadOperation m where
   copyOp :: String -> String -> m ()
   renameOp :: String -> String -> m ()
   deleteOp :: String -> m ()
+  statOp :: String -> m Metadata
 
 instance MonadOperation OpMonad where
   readOp path = do
@@ -111,6 +138,12 @@ instance MonadOperation OpMonad where
     op <- ask
     result <- liftIO $ deleteOpRaw op path
     either throwError return result
+  statOp path = do
+    op <- ask
+    result <- liftIO $ statOpRaw op path
+    either throwError return result
+
+-- helper functions
 
 byteSliceToByteString :: ByteSlice -> IO ByteString
 byteSliceToByteString (ByteSlice bsDataPtr len) = BS.packCStringLen (bsDataPtr, fromIntegral len)
@@ -129,10 +162,59 @@ parseErrorCode 10 = RateLimited
 parseErrorCode 11 = IsSameFile
 parseErrorCode _ = FFIError
 
+parseFFIMaybe :: FFIMaybe a -> Maybe a
+parseFFIMaybe (FFIMaybe 0 _) = Nothing
+parseFFIMaybe (FFIMaybe _ value) = Just value
+
+parseEntryMode :: Int -> EntryMode
+parseEntryMode 0 = File
+parseEntryMode 1 = Dir
+parseEntryMode _ = Unknown
+
+parseFFIBytesContentRange :: FFIBytesContentRange -> BytesContentRange
+parseFFIBytesContentRange (FFIBytesContentRange start end total) =
+  BytesContentRange
+    { bcrStart = toInteger start
+    , bcrEnd = toInteger end
+    , bcrTotal = toInteger total
+    }
+
+parseCString :: CString -> IO (Maybe String)
+parseCString value | value == nullPtr = return Nothing
+parseCString value = do
+  value' <- peekCString value
+  free value
+  return $ Just value'
+
+parseFFIMetadata :: FFIMetadata -> IO Metadata
+parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentRange contentType eTag lastModified) = do
+  let mode' = parseEntryMode $ fromIntegral mode
+  cacheControl' <- parseCString cacheControl
+  contentDisposition' <- parseCString contentDisposition
+  let contentLength' = toInteger contentLength
+  contentMD5' <- parseCString contentMD5
+  let contentRange' = parseFFIBytesContentRange <$> parseFFIMaybe contentRange
+  contentType' <- parseCString contentType
+  eTag' <- parseCString eTag
+  let lastModified' = realToFrac <$> parseFFIMaybe lastModified
+  return $
+    Metadata
+      { mMode = mode'
+      , mCacheControl = cacheControl'
+      , mContentDisposition = contentDisposition'
+      , mContentLength = contentLength'
+      , mContentMD5 = contentMD5'
+      , mContentRange = contentRange'
+      , mContentType = contentType'
+      , mETag = eTag'
+      , mLastModified = lastModified'
+      }
+
+-- Exported functions
+
 runOp :: Operator -> OpMonad a -> IO (Either OpenDALError a)
 runOp operator (OpMonad op) = runExceptT $ runReaderT op operator
 
--- | Create a new Operator.
 newOp :: String -> HashMap String String -> IO (Either OpenDALError Operator)
 newOp scheme hashMap = do
   let keysAndValues = HashMap.toList hashMap
@@ -148,7 +230,7 @@ newOp scheme hashMap = do
               ffiResult <- peek ffiResultPtr
               if ffiCode ffiResult == 0
                 then do
-                  op <- Operator <$> (newForeignPtr c_free_operator $ castPtr $ dataPtr ffiResult)
+                  op <- Operator <$> (newForeignPtr c_free_operator $ dataPtr ffiResult)
                   return $ Right op
                 else do
                   let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
@@ -163,7 +245,7 @@ readOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          byteslice <- peek (castPtr $ dataPtr ffiResult)
+          byteslice <- peek $ dataPtr ffiResult
           byte <- byteSliceToByteString byteslice
           c_free_byteslice (bsData byteslice) (bsLen byteslice)
           return $ Right byte
@@ -194,8 +276,7 @@ isExistOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          -- For Bool type, the memory layout is different between C and Haskell.
-          val <- peek ((castPtr $ dataPtr ffiResult) :: Ptr CChar)
+          val <- peek $ dataPtr ffiResult
           let isExist = val /= 0
           return $ Right isExist
         else do
@@ -252,6 +333,22 @@ deleteOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then return $ Right ()
+        else do
+          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
+          errMsg <- peekCString (errorMessage ffiResult)
+          return $ Left $ OpenDALError code errMsg
+
+statOpRaw :: Operator -> String -> IO (Either OpenDALError Metadata)
+statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
+  withCString path $ \cPath ->
+    alloca $ \ffiResultPtr -> do
+      c_blocking_stat opptr cPath ffiResultPtr
+      ffiResult <- peek ffiResultPtr
+      if ffiCode ffiResult == 0
+        then do
+          ffimatadata <- peek $ dataPtr ffiResult
+          metadata <- parseFFIMetadata ffimatadata
+          return $ Right metadata
         else do
           let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
           errMsg <- peekCString (errorMessage ffiResult)

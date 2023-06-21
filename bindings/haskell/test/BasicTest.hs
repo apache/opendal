@@ -44,6 +44,9 @@ testRawOperation = do
   isExistOpRaw op "key2" >>= (@?= Right True)
   createDirOpRaw op "dir1/" >>= (@?= Right ())
   isExistOpRaw op "dir1/" >>= (@?= Right True)
+  statOpRaw op "key1" >>= \v -> case v of
+    Right meta -> (mMode meta @?= File) >> (mContentLength meta @?= 6)
+    Left _ -> assertFailure "should not reach here"
   deleteOpRaw op "key1" >>= (@?= Right ())
   isExistOpRaw op "key1" >>= (@?= Right False)
 
@@ -61,6 +64,7 @@ testMonad = do
     isExistOp "key2" >>= liftIO . (@?= True)
     createDirOp "dir1/"
     isExistOp "dir1/" >>= liftIO . (@?= True)
+    statOp "key1" >>= \meta -> liftIO $ (mMode meta @?= File) >> (mContentLength meta @?= 6)
     deleteOp "key1"
     isExistOp "key1" >>= liftIO . (@?= False)
 

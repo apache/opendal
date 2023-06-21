@@ -44,7 +44,8 @@ library
         base >=4.10.0.0 && <5,
         unordered-containers >=0.2.0.0, 
         bytestring >=0.11.0.0,
-        mtl >=2.2.0.0
+        mtl >=2.2.0.0,
+        time >=1.10.0.0
 
 test-suite opendal-hs-test
     type:             exitcode-stdio-1.0

@@ -199,23 +199,6 @@ pub struct WebhdfsBackend {
 }
 
 impl WebhdfsBackend {
-    #[allow(dead_code)]
-    pub(crate) fn new(root: &str, endpoint: &str, auth: Option<String>) -> Result<Self> {
-        let root = normalize_root(root);
-        let endpoint = endpoint.to_string();
-
-        let client = HttpClient::new()?;
-
-        Ok(WebhdfsBackend {
-            root,
-            endpoint,
-            auth,
-            client,
-            root_checker: OnceCell::new(),
-            disable_list_batch: false,
-        })
-    }
-
     /// create object or make a directory
     ///
     /// TODO: we should split it into mkdir and create

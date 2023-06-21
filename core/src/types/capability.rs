@@ -74,6 +74,8 @@ pub struct Capability {
 
     /// If operator supports write natively, it will be true.
     pub write: bool,
+    /// If operator supports write by sink a stream into, it will be true.
+    pub write_can_sink: bool,
     /// If operator supports write with without content length, it will
     /// be true.
     ///

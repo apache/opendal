@@ -16,6 +16,7 @@
 // under the License.
 
 use ::opendal as od;
+use chrono::SecondsFormat;
 use std::ffi::c_char;
 
 #[repr(C)]
@@ -59,28 +60,6 @@ impl From<&mut ByteSlice> for Vec<u8> {
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct FFIOption<T> {
-    is_some: u8,
-    value: T,
-}
-
-impl<T> From<Option<T>> for FFIOption<T> {
-    fn from(val: Option<T>) -> Self {
-        match val {
-            Some(v) => FFIOption {
-                is_some: 1,
-                value: v,
-            },
-            None => FFIOption {
-                is_some: 0,
-                value: unsafe { std::mem::zeroed() },
-            },
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug)]
 pub enum EntryMode {
     File,
     Dir,
@@ -97,7 +76,7 @@ pub struct Metadata {
     content_md5: *const c_char,
     content_type: *const c_char,
     etag: *const c_char,
-    last_modified: FFIOption<i64>,
+    last_modified: *const c_char,
 }
 
 impl From<od::Metadata> for Metadata {
@@ -135,7 +114,10 @@ impl From<od::Metadata> for Metadata {
             None => std::ptr::null(),
         };
 
-        let last_modified = val.last_modified().map(|s| s.timestamp()).into();
+        let last_modified = match val.last_modified() {
+            Some(s) => unsafe { leak_str(s.to_rfc3339_opts(SecondsFormat::Nanos, false)) },
+            None => std::ptr::null(),
+        };
 
         Metadata {
             mode,

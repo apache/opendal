@@ -53,29 +53,6 @@ instance Storable (FFIResult a) where
     dataPtrOffset = sizeOf (undefined :: CSize)
     errorMessageOffset = dataPtrOffset + sizeOf (undefined :: Ptr ())
 
-data FFIMaybe a = FFIMaybe
-  { ffiMaybeCode :: CBool
-  , ffiMaybeData :: a
-  }
-  deriving (Show)
-
-instance forall a. (Storable a) => Storable (FFIMaybe a) where
-  sizeOf _ = sizeOf (undefined :: CSize) + (sizeOf (undefined :: a))
-  alignment _ = alignment (undefined :: CSize)
-  peek ptr = do
-    s <- peekByteOff ptr codeOffset
-    d <- peekByteOff ptr dataOffset
-    return $ FFIMaybe s d
-   where
-    codeOffset = 0
-    dataOffset = sizeOf (undefined :: CSize)
-  poke ptr (FFIMaybe s d) = do
-    pokeByteOff ptr codeOffset s
-    pokeByteOff ptr dataOffset d
-   where
-    codeOffset = 0
-    dataOffset = sizeOf (undefined :: CSize)
-
 data ByteSlice = ByteSlice
   { bsData :: Ptr CChar
   , bsLen :: CSize
@@ -106,12 +83,12 @@ data FFIMetadata = FFIMetadata
   , ffiContentMD5 :: CString
   , ffiContentType :: CString
   , ffiETag :: CString
-  , ffiLastModified :: FFIMaybe CTime
+  , ffiLastModified :: CString
   }
   deriving (Show)
 
 instance Storable FFIMetadata where
-  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: CString) * 5 + sizeOf (undefined :: CULong) + sizeOf (undefined :: FFIMaybe CTime)
+  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: CString) * 6 + sizeOf (undefined :: CULong)
   alignment _ = alignment (undefined :: CSize)
   peek ptr = do
     mode <- peekByteOff ptr modeOffset

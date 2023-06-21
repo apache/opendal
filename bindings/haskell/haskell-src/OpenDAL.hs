@@ -21,7 +21,6 @@ module OpenDAL (
   OpenDALError (..),
   ErrorCode (..),
   EntryMode (..),
-  BytesContentRange (..),
   Metadata (..),
   OpMonad,
   MonadOperation (..),
@@ -43,7 +42,8 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Time.Clock.POSIX
+import Data.Time (UTCTime, parseTimeM, zonedTimeToUTC)
+import Data.Time.Format (defaultTimeLocale)
 import Foreign
 import Foreign.C.String
 import OpenDAL.FFI
@@ -69,13 +69,6 @@ data OpenDALError = OpenDALError {errorCode :: ErrorCode, message :: String}
 
 data EntryMode = File | Dir | Unknown deriving (Eq, Show)
 
-data BytesContentRange = BytesContentRange
-  { bcrStart :: Integer
-  , bcrEnd :: Integer
-  , bcrTotal :: Integer
-  }
-  deriving (Eq, Show)
-
 data Metadata = Metadata
   { mMode :: EntryMode
   , mCacheControl :: Maybe String
@@ -84,7 +77,7 @@ data Metadata = Metadata
   , mContentMD5 :: Maybe String
   , mContentType :: Maybe String
   , mETag :: Maybe String
-  , mLastModified :: Maybe POSIXTime
+  , mLastModified :: Maybe UTCTime
   }
   deriving (Eq, Show)
 
@@ -161,10 +154,6 @@ parseErrorCode 10 = RateLimited
 parseErrorCode 11 = IsSameFile
 parseErrorCode _ = FFIError
 
-parseFFIMaybe :: FFIMaybe a -> Maybe a
-parseFFIMaybe (FFIMaybe 0 _) = Nothing
-parseFFIMaybe (FFIMaybe _ value) = Just value
-
 parseEntryMode :: Int -> EntryMode
 parseEntryMode 0 = File
 parseEntryMode 1 = Dir
@@ -177,6 +166,9 @@ parseCString value = do
   free value
   return $ Just value'
 
+parseTime :: String -> Maybe UTCTime
+parseTime time = zonedTimeToUTC <$> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%z" time
+
 parseFFIMetadata :: FFIMetadata -> IO Metadata
 parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified) = do
   let mode' = parseEntryMode $ fromIntegral mode
@@ -186,7 +178,7 @@ parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength
   contentMD5' <- parseCString contentMD5
   contentType' <- parseCString contentType
   eTag' <- parseCString eTag
-  let lastModified' = realToFrac <$> parseFFIMaybe lastModified
+  lastModified' <- (>>= parseTime) <$> parseCString lastModified
   return $
     Metadata
       { mMode = mode'

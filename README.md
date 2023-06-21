@@ -127,6 +127,7 @@ OpenDAL is an active open-source project. We are always open to people who want 
 - [mozilla/sccache](https://github.com/mozilla/sccache/): `sccache` is [`ccache`](https://github.com/ccache/ccache) with cloud storage
 - [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
+- [OctoBase](https://github.com/toeverything/OctoBase): the open-source database behind [AFFiNE](https://github.com/toeverything/affine), local-first, yet collaborative.
 
 ## License
 

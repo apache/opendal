@@ -107,13 +107,16 @@ impl Writer {
     /// use std::io::Result;
     ///
     /// use bytes::Bytes;
-    /// use futures::SinkExt;
+    /// use futures::stream;
     /// use futures::StreamExt;
     /// use opendal::Operator;
     ///
     /// #[tokio::main]
     /// async fn sink_example(op: Operator) -> Result<()> {
-    ///     let mut w = op.writer("path/to/file").content_length(2 * 4096).await?;
+    ///     let mut w = op
+    ///         .writer_with("path/to/file")
+    ///         .content_length(2 * 4096)
+    ///         .await?;
     ///     let stream = stream::iter(vec![vec![0; 4096], vec![1; 4096]]).map(Ok);
     ///     w.sink(2 * 4096, stream).await?;
     ///     w.close().await?;

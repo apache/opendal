@@ -29,6 +29,7 @@ use tokio::sync::OnceCell;
 
 use super::error::parse_error;
 use super::message::BooleanResp;
+use super::message::DirectoryListingWrapper;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
@@ -47,6 +48,7 @@ pub struct WebhdfsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     delegation: Option<String>,
+    disable_list_batch: bool,
 }
 
 impl Debug for WebhdfsBuilder {
@@ -104,6 +106,17 @@ impl WebhdfsBuilder {
         }
         self
     }
+
+    /// Disable batch listing
+    ///
+    /// # Note
+    ///
+    /// When listing a directory, the backend will default to use batch listing.
+    /// If disable, the backend will list all files/directories in one request.
+    pub fn disable_list_batch(&mut self) -> &mut Self {
+        self.disable_list_batch = true;
+        self
+    }
 }
 
 impl Builder for WebhdfsBuilder {
@@ -116,6 +129,9 @@ impl Builder for WebhdfsBuilder {
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("delegation").map(|v| builder.delegation(v));
+        map.get("disable_list_batch")
+            .map(|v| v == "true")
+            .map(|_v| builder.disable_list_batch());
 
         builder
     }
@@ -159,6 +175,7 @@ impl Builder for WebhdfsBuilder {
             auth,
             client,
             root_checker: OnceCell::new(),
+            disable_list_batch: self.disable_list_batch,
         };
 
         Ok(backend)
@@ -173,6 +190,7 @@ pub struct WebhdfsBackend {
     auth: Option<String>,
     root_checker: OnceCell<()>,
 
+    pub disable_list_batch: bool,
     pub client: HttpClient,
 }
 
@@ -265,6 +283,36 @@ impl WebhdfsBackend {
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
             self.endpoint,
             percent_encode_path(&p),
+        );
+        if let Some(auth) = &self.auth {
+            url += format!("&{auth}").as_str();
+        }
+
+        let req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        Ok(req)
+    }
+
+    pub(super) fn webhdfs_list_status_batch_request(
+        &self,
+        path: &str,
+        start_after: &Option<String>,
+    ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        // if it's not the first time to call LISTSTATUS_BATCH, we will add &startAfter=<CHILD>
+        let start_after_param = match start_after {
+            Some(sa) if sa.is_empty() => String::new(),
+            Some(sa) => format!("&startAfter={}", sa),
+            None => String::new(),
+        };
+
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op=LISTSTATUS_BATCH{}",
+            self.endpoint,
+            percent_encode_path(&p),
+            start_after_param
         );
         if let Some(auth) = &self.auth {
             url += format!("&{auth}").as_str();
@@ -489,30 +537,51 @@ impl Accessor for WebhdfsBackend {
         if args.delimiter() != "/" {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "webhdfs only support delimiter `/`",
+                "WebHDFS only support delimiter `/`",
             ));
         }
 
         let path = path.trim_end_matches('/');
-        let req = self.webhdfs_list_status_request(path)?;
 
-        let resp = self.client.send(req).await?;
-        match resp.status() {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-                let file_statuses = serde_json::from_slice::<FileStatusesWrapper>(&bs)
-                    .map_err(new_json_deserialize_error)?
-                    .file_statuses
-                    .file_status;
-
-                let objects = WebhdfsPager::new(path, file_statuses);
-                Ok((RpList::default(), objects))
+        if !self.disable_list_batch {
+            let req = self.webhdfs_list_status_batch_request(path, &None)?;
+            let resp = self.client.send(req).await?;
+            match resp.status() {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
+                    let directory_listing = serde_json::from_slice::<DirectoryListingWrapper>(&bs)
+                        .map_err(new_json_deserialize_error)?
+                        .directory_listing;
+                    let file_statuses = directory_listing.partial_listing.file_statuses.file_status;
+                    let mut objects = WebhdfsPager::new(self.clone(), path, file_statuses);
+                    objects.set_remaining_entries(directory_listing.remaining_entries);
+                    Ok((RpList::default(), objects))
+                }
+                StatusCode::NOT_FOUND => {
+                    let objects = WebhdfsPager::new(self.clone(), path, vec![]);
+                    Ok((RpList::default(), objects))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            StatusCode::NOT_FOUND => {
-                let objects = WebhdfsPager::new(path, vec![]);
-                Ok((RpList::default(), objects))
+        } else {
+            let req = self.webhdfs_list_status_request(path)?;
+            let resp = self.client.send(req).await?;
+            match resp.status() {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
+                    let file_statuses = serde_json::from_slice::<FileStatusesWrapper>(&bs)
+                        .map_err(new_json_deserialize_error)?
+                        .file_statuses
+                        .file_status;
+                    let objects = WebhdfsPager::new(self.clone(), path, file_statuses);
+                    Ok((RpList::default(), objects))
+                }
+                StatusCode::NOT_FOUND => {
+                    let objects = WebhdfsPager::new(self.clone(), path, vec![]);
+                    Ok((RpList::default(), objects))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
         }
     }
 }

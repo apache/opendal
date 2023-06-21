@@ -38,11 +38,30 @@ pub(super) struct FileStatusesWrapper {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
+pub(super) struct DirectoryListingWrapper {
+    pub directory_listing: DirectoryListing,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct DirectoryListing {
+    pub partial_listing: PartialListing,
+    pub remaining_entries: u32,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub(super) struct PartialListing {
+    pub file_statuses: FileStatuses,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub(super) struct FileStatuses {
     pub file_status: Vec<FileStatus>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileStatus {
     pub length: u64,
@@ -53,19 +72,17 @@ pub struct FileStatus {
     pub ty: FileStatusType,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum FileStatusType {
     Directory,
+    #[default]
     File,
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::raw::oio::Page;
-    use crate::services::webhdfs::pager::WebhdfsPager;
-    use crate::EntryMode;
 
     #[test]
     fn test_file_status() {
@@ -149,17 +166,84 @@ mod test {
             .file_statuses
             .file_status;
 
-        let mut pager = WebhdfsPager::new("listing/directory", file_statuses);
-        let mut entries = vec![];
-        while let Some(oes) = pager.next().await.expect("must success") {
-            entries.extend(oes);
-        }
+        // we should check the value of FileStatusWrapper directly.
+        assert_eq!(file_statuses.len(), 2);
+        assert_eq!(file_statuses[0].length, 24930);
+        assert_eq!(file_statuses[0].modification_time, 1320171722771);
+        assert_eq!(file_statuses[0].path_suffix, "a.patch");
+        assert_eq!(file_statuses[0].ty, FileStatusType::File);
+        assert_eq!(file_statuses[1].length, 0);
+        assert_eq!(file_statuses[1].modification_time, 1320895981256);
+        assert_eq!(file_statuses[1].path_suffix, "bar");
+        assert_eq!(file_statuses[1].ty, FileStatusType::Directory);
+    }
 
-        entries.sort_by(|a, b| a.path().cmp(b.path()));
-        assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].path(), "listing/directory/a.patch");
-        assert_eq!(entries[0].mode(), EntryMode::FILE);
-        assert_eq!(entries[1].path(), "listing/directory/bar/");
-        assert_eq!(entries[1].mode(), EntryMode::DIR);
+    #[tokio::test]
+    async fn test_list_status_batch() {
+        let json = r#"
+{
+    "DirectoryListing": {
+        "partialListing": {
+            "FileStatuses": {
+                "FileStatus": [
+                    {
+                        "accessTime": 0,
+                        "blockSize": 0,
+                        "childrenNum": 0,
+                        "fileId": 16387,
+                        "group": "supergroup",
+                        "length": 0,
+                        "modificationTime": 1473305882563,
+                        "owner": "andrew",
+                        "pathSuffix": "bardir",
+                        "permission": "755",
+                        "replication": 0,
+                        "storagePolicy": 0,
+                        "type": "DIRECTORY"
+                    },
+                    {
+                        "accessTime": 1473305896945,
+                        "blockSize": 1024,
+                        "childrenNum": 0,
+                        "fileId": 16388,
+                        "group": "supergroup",
+                        "length": 0,
+                        "modificationTime": 1473305896965,
+                        "owner": "andrew",
+                        "pathSuffix": "bazfile",
+                        "permission": "644",
+                        "replication": 3,
+                        "storagePolicy": 0,
+                        "type": "FILE"
+                    }
+                ]
+            }
+        },
+        "remainingEntries": 2
+    }
+}
+        "#;
+
+        let directory_listing = serde_json::from_str::<DirectoryListingWrapper>(json)
+            .expect("must success")
+            .directory_listing;
+
+        assert_eq!(directory_listing.remaining_entries, 2);
+        assert_eq!(
+            directory_listing
+                .partial_listing
+                .file_statuses
+                .file_status
+                .len(),
+            2
+        );
+        assert_eq!(
+            directory_listing.partial_listing.file_statuses.file_status[0].path_suffix,
+            "bardir"
+        );
+        assert_eq!(
+            directory_listing.partial_listing.file_statuses.file_status[1].path_suffix,
+            "bazfile"
+        );
     }
 }

@@ -19,7 +19,12 @@
 
 package org.apache.opendal;
 
-import io.questdb.jar.jni.JarJniLoader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -72,7 +77,12 @@ public abstract class NativeObject implements AutoCloseable {
         }
 
         if (libraryLoaded.compareAndSet(LibraryState.NOT_LOADED, LibraryState.LOADING)) {
-            JarJniLoader.loadLib(NativeObject.class, "/native", "opendal_java", Environment.getClassifier());
+            try {
+                doLoadLibrary();
+            } catch (IOException e) {
+                libraryLoaded.set(LibraryState.NOT_LOADED);
+                throw new UncheckedIOException("Unable to load the RocksDB shared library", e);
+            }
             libraryLoaded.set(LibraryState.LOADED);
             return;
         }
@@ -83,6 +93,49 @@ public abstract class NativeObject implements AutoCloseable {
             } catch (InterruptedException ignore) {
             }
         }
+    }
+
+    private static void doLoadLibrary() throws IOException {
+        try {
+            // try dynamic library
+            System.loadLibrary("opendal_java");
+            return;
+        } catch (UnsatisfiedLinkError ignore) {
+            // ignore - try from classpath
+        }
+
+        doLoadBundledLibrary();
+    }
+
+    private static void doLoadBundledLibrary() throws IOException {
+        final String libraryPath = bundledLibraryPath();
+        try (final InputStream is = NativeObject.class.getResourceAsStream(libraryPath)) {
+            if (is == null) {
+                throw new IOException("cannot find " + libraryPath + ", broken package?");
+            }
+            final int dot = libraryPath.indexOf('.');
+            final File tmpFile = File.createTempFile(libraryPath.substring(0, dot), libraryPath.substring(dot));
+            tmpFile.deleteOnExit();
+            Files.copy(is, tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            System.load(tmpFile.getAbsolutePath());
+        }
+    }
+
+    private static String bundledLibraryPath() {
+        final String os = System.getProperty("os.name").toLowerCase();
+        final StringBuilder path = new StringBuilder("/native/" + Environment.getClassifier() + "/");
+        if (!os.startsWith("windows")) {
+            path.append("lib");
+        }
+        path.append("opendal_java");
+        if (os.startsWith("windows")) {
+            path.append(".dll");
+        } else if (os.startsWith("mac")) {
+            path.append(".dylib");
+        } else {
+            path.append(".so");
+        }
+        return path.toString();
     }
 
     /**

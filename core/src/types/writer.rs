@@ -95,6 +95,31 @@ impl Writer {
     ///
     /// sink will read data from given streamer and write them into writer
     /// directly without extra in-memory buffer.
+    ///
+    /// # Notes
+    ///
+    /// - Sink doesn't support to be used with write concurrently.
+    /// - Sink doesn't support to be used without content length now.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io::Result;
+    ///
+    /// use bytes::Bytes;
+    /// use futures::SinkExt;
+    /// use futures::StreamExt;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn sink_example(op: Operator) -> Result<()> {
+    ///     let mut w = op.writer("path/to/file").content_length(2 * 4096).await?;
+    ///     let stream = stream::iter(vec![vec![0; 4096], vec![1; 4096]]).map(Ok);
+    ///     w.sink(2 * 4096, stream).await?;
+    ///     w.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn sink<S, T>(&mut self, size: u64, s: S) -> Result<()>
     where
         S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,

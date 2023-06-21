@@ -45,10 +45,23 @@ testRawOperation = do
   createDirOpRaw op "dir1/" >>= (@?= Right ())
   isExistOpRaw op "dir1/" >>= (@?= Right True)
   statOpRaw op "key1" >>= \v -> case v of
-    Right meta -> (mMode meta @?= File) >> (mContentLength meta @?= 6)
+    Right meta -> meta @?= except_meta
     Left _ -> assertFailure "should not reach here"
   deleteOpRaw op "key1" >>= (@?= Right ())
   isExistOpRaw op "key1" >>= (@?= Right False)
+ where
+  except_meta =
+    Metadata
+      { mMode = File
+      , mCacheControl = Nothing
+      , mContentDisposition = Nothing
+      , mContentLength = 6
+      , mContentMD5 = Nothing
+      , mContentRange = Nothing
+      , mContentType = Nothing
+      , mETag = Nothing
+      , mLastModified = Nothing
+      }
 
 testMonad :: Assertion
 testMonad = do
@@ -64,9 +77,21 @@ testMonad = do
     isExistOp "key2" >>= liftIO . (@?= True)
     createDirOp "dir1/"
     isExistOp "dir1/" >>= liftIO . (@?= True)
-    statOp "key1" >>= \meta -> liftIO $ (mMode meta @?= File) >> (mContentLength meta @?= 6)
+    statOp "key1" >>= liftIO . (@?= except_meta)
     deleteOp "key1"
     isExistOp "key1" >>= liftIO . (@?= False)
+  except_meta =
+    Metadata
+      { mMode = File
+      , mCacheControl = Nothing
+      , mContentDisposition = Nothing
+      , mContentLength = 6
+      , mContentMD5 = Nothing
+      , mContentRange = Nothing
+      , mContentType = Nothing
+      , mETag = Nothing
+      , mLastModified = Nothing
+      }
 
 testError :: Assertion
 testError = do

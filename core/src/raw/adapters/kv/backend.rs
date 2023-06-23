@@ -91,7 +91,6 @@ impl<S: Adapter> Accessor for Backend<S> {
             cap.rename = true;
         }
 
-
         if cap.list {
             cap.list_without_delimiter = true;
         }

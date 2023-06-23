@@ -111,6 +111,7 @@ services-cos = [
   "reqsign?/reqwest_request",
 ]
 services-dashmap = ["dep:dashmap"]
+services-dropbox = []
 services-fs = ["tokio/fs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
 services-gcs = [
@@ -118,7 +119,6 @@ services-gcs = [
   "reqsign?/services-google",
   "reqsign?/reqwest_request",
 ]
-services-dropbox = []
 services-gdrive = []
 services-ghac = []
 services-hdfs = ["dep:hdrs"]
@@ -164,6 +164,10 @@ bench = false
 [[bench]]
 harness = false
 name = "ops"
+
+[[test]]
+harness = false
+name = "behavior"
 
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
@@ -228,6 +232,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 [dev-dependencies]
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
+libtest-mimic = "0.6"
 opentelemetry = { version = "0.19", default-features = false, features = [
   "trace",
 ] }

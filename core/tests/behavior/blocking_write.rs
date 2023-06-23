@@ -20,78 +20,43 @@ use std::io::Seek;
 
 use anyhow::Result;
 use log::debug;
-use opendal::BlockingOperator;
-use opendal::EntryMode;
-use opendal::ErrorKind;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_blocking
-macro_rules! behavior_blocking_write_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<blocking_write_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_blocking() => $crate::blocking_write::$test(op.blocking()),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support blocking_write, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_blocking_write_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_blocking_write_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_blocking_write_test!(
-                $service,
+    if !(cap.read && cap.write && cap.blocking) {
+        return vec![];
+    }
 
-                test_create_dir,
-                test_create_dir_existing,
-                test_write_file,
-                test_write_with_dir_path,
-                test_write_with_special_chars,
-                test_stat_file,
-                test_stat_dir,
-                test_stat_with_special_chars,
-                test_stat_not_exist,
-                test_read_full,
-                test_read_range,
-                test_read_large_range,
-                test_read_not_exist,
-                test_fuzz_range_reader,
-                test_fuzz_offset_reader,
-                test_fuzz_part_reader,
-                test_delete_file,
-                test_remove_one_file,
-            );
-        )*
-    };
+    blocking_trials!(
+        op,
+        test_blocking_create_dir,
+        test_blocking_create_dir_existing,
+        test_blocking_write_file,
+        test_blocking_write_with_dir_path,
+        test_blocking_write_with_special_chars,
+        test_blocking_stat_file,
+        test_blocking_stat_dir,
+        test_blocking_stat_with_special_chars,
+        test_blocking_stat_not_exist,
+        test_blocking_read_full,
+        test_blocking_read_range,
+        test_blocking_read_large_range,
+        test_blocking_read_not_exist,
+        test_blocking_fuzz_range_reader,
+        test_blocking_fuzz_offset_reader,
+        test_blocking_fuzz_part_reader,
+        test_blocking_delete_file,
+        test_blocking_remove_one_file
+    )
 }
 
 /// Create dir with dir path should succeed.
-pub fn test_create_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_create_dir(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path)?;
@@ -104,7 +69,7 @@ pub fn test_create_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// Create dir on existing dir should succeed.
-pub fn test_create_dir_existing(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_create_dir_existing(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path)?;
@@ -119,7 +84,7 @@ pub fn test_create_dir_existing(op: BlockingOperator) -> Result<()> {
 }
 
 /// Write a single file and test with stat.
-pub fn test_write_file(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_write_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -134,7 +99,7 @@ pub fn test_write_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Write file with dir path should return an error
-pub fn test_write_with_dir_path(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_write_with_dir_path(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes();
 
@@ -146,7 +111,7 @@ pub fn test_write_with_dir_path(op: BlockingOperator) -> Result<()> {
 }
 
 /// Write a single file with special chars should succeed.
-pub fn test_write_with_special_chars(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -161,7 +126,7 @@ pub fn test_write_with_special_chars(op: BlockingOperator) -> Result<()> {
 }
 
 /// Stat existing file should return metadata
-pub fn test_stat_file(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_stat_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -177,7 +142,7 @@ pub fn test_stat_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Stat existing file should return metadata
-pub fn test_stat_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_stat_dir(op: BlockingOperator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).expect("write must succeed");
@@ -190,7 +155,7 @@ pub fn test_stat_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// Stat existing file with special chars should return metadata
-pub fn test_stat_with_special_chars(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -206,7 +171,7 @@ pub fn test_stat_with_special_chars(op: BlockingOperator) -> Result<()> {
 }
 
 /// Stat not exist file should return NotFound
-pub fn test_stat_not_exist(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_stat_not_exist(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let meta = op.stat(&path);
@@ -217,7 +182,7 @@ pub fn test_stat_not_exist(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read full content should match.
-pub fn test_read_full(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -238,7 +203,7 @@ pub fn test_read_full(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read range content should match.
-pub fn test_read_range(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -263,7 +228,7 @@ pub fn test_read_range(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read large range content should match.
-pub fn test_read_large_range(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -289,7 +254,7 @@ pub fn test_read_large_range(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read not exist file should return NotFound
-pub fn test_read_not_exist(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_read_not_exist(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let bs = op.read(&path);
@@ -299,7 +264,7 @@ pub fn test_read_not_exist(op: BlockingOperator) -> Result<()> {
     Ok(())
 }
 
-pub fn test_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -332,7 +297,7 @@ pub fn test_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
     Ok(())
 }
 
-pub fn test_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -365,7 +330,7 @@ pub fn test_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
     Ok(())
 }
 
-pub fn test_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -400,7 +365,7 @@ pub fn test_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
 }
 
 // Delete existing file should succeed.
-pub fn test_delete_file(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_delete_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -416,7 +381,7 @@ pub fn test_delete_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Remove one file
-pub fn test_remove_one_file(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_remove_one_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
 

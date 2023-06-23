@@ -24,6 +24,9 @@ use std::io::SeekFrom;
 use std::usize;
 
 use bytes::Bytes;
+use futures::Future;
+use libtest_mimic::Failed;
+use libtest_mimic::Trial;
 use log::debug;
 use log::warn;
 use opendal::layers::LoggingLayer;
@@ -34,6 +37,7 @@ use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
+use tokio::runtime::Runtime;
 
 /// Init a service with given scheme.
 ///
@@ -129,6 +133,54 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
     let length = rng.gen_range(1..(size - offset));
 
     (offset as u64, length as u64)
+}
+
+/// Build a new async trail as a test case.
+pub fn build_async_trial<F, Fut>(name: &str, runtime: &Runtime, op: &Operator, f: F) -> Trial
+where
+    F: FnOnce(Operator) -> Fut + Send + 'static,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    let name = format!("services_{}::{}", op.info().scheme(), name);
+    let handle = runtime.handle().clone();
+    let op = op.clone();
+
+    Trial::test(name, move || {
+        handle
+            .block_on(f(op))
+            .map_err(|err| Failed::from(err.to_string()))
+    })
+}
+
+#[macro_export]
+macro_rules! async_trials {
+    ($runtime:ident, $op:ident, $($test:ident),*) => {
+        vec![$(
+            build_async_trial(stringify!($test), $runtime, $op, $test),
+        )*]
+    };
+}
+
+/// Build a new async trail as a test case.
+pub fn build_blocking_trial<F>(name: &str, op: &Operator, f: F) -> Trial
+where
+    F: FnOnce(BlockingOperator) -> anyhow::Result<()> + Send + 'static,
+{
+    let name = format!("services_{}::{}", op.info().scheme(), name);
+    let op = op.blocking();
+
+    Trial::test(name, move || {
+        f(op).map_err(|err| Failed::from(err.to_string()))
+    })
+}
+
+#[macro_export]
+macro_rules! blocking_trials {
+    ($op:ident, $($test:ident),*) => {
+        vec![$(
+            build_blocking_trial(stringify!($test), $op, $test),
+        )*]
+    };
 }
 
 /// ObjectReaderFuzzer is the fuzzer for object readers.

@@ -20,62 +20,27 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 use log::debug;
-use opendal::BlockingOperator;
-use opendal::EntryMode;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_blocking
-/// - can_list or can_scan
-macro_rules! behavior_blocking_list_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<blocking_list_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_blocking() && op.info().can_list() => $crate::blocking_list::$test(op.blocking()),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support blocking_list, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_blocking_list_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_blocking_list_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_blocking_list_test!(
-                $service,
+    if !(cap.read && cap.write && cap.copy && cap.blocking && cap.list) {
+        return vec![];
+    }
 
-                test_list_dir,
-                test_list_non_exist_dir,
-                test_scan,
-                test_remove_all,
-            );
-        )*
-    };
+    blocking_trials!(
+        op,
+        test_blocking_list_dir,
+        test_blocking_list_non_exist_dir,
+        test_blocking_scan,
+        test_remove_all
+    )
 }
 
 /// List dir should return newly created file.
-pub fn test_list_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
@@ -103,7 +68,7 @@ pub fn test_list_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// List non exist dir should return nothing.
-pub fn test_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
     let obs = op.list(&dir)?;
@@ -119,7 +84,7 @@ pub fn test_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
 }
 
 // Walk top down should output as expected
-pub fn test_scan(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
     let expected = vec![

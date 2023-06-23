@@ -16,61 +16,27 @@
 // under the License.
 
 use anyhow::Result;
-use opendal::ErrorKind;
-use opendal::Operator;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_copy
-macro_rules! behavior_copy_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<copy_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_copy() => RUNTIME.block_on($crate::copy::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support copy, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_copy_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_copy_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_copy_test!(
-                $service,
+    if !(cap.read && cap.write && cap.copy) {
+        return vec![];
+    }
 
-                test_copy_file,
-                test_copy_non_existing_source,
-                test_copy_source_dir,
-                test_copy_target_dir,
-                test_copy_self,
-                test_copy_nested,
-                test_copy_overwrite,
-
-            );
-        )*
-    };
+    async_trials!(
+        runtime,
+        op,
+        test_copy_file,
+        test_copy_non_existing_source,
+        test_copy_source_dir,
+        test_copy_target_dir,
+        test_copy_self,
+        test_copy_nested,
+        test_copy_overwrite
+    )
 }
 
 /// Copy a file and test with stat.

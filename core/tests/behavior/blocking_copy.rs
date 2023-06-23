@@ -16,66 +16,30 @@
 // under the License.
 
 use anyhow::Result;
-use opendal::BlockingOperator;
-use opendal::ErrorKind;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_copy
-/// - can_blocking
-macro_rules! behavior_blocking_copy_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<blocking_copy_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_copy()
-                            && op.info().can_blocking() => $crate::blocking_copy::$test(op.blocking()),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support blocking_copy, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_blocking_copy_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_blocking_copy_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_blocking_copy_test!(
-                $service,
+    if !(cap.read && cap.write && cap.copy && cap.blocking) {
+        return vec![];
+    }
 
-                test_copy_file,
-                test_copy_non_existing_source,
-                test_copy_source_dir,
-                test_copy_target_dir,
-                test_copy_self,
-                test_copy_nested,
-                test_copy_overwrite,
-            );
-        )*
-    };
+    blocking_trials!(
+        op,
+        test_blocking_copy_file,
+        test_blocking_copy_non_existing_source,
+        test_blocking_copy_source_dir,
+        test_blocking_copy_target_dir,
+        test_blocking_copy_self,
+        test_blocking_copy_nested,
+        test_blocking_copy_overwrite
+    )
 }
 
 /// Copy a file and test with stat.
-pub fn test_copy_file(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -94,7 +58,7 @@ pub fn test_copy_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Copy a nonexistent source should return an error.
-pub fn test_copy_non_existing_source(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_copy_non_existing_source(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let target_path = uuid::Uuid::new_v4().to_string();
 
@@ -106,7 +70,7 @@ pub fn test_copy_non_existing_source(op: BlockingOperator) -> Result<()> {
 }
 
 /// Copy a dir as source should return an error.
-pub fn test_copy_source_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_copy_source_dir(op: BlockingOperator) -> Result<()> {
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
 
@@ -120,7 +84,7 @@ pub fn test_copy_source_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// Copy to a dir should return an error.
-pub fn test_copy_target_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_copy_target_dir(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -141,7 +105,7 @@ pub fn test_copy_target_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// Copy a file to self should return an error.
-pub fn test_copy_self(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_copy_self(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _size) = gen_bytes();
 
@@ -157,7 +121,7 @@ pub fn test_copy_self(op: BlockingOperator) -> Result<()> {
 }
 
 /// Copy to a nested path, parent path should be created successfully.
-pub fn test_copy_nested(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -181,7 +145,7 @@ pub fn test_copy_nested(op: BlockingOperator) -> Result<()> {
 }
 
 /// Copy to a exist path should overwrite successfully.
-pub fn test_copy_overwrite(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 

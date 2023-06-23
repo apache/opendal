@@ -22,56 +22,26 @@ use anyhow::Result;
 use http::header;
 use log::debug;
 use opendal::raw;
-use opendal::Operator;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_presign
-macro_rules! behavior_presign_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<presign_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read() && op.info().can_write() && op.info().can_presign() => RUNTIME.block_on($crate::presign::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support presign, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_presign_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_presign_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_presign_test!(
-                $service,
+    if !(cap.list && cap.write && cap.presign) {
+        return vec![];
+    }
 
-                test_presign_write,
-                test_presign_read,
-                test_presign_stat,
-            );
-        )*
-    };
+    async_trials!(
+        runtime,
+        op,
+        test_presign_write,
+        test_presign_read,
+        test_presign_stat
+    )
 }
 
 /// Presign write should succeed.

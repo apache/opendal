@@ -19,53 +19,21 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use futures::TryStreamExt;
-use opendal::EntryMode;
-use opendal::Operator;
 
-/// Test services that meet the following capability:
-///
-/// - !can_write
-/// - can_list
-macro_rules! behavior_list_only_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<list_only_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_list() && !op.info().can_write() => RUNTIME.block_on($crate::list_only::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+use crate::*;
 
-#[macro_export]
-macro_rules! behavior_list_only_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_list_only_test!(
-                $service,
+pub fn behavior_list_only_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-                test_list,
-            );
-        )*
-    };
+    if !cap.list || cap.write {
+        return vec![];
+    }
+
+    async_trials!(runtime, op, test_list_only)
 }
 
 /// Stat normal file and dir should return metadata
-pub async fn test_list(op: Operator) -> Result<()> {
+pub async fn test_list_only(op: Operator) -> Result<()> {
     let mut entries = HashMap::new();
 
     let mut ds = op.list("/").await?;

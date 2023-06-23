@@ -16,64 +16,31 @@
 // under the License.
 
 use anyhow::Result;
-use opendal::BlockingOperator;
-use opendal::EntryMode;
-use opendal::ErrorKind;
 use sha2::Digest;
 use sha2::Sha256;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - !can_write
-/// - can_blocking
-macro_rules! behavior_blocking_read_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<blocking_read_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && !op.info().can_write()
-                            && op.info().can_blocking() => $crate::blocking_read::$test(op.blocking()),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support blocking_read, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+use crate::*;
 
-#[macro_export]
-macro_rules! behavior_blocking_read_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_blocking_read_test!(
-                $service,
+pub fn behavior_blocking_read_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-                test_stat_file_and_dir,
-                test_stat_special_chars,
-                test_stat_not_exist,
-                test_read_full,
-                test_read_range,
-                test_read_not_exist,
-            );
-        )*
-    };
+    if !(cap.read && cap.write && cap.blocking) {
+        return vec![];
+    }
+
+    blocking_trials!(
+        op,
+        test_blocking_stat_file_and_dir,
+        test_blocking_stat_special_chars,
+        test_blocking_stat_not_exist,
+        test_blocking_read_full,
+        test_blocking_read_range,
+        test_blocking_read_not_exist
+    )
 }
 
 /// Stat normal file and dir should return metadata
-pub fn test_stat_file_and_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_stat_file_and_dir(op: BlockingOperator) -> Result<()> {
     let meta = op.stat("normal_file")?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
@@ -85,7 +52,7 @@ pub fn test_stat_file_and_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// Stat special file and dir should return metadata
-pub fn test_stat_special_chars(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_stat_special_chars(op: BlockingOperator) -> Result<()> {
     let meta = op.stat("special_file  !@#$%^&()_+-=;',")?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
@@ -97,7 +64,7 @@ pub fn test_stat_special_chars(op: BlockingOperator) -> Result<()> {
 }
 
 /// Stat not exist file should return NotFound
-pub fn test_stat_not_exist(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_stat_not_exist(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let meta = op.stat(&path);
@@ -108,7 +75,7 @@ pub fn test_stat_not_exist(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read full content should match.
-pub fn test_read_full(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
     let bs = op.read("normal_file")?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
@@ -121,7 +88,7 @@ pub fn test_read_full(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read full content should match.
-pub fn test_read_range(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
     let bs = op.range_read("normal_file", 1024..2048)?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
@@ -134,7 +101,7 @@ pub fn test_read_range(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read not exist file should return NotFound
-pub fn test_read_not_exist(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_read_not_exist(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let bs = op.read(&path);

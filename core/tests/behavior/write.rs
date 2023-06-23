@@ -28,97 +28,66 @@ use futures::StreamExt;
 use http::StatusCode;
 use log::debug;
 use log::warn;
-use opendal::EntryMode;
-use opendal::ErrorKind;
-use opendal::Operator;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-macro_rules! behavior_write_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<write_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read() && op.info().can_write() => RUNTIME.block_on($crate::write::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_write_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_write_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_write_test!(
-                $service,
+    if !(cap.read && cap.write && cap.rename) {
+        return vec![];
+    }
 
-                test_create_dir,
-                test_create_dir_existing,
-                test_write_only,
-                test_write_with_dir_path,
-                test_write_with_special_chars,
-                test_write_with_cache_control,
-                test_write_with_content_type,
-                test_write_with_content_disposition,
-                test_stat_file,
-                test_stat_dir,
-                test_stat_with_special_chars,
-                test_stat_not_cleaned_path,
-                test_stat_not_exist,
-                test_stat_with_if_match,
-                test_stat_with_if_none_match,
-                test_stat_root,
-                test_read_full,
-                test_read_range,
-                test_read_large_range,
-                test_reader_range,
-                test_reader_from,
-                test_reader_tail,
-                test_read_not_exist,
-                test_read_with_if_match,
-                test_read_with_if_none_match,
-                test_fuzz_range_reader,
-                test_fuzz_offset_reader,
-                test_fuzz_part_reader,
-                test_read_with_dir_path,
-                test_read_with_special_chars,
-                test_read_with_override_cache_control,
-                test_read_with_override_content_disposition,
-                test_delete_file,
-                test_delete_empty_dir,
-                test_delete_with_special_chars,
-                test_delete_not_existing,
-                test_delete_stream,
-                test_remove_one_file,
-                test_writer_write,
-                test_writer_sink,
-                test_writer_abort,
-                test_writer_futures_copy,
-                test_fuzz_unsized_writer,
-            );
-        )*
-    };
+    async_trials!(
+        runtime,
+        op,
+        test_create_dir,
+        test_create_dir_existing,
+        test_write_only,
+        test_write_with_dir_path,
+        test_write_with_special_chars,
+        test_write_with_cache_control,
+        test_write_with_content_type,
+        test_write_with_content_disposition,
+        test_stat_file,
+        test_stat_dir,
+        test_stat_with_special_chars,
+        test_stat_not_cleaned_path,
+        test_stat_not_exist,
+        test_stat_with_if_match,
+        test_stat_with_if_none_match,
+        test_stat_root,
+        test_read_full,
+        test_read_range,
+        test_read_large_range,
+        test_reader_range,
+        test_reader_from,
+        test_reader_tail,
+        test_read_not_exist,
+        test_read_with_if_match,
+        test_read_with_if_none_match,
+        test_fuzz_range_reader,
+        test_fuzz_offset_reader,
+        test_fuzz_part_reader,
+        test_read_with_dir_path,
+        test_read_with_special_chars,
+        test_read_with_override_cache_control,
+        test_read_with_override_content_disposition,
+        test_delete_file,
+        test_delete_empty_dir,
+        test_delete_with_special_chars,
+        test_delete_not_existing,
+        test_delete_stream,
+        test_remove_one_file,
+        test_writer_write,
+        test_writer_sink,
+        test_writer_abort,
+        test_writer_futures_copy,
+        test_fuzz_unsized_writer
+    )
 }
 
 /// Create dir with dir path should succeed.

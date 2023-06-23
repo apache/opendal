@@ -30,7 +30,10 @@ pub struct Operator(opendal::Operator);
 
 #[napi]
 impl Operator {
-    #[napi(constructor)]
+    #[napi(
+        constructor,
+        ts_args_type = "scheme: 'azblob' | 'azdfs' | 'cos' | 'dashmap' | 'fs' | 'ftp' | 'ftps' | 'gcs' | 'ghac' | 'hdfs' | 'http' | 'https' | 'ipfs' | 'ipns' | 'ipmfs' | 'memcached' | 'memory' | 'moka' | 'obs' | 'onedrive' | 'gdrive' | 'oss' | 'redis' | 'rocksdb' | 's3' | 'sled' | 'supabase' | 'vercel_artifacts' | 'wasabi' | 'webdav' | 'webhdfs', options: Record<string, string> | undefined | null"
+    )]
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
         let scheme = opendal::Scheme::from_str(&scheme)
             .map_err(|err| {

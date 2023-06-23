@@ -92,6 +92,9 @@ impl<S: Adapter> Accessor for Backend<S> {
             cap.list_without_delimiter = true;
         }
 
+        cap.copy = true;
+        cap.rename = true;
+
         cap.blocking = true;
 
         am

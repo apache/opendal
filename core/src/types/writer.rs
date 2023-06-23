@@ -123,14 +123,14 @@ impl Writer {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn sink<S, T>(&mut self, size: u64, s: S) -> Result<()>
+    pub async fn sink<S, T>(&mut self, size: u64, sink_from: S) -> Result<()>
     where
         S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
         T: Into<Bytes>,
     {
         if let State::Idle(Some(w)) = &mut self.state {
             let s = Box::new(oio::into_stream::from_futures_stream(
-                s.map_ok(|v| v.into()),
+                sink_from.map_ok(|v| v.into()),
             ));
             w.sink(size, s).await
         } else {

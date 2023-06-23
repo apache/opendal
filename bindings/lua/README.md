@@ -14,10 +14,44 @@ op:write("test.txt","hello world")
 print("read: ", op:read("test.txt"))
 ```
 
+## Lua version
+You have to enable one of the features: lua54, lua53, lua52, lua51, luajit(52) or luau in `Cargo.toml`, according to the chosen Lua version. Default Lua version is 5.2.
+
 ## Build
 
 1. Build OpenDAL LUA Interface
 
 ```bash
-cargo build --package opendal-lua
+$ cd bindings/lua
+$ cargo build --package opendal-lua --release
+```
+
+2. Install opendal lua library
+```bash
+# copy to lua share library directory
+# default lua5.2 share library directory is /usr/lib/lua/5.2
+$ cp ../../target/release/libopendal_lua.so /usr/lib/lua/5.2/opendal.so
+```
+
+## Usage
+```bash
+$ lua5.2 example/fs.lua
+read:   hello world
+```
+
+## Test
+```bash
+$ busted -o gtest test/opendal_test.lua
+[==========] Running tests from scanned files.
+[----------] Global test environment setup.
+[----------] Running tests from test/opendal_test.lua
+[ RUN      ] test/opendal_test.lua @ 24: opendal unit test opendal fs schema operator function in fs schema
+[       OK ] test/opendal_test.lua @ 24: opendal unit test opendal fs schema operator function in fs schema (1.52 ms)
+[ RUN      ] test/opendal_test.lua @ 36: opendal unit test opendal fs schema meta function in fs schema
+[       OK ] test/opendal_test.lua @ 36: opendal unit test opendal fs schema meta function in fs schema (0.24 ms)
+[----------] 2 tests from test/opendal_test.lua (3.47 ms total)
+
+[----------] Global test environment teardown.
+[==========] 2 tests from 1 test file ran. (3.54 ms total)
+[  PASSED  ] 2 tests.
 ```

@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::str;
 
 use async_trait::async_trait;
 
@@ -27,6 +28,9 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
+
+// https://github.com/spacejam/sled/blob/69294e59c718289ab3cb6bd03ac3b9e1e072a1e7/src/db.rs#L5
+const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 
 /// Sled service support.
 #[doc = include_str!("docs.md")]
@@ -88,7 +92,7 @@ impl Builder for SledBuilder {
         // use "default" tree if not set
         let tree_name = match self.tree.take() {
             Some(tree) => tree,
-            None => "default".into(),
+            None => DEFAULT_TREE_ID.to_string(),
         };
 
         let tree = db.open_tree(&tree_name).map_err(|e| {

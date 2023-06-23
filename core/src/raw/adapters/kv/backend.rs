@@ -81,9 +81,16 @@ impl<S: Adapter> Accessor for Backend<S> {
         if cap.write {
             cap.create_dir = true;
             cap.delete = true;
+        }
+
+        if cap.read && cap.write {
             cap.copy = true;
+        }
+
+        if cap.read && cap.write && cap.delete {
             cap.rename = true;
         }
+
 
         if cap.list {
             cap.list_without_delimiter = true;

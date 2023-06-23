@@ -81,8 +81,6 @@ impl<S: Adapter> Accessor for Backend<S> {
         if kv_cap.set {
             cap.write = true;
             cap.create_dir = true;
-            cap.copy = true;
-            cap.rename = true;
         }
 
         if kv_cap.delete {
@@ -92,6 +90,14 @@ impl<S: Adapter> Accessor for Backend<S> {
         if kv_cap.scan {
             cap.list = true;
             cap.list_without_delimiter = true;
+        }
+
+        if cap.read && cap.write {
+            cap.copy = true;
+        }
+
+        if cap.read && cap.write && cap.delete {
+            cap.rename = true;
         }
 
         cap.blocking = true;

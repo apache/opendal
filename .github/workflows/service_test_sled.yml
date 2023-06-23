@@ -53,3 +53,4 @@ jobs:
           OPENDAL_SLED_TEST: on
           OPENDAL_SLED_ROOT: /
           OPENDAL_SLED_DATADIR: /tmp/opendal/sled/
+          OPENDAL_SLED_TREE: sled-tree

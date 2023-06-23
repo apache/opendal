@@ -81,14 +81,13 @@ impl<S: Adapter> Accessor for Backend<S> {
         if cap.write {
             cap.create_dir = true;
             cap.delete = true;
+            cap.copy = true;
+            cap.rename = true;
         }
 
         if cap.list {
             cap.list_without_delimiter = true;
         }
-
-        cap.copy = true;
-        cap.rename = true;
 
         am
     }

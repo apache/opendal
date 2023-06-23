@@ -282,7 +282,6 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         Ok(RpCopy::default())
     }
-
 }
 
 impl<S> Backend<S>

@@ -96,7 +96,7 @@ impl Builder for SledBuilder {
                 .with_context("service", Scheme::Sled)
                 .with_context("datadir", datadir_path.clone())
                 .with_context("tree", tree_name.clone())
-                .set_source(e)
+                .set_source(e);
         })?;
 
         Ok(SledBackend::new(Adapter {
@@ -145,7 +145,11 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(self.tree.get(path).map_err(parse_error)?.map(|v| v.to_vec()))
+        Ok(self
+            .tree
+            .get(path)
+            .map_err(parse_error)?
+            .map(|v| v.to_vec()))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {

@@ -23,67 +23,31 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
-use opendal::EntryMode;
-use opendal::ErrorKind;
-use opendal::Operator;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_list or can_scan
-macro_rules! behavior_list_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<list_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_list()
-                                 => RUNTIME.block_on($crate::list::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support list, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_list_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_list_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_list_test!(
-                $service,
+    if !(cap.read && cap.write && cap.list) {
+        return vec![];
+    }
 
-                test_check,
-                test_list_dir,
-                test_list_rich_dir,
-                test_list_empty_dir,
-                test_list_non_exist_dir,
-                test_list_sub_dir,
-                test_list_nested_dir,
-                test_list_dir_with_file_path,
-                test_list_with_start_after,
-                test_scan,
-                test_scan_root,
-                test_remove_all,
-            );
-        )*
-    };
+    async_trials!(
+        op,
+        test_check,
+        test_list_dir,
+        test_list_rich_dir,
+        test_list_empty_dir,
+        test_list_non_exist_dir,
+        test_list_sub_dir,
+        test_list_nested_dir,
+        test_list_dir_with_file_path,
+        test_list_with_start_after,
+        test_scan,
+        test_scan_root,
+        test_remove_all
+    )
 }
 
 /// Check should be OK.

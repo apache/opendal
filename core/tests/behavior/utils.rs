@@ -24,8 +24,10 @@ use std::io::SeekFrom;
 use std::usize;
 
 use bytes::Bytes;
+use futures::Future;
+use libtest_mimic::Failed;
+use libtest_mimic::Trial;
 use log::debug;
-use log::warn;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::layers::TimeoutLayer;
@@ -35,16 +37,13 @@ use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
 
+use crate::RUNTIME;
+
 /// Init a service with given scheme.
 ///
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
 pub fn init_service<B: Builder>() -> Option<Operator> {
-    let _ = tracing_subscriber::fmt()
-        .pretty()
-        .with_test_writer()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
     let _ = dotenvy::dotenv();
 
     let prefix = format!("opendal_{}_", B::SCHEME);
@@ -60,7 +59,6 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
     let turn_on_test = cfg.get("test").cloned().unwrap_or_default();
 
     if turn_on_test != "on" && turn_on_test != "true" {
-        warn!("service {} not initiated, ignored", B::SCHEME);
         return None;
     }
 
@@ -129,6 +127,54 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
     let length = rng.gen_range(1..(size - offset));
 
     (offset as u64, length as u64)
+}
+
+/// Build a new async trail as a test case.
+pub fn build_async_trial<F, Fut>(name: &str, op: &Operator, f: F) -> Trial
+where
+    F: FnOnce(Operator) -> Fut + Send + 'static,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    let name = format!("services_{}::{}", op.info().scheme(), name);
+    let handle = RUNTIME.handle().clone();
+    let op = op.clone();
+
+    Trial::test(name, move || {
+        handle
+            .block_on(f(op))
+            .map_err(|err| Failed::from(err.to_string()))
+    })
+}
+
+#[macro_export]
+macro_rules! async_trials {
+    ($op:ident, $($test:ident),*) => {
+        vec![$(
+            build_async_trial(stringify!($test), $op, $test),
+        )*]
+    };
+}
+
+/// Build a new async trail as a test case.
+pub fn build_blocking_trial<F>(name: &str, op: &Operator, f: F) -> Trial
+where
+    F: FnOnce(BlockingOperator) -> anyhow::Result<()> + Send + 'static,
+{
+    let name = format!("services_{}::{}", op.info().scheme(), name);
+    let op = op.blocking();
+
+    Trial::test(name, move || {
+        f(op).map_err(|err| Failed::from(err.to_string()))
+    })
+}
+
+#[macro_export]
+macro_rules! blocking_trials {
+    ($op:ident, $($test:ident),*) => {
+        vec![$(
+            build_blocking_trial(stringify!($test), $op, $test),
+        )*]
+    };
 }
 
 /// ObjectReaderFuzzer is the fuzzer for object readers.

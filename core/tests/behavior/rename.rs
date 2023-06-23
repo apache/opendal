@@ -16,61 +16,26 @@
 // under the License.
 
 use anyhow::Result;
-use opendal::ErrorKind;
-use opendal::Operator;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_rename
-macro_rules! behavior_rename_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<rename_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_rename() => RUNTIME.block_on($crate::rename::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support rename, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_rename_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_rename_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_rename_test!(
-                $service,
+    if !(cap.read && cap.write && cap.rename) {
+        return vec![];
+    }
 
-                test_rename_file,
-                test_rename_non_existing_source,
-                test_rename_source_dir,
-                test_rename_target_dir,
-                test_rename_self,
-                test_rename_nested,
-                test_rename_overwrite,
-
-            );
-        )*
-    };
+    async_trials!(
+        op,
+        test_rename_file,
+        test_rename_non_existing_source,
+        test_rename_source_dir,
+        test_rename_target_dir,
+        test_rename_self,
+        test_rename_nested,
+        test_rename_overwrite
+    )
 }
 
 /// Rename a file and test with stat.

@@ -17,72 +17,42 @@
 
 use anyhow::Result;
 use futures::AsyncReadExt;
-use opendal::EntryMode;
-use opendal::ErrorKind;
-use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - !can_write
-macro_rules! behavior_read_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<read_only_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read() && !op.info().can_write() => RUNTIME.block_on($crate::read_only::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support read_only, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+use crate::*;
 
-#[macro_export]
-macro_rules! behavior_read_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_read_test!(
-                $service,
+pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-                test_stat_file_and_dir,
-                test_stat_special_chars,
-                test_stat_not_cleaned_path,
-                test_stat_not_exist,
-                test_stat_with_if_match,
-                test_stat_with_if_none_match,
-                test_stat_root,
-                test_read_full,
-                test_read_full_with_special_chars,
-                test_read_range,
-                test_reader_range,
-                test_reader_from,
-                test_reader_tail,
-                test_read_not_exist,
-                test_read_with_dir_path,
-                test_read_with_if_match,
-                test_read_with_if_none_match,
-            );
-        )*
-    };
+    if !cap.read || cap.write {
+        return vec![];
+    }
+
+    async_trials!(
+        op,
+        test_read_only_stat_file_and_dir,
+        test_read_only_stat_special_chars,
+        test_read_only_stat_not_cleaned_path,
+        test_read_only_stat_not_exist,
+        test_read_only_stat_with_if_match,
+        test_read_only_stat_with_if_none_match,
+        test_read_only_stat_root,
+        test_read_only_read_full,
+        test_read_only_read_full_with_special_chars,
+        test_read_only_read_range,
+        test_read_only_reader_range,
+        test_read_only_reader_from,
+        test_read_only_reader_tail,
+        test_read_only_read_not_exist,
+        test_read_only_read_with_dir_path,
+        test_read_only_read_with_if_match,
+        test_read_only_read_with_if_none_match
+    )
 }
 
 /// Stat normal file and dir should return metadata
-pub async fn test_stat_file_and_dir(op: Operator) -> Result<()> {
+pub async fn test_read_only_stat_file_and_dir(op: Operator) -> Result<()> {
     let meta = op.stat("normal_file").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
@@ -94,7 +64,7 @@ pub async fn test_stat_file_and_dir(op: Operator) -> Result<()> {
 }
 
 /// Stat special file and dir should return metadata
-pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
+pub async fn test_read_only_stat_special_chars(op: Operator) -> Result<()> {
     let meta = op.stat("special_file  !@#$%^&()_+-=;',").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
@@ -106,7 +76,7 @@ pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
 }
 
 /// Stat not cleaned path should also succeed.
-pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
+pub async fn test_read_only_stat_not_cleaned_path(op: Operator) -> Result<()> {
     let meta = op.stat("//normal_file").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
@@ -115,7 +85,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 }
 
 /// Stat not exist file should return NotFound
-pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
+pub async fn test_read_only_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let meta = op.stat(&path).await;
@@ -126,7 +96,7 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 }
 
 /// Stat with if_match should succeed, else get a ConditionNotMatch error.
-pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
+pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
     if !op.info().capability().stat_with_if_match {
         return Ok(());
     }
@@ -151,7 +121,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
 }
 
 /// Stat with if_none_match should succeed, else get a ConditionNotMatch.
-pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
+pub async fn test_read_only_stat_with_if_none_match(op: Operator) -> Result<()> {
     if !op.info().capability().stat_with_if_none_match {
         return Ok(());
     }
@@ -177,7 +147,7 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
 }
 
 /// Root should be able to stat and returns DIR.
-pub async fn test_stat_root(op: Operator) -> Result<()> {
+pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
     let meta = op.stat("").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
@@ -188,7 +158,7 @@ pub async fn test_stat_root(op: Operator) -> Result<()> {
 }
 
 /// Read full content should match.
-pub async fn test_read_full(op: Operator) -> Result<()> {
+pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
     let bs = op.read("normal_file").await?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
@@ -201,7 +171,7 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
 }
 
 /// Read full content should match.
-pub async fn test_read_full_with_special_chars(op: Operator) -> Result<()> {
+pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result<()> {
     let bs = op.read("special_file  !@#$%^&()_+-=;',").await?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
@@ -214,7 +184,7 @@ pub async fn test_read_full_with_special_chars(op: Operator) -> Result<()> {
 }
 
 /// Read full content should match.
-pub async fn test_read_range(op: Operator) -> Result<()> {
+pub async fn test_read_only_read_range(op: Operator) -> Result<()> {
     let bs = op.range_read("normal_file", 1024..2048).await?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
@@ -227,7 +197,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
 }
 
 /// Read range should match.
-pub async fn test_reader_range(op: Operator) -> Result<()> {
+pub async fn test_read_only_reader_range(op: Operator) -> Result<()> {
     let mut r = op.range_reader("normal_file", 1024..2048).await?;
 
     let mut bs = Vec::new();
@@ -244,7 +214,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
 }
 
 /// Read from should match.
-pub async fn test_reader_from(op: Operator) -> Result<()> {
+pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
     let mut r = op.range_reader("normal_file", 261120..).await?;
 
     let mut bs = Vec::new();
@@ -261,7 +231,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
 }
 
 /// Read tail should match.
-pub async fn test_reader_tail(op: Operator) -> Result<()> {
+pub async fn test_read_only_reader_tail(op: Operator) -> Result<()> {
     let mut r = op.range_reader("normal_file", ..1024).await?;
 
     let mut bs = Vec::new();
@@ -278,7 +248,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
 }
 
 /// Read not exist file should return NotFound
-pub async fn test_read_not_exist(op: Operator) -> Result<()> {
+pub async fn test_read_only_read_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let bs = op.read(&path).await;
@@ -289,7 +259,7 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
 }
 
 /// Read with dir path should return an error.
-pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
+pub async fn test_read_only_read_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     let result = op.read(&path).await;
@@ -300,7 +270,7 @@ pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
 }
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
-pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
+pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
     if !op.info().capability().read_with_if_match {
         return Ok(());
     }
@@ -329,7 +299,7 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 }
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
-pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
+pub async fn test_read_only_read_with_if_none_match(op: Operator) -> Result<()> {
     if !op.info().capability().read_with_if_none_match {
         return Ok(());
     }

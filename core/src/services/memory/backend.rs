@@ -17,6 +17,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -64,9 +65,15 @@ impl Builder for MemoryBuilder {
 /// Backend is used to serve `Accessor` support in memory.
 pub type MemoryBackend = typed_kv::Backend<Adapter>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Adapter {
     inner: Arc<Mutex<BTreeMap<String, typed_kv::Value>>>,
+}
+
+impl Debug for Adapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemoryBackend").finish_non_exhaustive()
+    }
 }
 
 #[async_trait]

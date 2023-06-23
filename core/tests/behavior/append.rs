@@ -15,68 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::vec;
+
 use anyhow::Result;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use log::warn;
-use opendal::EntryMode;
-use opendal::ErrorKind;
-use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_append
-macro_rules! behavior_append_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<append_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_append() => RUNTIME.block_on($crate::append::$test(op.clone())),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support append, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_append_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_append_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_append_test!(
-                $service,
+    if !(cap.read && cap.write && cap.append) {
+        return vec![];
+    }
 
-                test_append_create_append,
-                test_append_with_dir_path,
-                test_append_with_cache_control,
-                test_append_with_content_type,
-                test_append_with_content_disposition,
-
-                test_appender_futures_copy,
-                test_fuzz_appender,
-            );
-        )*
-    };
+    async_trials!(
+        op,
+        test_append_create_append,
+        test_append_with_dir_path,
+        test_append_with_cache_control,
+        test_append_with_content_type,
+        test_append_with_content_disposition,
+        test_appender_futures_copy,
+        test_fuzz_appender
+    )
 }
 
 /// Test append to a file must success.

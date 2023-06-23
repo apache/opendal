@@ -45,12 +45,11 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
-          need-nextest: true
 
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run rocksdb --features services-rocksdb -j=1
+        run: cargo test rocksdb --features services-rocksdb -j=1
         env:
           OPENDAL_ROCKSDB_TEST: on
           OPENDAL_ROCKSDB_ROOT: /

@@ -16,66 +16,30 @@
 // under the License.
 
 use anyhow::Result;
-use opendal::BlockingOperator;
-use opendal::ErrorKind;
 
-use super::utils::*;
+use crate::*;
 
-/// Test services that meet the following capability:
-///
-/// - can_read
-/// - can_write
-/// - can_rename
-/// - can_blocking
-macro_rules! behavior_blocking_rename_test {
-    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
-        paste::item! {
-            $(
-                #[test]
-                $(
-                    #[$meta]
-                )*
-                fn [<blocking_rename_ $test >]() -> anyhow::Result<()> {
-                    match OPERATOR.as_ref() {
-                        Some(op) if op.info().can_read()
-                            && op.info().can_write()
-                            && op.info().can_rename()
-                            && op.info().can_blocking() => $crate::blocking_rename::$test(op.blocking()),
-                        Some(_) => {
-                            log::warn!("service {} doesn't support blocking_rename, ignored", opendal::Scheme::$service);
-                            Ok(())
-                        },
-                        None => {
-                            Ok(())
-                        }
-                    }
-                }
-            )*
-        }
-    };
-}
+pub fn behavior_blocking_rename_tests(op: &Operator) -> Vec<Trial> {
+    let cap = op.info().capability();
 
-#[macro_export]
-macro_rules! behavior_blocking_rename_tests {
-     ($($service:ident),*) => {
-        $(
-            behavior_blocking_rename_test!(
-                $service,
+    if !(cap.read && cap.write && cap.copy && cap.blocking && cap.rename) {
+        return vec![];
+    }
 
-                test_rename_file,
-                test_rename_non_existing_source,
-                test_rename_source_dir,
-                test_rename_target_dir,
-                test_rename_self,
-                test_rename_nested,
-                test_rename_overwrite,
-            );
-        )*
-    };
+    blocking_trials!(
+        op,
+        test_blocking_rename_file,
+        test_blocking_rename_non_existing_source,
+        test_blocking_rename_source_dir,
+        test_blocking_rename_target_dir,
+        test_blocking_rename_self,
+        test_blocking_rename_nested,
+        test_blocking_rename_overwrite
+    )
 }
 
 /// Rename a file and test with stat.
-pub fn test_rename_file(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_rename_file(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -97,7 +61,7 @@ pub fn test_rename_file(op: BlockingOperator) -> Result<()> {
 }
 
 /// Rename a nonexistent source should return an error.
-pub fn test_rename_non_existing_source(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_rename_non_existing_source(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let target_path = uuid::Uuid::new_v4().to_string();
 
@@ -109,7 +73,7 @@ pub fn test_rename_non_existing_source(op: BlockingOperator) -> Result<()> {
 }
 
 /// Rename a dir as source should return an error.
-pub fn test_rename_source_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_rename_source_dir(op: BlockingOperator) -> Result<()> {
     let source_path = format!("{}/", uuid::Uuid::new_v4());
     let target_path = uuid::Uuid::new_v4().to_string();
 
@@ -123,7 +87,7 @@ pub fn test_rename_source_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// Rename to a dir should return an error.
-pub fn test_rename_target_dir(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_rename_target_dir(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -144,7 +108,7 @@ pub fn test_rename_target_dir(op: BlockingOperator) -> Result<()> {
 }
 
 /// Rename a file to self should return an error.
-pub fn test_rename_self(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_rename_self(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _size) = gen_bytes();
 
@@ -160,7 +124,7 @@ pub fn test_rename_self(op: BlockingOperator) -> Result<()> {
 }
 
 /// Rename to a nested path, parent path should be created successfully.
-pub fn test_rename_nested(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_rename_nested(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -187,7 +151,7 @@ pub fn test_rename_nested(op: BlockingOperator) -> Result<()> {
 }
 
 /// Rename to a exist path should overwrite successfully.
-pub fn test_rename_overwrite(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_rename_overwrite(op: BlockingOperator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 

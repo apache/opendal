@@ -92,7 +92,7 @@ impl Builder for SledBuilder {
         };
 
         let tree = db.open_tree(&tree_name).map_err(|e| {
-            return Error::new(ErrorKind::ConfigInvalid, "open tree")
+            Error::new(ErrorKind::ConfigInvalid, "open tree")
                 .with_context("service", Scheme::Sled)
                 .with_context("datadir", datadir_path.clone())
                 .with_context("tree", tree_name.clone())

@@ -96,7 +96,7 @@ impl Builder for SledBuilder {
                 .with_context("service", Scheme::Sled)
                 .with_context("datadir", datadir_path.clone())
                 .with_context("tree", tree_name.clone())
-                .set_source(e);
+                .set_source(e)
         })?;
 
         Ok(SledBackend::new(Adapter {

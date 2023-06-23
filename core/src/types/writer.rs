@@ -26,6 +26,7 @@ use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::AsyncWrite;
 use futures::FutureExt;
+use futures::TryStreamExt;
 
 use crate::raw::oio::Write;
 use crate::raw::*;
@@ -85,6 +86,56 @@ impl Writer {
         } else {
             unreachable!(
                 "writer state invalid while write, expect Idle, actual {}",
+                self.state
+            );
+        }
+    }
+
+    /// Sink into writer.
+    ///
+    /// sink will read data from given streamer and write them into writer
+    /// directly without extra in-memory buffer.
+    ///
+    /// # Notes
+    ///
+    /// - Sink doesn't support to be used with write concurrently.
+    /// - Sink doesn't support to be used without content length now.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io::Result;
+    ///
+    /// use bytes::Bytes;
+    /// use futures::stream;
+    /// use futures::StreamExt;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn sink_example(op: Operator) -> Result<()> {
+    ///     let mut w = op
+    ///         .writer_with("path/to/file")
+    ///         .content_length(2 * 4096)
+    ///         .await?;
+    ///     let stream = stream::iter(vec![vec![0; 4096], vec![1; 4096]]).map(Ok);
+    ///     w.sink(2 * 4096, stream).await?;
+    ///     w.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn sink<S, T>(&mut self, size: u64, sink_from: S) -> Result<()>
+    where
+        S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
+        T: Into<Bytes>,
+    {
+        if let State::Idle(Some(w)) = &mut self.state {
+            let s = Box::new(oio::into_stream::from_futures_stream(
+                sink_from.map_ok(|v| v.into()),
+            ));
+            w.sink(size, s).await
+        } else {
+            unreachable!(
+                "writer state invalid while pipe_form, expect Idle, actual {}",
                 self.state
             );
         }

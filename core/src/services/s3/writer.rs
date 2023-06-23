@@ -54,14 +54,14 @@ impl S3Writer {
         }
     }
 
-    async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
+    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.s3_put_object_request(
             &self.path,
-            Some(bs.len()),
+            Some(size),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs),
+            body,
         )?;
 
         self.core.sign(&mut req).await?;
@@ -154,7 +154,9 @@ impl oio::Write for S3Writer {
             Some(upload_id) => upload_id,
             None => {
                 if self.op.content_length().unwrap_or_default() == bs.len() as u64 {
-                    return self.write_oneshot(bs).await;
+                    return self
+                        .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
+                        .await;
                 } else {
                     let upload_id = self.initiate_upload().await?;
                     self.upload_id = Some(upload_id);
@@ -192,11 +194,15 @@ impl oio::Write for S3Writer {
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        if self.op.content_length().unwrap_or_default() == size {
+            return self.write_oneshot(size, AsyncBody::Stream(s)).await;
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "S3 does not support streaming multipart upload",
+            ));
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

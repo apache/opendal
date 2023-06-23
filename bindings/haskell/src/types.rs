@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ffi::c_char;
+
 use ::opendal as od;
 use chrono::SecondsFormat;
-use std::ffi::c_char;
 
 #[repr(C)]
 #[derive(Debug)]

@@ -39,7 +39,13 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
-    let (mut kind, mut retryable) = (ErrorKind::Unexpected, false);
+    // Check HTTP status code first/
+    let (mut kind, mut retryable) = match parts.status.as_u16() {
+        500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    // Than extrace the error message.
     let (message, _) = from_slice::<SupabaseError>(&bs)
         .map(|sb_err| {
             (kind, retryable) = parse_supabase_error(&sb_err);

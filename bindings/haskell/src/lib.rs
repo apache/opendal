@@ -23,10 +23,11 @@ use std::ffi::CStr;
 use std::mem;
 use std::os::raw::c_char;
 use std::str::FromStr;
-use types::{ByteSlice, Metadata};
 
 use ::opendal as od;
 use result::FFIResult;
+use types::ByteSlice;
+use types::Metadata;
 
 /// # Safety
 ///

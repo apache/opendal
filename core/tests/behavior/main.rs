@@ -152,5 +152,13 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "services-webhdfs")]
     tests.extend(behavior_test::<services::Webhdfs>());
 
+    // Don't init logging while building operator which may break cargo
+    // nextest output
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        .with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
     libtest_mimic::run(&args, tests).exit();
 }

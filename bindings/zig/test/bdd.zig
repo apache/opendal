@@ -62,16 +62,16 @@ test "Opendal BDD test" {
         .len = std.mem.len(testkit.content),
     };
     const code = opendal.c.opendal_operator_blocking_write(testkit.p, testkit.path, data);
-    try testing.expectEqual(code, @enumToInt(Code.OK));
+    try testing.expectEqual(code, @intFromEnum(Code.OK));
 
     // The blocking file "test" should exist
     var e: opendal.c.opendal_result_is_exist = opendal.c.opendal_operator_is_exist(testkit.p, testkit.path);
-    try testing.expectEqual(e.code, @enumToInt(Code.OK));
+    try testing.expectEqual(e.code, @intFromEnum(Code.OK));
     try testing.expect(e.is_exist);
 
     // The blocking file "test" entry mode must be file
     var s: opendal.c.opendal_result_stat = opendal.c.opendal_operator_stat(testkit.p, testkit.path);
-    try testing.expectEqual(s.code, @enumToInt(Code.OK));
+    try testing.expectEqual(s.code, @intFromEnum(Code.OK));
     var meta: [*c]opendal.c.opendal_metadata = s.meta;
     try testing.expect(opendal.c.opendal_metadata_is_file(meta));
 
@@ -82,7 +82,7 @@ test "Opendal BDD test" {
     // The blocking file "test" must have content "Hello, World!"
     var r: opendal.c.opendal_result_read = opendal.c.opendal_operator_blocking_read(testkit.p, testkit.path);
     defer opendal.c.opendal_bytes_free(r.data);
-    try testing.expect(r.code == @enumToInt(Code.OK));
+    try testing.expect(r.code == @intFromEnum(Code.OK));
     try testing.expectEqual(std.mem.len(testkit.content), r.data.*.len);
 
     var count: usize = 0;

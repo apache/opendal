@@ -31,5 +31,5 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
-opendal.workspace = true
 chrono = "0.4"
+opendal.workspace = true

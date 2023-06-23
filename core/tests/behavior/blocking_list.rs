@@ -35,7 +35,7 @@ pub fn behavior_blocking_list_tests(op: &Operator) -> Vec<Trial> {
         test_blocking_list_dir,
         test_blocking_list_non_exist_dir,
         test_blocking_scan,
-        test_remove_all
+        test_blocking_remove_all
     )
 }
 
@@ -120,7 +120,7 @@ pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
 }
 
 // Remove all should remove all in this path.
-pub fn test_remove_all(op: BlockingOperator) -> Result<()> {
+pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
     let expected = vec![

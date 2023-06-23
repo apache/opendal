@@ -19,7 +19,7 @@ use anyhow::Result;
 
 use crate::*;
 
-pub fn behavior_rename_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+pub fn behavior_rename_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
     if !(cap.read && cap.write && cap.rename) {
@@ -27,7 +27,6 @@ pub fn behavior_rename_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
     }
 
     async_trials!(
-        runtime,
         op,
         test_rename_file,
         test_rename_non_existing_source,

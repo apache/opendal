@@ -22,7 +22,7 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_read_only_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
     if !cap.read || cap.write {
@@ -30,7 +30,6 @@ pub fn behavior_read_only_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> 
     }
 
     async_trials!(
-        runtime,
         op,
         test_read_only_stat_file_and_dir,
         test_read_only_stat_special_chars,

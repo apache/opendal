@@ -26,7 +26,7 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_append_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+pub fn behavior_append_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
     if !(cap.read && cap.write && cap.append) {
@@ -34,7 +34,6 @@ pub fn behavior_append_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
     }
 
     async_trials!(
-        runtime,
         op,
         test_append_create_append,
         test_append_with_dir_path,

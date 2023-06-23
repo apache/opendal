@@ -55,7 +55,6 @@ use blocking_write::behavior_blocking_write_tests;
 use libtest_mimic::{Arguments, Trial};
 use once_cell::sync::Lazy;
 use opendal::*;
-use tokio::runtime::Runtime;
 
 static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
     tokio::runtime::Builder::new_multi_thread()
@@ -65,7 +64,6 @@ static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
 });
 
 fn behavior_test<B: Builder>() -> Vec<Trial> {
-    let runtime = &RUNTIME;
     let operator = match init_service::<B>() {
         Some(op) => op,
         None => return Vec::new(),
@@ -79,14 +77,14 @@ fn behavior_test<B: Builder>() -> Vec<Trial> {
     trials.extend(behavior_blocking_rename_tests(&operator));
     trials.extend(behavior_blocking_write_tests(&operator));
     // Async tests
-    trials.extend(behavior_append_tests(runtime, &operator));
-    trials.extend(behavior_copy_tests(runtime, &operator));
-    trials.extend(behavior_list_only_tests(runtime, &operator));
-    trials.extend(behavior_list_tests(runtime, &operator));
-    trials.extend(behavior_presign_tests(runtime, &operator));
-    trials.extend(behavior_read_only_tests(runtime, &operator));
-    trials.extend(behavior_rename_tests(runtime, &operator));
-    trials.extend(behavior_write_tests(runtime, &operator));
+    trials.extend(behavior_append_tests(&operator));
+    trials.extend(behavior_copy_tests(&operator));
+    trials.extend(behavior_list_only_tests(&operator));
+    trials.extend(behavior_list_tests(&operator));
+    trials.extend(behavior_presign_tests(&operator));
+    trials.extend(behavior_read_only_tests(&operator));
+    trials.extend(behavior_rename_tests(&operator));
+    trials.extend(behavior_write_tests(&operator));
 
     trials
 }

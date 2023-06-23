@@ -36,7 +36,8 @@ use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
-use tokio::runtime::Runtime;
+
+use crate::RUNTIME;
 
 /// Init a service with given scheme.
 ///
@@ -129,13 +130,13 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
 }
 
 /// Build a new async trail as a test case.
-pub fn build_async_trial<F, Fut>(name: &str, runtime: &Runtime, op: &Operator, f: F) -> Trial
+pub fn build_async_trial<F, Fut>(name: &str, op: &Operator, f: F) -> Trial
 where
     F: FnOnce(Operator) -> Fut + Send + 'static,
     Fut: Future<Output = anyhow::Result<()>>,
 {
     let name = format!("services_{}::{}", op.info().scheme(), name);
-    let handle = runtime.handle().clone();
+    let handle = RUNTIME.handle().clone();
     let op = op.clone();
 
     Trial::test(name, move || {
@@ -147,9 +148,9 @@ where
 
 #[macro_export]
 macro_rules! async_trials {
-    ($runtime:ident, $op:ident, $($test:ident),*) => {
+    ($op:ident, $($test:ident),*) => {
         vec![$(
-            build_async_trial(stringify!($test), $runtime, $op, $test),
+            build_async_trial(stringify!($test), $op, $test),
         )*]
     };
 }

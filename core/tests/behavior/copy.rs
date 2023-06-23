@@ -19,7 +19,7 @@ use anyhow::Result;
 
 use crate::*;
 
-pub fn behavior_copy_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
     if !(cap.read && cap.write && cap.copy) {
@@ -27,7 +27,6 @@ pub fn behavior_copy_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
     }
 
     async_trials!(
-        runtime,
         op,
         test_copy_file,
         test_copy_non_existing_source,

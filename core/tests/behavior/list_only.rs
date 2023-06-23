@@ -22,14 +22,14 @@ use futures::TryStreamExt;
 
 use crate::*;
 
-pub fn behavior_list_only_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+pub fn behavior_list_only_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
     if !cap.list || cap.write {
         return vec![];
     }
 
-    async_trials!(runtime, op, test_list_only)
+    async_trials!(op, test_list_only)
 }
 
 /// Stat normal file and dir should return metadata

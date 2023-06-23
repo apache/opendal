@@ -28,20 +28,14 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_presign_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+pub fn behavior_presign_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
     if !(cap.list && cap.write && cap.presign) {
         return vec![];
     }
 
-    async_trials!(
-        runtime,
-        op,
-        test_presign_write,
-        test_presign_read,
-        test_presign_stat
-    )
+    async_trials!(op, test_presign_write, test_presign_read, test_presign_stat)
 }
 
 /// Presign write should succeed.

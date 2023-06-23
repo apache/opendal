@@ -34,7 +34,7 @@ use sha2::Sha256;
 
 use crate::*;
 
-pub fn behavior_write_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
+pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
     if !(cap.read && cap.write && cap.rename) {
@@ -42,7 +42,6 @@ pub fn behavior_write_tests(runtime: &Runtime, op: &Operator) -> Vec<Trial> {
     }
 
     async_trials!(
-        runtime,
         op,
         test_create_dir,
         test_create_dir_existing,

@@ -35,6 +35,7 @@ pub struct SledBuilder {
     /// That path to the sled data directory.
     datadir: Option<String>,
     root: Option<String>,
+    tree: Option<String>,
 }
 
 impl SledBuilder {
@@ -49,6 +50,12 @@ impl SledBuilder {
         self.root = Some(path.into());
         self
     }
+
+    /// Set the tree for sled.
+    pub fn tree(&mut self, tree: &str) -> &mut Self {
+        self.tree = Some(tree.into());
+        self
+    }
 }
 
 impl Builder for SledBuilder {
@@ -60,6 +67,7 @@ impl Builder for SledBuilder {
 
         map.get("datadir").map(|v| builder.datadir(v));
         map.get("root").map(|v| builder.root(v));
+        map.get("tree").map(|v| builder.tree(v));
 
         builder
     }
@@ -77,9 +85,23 @@ impl Builder for SledBuilder {
                 .set_source(e)
         })?;
 
+        // use "default" tree if not set
+        let tree_name = match self.tree.take() {
+            Some(tree) => tree,
+            None => "default".into(),
+        };
+
+        let tree = db.open_tree(&tree_name).map_err(|e| {
+            return Error::new(ErrorKind::ConfigInvalid, "open tree")
+                .with_context("service", Scheme::Sled)
+                .with_context("datadir", datadir_path.clone())
+                .with_context("tree", tree_name.clone())
+                .set_source(e)
+        })?;
+
         Ok(SledBackend::new(Adapter {
             datadir: datadir_path,
-            db,
+            tree,
         })
         .with_root(self.root.as_deref().unwrap_or_default()))
     }
@@ -91,7 +113,7 @@ pub type SledBackend = kv::Backend<Adapter>;
 #[derive(Clone)]
 pub struct Adapter {
     datadir: String,
-    db: sled::Db,
+    tree: sled::Tree,
 }
 
 impl Debug for Adapter {
@@ -123,7 +145,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(self.db.get(path).map_err(parse_error)?.map(|v| v.to_vec()))
+        Ok(self.tree.get(path).map_err(parse_error)?.map(|v| v.to_vec()))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -131,7 +153,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.db.insert(path, value).map_err(parse_error)?;
+        self.tree.insert(path, value).map_err(parse_error)?;
 
         Ok(())
     }
@@ -141,7 +163,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        self.db.remove(path).map_err(parse_error)?;
+        self.tree.remove(path).map_err(parse_error)?;
 
         Ok(())
     }
@@ -151,7 +173,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
-        let it = self.db.scan_prefix(path).keys();
+        let it = self.tree.scan_prefix(path).keys();
         let mut res = Vec::default();
 
         for i in it {

@@ -62,7 +62,7 @@ jobs:
         working-directory: core
         run: |
           export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
-          cargo nextest run services_hdfs --features services-hdfs
+          cargo test services_hdfs --features services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
@@ -120,7 +120,7 @@ jobs:
         run: |
           export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
 
-          cargo nextest run services_hdfs --features services-hdfs
+          cargo test services_hdfs --features services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.1.3"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

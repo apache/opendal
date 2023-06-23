@@ -42,12 +42,12 @@ use write::behavior_write_tests;
 // Blocking test cases
 mod blocking_copy;
 mod blocking_list;
-mod blocking_read;
+mod blocking_read_only;
 mod blocking_rename;
 mod blocking_write;
 use blocking_copy::behavior_blocking_copy_tests;
 use blocking_list::behavior_blocking_list_tests;
-use blocking_read::behavior_blocking_read_tests;
+use blocking_read_only::behavior_blocking_read_only_tests;
 use blocking_rename::behavior_blocking_rename_tests;
 use blocking_write::behavior_blocking_write_tests;
 
@@ -70,7 +70,7 @@ fn behavior_test<B: Builder>() -> Vec<Trial> {
     // Blocking tests
     trials.extend(behavior_blocking_copy_tests(&operator));
     trials.extend(behavior_blocking_list_tests(&operator));
-    trials.extend(behavior_blocking_read_tests(&operator));
+    trials.extend(behavior_blocking_read_only_tests(&operator));
     trials.extend(behavior_blocking_rename_tests(&operator));
     trials.extend(behavior_blocking_write_tests(&operator));
     // Async tests

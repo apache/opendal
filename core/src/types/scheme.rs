@@ -148,6 +148,7 @@ impl FromStr for Scheme {
             "sled" => Ok(Scheme::Sled),
             "supabase" => Ok(Scheme::Supabase),
             "oss" => Ok(Scheme::Oss),
+            "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
             "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),

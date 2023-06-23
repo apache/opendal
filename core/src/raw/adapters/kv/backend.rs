@@ -235,25 +235,35 @@ impl<S: Adapter> Accessor for Backend<S> {
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        match self.copy(from, to, OpCopy {}).await {
-            Ok(_) => {
-                let from = build_abs_path(&self.root, from);
-                self.kv.delete(&from).await?;
-                Ok(RpRename::default())
-            }
-            Err(e) => Err(e),
-        }
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+
+        let bs = match self.kv.get(&from).await? {
+            // TODO: we can reuse the metadata in value to build content range.
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
+        };
+
+        self.kv.set(&to, &bs).await?;
+
+        self.kv.delete(&from).await?;
+        Ok(RpRename::default())
     }
 
     fn blocking_rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        match self.blocking_copy(from, to, OpCopy {}) {
-            Ok(_) => {
-                let from = build_abs_path(&self.root, from);
-                self.kv.blocking_delete(&from)?;
-                Ok(RpRename::default())
-            }
-            Err(e) => Err(e),
-        }
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+
+        let bs = match self.kv.blocking_get(&from)? {
+            // TODO: we can reuse the metadata in value to build content range.
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "kv doesn't have this path")),
+        };
+
+        self.kv.blocking_set(&to, &bs)?;
+
+        self.kv.blocking_delete(&from)?;
+        Ok(RpRename::default())
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

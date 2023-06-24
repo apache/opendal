@@ -31,6 +31,7 @@ pub struct Operator(opendal::Operator);
 #[napi]
 impl Operator {
     #[napi(constructor)]
+    /// @see For a detailed definition of scheme, see https://opendal.apache.org/docs/category/services
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
         let scheme = opendal::Scheme::from_str(&scheme)
             .map_err(|err| {

@@ -31,6 +31,7 @@ export interface PresignedRequest {
   headers: Record<string, string>
 }
 export class Operator {
+  /** @see For a detailed definition of scheme, see https://opendal.apache.org/docs/category/services */
   constructor(scheme: string, options?: Record<string, string> | undefined | null)
   /**
    * Get current path's metadata **without cache** directly.

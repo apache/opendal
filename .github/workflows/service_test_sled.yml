@@ -53,6 +53,12 @@ jobs:
           OPENDAL_SLED_TEST: on
           OPENDAL_SLED_ROOT: /
           OPENDAL_SLED_DATADIR: /tmp/opendal/sled/
+  sled-with-tree:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
       - name: Test sled with tree
         shell: bash
         working-directory: core

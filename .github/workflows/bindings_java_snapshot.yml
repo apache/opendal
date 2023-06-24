@@ -25,13 +25,6 @@ on:
       - "core/**"
       - "bindings/java/**"
       - ".github/workflows/bindings_java.yml"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "core/**"
-      - "bindings/java/**"
-      - ".github/workflows/bindings_java.yml"
   schedule:
     - cron: '30 1 * * 1'
   workflow_dispatch:
@@ -52,24 +45,34 @@ jobs:
             classifier: osx-aarch_64
     steps:
       - uses: actions/checkout@v3
+
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
         with:
-          repository: apache/incubator-opendal
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          MAVEN_GPG_PRIVATE_KEY: op://services/maven/gpg_private_key
+          MAVEN_GPG_PASSPHRASE: op://services/maven/gpg_passphrase
+
       - name: Set up JDK 8
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+          gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ env.MAVEN_GPG_PASSPHRASE }}
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
       - name: Local staging
         working-directory: bindings/java
         run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
         env:
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_GPG_PASSPHRASE: ${{ env.MAVEN_GPG_PASSPHRASE }}
       - name: Upload local staging directory
         uses: actions/upload-artifact@v3
         with:
@@ -82,8 +85,16 @@ jobs:
     needs: [stage-snapshot]
     steps:
       - uses: actions/checkout@v3
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
         with:
-          repository: apache/incubator-opendal
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          MAVEN_GPG_PRIVATE_KEY: op://services/maven/gpg_private_key
+          MAVEN_GPG_PASSPHRASE: op://services/maven/gpg_passphrase
+
       - name: Set up JDK 8
         uses: actions/setup-java@v3
         with:
@@ -93,8 +104,8 @@ jobs:
           server-id: apache.snapshots.https
           server-username: MAVEN_USERNAME
           server-password: MAVEN_CENTRAL_TOKEN
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+          gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ env.MAVEN_GPG_PASSPHRASE }}
 
       - name: Prepare enviroment variables
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV
@@ -131,6 +142,7 @@ jobs:
           cp -r ~/osx-x86_64-local-staging/deferred/* ~/local-staging/deferred/
           cat ~/osx-aarch_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
           cp -r ~/osx-aarch_64-local-staging/deferred/* ~/local-staging/deferred/
+
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java
@@ -138,4 +150,4 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_GPG_PASSPHRASE: ${{ env.MAVEN_GPG_PASSPHRASE }}

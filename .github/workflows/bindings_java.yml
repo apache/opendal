@@ -101,7 +101,13 @@ jobs:
         id: key
         run: |
           private_key=$(echo "${{ env.MAVEN_GPG_PRIVATE_KEY_BASE64 }}" | base64 -d)
-          echo "::add-mask::${private_key}"
+
+          # Mask
+          while read -r line;
+          do
+            echo "::add-mask::${line}"
+          done <<< "${private_key}"
+
           echo "MAVEN_GPG_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
           echo ${private_key} >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -149,7 +155,13 @@ jobs:
       - name: Decode GPG private key
         run: |
           private_key=$(echo "${{ env.MAVEN_GPG_PRIVATE_KEY_BASE64 }}" | base64 -d)
-          echo "::add-mask::${private_key}"
+
+          # Mask
+          while read -r line;
+          do
+            echo "::add-mask::${line}"
+          done <<< "${private_key}"
+
           echo "MAVEN_GPG_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
           echo ${private_key} >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV

@@ -21,6 +21,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "core/**"
+      - "bindings/java/**"
+      - ".github/workflows/bindings_java.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "bindings/java/**"
+      - ".github/workflows/bindings_java.yml"
   schedule:
     - cron: '30 1 * * 1'
   workflow_dispatch:

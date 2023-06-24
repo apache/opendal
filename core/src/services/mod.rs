@@ -168,3 +168,8 @@ pub use webhdfs::Webhdfs;
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
 pub use vercel_artifacts::VercelArtifacts;
+
+#[cfg(feature = "services-redb")]
+mod redb;
+#[cfg(feature = "services-redb")]
+pub use self::redb::Redb;

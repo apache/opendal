@@ -68,6 +68,7 @@ impl Builder for RedbBuilder {
         let mut builder = RedbBuilder::default();
 
         map.get("datadir").map(|v| builder.datadir(v));
+        map.get("table").map(|v| builder.table(v));
         map.get("root").map(|v| builder.root(v));
 
         builder
@@ -146,8 +147,9 @@ impl kv::Adapter for Adapter {
                 return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
             }
         };
-        
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(&self.table);
+
+        let table_define: redb::TableDefinition<&str, &[u8]> =
+            redb::TableDefinition::new(&self.table);
 
         let table = match read_txn.open_table(table_define) {
             Ok(table) => table,
@@ -176,7 +178,8 @@ impl kv::Adapter for Adapter {
             }
         };
 
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(&self.table);
+        let table_define: redb::TableDefinition<&str, &[u8]> =
+            redb::TableDefinition::new(&self.table);
 
         {
             let mut table = match write_txn.open_table(table_define) {
@@ -185,17 +188,16 @@ impl kv::Adapter for Adapter {
                     return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
                 }
             };
-    
+
             if let Err(e) = table.insert(path, value) {
                 return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
             };
         }
 
-        let result = match write_txn.commit() {
+        match write_txn.commit() {
             Ok(()) => Ok(()),
             Err(e) => Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)),
-        };
-        result
+        }
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
@@ -210,7 +212,8 @@ impl kv::Adapter for Adapter {
             }
         };
 
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(&self.table);
+        let table_define: redb::TableDefinition<&str, &[u8]> =
+            redb::TableDefinition::new(&self.table);
 
         {
             let mut table = match write_txn.open_table(table_define) {
@@ -219,16 +222,15 @@ impl kv::Adapter for Adapter {
                     return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
                 }
             };
-        
+
             if let Err(e) = table.remove(path) {
                 return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
             };
         }
 
-        let result = match write_txn.commit() {
+        match write_txn.commit() {
             Ok(()) => Ok(()),
             Err(e) => Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)),
-        };
-        result
+        }
     }
 }

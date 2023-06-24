@@ -43,6 +43,12 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      - name: Prepare for tests
+        shell: bash
+        working-directory: core
+        run: mkdir -p $OPENDAL_REDB_DATADIR
+        env:
+          OPENDAL_REDB_DATADIR: /tmp/opendal/redb/
       - name: Test
         shell: bash
         working-directory: core

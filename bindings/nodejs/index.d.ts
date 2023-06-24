@@ -31,7 +31,8 @@ export interface PresignedRequest {
   headers: Record<string, string>
 }
 export class Operator {
-  constructor(scheme: 'azblob' | 'azdfs' | 'cos' | 'dashmap' | 'fs' | 'ftp' | 'ftps' | 'gcs' | 'ghac' | 'hdfs' | 'http' | 'https' | 'ipfs' | 'ipns' | 'ipmfs' | 'memcached' | 'memory' | 'moka' | 'obs' | 'onedrive' | 'gdrive' | 'oss' | 'redis' | 'rocksdb' | 's3' | 'sled' | 'supabase' | 'vercel_artifacts' | 'wasabi' | 'webdav' | 'webhdfs', options: Record<string, string> | undefined | null)
+  /** @see For a detailed definition of scheme, see https://opendal.apache.org/docs/category/services */
+  constructor(scheme: string, options?: Record<string, string> | undefined | null)
   /**
    * Get current path's metadata **without cache** directly.
    *

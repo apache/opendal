@@ -94,8 +94,14 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          MAVEN_GPG_PRIVATE_KEY: op://services/maven/gpg_private_key
+          MAVEN_GPG_PRIVATE_KEY_BASE64: op://services/maven/gpg_private_key
           MAVEN_GPG_PASSPHRASE: op://services/maven/gpg_passphrase
+
+      - name: Decode GPG private key
+        run: |
+          private_key=`echo "${{ env.MAVEN_GPG_PRIVATE_KEY_BASE64 }}" | base64 -d`
+          echo "::add-mask::${private_key}"
+          echo "MAVEN_GPG_PRIVATE_KEY=${private_key}" >> $GITHUB_ENV
 
       - name: Set up JDK 8
         uses: actions/setup-java@v3
@@ -134,8 +140,14 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          MAVEN_GPG_PRIVATE_KEY: op://services/maven/gpg_private_key
+          MAVEN_GPG_PRIVATE_KEY_BASE64: op://services/maven/gpg_private_key
           MAVEN_GPG_PASSPHRASE: op://services/maven/gpg_passphrase
+
+      - name: Decode GPG private key
+        run: |
+          private_key=`echo "${{ env.MAVEN_GPG_PRIVATE_KEY_BASE64 }}" | base64 -d`
+          echo "::add-mask::${private_key}"
+          echo "MAVEN_GPG_PRIVATE_KEY=${private_key}" >> $GITHUB_ENV
 
       - name: Set up JDK 8
         uses: actions/setup-java@v3

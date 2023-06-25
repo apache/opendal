@@ -50,7 +50,6 @@ default = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
-  "services-redb",
 ]
 
 # Build docs or not.

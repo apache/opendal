@@ -87,6 +87,9 @@ jobs:
             classifier: osx-aarch_64
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
       - name: Load secret
         id: op-load-secret
@@ -110,9 +113,6 @@ jobs:
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
 
       - name: Local staging
         working-directory: bindings/java

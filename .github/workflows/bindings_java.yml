@@ -72,7 +72,7 @@ jobs:
 
   stage-snapshot:
     runs-on: ${{ matrix.os }}
-    if: ${{ github.event_name == 'push' || !github.event.pull_request.head.repo.fork }}}
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     strategy:
       matrix:
         include:
@@ -125,7 +125,7 @@ jobs:
 
   deploy-snapshots:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' || !github.event.pull_request.head.repo.fork }}}
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     needs: [stage-snapshot]
     steps:
       - uses: actions/checkout@v3

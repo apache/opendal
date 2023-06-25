@@ -36,7 +36,7 @@ OpenDAL will release all packages in the same version.
 
 - Bump version in `Cargo.toml`.
 - For the nodejs binding, bump version in `bindings/nodejs/package.json`, then use the command `napi version` in `bindings/nodejs` to bump all sub-packages' version.
-- For th java binding, bump version in `bindings/java/pom.xml`.
+- For the java binding, bump version in `bindings/java/pom.xml`.
 - Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.
 - If there are breaking changes in `core`, please also update `core/src/docs/upgrade.md`.
 - After all those changes, submit a PR with name `Bump to version x.y.z`.

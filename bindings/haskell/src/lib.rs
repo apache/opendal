@@ -444,6 +444,16 @@ pub unsafe extern "C" fn blocking_stat(
     *result = res;
 }
 
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
 #[no_mangle]
 pub unsafe extern "C" fn blocking_list(
     op: *mut od::BlockingOperator,
@@ -473,6 +483,16 @@ pub unsafe extern "C" fn blocking_list(
     *result = res;
 }
 
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
 #[no_mangle]
 pub unsafe extern "C" fn blocking_scan(
     op: *mut od::BlockingOperator,
@@ -502,6 +522,15 @@ pub unsafe extern "C" fn blocking_scan(
     *result = res;
 }
 
+/// # Safety
+///
+/// * `lister` is a valid pointer to a `BlockingLister`.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `lister` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
 #[no_mangle]
 pub unsafe extern "C" fn lister_next(
     lister: *mut BlockingLister,
@@ -526,6 +555,13 @@ pub unsafe extern "C" fn lister_next(
     *result = res;
 }
 
+/// # Safety
+///
+/// * `lister` is a valid pointer to a `BlockingLister`.
+///
+/// # Panics
+///
+/// * If `lister` is not a valid pointer.
 #[no_mangle]
 pub unsafe extern "C" fn free_lister(lister: *mut BlockingLister) {
     if !lister.is_null() {

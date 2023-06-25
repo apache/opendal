@@ -44,6 +44,11 @@ use crate::*;
 /// - [ ] ~~scan~~
 /// - [ ] presign
 /// - [ ] blocking
+///
+/// # Notes
+///
+/// To better assist you in choosing the right cache for your use case,
+/// Here's a comparison table with [moka](https://github.com/moka-rs/moka#choosing-the-right-cache-for-your-use-case)
 #[derive(Default, Debug)]
 pub struct MiniMokaBuilder {
     /// Sets the max capacity of the cache.

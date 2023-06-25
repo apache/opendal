@@ -72,13 +72,12 @@ jobs:
 
   stage-snapshot:
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
-          # FIXME: Windows is not supported yet.
+          # FIXME: Windows is not supported due to 1password action limitation.
           # - os: windows-latest
             # classifier: windows-x86_64
           - os: macos-latest
@@ -100,7 +99,6 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           MAVEN_GPG_PRIVATE_KEY: op://services/maven/gpg_private_key
           MAVEN_GPG_PASSPHRASE: op://services/maven/gpg_passphrase
-          MAVEN_GPG_KEY_ID: op://services/maven/gpg_key_id
 
       - name: Set up JDK 8
         uses: actions/setup-java@v3
@@ -108,26 +106,13 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
-          server-id: apache.snapshots.https
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Local staging
         working-directory: bindings/java
-        run: |
-          mvn -Papache-release package verify \
-            org.sonatype.plugins:nexus-staging-maven-plugin:deploy \
-            -DjniClassifier=${{ matrix.classifier }} \
-            -DskipTests=true \
-            -DaltStagingDirectory=local-staging \
-            -DskipRemoteStaging=true \
-            -DserverId=apache.snapshots.https \
-            -DnexusUrl=https://repository.apache.org
+        run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
         env:
-          MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
-          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}
           MAVEN_GPG_PASSPHRASE: ${{ env.MAVEN_GPG_PASSPHRASE }}
 
       - name: Upload local staging directory
@@ -139,7 +124,6 @@ jobs:
 
   deploy-snapshots:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     needs: [stage-snapshot]
     steps:
       - uses: actions/checkout@v3
@@ -209,11 +193,7 @@ jobs:
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java
-        run: |
-          mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
-          -DaltStagingDirectory=$LOCAL_STAGING_DIR \
-          -DserverId=apache.snapshots.https \
-          -DnexusUrl=https://repository.apache.org
+        run: mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}

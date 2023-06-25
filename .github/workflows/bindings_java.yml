@@ -94,22 +94,9 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          MAVEN_GPG_PRIVATE_KEY_BASE64: op://services/maven/gpg_private_key
+          MAVEN_GPG_PRIVATE_KEY: op://services/maven/gpg_private_key
           MAVEN_GPG_PASSPHRASE: op://services/maven/gpg_passphrase
           MAVEN_GPG_KEY_ID: op://services/maven/gpg_key_id
-
-      - name: Decode GPG private key
-        id: key
-        run: |
-          private_key=$(echo "${MAVEN_GPG_PRIVATE_KEY_BASE64}" | base64 -d)
-
-          # Mask
-          while read -r line;
-          do
-            echo "::add-mask::${line}"
-          done <<< "${private_key}"
-
-          echo ${private_key} | gpg --import -
 
       - name: Set up JDK 8
         uses: actions/setup-java@v3
@@ -117,6 +104,7 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
+          gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - uses: actions/setup-python@v4
         with:
@@ -147,20 +135,8 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          MAVEN_GPG_PRIVATE_KEY_BASE64: op://services/maven/gpg_private_key
+          MAVEN_GPG_PRIVATE_KEY: op://services/maven/gpg_private_key
           MAVEN_GPG_PASSPHRASE: op://services/maven/gpg_passphrase
-
-      - name: Decode GPG private key
-        run: |
-          private_key=$(echo "${MAVEN_GPG_PRIVATE_KEY_BASE64}" | base64 -d)
-
-          # Mask
-          while read -r line;
-          do
-            echo "::add-mask::${line}"
-          done <<< "${private_key}"
-
-          echo ${private_key} | gpg --import -
 
       - name: Set up JDK 8
         uses: actions/setup-java@v3
@@ -171,6 +147,7 @@ jobs:
           server-id: apache.snapshots.https
           server-username: MAVEN_USERNAME
           server-password: MAVEN_CENTRAL_TOKEN
+          gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Prepare enviroment variables

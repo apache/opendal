@@ -109,8 +109,7 @@ jobs:
             echo "::add-mask::${line}"
           done <<< "${private_key}"
 
-          echo ${private_key} | gpg --batch --passphrase "${MAVEN_GPG_PASSPHRASE}" --import -
-          echo -e "5\ny\n" | gpg --command-fd 0 --edit-key ${MAVEN_GPG_KEY_ID} trust
+          echo ${private_key} | gpg --import -
 
       - name: Set up JDK 8
         uses: actions/setup-java@v3
@@ -161,8 +160,7 @@ jobs:
             echo "::add-mask::${line}"
           done <<< "${private_key}"
 
-          echo ${private_key} | gpg --batch --passphrase "${MAVEN_GPG_PASSPHRASE}" --import -
-          echo -e "5\ny\n" | gpg --command-fd 0 --edit-key ${MAVEN_GPG_KEY_ID} trust
+          echo ${private_key} | gpg --import -
 
       - name: Set up JDK 8
         uses: actions/setup-java@v3

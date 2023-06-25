@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 -- Licensed to the Apache Software Foundation (ASF) under one
 -- or more contributor license agreements.  See the NOTICE file
 -- distributed with this work for additional information
@@ -15,9 +16,11 @@
 -- specific language governing permissions and limitations
 -- under the License.
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module OpenDAL (
   Operator,
+  Lister,
   OpenDALError (..),
   ErrorCode (..),
   EntryMode (..),
@@ -34,10 +37,13 @@ module OpenDAL (
   renameOpRaw,
   deleteOpRaw,
   statOpRaw,
+  listOpRaw,
+  scanOpRaw,
+  nextLister,
 ) where
 
-import Control.Monad.Except (ExceptT, MonadError, runExceptT, throwError)
-import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, ask, liftIO, runReaderT)
+import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.Reader (ReaderT, ask, liftIO, runReaderT)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
@@ -49,6 +55,8 @@ import Foreign.C.String
 import OpenDAL.FFI
 
 newtype Operator = Operator (ForeignPtr RawOperator)
+
+newtype Lister = Lister (ForeignPtr RawLister)
 
 data ErrorCode
   = FFIError
@@ -81,15 +89,7 @@ data Metadata = Metadata
   }
   deriving (Eq, Show)
 
-newtype OpMonad a = OpMonad (ReaderT Operator (ExceptT OpenDALError IO) a)
-  deriving
-    ( Functor
-    , Applicative
-    , Monad
-    , MonadReader Operator
-    , MonadError OpenDALError
-    , MonadIO
-    )
+type OpMonad = ReaderT Operator (ExceptT OpenDALError IO)
 
 class (Monad m) => MonadOperation m where
   readOp :: String -> m ByteString
@@ -100,6 +100,8 @@ class (Monad m) => MonadOperation m where
   renameOp :: String -> String -> m ()
   deleteOp :: String -> m ()
   statOp :: String -> m Metadata
+  listOp :: String -> m Lister
+  scanOp :: String -> m Lister
 
 instance MonadOperation OpMonad where
   readOp path = do
@@ -133,6 +135,14 @@ instance MonadOperation OpMonad where
   statOp path = do
     op <- ask
     result <- liftIO $ statOpRaw op path
+    either throwError return result
+  listOp path = do
+    op <- ask
+    result <- liftIO $ listOpRaw op path
+    either throwError return result
+  scanOp path = do
+    op <- ask
+    result <- liftIO $ scanOpRaw op path
     either throwError return result
 
 -- helper functions
@@ -194,7 +204,7 @@ parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength
 -- Exported functions
 
 runOp :: Operator -> OpMonad a -> IO (Either OpenDALError a)
-runOp operator (OpMonad op) = runExceptT $ runReaderT op operator
+runOp operator op = runExceptT $ runReaderT op operator
 
 newOp :: String -> HashMap String String -> IO (Either OpenDALError Operator)
 newOp scheme hashMap = do
@@ -334,3 +344,49 @@ statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
           let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
           errMsg <- peekCString (errorMessage ffiResult)
           return $ Left $ OpenDALError code errMsg
+
+listOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
+listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
+  withCString path $ \cPath ->
+    alloca $ \ffiResultPtr -> do
+      c_blocking_list opptr cPath ffiResultPtr
+      ffiResult <- peek ffiResultPtr
+      if ffiCode ffiResult == 0
+        then do
+          ffilister <- peek $ dataPtr ffiResult
+          lister <- Lister <$> (newForeignPtr c_free_lister ffilister)
+          return $ Right lister
+        else do
+          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
+          errMsg <- peekCString (errorMessage ffiResult)
+          return $ Left $ OpenDALError code errMsg
+
+scanOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
+scanOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
+  withCString path $ \cPath ->
+    alloca $ \ffiResultPtr -> do
+      c_blocking_scan opptr cPath ffiResultPtr
+      ffiResult <- peek ffiResultPtr
+      if ffiCode ffiResult == 0
+        then do
+          ffilister <- peek $ dataPtr ffiResult
+          lister <- Lister <$> (newForeignPtr c_free_lister ffilister)
+          return $ Right lister
+        else do
+          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
+          errMsg <- peekCString (errorMessage ffiResult)
+          return $ Left $ OpenDALError code errMsg
+
+nextLister :: Lister -> IO (Either OpenDALError (Maybe String))
+nextLister (Lister lister) = withForeignPtr lister $ \listerptr ->
+  alloca $ \ffiResultPtr -> do
+    c_lister_next listerptr ffiResultPtr
+    ffiResult <- peek ffiResultPtr
+    if ffiCode ffiResult == 0
+      then do
+        val <- peek $ dataPtr ffiResult
+        Right <$> parseCString val
+      else do
+        let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
+        errMsg <- peekCString (errorMessage ffiResult)
+        return $ Left $ OpenDALError code errMsg

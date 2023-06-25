@@ -25,6 +25,7 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
+use od::BlockingLister;
 use result::FFIResult;
 use types::ByteSlice;
 use types::Metadata;
@@ -437,8 +438,133 @@ pub unsafe extern "C" fn blocking_stat(
 
     let res = match op.stat(path_str) {
         Ok(meta) => FFIResult::ok(meta.into()),
-        Err(e) => FFIResult::err_with_source("Failed to delete", e),
+        Err(e) => FFIResult::err_with_source("Failed to stat", e),
     };
 
     *result = res;
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_list(
+    op: *mut od::BlockingOperator,
+    path: *const c_char,
+    result: *mut FFIResult<*mut BlockingLister>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.list(path_str) {
+        Ok(lister) => FFIResult::ok(Box::into_raw(Box::new(lister))),
+        Err(e) => FFIResult::err_with_source("Failed to list", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `op` is a valid pointer to a `BlockingOperator`.
+/// * `path` is a valid pointer to a nul terminated string.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `op` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn blocking_scan(
+    op: *mut od::BlockingOperator,
+    path: *const c_char,
+    result: *mut FFIResult<*mut BlockingLister>,
+) {
+    let op = if op.is_null() {
+        *result = FFIResult::err("Operator is null");
+        return;
+    } else {
+        &mut *op
+    };
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let res = match op.scan(path_str) {
+        Ok(lister) => FFIResult::ok(Box::into_raw(Box::new(lister))),
+        Err(e) => FFIResult::err_with_source("Failed to scan", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `lister` is a valid pointer to a `BlockingLister`.
+/// * `result` is a valid pointer, and has available memory to write to
+///
+/// # Panics
+///
+/// * If `lister` is not a valid pointer.
+/// * If `result` is not a valid pointer, or does not have available memory to write to.
+#[no_mangle]
+pub unsafe extern "C" fn lister_next(
+    lister: *mut BlockingLister,
+    result: *mut FFIResult<*const c_char>,
+) {
+    let lister = if lister.is_null() {
+        *result = FFIResult::err("Lister is null");
+        return;
+    } else {
+        &mut *lister
+    };
+
+    let res = match lister.next() {
+        Some(Ok(item)) => {
+            let res = types::leak_str(item.path());
+            FFIResult::ok(res)
+        }
+        Some(Err(e)) => FFIResult::err_with_source("Failed to get next item", e),
+        None => FFIResult::ok(std::ptr::null()),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * `lister` is a valid pointer to a `BlockingLister`.
+///
+/// # Panics
+///
+/// * If `lister` is not a valid pointer.
+#[no_mangle]
+pub unsafe extern "C" fn free_lister(lister: *mut BlockingLister) {
+    if !lister.is_null() {
+        drop(Box::from_raw(lister));
+    }
 }

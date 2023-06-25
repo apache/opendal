@@ -96,31 +96,6 @@ Some components may require specific setup steps. Please refer to their respecti
 - [Node.js Binding](bindings/nodejs/CONTRIBUTING.md)
 - [Python Binding](bindings/python/CONTRIBUTING.md)
 
-## Build from source
-
-OpenDAL uses [Cargo](https://doc.rust-lang.org/cargo/) as its build system. 
-To build OpenDAL, run the following command under OpenDAL's root directory:
-
-Only build the core component:
-
-```shell
-cargo build
-```
-
-With full features enabled:
-
-```shell
-cargo build --all-features
-```
-
-Build all components:
-
-```shell
-cargo build --all
-```
-
-For building every component, you can refer to each component's `CONTRIBUTING` documentation for more details.
-
 ## Code of Conduct
 
 We expect all community members to follow our [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).

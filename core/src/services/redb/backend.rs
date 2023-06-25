@@ -85,12 +85,7 @@ impl Builder for RedbBuilder {
                 .with_context("service", Scheme::Redb)
         })?;
 
-        let db = redb::Database::create(&datadir_path).map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "open db")
-                .with_context("service", Scheme::Redb)
-                .with_context("datadir", datadir_path.clone())
-                .set_source(e)
-        })?;
+        let db = redb::Database::create(&datadir_path).map_err(parse_database_error)?;
 
         let db = Arc::new(db);
 
@@ -141,27 +136,19 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let read_txn = match self.db.begin_read() {
-            Ok(txn) => txn,
-            Err(e) => {
-                return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-            }
-        };
+        let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
             redb::TableDefinition::new(&self.table);
 
-        let table = match read_txn.open_table(table_define) {
-            Ok(table) => table,
-            Err(e) => {
-                return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-            }
-        };
+        let table = read_txn
+            .open_table(table_define)
+            .map_err(parse_table_error)?;
 
         let result = match table.get(path) {
             Ok(Some(v)) => Ok(Some(v.value().to_vec())),
             Ok(None) => Ok(None),
-            Err(e) => Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)),
+            Err(e) => Err(parse_storage_error(e)),
         };
         result
     }
@@ -171,33 +158,21 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let write_txn = match self.db.begin_write() {
-            Ok(txn) => txn,
-            Err(e) => {
-                return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-            }
-        };
+        let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
             redb::TableDefinition::new(&self.table);
 
         {
-            let mut table = match write_txn.open_table(table_define) {
-                Ok(table) => table,
-                Err(e) => {
-                    return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-                }
-            };
+            let mut table = write_txn
+                .open_table(table_define)
+                .map_err(parse_table_error)?;
 
-            if let Err(e) = table.insert(path, value) {
-                return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-            };
+            table.insert(path, value).map_err(parse_storage_error)?;
         }
 
-        match write_txn.commit() {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)),
-        }
+        write_txn.commit().map_err(parse_commit_error)?;
+        Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
@@ -205,32 +180,47 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        let write_txn = match self.db.begin_write() {
-            Ok(txn) => txn,
-            Err(e) => {
-                return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-            }
-        };
+        let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
 
         let table_define: redb::TableDefinition<&str, &[u8]> =
             redb::TableDefinition::new(&self.table);
 
         {
-            let mut table = match write_txn.open_table(table_define) {
-                Ok(table) => table,
-                Err(e) => {
-                    return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-                }
-            };
+            let mut table = write_txn
+                .open_table(table_define)
+                .map_err(parse_table_error)?;
 
-            if let Err(e) = table.remove(path) {
-                return Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e));
-            };
+            table.remove(path).map_err(parse_storage_error)?;
         }
 
-        match write_txn.commit() {
-            Ok(()) => Ok(()),
-            Err(e) => Err(Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)),
-        }
+        write_txn.commit().map_err(parse_commit_error)?;
+        Ok(())
     }
+}
+
+fn parse_transaction_error(e: redb::TransactionError) -> Error {
+    match e {
+        _ => Error::new(ErrorKind::Unexpected, "error from redb").set_source(e),
+    }
+}
+
+fn parse_table_error(e: redb::TableError) -> Error {
+    match e {
+        redb::TableError::TableDoesNotExist(_) => {
+            Error::new(ErrorKind::NotFound, "error from redb").set_source(e)
+        }
+        _ => Error::new(ErrorKind::Unexpected, "error from redb").set_source(e),
+    }
+}
+
+fn parse_storage_error(e: redb::StorageError) -> Error {
+    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
+}
+
+fn parse_database_error(e: redb::DatabaseError) -> Error {
+    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
+}
+
+fn parse_commit_error(e: redb::CommitError) -> Error {
+    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
 }

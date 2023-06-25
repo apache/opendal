@@ -105,6 +105,9 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
+          server-id: apache.snapshots.https
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - uses: actions/setup-python@v4
@@ -115,7 +118,10 @@ jobs:
         working-directory: bindings/java
         run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
         env:
+          MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}
           MAVEN_GPG_PASSPHRASE: ${{ env.MAVEN_GPG_PASSPHRASE }}
+
       - name: Upload local staging directory
         uses: actions/upload-artifact@v3
         with:

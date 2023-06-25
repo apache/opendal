@@ -94,6 +94,8 @@ pub enum Scheme {
     Webdav,
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
     Webhdfs,
+    /// [redb][crate::services::Redb]: Redb Services
+    Redb,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -194,6 +196,7 @@ impl From<Scheme> for &'static str {
             Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
+            Scheme::Redb => "redb",
             Scheme::Custom(v) => v,
         }
     }

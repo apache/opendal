@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ffi::c_char;
+use std::ffi::{c_char, CString};
 
 use ::opendal as od;
 use chrono::SecondsFormat;
@@ -89,34 +89,34 @@ impl From<od::Metadata> for Metadata {
         };
 
         let cache_control = match val.cache_control() {
-            Some(s) => unsafe { leak_str(s.to_string()) },
+            Some(s) => unsafe { leak_str(s) },
             None => std::ptr::null(),
         };
 
         let content_disposition = match val.content_disposition() {
-            Some(s) => unsafe { leak_str(s.to_string()) },
+            Some(s) => unsafe { leak_str(s) },
             None => std::ptr::null(),
         };
 
         let content_length = val.content_length();
 
         let content_md5 = match val.content_md5() {
-            Some(s) => unsafe { leak_str(s.to_string()) },
+            Some(s) => unsafe { leak_str(s) },
             None => std::ptr::null(),
         };
 
         let content_type = match val.content_type() {
-            Some(s) => unsafe { leak_str(s.to_string()) },
+            Some(s) => unsafe { leak_str(s) },
             None => std::ptr::null(),
         };
 
         let etag = match val.etag() {
-            Some(s) => unsafe { leak_str(s.to_string()) },
+            Some(s) => unsafe { leak_str(s) },
             None => std::ptr::null(),
         };
 
         let last_modified = match val.last_modified() {
-            Some(s) => unsafe { leak_str(s.to_rfc3339_opts(SecondsFormat::Nanos, false)) },
+            Some(s) => unsafe { leak_str(s.to_rfc3339_opts(SecondsFormat::Nanos, false).as_str()) },
             None => std::ptr::null(),
         };
 
@@ -135,8 +135,13 @@ impl From<od::Metadata> for Metadata {
 
 // Leak the memory to pass the ownership to Haskell
 // Please note that haskell should free the memory after using it
-unsafe fn leak_str(s: String) -> *const c_char {
-    let ptr = s.as_ptr() as *const c_char;
+pub unsafe fn leak_str(s: &str) -> *const c_char {
+    let s = match CString::new(s) {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null(),
+    };
+
+    let ptr = s.as_ptr();
     std::mem::forget(s);
     ptr
 }

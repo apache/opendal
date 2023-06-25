@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Sled
+name: Service Test Redb
 
 on:
   push:
@@ -29,44 +29,34 @@ on:
       - "core/tests/**"
       - "!core/src/docs/**"
       - "!core/src/services/**"
-      - "core/src/services/sled/**"
-      - ".github/workflows/service_test_sled.yml"
+      - "core/src/services/redb/**"
+      - ".github/workflows/redb.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  sled:
+  redb:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Test sled
+      - name: Prepare for tests
         shell: bash
         working-directory: core
-        run: cargo test sled --features services-sled -j=1
+        run: mkdir -p $OPENDAL_REDB_DATADIR
+        env:
+          OPENDAL_REDB_DATADIR: /tmp/opendal/
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo test redb --features services-redb -j=1
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_SLED_TEST: on
-          OPENDAL_SLED_ROOT: /
-          OPENDAL_SLED_DATADIR: /tmp/opendal/sled/
-  sled-with-tree:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - name: Test sled with tree
-        shell: bash
-        working-directory: core
-        run: cargo test sled --features services-sled -j=1
-        env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
-          OPENDAL_SLED_TEST: on
-          OPENDAL_SLED_ROOT: /
-          OPENDAL_SLED_DATADIR: /tmp/opendal/sled/
-          OPENDAL_SLED_TREE: sled-tree
+          OPENDAL_REDB_TEST: on
+          OPENDAL_REDB_ROOT: /
+          OPENDAL_REDB_DATADIR: /tmp/opendal/redb
+          OPENDAL_REDB_TABLE: redb-table

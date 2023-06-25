@@ -59,6 +59,7 @@ test-suite opendal-hs-test
         base,
         unordered-containers,
         mtl,
+        containers,
         opendal-hs,
         tasty,
         tasty-hunit

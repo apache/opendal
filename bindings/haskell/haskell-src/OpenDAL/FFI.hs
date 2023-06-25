@@ -15,7 +15,6 @@
 -- specific language governing permissions and limitations
 -- under the License.
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module OpenDAL.FFI where
 
@@ -24,6 +23,8 @@ import Foreign.C.String
 import Foreign.C.Types
 
 data RawOperator
+
+data RawLister
 
 data FFIResult a = FFIResult
   { ffiCode :: CUInt
@@ -141,3 +142,7 @@ foreign import ccall "blocking_copy" c_blocking_copy :: Ptr RawOperator -> CStri
 foreign import ccall "blocking_rename" c_blocking_rename :: Ptr RawOperator -> CString -> CString -> Ptr (FFIResult ()) -> IO ()
 foreign import ccall "blocking_delete" c_blocking_delete :: Ptr RawOperator -> CString -> Ptr (FFIResult ()) -> IO ()
 foreign import ccall "blocking_stat" c_blocking_stat :: Ptr RawOperator -> CString -> Ptr (FFIResult FFIMetadata) -> IO ()
+foreign import ccall "blocking_list" c_blocking_list :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawLister)) -> IO ()
+foreign import ccall "blocking_scan" c_blocking_scan :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawLister)) -> IO ()
+foreign import ccall "lister_next" c_lister_next :: Ptr RawLister -> Ptr (FFIResult CString) -> IO ()
+foreign import ccall "&free_lister" c_free_lister :: FunPtr (Ptr RawLister -> IO ())

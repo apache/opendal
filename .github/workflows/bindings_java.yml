@@ -78,14 +78,18 @@ jobs:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
-          - os: windows-latest
-            classifier: windows-x86_64
+          # FIXME: Windows is not supported due to 1password action limitation.
+          # - os: windows-latest
+            # classifier: windows-x86_64
           - os: macos-latest
             classifier: osx-x86_64
           - os: macos-latest
             classifier: osx-aarch_64
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
       - name: Load secret
         id: op-load-secret
@@ -104,16 +108,14 @@ jobs:
           java-version: '8'
           cache: 'maven'
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ env.MAVEN_GPG_PASSPHRASE }}
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Local staging
         working-directory: bindings/java
-        run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
+        run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -Dsuffix.snapshot="-SNAPSHOT" -Djni.classifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
         env:
           MAVEN_GPG_PASSPHRASE: ${{ env.MAVEN_GPG_PASSPHRASE }}
+
       - name: Upload local staging directory
         uses: actions/upload-artifact@v3
         with:
@@ -147,16 +149,17 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ env.MAVEN_GPG_PASSPHRASE }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Prepare enviroment variables
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV
 
-      - name: Download windows staging directory
-        uses: actions/download-artifact@v3
-        with:
-          name: windows-x86_64-local-staging
-          path: ~/windows-x86_64-local-staging
+      # - name: Download windows staging directory
+      #   uses: actions/download-artifact@v3
+      #   with:
+      #     name: windows-x86_64-local-staging
+      #     path: ~/windows-x86_64-local-staging
+
       - name: Download linux staging directory
         uses: actions/download-artifact@v3
         with:
@@ -176,19 +179,23 @@ jobs:
       - name: Merge staging repositories
         run: |
           mkdir -p ~/local-staging/deferred
-          cat ~/windows-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
-          cp -r ~/windows-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
+          # cat ~/windows-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
+          # cp -r ~/windows-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
           cat ~/linux-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
           cp -r ~/linux-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
           cat ~/osx-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
           cp -r ~/osx-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
           cat ~/osx-aarch_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
           cp -r ~/osx-aarch_64-local-staging/deferred/* ~/local-staging/deferred/
 
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java
-        run: mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
+        run: mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -Dsuffix.snapshot="-SNAPSHOT" -DaltStagingDirectory=$LOCAL_STAGING_DIR
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}

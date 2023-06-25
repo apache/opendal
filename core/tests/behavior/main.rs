@@ -156,6 +156,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Webdav>());
     #[cfg(feature = "services-webhdfs")]
     tests.extend(behavior_test::<services::Webhdfs>());
+    #[cfg(feature = "services-redb")]
+    tests.extend(behavior_test::<services::Redb>());
 
     // Don't init logging while building operator which may break cargo
     // nextest output

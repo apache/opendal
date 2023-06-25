@@ -101,7 +101,7 @@ jobs:
       - name: Decode GPG private key
         id: key
         run: |
-          private_key=$(echo "${{ env.MAVEN_GPG_PRIVATE_KEY_BASE64 }}" | base64 -d)
+          private_key=$(echo "${MAVEN_GPG_PRIVATE_KEY_BASE64}" | base64 -d)
 
           # Mask
           while read -r line;
@@ -153,7 +153,7 @@ jobs:
 
       - name: Decode GPG private key
         run: |
-          private_key=$(echo "${{ env.MAVEN_GPG_PRIVATE_KEY_BASE64 }}" | base64 -d)
+          private_key=$(echo "${MAVEN_GPG_PRIVATE_KEY_BASE64}" | base64 -d)
 
           # Mask
           while read -r line;

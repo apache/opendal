@@ -199,9 +199,7 @@ impl kv::Adapter for Adapter {
 }
 
 fn parse_transaction_error(e: redb::TransactionError) -> Error {
-    match e {
-        _ => Error::new(ErrorKind::Unexpected, "error from redb").set_source(e),
-    }
+    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
 }
 
 fn parse_table_error(e: redb::TableError) -> Error {

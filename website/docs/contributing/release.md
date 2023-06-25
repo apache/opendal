@@ -284,7 +284,7 @@ More detailed checklist please refer to:
 https://github.com/apache/incubator-opendal/tree/main/scripts
 
 To compile from source, please refer to:
-https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md
+https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md#build-from-source
 
 Thanks
 

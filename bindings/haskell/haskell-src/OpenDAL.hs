@@ -40,7 +40,6 @@ module OpenDAL (
   listOpRaw,
   scanOpRaw,
   nextLister,
-  allLister,
 ) where
 
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
@@ -391,14 +390,3 @@ nextLister (Lister lister) = withForeignPtr lister $ \listerptr ->
         let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
         errMsg <- peekCString (errorMessage ffiResult)
         return $ Left $ OpenDALError code errMsg
-
-allLister :: Lister -> IO (Either OpenDALError [String])
-allLister = flip loop []
- where
-  loop :: Lister -> [String] -> IO (Either OpenDALError [String])
-  loop lister acc = do
-    next <- nextLister lister
-    case next of
-      Left err -> return $ Left err
-      Right Nothing -> return $ Right acc
-      Right (Just path) -> loop lister (path : acc)

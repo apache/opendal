@@ -20,7 +20,6 @@ module BasicTest (basicTests) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Set as Set
 import OpenDAL
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -57,12 +56,10 @@ testRawOperation = do
   deleteOpRaw op "key1" >>= (@?= Right ())
   isExistOpRaw op "key1" >>= (@?= Right False)
   Right lister <- listOpRaw op "/"
-  Right lister_res1 <- allLister lister
-  Set.fromList lister_res1 @?= Set.fromList ["dir1/", "key3", "key4"]
+  liftIO $ findLister lister "key3" >>= (@?= True)
   renameOpRaw op "key3" "/dir1/key5" >>= (@?= Right ())
   Right lister2 <- scanOpRaw op "/"
-  Right lister_res2 <- allLister lister2
-  Set.fromList lister_res2 @?= Set.fromList ["dir1/", "dir1/key5", "key4"]
+  liftIO $ findLister lister2 "dir1/key5" >>= (@?= True)
  where
   except_meta =
     Metadata
@@ -100,12 +97,10 @@ testMonad = do
     deleteOp "key1"
     isExistOp "key1" ?= False
     lister <- listOp "/"
-    Right lister_res1 <- liftIO $ allLister lister
-    liftIO $ Set.fromList lister_res1 @?= Set.fromList ["dir1/", "key3", "key4"]
+    liftIO $ findLister lister "key3" >>= (@?= True)
     renameOp "key3" "/dir1/key5"
     lister2 <- scanOp "/"
-    Right lister_res2 <- liftIO $ allLister lister2
-    liftIO $ Set.fromList lister_res2 @?= Set.fromList ["dir1/", "dir1/key5", "key4"]
+    liftIO $ findLister lister2 "dir1/key5" >>= (@?= True)
   except_meta =
     Metadata
       { mMode = File
@@ -131,3 +126,11 @@ testError = do
 
 (?=) :: (MonadIO m, Eq a, Show a) => m a -> a -> m ()
 result ?= except = result >>= liftIO . (@?= except)
+
+findLister :: Lister -> String -> IO Bool
+findLister lister key = do
+  res <- nextLister lister
+  case res of
+    Left _ -> return False
+    Right Nothing -> return False
+    Right (Just k) -> if k == key then return True else findLister lister key

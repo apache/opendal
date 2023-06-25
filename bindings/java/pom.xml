@@ -32,7 +32,7 @@
 
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-java</artifactId>
-    <version>0.37.1-SNAPSHOT</version>
+    <version>0.37.0${suffix.snapshot}</version>
 
     <url>https://opendal.apache.org</url>
     <mailingLists>
@@ -52,8 +52,8 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
 
-        <!-- Use camelCase instead of separating by dots to workaround PowerShell parsing. -->
-        <jniClassifier>${os.detected.classifier}</jniClassifier>
+        <jni.classifier>${os.detected.classifier}</jni.classifier>
+        <suffix.snapshot /> <!-- used by snapshots releases -->
 
         <assertj-version>3.23.1</assertj-version>
         <lombok.version>1.18.26</lombok.version>
@@ -166,7 +166,7 @@
                             <arguments>
                                 <argument>${project.basedir}/tools/build.py</argument>
                                 <argument>--classifier</argument>
-                                <argument>${jniClassifier}</argument>
+                                <argument>${jni.classifier}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -198,7 +198,7 @@
                             <goal>jar</goal>
                         </goals>
                         <configuration>
-                            <classifier>${jniClassifier}</classifier>
+                            <classifier>${jni.classifier}</classifier>
                         </configuration>
                     </execution>
                 </executions>

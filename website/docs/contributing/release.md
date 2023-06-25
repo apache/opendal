@@ -35,7 +35,7 @@ Refer to [Setup GPG Key](reference/setup_gpg.md) to make sure the GPG key has be
 OpenDAL will release all packages in the same version.
 
 - Bump version in `Cargo.toml`.
-- For the nodejs binding, bump version in `bindings/nodejs/package.json`, then use the command `napi version` in `bindings/nodejs` to bump all sub-packages' version.
+- For the nodejs binding, bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`.
 - For th java binding, bump version in `bindings/java/pom.xml`.
 - Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.
 - If there are breaking changes in `core`, please also update `core/src/docs/upgrade.md`.

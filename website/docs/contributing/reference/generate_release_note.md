@@ -2,7 +2,7 @@
 title: Generate Release Note
 ---
 
-This document describes how to generate release notes using Github:
+This document describes how to generate release notes using GitHub:
 
 1. Go to https://github.com/apache/incubator-opendal/releases/new to start a new release.
 2. Fill the tag with `draft`.

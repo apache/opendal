@@ -4,7 +4,7 @@ title: Setup GPG Key
 
 > This section is a brief from the [Cryptography with OpenPGP](https://infra.apache.org/openpgp.html) guideline.
 
-## Install gpg
+## Install GPG
 
 For more details, please refer to [GPG official website](https://www.gnupg.org/download/index.html). Here shows one approach to install GPG with `apt`:
 
@@ -12,7 +12,7 @@ For more details, please refer to [GPG official website](https://www.gnupg.org/d
 sudo apt install gnupg2
 ```
 
-## Generate gpg Key
+## Generate GPG Key
 
 Attentions:
 
@@ -73,7 +73,7 @@ generator a better chance to gain enough entropy.
 │                                                      │
 │       <OK>                              <Cancel>     │
 └──────────────────────────────────────────────────────┘
-# key generatio[n will be done after your inputting the key with the following output
+# key generation will be done after your inputting the key with the following output
 gpg: key E49B00F626B marked as ultimately trusted
 gpg: revocation certificate stored as '/Users/hulk/.gnupg/openpgp-revocs.d/F77B887A4F25A9468C513E9AA3008E49B00F626B.rev'
 public and secret key created and signed.
@@ -84,7 +84,7 @@ uid           [ultimate] hulk <hulk@apache.org>
 sub   rsa4096 2022-07-12 [E]
 ```
 
-## Upload your key to public gpg keyserver
+## Upload your key to public GPG keyserver
 
 Firstly, list your key:
 
@@ -112,15 +112,15 @@ Among them, `keys.openpgp.org` is a randomly selected keyserver, you can use `ke
 
 ## Check whether the key is created successfully
 
-Uploading takes about one minute, after that, you can check by your email at the corresponding keyserver.
+Uploading takes about one minute; after that, you can check by your email at the corresponding keyserver.
 
 Uploading keys to the keyserver is mainly for joining a [Web of Trust](https://infra.apache.org/release-signing.html#web-of-trust).
 
-## Add your gpg public key to the KEYS document
+## Add your GPG public key to the KEYS document
 
 :::info
 
-SVN is required for this step.
+`SVN` is required for this step.
 
 :::
 
@@ -139,5 +139,5 @@ svn ci -m "add gpg key for YOUR_NAME" # Later on, if you are asked to enter a us
 
 ## Upload the GPG public key to your GitHub account
 
-- Enter https://github.com/settings/keys to add GPG KEYS.
+- Enter https://github.com/settings/keys to add your GPG key.
 - Please remember to bind the email address used in the GPG key to your GitHub account (https://github.com/settings/emails) if you find "unverified" after adding it.

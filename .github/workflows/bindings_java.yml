@@ -123,6 +123,7 @@ jobs:
             -DskipTests=true \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
+            -DserverId=apache.snapshots.https \
             -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
@@ -211,6 +212,7 @@ jobs:
         run: |
           mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
           -DaltStagingDirectory=$LOCAL_STAGING_DIR \
+          -DserverId=apache.snapshots.https \
           -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}

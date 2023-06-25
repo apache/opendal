@@ -78,8 +78,9 @@ jobs:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
-          - os: windows-latest
-            classifier: windows-x86_64
+          # FIXME: Windows is not supported yet.
+          # - os: windows-latest
+            # classifier: windows-x86_64
           - os: macos-latest
             classifier: osx-x86_64
           - os: macos-latest
@@ -153,11 +154,12 @@ jobs:
       - name: Prepare enviroment variables
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV
 
-      - name: Download windows staging directory
-        uses: actions/download-artifact@v3
-        with:
-          name: windows-x86_64-local-staging
-          path: ~/windows-x86_64-local-staging
+      # - name: Download windows staging directory
+      #   uses: actions/download-artifact@v3
+      #   with:
+      #     name: windows-x86_64-local-staging
+      #     path: ~/windows-x86_64-local-staging
+
       - name: Download linux staging directory
         uses: actions/download-artifact@v3
         with:
@@ -177,12 +179,16 @@ jobs:
       - name: Merge staging repositories
         run: |
           mkdir -p ~/local-staging/deferred
-          cat ~/windows-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
-          cp -r ~/windows-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
+          # cat ~/windows-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
+          # cp -r ~/windows-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
           cat ~/linux-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
           cp -r ~/linux-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
           cat ~/osx-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
           cp -r ~/osx-x86_64-local-staging/deferred/* ~/local-staging/deferred/
+
           cat ~/osx-aarch_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
           cp -r ~/osx-aarch_64-local-staging/deferred/* ~/local-staging/deferred/
 

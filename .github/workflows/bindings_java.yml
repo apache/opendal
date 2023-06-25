@@ -116,7 +116,14 @@ jobs:
 
       - name: Local staging
         working-directory: bindings/java
-        run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -DjniClassifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
+        run: |
+          mvn -Papache-release package verify \
+            org.sonatype.plugins:nexus-staging-maven-plugin:deploy \
+            -DjniClassifier=${{ matrix.classifier }} \
+            -DskipTests=true \
+            -DaltStagingDirectory=local-staging \
+            -DskipRemoteStaging=true \
+            -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}
@@ -201,7 +208,10 @@ jobs:
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java
-        run: mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR
+        run: |
+          mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
+          -DaltStagingDirectory=$LOCAL_STAGING_DIR \
+          -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}

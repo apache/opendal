@@ -65,12 +65,29 @@ fn operator_new<'a>(
 
     let operator = lua.create_table()?;
     operator.set("_operator", op)?;
+    operator.set("limit", lua.create_function(operator_limit)?)?;
+    operator.set("with_limit", lua.create_function(operator_with_limit)?)?;
     operator.set("read", lua.create_function(operator_read)?)?;
     operator.set("write", lua.create_function(operator_write)?)?;
     operator.set("delete", lua.create_function(operator_delete)?)?;
     operator.set("is_exist", lua.create_function(operator_is_exist)?)?;
     operator.set("stat", lua.create_function(operator_stat)?)?;
     Ok(operator)
+}
+
+fn operator_limit<'a>(_: &'a Lua, operator: LuaTable<'a>) -> LuaResult<LuaNumber> {
+    let op = operator.get::<_, ODOperator>("_operator")?;
+    let op = op.operator;
+
+    Ok(op.limit() as f64)
+}
+
+fn operator_with_limit<'a>(_: &'a Lua, (operator, limit): (LuaTable<'a>, usize)) -> LuaResult<()> {
+    let mut op = operator.get::<_, ODOperator>("_operator")?;
+    let old_op = op.operator;
+    op.operator = old_op.with_limit(limit);
+    operator.set("_operator", op)?;
+    Ok(())
 }
 
 fn operator_is_exist<'a>(_: &'a Lua, (operator, path): (LuaTable<'a>, String)) -> LuaResult<bool> {

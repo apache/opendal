@@ -119,7 +119,7 @@ jobs:
           java-version: '8'
           cache: 'maven'
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ env.MAVEN_GPG_PASSPHRASE }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -176,7 +176,7 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ env.MAVEN_GPG_PASSPHRASE }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Prepare enviroment variables
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV

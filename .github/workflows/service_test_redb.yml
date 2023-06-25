@@ -58,5 +58,5 @@ jobs:
           RUST_LOG: debug
           OPENDAL_REDB_TEST: on
           OPENDAL_REDB_ROOT: /
-          OPENDAL_REDB_DATADIR: /tmp/opendal/redb/
+          OPENDAL_REDB_DATADIR: /tmp/opendal/
           OPENDAL_REDB_TABLE: redb-table

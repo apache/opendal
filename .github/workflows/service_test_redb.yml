@@ -37,7 +37,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  sled:
+  redb:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -48,7 +48,7 @@ jobs:
         working-directory: core
         run: mkdir -p $OPENDAL_REDB_DATADIR
         env:
-          OPENDAL_REDB_DATADIR: /tmp/opendal/redb/
+          OPENDAL_REDB_DATADIR: /tmp/opendal/
       - name: Test
         shell: bash
         working-directory: core
@@ -58,5 +58,5 @@ jobs:
           RUST_LOG: debug
           OPENDAL_REDB_TEST: on
           OPENDAL_REDB_ROOT: /
-          OPENDAL_REDB_DATADIR: /tmp/opendal/
+          OPENDAL_REDB_DATADIR: /tmp/opendal/redb
           OPENDAL_REDB_TABLE: redb-table

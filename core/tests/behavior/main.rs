@@ -122,6 +122,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Memcached>());
     #[cfg(feature = "services-memory")]
     tests.extend(behavior_test::<services::Memory>());
+    #[cfg(feature = "services-mini-moka")]
+    tests.extend(behavior_test::<services::MiniMoka>());
     #[cfg(feature = "services-moka")]
     tests.extend(behavior_test::<services::Moka>());
     #[cfg(feature = "services-obs")]

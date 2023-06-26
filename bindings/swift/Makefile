@@ -28,9 +28,9 @@ all: build-swift
 
 .PHONY: build-c
 build-c: $(DIRS)
-	cargo build --release --manifest-path $(C_BINDING_SRC_DIR)/Cargo.toml
+	cargo build --manifest-path $(C_BINDING_SRC_DIR)/Cargo.toml
 	cp $(C_BINDING_SRC_DIR)/include/* $(INCLUDE_DIR)
-	cp $(ROOT_DIR)/target/release/libopendal_c.a $(LIB_DIR)
+	cp $(ROOT_DIR)/target/debug/libopendal_c.a $(LIB_DIR)
 
 .PHONY: build-swift
 build-swift: build-c

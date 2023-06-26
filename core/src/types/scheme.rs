@@ -60,6 +60,8 @@ pub enum Scheme {
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
     Memory,
+    /// [mini-moka][crate::services::MiniMoka]: Mini Moka backend support.
+    MiniMoka,
     /// [moka][crate::services::Moka]: moka backend support.
     Moka,
     /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
@@ -92,6 +94,8 @@ pub enum Scheme {
     Webdav,
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
     Webhdfs,
+    /// [redb][crate::services::Redb]: Redb Services
+    Redb,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -140,6 +144,7 @@ impl FromStr for Scheme {
             "ipmfs" => Ok(Scheme::Ipmfs),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
+            "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
             "redis" => Ok(Scheme::Redis),
@@ -174,6 +179,7 @@ impl From<Scheme> for &'static str {
             Scheme::Ipmfs => "ipmfs",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
+            Scheme::MiniMoka => "mini_moka",
             Scheme::Moka => "moka",
             Scheme::Obs => "obs",
             Scheme::Onedrive => "onedrive",
@@ -190,6 +196,7 @@ impl From<Scheme> for &'static str {
             Scheme::Wasabi => "wasabi",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
+            Scheme::Redb => "redb",
             Scheme::Custom(v) => v,
         }
     }

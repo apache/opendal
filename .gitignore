@@ -15,3 +15,6 @@ flamegraph.svg
 perf.*
 
 **/.DS_Store
+
+# Yarn Integrity file
+.yarn-integrity

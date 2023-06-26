@@ -89,6 +89,11 @@ mod memory;
 #[cfg(feature = "services-memory")]
 pub use memory::Memory;
 
+#[cfg(feature = "services-mini-moka")]
+mod mini_moka;
+#[cfg(feature = "services-mini-moka")]
+pub use self::mini_moka::MiniMoka;
+
 #[cfg(feature = "services-moka")]
 mod moka;
 #[cfg(feature = "services-moka")]
@@ -168,3 +173,8 @@ pub use webhdfs::Webhdfs;
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
 pub use vercel_artifacts::VercelArtifacts;
+
+#[cfg(feature = "services-redb")]
+mod redb;
+#[cfg(feature = "services-redb")]
+pub use self::redb::Redb;

@@ -83,7 +83,7 @@ impl Operator {
             .info()
             .capability()
             .batch_max_operations
-            .unwrap_or(100);
+            .unwrap_or(1000);
         Self { accessor, limit }
     }
 

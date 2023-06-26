@@ -122,6 +122,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Memcached>());
     #[cfg(feature = "services-memory")]
     tests.extend(behavior_test::<services::Memory>());
+    #[cfg(feature = "services-mini-moka")]
+    tests.extend(behavior_test::<services::MiniMoka>());
     #[cfg(feature = "services-moka")]
     tests.extend(behavior_test::<services::Moka>());
     #[cfg(feature = "services-obs")]
@@ -154,6 +156,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Webdav>());
     #[cfg(feature = "services-webhdfs")]
     tests.extend(behavior_test::<services::Webhdfs>());
+    #[cfg(feature = "services-redb")]
+    tests.extend(behavior_test::<services::Redb>());
 
     // Don't init logging while building operator which may break cargo
     // nextest output

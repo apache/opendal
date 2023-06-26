@@ -207,6 +207,12 @@ impl Config {
                 path,
             )),
             // ignore the memory backend
+            #[cfg(feature = "services-mini-moka")]
+            Scheme::MiniMoka => Ok((
+                Operator::from_map::<services::MiniMoka>(profile.clone())?.finish(),
+                path,
+            )),
+            // ignore the memory backend
             #[cfg(feature = "services-moka")]
             Scheme::Moka => Ok((
                 Operator::from_map::<services::Moka>(profile.clone())?.finish(),

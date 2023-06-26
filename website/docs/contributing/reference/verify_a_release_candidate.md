@@ -89,55 +89,20 @@ Select `5` to trust the key ultimately.
 
 Now, we could start the verification. 
 
-Save the following content as `verify.sh`:
+We've provided a script to verify the checksum and signature of the release candidate. 
+
+The script is in the `scripts` directory of our repository.
+You can download it directly from [here](https://raw.githubusercontent.com/apache/incubator-opendal/main/scripts/check.sh)
+or check it out from the repository:
 
 ```shell
-#!/bin/bash
-
-
-set -e
-
-YELLOW="\033[37;1m"
-GREEN="\033[32;1m"
-ENDCOLOR="\033[0m"
-
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 {YOUR RELEASE TAR FILE}" >&2
-  exit 1
-fi
-
-PKG=$1
-
-if [ ! -f "$PKG" ]; then
-    echo "File '$PKG' does not exist."
-    exit 1
-fi
-
-echo "> Check signature"
-gpg --verify "$PKG.asc" "$PKG"
-
-if [ $? -eq 0 ]
-then
-    printf $GREEN"Success to verify the gpg sign"$ENDCOLOR"\n"
-else
-    printf $YELLOW"Failed to verify the gpg sign"$ENDCOLOR"\n"
-fi
-
-echo "> Check sha512sum"
-sha512sum --check "$PKG.sha512"
-
-if [ $? -eq 0 ]
-then
-    printf $GREEN"Success to verify the checksum"$ENDCOLOR"\n"
-else
-    printf $YELLOW"Failed to verify the checksum"$ENDCOLOR"\n"
-fi
+git clone git@github.com:apache/incubator-opendal.git
 ```
 
-Run the following command to verify the checksum and signature:
+Run the script on a specific release candidate:
 
 ```shell
-./verify.sh apache-opendal-${release_version}-${rc_version}-src.tar.gz
+./check.sh apache-opendal-${release_version}-${rc_version}-src.tar.gz
 ```
 
 You will see the following output if the verification is successful:

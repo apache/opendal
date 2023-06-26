@@ -19,6 +19,7 @@
 
 - [azblob](https://docs.rs/opendal/latest/opendal/services/struct.Azblob.html): [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services.
 - [azdfs](https://docs.rs/opendal/latest/opendal/services/struct.Azdfs.html): [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services. (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
+- [cacache](https://docs.rs/opendal/latest/opendal/services/struct.Cacache.html): [cacache](https://crates.io/crates/cacache) backend support.
 - [dashmap](https://docs.rs/opendal/latest/opendal/services/struct.Dashmap.html): [dashmap](https://github.com/xacrimon/dashmap) backend support.
 - [fs](https://docs.rs/opendal/latest/opendal/services/struct.Fs.html): POSIX alike file system.
 - [ftp](https://docs.rs/opendal/latest/opendal/services/struct.Ftp.html): FTP and FTPS support.

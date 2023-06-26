@@ -12,6 +12,7 @@
 - `services-ftp`: Enable ftp service support.
 - `services-hdfs`: Enable hdfs service support.
 - `services-memcached`: Enable memcached service support.
+- `services-mini-moka`: Enable mini-moka service support.
 - `services-moka`: Enable moka service support.
 - `services-ipfs`: Enable ipfs service support.
 - `services-redis`: Enable redis service support.

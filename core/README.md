@@ -30,6 +30,7 @@
 - [ipmfs](https://docs.rs/opendal/latest/opendal/services/struct.Ipmfs.html): [InterPlanetary File System](https://ipfs.tech/) MFS API support.
 - [memcached](https://docs.rs/opendal/latest/opendal/services/struct.Memcached.html): [Memcached](https://memcached.org/) service support.
 - [memory](https://docs.rs/opendal/latest/opendal/services/struct.Memory.html): In memory backend.
+- [mini_moka](https://docs.rs/opendal/latest/opendal/services/struct.MiniMoka.html): [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 - [moka](https://docs.rs/opendal/latest/opendal/services/struct.Moka.html): [moka](https://github.com/moka-rs/moka) backend support.
 - [obs](https://docs.rs/opendal/latest/opendal/services/struct.Obs.html): [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS).
 - [oss](https://docs.rs/opendal/latest/opendal/services/struct.Oss.html): [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS).

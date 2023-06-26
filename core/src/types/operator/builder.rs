@@ -181,6 +181,8 @@ impl Operator {
             Scheme::Memcached => Self::from_map::<services::Memcached>(map)?.finish(),
             #[cfg(feature = "services-memory")]
             Scheme::Memory => Self::from_map::<services::Memory>(map)?.finish(),
+            #[cfg(feature = "services-mini-moka")]
+            Scheme::MiniMoka => Self::from_map::<services::MiniMoka>(map)?.finish(),
             #[cfg(feature = "services-moka")]
             Scheme::Moka => Self::from_map::<services::Moka>(map)?.finish(),
             #[cfg(feature = "services-obs")]

@@ -89,6 +89,11 @@ mod memory;
 #[cfg(feature = "services-memory")]
 pub use memory::Memory;
 
+#[cfg(feature = "services-mini-moka")]
+mod mini_moka;
+#[cfg(feature = "services-mini-moka")]
+pub use self::mini_moka::MiniMoka;
+
 #[cfg(feature = "services-moka")]
 mod moka;
 #[cfg(feature = "services-moka")]

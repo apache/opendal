@@ -40,6 +40,8 @@ services-hdfs = ["opendal/services-hdfs"]
 services-ipfs = ["opendal/services-ipfs"]
 # Enable services memcached support
 services-memcached = ["opendal/services-memcached"]
+# Enable services mini-moka support
+services-mini-moka = ["opendal/services-mini-moka"]
 # Enable services moka support
 services-moka = ["opendal/services-moka"]
 # Enable services redis support

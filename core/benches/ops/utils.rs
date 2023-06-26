@@ -54,6 +54,8 @@ pub fn services() -> Vec<(&'static str, Option<Operator>)> {
         ("fs", service::<services::Fs>()),
         ("s3", service::<services::S3>()),
         ("memory", service::<services::Memory>()),
+        #[cfg(feature = "services-mini-moka")]
+        ("mini-moka", service::<services::MiniMoka>()),
         #[cfg(feature = "services-moka")]
         ("moka", service::<services::Moka>()),
         #[cfg(feature = "services-redis")]

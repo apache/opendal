@@ -94,7 +94,8 @@ Major components of the project include:
 
 - ghac: [Github Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service
 - memcached: [Memcached](https://memcached.org/) service
-- moka: [moka](https://github.com/moka-rs/moka) backend
+- mini_moka: [Mini Moka](https://github.com/moka-rs/mini-moka) backend
+- moka: [Moka](https://github.com/moka-rs/moka) backend
 - vercel_artifacts: [Vercel Remote Caching](https://vercel.com/docs/concepts/monorepos/remote-caching) Service *being worked on*
 
 </details>

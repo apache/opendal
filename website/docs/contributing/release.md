@@ -3,13 +3,16 @@ title: Release
 sidebar_position: 1
 ---
 
-This document mainly introduces how the Release Manager releases a new version in accordance with the Apache requirements.
+This document mainly introduces
+how the release manager releases a new version in accordance with the Apache requirements.
 
 ## Introduction
 
-Source Release is the key point which Apache values, also, is necessary for a release. And OpenDAL will only have source release.
+`Source Release` is the key point which Apache values, also, is necessary for a release. And OpenDAL will only have source release.
 
-Please remember that publishing software has legal consequences. This guide complements the foundation-wide policies and guides:
+Please remember that publishing software has legal consequences. 
+
+This guide complements the foundation-wide policies and guides:
 
 - [Release Policy](https://www.apache.org/legal/release-policy.html)
 - [Release Distribution Policy](https://infra.apache.org/release-distribution)
@@ -19,47 +22,49 @@ Please remember that publishing software has legal consequences. This guide comp
 
 :::caution
 
-This section is the requirements for release manager who is the first time to be a release manager
+This section is the requirements for the release manager who is the first time to be a release manager
 
 :::
 
-Refer to [Setup GPG Key](reference/setup_gpg.md) to make sure GPG key has been setup.
+Refer to [Setup GPG Key](reference/setup_gpg.md) to make sure the GPG key has been set up.
 
-## Github Release
+## GitHub Release
 
 ### Bump Version
 
-OpenDAL will release all package in the same version.
+OpenDAL will release all packages in the same version.
 
-- Bump version in `Cargo.toml`
-- For nodejs binding, bump version in `bindings/nodejs/npm/*/package.json`
-- For java binding, bump version in `bindings/java/pom.xml`
+- Bump version in `Cargo.toml`.
+- For the nodejs binding, bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`.
+- For the java binding, bump version in `bindings/java/pom.xml`.
 - Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.
-- If there are breaking changes in `core`, please also update `core/src/docs/upgrade.md`
-- After all those changes, submit a PR with name `Bump to version x.y.z`
+- If there are breaking changes in `core`, please also update `core/src/docs/upgrade.md`.
+- After all those changes, submit a PR with name `Bump to version x.y.z`.
 
-Take [Bump to version 0.36.1](https://github.com/apache/incubator-opendal/pull/2401) as an example.
+Take [Bump to version 0.36.0](https://github.com/apache/incubator-opendal/pull/2366) as an example.
 
-### Create Github Release
+### Create a GitHub Release
 
-After bump version PR get merged, we can create a github release:
+After bump version PR gets merged, we can create a GitHub release:
 
-- Create a tag at `main` branch on the `Bump Version` commit: `git tag -s "v0.36.1"`
-- Push tags to Github: `git push --tags`.
+- Create a tag at `main` branch on the `Bump Version` commit: `git tag -s "v0.36.0"`
+- Push tags to GitHub: `git push --tags`.
 - Create Release on the newly created tag
   - If there are breaking changes, please add the content from `upgrade.md` before.
 
 ## ASF Release
 
-If any step in the ASF Release process fails and requires code changes, we will abandon that version and prepare for the next one. Our release page will only display ASF releases instead of Github Releases.
+If any step in the ASF Release process fails and requires code changes,
+we will abandon that version and prepare for the next one.
+Our release page will only display ASF releases instead of GitHub Releases.
 
-### Create ASF Release
+### Create an ASF Release
 
-After Github Release has been created, we can start to create ASF Release.
+After GitHub Release has been created, we can start to create ASF Release.
 
 - Checkout to released tag.
-- Use release script to create a new release: `OPENDAL_VERSION=<version> OPENDAL_VERSION_RC=<rc_version> ./scripts/release.sh`
-- Push the newly created branch to github
+- Use the release script to create a new release: `OPENDAL_VERSION=<version> OPENDAL_VERSION_RC=<rc_version> ./scripts/release.sh`
+- Push the newly created branch to GitHub
 
 This script will create a new release under `dist`.
 
@@ -73,7 +78,7 @@ dist
 └── apache-opendal-incubating-0.36.0-src.tar.gz.sha512
 ```
 
-### Upload artifacts to SVN dist repo
+### Upload artifacts to the SVN dist repo
 
 :::info
 
@@ -110,7 +115,7 @@ svn status
 svn commit -m "Prepare for ${release_version}"
 ```
 
-Visit <https://dist.apache.org/repos/dist/dev/incubator/opendal/> to make sure the artifacts is uploaded correctly.
+Visit <https://dist.apache.org/repos/dist/dev/incubator/opendal/> to make sure the artifacts are uploaded correctly.
 
 ## Voting
 

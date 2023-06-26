@@ -151,7 +151,5 @@ fn parse_error(err: cacache::Error) -> Error {
         _ => ErrorKind::Unexpected,
     };
 
-    let err = Error::new(kind, "error from cacache").set_source(err);
-
-    err
+    Error::new(kind, "error from cacache").set_source(err)
 }

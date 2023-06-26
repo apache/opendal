@@ -1,5 +1,6 @@
 ---
-title: Verify a release candidate
+title: Verify
+sidebar_position: 2
 ---
 
 To verify a release candidate, the following checklist could be used:
@@ -31,7 +32,7 @@ svn co https://dist.apache.org/repos/dist/dev/opendal/${release_version}-${rc_ve
 
 ## Checksums and signatures
 
-The release candidate should have a checksum and signature file. 
+The release candidate should have a checksum and signature file.
 
 For example, if the release candidate is `0.36.0-rc1`, the checksum and signature file should be:
 
@@ -87,9 +88,9 @@ Please decide how far you trust this user to correctly verify other users' keys
 
 Select `5` to trust the key ultimately.
 
-Now, we could start the verification. 
+Now, we could start the verification.
 
-We've provided a script to verify the checksum and signature of the release candidate. 
+We've provided a script to verify the checksum and signature of the release candidate.
 
 The script is in the `scripts` directory of our repository.
 You can download it directly from [here](https://raw.githubusercontent.com/apache/incubator-opendal/main/scripts/check.sh)
@@ -126,5 +127,3 @@ Unzip `apache-opendal-${release_version}-${rc_version}-src.tar.gz` and check the
 - LICENSE and NOTICE files are correct for the repository.
 - All files have ASF license headers if necessary.
 - Building is OK.
-
-

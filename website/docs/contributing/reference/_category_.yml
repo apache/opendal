@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-position: 2
+position: 100
 label: 'Reference'
 collapsible: true
 collapsed: true

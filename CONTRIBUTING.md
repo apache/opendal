@@ -11,7 +11,7 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
     - [Merge Style](#merge-style)
     - [CI](#ci)
 - [Setup](#setup)
-  - [Using a dev container environment](#using-a-devcontainer-environment)
+  - [Using a dev container environment](#using-a-dev-container-environment)
   - [Bring your own toolbox](#bring-your-own-toolbox)
 - [Code of Conduct](#code-of-conduct)
 

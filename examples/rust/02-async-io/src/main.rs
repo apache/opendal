@@ -19,7 +19,7 @@ async fn write_data(op: Operator) -> Result<()> {
 
 async fn read_data(op: Operator) -> Result<()> {
     let bs = op.read("test").await?;
-    println!("read data: {}", String::from_utf8_lossy(&bs));
+    println!("data: {}", String::from_utf8_lossy(&bs));
 
     Ok(())
 }

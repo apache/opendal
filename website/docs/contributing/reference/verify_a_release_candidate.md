@@ -102,7 +102,7 @@ git clone git@github.com:apache/incubator-opendal.git
 Run the script on a specific release candidate:
 
 ```shell
-./check.sh apache-opendal-${release_version}-${rc_version}-src.tar.gz
+./scripts/check.sh apache-opendal-${release_version}-${rc_version}-src.tar.gz
 ```
 
 You will see the following output if the verification is successful:

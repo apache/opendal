@@ -109,6 +109,11 @@ mod oss;
 #[cfg(feature = "services-oss")]
 pub use oss::Oss;
 
+#[cfg(feature = "services-cacache")]
+mod cacache;
+#[cfg(feature = "services-cacache")]
+pub use self::cacache::Cacache;
+
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]

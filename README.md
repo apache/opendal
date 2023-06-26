@@ -35,9 +35,8 @@ Major components of the project include:
 **Services**
 
 <details>
-<summary>Standard Storage Protocols (like fs, ftp)</summary>
+<summary>Standard Storage Protocols (like ftp, webdav)</summary>
 
-- fs: POSIX alike file system
 - ftp: FTP and FTPS
 - http: HTTP read-only services
 - sftp: [SFTP](https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02) services *being worked on*
@@ -60,8 +59,9 @@ Major components of the project include:
 </details>
 
 <details>
-<summary>File Storage Services (like azdfs, hdfs)</summary>
+<summary>File Storage Services (like fs, azdfs, hdfs)</summary>
 
+- fs: POSIX alike file system
 - azdfs: [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
 - hdfs: [Hadoop Distributed File System](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html)(HDFS)
 - ipfs: [InterPlanetary File System](https://ipfs.tech/) HTTP Gateway

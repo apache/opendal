@@ -23,26 +23,20 @@ INCLUDE_DIR=$(SWIFT_PKG_DIR)/Sources/COpenDAL/include
 LIB_DIR=$(SWIFT_PKG_DIR)/Sources/COpenDAL/lib
 DIRS=$(INCLUDE_DIR) $(LIB_DIR)
 
-CARGO_FLAGS=--release
-CARGO_OUT_DIR=$(ROOT_DIR)/target/release
-
 .PHONY: all
 all: build-swift
 
 .PHONY: build-c
 build-c: $(DIRS)
-	cargo build $(CARGO_FLAGS) --manifest-path $(C_BINDING_SRC_DIR)/Cargo.toml
+	cargo build --manifest-path $(C_BINDING_SRC_DIR)/Cargo.toml
 	cp $(C_BINDING_SRC_DIR)/include/* $(INCLUDE_DIR)
-	cp $(CARGO_OUT_DIR)/libopendal_c.a $(LIB_DIR)
+	cp $(ROOT_DIR)/target/debug/libopendal_c.a $(LIB_DIR)
 
 .PHONY: build-swift
 build-swift: build-c
 	cd $(SWIFT_PKG_DIR) && swift build
 
 .PHONY: test
-# Use debug mode for test.
-test: export CARGO_FLAGS=
-test: export CARGO_OUT_DIR=$(ROOT_DIR)/target/debug
 test: build-c
 	cd $(SWIFT_PKG_DIR) && swift test
 

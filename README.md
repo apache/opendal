@@ -86,6 +86,7 @@ Major components of the project include:
 - redis: [Redis](https://redis.io/) services
 - rocksdb: [RocksDB](http://rocksdb.org/) services
 - sled: [sled](https://crates.io/crates/sled) backend
+- redb: [redb](https://crates.io/crates/redb) backend
 
 </details>
 

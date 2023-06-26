@@ -146,5 +146,12 @@ impl kv::Adapter for Adapter {
 }
 
 fn parse_error(err: cacache::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from cacache").set_source(err)
+    let kind = match err {
+        cacache::Error::EntryNotFound(_, _) => ErrorKind::NotFound,
+        _ => ErrorKind::Unexpected,
+    };
+
+    let err = Error::new(kind, "error from cacache").set_source(err);
+
+    err
 }

@@ -2,22 +2,10 @@
 
 - [Contributing](#contributing)
   - [Setup](#setup)
-    - [Using a dev container environment](#using-a-dev-container-environment)
-    - [Bring your own toolbox](#bring-your-own-toolbox)
   - [Build](#build)
   - [Test](#test)
 
 ## Setup
-
-### Using a dev container environment
-
-OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
-
-The fastest way is:
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/apache/incubator-opendal?quickstart=1&machine=standardLinux32gb)
-
-### Bring your own toolbox
 
 To build OpenDAL Swift binding, the Swift toolchain is required to be installed.
 

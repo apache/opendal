@@ -167,10 +167,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Generate docs with LDoc
-        uses: lunarmodules/ldoc@v0
-        with:
-          args: bindings/lua/src -d bindings/lua/doc
+      - name: Setup doxygen
+        run: sudo apt-get install lua-ldoc
+
+      - name: Build Docs
+        working-directory: bindings/lua
+        run: ldoc src
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

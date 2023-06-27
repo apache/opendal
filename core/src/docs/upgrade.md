@@ -1,10 +1,14 @@
 # Upgrade to v0.38
 
+There are no public API changes.
+
 ## Raw API
 
 OpenDAL add the `Write::sink` API to enable streaming writing. This is a breaking change for users who depend on the raw API.
 
-More detailes could be found at [PR | feat(core): Add Write::sink API](https://github.com/apache/incubator-opendal/pull/2440) and [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
+For a quick fix, users who have implemented `opendal::raw::oio::Write` can return an `Unsupported` error for `Write::sink()`. 
+
+More detailes could be found at [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
 
 # Upgrade to v0.37
 

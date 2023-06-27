@@ -49,7 +49,7 @@ optional = true
 
 [lib]
 crate-type = ["cdylib"]
-name = "opendal"
+name = "lopendal"
 
 [dependencies]
 opendal.workspace = true

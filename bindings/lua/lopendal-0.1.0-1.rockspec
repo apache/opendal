@@ -1,4 +1,4 @@
-package = "lua-opendal"
+package = "lopendal"
 version = "0.1.0-1"
 
 source = {
@@ -22,6 +22,6 @@ dependencies = {
 build = {
     type = "rust-mlua",
     modules = {
-        "opendal"
+        "lopendal"
     },
 }

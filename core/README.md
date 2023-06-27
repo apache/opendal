@@ -13,7 +13,7 @@
 - Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.apache.org/docs/rust/opendal/)
 - [Release notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 
-![](https://user-images.githubusercontent.com/5351546/222356748-14276998-501b-4d2a-9b09-b8cff3018204.png)
+![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Services
 

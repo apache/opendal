@@ -129,6 +129,10 @@ const config = {
                 label: 'C Binding',
                 to: 'pathname:///docs/c/'
               },
+              {
+                label: 'Lua Binding',
+                to: 'pathname:///docs/lua/'
+              },
             ]
           },
           {

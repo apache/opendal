@@ -163,6 +163,25 @@ jobs:
         with:
           name: C-docs
           path: ./bindings/c/docs/doxygen/html
+  build-lua-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup lua-ldoc
+        run: sudo apt-get install lua-ldoc
+
+      - name: Build Docs
+        working-directory: "bindings/lua"
+        run: ldoc ./src
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: lua-docs
+          path: ./bindings/lua/doc/
+
 
   build-website:
     runs-on: ubuntu-latest
@@ -215,6 +234,12 @@ jobs:
         with:
           name: C-docs
           path: ./website/static/docs/c
+
+      - name: Download lua docs
+        uses: actions/download-artifact@v3
+        with:
+          name: lua-docs
+          path: ./website/static/docs/lua
 
       - name: Install Dependencies
         working-directory: website

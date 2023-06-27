@@ -1,3 +1,11 @@
+# Upgrade to v0.38
+
+## Raw API
+
+OpenDAL add the `Write::sink` API to enable streaming writing. This is a breaking change for users who depend on the raw API.
+
+More detailes could be found at [PR | feat(core): Add Write::sink API](https://github.com/apache/incubator-opendal/pull/2440) and [RFC: Writer `sink` API][crate::docs::rfcs::rfc_2083_writer_sink_api].
+
 # Upgrade to v0.37
 
 In v0.37.0, OpenDAL bump the version of `reqsign` to v0.13.0.

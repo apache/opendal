@@ -178,7 +178,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: lua-docs
-          path: ./bindings/c/doc/
+          path: ./bindings/lua/doc/
 
 
   build-website:

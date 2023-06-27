@@ -167,12 +167,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup doxygen
+      - name: Setup lua-ldoc
         run: sudo apt-get install lua-ldoc
 
       - name: Build Docs
-        working-directory: bindings/lua
-        run: ldoc src
+        working-directory: "bindings/lua"
+        run: ldoc ./src
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

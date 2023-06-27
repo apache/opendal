@@ -1,16 +1,8 @@
-<p align="center">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="website/static/img/logo_dark.svg">
-  <img alt="Apache OpenDAL(incubating)" src="website/static/img/logo.svg" width="300px">
-</picture>
-</p>
+# Apache OpenDAL
 
----
+**OpenDAL** is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.
 
-OpenDAL is a data access layer that allows users to easily and efficiently retrieve data from various storage services in a unified way.
-
-![](https://user-images.githubusercontent.com/5351546/222356748-14276998-501b-4d2a-9b09-b8cff3018204.png)
-
+![OpenDAL Architectural](https://github.com/apache/incubator-opendal/assets/5351546/c81013b2-5455-4950-9d31-dbf272b07998)
 
 Major components of the project include:
 

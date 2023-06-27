@@ -31,17 +31,25 @@ rust-version.workspace = true
 
 
 [features]
-lua54 = ["mlua/lua54"]
-lua53 = ["mlua/lua53"]
-lua52 = ["mlua/lua52"]
-lua51 = ["mlua/lua51"]
-luajit = ["mlua/luajit"]
-vendored = ["mlua/vendored"]
+default = ["mlua/lua54"]
+lua54 = ["mlua", "mlua/lua54"]
+lua53 = ["mlua", "mlua/lua53"]
+lua52 = ["mlua", "mlua/lua52"]
+lua51 = ["mlua", "mlua/lua51"]
+luajit = ["mlua", "mlua/luajit"]
+vendored = ["mlua", "mlua/vendored"]
+
+# for disable default features
+[dependencies.mlua]
+version = "0.8"
+features = ["module"]
+default-features = false
+optional = true
+
 
 [lib]
 crate-type = ["cdylib"]
 name = "opendal"
 
 [dependencies]
-mlua = { version = "0.8", features = ["module"] }
 opendal.workspace = true

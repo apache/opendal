@@ -37,7 +37,7 @@ use crate::*;
 pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().capability();
 
-    if !(cap.read && cap.write && cap.rename) {
+    if !(cap.read && cap.write) {
         return vec![];
     }
 
@@ -83,6 +83,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_remove_one_file,
         test_writer_write,
         test_writer_sink,
+        test_writer_copy,
         test_writer_abort,
         test_writer_futures_copy,
         test_fuzz_unsized_writer
@@ -1109,6 +1110,46 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
         .content_length(2 * size as u64)
         .await?;
     w.sink(2 * size as u64, stream).await?;
+    w.close().await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), (size * 2) as u64);
+
+    let bs = op.read(&path).await?;
+    assert_eq!(bs.len(), size * 2, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", Sha256::digest(content_a)),
+        "read content a"
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[size..])),
+        format!("{:x}", Sha256::digest(content_b)),
+        "read content b"
+    );
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Reading data into writer
+pub async fn test_writer_copy(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !(cap.write && cap.write_can_sink) {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let size = 5 * 1024 * 1024; // write file with 5 MiB
+    let content_a = gen_fixed_bytes(size);
+    let content_b = gen_fixed_bytes(size);
+    let reader = Cursor::new(vec![content_a.clone(), content_b.clone()].concat());
+
+    let mut w = op
+        .writer_with(&path)
+        .content_length(2 * size as u64)
+        .await?;
+    w.copy(2 * size as u64, reader).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

@@ -20,3 +20,6 @@
 
 mod from_futures_stream;
 pub use from_futures_stream::from_futures_stream;
+
+mod from_futures_reader;
+pub use from_futures_reader::from_futures_reader;

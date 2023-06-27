@@ -105,6 +105,7 @@ services-azdfs = [
   "reqsign?/services-azblob",
   "reqsign?/reqwest_request",
 ]
+services-cacache = ["dep:cacache"]
 services-cos = [
   "dep:reqsign",
   "reqsign?/services-tencent",
@@ -180,6 +181,7 @@ backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bytes = "1.2"
+cacache =  { version = "11.6", default-features = false, features = ["tokio-runtime", "mmap"], optional = true }
 chrono = "0.4.24"
 dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }

@@ -81,6 +81,7 @@ Major components of the project include:
 <details>
 <summary>Key-Value Storage Service (like rocksdb, sled)</summary>
 
+- cacache: [cacache](https://crates.io/crates/cacache) backend
 - dashmap: [dashmap](https://github.com/xacrimon/dashmap) backend
 - memory: In memory backend
 - redis: [Redis](https://redis.io/) services

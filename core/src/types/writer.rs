@@ -135,7 +135,55 @@ impl Writer {
             w.sink(size, s).await
         } else {
             unreachable!(
-                "writer state invalid while pipe_form, expect Idle, actual {}",
+                "writer state invalid while sink, expect Idle, actual {}",
+                self.state
+            );
+        }
+    }
+
+    /// Copy into writer.
+    ///
+    /// copy will read data from given reader and write them into writer
+    /// directly with only one constant in-memory buffer.
+    ///
+    /// # Notes
+    ///
+    /// - Copy doesn't support to be used with write concurrently.
+    /// - Copy doesn't support to be used without content length now.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io::Result;
+    ///
+    /// use bytes::Bytes;
+    /// use futures::stream;
+    /// use futures::StreamExt;
+    /// use opendal::Operator;
+    /// use futures::io::Cursor;
+    ///
+    /// #[tokio::main]
+    /// async fn copy_example(op: Operator) -> Result<()> {
+    ///     let mut w = op
+    ///         .writer_with("path/to/file")
+    ///         .content_length(4096)
+    ///         .await?;
+    ///     let reader = Cursor::new(vec![0;4096]);
+    ///     w.copy(4096, reader).await?;
+    ///     w.close().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn copy<R>(&mut self, size: u64, read_from: R) -> Result<()>
+    where
+        R: futures::AsyncRead + Send + Sync + Unpin + 'static,
+    {
+        if let State::Idle(Some(w)) = &mut self.state {
+            let s = Box::new(oio::into_stream::from_futures_reader(read_from));
+            w.sink(size, s).await
+        } else {
+            unreachable!(
+                "writer state invalid while copy, expect Idle, actual {}",
                 self.state
             );
         }

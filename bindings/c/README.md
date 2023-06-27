@@ -1,5 +1,7 @@
 # OpenDAL C Binding (WIP)
 
+![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+
 ## Example
 A simple read and write example
 ```C
@@ -81,7 +83,7 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
   make build
   ```
 
-  - The header file `opendal.h` is under `./include` 
+  - The header file `opendal.h` is under `./include`
 
   - The library is under `../../target/debug` after building.
 
@@ -104,7 +106,7 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
   make examples
   ```
 
-  
+
 
 ## Documentation
 The documentation index page source is under `./docs/doxygen/html/index.html`.

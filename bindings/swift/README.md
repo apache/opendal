@@ -1,5 +1,7 @@
 # OpenDAL Swift Binding
 
+![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+
 ## Using the Package
 
 ### Build C Dependencies
@@ -9,7 +11,7 @@ The Swift binding depends on the C binding to OpenDAL. Before using this package
 ```
 cd bindings/swift
 make build-c
-``` 
+```
 
 To check whether the package is ready to use, simply run the test:
 

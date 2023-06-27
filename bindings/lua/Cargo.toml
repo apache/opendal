@@ -29,9 +29,19 @@ rust-version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
+[features]
+lua54 = ["mlua/lua54"]
+lua53 = ["mlua/lua53"]
+lua52 = ["mlua/lua52"]
+lua51 = ["mlua/lua51"]
+luajit = ["mlua/luajit"]
+vendored = ["mlua/vendored"]
+
 [lib]
 crate-type = ["cdylib"]
+name = "opendal"
 
 [dependencies]
-mlua = { version = "0.8", features = ["lua52", "vendored", "module"] }
+mlua = { version = "0.8", features = ["module"] }
 opendal.workspace = true

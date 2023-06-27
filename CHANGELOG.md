@@ -2370,6 +2370,7 @@ ing large files (#2231)
 
 Hello, OpenDAL!
 
+[v0.38.0]: https://github.com/apache/incubator-opendal/compare/v0.37.0...v0.38.0
 [v0.37.0]: https://github.com/apache/incubator-opendal/compare/v0.36.0...v0.37.0
 [v0.36.0]: https://github.com/apache/incubator-opendal/compare/v0.35.0...v0.36.0
 [v0.35.0]: https://github.com/apache/incubator-opendal/compare/v0.34.0...v0.35.0

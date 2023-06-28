@@ -69,6 +69,8 @@ fn operator_new<'a>(
     operator.set("write", lua.create_function(operator_write)?)?;
     operator.set("delete", lua.create_function(operator_delete)?)?;
     operator.set("is_exist", lua.create_function(operator_is_exist)?)?;
+    operator.set("create_dir", lua.create_function(operator_create_dir)?)?;
+    operator.set("rename", lua.create_function(operator_rename)?)?;
     operator.set("stat", lua.create_function(operator_stat)?)?;
     Ok(operator)
 }
@@ -118,6 +120,66 @@ fn operator_write<'a>(
 
     let path = path.as_str();
     let res = op.write(path, bytes);
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => Err(LuaError::external(e)),
+    }
+}
+
+fn operator_create_dir<'a>(
+    _: &'a Lua,
+    (operator, path): (LuaTable<'a>, String),
+) -> LuaResult<()> {
+    let op = operator.get::<_, ODOperator>("_operator")?;
+    let op = op.operator;
+
+    if path.is_empty() {
+        return Err(LuaError::external("path is empty"));
+    }
+
+    let res = op.is_exist(path.as_str());
+    match res {
+        Ok(exist) => {
+            if exist {
+                return Err(LuaError::external("path is exist"));
+            }
+        }
+        Err(e) => return Err(LuaError::external(e)),
+    }
+
+    let res = op.create_dir(path.as_str());
+    match res {
+        Ok(_) => Ok(()),
+        Err(e) => Err(LuaError::external(e)),
+    }
+}
+
+fn operator_rename<'a>(
+    _: &'a Lua,
+    (operator, src, dst): (LuaTable<'a>, String, String),
+) -> LuaResult<()> {
+    let op = operator.get::<_, ODOperator>("_operator")?;
+    let op = op.operator;
+
+    if src.is_empty() {
+        return Err(LuaError::external("src is empty"));
+    }
+
+    if dst.is_empty() {
+        return Err(LuaError::external("dst is empty"));
+    }
+
+    let res = op.is_exist(src.as_str());
+    match res {
+        Ok(exist) => {
+            if !exist {
+                return Err(LuaError::external("src is not exist"));
+            }
+        }
+        Err(e) => return Err(LuaError::external(e)),
+    }
+
+    let res = op.rename(src.as_str(), dst.as_str());
     match res {
         Ok(_) => Ok(()),
         Err(e) => Err(LuaError::external(e)),

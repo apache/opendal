@@ -55,6 +55,21 @@ local _M = {}
 -- @return error error nil if success, otherwise error message
 -- @function delete
 
+--- Blockingly rename the object of src to dst.
+---  Rename the object in path blockingly, returns error nil
+---  if success, others otherwise
+-- @param string src the designated path you want to rename your source path
+-- @param string dst the designated path you want to rename your destination path
+-- @return error error nil if success, otherwise error message
+-- @function rename
+
+--- Blockingly create the object in path.
+---  Create directory the object in path blockingly, returns error nil
+---  if success, others otherwise
+-- @param string path the designated path you want to create your directory
+-- @return error error nil if success, otherwise error message
+-- @function create_dir
+
 --- Check whether the path exists.
 -- @param string path the designated path you want to write your delete
 -- @return bool, error true or false depend on operator instance and path, error nil if success, otherwise error message

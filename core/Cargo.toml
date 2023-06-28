@@ -156,6 +156,7 @@ services-s3 = [
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
 services-sled = ["dep:sled"]
 services-supabase = []
+services-tikv = ["tikv-client"]
 services-vercel-artifacts = []
 services-wasabi = [
   "dep:reqsign",
@@ -241,6 +242,7 @@ suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
   "async-rustls",
 ], optional = true }
+tikv-client = { version = "0.2.0", optional = true }
 tokio = "1.27"
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }

@@ -124,6 +124,7 @@ services-cos = [
 ]
 services-d1 = []
 services-dashmap = ["dep:dashmap"]
+services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]

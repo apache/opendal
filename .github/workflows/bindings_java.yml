@@ -72,7 +72,8 @@ jobs:
 
   stage-releases:
     runs-on: ${{ matrix.os }}
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    if: false # TODO(tison) ASF org-wise token are not allowed to directly push to release repository
+#     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     strategy:
       matrix:
         include:
@@ -185,7 +186,6 @@ jobs:
         run: bash ./scripts/merge_local_staging.sh $LOCAL_STAGING_DIR/staging ~/linux-x86_64-local-staging/staging ~/osx-x86_64-local-staging/staging ~/osx-aarch_64-local-staging/staging # ~/windows-x86_64-local-staging/staging
 
       - name: Deploy local staged artifacts
-        if: false # ASF org-wise token are not allowed to directly push to release repository
         working-directory: bindings/java
         run: mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR -DskipStagingRepositoryClose=true -DserverId=apache.releases.https -DnexusUrl=https://repository.apache.org
         env:

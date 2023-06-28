@@ -126,10 +126,7 @@ fn operator_write<'a>(
     }
 }
 
-fn operator_create_dir<'a>(
-    _: &'a Lua,
-    (operator, path): (LuaTable<'a>, String),
-) -> LuaResult<()> {
+fn operator_create_dir<'a>(_: &'a Lua, (operator, path): (LuaTable<'a>, String)) -> LuaResult<()> {
     let op = operator.get::<_, ODOperator>("_operator")?;
     let op = op.operator;
 

@@ -70,9 +70,9 @@ jobs:
         working-directory: bindings/java
         run: mvn clean verify
 
-  stage-snapshot:
+  stage-releases:
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     strategy:
       matrix:
         include:
@@ -107,13 +107,18 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
+          server-id: apache.releases.https
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
       - name: Local staging
         working-directory: bindings/java
-        run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -Dsuffix.snapshot="-SNAPSHOT" -Djni.classifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true
+        run: mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy -Djni.classifier=${{ matrix.classifier }} -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true -DserverId=apache.releases.https -DnexusUrl=https://repository.apache.org
         env:
+          MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}
           MAVEN_GPG_PASSPHRASE: ${{ env.MAVEN_GPG_PASSPHRASE }}
 
       - name: Upload local staging directory
@@ -123,10 +128,10 @@ jobs:
           path: bindings/java/local-staging
           if-no-files-found: error
 
-  deploy-snapshots:
+  deploy-releases:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
-    needs: [stage-snapshot]
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    needs: [stage-releases]
     steps:
       - uses: actions/checkout@v3
       - name: Load secret
@@ -145,7 +150,7 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
-          server-id: apache.snapshots.https
+          server-id: apache.releases.https
           server-username: MAVEN_USERNAME
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ env.MAVEN_GPG_PRIVATE_KEY }}
@@ -177,25 +182,12 @@ jobs:
           path: ~/osx-aarch_64-local-staging
 
       - name: Merge staging repositories
-        run: |
-          mkdir -p ~/local-staging/deferred
-
-          # cat ~/windows-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
-          # cp -r ~/windows-x86_64-local-staging/deferred/* ~/local-staging/deferred/
-
-          cat ~/linux-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
-          cp -r ~/linux-x86_64-local-staging/deferred/* ~/local-staging/deferred/
-
-          cat ~/osx-x86_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
-          cp -r ~/osx-x86_64-local-staging/deferred/* ~/local-staging/deferred/
-
-          cat ~/osx-aarch_64-local-staging/deferred/.index >>  ~/local-staging/deferred/.index
-          cp -r ~/osx-aarch_64-local-staging/deferred/* ~/local-staging/deferred/
+        run: bash ./scripts/merge_local_staging.sh $LOCAL_STAGING_DIR/staging ~/linux-x86_64-local-staging/staging ~/osx-x86_64-local-staging/staging ~/osx-aarch_64-local-staging/staging # ~/windows-x86_64-local-staging/staging
 
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java
-        run: mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -Dsuffix.snapshot="-SNAPSHOT" -DaltStagingDirectory=$LOCAL_STAGING_DIR
+        run: mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR -DskipStagingRepositoryClose=true -DserverId=apache.releases.https -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_PW }}

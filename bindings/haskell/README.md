@@ -44,6 +44,9 @@ LD_LIBRARY_PATH=... cabal test
 
 ## Doc
 
+To generate the documentation:
 ```bash
 cabal haddock
 ```
+
+If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-hs-$VERSION/doc/html/opendal-hs/index.html`.

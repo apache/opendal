@@ -163,6 +163,7 @@ jobs:
         with:
           name: C-docs
           path: ./bindings/c/docs/doxygen/html
+
   build-lua-doc:
     runs-on: ubuntu-latest
 
@@ -182,6 +183,30 @@ jobs:
           name: lua-docs
           path: ./bindings/lua/doc/
 
+  build-haskell-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Haskell toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghc cabal-install
+          cabal update
+          cabal install haddock
+
+      - name: Build Docs
+        working-directory: "bindings/haskell"
+        run: |
+          cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source
+          find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal-hs/ doc \;
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: haskell-docs
+          path: ./bindings/haskell/doc/
 
   build-website:
     runs-on: ubuntu-latest
@@ -240,6 +265,12 @@ jobs:
         with:
           name: lua-docs
           path: ./website/static/docs/lua
+
+      - name: Download haskell docs
+        uses: actions/download-artifact@v3
+        with:
+          name: haskell-docs
+          path: ./website/static/docs/haskell
 
       - name: Install Dependencies
         working-directory: website

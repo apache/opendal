@@ -134,16 +134,6 @@ fn operator_create_dir<'a>(_: &'a Lua, (operator, path): (LuaTable<'a>, String))
         return Err(LuaError::external("path is empty"));
     }
 
-    let res = op.is_exist(path.as_str());
-    match res {
-        Ok(exist) => {
-            if exist {
-                return Err(LuaError::external("path is exist"));
-            }
-        }
-        Err(e) => return Err(LuaError::external(e)),
-    }
-
     let res = op.create_dir(path.as_str());
     match res {
         Ok(_) => Ok(()),
@@ -164,16 +154,6 @@ fn operator_rename<'a>(
 
     if dst.is_empty() {
         return Err(LuaError::external("dst is empty"));
-    }
-
-    let res = op.is_exist(src.as_str());
-    match res {
-        Ok(exist) => {
-            if !exist {
-                return Err(LuaError::external("src is not exist"));
-            }
-        }
-        Err(e) => return Err(LuaError::external(e)),
     }
 
     let res = op.rename(src.as_str(), dst.as_str());

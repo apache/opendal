@@ -5,6 +5,7 @@
     - [Bring your own toolbox](#bring-your-own-toolbox)
   - [Build](#build)
   - [Test](#test)
+  - [Doc](#doc)
   - [Misc](#misc)
 
 ## Setup
@@ -74,6 +75,16 @@ Test suite logged to:
 ...(Log Path)
 1 of 1 test suites (1 of 1 test cases) passed.
 ```
+
+## Doc
+
+To generate the documentation:
+
+```shell
+cabal haddock
+```
+
+If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-hs-$VERSION/doc/html/opendal-hs/index.html`.
 
 ## Misc
 

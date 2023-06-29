@@ -14,6 +14,7 @@
 -- KIND, either express or implied.  See the License for the
 -- specific language governing permissions and limitations
 -- under the License.
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module BasicTest (basicTests) where
@@ -50,7 +51,7 @@ testRawOperation = do
   renameOpRaw op "key2" "key4" >>= (@?= Right ())
   isExistOpRaw op "key2" >>= (@?= Right False)
   isExistOpRaw op "key4" >>= (@?= Right True)
-  statOpRaw op "key1" >>= \v -> case v of
+  statOpRaw op "key1" >>= \case
     Right meta -> meta @?= except_meta
     Left _ -> assertFailure "should not reach here"
   deleteOpRaw op "key1" >>= (@?= Right ())
@@ -116,7 +117,7 @@ testMonad = do
 testError :: Assertion
 testError = do
   Right op <- newOp "memory" HashMap.empty
-  runOp op operation >>= \v -> case v of
+  runOp op operation >>= \case
     Left err -> errorCode err @?= NotFound
     Right _ -> assertFailure "should not reach here"
  where

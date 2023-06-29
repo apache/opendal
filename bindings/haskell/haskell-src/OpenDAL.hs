@@ -149,7 +149,7 @@ class (Monad m) => MonadOperation m where
   -- | Create a dir at given path.
   createDirOp :: String -> m ()
 
-  -- \| Copy a file from srcPath to dstPath.
+  -- | Copy a file from srcPath to dstPath.
   copyOp :: String -> String -> m ()
 
   -- | Rename a file from srcPath to dstPath.

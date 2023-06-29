@@ -37,17 +37,14 @@ impl AzblobWriter {
     pub fn new(core: Arc<AzblobCore>, op: OpWrite, path: String) -> Self {
         AzblobWriter { core, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for AzblobWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.azblob_put_blob_request(
             &self.path,
-            Some(bs.len() as u64),
+            Some(size),
             self.op.content_type(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs),
+            body,
         )?;
 
         self.core.sign(&mut req).await?;
@@ -64,29 +61,17 @@ impl oio::Write for AzblobWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
+
+#[async_trait]
+impl oio::Write for AzblobWriter {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        self.write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
+            .await
+    }
 
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        let mut req = self.core.azblob_put_blob_request(
-            &self.path,
-            Some(size),
-            self.op.content_type(),
-            self.op.cache_control(),
-            AsyncBody::Stream(s),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        self.write_oneshot(size, AsyncBody::Stream(s)).await
     }
 
     async fn abort(&mut self) -> Result<()> {

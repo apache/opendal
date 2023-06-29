@@ -44,7 +44,7 @@ impl oio::Write for AzblobWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.core.azblob_put_blob_request(
             &self.path,
-            Some(bs.len()),
+            Some(bs.len() as u64),
             self.op.content_type(),
             self.op.cache_control(),
             AsyncBody::Bytes(bs),
@@ -65,11 +65,28 @@ impl oio::Write for AzblobWriter {
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        let mut req = self.core.azblob_put_blob_request(
+            &self.path,
+            Some(size),
+            self.op.content_type(),
+            self.op.cache_control(),
+            AsyncBody::Stream(s),
+        )?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

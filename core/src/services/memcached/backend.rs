@@ -271,8 +271,6 @@ impl kv::Adapter for Adapter {
 }
 
 /// A `bb8::ManageConnection` for `memcache_async::ascii::Protocol`.
-///
-/// Most code is borrowed from [bb8-memcached](https://github.com/dqminh/bb8-memcached/blob/master/src/client.rs).
 #[derive(Clone, Debug)]
 struct MemcacheConnectionManager {
     address: String,

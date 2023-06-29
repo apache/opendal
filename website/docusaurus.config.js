@@ -133,6 +133,10 @@ const config = {
                 label: 'Lua Binding',
                 to: 'pathname:///docs/lua/'
               },
+              {
+                label: 'Haskell Binding',
+                to: 'pathname:///docs/haskell/'
+              }
             ]
           },
           {

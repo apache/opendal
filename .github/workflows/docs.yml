@@ -195,10 +195,14 @@ jobs:
           sudo apt-get install -y ghc cabal-install
           cabal update
 
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
       - name: Build Docs
         working-directory: "bindings/haskell"
         run: |
-          cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source
+          cargo build
+          LIBRARY_PATH=../../target/debug cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal-hs/ doc \;
 
       - name: Upload docs

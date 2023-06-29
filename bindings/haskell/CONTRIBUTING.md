@@ -5,6 +5,7 @@
     - [Bring your own toolbox](#bring-your-own-toolbox)
   - [Build](#build)
   - [Test](#test)
+  - [Doc](#doc)
   - [Misc](#misc)
 
 ## Setup
@@ -73,6 +74,14 @@ Test suite opendal-hs-test: PASS
 Test suite logged to: 
 ...(Log Path)
 1 of 1 test suites (1 of 1 test cases) passed.
+```
+
+## Doc
+
+To generate the documentation:
+
+```shell
+cabal haddock
 ```
 
 ## Misc

@@ -10,13 +10,14 @@ import qualified Data.HashMap.Strict as HashMap
 
 main :: IO ()
 main = do
-    Right op <- operator "memory" HashMap.empty
-    _ <- write op "key1" "value1"
-    _ <- write op "key2" "value2"
-    value1 <- read op "key1"
-    value2 <- read op "key2"
-    value1 @?= "value1"
-    value2 @?= "value2"
+  Right op <- operator "memory" HashMap.empty
+  runOp op operation
+ where
+  operation = do
+    writeOp op "key1" "value1"
+    writeOp op "key2" "value2"
+    value1 <- readOp op "key1"
+    value2 <- readOp op "key2"
 ```
 
 ## Build
@@ -33,4 +34,16 @@ If you don't want to install `libopendal_hs`, you need to specify library path m
 
 ```bash
 LIBRARY_PATH=... cabal build
+```
+
+## Test
+
+```bash
+LD_LIBRARY_PATH=... cabal test
+```
+
+## Doc
+
+```bash
+cabal haddock
 ```

@@ -91,7 +91,7 @@ impl IncomingAsyncBody {
 
     /// Consume the response to bytes.
     ///
-    /// Borrowed from hyper's [`to_bytes`](https://docs.rs/hyper/latest/hyper/body/fn.to_bytes.html).
+    /// This code is Inspired from hyper's [`to_bytes`](https://docs.rs/hyper/latest/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
         use oio::ReadExt;
 

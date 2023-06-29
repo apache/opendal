@@ -244,7 +244,7 @@ impl AzblobCore {
     pub fn azblob_put_blob_request(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         content_type: Option<&str>,
         cache_control: Option<&str>,
         body: AsyncBody,

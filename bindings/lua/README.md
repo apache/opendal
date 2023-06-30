@@ -19,7 +19,7 @@ print("read: ", op:read("test.txt"))
 ## Lua version
 You have to enable one of the features: lua54, lua53, lua52, lua51, luajit(52) or luau in `Cargo.toml`, according to the chosen Lua version. Default Lua version is 5.2.
 
-## Build
+## Build from source
 
 1. Build OpenDAL LUA Interface
 
@@ -33,6 +33,11 @@ $ cargo build --package opendal-lua --release
 # copy to lua share library directory
 # default lua5.2 share library directory is /usr/lib/lua/5.2
 $ cp ../../target/release/libopendal_lua.so /usr/lib/lua/5.2/opendal.so
+```
+
+## Install from luarocks
+```bash
+$ luarocks make
 ```
 
 ## Usage

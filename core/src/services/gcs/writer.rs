@@ -52,12 +52,12 @@ impl GcsWriter {
         }
     }
 
-    async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
+    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
-            Some(bs.len()),
+            Some(size),
             self.op.content_type(),
-            AsyncBody::Bytes(bs),
+            body,
         )?;
 
         self.core.sign(&mut req).await?;
@@ -125,7 +125,9 @@ impl oio::Write for GcsWriter {
                 if self.op.content_length().unwrap_or_default() == bs.len() as u64
                     && self.written == 0
                 {
-                    return self.write_oneshot(bs).await;
+                    return self
+                        .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
+                        .await;
                 } else {
                     let location = self.initiate_upload().await?;
                     self.location = Some(location);
@@ -162,11 +164,8 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        self.write_oneshot(size, AsyncBody::Stream(s)).await
     }
 
     async fn abort(&mut self) -> Result<()> {

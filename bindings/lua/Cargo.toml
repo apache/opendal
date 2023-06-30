@@ -31,13 +31,18 @@ rust-version.workspace = true
 
 
 [features]
-default = ["mlua/lua54"]
-lua54 = ["mlua", "mlua/lua54"]
-lua53 = ["mlua", "mlua/lua53"]
+default = ["mlua/lua52"]
 lua52 = ["mlua", "mlua/lua52"]
-lua51 = ["mlua", "mlua/lua51"]
-luajit = ["mlua", "mlua/luajit"]
-vendored = ["mlua", "mlua/vendored"]
+
+# todo: fix mlua multi-version in `cargo build --all-features` error
+# https://github.com/apache/incubator-opendal/pull/2558#issuecomment-1613570958
+
+#lua54 = ["mlua", "mlua/lua54"]
+#lua53 = ["mlua", "mlua/lua53"]
+#lua52 = ["mlua", "mlua/lua52"]
+#lua51 = ["mlua", "mlua/lua51"]
+#luajit = ["mlua", "mlua/luajit"]
+#vendored = ["mlua", "mlua/vendored"]
 
 # for disable default features
 [dependencies.mlua]
@@ -49,7 +54,6 @@ optional = true
 
 [lib]
 crate-type = ["cdylib"]
-name = "lopendal"
 
 [dependencies]
 opendal.workspace = true

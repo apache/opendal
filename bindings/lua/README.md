@@ -5,7 +5,7 @@
 ## Example
 
 ```lua
-local opendal = require("lopendal")
+local opendal = require("opendal")
 
 local op, err = opendal.operator.new("fs",{root="/tmp"})
 if err ~= nil then

@@ -34,16 +34,6 @@ rust-version.workspace = true
 default = ["mlua/lua52"]
 lua52 = ["mlua", "mlua/lua52"]
 
-# todo: fix mlua multi-version in `cargo build --all-features` error
-# https://github.com/apache/incubator-opendal/pull/2558#issuecomment-1613570958
-
-#lua54 = ["mlua", "mlua/lua54"]
-#lua53 = ["mlua", "mlua/lua53"]
-#lua52 = ["mlua", "mlua/lua52"]
-#lua51 = ["mlua", "mlua/lua51"]
-#luajit = ["mlua", "mlua/luajit"]
-#vendored = ["mlua", "mlua/vendored"]
-
 # for disable default features
 [dependencies.mlua]
 version = "0.8"

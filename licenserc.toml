@@ -36,10 +36,3 @@ excludes = [
   "**/*.md",
   "**/*.mdx",
 ]
-
-[properties]
-inceptionYear = 2023
-
-[mapping.SLASHSTAR_STYLE]
-# use SLASH_STAR_STYLE licence header for C/C++ and C# code
-extensions = ["c", "cc", "cpp", "h", "hpp", "cs"]

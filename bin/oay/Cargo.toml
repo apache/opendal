@@ -32,7 +32,7 @@ version.workspace = true
 [dependencies]
 anyhow = "1"
 axum = "0.6"
-chrono = "0.4.24"
+chrono = "0.4.26"
 clap = { version = "4", features = ["cargo", "string"] }
 dirs = "5.0.0"
 futures = "0.3"

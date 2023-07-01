@@ -147,7 +147,7 @@ impl CosCore {
     pub fn cos_put_object_request(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         content_type: Option<&str>,
         cache_control: Option<&str>,
         body: AsyncBody,

@@ -37,17 +37,14 @@ impl CosWriter {
     pub fn new(core: Arc<CosCore>, op: OpWrite, path: String) -> Self {
         CosWriter { core, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for CosWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.cos_put_object_request(
             &self.path,
-            Some(bs.len()),
+            Some(size),
             self.op.content_type(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs),
+            body,
         )?;
 
         self.core.sign(&mut req).await?;
@@ -64,12 +61,17 @@ impl oio::Write for CosWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+#[async_trait]
+impl oio::Write for CosWriter {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        self.write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
+            .await
+    }
+
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        self.write_oneshot(size, AsyncBody::Stream(s)).await
     }
 
     async fn abort(&mut self) -> Result<()> {

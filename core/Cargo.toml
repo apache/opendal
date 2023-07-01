@@ -186,7 +186,7 @@ cacache = { version = "11.6", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }
-chrono = "0.4.24"
+chrono = "0.4.26"
 dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }
 flagset = "0.4"

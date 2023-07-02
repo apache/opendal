@@ -111,6 +111,23 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
+    pub async fn dropbox_get_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
+        let args = DropboxMetadataArgs {
+            path: build_rooted_abs_path(&self.root, path),
+            ..Default::default()
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let request = self
+            .build_auth_header(Request::post(&url))
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+        self.client.send(request).await
+    }
+
     fn build_auth_header(&self, mut req: Builder) -> Builder {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
@@ -137,6 +154,14 @@ struct DropboxDeleteArgs {
     path: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxMetadataArgs {
+    include_deleted: bool,
+    include_has_explicit_shared_members: bool,
+    include_media_info: bool,
+    path: String,
+}
+
 impl Default for DropboxUploadArgs {
     fn default() -> Self {
         DropboxUploadArgs {
@@ -145,6 +170,17 @@ impl Default for DropboxUploadArgs {
             mute: true,
             autorename: false,
             strict_conflict: false,
+        }
+    }
+}
+
+impl Default for DropboxMetadataArgs {
+    fn default() -> Self {
+        DropboxMetadataArgs {
+            include_deleted: false,
+            include_has_explicit_shared_members: false,
+            include_media_info: false,
+            path: "".to_string(),
         }
     }
 }

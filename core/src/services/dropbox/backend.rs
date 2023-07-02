@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::ptr::null;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,6 +25,7 @@ use http::StatusCode;
 use super::core::DropboxCore;
 use super::error::parse_error;
 use super::writer::DropboxWriter;
+use super::response::{DropboxMetadataResponse, DropboxFileType};
 use crate::raw::*;
 use crate::*;
 
@@ -88,6 +90,37 @@ impl Accessor for DropboxBackend {
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+        let resp = self.core.dropbox_get_stat(path).await?;
+        let status = resp.status();
+        if status.is_success() {
+            let bytes = resp.into_body().bytes().await?;
+            let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
+                .map_err(new_json_deserialize_error)?;
+            let entry_mode: EntryMode = match decoded_response.tag.as_str() {
+                "file" => EntryMode::FILE,
+                "folder" => EntryMode::DIR,
+                _ => {}
+            };
+            let mut metadata = Metadata::new(entry_mode);
+            let last_modified = decoded_response.client_modified;
+            let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+            metadata.set_last_modified(date_utc_last_modified);
+            metadata.set_content_length(decoded_response.size?);
+            Ok(RpStat::new(metadata))
+        } else {
+            match status {
+                StatusCode::NOT_FOUND if path.ends_with('/') => {
+                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                }
+                _ => Err(parse_error(resp).await?),
+            }
         }
     }
 }

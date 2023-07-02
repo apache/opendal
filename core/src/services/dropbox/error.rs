@@ -17,7 +17,6 @@
 
 use http::Response;
 use http::StatusCode;
-use serde::Deserialize;
 
 use super::response::DropboxErrorResponse;
 use crate::raw::*;

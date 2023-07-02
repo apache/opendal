@@ -15,12 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use chrono::prelude::*;
-use madsim::net::rpc::Deserialize;
-use std::fmt;
-
-use crate::raw::*;
-use crate::*;
+use serde::Deserialize;
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
@@ -31,7 +26,7 @@ pub struct DropboxErrorResponse {
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
-struct DropboxErrorDetail {
+pub struct DropboxErrorDetail {
     #[serde(rename(deserialize = ".tag"))]
     pub tag: String,
 }
@@ -88,18 +83,4 @@ pub struct DropboxMetadataSharingInfo {
     pub shared_folder_id: Option<String>,
     pub traverse_only: Option<bool>,
     pub no_access: Option<bool>,
-}
-
-pub enum DropboxFileType {
-    File,
-    Folder,
-}
-
-impl fmt::Display for DropboxFileType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DropboxFileType::File => write!(f, "file"),
-            DropboxFileType::Folder => write!(f, "folder"),
-        }
-    }
 }

@@ -19,11 +19,11 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
+use super::response::DropboxErrorResponse;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
-use super::response::DropboxErrorResponse;
 
 /// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {

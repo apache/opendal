@@ -19,7 +19,7 @@ mod backend;
 mod builder;
 mod core;
 mod error;
-mod writer;
 mod response;
+mod writer;
 
 pub use builder::DropboxBuilder as Dropbox;

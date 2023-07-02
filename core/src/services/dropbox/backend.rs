@@ -24,8 +24,8 @@ use http::StatusCode;
 
 use super::core::DropboxCore;
 use super::error::parse_error;
+use super::response::{DropboxFileType, DropboxMetadataResponse};
 use super::writer::DropboxWriter;
-use super::response::{DropboxMetadataResponse, DropboxFileType};
 use crate::raw::*;
 use crate::*;
 

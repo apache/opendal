@@ -37,6 +37,7 @@ members = [
   "bin/oli",
   "bin/oay",
 ]
+resolver = "2"
 
 [workspace.package]
 authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]

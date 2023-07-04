@@ -55,7 +55,7 @@ You will see the different visions lead to very different routes.
 
 Users need to build a `dyn ObjectStore` and operate on it directly:
 
-```Rust
+```rust
 let object_store: Arc<dyn ObjectStore> = Arc::new(get_object_store());
 let path: Path = "data/file01.parquet".try_into()?;
 let stream = object_store
@@ -68,7 +68,7 @@ let stream = object_store
 
 But `opendal` don't expose this trait to end users directly. Instead, `opendal` expose a new struct called [`Operator`][crate::Operator] and builds public API on it.
 
-```Rust
+```rust
 let op: Operator = Operator::from_env(Scheme::S3)?;
 let r = op.reader("data/file01.parquet").await?;
 ```
@@ -79,13 +79,13 @@ Both `object_store` and `opendal` provide a mechanism to intercept operations.
 
 `object_store` called `Adapters`:
 
-```Rust
+```rust
 let object_store = ThrottledStore::new(get_object_store(), ThrottleConfig::default())
 ```
 
 `opendal` called [`Layer`](crate::raw::Layer):
 
-```Rust
+```rust
 let op = op.layer(TracingLayer).layer(MetricsLayer);
 ```
 
@@ -157,7 +157,7 @@ The most straightforward complete demo how to read a file from s3:
 
 `opendal`
 
-```Rust
+```rust
 let mut builder = S3::default();
 builder.bucket("example");
 builder.access_key_id("access_key_id");
@@ -169,7 +169,7 @@ let r = store.reader("data.parquet").await?;
 
 `object_store`
 
-```Rust
+```rust
 let mut builder = AmazonS3Builder::new()
 .with_bucket_name("example")
 .with_access_key_id("access_key_id")

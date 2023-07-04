@@ -293,20 +293,17 @@ impl<S: Adapter> Accessor for Backend<S> {
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let ops = args.into_operation();
         let mut results = Vec::with_capacity(ops.len());
-        let paths = ops.into_iter()
-                .filter(|(_, ops)| ops.operation() == Operation::Delete)
-                .map(|(p, _)| p)
-                .collect::<Vec<_>>();
+        let paths = ops
+            .into_iter()
+            .filter(|(_, ops)| ops.operation() == Operation::Delete)
+            .map(|(p, _)| p)
+            .collect::<Vec<_>>();
         for p in paths {
             let path = build_abs_path(&self.root, &p);
 
             let rp_batch_reply = match self.kv.delete(&path).await {
-                Ok(_) => {
-                    Ok(BatchedReply::from(RpDelete::default()))
-                },
-                Err(e) => {
-                    Err(e)
-                },
+                Ok(_) => Ok(BatchedReply::from(RpDelete::default())),
+                Err(e) => Err(e),
             };
             results.push((p, rp_batch_reply));
         }

@@ -96,7 +96,7 @@ impl Accessor for DropboxBackend {
         if path == "/" {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
-        let resp = self.core.dropbox_get_stat(path).await?;
+        let resp = self.core.dropbox_get_metadata(path).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {

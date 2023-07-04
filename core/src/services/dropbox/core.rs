@@ -111,7 +111,7 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
-    pub async fn dropbox_get_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
             path: build_rooted_abs_path(&self.root, path),

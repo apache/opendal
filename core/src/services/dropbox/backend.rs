@@ -23,6 +23,7 @@ use http::StatusCode;
 
 use super::core::DropboxCore;
 use super::error::parse_error;
+use super::response::DropboxMetadataResponse;
 use super::writer::DropboxWriter;
 use crate::raw::*;
 use crate::*;
@@ -87,6 +88,39 @@ impl Accessor for DropboxBackend {
 
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+        let resp = self.core.dropbox_get_metadata(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let bytes = resp.into_body().bytes().await?;
+                let decoded_response = serde_json::from_slice::<DropboxMetadataResponse>(&bytes)
+                    .map_err(new_json_deserialize_error)?;
+                let entry_mode: EntryMode = match decoded_response.tag.as_str() {
+                    "file" => EntryMode::FILE,
+                    "folder" => EntryMode::DIR,
+                    _ => EntryMode::Unknown,
+                };
+                let mut metadata = Metadata::new(entry_mode);
+                let last_modified = decoded_response.client_modified;
+                let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+                metadata.set_last_modified(date_utc_last_modified);
+                if decoded_response.size.is_some() {
+                    let size = decoded_response.size.unwrap();
+                    metadata.set_content_length(size);
+                }
+                Ok(RpStat::new(metadata))
+            }
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -17,26 +17,12 @@
 
 use http::Response;
 use http::StatusCode;
-use serde::Deserialize;
 
+use super::response::DropboxErrorResponse;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-struct DropboxError {
-    error_summary: String,
-    error: DropboxErrorDetail,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-struct DropboxErrorDetail {
-    #[serde(rename(deserialize = ".tag"))]
-    tag: String,
-}
 
 /// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
@@ -53,7 +39,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
     let dropbox_error =
-        serde_json::from_slice::<DropboxError>(&bs).map_err(new_json_deserialize_error);
+        serde_json::from_slice::<DropboxErrorResponse>(&bs).map_err(new_json_deserialize_error);
     match dropbox_error {
         Ok(dropbox_error) => {
             let mut err = Error::new(kind, dropbox_error.error_summary.as_ref())

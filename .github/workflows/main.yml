@@ -1,0 +1,72 @@
+name: Controller Action
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  controller-job:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        action:
+          - Bindings C CI
+          - Bindings Haskell CI
+          - Bindings Java CI
+          - Bindings Lua CI
+          - Bindings NodeJS CI
+          - Bindings Python CI
+          - Bindings Ruby CI
+          - Bindings Swift CI
+          - Bindings Zig CI
+          - CI
+          - PR Labeler
+          - Typos Check
+          - Docs
+          - Examples
+          - Publish
+          - Service Test Azblob
+          - Service Test Azdfs
+          - Service Test Cacache
+          - Service Test Cos
+          - Service Test Dashmap
+          - Service Test Fs
+          - Service Test Ftp
+          - Service Test Gcs
+          - Service Test Ghac
+          - Service Test HDFS
+          - Service Test HTTP
+          - Service Test IPFS
+          - Service Test IPMFS
+          - Service Test Memcached
+          - Service Test Memory
+          - Service Test Mini Moka
+          - Service Test Moka
+          - Service Test Obs
+          - Service Test Oss
+          - Service Test Redb
+          - Service Test Redis
+          - Service Test RocksDB
+          - Service Test S3
+          - Service Test Sftp
+          - Service Test Sled
+          - Service Test Supabase
+          - Service Test Wasabi
+          - Service Test WebDAV
+          - Service Test WebHDFS
+
+    steps:
+      - name: Check Repository
+        run: |
+          if [[ "${GITHUB_REPOSITORY}" == "apache/incubator-opendal" ]]; then
+            echo "Running other Actions..."
+
+            # 执行其他 Actions
+            - name: Run Other Action
+              uses: ${{ matrix.action }}
+
+            echo "Finished running other Actions."
+          else
+            echo "Skipping other Actions..."
+          fi

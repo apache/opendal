@@ -142,3 +142,6 @@ pub mod rfc_2133_append_api {}
 
 #[doc = include_str!("2299_chain_based_operator_api.md")]
 pub mod rfc_2299_chain_based_operator_api {}
+
+#[doc = include_str!("object_versioning.md")]
+pub mod rfc_object_versioning_api {}

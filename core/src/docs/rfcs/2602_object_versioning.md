@@ -1,5 +1,7 @@
 Proposal Name: object versioning
 Start Date: 2023-07-06
+RFC PR: https://github.com/apache/incubator-opendal/pull/2602
+Tracking Issue: (leave this empty)
 
 # Summary
 

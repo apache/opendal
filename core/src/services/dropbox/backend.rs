@@ -74,7 +74,7 @@ impl Accessor for DropboxBackend {
                     ErrorKind::AlreadyExists => Ok(RpCreateDir::default()),
                     _ => Err(err),
                 }
-            },
+            }
         }
     }
 

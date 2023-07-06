@@ -114,6 +114,22 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
+    pub async fn dropbox_create_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
+        let args = DropboxCreateFolderArgs {
+            path: build_rooted_abs_path(&self.root, path),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let request = self
+            .build_auth_header(Request::post(&url))
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+        self.client.send(request).await
+    }
+
     pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
@@ -154,6 +170,11 @@ struct DropboxUploadArgs {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct DropboxDeleteArgs {
+    path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxCreateFolderArgs {
     path: String,
 }
 

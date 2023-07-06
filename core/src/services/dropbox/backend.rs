@@ -48,12 +48,28 @@ impl Accessor for DropboxBackend {
         ma.set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
+
                 write: true,
+
+                create_dir: true,
+
                 delete: true,
+
                 ..Default::default()
             });
         ma
+    }
+
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let resp = self.core.dropbox_create_folder(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(RpCreateDir::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {

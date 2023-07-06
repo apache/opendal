@@ -51,7 +51,6 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
             let mut err = Error::new(
                 match parts.status {
                     StatusCode::CONFLICT => {
-                        println!("error_summary: {}", error_summary);
                         if error_summary.contains("path/not_found")
                             || error_summary.contains("path_lookup/not_found")
                         {

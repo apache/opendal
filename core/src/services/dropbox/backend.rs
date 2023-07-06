@@ -68,7 +68,13 @@ impl Accessor for DropboxBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let err = parse_error(resp).await?;
+                match err.kind() {
+                    ErrorKind::AlreadyExists => Ok(RpCreateDir::default()),
+                    _ => Err(err),
+                }
+            },
         }
     }
 
@@ -136,7 +142,6 @@ impl Accessor for DropboxBackend {
                 // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
                 if entry_mode == EntryMode::FILE {
                     let last_modified = decoded_response.client_modified;
-                    println!("last_modified: {}", last_modified);
                     let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
                     metadata.set_last_modified(date_utc_last_modified);
                     if decoded_response.size.is_some() {

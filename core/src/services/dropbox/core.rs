@@ -122,8 +122,6 @@ impl DropboxCore {
             path: path.strip_suffix("/").unwrap_or(&path).to_string(),
         };
 
-        println!("args: {:?}", args);
-
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
         let request = self

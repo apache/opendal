@@ -49,6 +49,13 @@ impl Debug for DropboxCore {
 }
 
 impl DropboxCore {
+    fn build_path(&self, path: &str) -> String {
+        let path = build_rooted_abs_path(&self.root, path);
+        // For dropbox, even the path is a directory,
+        // we still need to remove the trailing slash.
+        path.strip_suffix('/').unwrap_or(&path).to_string()
+    }
+
     pub async fn dropbox_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
@@ -100,9 +107,8 @@ impl DropboxCore {
 
     pub async fn dropbox_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/delete_v2".to_string();
-        let path = build_rooted_abs_path(&self.root, path);
         let args = DropboxDeleteArgs {
-            path: path.strip_suffix("/").unwrap_or(&path).to_string(),
+            path: self.build_path(path),
         };
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
@@ -117,9 +123,8 @@ impl DropboxCore {
 
     pub async fn dropbox_create_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
-        let path = build_rooted_abs_path(&self.root, path);
         let args = DropboxCreateFolderArgs {
-            path: path.strip_suffix("/").unwrap_or(&path).to_string(),
+            path: self.build_path(path),
         };
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
@@ -134,9 +139,8 @@ impl DropboxCore {
 
     pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
-        let path = build_rooted_abs_path(&self.root, path);
         let args = DropboxMetadataArgs {
-            path: path.strip_suffix("/").unwrap_or(&path).to_string(),
+            path: self.build_path(path),
             ..Default::default()
         };
 

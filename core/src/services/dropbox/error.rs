@@ -38,12 +38,38 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
+
     let dropbox_error =
         serde_json::from_slice::<DropboxErrorResponse>(&bs).map_err(new_json_deserialize_error);
     match dropbox_error {
         Ok(dropbox_error) => {
-            let mut err = Error::new(kind, dropbox_error.error_summary.as_ref())
-                .with_context("response", format!("{parts:?}"));
+            // We cannot get the error type from the response header when the status code is 409.
+            // Because Dropbox API v2 will put error summary in the response body,
+            // we need to parse it to get the correct error type and then error kind.
+            // See https://www.dropbox.com/developers/documentation/http/documentation#error-handling
+            let error_summary = dropbox_error.error_summary.as_str();
+
+            let mut err = Error::new(
+                match parts.status {
+                    // 409 Conflict means that Endpoint-specific error.
+                    // Look to the JSON response body for the specifics of the error.
+                    StatusCode::CONFLICT => {
+                        if error_summary.contains("path/not_found")
+                            || error_summary.contains("path_lookup/not_found")
+                        {
+                            ErrorKind::NotFound
+                        } else if error_summary.contains("path/conflict") {
+                            ErrorKind::AlreadyExists
+                        } else {
+                            ErrorKind::Unexpected
+                        }
+                    }
+                    // Otherwise, we can get the error type from the response status code.
+                    _ => kind,
+                },
+                error_summary,
+            )
+            .with_context("response", format!("{parts:?}"));
 
             if retryable {
                 err = err.set_temporary();

@@ -48,12 +48,34 @@ impl Accessor for DropboxBackend {
         ma.set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
+
                 write: true,
+
+                create_dir: true,
+
                 delete: true,
+
                 ..Default::default()
             });
         ma
+    }
+
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let resp = self.core.dropbox_create_folder(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => Ok(RpCreateDir::default()),
+            _ => {
+                let err = parse_error(resp).await?;
+                match err.kind() {
+                    ErrorKind::AlreadyExists => Ok(RpCreateDir::default()),
+                    _ => Err(err),
+                }
+            }
+        }
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -88,7 +110,13 @@ impl Accessor for DropboxBackend {
 
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let err = parse_error(resp).await?;
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpDelete::default()),
+                    _ => Err(err),
+                }
+            }
         }
     }
 
@@ -109,12 +137,22 @@ impl Accessor for DropboxBackend {
                     _ => EntryMode::Unknown,
                 };
                 let mut metadata = Metadata::new(entry_mode);
-                let last_modified = decoded_response.client_modified;
-                let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
-                metadata.set_last_modified(date_utc_last_modified);
-                if decoded_response.size.is_some() {
-                    let size = decoded_response.size.unwrap();
-                    metadata.set_content_length(size);
+                // Only set last_modified and size if entry_mode is FILE, because Dropbox API
+                // returns last_modified and size only for files.
+                // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
+                if entry_mode == EntryMode::FILE {
+                    let date_utc_last_modified =
+                        parse_datetime_from_rfc3339(&decoded_response.client_modified)?;
+                    metadata.set_last_modified(date_utc_last_modified);
+
+                    if let Some(size) = decoded_response.size {
+                        metadata.set_content_length(size);
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            &format!("no size found for file {}", path),
+                        ));
+                    }
                 }
                 Ok(RpStat::new(metadata))
             }

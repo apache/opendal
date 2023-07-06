@@ -49,6 +49,13 @@ impl Debug for DropboxCore {
 }
 
 impl DropboxCore {
+    fn build_path(&self, path: &str) -> String {
+        let path = build_rooted_abs_path(&self.root, path);
+        // For dropbox, even the path is a directory,
+        // we still need to remove the trailing slash.
+        path.trim_end_matches('/').to_string()
+    }
+
     pub async fn dropbox_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
@@ -59,6 +66,7 @@ impl DropboxCore {
         let request = self
             .build_auth_header(Request::post(&url))
             .header("Dropbox-API-Arg", request_payload)
+            .header(header::CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         self.client.send(request).await
@@ -80,9 +88,11 @@ impl DropboxCore {
         if let Some(size) = size {
             request_builder = request_builder.header(header::CONTENT_LENGTH, size);
         }
-        if let Some(mime) = content_type {
-            request_builder = request_builder.header(header::CONTENT_TYPE, mime);
-        }
+        request_builder = request_builder.header(
+            header::CONTENT_TYPE,
+            content_type.unwrap_or("application/octet-stream"),
+        );
+
         let request = self
             .build_auth_header(request_builder)
             .header(
@@ -98,7 +108,7 @@ impl DropboxCore {
     pub async fn dropbox_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/delete_v2".to_string();
         let args = DropboxDeleteArgs {
-            path: build_rooted_abs_path(&self.root, path),
+            path: self.build_path(path),
         };
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
@@ -106,6 +116,24 @@ impl DropboxCore {
         let request = self
             .build_auth_header(Request::post(&url))
             .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, bs.len())
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+        self.client.send(request).await
+    }
+
+    pub async fn dropbox_create_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
+        let args = DropboxCreateFolderArgs {
+            path: self.build_path(path),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let request = self
+            .build_auth_header(Request::post(&url))
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
         self.client.send(request).await
@@ -114,7 +142,7 @@ impl DropboxCore {
     pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
         let args = DropboxMetadataArgs {
-            path: build_rooted_abs_path(&self.root, path),
+            path: self.build_path(path),
             ..Default::default()
         };
 
@@ -123,6 +151,7 @@ impl DropboxCore {
         let request = self
             .build_auth_header(Request::post(&url))
             .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
         self.client.send(request).await
@@ -151,6 +180,11 @@ struct DropboxUploadArgs {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct DropboxDeleteArgs {
+    path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxCreateFolderArgs {
     path: String,
 }
 

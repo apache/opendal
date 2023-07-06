@@ -104,7 +104,13 @@ impl Accessor for DropboxBackend {
 
         match status {
             StatusCode::OK => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            _ => {
+                let err = parse_error(resp).await?;
+                match err.kind() {
+                    ErrorKind::NotFound => Ok(RpDelete::default()),
+                    _ => Err(err),
+                }
+            }
         }
     }
 

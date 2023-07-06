@@ -38,12 +38,35 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
+
+    // We cannot get the error type from the response header when the status code is 409.
+    // Because Dropbox API v2 will put error summary in the response body, we need to parse it
+    // to get the correct error type and then error kind.
+    // See https://www.dropbox.com/developers/documentation/http/documentation#error-handling
     let dropbox_error =
         serde_json::from_slice::<DropboxErrorResponse>(&bs).map_err(new_json_deserialize_error);
     match dropbox_error {
         Ok(dropbox_error) => {
-            let mut err = Error::new(kind, dropbox_error.error_summary.as_ref())
-                .with_context("response", format!("{parts:?}"));
+            let error_summary = dropbox_error.error_summary.as_str();
+            let mut err = Error::new(
+                match parts.status {
+                    StatusCode::CONFLICT => {
+                        println!("error_summary: {}", error_summary);
+                        if error_summary.contains("path/not_found")
+                            || error_summary.contains("path_lookup/not_found")
+                        {
+                            ErrorKind::NotFound
+                        } else if error_summary.contains("path/conflict") {
+                            ErrorKind::AlreadyExists
+                        } else {
+                            ErrorKind::Unexpected
+                        }
+                    }
+                    _ => kind,
+                },
+                error_summary,
+            )
+            .with_context("response", format!("{parts:?}"));
 
             if retryable {
                 err = err.set_temporary();

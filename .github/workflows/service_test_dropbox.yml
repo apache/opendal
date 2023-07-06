@@ -59,4 +59,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
+        # It's easily for dropbox to trigger too_many_write_operations error.
+        # So we run tests one by one.
         run: cargo test dropbox --features=services-dropbox -- --test-threads=1

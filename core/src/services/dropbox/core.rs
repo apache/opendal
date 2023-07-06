@@ -53,7 +53,7 @@ impl DropboxCore {
         let path = build_rooted_abs_path(&self.root, path);
         // For dropbox, even the path is a directory,
         // we still need to remove the trailing slash.
-        path.strip_suffix('/').unwrap_or(&path).to_string()
+        path.trim_end_matches('/').to_string()
     }
 
     pub async fn dropbox_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -66,6 +66,7 @@ impl DropboxCore {
         let request = self
             .build_auth_header(Request::post(&url))
             .header("Dropbox-API-Arg", request_payload)
+            .header(header::CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         self.client.send(request).await
@@ -87,12 +88,11 @@ impl DropboxCore {
         if let Some(size) = size {
             request_builder = request_builder.header(header::CONTENT_LENGTH, size);
         }
-        if let Some(mime) = content_type {
-            request_builder = request_builder.header(header::CONTENT_TYPE, mime);
-        } else {
-            request_builder =
-                request_builder.header(header::CONTENT_TYPE, "application/octet-stream");
-        }
+        request_builder = request_builder.header(
+            header::CONTENT_TYPE,
+            content_type.unwrap_or("application/octet-stream"),
+        );
+
         let request = self
             .build_auth_header(request_builder)
             .header(
@@ -116,6 +116,7 @@ impl DropboxCore {
         let request = self
             .build_auth_header(Request::post(&url))
             .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
         self.client.send(request).await
@@ -132,6 +133,7 @@ impl DropboxCore {
         let request = self
             .build_auth_header(Request::post(&url))
             .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
         self.client.send(request).await
@@ -149,6 +151,7 @@ impl DropboxCore {
         let request = self
             .build_auth_header(Request::post(&url))
             .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
         self.client.send(request).await

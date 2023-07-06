@@ -114,7 +114,7 @@ impl Builder for DropboxBuilder {
 
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = Self::default();
-        builder.root(map.get("root").map(|v| v.as_str()).unwrap_or_default());
+        map.get("root").map(|v| builder.root(v));
         map.get("access_token").map(|v| builder.access_token(v));
         builder
     }

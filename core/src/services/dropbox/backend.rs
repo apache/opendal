@@ -125,12 +125,18 @@ impl Accessor for DropboxBackend {
                     _ => EntryMode::Unknown,
                 };
                 let mut metadata = Metadata::new(entry_mode);
-                let last_modified = decoded_response.client_modified;
-                let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
-                metadata.set_last_modified(date_utc_last_modified);
-                if decoded_response.size.is_some() {
-                    let size = decoded_response.size.unwrap();
-                    metadata.set_content_length(size);
+                // Only set last_modified and size if entry_mode is FILE, because Dropbox API
+                // returns last_modified and size only for files.
+                // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
+                if entry_mode == EntryMode::FILE {
+                    let last_modified = decoded_response.client_modified;
+                    println!("last_modified: {}", last_modified);
+                    let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+                    metadata.set_last_modified(date_utc_last_modified);
+                    if decoded_response.size.is_some() {
+                        let size = decoded_response.size.unwrap();
+                        metadata.set_content_length(size);
+                    }
                 }
                 Ok(RpStat::new(metadata))
             }

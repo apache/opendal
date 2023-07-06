@@ -100,8 +100,9 @@ impl DropboxCore {
 
     pub async fn dropbox_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/delete_v2".to_string();
+        let path = build_rooted_abs_path(&self.root, path);
         let args = DropboxDeleteArgs {
-            path: build_rooted_abs_path(&self.root, path),
+            path: path.strip_suffix("/").unwrap_or(&path).to_string(),
         };
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
@@ -116,9 +117,12 @@ impl DropboxCore {
 
     pub async fn dropbox_create_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
+        let path = build_rooted_abs_path(&self.root, path);
         let args = DropboxCreateFolderArgs {
-            path: build_rooted_abs_path(&self.root, path),
+            path: path.strip_suffix("/").unwrap_or(&path).to_string(),
         };
+
+        println!("args: {:?}", args);
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
@@ -132,8 +136,9 @@ impl DropboxCore {
 
     pub async fn dropbox_get_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/get_metadata".to_string();
+        let path = build_rooted_abs_path(&self.root, path);
         let args = DropboxMetadataArgs {
-            path: build_rooted_abs_path(&self.root, path),
+            path: path.strip_suffix("/").unwrap_or(&path).to_string(),
             ..Default::default()
         };
 

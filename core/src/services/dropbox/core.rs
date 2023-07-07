@@ -177,6 +177,7 @@ impl DropboxCore {
                 .parse()
                 .expect("token must be valid header");
             req.headers_mut().insert(header::AUTHORIZATION, value);
+            return Ok(());
         }
 
         // Refresh invalid token.

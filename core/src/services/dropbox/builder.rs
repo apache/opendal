@@ -20,8 +20,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use chrono::DateTime;
+use chrono::Utc;
+use tokio::sync::Mutex;
+
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
+use super::core::DropboxSigner;
 use crate::raw::*;
 use crate::*;
 
@@ -72,8 +77,12 @@ use crate::*;
 
 #[derive(Default)]
 pub struct DropboxBuilder {
-    access_token: Option<String>,
     root: Option<String>,
+    access_token: Option<String>,
+    refresh_token: Option<String>,
+    client_id: Option<String>,
+    client_secret: Option<String>,
+
     http_client: Option<HttpClient>,
 }
 
@@ -84,15 +93,47 @@ impl Debug for DropboxBuilder {
 }
 
 impl DropboxBuilder {
-    /// default: no access token, which leads to failure
+    /// Set the root directory for dropbox.
+    ///
+    /// Defautl to `/` if not set.
+    pub fn root(&mut self, root: &str) -> &mut Self {
+        self.root = Some(root.to_string());
+        self
+    }
+
+    /// Access token is used for temporary access to the Dropbox API.
+    ///
+    /// You can get the access token from [Dropbox App Console](https://www.dropbox.com/developers/apps)
+    ///
+    /// NOTE: this token will be expired in 4 hours. If you are trying to use dropbox services in a long time, please set a refresh_token instead.
     pub fn access_token(&mut self, access_token: &str) -> &mut Self {
         self.access_token = Some(access_token.to_string());
         self
     }
 
-    /// default: no root path, which leads to failure
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
+    /// Refersh token is used for long term access to the Dropbox API.
+    ///
+    /// You can get the refresh token via OAuth2.0 Flow of dropbox.
+    ///
+    /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
+    pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
+        self.refresh_token = Some(refresh_token.to_string());
+        self
+    }
+
+    /// Set the client id for dropbox.
+    ///
+    /// This is required for OAuth2.0 Flow with refresh token.
+    pub fn client_id(&mut self, client_id: &str) -> &mut Self {
+        self.client_id = Some(client_id.to_string());
+        self
+    }
+
+    /// Set the client secret for dropbox.
+    ///
+    /// This is required for OAuth2.0 Flow with refresh token.
+    pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
+        self.client_secret = Some(client_secret.to_string());
         self
     }
 
@@ -116,6 +157,9 @@ impl Builder for DropboxBuilder {
         let mut builder = Self::default();
         map.get("root").map(|v| builder.root(v));
         map.get("access_token").map(|v| builder.access_token(v));
+        map.get("refresh_token").map(|v| builder.refresh_token(v));
+        map.get("client_id").map(|v| builder.client_id(v));
+        map.get("client_secret").map(|v| builder.client_secret(v));
         builder
     }
 
@@ -129,20 +173,57 @@ impl Builder for DropboxBuilder {
                     .with_context("service", Scheme::Dropbox)
             })?
         };
-        let token = match self.access_token.clone() {
-            Some(access_token) => access_token,
-            None => {
+
+        let signer = match (self.access_token.take(), self.refresh_token.take()) {
+            (Some(access_token), None) => DropboxSigner {
+                access_token,
+                // We will never expire user specifed token.
+                expires_in: DateTime::<Utc>::MAX_UTC,
+                ..Default::default()
+            },
+            (None, Some(refresh_token)) => {
+                let client_id = self.client_id.take().ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_id must be set when refresh_token is set",
+                    )
+                    .with_context("service", Scheme::Dropbox)
+                })?;
+                let client_secret = self.client_secret.take().ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "client_secret must be set when refresh_token is set",
+                    )
+                    .with_context("service", Scheme::Dropbox)
+                })?;
+
+                DropboxSigner {
+                    refresh_token,
+                    client_id,
+                    client_secret,
+                    ..Default::default()
+                }
+            }
+            (Some(_), Some(_)) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "access_token is required",
-                ))
+                    "access_token and refresh_token can not be set at the same time",
+                )
+                .with_context("service", Scheme::Dropbox))
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "access_token or refresh_token must be set",
+                )
+                .with_context("service", Scheme::Dropbox))
             }
         };
 
         Ok(DropboxBackend {
             core: Arc::new(DropboxCore {
                 root,
-                token,
+                signer: Arc::new(Mutex::new(signer)),
                 client,
             }),
         })

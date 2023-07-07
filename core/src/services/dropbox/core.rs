@@ -18,15 +18,22 @@
 use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use bytes::Bytes;
+use chrono::DateTime;
+use chrono::Utc;
 use http::header;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
 use serde::Serialize;
+use tokio::sync::Mutex;
 
 use crate::raw::build_rooted_abs_path;
+use crate::raw::new_json_deserialize_error;
 use crate::raw::new_json_serialize_error;
 use crate::raw::new_request_build_error;
 use crate::raw::AsyncBody;
@@ -35,7 +42,7 @@ use crate::raw::IncomingAsyncBody;
 use crate::types::Result;
 
 pub struct DropboxCore {
-    pub token: String,
+    pub signer: Arc<Mutex<DropboxSigner>>,
     pub client: HttpClient,
     pub root: String,
 }
@@ -64,7 +71,7 @@ impl DropboxCore {
             serde_json::to_string(&download_args).map_err(new_json_serialize_error)?;
         let mut request = Request::post(&url)
             .header("Dropbox-API-Arg", request_payload)
-            .header(header::CONTENT_LENGTH, 0)
+            .header(CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -86,10 +93,10 @@ impl DropboxCore {
         };
         let mut request_builder = Request::post(&url);
         if let Some(size) = size {
-            request_builder = request_builder.header(header::CONTENT_LENGTH, size);
+            request_builder = request_builder.header(CONTENT_LENGTH, size);
         }
         request_builder = request_builder.header(
-            header::CONTENT_TYPE,
+            CONTENT_TYPE,
             content_type.unwrap_or("application/octet-stream"),
         );
 
@@ -114,8 +121,8 @@ impl DropboxCore {
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
         let mut request = Request::post(&url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header(header::CONTENT_LENGTH, bs.len())
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
@@ -132,8 +139,8 @@ impl DropboxCore {
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
         let mut request = Request::post(&url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header(header::CONTENT_LENGTH, bs.len())
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
@@ -151,8 +158,8 @@ impl DropboxCore {
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
         let mut request = Request::post(&url)
-            .header(header::CONTENT_TYPE, "application/json")
-            .header(header::CONTENT_LENGTH, bs.len())
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
 
@@ -162,12 +169,74 @@ impl DropboxCore {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let value = format!("Bearer {}", self.token)
+        let mut signer = self.signer.lock().await;
+
+        // Access token is valid, use it directly.
+        if !signer.access_token.is_empty() && signer.expires_in > Utc::now() {
+            let value = format!("Bearer {}", signer.access_token)
+                .parse()
+                .expect("token must be valid header");
+            req.headers_mut().insert(header::AUTHORIZATION, value);
+        }
+
+        // Refresh invalid token.
+        let url = "https://api.dropboxapi.com/oauth2/token".to_string();
+
+        let content = format!(
+            "grant_type=refresh_token&refresh_token={}&client_id={}&client_secret={}",
+            signer.refresh_token, signer.client_id, signer.client_secret
+        );
+        let bs = Bytes::from(content);
+
+        let request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+
+        let resp = self.client.send(request).await?;
+        let body = resp.into_body().bytes().await?;
+
+        let token: DropboxTokenResponse =
+            serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+
+        // Update signer after token refreshed.
+
+        signer.access_token = token.access_token.clone();
+
+        // Refresh it 2 minutes earlier.
+        signer.expires_in = Utc::now() + chrono::Duration::seconds(token.expires_in as i64)
+            - chrono::Duration::seconds(120);
+
+        let value = format!("Bearer {}", token.access_token)
             .parse()
             .expect("token must be valid header");
         req.headers_mut().insert(header::AUTHORIZATION, value);
 
         Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct DropboxSigner {
+    pub client_id: String,
+    pub client_secret: String,
+    pub refresh_token: String,
+
+    pub access_token: String,
+    pub expires_in: DateTime<Utc>,
+}
+
+impl Default for DropboxSigner {
+    fn default() -> Self {
+        DropboxSigner {
+            refresh_token: "".to_string(),
+            client_id: String::new(),
+            client_secret: String::new(),
+
+            access_token: "".to_string(),
+            expires_in: DateTime::<Utc>::MIN_UTC,
+        }
     }
 }
 
@@ -183,6 +252,18 @@ struct DropboxUploadArgs {
     mute: bool,
     autorename: bool,
     strict_conflict: bool,
+}
+
+impl Default for DropboxUploadArgs {
+    fn default() -> Self {
+        DropboxUploadArgs {
+            mode: "overwrite".to_string(),
+            path: "".to_string(),
+            mute: true,
+            autorename: false,
+            strict_conflict: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -203,18 +284,6 @@ struct DropboxMetadataArgs {
     path: String,
 }
 
-impl Default for DropboxUploadArgs {
-    fn default() -> Self {
-        DropboxUploadArgs {
-            mode: "overwrite".to_string(),
-            path: "".to_string(),
-            mute: true,
-            autorename: false,
-            strict_conflict: false,
-        }
-    }
-}
-
 impl Default for DropboxMetadataArgs {
     fn default() -> Self {
         DropboxMetadataArgs {
@@ -224,4 +293,10 @@ impl Default for DropboxMetadataArgs {
             path: "".to_string(),
         }
     }
+}
+
+#[derive(Clone, Deserialize)]
+struct DropboxTokenResponse {
+    access_token: String,
+    expires_in: usize,
 }

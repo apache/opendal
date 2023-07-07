@@ -175,7 +175,7 @@ impl DropboxCore {
         if !signer.access_token.is_empty() && signer.expires_in > Utc::now() {
             let value = format!("Bearer {}", signer.access_token)
                 .parse()
-                .expect("token must be valid header");
+                .expect("token must be valid header value");
             req.headers_mut().insert(header::AUTHORIZATION, value);
             return Ok(());
         }
@@ -202,7 +202,6 @@ impl DropboxCore {
             serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
 
         // Update signer after token refreshed.
-
         signer.access_token = token.access_token.clone();
 
         // Refresh it 2 minutes earlier.
@@ -211,7 +210,7 @@ impl DropboxCore {
 
         let value = format!("Bearer {}", token.access_token)
             .parse()
-            .expect("token must be valid header");
+            .expect("token must be valid header value");
         req.headers_mut().insert(header::AUTHORIZATION, value);
 
         Ok(())

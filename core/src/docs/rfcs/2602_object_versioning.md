@@ -36,23 +36,28 @@ Those operations with object version are different from the normal operations:
 - `stat`: when getting the metadata of an object, it will always get the metadata of the latest version of the object if no version ID is specified.
 - `read`: when reading an object, it will always read the latest version of the object if no version ID is specified.
 - `delete`: when deleting an object, it will always delete the latest version of the object if no version ID is specified. And users will not be able to read this object unless they specify the version ID not to be deleted.
-- `list_versions`: this `list_versions` means list all versions of an object. It's an operation on a single object, and it is different from the normal `list` which means list all objects.
 
 ```rust
 // read with version ID
-let content = op.read_with("path/to/file").with_version("version_id").await?;
+let content = op.read_with("path/to/file").version("version_id").await?;
 ```
 
 # Reference-level explanation
 
-To implement object versioning, we need to add a new `with_version` field to the `stat`, `read` and `delete` method. And we need to add a new `version_id` field to the `ObjectMeta` struct. And we need to add a new `list_versions` method to the `Accessor` trait and `Operator` struct.
+To implement object versioning, we need to add a new `version` field to the `stat`, `read` and `delete` method. And we need to add a new `version_id` field to the `ObjectMeta` struct. And we need to add a new `list_versions` method to the `Accessor` trait and `Operator` struct.
 
 ```rust
 // read with version ID
-let content = op.read_with("path/to/file").with_version("version_id").await?;
+let content = op.read_with("path/to/file").version("version_id").await?;
 // list all versions of an object
 let versions = op.list_versions("path/to/file").await?;
 ```
+
+## reference:
+
+- [AWS S3 Object Versioning](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html)
+- [Google Cloud Storage Object Versioning](https://cloud.google.com/storage/docs/object-versioning)
+- [Azure Blob Storage Object Versioning](https://docs.microsoft.com/en-us/azure/storage/blobs/versioning-overview)
 
 # Drawbacks
 
@@ -64,9 +69,7 @@ None.
 
 # Prior art
 
-- [AWS S3 Object Versioning](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html)
-- [Google Cloud Storage Object Versioning](https://cloud.google.com/storage/docs/object-versioning)
-- [Azure Blob Storage Object Versioning](https://docs.microsoft.com/en-us/azure/storage/blobs/versioning-overview)
+None.
 
 # Unresolved questions
 
@@ -74,5 +77,5 @@ None.
 
 # Future possibilities
 
-None.
+Impl `list_versions`(list all versions of an object).
 

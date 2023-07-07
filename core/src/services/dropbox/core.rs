@@ -130,6 +130,51 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
+    pub async fn dropbox_delete_batch(
+        &self,
+        paths: Vec<String>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = "https://api.dropboxapi.com/2/files/delete_batch".to_string();
+        let args = DropboxDeleteBatchArgs {
+            entries: paths
+                .into_iter()
+                .map(|path| DropboxDeleteBatchEntry {
+                    path: self.build_path(&path),
+                })
+                .collect(),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
+    pub async fn dropbox_delete_batch_check(
+        &self,
+        async_job_id: String,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = "https://api.dropboxapi.com/2/files/delete_batch/check".to_string();
+        let args = DropboxDeleteBatchCheckArgs { async_job_id };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
     pub async fn dropbox_create_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
         let args = DropboxCreateFolderArgs {
@@ -269,6 +314,21 @@ impl Default for DropboxUploadArgs {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct DropboxDeleteArgs {
     path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxDeleteBatchEntry {
+    path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxDeleteBatchArgs {
+    entries: Vec<DropboxDeleteBatchEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxDeleteBatchCheckArgs {
+    async_job_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

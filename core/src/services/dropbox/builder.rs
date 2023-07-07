@@ -80,7 +80,7 @@ use crate::*;
 ///
 /// ## Via Builder
 ///
-/// ```
+/// ```rust
 /// use anyhow::Result;
 /// use opendal::raw::OpWrite;
 /// use opendal::services::Dropbox;

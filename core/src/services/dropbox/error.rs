@@ -28,7 +28,7 @@ use crate::Result;
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
 pub struct DropboxErrorResponse {
-    error_summary: String,
+    pub error_summary: String,
 }
 
 /// Parse error response into Error.

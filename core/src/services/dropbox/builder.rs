@@ -95,7 +95,7 @@ impl Debug for DropboxBuilder {
 impl DropboxBuilder {
     /// Set the root directory for dropbox.
     ///
-    /// Defautl to `/` if not set.
+    /// Default to `/` if not set.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = Some(root.to_string());
         self
@@ -177,7 +177,7 @@ impl Builder for DropboxBuilder {
         let signer = match (self.access_token.take(), self.refresh_token.take()) {
             (Some(access_token), None) => DropboxSigner {
                 access_token,
-                // We will never expire user specifed token.
+                // We will never expire user specified token.
                 expires_in: DateTime::<Utc>::MAX_UTC,
                 ..Default::default()
             },

@@ -78,6 +78,8 @@ pub fn parse_dropbox_error_summary(summary: &str) -> Option<(ErrorKind, bool)> {
         Some((ErrorKind::NotFound, false))
     } else if summary.starts_with("path/conflict") {
         Some((ErrorKind::AlreadyExists, false))
+    } else if summary.starts_with("too_many_write_operations") {
+        Some((ErrorKind::RateLimited, true))
     } else {
         None
     }

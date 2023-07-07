@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 
 use bytes::Bytes;
 use http::header;
-use http::request::Builder;
 use http::Request;
 use http::Response;
 use serde::Deserialize;
@@ -63,12 +62,13 @@ impl DropboxCore {
         };
         let request_payload =
             serde_json::to_string(&download_args).map_err(new_json_serialize_error)?;
-        let request = self
-            .build_auth_header(Request::post(&url))
+        let mut request = Request::post(&url)
             .header("Dropbox-API-Arg", request_payload)
             .header(header::CONTENT_LENGTH, 0)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
         self.client.send(request).await
     }
 
@@ -93,8 +93,7 @@ impl DropboxCore {
             content_type.unwrap_or("application/octet-stream"),
         );
 
-        let request = self
-            .build_auth_header(request_builder)
+        let mut request = request_builder
             .header(
                 "Dropbox-API-Arg",
                 serde_json::to_string(&args).map_err(new_json_serialize_error)?,
@@ -102,6 +101,7 @@ impl DropboxCore {
             .body(body)
             .map_err(new_request_build_error)?;
 
+        self.sign(&mut request).await?;
         self.client.send(request).await
     }
 
@@ -113,12 +113,13 @@ impl DropboxCore {
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
-        let request = self
-            .build_auth_header(Request::post(&url))
+        let mut request = Request::post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
         self.client.send(request).await
     }
 
@@ -130,12 +131,13 @@ impl DropboxCore {
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
-        let request = self
-            .build_auth_header(Request::post(&url))
+        let mut request = Request::post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
         self.client.send(request).await
     }
 
@@ -148,19 +150,24 @@ impl DropboxCore {
 
         let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
 
-        let request = self
-            .build_auth_header(Request::post(&url))
+        let mut request = Request::post(&url)
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::CONTENT_LENGTH, bs.len())
             .body(AsyncBody::Bytes(bs))
             .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+
         self.client.send(request).await
     }
 
-    fn build_auth_header(&self, mut req: Builder) -> Builder {
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-        req
+    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
+        let value = format!("Bearer {}", self.token)
+            .parse()
+            .expect("token must be valid header");
+        req.headers_mut().insert(header::AUTHORIZATION, value);
+
+        Ok(())
     }
 }
 

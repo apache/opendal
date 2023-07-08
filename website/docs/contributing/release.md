@@ -47,7 +47,7 @@ Take [Bump to version 0.36.0](https://github.com/apache/incubator-opendal/pull/2
 
 After bump version PR gets merged, we can create a GitHub release:
 
-- Create a tag at `main` branch on the `Bump Version` commit: `git tag -s "v0.36.0"`
+- Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
 - Push tags to GitHub: `git push --tags`.
 - Create Release on the newly created tag
   - If there are breaking changes, please add the content from `upgrade.md` before.
@@ -58,12 +58,15 @@ If any step in the ASF Release process fails and requires code changes,
 we will abandon that version and prepare for the next one.
 Our release page will only display ASF releases instead of GitHub Releases.
 
+> - `opendal_version`: the version for opendal, like `0.36.0`.
+> - `release_version`: the version for voting, like `0.36.0-rc1`.
+
 ### Create an ASF Release
 
 After GitHub Release has been created, we can start to create ASF Release.
 
 - Checkout to released tag.
-- Use the release script to create a new release: `OPENDAL_VERSION=<version> OPENDAL_VERSION_RC=<rc_version> ./scripts/release.sh`
+- Use the release script to create a new release: `OPENDAL_VERSION=<opendal_version> OPENDAL_VERSION_RC=<release_version> ./scripts/release.sh`
 - Push the newly created branch to GitHub
 
 This script will create a new release under `dist`.
@@ -121,8 +124,8 @@ Visit <https://dist.apache.org/repos/dist/dev/incubator/opendal/> to make sure t
 
 As an incubating project, OpenDAL requires votes from both the OpenDAL Community and Incubator Community.
 
-> opendal_version: the version for opendal, like `0.36.0`
-> release_version: the version for voting, like `0.36.0-rc1`
+> - `opendal_version`: the version for opendal, like `0.36.0`.
+> - `release_version`: the version for voting, like `0.36.0-rc1`.
 
 ### OpenDAL Community Vote
 
@@ -291,6 +294,8 @@ Thanks
 ${name}
 ```
 
+Example: <https://lists.apache.org/thread/sjdzs89p2x4tlb813ow7lhdhdfcvhysx>
+
 After at least 72 hours with at least 3 +1 binding vote (from Incubator PMC member) and no veto, claim the vote result:
 
 Title:
@@ -324,12 +329,14 @@ Thanks for reviewing and voting for our release candidate.
 We will proceed with publishing the approved artifacts and sending out the announcement soon.
 ```
 
+Example: <https://lists.apache.org/thread/h3x9pq1djpg76q3ojpqmdr3d0o03fld1>
+
 ## Official Release
 
 ### Publish artifacts to SVN RELEASE branch
 
-> opendal_version: the version for opendal, like `0.36.0`
-> release_version: the version for voting, like `0.36.0-rc1`
+> - `opendal_version`: the version for opendal, like `0.36.0`.
+> - `release_version`: the version for voting, like `0.36.0-rc1`.
 
 ```shell
 svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version} https://dist.apache.org/repos/dist/release/incubator/opendal/${opendal_version} -m "Release ${opendal_version}"
@@ -342,7 +349,7 @@ Send the release announcement to `dev@opendal.apache.org` and CC `announce@apach
 Title:
 
 ```
-[ANNOUNCE] Release Apache OpenDAL(incubating) ${release_version}
+[ANNOUNCE] Release Apache OpenDAL(incubating) ${opendal_version}
 ```
 
 Content:
@@ -351,18 +358,18 @@ Content:
 Hi all,
 
 The Apache OpenDAL(incubating) community is pleased to announce
-that Apache OpenDAL(incubating) ${release_version} has been released!
+that Apache OpenDAL(incubating) ${opendal_version} has been released!
 
 OpenDAL is a data access layer that allows users to easily and efficiently
 retrieve data from various storage services in a unified way.
 
-The notable changes since ${release_version} include:
+The notable changes since ${opendal_version} include:
 1. xxxxx
 2. yyyyyy
 3. zzzzzz
 
 Please refer to the change log for the complete list of changes:
-https://github.com/apache/incubator-opendal/releases/tag/v${release_version}
+https://github.com/apache/incubator-opendal/releases/tag/v${opendal_version}
 
 Apache OpenDAL website: https://opendal.apache.org/
 
@@ -375,3 +382,5 @@ OpenDAL Resources:
 Thanks
 On behalf of Apache OpenDAL community
 ```
+
+Example: <https://lists.apache.org/thread/oy77n55brvk72tnlb2bjzfs9nz3cfd0s>

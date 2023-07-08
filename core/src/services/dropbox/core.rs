@@ -28,6 +28,7 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -37,8 +38,16 @@ use crate::raw::new_json_deserialize_error;
 use crate::raw::new_json_serialize_error;
 use crate::raw::new_request_build_error;
 use crate::raw::AsyncBody;
+use crate::raw::BatchedReply;
 use crate::raw::HttpClient;
 use crate::raw::IncomingAsyncBody;
+use crate::raw::RpBatch;
+use crate::raw::RpDelete;
+use crate::services::dropbox::backend::DropboxDeleteBatchResponse;
+use crate::services::dropbox::backend::DropboxDeleteBatchResponseEntry;
+use crate::services::dropbox::error::parse_error;
+use crate::types::Error;
+use crate::types::ErrorKind;
 use crate::types::Result;
 
 pub struct DropboxCore {
@@ -130,6 +139,86 @@ impl DropboxCore {
         self.client.send(request).await
     }
 
+    pub async fn dropbox_delete_batch(
+        &self,
+        paths: Vec<String>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = "https://api.dropboxapi.com/2/files/delete_batch".to_string();
+        let args = DropboxDeleteBatchArgs {
+            entries: paths
+                .into_iter()
+                .map(|path| DropboxDeleteBatchEntry {
+                    path: self.build_path(&path),
+                })
+                .collect(),
+        };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
+    pub async fn dropbox_delete_batch_check_request(
+        &self,
+        async_job_id: String,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = "https://api.dropboxapi.com/2/files/delete_batch/check".to_string();
+        let args = DropboxDeleteBatchCheckArgs { async_job_id };
+
+        let bs = Bytes::from(serde_json::to_string(&args).map_err(new_json_serialize_error)?);
+
+        let mut request = Request::post(&url)
+            .header(CONTENT_TYPE, "application/json")
+            .header(CONTENT_LENGTH, bs.len())
+            .body(AsyncBody::Bytes(bs))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut request).await?;
+        self.client.send(request).await
+    }
+
+    pub async fn dropbox_delete_batch_check(&self, job_id: String) -> Result<RpBatch> {
+        let resp = self
+            .dropbox_delete_batch_check_request(job_id.clone())
+            .await?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+
+                let decoded_response = serde_json::from_slice::<DropboxDeleteBatchResponse>(&bs)
+                    .map_err(new_json_deserialize_error)?;
+                match decoded_response.tag.as_str() {
+                    "in_progress" => Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "delete batch job still in progress",
+                    )
+                    .set_temporary()),
+                    "complete" => {
+                        let entries = decoded_response.entries.unwrap_or_default();
+                        let results = self.handle_batch_delete_complete_result(entries);
+                        Ok(RpBatch::new(results))
+                    }
+                    _ => Err(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!(
+                            "delete batch check failed with unexpected tag {}",
+                            decoded_response.tag
+                        ),
+                    )),
+                }
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     pub async fn dropbox_create_folder(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://api.dropboxapi.com/2/files/create_folder_v2".to_string();
         let args = DropboxCreateFolderArgs {
@@ -175,7 +264,7 @@ impl DropboxCore {
         if !signer.access_token.is_empty() && signer.expires_in > Utc::now() {
             let value = format!("Bearer {}", signer.access_token)
                 .parse()
-                .expect("token must be valid header");
+                .expect("token must be valid header value");
             req.headers_mut().insert(header::AUTHORIZATION, value);
             return Ok(());
         }
@@ -202,7 +291,6 @@ impl DropboxCore {
             serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
 
         // Update signer after token refreshed.
-
         signer.access_token = token.access_token.clone();
 
         // Refresh it 2 minutes earlier.
@@ -211,10 +299,47 @@ impl DropboxCore {
 
         let value = format!("Bearer {}", token.access_token)
             .parse()
-            .expect("token must be valid header");
+            .expect("token must be valid header value");
         req.headers_mut().insert(header::AUTHORIZATION, value);
 
         Ok(())
+    }
+
+    pub fn handle_batch_delete_complete_result(
+        &self,
+        entries: Vec<DropboxDeleteBatchResponseEntry>,
+    ) -> Vec<(String, Result<BatchedReply>)> {
+        let mut results = Vec::with_capacity(entries.len());
+        for entry in entries {
+            let result = match entry.tag.as_str() {
+                // Only success response has metadata and then path,
+                // so we cannot tell which path failed.
+                "success" => {
+                    let path = entry
+                        .metadata
+                        .expect("metadata should be present")
+                        .path_display;
+                    (path, Ok(RpDelete::default().into()))
+                }
+                "failure" => {
+                    let error = entry.error.expect("error should be present");
+                    let err = Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("delete failed with error {}", error.error_summary),
+                    );
+                    ("".to_string(), Err(err))
+                }
+                _ => (
+                    "".to_string(),
+                    Err(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!("delete failed with unexpected tag {}", entry.tag),
+                    )),
+                ),
+            };
+            results.push(result);
+        }
+        results
     }
 }
 
@@ -270,6 +395,21 @@ impl Default for DropboxUploadArgs {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct DropboxDeleteArgs {
     path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxDeleteBatchEntry {
+    path: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxDeleteBatchArgs {
+    entries: Vec<DropboxDeleteBatchEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct DropboxDeleteBatchCheckArgs {
+    async_job_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -28,7 +28,7 @@ use crate::Result;
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
 pub struct DropboxErrorResponse {
-    error_summary: String,
+    pub error_summary: String,
 }
 
 /// Parse error response into Error.
@@ -78,6 +78,8 @@ pub fn parse_dropbox_error_summary(summary: &str) -> Option<(ErrorKind, bool)> {
         Some((ErrorKind::NotFound, false))
     } else if summary.starts_with("path/conflict") {
         Some((ErrorKind::AlreadyExists, false))
+    } else if summary.starts_with("too_many_write_operations") {
+        Some((ErrorKind::RateLimited, true))
     } else {
         None
     }

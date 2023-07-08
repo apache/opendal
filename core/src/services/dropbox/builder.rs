@@ -49,16 +49,38 @@ use crate::*;
 ///
 /// # Configuration
 ///
-/// - `access_token`: set the access_token for google drive api
-/// - `root`: Set the work directory for backend
+/// - `root`: Set the work directory for this backend.
 ///
-/// You can refer to [`DropboxBuilder`]'s docs for more information
+/// ## Credentials related
+///
+/// ### Just provide Access Token (Temporary)
+///
+/// - `access_token`: set the access_token for this backend.
+/// Please notice its expiration.
+///
+/// ### Or provide Client ID and Client Secret and refresh token (Long Term)
+///
+/// If you want to let OpenDAL to refresh the access token automatically,
+/// please provide the following fields:
+///
+/// - `refresh_token`: set the refresh_token for dropbox api
+/// - `client_id`: set the client_id for dropbox api
+/// - `client_secret`: set the client_secret for dropbox api
+///
+/// OpenDAL is a library, it cannot do the first step of OAuth2 for you.
+/// You need to get authorization code from user by calling Dropbox's authorize url
+/// and exchange it for refresh token.
+///
+/// Please refer to [Dropbox OAuth2 Guide](https://www.dropbox.com/developers/reference/oauth-guide)
+/// for more information.
+///
+/// You can refer to [`DropboxBuilder`]'s docs for more information.
 ///
 /// # Example
 ///
 /// ## Via Builder
 ///
-/// ```
+/// ```rust
 /// use anyhow::Result;
 /// use opendal::raw::OpWrite;
 /// use opendal::services::Dropbox;
@@ -66,8 +88,8 @@ use crate::*;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     // create backend builder
 ///     let mut builder = Dropbox::default();
+///     builder.root("/test");
 ///     builder.access_token("<token>");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
@@ -78,7 +100,9 @@ use crate::*;
 #[derive(Default)]
 pub struct DropboxBuilder {
     root: Option<String>,
+
     access_token: Option<String>,
+
     refresh_token: Option<String>,
     client_id: Option<String>,
     client_secret: Option<String>,
@@ -105,15 +129,16 @@ impl DropboxBuilder {
     ///
     /// You can get the access token from [Dropbox App Console](https://www.dropbox.com/developers/apps)
     ///
-    /// NOTE: this token will be expired in 4 hours. If you are trying to use dropbox services in a long time, please set a refresh_token instead.
+    /// NOTE: this token will be expired in 4 hours.
+    /// If you are trying to use the Dropbox service in a long time, please set a refresh_token instead.
     pub fn access_token(&mut self, access_token: &str) -> &mut Self {
         self.access_token = Some(access_token.to_string());
         self
     }
 
-    /// Refersh token is used for long term access to the Dropbox API.
+    /// Refresh token is used for long term access to the Dropbox API.
     ///
-    /// You can get the refresh token via OAuth2.0 Flow of dropbox.
+    /// You can get the refresh token via OAuth 2.0 Flow of Dropbox.
     ///
     /// OpenDAL will use this refresh token to get a new access token when the old one is expired.
     pub fn refresh_token(&mut self, refresh_token: &str) -> &mut Self {
@@ -121,17 +146,17 @@ impl DropboxBuilder {
         self
     }
 
-    /// Set the client id for dropbox.
+    /// Set the client id for Dropbox.
     ///
-    /// This is required for OAuth2.0 Flow with refresh token.
+    /// This is required for OAuth 2.0 Flow to refresh the access token.
     pub fn client_id(&mut self, client_id: &str) -> &mut Self {
         self.client_id = Some(client_id.to_string());
         self
     }
 
-    /// Set the client secret for dropbox.
+    /// Set the client secret for Dropbox.
     ///
-    /// This is required for OAuth2.0 Flow with refresh token.
+    /// This is required for OAuth 2.0 Flow with refresh the access token.
     pub fn client_secret(&mut self, client_secret: &str) -> &mut Self {
         self.client_secret = Some(client_secret.to_string());
         self

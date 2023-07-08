@@ -17,16 +17,28 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use backon::ExponentialBuilder;
+use backon::Retryable;
 use http::StatusCode;
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 
 use super::core::DropboxCore;
 use super::error::parse_error;
 use super::writer::DropboxWriter;
 use crate::raw::*;
+use crate::services::dropbox::error::DropboxErrorResponse;
 use crate::*;
+
+static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
+    ExponentialBuilder::default()
+        .with_max_delay(Duration::from_secs(10))
+        .with_max_times(10)
+        .with_jitter()
+});
 
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
@@ -57,6 +69,9 @@ impl Accessor for DropboxBackend {
                 create_dir: true,
 
                 delete: true,
+
+                batch: true,
+                batch_delete: true,
 
                 ..Default::default()
             });
@@ -162,6 +177,59 @@ impl Accessor for DropboxBackend {
             _ => Err(parse_error(resp).await?),
         }
     }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let ops = args.into_operation();
+        if ops.len() > 1000 {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "dropbox services only allow delete up to 1000 keys at once",
+            )
+            .with_context("length", ops.len().to_string()));
+        }
+
+        let paths = ops.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+
+        let resp = self.core.dropbox_delete_batch(paths).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let (_parts, body) = resp.into_parts();
+                let bs = body.bytes().await?;
+                let decoded_response = serde_json::from_slice::<DropboxDeleteBatchResponse>(&bs)
+                    .map_err(new_json_deserialize_error)?;
+
+                match decoded_response.tag.as_str() {
+                    "complete" => {
+                        let entries = decoded_response.entries.unwrap_or_default();
+                        let results = self.core.handle_batch_delete_complete_result(entries);
+                        Ok(RpBatch::new(results))
+                    }
+                    "async_job_id" => {
+                        let job_id = decoded_response
+                            .async_job_id
+                            .expect("async_job_id should be present");
+                        let res = { || self.core.dropbox_delete_batch_check(job_id.clone()) }
+                            .retry(&*BACKOFF)
+                            .when(|e| e.is_temporary())
+                            .await?;
+
+                        Ok(res)
+                    }
+                    _ => Err(Error::new(
+                        ErrorKind::Unexpected,
+                        &format!(
+                            "delete batch failed with unexpected tag {}",
+                            decoded_response.tag
+                        ),
+                    )),
+                }
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -216,4 +284,22 @@ pub struct DropboxMetadataSharingInfo {
     pub shared_folder_id: Option<String>,
     pub traverse_only: Option<bool>,
     pub no_access: Option<bool>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default)]
+pub struct DropboxDeleteBatchResponse {
+    #[serde(rename(deserialize = ".tag"))]
+    pub tag: String,
+    pub async_job_id: Option<String>,
+    pub entries: Option<Vec<DropboxDeleteBatchResponseEntry>>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default)]
+pub struct DropboxDeleteBatchResponseEntry {
+    #[serde(rename(deserialize = ".tag"))]
+    pub tag: String,
+    pub metadata: Option<DropboxMetadataResponse>,
+    pub error: Option<DropboxErrorResponse>,
 }

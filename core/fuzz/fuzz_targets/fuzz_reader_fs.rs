@@ -26,14 +26,31 @@ use std::env;
 #[derive(Debug)]
 enum ReaderAction {
     Read { size: usize },
-    Seek { offset: usize },
+    Seek { offset: usize, mode:SeekMode },
     Next,
+}
+
+#[derive(Debug)]
+enum SeekMode {
+    Start,
+    End,
+    Current,
 }
 
 #[derive(Debug)]
 struct FuzzInput {
     actions: Vec<ReaderAction>,
     data: Vec<u8>,
+}
+
+impl Arbitrary<'_> for SeekMode {
+    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
+        match u.int_in_range(0..=2)? {
+            0 => Ok(SeekMode::Start),
+            1 => Ok(SeekMode::End),
+            _ => Ok(SeekMode::Current),
+        }
+    }
 }
 
 impl Arbitrary<'_> for FuzzInput {
@@ -53,8 +70,9 @@ impl Arbitrary<'_> for FuzzInput {
                 }
                 1 => {
                     // Ensure offset is smaller than data size
+                    let mode = SeekMode::arbitrary(u)?;
                     let offset = u.int_in_range(0..=data.len())?;
-                    actions.push(ReaderAction::Seek { offset });
+                    actions.push(ReaderAction::Seek { mode, offset });
                 }
                 _ => actions.push(ReaderAction::Next),
             }
@@ -69,6 +87,7 @@ fuzz_target!(|input: FuzzInput| {
     let cwd = env::current_dir().unwrap();
     let path: String = format!("{}/tmp", cwd.to_string_lossy());
     builder.root(&path);
+
     let result: anyhow::Result<()> = tokio::runtime::Runtime::new().unwrap().block_on(async {
         let op: Operator = Operator::new(builder)?.finish();
         let path = uuid::Uuid::new_v4().to_string();
@@ -78,15 +97,23 @@ fuzz_target!(|input: FuzzInput| {
         let mut o = op
             .range_reader(&path, 0..len as u64)
             .await
-            .expect("range_reader must succeed");
+            .expect("init range_reader must succeed");
+
         for action in input.actions {
             match action {
                 ReaderAction::Read { size } => {
                     let mut buf = vec![0; size];
-                    o.read(&mut buf).await.expect("read must succeed");
+                    o.read(&mut buf)
+                        .await
+                        .expect("read must succeed");
                 }
-                ReaderAction::Seek { offset } => {
-                    o.seek(std::io::SeekFrom::Start(offset as u64))
+                ReaderAction::Seek { mode, offset } => {
+                    let seek_from = match mode {
+                        SeekMode::Start => std::io::SeekFrom::Start(offset as u64),
+                        SeekMode::End => std::io::SeekFrom::End(offset as i64),
+                        SeekMode::Current => std::io::SeekFrom::Current(offset as i64),
+                    };
+                    o.seek(seek_from)
                         .await
                         .expect("seek must succeed");
                 }
@@ -97,7 +124,11 @@ fuzz_target!(|input: FuzzInput| {
                 }
             }
         }
-        op.delete(&path).await.expect("delete must succeed");
+        op.delete(&path)
+            .await
+            .expect("delete must succeed");
         Ok(())
     });
+
+    result.expect("fuzz target must succeed");
 });

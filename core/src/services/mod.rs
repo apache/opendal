@@ -114,6 +114,11 @@ mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::Cacache;
 
+#[cfg(feature = "services-persy")]
+mod persy;
+#[cfg(feature = "services-persy")]
+pub use self::persy::Persy;
+
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]

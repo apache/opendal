@@ -138,6 +138,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Dropbox>());
     #[cfg(feature = "services-oss")]
     tests.extend(behavior_test::<services::Oss>());
+    #[cfg(feature = "services-persy")]
+    tests.extend(behavior_test::<services::Persy>());
     #[cfg(feature = "services-redis")]
     tests.extend(behavior_test::<services::Redis>());
     #[cfg(feature = "services-rocksdb")]

@@ -33,14 +33,14 @@ use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
 
+use crate::raw::build_rooted_abs_path;
 use crate::raw::new_json_deserialize_error;
 use crate::raw::new_json_serialize_error;
 use crate::raw::new_request_build_error;
 use crate::raw::AsyncBody;
+use crate::raw::BatchedReply;
 use crate::raw::HttpClient;
 use crate::raw::IncomingAsyncBody;
-use crate::raw::build_rooted_abs_path;
-use crate::raw::BatchedReply;
 use crate::raw::RpBatch;
 use crate::raw::RpDelete;
 use crate::services::dropbox::backend::DropboxDeleteBatchResponse;
@@ -185,7 +185,9 @@ impl DropboxCore {
     }
 
     pub async fn dropbox_delete_batch_check(&self, job_id: String) -> Result<RpBatch> {
-        let resp = self.dropbox_delete_batch_check_request(job_id.clone()).await?;
+        let resp = self
+            .dropbox_delete_batch_check_request(job_id.clone())
+            .await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {

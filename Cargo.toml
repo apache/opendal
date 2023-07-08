@@ -36,6 +36,8 @@ members = [
 
   "bin/oli",
   "bin/oay",
+
+  "core/fuzz",
 ]
 
 [workspace.package]

@@ -22,19 +22,15 @@ use libfuzzer_sys::fuzz_target;
 use opendal::raw::oio::ReadExt;
 use opendal::{services, Operator};
 use std::env;
+use std::io::SeekFrom;
+
+const MAX_DATA_SIZE: usize = 1000;
 
 #[derive(Debug)]
 enum ReaderAction {
     Read { size: usize },
-    Seek { offset: usize, mode:SeekMode },
+    Seek(SeekFrom),
     Next,
-}
-
-#[derive(Debug)]
-enum SeekMode {
-    Start,
-    End,
-    Current,
 }
 
 #[derive(Debug)]
@@ -43,36 +39,27 @@ struct FuzzInput {
     data: Vec<u8>,
 }
 
-impl Arbitrary<'_> for SeekMode {
-    fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        match u.int_in_range(0..=2)? {
-            0 => Ok(SeekMode::Start),
-            1 => Ok(SeekMode::End),
-            _ => Ok(SeekMode::Current),
-        }
-    }
-}
-
 impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
-        let data: Vec<u8> = {
-            // Choose a suitable range for the data length
-            let data_len = u.int_in_range(1..=100)?;
-            u.bytes(data_len)?.to_vec()
-        };
+        // Choose a suitable range for the data length
+        let data_len = u.int_in_range(1..=MAX_DATA_SIZE)?;
+        let data: Vec<u8> = u.bytes(data_len)?.to_vec();
         let mut actions = vec![];
         while u.len() > 0 {
             match u.int_in_range(0..=2)? {
                 0 => {
                     // Ensure size is smaller than data size
-                    let size = u.int_in_range(0..=data.len())?;
+                    let size = u.int_in_range(0..=data_len)?;
                     actions.push(ReaderAction::Read { size });
                 }
                 1 => {
-                    // Ensure offset is smaller than data size
-                    let mode = SeekMode::arbitrary(u)?;
-                    let offset = u.int_in_range(0..=data.len())?;
-                    actions.push(ReaderAction::Seek { mode, offset });
+                    let offset = u.int_in_range(0..=data_len)?;
+                    let seek_from = match u.int_in_range(0..=2)? {
+                        0 => SeekFrom::Start(offset as u64),
+                        1 => SeekFrom::End(offset as i64),
+                        _ => SeekFrom::Current(offset as i64),
+                    };
+                    actions.push(ReaderAction::Seek(seek_from));
                 }
                 _ => actions.push(ReaderAction::Next),
             }
@@ -103,19 +90,10 @@ fuzz_target!(|input: FuzzInput| {
             match action {
                 ReaderAction::Read { size } => {
                     let mut buf = vec![0; size];
-                    o.read(&mut buf)
-                        .await
-                        .expect("read must succeed");
+                    o.read(&mut buf).await.expect("read must succeed");
                 }
-                ReaderAction::Seek { mode, offset } => {
-                    let seek_from = match mode {
-                        SeekMode::Start => std::io::SeekFrom::Start(offset as u64),
-                        SeekMode::End => std::io::SeekFrom::End(offset as i64),
-                        SeekMode::Current => std::io::SeekFrom::Current(offset as i64),
-                    };
-                    o.seek(seek_from)
-                        .await
-                        .expect("seek must succeed");
+                ReaderAction::Seek(seek_from) => {
+                    o.seek(seek_from).await.expect("seek must succeed");
                 }
                 ReaderAction::Next => {
                     o.next()
@@ -124,9 +102,7 @@ fuzz_target!(|input: FuzzInput| {
                 }
             }
         }
-        op.delete(&path)
-            .await
-            .expect("delete must succeed");
+        op.delete(&path).await.expect("delete must succeed");
         Ok(())
     });
 

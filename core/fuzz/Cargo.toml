@@ -16,10 +16,10 @@
 # under the License.
 
 [package]
+edition = "2021"
 name = "opendal-fuzz"
-version = "0.0.0"
 publish = false
-edition = "2018"
+version = "0.0.0"
 
 [package.metadata]
 cargo-fuzz = true
@@ -28,22 +28,15 @@ cargo-fuzz = true
 anyhow = "1.0.71"
 arbitrary = { version = "1.3.0", features = ["derive"] }
 libfuzzer-sys = "0.4"
+opendal = { path = ".." }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.4.0", features = ["v4"] }
-
-
-[dependencies.opendal]
-path = ".."
-
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
 
 [profile.release]
 debug = 1
 
 [[bin]]
+doc = false
 name = "fuzz_reader_fs"
 path = "fuzz_targets/fuzz_reader_fs.rs"
 test = false
-doc = false

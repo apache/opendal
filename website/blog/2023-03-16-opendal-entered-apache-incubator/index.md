@@ -14,6 +14,8 @@ authors:
 
 On February 27th, 2023, the [OpenDAL](https://github.com/apache/incubator-opendal) project achieved a milestone by winning the approval to join the incubator of the [Apache Software Foundation](https://www.apache.org/) (ASF), the world's leading open source software organization. On March 15th, the OpenDAL project was officially transferred to the Apache Software Foundation.
 
+<!--truncate-->
+
 This is a significant moment for [Databend](https://github.com/datafuselabs/databend), as it means that OpenDAL's technology and vision have received wider recognition and support from the open source community.
 
 > The Apache Incubator was established in October 2002 to provide a path for projects and codebases that aspire to become part of the Apache Software Foundation. Incubating projects need to follow ASF's governance and operational practices, and use ASF's infrastructure and resources. Incubating projects need to go through a series of stages and evaluations before they can graduate to become top-level projects (TLPs) of ASF.

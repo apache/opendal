@@ -45,7 +45,7 @@ impl Arbitrary<'_> for FuzzInput {
         let data_len = u.int_in_range(1..=MAX_DATA_SIZE)?;
         let data: Vec<u8> = u.bytes(data_len)?.to_vec();
         let mut actions = vec![];
-        while u.len() > 0 {
+        while !u.is_empty() {
             match u.int_in_range(0..=2)? {
                 0 => {
                     // Ensure size is smaller than data size

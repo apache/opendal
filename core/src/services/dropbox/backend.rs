@@ -17,9 +17,13 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use backon::ExponentialBuilder;
+use backon::Retryable;
 use http::StatusCode;
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 
 use super::core::DropboxCore;
@@ -28,6 +32,13 @@ use super::writer::DropboxWriter;
 use crate::raw::*;
 use crate::services::dropbox::error::DropboxErrorResponse;
 use crate::*;
+
+static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
+    ExponentialBuilder::default()
+        .with_max_delay(Duration::from_secs(10))
+        .with_max_times(10)
+        .with_jitter()
+});
 
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
@@ -193,45 +204,19 @@ impl Accessor for DropboxBackend {
                 match decoded_response.tag.as_str() {
                     "complete" => {
                         let entries = decoded_response.entries.unwrap_or_default();
-                        let results = handle_batch_delete_complete_result(entries);
+                        let results = self.core.handle_batch_delete_complete_result(entries);
                         Ok(RpBatch::new(results))
                     }
                     "async_job_id" => {
                         let job_id = decoded_response
                             .async_job_id
                             .expect("async_job_id should be present");
-                        loop {
-                            let resp = self.core.dropbox_delete_batch_check(job_id.clone()).await?;
-                            let status = resp.status();
-                            match status {
-                                StatusCode::OK => {
-                                    let bs = resp.into_body().bytes().await?;
+                        let res = { || self.core.dropbox_delete_batch_check(job_id.clone()) }
+                            .retry(&*BACKOFF)
+                            .when(|e| e.is_temporary())
+                            .await?;
 
-                                    let decoded_response =
-                                        serde_json::from_slice::<DropboxDeleteBatchResponse>(&bs)
-                                            .map_err(new_json_deserialize_error)?;
-                                    match decoded_response.tag.as_str() {
-                                        "in_progress" => {
-                                            continue;
-                                        }
-                                        "complete" => {
-                                            let entries =
-                                                decoded_response.entries.unwrap_or_default();
-                                            let results =
-                                                handle_batch_delete_complete_result(entries);
-                                            return Ok(RpBatch::new(results));
-                                        }
-                                        _ => {
-                                            return Err(Error::new(
-                                                ErrorKind::Unexpected,
-                                                &format!("delete batch check failed with unexpected tag {}", decoded_response.tag),
-                                            ));
-                                        }
-                                    }
-                                }
-                                _ => break Err(parse_error(resp).await?),
-                            }
-                        }
+                        Ok(res)
                     }
                     _ => Err(Error::new(
                         ErrorKind::Unexpected,
@@ -245,42 +230,6 @@ impl Accessor for DropboxBackend {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
-
-pub fn handle_batch_delete_complete_result(
-    entries: Vec<DropboxDeleteBatchResponseEntry>,
-) -> Vec<(String, Result<BatchedReply>)> {
-    let mut results = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let result = match entry.tag.as_str() {
-            // Only success response has metadata and then path,
-            // so we cannot tell which path failed.
-            "success" => {
-                let path = entry
-                    .metadata
-                    .expect("metadata should be present")
-                    .path_display;
-                (path, Ok(RpDelete::default().into()))
-            }
-            "failure" => {
-                let error = entry.error.expect("error should be present");
-                let err = Error::new(
-                    ErrorKind::Unexpected,
-                    &format!("delete failed with error {}", error.error_summary),
-                );
-                ("".to_string(), Err(err))
-            }
-            _ => (
-                "".to_string(),
-                Err(Error::new(
-                    ErrorKind::Unexpected,
-                    &format!("delete failed with unexpected tag {}", entry.tag),
-                )),
-            ),
-        };
-        results.push(result);
-    }
-    results
 }
 
 #[derive(Default, Debug, Deserialize)]

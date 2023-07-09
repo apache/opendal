@@ -1,7 +1,7 @@
-Proposal Name: object_versioning
-Start Date: 2023-07-06
-RFC PR: [apache/incubator-opendal#2602](https://github.com/apache/incubator-opendal/pull/2602)
-Tracking Issue: (leave this empty, will be assigned later)
+- Proposal Name: object_versioning
+- Start Date: 2023-07-06
+- RFC PR: [apache/incubator-opendal#2602](https://github.com/apache/incubator-opendal/pull/2602)
+- Tracking Issue: (leave this empty, will be assigned later)
 
 # Summary
 
@@ -24,37 +24,10 @@ and version ID mentioned here are all concepts of object storage services,
 they could be called differently in different services, 
 but they are the same thing.)
 
-
-
 OpenDAL provides support for some of those services, such as S3, GCS, Azure Blob Storage, etc.
 Now we want to add support for object versioning to OpenDAL.
 
 # Guide-level explanation
-
-## What is object versioning?
-
-Object versioning is a feature that allows users to keep multiple versions of an object in the same bucket. 
-
-It's a way to preserve, retrieve, and restore every version of every object stored in a bucket.
-
-With object versioning, users can easily recover from both unintended user actions and application failures.
-
-## How does object versioning work?
-
-When object versioning is enabled, each object will have a history of versions. Each version will have a unique version ID, which is a string that is unique for each version of an object.
-
-The version ID is not a timestamp. 
-It is not guaranteed to be sequential. 
-Many object storage services produce object version IDs by themselves, using their own algorithms. 
-Users cannot specify the version ID when writing an object.
-
-## Will object versioning affect the existing code?
-
-There is no difference between whether object versioning is enabled or not when writing an object. 
-The storage service will always create a new version of the object than overwrite the old version when writing an object.
-But here it is imperceptible to the user.
-
-## What operations are supported with object versioning?
 
 When object versioning is enabled, the following operations will be supported:
 
@@ -79,14 +52,6 @@ let content = op.read_with("path/to/file").version("version_id").await?;
 // To delete an file with specific version ID
 op.delete_with("path/to/file").version("version_id").await?;
 ```
-
-## What are the benefits of object versioning?
-
-With object versioning, users can:
-
-- Track the history of a file.
-- Implement optimistic concurrency control.
-- Implement a simple backup system.
 
 # Reference-level explanation
 
@@ -128,7 +93,37 @@ None.
 
 # Rationale and alternatives
 
-None.
+## What is object versioning?
+
+Object versioning is a feature that allows users to keep multiple versions of an object in the same bucket.
+
+It's a way to preserve, retrieve, and restore every version of every object stored in a bucket.
+
+With object versioning, users can easily recover from both unintended user actions and application failures.
+
+## How does object versioning work?
+
+When object versioning is enabled, each object will have a history of versions. Each version will have a unique version ID, which is a string that is unique for each version of an object.
+
+The version ID is not a timestamp.
+It is not guaranteed to be sequential.
+Many object storage services produce object version IDs by themselves, using their own algorithms.
+Users cannot specify the version ID when writing an object.
+
+## Will object versioning affect the existing code?
+
+There is no difference between whether object versioning is enabled or not when writing an object.
+The storage service will always create a new version of the object than overwrite the old version when writing an object.
+But here it is imperceptible to the user.
+
+## What are the benefits of object versioning?
+
+With object versioning, users can:
+
+- Track the history of a file.
+- Implement optimistic concurrency control.
+- Implement a simple backup system.
+
 
 # Prior art
 

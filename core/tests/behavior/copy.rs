@@ -147,7 +147,7 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(target_content, source_content);
 
-    op.remove_all(dir).await.expect("remove_all must succeed");
+    op.delete(dir).await.expect("delete must succeed");
 
     Ok(())
 }

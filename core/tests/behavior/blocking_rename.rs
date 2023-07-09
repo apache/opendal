@@ -149,7 +149,7 @@ pub fn test_blocking_rename_nested(op: BlockingOperator) -> Result<()> {
     let target_content = op.read(&target_path).expect("read must succeed");
     assert_eq!(target_content, source_content);
 
-    op.remove_all(dir).expect("delete must succeed");
+    op.delete(dir).expect("delete must succeed");
 
     Ok(())
 }

@@ -143,7 +143,7 @@ pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
     let target_content = op.read(&target_path).expect("read must succeed");
     assert_eq!(target_content, source_content);
 
-    op.remove_all(dir).expect("remove_all must succeed");
+    op.delete(dir).expect("remove_all must succeed");
 
     Ok(())
 }

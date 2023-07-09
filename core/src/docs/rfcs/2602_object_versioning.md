@@ -79,14 +79,6 @@ For service backend, it should support the following operations:
 - `read`: Read a specific version of an object.
 - `delete`: Delete a specific version of an object.
 
-## reference:
-
-- [AWS S3 Object Versioning](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html)
-- [How does AWS S3 object versioning work?](https://docs.aws.amazon.com/AmazonS3/latest/userguide/versioning-workflows.html)
-- [How to enable object versioning for a bucket in AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/manage-versioning-examples.html)
-- [Google Cloud Storage Object Versioning](https://cloud.google.com/storage/docs/object-versioning)
-- [Azure Blob Storage Object Versioning](https://docs.microsoft.com/en-us/azure/storage/blobs/versioning-overview)
-
 # Drawbacks
 
 None.
@@ -124,6 +116,13 @@ With object versioning, users can:
 - Implement optimistic concurrency control.
 - Implement a simple backup system.
 
+## reference
+
+- [AWS S3 Object Versioning](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html)
+- [How does AWS S3 object versioning work?](https://docs.aws.amazon.com/AmazonS3/latest/userguide/versioning-workflows.html)
+- [How to enable object versioning for a bucket in AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/manage-versioning-examples.html)
+- [Google Cloud Storage Object Versioning](https://cloud.google.com/storage/docs/object-versioning)
+- [Azure Blob Storage Object Versioning](https://docs.microsoft.com/en-us/azure/storage/blobs/versioning-overview)
 
 # Prior art
 

@@ -82,6 +82,7 @@ export CLASSPATH=$CLASSPATH:$HADOOP_CONF_DIR
 ```rust
 builder.name_node("hdfs://cluster_name");
 ```
+
 ## Example
 
 ### Via Builder

@@ -136,24 +136,27 @@ pub async fn test_rename_self(op: Operator) -> Result<()> {
 
 /// Rename to a nested path, parent path should be created successfully.
 pub async fn test_rename_nested(op: Operator) -> Result<()> {
-    let dir = &format!("{}/", uuid::Uuid::new_v4());
-
-    let source_path = &format!("{}{}/{}", dir, uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let source_path = &uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
     op.write(source_path, source_content.clone()).await?;
 
-    let target_path = format!("{}/{}/{}", dir, uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let dir = &format!("{}/", uuid::Uuid::new_v4());
+    let second_dir = &format!("{dir}{}/", uuid::Uuid::new_v4());
+    let target_path = &format!("{second_dir}{}", uuid::Uuid::new_v4());
 
-    op.rename(source_path, &target_path).await?;
+    op.rename(source_path, target_path).await?;
 
     let err = op.stat(source_path).await.expect_err("stat must fail");
     assert_eq!(err.kind(), ErrorKind::NotFound);
 
-    let target_content = op.read(&target_path).await.expect("read must succeed");
+    let target_content = op.read(target_path).await.expect("read must succeed");
     assert_eq!(target_content, source_content);
 
-    op.delete(dir).await.expect("remove_all must succeed");
+    op.delete(source_path).await.expect("delete must succeed");
+    op.delete(target_path).await.expect("delete must succeed");
+    op.delete(second_dir).await.expect("delete must succeed");
+    op.delete(dir).await.expect("delete must succeed");
 
     Ok(())
 }

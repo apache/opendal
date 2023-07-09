@@ -54,6 +54,7 @@ pub fn test_blocking_copy_file(op: BlockingOperator) -> Result<()> {
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -66,6 +67,7 @@ pub fn test_blocking_copy_non_existing_source(op: BlockingOperator) -> Result<()
         .copy(&source_path, &target_path)
         .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::NotFound);
+
     Ok(())
 }
 
@@ -80,6 +82,9 @@ pub fn test_blocking_copy_source_dir(op: BlockingOperator) -> Result<()> {
         .copy(&source_path, &target_path)
         .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
+
+    op.delete(&source_path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -101,6 +106,7 @@ pub fn test_blocking_copy_target_dir(op: BlockingOperator) -> Result<()> {
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -117,30 +123,28 @@ pub fn test_blocking_copy_self(op: BlockingOperator) -> Result<()> {
     assert_eq!(err.kind(), ErrorKind::IsSameFile);
 
     op.delete(&source_path).expect("delete must succeed");
+
     Ok(())
 }
 
 /// Copy to a nested path, parent path should be created successfully.
 pub fn test_blocking_copy_nested(op: BlockingOperator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
+    let dir = &format!("{}/", uuid::Uuid::new_v4());
+
+    let source_path = &format!("{}{}/{}", dir, uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
     let (source_content, _) = gen_bytes();
 
-    op.write(&source_path, source_content.clone())?;
+    op.write(source_path, source_content.clone())?;
 
-    let target_path = format!(
-        "{}/{}/{}",
-        uuid::Uuid::new_v4(),
-        uuid::Uuid::new_v4(),
-        uuid::Uuid::new_v4()
-    );
+    let target_path = format!("{}{}/{}", dir, uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
 
-    op.copy(&source_path, &target_path)?;
+    op.copy(source_path, &target_path)?;
 
     let target_content = op.read(&target_path).expect("read must succeed");
     assert_eq!(target_content, source_content);
 
-    op.delete(&source_path).expect("delete must succeed");
-    op.delete(&target_path).expect("delete must succeed");
+    op.remove_all(dir).expect("remove_all must succeed");
+
     Ok(())
 }
 
@@ -164,5 +168,6 @@ pub fn test_blocking_copy_overwrite(op: BlockingOperator) -> Result<()> {
 
     op.delete(&source_path).expect("delete must succeed");
     op.delete(&target_path).expect("delete must succeed");
+
     Ok(())
 }

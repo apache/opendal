@@ -54,6 +54,7 @@ pub async fn test_copy_file(op: Operator) -> Result<()> {
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -67,6 +68,7 @@ pub async fn test_copy_non_existing_source(op: Operator) -> Result<()> {
         .await
         .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::NotFound);
+
     Ok(())
 }
 
@@ -82,6 +84,9 @@ pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
         .await
         .expect_err("copy must fail");
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
+
+    op.delete(&source_path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -104,6 +109,7 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -121,30 +127,28 @@ pub async fn test_copy_self(op: Operator) -> Result<()> {
     assert_eq!(err.kind(), ErrorKind::IsSameFile);
 
     op.delete(&source_path).await.expect("delete must succeed");
+
     Ok(())
 }
 
 /// Copy to a nested path, parent path should be created successfully.
 pub async fn test_copy_nested(op: Operator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
+    let dir = &format!("{}/", uuid::Uuid::new_v4());
+
+    let source_path = format!("{}{}/{}", dir, uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
     let (source_content, _) = gen_bytes();
 
     op.write(&source_path, source_content.clone()).await?;
 
-    let target_path = format!(
-        "{}/{}/{}",
-        uuid::Uuid::new_v4(),
-        uuid::Uuid::new_v4(),
-        uuid::Uuid::new_v4()
-    );
+    let target_path = format!("{}{}/{}", dir, uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
 
     op.copy(&source_path, &target_path).await?;
 
     let target_content = op.read(&target_path).await.expect("read must succeed");
     assert_eq!(target_content, source_content);
 
-    op.delete(&source_path).await.expect("delete must succeed");
-    op.delete(&target_path).await.expect("delete must succeed");
+    op.remove_all(dir).await.expect("remove_all must succeed");
+
     Ok(())
 }
 
@@ -168,5 +172,6 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
+
     Ok(())
 }

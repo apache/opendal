@@ -19,7 +19,6 @@ use std::io::Read;
 use std::io::Seek;
 
 use anyhow::Result;
-use log::debug;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -65,6 +64,7 @@ pub fn test_blocking_create_dir(op: BlockingOperator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -80,13 +80,13 @@ pub fn test_blocking_create_dir_existing(op: BlockingOperator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 /// Write a single file and test with stat.
 pub fn test_blocking_write_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content)?;
@@ -95,6 +95,7 @@ pub fn test_blocking_write_file(op: BlockingOperator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -107,13 +108,14 @@ pub fn test_blocking_write_with_dir_path(op: BlockingOperator) -> Result<()> {
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
 
+    op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 /// Write a single file with special chars should succeed.
 pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content)?;
@@ -122,13 +124,13 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 /// Stat existing file should return metadata
 pub fn test_blocking_stat_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).expect("write must succeed");
@@ -138,6 +140,7 @@ pub fn test_blocking_stat_file(op: BlockingOperator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -151,13 +154,13 @@ pub fn test_blocking_stat_dir(op: BlockingOperator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 /// Stat existing file with special chars should return metadata
 pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).expect("write must succeed");
@@ -167,6 +170,7 @@ pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()>
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -184,7 +188,6 @@ pub fn test_blocking_stat_not_exist(op: BlockingOperator) -> Result<()> {
 /// Read full content should match.
 pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -199,13 +202,13 @@ pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
     );
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 /// Read range content should match.
 pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
@@ -224,13 +227,13 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
     );
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 /// Read large range content should match.
 pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, _) = gen_offset_length(size);
 
@@ -250,6 +253,7 @@ pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
     );
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
@@ -266,7 +270,6 @@ pub fn test_blocking_read_not_exist(op: BlockingOperator) -> Result<()> {
 
 pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -294,12 +297,12 @@ pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
     }
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -327,12 +330,12 @@ pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
     }
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
@@ -361,13 +364,13 @@ pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
     }
 
     op.delete(&path).expect("delete must succeed");
+
     Ok(())
 }
 
 // Delete existing file should succeed.
 pub fn test_blocking_delete_file(op: BlockingOperator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content).expect("write must succeed");

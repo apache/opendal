@@ -41,7 +41,6 @@ pub fn behavior_presign_tests(op: &Operator) -> Vec<Trial> {
 /// Presign write should succeed.
 pub async fn test_presign_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     let signed_req = op.presign_write(&path, Duration::from_secs(3600)).await?;
@@ -68,12 +67,12 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
 pub async fn test_presign_stat(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     op.write(&path, content.clone())
         .await
@@ -97,13 +96,13 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
     assert_eq!(content_length, size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
 // Presign read should read content successfully.
 pub async fn test_presign_read(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -133,5 +132,6 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }

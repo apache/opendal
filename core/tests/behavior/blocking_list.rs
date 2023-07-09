@@ -43,7 +43,6 @@ pub fn behavior_blocking_list_tests(op: &Operator) -> Vec<Trial> {
 pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).expect("write must succeed");
@@ -63,7 +62,9 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
     }
     assert!(found, "file should be found in list");
 
-    op.delete(&path).expect("delete must succeed");
+    op.remove_all(&format!("{parent}/"))
+        .expect("remove must succeed");
+
     Ok(())
 }
 
@@ -80,6 +81,7 @@ pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
     debug!("got objects: {:?}", objects);
 
     assert_eq!(objects.len(), 0, "dir should only return empty");
+
     Ok(())
 }
 
@@ -116,6 +118,9 @@ pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
     assert!(actual.contains("x/y"));
     assert!(actual.contains("x/x/y"));
     assert!(actual.contains("x/x/x/y"));
+
+    op.remove_all(&format!("{parent}/"))?;
+
     Ok(())
 }
 
@@ -135,7 +140,7 @@ pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
         }
     }
 
-    op.remove_all(&format!("{parent}/x/"))?;
+    op.remove_all(&format!("{parent}/"))?;
 
     for path in expected.iter() {
         if path.ends_with('/') {

@@ -61,7 +61,6 @@ pub async fn test_check(op: Operator) -> Result<()> {
 pub async fn test_list_dir(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let path = format!("{parent}/{}", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).await.expect("write must succeed");
@@ -80,7 +79,8 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     }
     assert!(found, "file should be found in list");
 
-    op.delete(&path).await.expect("delete must succeed");
+    op.remove_all(&format!("{parent}/")).await?;
+
     Ok(())
 }
 
@@ -117,6 +117,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     assert_eq!(actual, expected);
 
     op.remove_all("test_list_rich_dir/").await?;
+
     Ok(())
 }
 
@@ -136,6 +137,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     assert_eq!(objects.len(), 0, "dir should only return empty");
 
     op.delete(&dir).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -151,6 +153,7 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
     debug!("got objects: {:?}", objects);
 
     assert_eq!(objects.len(), 0, "dir should only return empty");
+
     Ok(())
 }
 
@@ -174,6 +177,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     assert!(found, "dir should be found in list");
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -225,9 +229,8 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
-    op.delete(&file_path).await.expect("delete must succeed");
-    op.delete(&dir_path).await.expect("delete must succeed");
-    op.delete(&dir).await.expect("delete must succeed");
+    op.remove_all(&dir).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -294,6 +297,7 @@ pub async fn test_scan_root(op: Operator) -> Result<()> {
 
     assert!(!actual.contains("/"), "empty root should return itself");
     assert!(!actual.contains(""), "empty root should return empty");
+
     Ok(())
 }
 
@@ -330,6 +334,9 @@ pub async fn test_scan(op: Operator) -> Result<()> {
     assert!(actual.contains("x/y"));
     assert!(actual.contains("x/x/y"));
     assert!(actual.contains("x/x/x/y"));
+
+    op.remove_all(&format!("{parent}/")).await?;
+
     Ok(())
 }
 
@@ -348,7 +355,7 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
         }
     }
 
-    op.remove_all(&format!("{parent}/x/")).await?;
+    op.remove_all(&format!("{parent}/")).await?;
 
     for path in expected.iter() {
         if path.ends_with('/') {
@@ -359,5 +366,6 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
             "{parent}/{path} should be removed"
         )
     }
+
     Ok(())
 }

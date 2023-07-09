@@ -26,7 +26,6 @@ use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
 use http::StatusCode;
-use log::debug;
 use log::warn;
 use reqwest::Url;
 use sha2::Digest;
@@ -100,6 +99,7 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -115,6 +115,7 @@ pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -129,6 +130,7 @@ pub async fn test_write_only(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -141,13 +143,15 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
 
+    op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
-    if op.info().scheme() == opendal::Scheme::Supabase {
+    if op.info().scheme() == Scheme::Supabase {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
@@ -161,6 +165,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -256,6 +261,7 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -269,6 +275,7 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
     assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -290,13 +297,13 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
 /// Stat not cleaned path should also succeed.
 pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content).await.expect("write must succeed");
@@ -306,6 +313,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -327,7 +335,6 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -349,6 +356,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
     assert!(result.is_ok());
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -359,7 +367,6 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -385,6 +392,7 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(res.content_length(), meta.content_length());
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -402,7 +410,6 @@ pub async fn test_stat_root(op: Operator) -> Result<()> {
 /// Read full content should match.
 pub async fn test_read_full(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -418,6 +425,7 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -428,7 +436,6 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
@@ -448,6 +455,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -458,7 +466,6 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, _) = gen_offset_length(size);
 
@@ -479,6 +486,7 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -489,7 +497,6 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
@@ -512,6 +519,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -522,7 +530,6 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, _) = gen_offset_length(size);
 
@@ -543,6 +550,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -553,7 +561,6 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (_, length) = gen_offset_length(size);
 
@@ -582,6 +589,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -603,7 +611,6 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -624,6 +631,7 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
     assert_eq!(bs, content);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -634,7 +642,6 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -658,6 +665,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(bs, content);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -667,7 +675,6 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -699,6 +706,7 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
     }
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -708,7 +716,6 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -740,6 +747,7 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
     }
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -749,7 +757,6 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size);
 
@@ -783,6 +790,7 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
     }
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -797,6 +805,7 @@ pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -809,7 +818,6 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
     op.write(&path, content.clone())
@@ -825,6 +833,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -870,6 +879,7 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -926,7 +936,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
     Ok(())
 }
 
-/// Delete existing file should succeed.
+/// Abort writer should not write actual file.
 pub async fn test_writer_abort(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes();
@@ -989,7 +999,6 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
     op.write(&path, content).await.expect("write must succeed");
@@ -1050,6 +1059,8 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
         )
     }
 
+    op.delete(&format!("{dir}/")).await?;
+
     Ok(())
 }
 
@@ -1089,6 +1100,7 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -1129,6 +1141,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -1169,6 +1182,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -1204,6 +1218,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 
@@ -1231,5 +1246,6 @@ pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
     fuzzer.check(&content);
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }

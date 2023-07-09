@@ -36,7 +36,7 @@ pub fn behavior_append_tests(op: &Operator) -> Vec<Trial> {
     async_trials!(
         op,
         test_append_create_append,
-        test_append_with_dir_path,
+        test_append_to_dir_path,
         test_append_with_cache_control,
         test_append_with_content_type,
         test_append_with_content_disposition,
@@ -71,13 +71,15 @@ pub async fn test_append_create_append(op: Operator) -> Result<()> {
 }
 
 /// Test append to a directory path must fail.
-pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
+pub async fn test_append_to_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes();
 
     let res = op.append(&path, content).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::IsADirectory);
+
+    op.delete(&path).await.expect("delete file must success");
 
     Ok(())
 }
@@ -194,6 +196,7 @@ pub async fn test_appender_futures_copy(op: Operator) -> Result<()> {
     );
 
     op.delete(&path).await.expect("delete must succeed");
+
     Ok(())
 }
 

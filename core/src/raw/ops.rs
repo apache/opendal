@@ -40,12 +40,27 @@ impl OpCreateDir {
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct OpDelete {}
+pub struct OpDelete {
+    version: Option<String>,
+}
 
 impl OpDelete {
     /// Create a new `OpDelete`.
     pub fn new() -> Self {
-        Self {}
+        Self::default()
+    }
+}
+
+impl OpDelete {
+    /// Change the version of this delete operation.
+    pub fn with_version(mut self, version: &str) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Get the version of this delete operation.
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
     }
 }
 
@@ -229,6 +244,7 @@ pub struct OpRead {
     if_none_match: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
+    version: Option<String>,
 }
 
 impl OpRead {
@@ -292,6 +308,17 @@ impl OpRead {
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
     }
+
+    /// Set the version of the option
+    pub fn with_version(mut self, version: &str) -> Self {
+        self.version = Some(version.to_string());
+        self
+    }
+
+    /// Get version from option
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
+    }
 }
 
 /// Args for `stat` operation.
@@ -299,6 +326,7 @@ impl OpRead {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
+    version: Option<String>,
 }
 
 impl OpStat {
@@ -327,6 +355,17 @@ impl OpStat {
     /// Get If-None-Match from option
     pub fn if_none_match(&self) -> Option<&str> {
         self.if_none_match.as_deref()
+    }
+
+    /// Set the version of the option
+    pub fn with_version(mut self, version: &str) -> Self {
+        self.version = Some(version.to_string());
+        self
+    }
+
+    /// Get version from option
+    pub fn version(&self) -> Option<&str> {
+        self.version.as_deref()
     }
 }
 

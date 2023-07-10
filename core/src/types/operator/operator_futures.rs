@@ -357,6 +357,12 @@ impl FutureRead {
         self.0 = self.0.map_args(|args| args.with_if_none_match(v));
         self
     }
+
+    /// Set the version for this operation.
+    pub fn version(mut self, v: &str) -> Self {
+        self.0 = self.0.map_args(|args| args.with_version(v));
+        self
+    }
 }
 
 impl Future for FutureRead {

@@ -1073,11 +1073,46 @@ impl Operator {
     /// # }
     /// ```
     pub async fn delete(&self, path: &str) -> Result<()> {
+        self.delete_with(path).await
+    }
+
+    /// Delete the given path with extra options.
+    ///
+    /// # Notes
+    ///
+    /// - Deleting a file that does not exist won't return errors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.delete_with("test").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn delete_with(&self, path: &str) -> FutureDelete {
         let path = normalize_path(path);
 
-        let _ = self.inner().delete(&path, OpDelete::new()).await?;
+        let fut = FutureDelete(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpDelete::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    let _ = inner.delete(&path, args).await?;
+                    Ok(())
+                };
 
-        Ok(())
+                Box::pin(fut)
+            },
+        ));
+
+        fut
     }
 
     ///

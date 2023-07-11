@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::str::FromStr;
 use std::sync::Arc;
 
+use anyhow::Context;
 use anyhow::Result;
 use oay::services::S3Service;
 use oay::Config;
-use opendal::services::Memory;
 use opendal::Operator;
+use opendal::Scheme;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
@@ -33,19 +35,10 @@ async fn main() -> Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    let cfg: Config = Config {
-        backend: oay::BackendConfig {
-            typ: "memory".to_string(),
-        },
-        frontends: oay::FrontendsConfig {
-            s3: oay::S3Config {
-                enable: true,
-                addr: "127.0.0.1:3000".to_string(),
-            },
-        },
-    };
-
-    let op = Operator::new(Memory::default())?.finish();
+    let cfg: Config =
+        toml::from_str(&std::fs::read_to_string("oay.toml").context("failed to open oay.toml")?)?;
+    let scheme = Scheme::from_str(&cfg.backend.typ).context("unsupported scheme")?;
+    let op = Operator::via_map(scheme, cfg.backend.map.clone())?;
 
     let s3 = S3Service::new(Arc::new(cfg), op);
 

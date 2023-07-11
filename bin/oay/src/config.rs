@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -28,6 +30,8 @@ pub struct Config {
 pub struct BackendConfig {
     #[serde(rename = "type")]
     pub typ: String,
+    #[serde(flatten)]
+    pub map: HashMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize)]

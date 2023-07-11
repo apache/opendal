@@ -27,6 +27,7 @@ cargo-fuzz = true
 [dependencies]
 anyhow = "1.0.71"
 arbitrary = { version = "1.3.0", features = ["derive"] }
+dotenvy = "0.15.7"
 libfuzzer-sys = "0.4"
 opendal = { path = ".." }
 tokio = { version = "1", features = ["full"] }
@@ -37,6 +38,6 @@ debug = 1
 
 [[bin]]
 doc = false
-name = "fuzz_reader_fs"
-path = "fuzz_targets/fuzz_reader_fs.rs"
+name = "fuzz_reader"
+path = "fuzz_reader.rs"
 test = false

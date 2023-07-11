@@ -10,6 +10,23 @@ To run the fuzz tests, you need to switch your rust version to nightly. You can 
 rustup override set nightly
 ```
 
+To run the fuzz tests, please copy the `.env.example`, which is at project root, to `.env` and change the values on need.
+
+Take `fs` for example, we need to change to enable behavior test on `fs` on `/tmp`.
+
+```dotenv
+OPENDAL_FS_TEST=false
+OPENDAL_FS_ROOT=/path/to/dir
+```
+
+into
+
+```dotenv
+OPENDAL_FS_TEST=on
+OPENDAL_FS_ROOT=/tmp
+```
+
+
 ## Run
 
 List all fuzz targets.
@@ -18,10 +35,10 @@ List all fuzz targets.
 cargo fuzz list
 ```
 
-Run a fuzz target(such as `fs` `reader`).
+Run a fuzz target(such as `reader`).
 
 ```bash
-cargo fuzz run fuzz_reader_fs
+cargo fuzz run fuzz_reader
 ```
 
 For more details, please visit [cargo fuzz](https://rust-fuzz.github.io/book/cargo-fuzz/tutorial.html) or run the command cargo fuzz --help.

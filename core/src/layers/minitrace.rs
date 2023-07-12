@@ -64,32 +64,29 @@ use crate::*;
 /// fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 ///     let collector = {
 ///         let (span, collector) = minitrace::Span::root("op");
-///         let _g = span.set_local_parent();
 ///         let runtime = tokio::runtime::Runtime::new()?;
-///
-///         runtime.block_on(async {
-///             let _ = dotenvy::dotenv();
-///             let op = Operator::from_env::<services::Memory>()
-///                 .expect("init operator must succeed")
-///                 .layer(MinitraceLayer)
-///                 .finish();
-///
-///             op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
-///                 .await
-///                 .expect("must succeed");
-///             op.stat("test").await.expect("must succeed");
-///             op.read("test").await.expect("must succeed");
-///         });
+///         runtime.block_on(
+///             async {
+///                 let _ = dotenvy::dotenv();
+///                 let op = Operator::from_env::<services::Memory>()
+///                     .expect("init operator must succeed")
+///                     .layer(MinitraceLayer)
+///                     .finish();
+///                 op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
+///                     .await
+///                     .expect("must succeed");
+///                 op.stat("test").await.expect("must succeed");
+///                 op.read("test").await.expect("must succeed");
+///             }
+///             .in_span(Span::enter_with_parent("test", &span)),
+///         );
 ///         collector
 ///     };
-///
 ///     let spans = block_on(collector.collect());
-///
 ///     let bytes =
 ///         minitrace_jaeger::encode("opendal".to_owned(), rand::random(), 0, 0, &spans).unwrap();
 ///     minitrace_jaeger::report_blocking("127.0.0.1:6831".parse().unwrap(), &bytes)
 ///         .expect("report error");
-///
 ///     Ok(())
 /// }
 /// ```

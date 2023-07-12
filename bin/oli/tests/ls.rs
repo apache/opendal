@@ -32,9 +32,9 @@ async fn test_basic_cat() -> Result<()> {
     let dst_path_3 = Path::new(&dir).join("dst_3.txt");
 
     let expect = "hello";
-    fs::write(&dst_path_1, expect)?;
-    fs::write(&dst_path_2, expect)?;
-    fs::write(&dst_path_3, expect)?;
+    fs::write(dst_path_1, expect)?;
+    fs::write(dst_path_2, expect)?;
+    fs::write(dst_path_3, expect)?;
 
     let mut cmd = Command::cargo_bin("oli")?;
 

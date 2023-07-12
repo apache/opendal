@@ -36,6 +36,6 @@ async fn test_basic_rm() -> Result<()> {
     cmd.arg("rm").arg(dst_path.as_os_str());
     cmd.assert().success();
 
-    assert_eq!(fs::read_to_string(&dst_path).is_err(), true);
+    assert!(fs::read_to_string(&dst_path).is_err());
     Ok(())
 }

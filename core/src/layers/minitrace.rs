@@ -172,22 +172,22 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.append(path, args).await
     }
 
-    #[trace("copy", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().copy(from, to, args).await
     }
 
-    #[trace("rename", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.inner().rename(from, to, args).await
     }
 
-    #[trace("stat", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await
     }
 
-    #[trace("delete", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.delete(path, args).await
     }
@@ -200,17 +200,17 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
             .await
     }
 
-    #[trace("presign", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
     }
 
-    #[trace("batch", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.inner.batch(args).await
     }
 
-    #[trace("blocking_create")]
+    #[trace]
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args)
     }
@@ -235,22 +235,22 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         })
     }
 
-    #[trace("blocking_copy")]
+    #[trace]
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().blocking_copy(from, to, args)
     }
 
-    #[trace("blocking_rename")]
+    #[trace]
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.inner().blocking_rename(from, to, args)
     }
 
-    #[trace("blocking_stat")]
+    #[trace]
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args)
     }
 
-    #[trace("blocking_delete")]
+    #[trace]
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.blocking_delete(path, args)
     }

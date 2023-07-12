@@ -277,9 +277,13 @@ impl Accessor for WebdavBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_sink: true,
+
                 create_dir: true,
                 delete: true,
+
                 copy: true,
+
                 rename: true,
 
                 list: true,
@@ -471,7 +475,7 @@ impl WebdavBackend {
     pub async fn webdav_put(
         &self,
         abs_path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,

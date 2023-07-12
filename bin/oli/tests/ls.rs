@@ -40,7 +40,7 @@ async fn test_basic_cat() -> Result<()> {
 
     let current_dir = dir.to_str().unwrap().to_string() + "/";
 
-    cmd.arg("ls").arg( current_dir );
+    cmd.arg("ls").arg(current_dir);
     let res = cmd.assert().success();
     let output = res.get_output().stdout.clone();
 

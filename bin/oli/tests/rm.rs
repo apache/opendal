@@ -33,8 +33,7 @@ async fn test_basic_rm() -> Result<()> {
 
     let mut cmd = Command::cargo_bin("oli")?;
 
-    cmd.arg("rm")
-        .arg(dst_path.as_os_str());
+    cmd.arg("rm").arg(dst_path.as_os_str());
     cmd.assert().success();
 
     assert_eq!(fs::read_to_string(&dst_path).is_err(), true);

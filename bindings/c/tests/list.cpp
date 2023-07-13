@@ -27,20 +27,20 @@ extern "C" {
 
 class OpendalListTest : public ::testing::Test {
 protected:
-  opendal_operator_ptr p;
+  const opendal_operator_ptr *p;
 
   // set up a brand new operator
   void SetUp() override {
-    opendal_operator_options options = opendal_operator_options_new();
-    opendal_operator_options_set(&options, "root", "/myroot");
+    opendal_operator_options *options = opendal_operator_options_new();
+    opendal_operator_options_set(options, "root", "/myroot");
 
-    this->p = opendal_operator_new("memory", &options);
-    EXPECT_TRUE(this->p.ptr);
+    this->p = opendal_operator_new("memory", options);
+    EXPECT_TRUE(this->p->ptr);
 
-    opendal_operator_options_free(&options);
+    opendal_operator_options_free(options);
   }
 
-  void TearDown() override { opendal_operator_free(&this->p); }
+  void TearDown() override { opendal_operator_free(this->p); }
 };
 
 // Basic usecase of list
@@ -63,7 +63,7 @@ TEST_F(OpendalListTest, ListDirTest) {
             OPENDAL_OK);
 
   opendal_result_list l =
-      opendal_operator_blocking_list(this->p, (dname + "/").c_str());
+      opendal_operator_blocking_list(*this->p, (dname + "/").c_str());
   EXPECT_EQ(l.code, OPENDAL_OK);
 
   opendal_blocking_lister lister = l.lister;
@@ -78,13 +78,13 @@ TEST_F(OpendalListTest, ListDirTest) {
     opendal_result_stat s = opendal_operator_stat(this->p, de_path);
     EXPECT_EQ(s.code, OPENDAL_OK);
 
-    opendal_metadata meta = s.meta;
+    opendal_metadata *meta = s.meta;
 
     if (!strcmp(de_path, path.c_str())) {
       found = true;
 
-      EXPECT_TRUE(opendal_metadata_is_file(&meta));
-      EXPECT_EQ(opendal_metadata_content_length(&meta), nbytes);
+      EXPECT_TRUE(opendal_metadata_is_file(meta));
+      EXPECT_EQ(opendal_metadata_content_length(meta), nbytes);
     }
 
     entry = opendal_lister_next(&lister);

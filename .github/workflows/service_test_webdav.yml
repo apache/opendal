@@ -177,21 +177,6 @@ jobs:
         with:
           need-nextest: true
 
-      - name: Wait for MySQL
-        run: |
-          for i in {1..30}; do
-            if echo 'SELECT 1' | mysql -h localhost -P 3306 -u nextcloud -pnextcloud nextcloud &> /dev/null; then
-              echo "MySQL is up!"
-              break
-            fi
-            echo "Waiting for MySQL..."
-            sleep 1
-          done
-
-      - name: Check online
-        run: |
-          curl http://localhost:8080
-
       - name: Test
         shell: bash
         working-directory: core

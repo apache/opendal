@@ -560,18 +560,38 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
 /**
  * \brief Blockingly list the objects in `path`.
  *
- * List the object in `path` blockingly by `op_ptr`
+ * List the object in `path` blockingly by `op_ptr`, return a result with a
+ * opendal_blocking_lister. Users should call opendal_lister_next() on the
+ * lister.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The designated path you want to delete
- * @see opendal_operator_ptr
- * @see opendal_code
+ * @see opendal_blocking_lister
  * @return
  *
  * # Example
  *
  * Following is an example
  * ```C
+ * // You have written some data into some files path "root/dir1"
+ * // Your opendal_operator_ptr was called ptr
+ * opendal_result_list l = opendal_operator_blocking_list(ptr, "root/dir1");
+ * assert(l.code == OPENDAL_OK);
+ *
+ * opendal_blocking_lister *lister = l.lister;
+ * opendal_list_entry *entry;
+ *
+ * while ((entry = opendal_lister_next(lister)) != NULL) {
+ *     const char* de_path = opendal_list_entry_path(entry);
+ *     const char* de_name = opendal_list_entry_name(entry);
+ *     // ...... your operations
+ *
+ *     // remember to free the entry after you are done using it
+ *     opendal_list_entry_free(entry);
+ * }
+ *
+ * // and remember to free the lister
+ * opendal_lister_free(lister);
  * ```
  *
  * # Safety

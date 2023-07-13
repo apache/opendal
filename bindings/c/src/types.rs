@@ -341,7 +341,9 @@ impl opendal_blocking_lister {
 
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_free(p: *const opendal_blocking_lister) {
-        unsafe { let _ = Box::from_raw(p as *mut opendal_blocking_lister); }
+        unsafe {
+            let _ = Box::from_raw(p as *mut opendal_blocking_lister);
+        }
     }
 }
 
@@ -368,7 +370,9 @@ impl opendal_list_entry {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_entry_free(p: *const opendal_list_entry ) {
-        unsafe { let _ = Box::from_raw(p as *mut opendal_list_entry); }
+    pub unsafe extern "C" fn opendal_list_entry_free(p: *const opendal_list_entry) {
+        unsafe {
+            let _ = Box::from_raw(p as *mut opendal_list_entry);
+        }
     }
 }

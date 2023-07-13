@@ -63,7 +63,7 @@ TEST_F(OpendalListTest, ListDirTest) {
             OPENDAL_OK);
 
   opendal_result_list l =
-      opendal_operator_blocking_list(*this->p, (dname + "/").c_str());
+      opendal_operator_blocking_list(this->p, (dname + "/").c_str());
   EXPECT_EQ(l.code, OPENDAL_OK);
 
   opendal_blocking_lister *lister = l.lister;

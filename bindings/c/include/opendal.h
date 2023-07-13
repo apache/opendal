@@ -584,7 +584,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_list opendal_operator_blocking_list(struct opendal_operator_ptr ptr,
+struct opendal_result_list opendal_operator_blocking_list(const struct opendal_operator_ptr *ptr,
                                                           const char *path);
 
 /**

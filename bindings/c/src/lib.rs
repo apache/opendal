@@ -446,14 +446,14 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_blocking_list(
-    ptr: opendal_operator_ptr,
+    ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_list {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = ptr.as_ref();
+    let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.list(path) {
         Ok(lister) => opendal_result_list {

@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use bytes::Buf;
@@ -203,6 +204,15 @@ impl Builder for WebdavBuilder {
             }
         };
 
+        let uri = http::Uri::from_str(endpoint).map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
+                .set_source(err)
+                .with_context("service", Scheme::Webdav)
+        })?;
+        // Some webdav server may have base dir like `/remote.php/webdav/`
+        // returned in the `href`.
+        let base_dir = uri.path().trim_end_matches('/');
+
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
@@ -229,6 +239,7 @@ impl Builder for WebdavBuilder {
         debug!("backend build finished: {:?}", &self);
         Ok(WebdavBackend {
             endpoint: endpoint.to_string(),
+            base_dir: base_dir.to_string(),
             authorization: auth,
             root,
             client,
@@ -240,6 +251,7 @@ impl Builder for WebdavBuilder {
 #[derive(Clone)]
 pub struct WebdavBackend {
     endpoint: String,
+    base_dir: String,
     root: String,
     client: HttpClient,
 
@@ -263,7 +275,7 @@ impl Accessor for WebdavBackend {
     type Writer = WebdavWriter;
     type BlockingWriter = ();
     type Appender = ();
-    type Pager = WebdavPager;
+    type Pager = Option<WebdavPager>;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -432,19 +444,10 @@ impl Accessor for WebdavBackend {
 
                 Ok((
                     RpList::default(),
-                    WebdavPager::new(&self.root, path, result),
+                    Some(WebdavPager::new(&self.base_dir, &self.root, path, result)),
                 ))
             }
-            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
-                RpList::default(),
-                WebdavPager::new(
-                    &self.root,
-                    path,
-                    Multistatus {
-                        response: Vec::new(),
-                    },
-                ),
-            )),
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((RpList::default(), None)),
             _ => Err(parse_error(resp).await?),
         }
     }

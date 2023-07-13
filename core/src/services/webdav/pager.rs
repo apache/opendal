@@ -23,14 +23,16 @@ use serde::Deserialize;
 use crate::raw::*;
 use crate::*;
 pub struct WebdavPager {
+    base_dir: String,
     root: String,
     path: String,
     multistates: Multistatus,
 }
 
 impl WebdavPager {
-    pub fn new(root: &str, path: &str, multistates: Multistatus) -> Self {
+    pub fn new(base_dir: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
         Self {
+            base_dir: base_dir.to_string(),
             root: root.into(),
             path: path.into(),
             multistates,
@@ -49,7 +51,10 @@ impl oio::Page for WebdavPager {
         let mut entries = Vec::with_capacity(oes.len());
 
         for res in oes {
-            let path = res.href.as_str();
+            let path = res
+                .href
+                .strip_prefix(&self.base_dir)
+                .unwrap_or(res.href.as_str());
 
             // Ignore the root path itself.
             if self.root == path {

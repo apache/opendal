@@ -46,34 +46,27 @@ impl oio::Page for WebdavPager {
         };
         let oes = mem::take(&mut self.multistates.response);
 
-        let oes = oes
-            .into_iter()
-            .filter_map(|de| {
-                let path = de.href;
+        let mut entries = Vec::with_capacity(oes.len());
 
-                // Ignore the root path itself.
-                if self.root == path {
-                    return None;
-                }
+        for res in oes {
+            let path = res.href.as_str();
 
-                let normalized_path = build_rel_path(&self.root, &path);
-                if normalized_path == self.path {
-                    // WebDav server may return the current path as an entry.
-                    return None;
-                }
+            // Ignore the root path itself.
+            if self.root == path {
+                continue;
+            }
 
-                let entry = if de.propstat.prop.resourcetype.value == Some(ResourceType::Collection)
-                {
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::DIR))
-                } else {
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::FILE))
-                };
+            let normalized_path = build_rel_path(&self.root, path);
+            if normalized_path == self.path {
+                // WebDav server may return the current path as an entry.
+                continue;
+            }
 
-                Some(entry)
-            })
-            .collect();
+            let meta = res.parse_into_metadata()?;
+            entries.push(oio::Entry::new(&normalized_path, meta))
+        }
 
-        Ok(Some(oes))
+        Ok(Some(entries))
     }
 }
 
@@ -116,7 +109,7 @@ impl ListOpResponse {
             }
         }
 
-        let mode = if href.ends_with('/') {
+        let mode: EntryMode = if href.ends_with('/') {
             EntryMode::DIR
         } else {
             EntryMode::FILE
@@ -134,6 +127,7 @@ impl ListOpResponse {
         if let Some(v) = getetag {
             m.set_etag(v);
         }
+
         // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
         m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
         Ok(m)

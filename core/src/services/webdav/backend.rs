@@ -428,6 +428,7 @@ impl Accessor for WebdavBackend {
                 let bs = resp.into_body().bytes().await?;
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+                log::info!("got response: {result:?}");
 
                 Ok((
                     RpList::default(),
@@ -640,15 +641,11 @@ impl WebdavBackend {
 
         match status {
             StatusCode::CREATED
-            | StatusCode::OK
-            // `File exists` will return `Method Not Allowed`
-            | StatusCode::METHOD_NOT_ALLOWED
-            // create existing dir will return conflict
-            | StatusCode::CONFLICT
-            // create existing file will return no_content
-            | StatusCode::NO_CONTENT
-            // ALlow mutiple status
-            | StatusCode::MULTI_STATUS=> {
+            // Allow mutiple status
+            | StatusCode::MULTI_STATUS
+            // The MKCOL method can only be performed on a deleted or non-existent resource.
+            // This error means the directory already exists which is allowed by create_dir.
+            | StatusCode::METHOD_NOT_ALLOWED => {
                 resp.into_body().consume().await?;
                 Ok(())
             }
@@ -662,21 +659,17 @@ impl WebdavBackend {
         while path != "/" {
             // check path first.
             let parent = get_parent(path);
-            log::info!("parent: {}", parent);
-            if parent == "/" {
-                break;
-            }
 
             let mut header_map = HeaderMap::new();
             // not include children
             header_map.insert("Depth", "0".parse().unwrap());
             header_map.insert(header::ACCEPT, "application/xml".parse().unwrap());
 
-            let resp = self.webdav_propfind(path, Some(header_map)).await?;
+            let resp = self.webdav_propfind(parent, Some(header_map)).await?;
             match resp.status() {
                 StatusCode::OK | StatusCode::MULTI_STATUS => break,
                 StatusCode::NOT_FOUND => {
-                    dirs.push_front(path);
+                    dirs.push_front(parent);
                     path = parent
                 }
                 _ => return Err(parse_error(resp).await?),

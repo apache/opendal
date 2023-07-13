@@ -165,6 +165,7 @@ jobs:
         ports:
           - 8080:80
         env:
+          SQLITE_DATABASE: nextcloud
           NEXTCLOUD_ADMIN_USER: admin
           NEXTCLOUD_ADMIN_PASSWORD: admin
         options: --health-cmd="curl -f http://localhost" --health-interval=10s --health-timeout=5s --health-retries=5

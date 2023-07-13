@@ -30,7 +30,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
-use super::list_response::Multistatus;
+use super::pager::Multistatus;
 use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
 use crate::raw::*;
@@ -298,29 +298,9 @@ impl Accessor for WebdavBackend {
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         self.ensure_parent_path(path).await?;
+        self.create_dir_internal(path).await?;
 
-        let abs_path = build_abs_path(&self.root, path);
-
-        let resp = self
-            .webdav_mkcol(&abs_path, None, None, AsyncBody::Empty)
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED
-            | StatusCode::OK
-            // `File exists` will return `Method Not Allowed`
-            | StatusCode::METHOD_NOT_ALLOWED
-            // create existing dir will return conflict
-            | StatusCode::CONFLICT
-            // create existing file will return no_content
-            | StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -529,29 +509,19 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn webdav_mkcol(
-        &self,
-        abs_path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
+    async fn webdav_mkcol(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::builder().method("MKCOL").uri(&url);
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth);
         }
 
-        if let Some(mime) = content_type {
-            req = req.header(header::CONTENT_TYPE, mime)
-        }
-
-        if let Some(cd) = content_disposition {
-            req = req.header(header::CONTENT_DISPOSITION, cd)
-        }
-
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -664,11 +634,7 @@ impl WebdavBackend {
     }
 
     async fn create_dir_internal(&self, path: &str) -> Result<()> {
-        let abs_path = build_abs_path(&self.root, path);
-
-        let resp = self
-            .webdav_mkcol(&abs_path, None, None, AsyncBody::Empty)
-            .await?;
+        let resp = self.webdav_mkcol(path).await?;
 
         let status = resp.status();
 
@@ -680,7 +646,9 @@ impl WebdavBackend {
             // create existing dir will return conflict
             | StatusCode::CONFLICT
             // create existing file will return no_content
-            | StatusCode::NO_CONTENT => {
+            | StatusCode::NO_CONTENT
+            // ALlow mutiple status
+            | StatusCode::MULTI_STATUS=> {
                 resp.into_body().consume().await?;
                 Ok(())
             }
@@ -694,13 +662,24 @@ impl WebdavBackend {
         while path != "/" {
             // check path first.
             let parent = get_parent(path);
-            match self.stat(path, OpStat::default()).await {
-                Ok(_) => break,
-                Err(err) if err.kind() != ErrorKind::NotFound => return Err(err),
-                _ => {
+            log::info!("parent: {}", parent);
+            if parent == "/" {
+                break;
+            }
+
+            let mut header_map = HeaderMap::new();
+            // not include children
+            header_map.insert("Depth", "0".parse().unwrap());
+            header_map.insert(header::ACCEPT, "application/xml".parse().unwrap());
+
+            let resp = self.webdav_propfind(path, Some(header_map)).await?;
+            match resp.status() {
+                StatusCode::OK | StatusCode::MULTI_STATUS => break,
+                StatusCode::NOT_FOUND => {
                     dirs.push_front(path);
                     path = parent
                 }
+                _ => return Err(parse_error(resp).await?),
             }
         }
 

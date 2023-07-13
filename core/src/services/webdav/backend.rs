@@ -322,6 +322,8 @@ impl Accessor for WebdavBackend {
             ));
         }
 
+        self.ensure_parent_path(path).await?;
+
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))

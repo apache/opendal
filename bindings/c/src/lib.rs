@@ -457,12 +457,12 @@ pub unsafe extern "C" fn opendal_operator_blocking_list(
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.list(path) {
         Ok(lister) => opendal_result_list {
-            lister: opendal_blocking_lister::from_lister(lister),
+            lister: Box::into_raw(Box::new(opendal_blocking_lister::new(lister))),
             code: opendal_code::OPENDAL_OK,
         },
 
         Err(e) => opendal_result_list {
-            lister: opendal_blocking_lister::null(),
+            lister: std::ptr::null_mut(),
             code: opendal_code::from_opendal_error(e),
         },
     }

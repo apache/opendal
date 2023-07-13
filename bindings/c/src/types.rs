@@ -320,15 +320,9 @@ pub struct opendal_blocking_lister {
 }
 
 impl opendal_blocking_lister {
-    pub(crate) fn from_lister(lister: od::BlockingLister) -> Self {
+    pub(crate) fn new(lister: od::BlockingLister) -> Self {
         Self {
             inner: Box::leak(Box::new(lister)),
-        }
-    }
-
-    pub(crate) fn null() -> Self {
-        Self {
-            inner: std::ptr::null_mut(),
         }
     }
 

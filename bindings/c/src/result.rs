@@ -69,6 +69,6 @@ pub struct opendal_result_stat {
 
 #[repr(C)]
 pub struct opendal_result_list {
-    pub lister: opendal_blocking_lister,
+    pub lister: *mut opendal_blocking_lister,
     pub code: opendal_code,
 }

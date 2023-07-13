@@ -279,7 +279,7 @@ typedef struct opendal_blocking_lister {
 } opendal_blocking_lister;
 
 typedef struct opendal_result_list {
-  struct opendal_blocking_lister lister;
+  struct opendal_blocking_lister *lister;
   enum opendal_code code;
 } opendal_result_list;
 

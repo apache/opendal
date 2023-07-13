@@ -66,12 +66,12 @@ TEST_F(OpendalListTest, ListDirTest) {
       opendal_operator_blocking_list(*this->p, (dname + "/").c_str());
   EXPECT_EQ(l.code, OPENDAL_OK);
 
-  opendal_blocking_lister lister = l.lister;
+  opendal_blocking_lister *lister = l.lister;
 
   // start checking the lister's result
   bool found = false;
 
-  opendal_list_entry entry = opendal_lister_next(&lister);
+  opendal_list_entry entry = opendal_lister_next(lister);
   while (entry.inner) {
     const char *de_path = opendal_list_entry_path(&entry);
 
@@ -87,7 +87,7 @@ TEST_F(OpendalListTest, ListDirTest) {
       EXPECT_EQ(opendal_metadata_content_length(meta), nbytes);
     }
 
-    entry = opendal_lister_next(&lister);
+    entry = opendal_lister_next(lister);
   }
 
   EXPECT_TRUE(found);

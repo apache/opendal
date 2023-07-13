@@ -326,17 +326,16 @@ impl opendal_blocking_lister {
         }
     }
 
-    /// nullable
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_lister_next(&self) -> opendal_list_entry {
+    pub unsafe extern "C" fn opendal_lister_next(&self) -> *mut opendal_list_entry {
         let e = (*self.inner).next();
         if e.is_none() {
-            return opendal_list_entry::null();
+            return std::ptr::null_mut();
         }
 
         match e.unwrap() {
-            Ok(e) => opendal_list_entry::from_entry(e),
-            Err(_) => opendal_list_entry::null(),
+            Ok(e) => Box::into_raw(Box::new(opendal_list_entry::new(e))),
+            Err(_) => std::ptr::null_mut(),
         }
     }
 }
@@ -347,15 +346,9 @@ pub struct opendal_list_entry {
 }
 
 impl opendal_list_entry {
-    pub(crate) fn from_entry(entry: od::Entry) -> Self {
+    pub(crate) fn new(entry: od::Entry) -> Self {
         Self {
             inner: Box::leak(Box::new(entry)),
-        }
-    }
-
-    pub(crate) fn null() -> Self {
-        Self {
-            inner: std::ptr::null_mut(),
         }
     }
 

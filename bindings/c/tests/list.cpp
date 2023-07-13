@@ -74,9 +74,9 @@ TEST_F(OpendalListTest, ListDirTest)
     // start checking the lister's result
     bool found = false;
 
-    opendal_list_entry entry = opendal_lister_next(lister);
-    while (entry.inner) {
-        const char* de_path = opendal_list_entry_path(&entry);
+    opendal_list_entry *entry = opendal_lister_next(lister);
+    while (entry) {
+        const char* de_path = opendal_list_entry_path(entry);
 
         // stat must succeed
         opendal_result_stat s = opendal_operator_stat(this->p, de_path);

@@ -704,10 +704,7 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
  */
 void opendal_operator_options_free(const struct opendal_operator_options *options);
 
-/**
- * nullable
- */
-struct opendal_list_entry opendal_lister_next(const struct opendal_blocking_lister *self);
+struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lister *self);
 
 const char *opendal_list_entry_path(const struct opendal_list_entry *self);
 

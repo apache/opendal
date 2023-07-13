@@ -25,7 +25,7 @@ use opendal::raw::oio::ReadExt;
 use opendal::Operator;
 use std::io::SeekFrom;
 
-const MAX_DATA_SIZE: usize = 1000;
+const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 enum ReaderAction {
@@ -46,17 +46,18 @@ impl Arbitrary<'_> for FuzzInput {
         let data_len = u.int_in_range(1..=MAX_DATA_SIZE)?;
         let data: Vec<u8> = u.bytes(data_len)?.to_vec();
         let mut actions = vec![];
-        while !u.is_empty() {
+        let mut action_count = u.int_in_range(128..=1024)?;
+        while action_count != 0 {
+            action_count -= 1;
             match u.int_in_range(0..=2)? {
                 0 => {
-                    // Ensure size is smaller than data size
-                    let size = u.int_in_range(0..=data_len)?;
+                    let size = u.int_in_range(0..=data_len * 2)?;
                     actions.push(ReaderAction::Read { size });
                 }
                 1 => {
-                    let offset = u.int_in_range(0..=data_len)?;
+                    let offset: i32 = u.int_in_range(-(data_len as i32)..=(data_len as i32))?;
                     let seek_from = match u.int_in_range(0..=2)? {
-                        0 => SeekFrom::Start(offset as u64),
+                        0 => SeekFrom::Start(offset.abs() as u64),
                         1 => SeekFrom::End(offset as i64),
                         _ => SeekFrom::Current(offset as i64),
                     };
@@ -69,45 +70,50 @@ impl Arbitrary<'_> for FuzzInput {
     }
 }
 
-fn fuzz_reader(name: &str, op: &Operator, input: FuzzInput) {
+async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Result<()> {
     let len = input.data.len();
-    let result: anyhow::Result<()> = tokio::runtime::Runtime::new().unwrap().block_on(async {
-        let path = uuid::Uuid::new_v4().to_string();
-        op.write(&path, input.data)
-            .await
-            .expect(format!("{} write must succeed", name).as_str());
-        let mut o = op
-            .range_reader(&path, 0..len as u64)
-            .await
-            .expect(format!("{} init range_reader must succeed", name).as_str());
-
-        for action in input.actions {
-            match action {
-                ReaderAction::Read { size } => {
-                    let mut buf = vec![0; size];
-                    o.read(&mut buf)
-                        .await
-                        .expect(format!("{} read must succeed", name).as_str());
-                }
-                ReaderAction::Seek(seek_from) => {
-                    o.seek(seek_from)
-                        .await
-                        .expect(format!("{} seek must succeed", name).as_str());
-                }
-                ReaderAction::Next => {
-                    o.next().await.map(|v| {
-                        v.expect(format!("{} next should not return error", name).as_str())
-                    });
-                }
+    let path = uuid::Uuid::new_v4().to_string();
+    op.write(&path, input.data)
+        .await
+        .expect(format!("{} write must succeed", name).as_str());
+    let mut o = op
+        .range_reader(&path, 0..len as u64)
+        .await
+        .expect(format!("{} init range_reader must succeed", name).as_str());
+    let cur = 0;
+    for action in input.actions {
+        match action {
+            ReaderAction::Read { size } => {
+                let mut buf = vec![0; size];
+                o.read(&mut buf)
+                    .await
+                    .expect(format!("{} read must succeed", name).as_str());
+            }
+            ReaderAction::Seek(seek_from) => {
+                o.seek(seek_from)
+                    .await
+                    .expect(format!("{} seek must succeed", name).as_str());
+            }
+            ReaderAction::Next => {
+                o.next()
+                    .await
+                    .map(|v| v.expect(format!("{} next should not return error", name).as_str()));
             }
         }
-        op.delete(&path)
-            .await
-            .expect(format!("{} delete must succeed", name).as_str());
-        Ok(())
-    });
+    }
+    op.delete(&path)
+        .await
+        .expect(format!("{} delete must succeed", name).as_str());
+    Ok(())
+}
 
-    result.expect(format!("{} fuzz_reader must succeed", name).as_str())
+fn fuzz_reader(name: &str, op: &Operator, input: FuzzInput) {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    runtime.block_on(async {
+        fuzz_reader_process(input, &op, name)
+            .await
+            .expect(format!("{} fuzz_reader must succeed", name).as_str());
+    });
 }
 
 fuzz_target!(|input: FuzzInput| {

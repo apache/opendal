@@ -4,11 +4,7 @@ fuzz test are used to test the robustness of the code.
 
 ## Setup
 
-To run the fuzz tests, you need to switch your rust version to nightly. You can do this by running the following command:
 
-```bash
-rustup override set nightly
-```
 
 To run the fuzz tests, please copy the `.env.example`, which is at project root, to `.env` and change the values on need.
 
@@ -32,13 +28,13 @@ OPENDAL_FS_ROOT=/tmp
 List all fuzz targets.
 
 ```bash
-cargo fuzz list
+cargo +nightly fuzz list
 ```
 
 Run a fuzz target(such as `reader`).
 
 ```bash
-cargo fuzz run fuzz_reader
+cargo +nightly fuzz run fuzz_reader
 ```
 
 For more details, please visit [cargo fuzz](https://rust-fuzz.github.io/book/cargo-fuzz/tutorial.html) or run the command cargo fuzz --help.

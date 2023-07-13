@@ -338,6 +338,11 @@ impl opendal_blocking_lister {
             Err(_) => std::ptr::null_mut(),
         }
     }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_lister_free(p: *const opendal_blocking_lister) {
+        unsafe { let _ = Box::from_raw(p as *mut opendal_blocking_lister); }
+    }
 }
 
 #[repr(C)]
@@ -360,5 +365,10 @@ impl opendal_list_entry {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *const c_char {
         (*self.inner).name().as_ptr() as *const c_char
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_list_entry_free(p: *const opendal_list_entry ) {
+        unsafe { let _ = Box::from_raw(p as *mut opendal_list_entry); }
     }
 }

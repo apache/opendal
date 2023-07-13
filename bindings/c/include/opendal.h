@@ -706,9 +706,13 @@ void opendal_operator_options_free(const struct opendal_operator_options *option
 
 struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lister *self);
 
+void opendal_lister_free(const struct opendal_blocking_lister *p);
+
 const char *opendal_list_entry_path(const struct opendal_list_entry *self);
 
 const char *opendal_list_entry_name(const struct opendal_list_entry *self);
+
+void opendal_list_entry_free(const struct opendal_list_entry *p);
 
 #ifdef __cplusplus
 } // extern "C"

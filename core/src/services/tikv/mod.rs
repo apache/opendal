@@ -13,4 +13,5 @@
 // limitations under the License.
 
 mod backend;
-pub use backend::Backend;
+
+pub use backend::TiKVBuilder as TiKV;

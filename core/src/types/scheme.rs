@@ -102,6 +102,8 @@ pub enum Scheme {
     Webhdfs,
     /// [redb][crate::services::Redb]: Redb Services
     Redb,
+    /// [tikv][crate::services::tikv]: TiKV Services
+    TiKV,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -209,6 +211,7 @@ impl From<Scheme> for &'static str {
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
             Scheme::Redb => "redb",
+            Scheme::TiKV => "tikv",
             Scheme::Custom(v) => v,
         }
     }

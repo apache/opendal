@@ -15,35 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
-
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Stream;
-use pin_project::pin_project;
-use tikv_client::BoundRange;
+use std::collections::HashMap;
 use tikv_client::Config;
-use tikv_client::Key;
-use tikv_client::KvPair;
 use tikv_client::RawClient;
 
-use crate::adapters::kv::Adapter;
-use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
-use crate::ops::Operation;
-use crate::path::normalize_root;
+use crate::raw::adapters::kv;
+use crate::Capability;
+use crate::Scheme;
+use async_trait::async_trait;
 
-const DEFAULT_TIKV_ENDPOINT: &str = "127.0.0.1:2379";
-const DEFAULT_TIKV_PORT: u16 = 6379;
+use crate::Builder;
+use crate::Error;
+use crate::ErrorKind;
+use crate::*;
+
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
 /// TiKV backend builder
 #[derive(Clone, Default)]
-pub struct Builder {
+pub struct TiKVBuilder {
     /// network address of the TiKV service.
     ///
     /// default is "127.0.0.1:2379"
@@ -56,27 +47,25 @@ pub struct Builder {
     cert_path: Option<String>,
     /// key path
     key_path: Option<String>,
-
-    /// the working directory of the TiKV service. Can be "path/to/dir"
-    ///
-    /// default is "/"
-    root: Option<String>,
 }
 
-impl Builder {
-    pub fn endpoints(&mut self, endpoints: impl Into<Vec<&str>>) -> &mut Self {
-        let ep: Vec<String> = endpoints.into().into_iter().map(|s| s.to_owned()).collect();
+impl TiKVBuilder {
+    /// Set the network address of the TiKV service.
+    pub fn endpoints(&mut self, endpoints: impl Into<Vec<String>>) -> &mut Self {
+        let ep: Vec<String> = endpoints.into().into_iter().collect();
         if !ep.is_empty() {
             self.endpoints = Some(ep)
         }
         self
     }
 
+    /// Set the insecure connection to TiKV.
     pub fn insecure(&mut self) -> &mut Self {
-        self.insecure = true;
+        self.insecure = false;
         self
     }
 
+    /// Set the certificate authority file path.
     pub fn ca_path(&mut self, ca_path: &str) -> &mut Self {
         if !ca_path.is_empty() {
             self.ca_path = Some(ca_path.to_string())
@@ -84,6 +73,7 @@ impl Builder {
         self
     }
 
+    /// Set the certificate file path.
     pub fn cert_path(&mut self, cert_path: &str) -> &mut Self {
         if !cert_path.is_empty() {
             self.cert_path = Some(cert_path.to_string())
@@ -91,72 +81,67 @@ impl Builder {
         self
     }
 
+    /// Set the key file path.
     pub fn key_path(&mut self, key_path: &str) -> &mut Self {
         if !key_path.is_empty() {
             self.key_path = Some(key_path.to_string())
         }
         self
     }
-
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.root = Some(root.to_string())
-        }
-        self
-    }
 }
 
-impl Builder {
-    pub async fn build(&mut self) -> Result<Backend> {
-        let endpoints = self
-            .endpoints
-            .clone()
-            .unwrap_or_else(|| vec![DEFAULT_TIKV_ENDPOINT.to_string()]);
+impl Builder for TiKVBuilder {
+    const SCHEME: Scheme = Scheme::Redb;
+    type Accessor = Backend;
 
-        let r = self
-            .root
-            .clone()
-            .unwrap_or_else(|| "/".to_string())
-            .as_str();
-        let root = normalize_root(r);
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = TiKVBuilder::default();
 
-        let mut ctx = Hashmap::from([("endpoints".to_string(), format!("{:?}", endpoint.clone()))]);
+        map.get("endpoints")
+            .map(|v| v.split(',').map(|s| s.to_owned()).collect::<Vec<String>>())
+            .map(|v| builder.endpoints(v));
+        map.get("insecure")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.insecure());
+        map.get("ca_path").map(|v| builder.ca_path(v));
+        map.get("cert_path").map(|v| builder.cert_path(v));
+        map.get("key_path").map(|v| builder.key_path(v));
 
-        let client = if self.insecure {
-            RawClient::new(endpoints).await.map_err(|err| {
-                new_other_backend_error(ctx.clone(), anyhow::anyhow!("invalid configuration", err))
-            })?
-        } else if self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
-            let (ca_path, key_path, cert_path) = (
-                self.ca_path.clone().unwrap(),
-                self.key_path.clone().unwrap(),
-                self.cert_path.clone().unwrap(),
-            );
-            ctx.extend([
-                ("ca_path".to_string(), ca_path.clone()),
-                ("key_path".to_string(), key_path.clone()),
-                ("cert_path".to_string(), cert_path.clone()),
-            ]);
-            let config = Config::default().with_security(ca_path, cert_path, key_path);
-            RawClient::new_with_config(endpoints, config)
-                .await
-                .map_err(|err| {
-                    new_other_backend_error(
-                        ctx.clone(),
-                        anyhow::anyhow!("invalid configuration", err),
-                    )
-                })?
-        } else {
-            return Err(new_other_backend_error(
-                ctx.clone(),
-                anyhow::anyhow!("invalid configuration: no enough certifications"),
-            ));
-        };
+        builder
+    }
 
-        debug!("backend build finished: {:?}", &self);
+    fn build(&mut self) -> Result<Self::Accessor> {
+        let endpoints = self.endpoints.take().ok_or_else(|| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "endpoints is required but not set",
+            )
+            .with_context("service", Scheme::TiKV)
+        })?;
+
+        if self.insecure {
+            if self.ca_path.is_some() || self.key_path.is_some() || self.cert_path.is_some() {
+                return Err(
+                    Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
+                        .with_context("service", Scheme::TiKV)
+                        .with_context("endpoints", format!("{:?}", endpoints)),
+                )?;
+            }
+        } else if !(self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some()) {
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
+                    .with_context("service", Scheme::TiKV)
+                    .with_context("endpoints", format!("{:?}", endpoints)),
+            )?;
+        }
+
         Ok(Backend::new(Adapter {
-            client,
-            next_id: Arc::new(AtomicU64::new(0)),
+            client: None,
+            endpoints,
+            insecure: self.insecure,
+            ca_path: self.ca_path.clone(),
+            cert_path: self.cert_path.clone(),
+            key_path: self.key_path.clone(),
         }))
     }
 }
@@ -166,133 +151,107 @@ pub type Backend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    client: TransactionClient,
-    next_id: Arc<AtomicU64>,
+    client: Option<RawClient>,
+    endpoints: Vec<String>,
+    insecure: bool,
+    ca_path: Option<String>,
+    cert_path: Option<String>,
+    key_path: Option<String>,
 }
 
-#[async_trait::async_trait]
+impl Debug for Adapter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Adapter");
+        ds.field("endpoints", &self.endpoints);
+        ds.field("insecure", &self.insecure);
+        ds.field("ca_path", &self.ca_path);
+        ds.field("cert_path", &self.cert_path);
+        ds.field("key_path", &self.key_path);
+        ds.finish()
+    }
+}
+
+impl Adapter {
+    async fn get_connection(&self) -> Result<RawClient> {
+        if let Some(client) = self.client.clone() {
+            return Ok(client);
+        }
+
+        let client = if self.insecure {
+            RawClient::new(self.endpoints.clone())
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
+                        .with_context("service", Scheme::TiKV)
+                        .with_context("endpoints", format!("{:?}", self.endpoints))
+                        .set_source(err)
+                })?
+        } else if self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
+            let (ca_path, key_path, cert_path) = (
+                self.ca_path.clone().unwrap(),
+                self.key_path.clone().unwrap(),
+                self.cert_path.clone().unwrap(),
+            );
+            let config = Config::default().with_security(ca_path, cert_path, key_path);
+            RawClient::new_with_config(self.endpoints.clone(), config)
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
+                        .with_context("service", Scheme::TiKV)
+                        .with_context("endpoints", format!("{:?}", self.endpoints))
+                        .set_source(err)
+                })?
+        } else {
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
+                    .with_context("service", Scheme::TiKV)
+                    .with_context("endpoints", format!("{:?}", self.endpoints)),
+            );
+        };
+        Ok(client)
+    }
+}
+
+#[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::TiKV,
             "TiKV",
-            AccessorCapability::Read | AccessorCapability::Write,
+            Capability {
+                read: true,
+                write: true,
+                blocking: false,
+                ..Default::default()
+            },
         )
     }
 
-    async fn next_id(&self) -> Result<u64> {
-        Ok(self.next_id.fetch_add(1, Ordering::Relaxed))
-    }
-
-    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        self.client
-            .put(key, value)
+    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        self.get_connection()
+            .await?
+            .get(path.to_owned())
             .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
+            .map_err(parse_tikv_error)
     }
 
-    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        self.client
-            .get(key)
+    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+        self.get_connection()
+            .await?
+            .put(path.to_owned(), value.to_vec())
             .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
+            .map_err(parse_tikv_error)
     }
 
-    async fn delete(&self, key: &[u8]) -> Result<()> {
-        self.client
-            .delete(key)
+    async fn delete(&self, path: &str) -> Result<()> {
+        self.get_connection()
+            .await?
+            .delete(path.to_owned())
             .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
-    }
-
-    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
-        Ok(kv::KeyStreamer::new(self.client.clone(), prefix))
+            .map_err(parse_tikv_error)
     }
 }
 
-#[pin_project]
-struct KeyStream {
-    client: RawClient,
-    bound: BoundRange,
-    end: Vec<u8>,
-    keys: IntoIter<Vec<u8>>,
-
-    fut: Option<BoxFuture<'static, Result<Vec<Vec<u8>>>>>,
-
-    cursor: &[u8],
-    done: bool,
-}
-
-impl KeyStream {
-    fn new(client: RawClient, prefix: &[u8]) -> Self {
-        let end = prefix.to_vec().extend_one(b"\0");
-        let bound = BoundRange::new(prefix, &end);
-
-        Self {
-            client,
-            bound,
-            end,
-
-            keys: vec![].into_iter(),
-            fut: None,
-            done: false,
-            cursor: prefix,
-        }
-    }
-}
-
-impl Stream for KeyStream {
-    type Item = Result<Vec<u8>>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-
-        loop {
-            if let Some(key) = this.keys.next() {
-                debug_assert!(
-                    this.bound.contains(key),
-                    "prefix is not match: expect {:x?}, got {:x?}",
-                    *this.arg,
-                    key
-                );
-                return Poll::Ready(Some(Ok(key)));
-            }
-
-            match this.fut {
-                None => {
-                    if *this.done {
-                        return Poll::Ready(None);
-                    }
-
-                    let arg = this.arg.to_vec();
-                    let cursor = *this.cursor;
-                    let mut client = this.client.clone();
-                    let bound = BoundRange::new(cursor, &self.end);
-                    let fut = async move {
-                        let keys = client
-                            .scan_keys(bound, 100)
-                            .await
-                            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
-                        cursor = keys.last();
-                        Ok((cursor, keys))
-                    };
-                    *this.fut = Some(Box::pin(fut));
-                    continue;
-                }
-                Some(fut) => {
-                    let (cursor, keys) = ready!(Pin::new(fut).poll(cx))?;
-
-                    *this.fut = None;
-
-                    if let Some(cursor) = cursor {
-                        *this.cursor = cursor;
-                    } else {
-                        *this.done = true;
-                    }
-                    *this.keys = keys.into_iter();
-                    continue;
-                }
-            }
-        }
-    }
+fn parse_tikv_error(e: tikv_client::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "error from tikv").set_source(e)
 }

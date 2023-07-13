@@ -440,7 +440,6 @@ impl Accessor for WebdavBackend {
                 let bs = resp.into_body().bytes().await?;
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-                log::info!("got response: {result:?}");
 
                 Ok((
                     RpList::default(),

@@ -192,11 +192,11 @@ jobs:
         run: |
           curl http://localhost:8080
 
-      - name: Test with redirect
+      - name: Test
         shell: bash
         working-directory: core
         run: |
-          cargo nextest run webdav
+          cargo test webdav
         env:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/

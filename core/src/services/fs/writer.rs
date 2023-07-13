@@ -66,9 +66,14 @@ impl oio::Write for FsWriter<tokio::fs::File> {
     }
 
     async fn sink(&mut self, _size: u64, mut s: oio::Streamer) -> Result<()> {
-        while let Some(bytes) = s.next().await {
-            let b = bytes?;
-            self.f.write_all(&b).await.map_err(parse_io_error)?;
+        while let Some(bs) = s.next().await {
+            let bs = bs?;
+            self.f
+                .seek(SeekFrom::Start(self.pos))
+                .await
+                .map_err(parse_io_error)?;
+            self.f.write_all(&bs).await.map_err(parse_io_error)?;
+            self.pos += bs.len() as u64;
         }
 
         Ok(())

@@ -73,15 +73,15 @@ impl opendal_operator_ptr {
 }
 
 #[allow(clippy::from_over_into)]
-impl From<&od::BlockingOperator> for opendal_operator_ptr {
-    fn from(value: &od::BlockingOperator) -> Self {
+impl From<*const od::BlockingOperator> for opendal_operator_ptr {
+    fn from(value: *const od::BlockingOperator) -> Self {
         Self { ptr: value }
     }
 }
 
 #[allow(clippy::from_over_into)]
-impl From<&mut od::BlockingOperator> for opendal_operator_ptr {
-    fn from(value: &mut od::BlockingOperator) -> Self {
+impl From<*mut od::BlockingOperator> for opendal_operator_ptr {
+    fn from(value: *mut od::BlockingOperator) -> Self {
         Self { ptr: value }
     }
 }
@@ -256,10 +256,10 @@ impl opendal_operator_options {
     pub extern "C" fn opendal_operator_options_new() -> *mut Self {
         let map: HashMap<String, String> = HashMap::default();
         let options = Self {
-            inner: Box::leak(Box::new(map)),
+            inner: Box::into_raw(Box::new(map)),
         };
 
-        Box::leak(Box::new(options))
+        Box::into_raw(Box::new(options))
     }
 
     /// \brief Set a Key-Value pair inside opendal_operator_options
@@ -322,7 +322,7 @@ pub struct opendal_blocking_lister {
 impl opendal_blocking_lister {
     pub(crate) fn new(lister: od::BlockingLister) -> Self {
         Self {
-            inner: Box::leak(Box::new(lister)),
+            inner: Box::into_raw(Box::new(lister)),
         }
     }
 
@@ -353,7 +353,7 @@ pub struct opendal_list_entry {
 impl opendal_list_entry {
     pub(crate) fn new(entry: od::Entry) -> Self {
         Self {
-            inner: Box::leak(Box::new(entry)),
+            inner: Box::into_raw(Box::new(entry)),
         }
     }
 

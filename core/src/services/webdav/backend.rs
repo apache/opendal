@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -299,7 +300,27 @@ impl Accessor for WebdavBackend {
         self.ensure_parent_path(path).await?;
 
         let abs_path = build_abs_path(&self.root, path);
-        self.create_internal(&abs_path).await
+
+        let resp = self
+            .webdav_mkcol(&abs_path, None, None, AsyncBody::Empty)
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED
+            | StatusCode::OK
+            // `File exists` will return `Method Not Allowed`
+            | StatusCode::METHOD_NOT_ALLOWED
+            // create existing dir will return conflict
+            | StatusCode::CONFLICT
+            // create existing file will return no_content
+            | StatusCode::NO_CONTENT => {
+                resp.into_body().consume().await?;
+                Ok(RpCreateDir::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -642,14 +663,12 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn create_internal(&self, abs_path: &str) -> Result<RpCreateDir> {
-        let resp = if abs_path.ends_with('/') {
-            self.webdav_mkcol(abs_path, None, None, AsyncBody::Empty)
-                .await?
-        } else {
-            self.webdav_put(abs_path, Some(0), None, None, AsyncBody::Empty)
-                .await?
-        };
+    async fn create_dir_internal(&self, path: &str) -> Result<()> {
+        let abs_path = build_abs_path(&self.root, path);
+
+        let resp = self
+            .webdav_mkcol(&abs_path, None, None, AsyncBody::Empty)
+            .await?;
 
         let status = resp.status();
 
@@ -663,32 +682,31 @@ impl WebdavBackend {
             // create existing file will return no_content
             | StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn ensure_parent_path(&self, path: &str) -> Result<()> {
-        if path == "/" {
-            return Ok(());
+    async fn ensure_parent_path(&self, mut path: &str) -> Result<()> {
+        let mut dirs = VecDeque::default();
+
+        while path != "/" {
+            // check path first.
+            let parent = get_parent(path);
+            match self.stat(path, OpStat::default()).await {
+                Ok(_) => break,
+                Err(err) if err.kind() != ErrorKind::NotFound => return Err(err),
+                _ => {
+                    dirs.push_front(path);
+                    path = parent
+                }
+            }
         }
 
-        // create dir recursively, split path by `/` and create each dir except the last one
-        let abs_path = build_abs_path(&self.root, path);
-        let abs_path = abs_path.as_str();
-        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
-        if !parts.is_empty() {
-            parts.pop();
+        for dir in dirs {
+            self.create_dir_internal(dir).await?;
         }
-
-        let mut sub_path = String::new();
-        for sub_part in parts {
-            let sub_path_with_slash = sub_part.to_owned() + "/";
-            sub_path.push_str(&sub_path_with_slash);
-            self.create_internal(&sub_path).await?;
-        }
-
         Ok(())
     }
 }

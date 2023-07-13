@@ -641,7 +641,7 @@ impl WebdavBackend {
 
         match status {
             StatusCode::CREATED
-            // Allow mutiple status
+            // Allow multiple status
             | StatusCode::MULTI_STATUS
             // The MKCOL method can only be performed on a deleted or non-existent resource.
             // This error means the directory already exists which is allowed by create_dir.

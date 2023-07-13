@@ -517,6 +517,17 @@ impl S3Builder {
 
         self
     }
+
+    /// a helper function to make it easier to find region
+    fn detect_region(&self) -> Result<Option<String>> {
+        match &self.region {
+            Some(region) => Ok(Some(region.to_string())),
+            None => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "region is None in S3Builder",
+            )),
+        }
+    }
 }
 
 impl Builder for S3Builder {

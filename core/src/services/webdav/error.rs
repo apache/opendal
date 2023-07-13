@@ -31,6 +31,8 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        // Allowing retry for resource locked.
+        StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

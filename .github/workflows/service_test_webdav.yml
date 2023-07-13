@@ -38,11 +38,7 @@ concurrency:
 
 jobs:
   nginx:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
@@ -69,11 +65,37 @@ jobs:
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
 
   nginx_with_password:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+
+      - name: Install nginx full for dav_ext modules
+        run: sudo apt install nginx-full
+
+      - name: Start nginx
+        shell: bash
+        working-directory: core
+        run: |
+          mkdir -p /tmp/static
+          cp `pwd`/src/services/webdav/fixtures/htpasswd /tmp/htpasswd
+          nginx -c `pwd`/src/services/webdav/fixtures/nginx-with-basic-auth.conf
+
+      - name: Test with password
+        shell: bash
+        working-directory: core
+        run: cargo nextest run webdav
+        env:
+          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
+          OPENDAL_WEBDAV_USERNAME: bar
+          OPENDAL_WEBDAV_PASSWORD: bar
+
+  nginx_with_empty_password:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
@@ -100,16 +122,6 @@ jobs:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_WEBDAV_USERNAME: foo
-
-      - name: Test with password
-        shell: bash
-        working-directory: core
-        run: cargo nextest run webdav
-        env:
-          OPENDAL_WEBDAV_TEST: on
-          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
-          OPENDAL_WEBDAV_USERNAME: bar
-          OPENDAL_WEBDAV_PASSWORD: bar
 
   nginx_with_redirect:
     runs-on: ubuntu-latest
@@ -143,3 +155,35 @@ jobs:
         env:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8081
+
+  nextcloud:
+    runs-on: ubuntu-latest
+
+    services:
+      nextcloud:
+        image: nextcloud
+        ports:
+          - 8080:80
+        env:
+          SQLITE_DATABASE: nextcloud
+          NEXTCLOUD_ADMIN_USER: admin
+          NEXTCLOUD_ADMIN_PASSWORD: admin
+        options: --health-cmd="curl -f http://localhost" --health-interval=10s --health-timeout=5s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: |
+          cargo test webdav
+        env:
+          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/
+          OPENDAL_WEBDAV_USERNAME: admin
+          OPENDAL_WEBDAV_PASSWORD: admin

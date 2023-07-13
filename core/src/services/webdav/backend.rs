@@ -16,8 +16,10 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::str::FromStr;
 
 use async_trait::async_trait;
 use bytes::Buf;
@@ -29,7 +31,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
-use super::list_response::Multistatus;
+use super::pager::Multistatus;
 use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
 use crate::raw::*;
@@ -202,6 +204,15 @@ impl Builder for WebdavBuilder {
             }
         };
 
+        let uri = http::Uri::from_str(endpoint).map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
+                .set_source(err)
+                .with_context("service", Scheme::Webdav)
+        })?;
+        // Some webdav server may have base dir like `/remote.php/webdav/`
+        // returned in the `href`.
+        let base_dir = uri.path().trim_end_matches('/');
+
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
@@ -228,6 +239,7 @@ impl Builder for WebdavBuilder {
         debug!("backend build finished: {:?}", &self);
         Ok(WebdavBackend {
             endpoint: endpoint.to_string(),
+            base_dir: base_dir.to_string(),
             authorization: auth,
             root,
             client,
@@ -239,6 +251,7 @@ impl Builder for WebdavBuilder {
 #[derive(Clone)]
 pub struct WebdavBackend {
     endpoint: String,
+    base_dir: String,
     root: String,
     client: HttpClient,
 
@@ -262,7 +275,7 @@ impl Accessor for WebdavBackend {
     type Writer = WebdavWriter;
     type BlockingWriter = ();
     type Appender = ();
-    type Pager = WebdavPager;
+    type Pager = Option<WebdavPager>;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -297,9 +310,9 @@ impl Accessor for WebdavBackend {
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         self.ensure_parent_path(path).await?;
+        self.create_dir_internal(path).await?;
 
-        let abs_path = build_abs_path(&self.root, path);
-        self.create_internal(&abs_path).await
+        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -321,6 +334,8 @@ impl Accessor for WebdavBackend {
                 "write without content length is not supported",
             ));
         }
+
+        self.ensure_parent_path(path).await?;
 
         let p = build_abs_path(&self.root, path);
 
@@ -428,19 +443,10 @@ impl Accessor for WebdavBackend {
 
                 Ok((
                     RpList::default(),
-                    WebdavPager::new(&self.root, path, result),
+                    Some(WebdavPager::new(&self.base_dir, &self.root, path, result)),
                 ))
             }
-            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
-                RpList::default(),
-                WebdavPager::new(
-                    &self.root,
-                    path,
-                    Multistatus {
-                        response: Vec::new(),
-                    },
-                ),
-            )),
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((RpList::default(), None)),
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -506,29 +512,19 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn webdav_mkcol(
-        &self,
-        abs_path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
+    async fn webdav_mkcol(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::builder().method("MKCOL").uri(&url);
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth);
         }
 
-        if let Some(mime) = content_type {
-            req = req.header(header::CONTENT_TYPE, mime)
-        }
-
-        if let Some(cd) = content_disposition {
-            req = req.header(header::CONTENT_DISPOSITION, cd)
-        }
-
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }
@@ -640,53 +636,51 @@ impl WebdavBackend {
         self.client.send(req).await
     }
 
-    async fn create_internal(&self, abs_path: &str) -> Result<RpCreateDir> {
-        let resp = if abs_path.ends_with('/') {
-            self.webdav_mkcol(abs_path, None, None, AsyncBody::Empty)
-                .await?
-        } else {
-            self.webdav_put(abs_path, Some(0), None, None, AsyncBody::Empty)
-                .await?
-        };
+    async fn create_dir_internal(&self, path: &str) -> Result<()> {
+        let resp = self.webdav_mkcol(path).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED
-            | StatusCode::OK
-            // `File exists` will return `Method Not Allowed`
-            | StatusCode::METHOD_NOT_ALLOWED
-            // create existing dir will return conflict
-            | StatusCode::CONFLICT
-            // create existing file will return no_content
-            | StatusCode::NO_CONTENT => {
+            // Allow multiple status
+            | StatusCode::MULTI_STATUS
+            // The MKCOL method can only be performed on a deleted or non-existent resource.
+            // This error means the directory already exists which is allowed by create_dir.
+            | StatusCode::METHOD_NOT_ALLOWED => {
                 resp.into_body().consume().await?;
-                Ok(RpCreateDir::default())
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn ensure_parent_path(&self, path: &str) -> Result<()> {
-        if path == "/" {
-            return Ok(());
+    async fn ensure_parent_path(&self, mut path: &str) -> Result<()> {
+        let mut dirs = VecDeque::default();
+
+        while path != "/" {
+            // check path first.
+            let parent = get_parent(path);
+
+            let mut header_map = HeaderMap::new();
+            // not include children
+            header_map.insert("Depth", "0".parse().unwrap());
+            header_map.insert(header::ACCEPT, "application/xml".parse().unwrap());
+
+            let resp = self.webdav_propfind(parent, Some(header_map)).await?;
+            match resp.status() {
+                StatusCode::OK | StatusCode::MULTI_STATUS => break,
+                StatusCode::NOT_FOUND => {
+                    dirs.push_front(parent);
+                    path = parent
+                }
+                _ => return Err(parse_error(resp).await?),
+            }
         }
 
-        // create dir recursively, split path by `/` and create each dir except the last one
-        let abs_path = build_abs_path(&self.root, path);
-        let abs_path = abs_path.as_str();
-        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
-        if !parts.is_empty() {
-            parts.pop();
+        for dir in dirs {
+            self.create_dir_internal(dir).await?;
         }
-
-        let mut sub_path = String::new();
-        for sub_part in parts {
-            let sub_path_with_slash = sub_part.to_owned() + "/";
-            sub_path.push_str(&sub_path_with_slash);
-            self.create_internal(&sub_path).await?;
-        }
-
         Ok(())
     }
 }

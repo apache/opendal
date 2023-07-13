@@ -18,23 +18,21 @@
 use std::mem;
 
 use async_trait::async_trait;
+use serde::Deserialize;
 
-use super::list_response::Multistatus;
-use crate::raw::build_rel_path;
-use crate::raw::oio;
-use crate::EntryMode;
-use crate::Metadata;
-use crate::Result;
-
+use crate::raw::*;
+use crate::*;
 pub struct WebdavPager {
+    base_dir: String,
     root: String,
     path: String,
     multistates: Multistatus,
 }
 
 impl WebdavPager {
-    pub fn new(root: &str, path: &str, multistates: Multistatus) -> Self {
+    pub fn new(base_dir: &str, root: &str, path: &str, multistates: Multistatus) -> Self {
         Self {
+            base_dir: base_dir.to_string(),
             root: root.into(),
             path: path.into(),
             multistates,
@@ -50,34 +48,505 @@ impl oio::Page for WebdavPager {
         };
         let oes = mem::take(&mut self.multistates.response);
 
-        let oes = oes
-            .into_iter()
-            .filter_map(|de| {
-                let path = de.href;
+        let mut entries = Vec::with_capacity(oes.len());
 
-                // Ignore the root path itself.
-                if self.root == path {
-                    return None;
-                }
+        for res in oes {
+            let path = res
+                .href
+                .strip_prefix(&self.base_dir)
+                .unwrap_or(res.href.as_str());
 
-                let normalized_path = build_rel_path(&self.root, &path);
-                if normalized_path == self.path {
-                    // WebDav server may return the current path as an entry.
-                    return None;
-                }
+            // Ignore the root path itself.
+            if self.root == path {
+                continue;
+            }
 
-                let entry = if de.propstat.prop.resourcetype.value
-                    == Some(super::list_response::ResourceType::Collection)
-                {
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::DIR))
-                } else {
-                    oio::Entry::new(&normalized_path, Metadata::new(EntryMode::FILE))
-                };
+            let normalized_path = build_rel_path(&self.root, path);
+            if normalized_path == self.path {
+                // WebDav server may return the current path as an entry.
+                continue;
+            }
 
-                Some(entry)
-            })
-            .collect();
+            let meta = res.parse_into_metadata()?;
+            entries.push(oio::Entry::new(&normalized_path, meta))
+        }
 
-        Ok(Some(oes))
+        Ok(Some(entries))
+    }
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+pub struct Multistatus {
+    pub response: Vec<ListOpResponse>,
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+pub struct ListOpResponse {
+    pub href: String,
+    pub propstat: Propstat,
+}
+
+impl ListOpResponse {
+    pub fn parse_into_metadata(&self) -> Result<Metadata> {
+        let ListOpResponse {
+            href,
+            propstat:
+                Propstat {
+                    prop:
+                        Prop {
+                            getlastmodified,
+                            getcontentlength,
+                            getcontenttype,
+                            getetag,
+                            ..
+                        },
+                    status,
+                },
+        } = self;
+        if let [_, code, text] = status.split(' ').collect::<Vec<_>>()[..3] {
+            // As defined in https://tools.ietf.org/html/rfc2068#section-6.1
+            let code = code.parse::<u16>().unwrap();
+            if code >= 400 {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("Invalid response: {} {}", code, text),
+                ));
+            }
+        }
+
+        let mode: EntryMode = if href.ends_with('/') {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+        let mut m = Metadata::new(mode);
+
+        if let Some(v) = getcontentlength {
+            m.set_content_length(v.parse::<u64>().unwrap());
+        }
+
+        if let Some(v) = getcontenttype {
+            m.set_content_type(v);
+        }
+
+        if let Some(v) = getetag {
+            m.set_etag(v);
+        }
+
+        // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
+        m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
+        Ok(m)
+    }
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+pub struct Propstat {
+    pub prop: Prop,
+    pub status: String,
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+pub struct Prop {
+    #[serde(default)]
+    pub displayname: String,
+    pub getlastmodified: String,
+    pub getetag: Option<String>,
+    pub getcontentlength: Option<String>,
+    pub getcontenttype: Option<String>,
+    pub resourcetype: ResourceTypeContainer,
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+pub struct ResourceTypeContainer {
+    #[serde(rename = "$value")]
+    pub value: Option<ResourceType>,
+}
+
+#[derive(Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ResourceType {
+    Collection,
+}
+
+#[cfg(test)]
+mod tests {
+    use quick_xml::de::from_str;
+
+    use super::*;
+
+    #[test]
+    fn test_propstat() {
+        let xml = r#"<D:propstat>
+            <D:prop>
+                <D:displayname>/</D:displayname>
+                <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
+                <D:resourcetype><D:collection/></D:resourcetype>
+                <D:lockdiscovery/>
+                <D:supportedlock>
+                    <D:lockentry>
+                        <D:lockscope><D:exclusive/></D:lockscope>
+                        <D:locktype><D:write/></D:locktype>
+                    </D:lockentry>
+                </D:supportedlock>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+        </D:propstat>"#;
+
+        let propstat = from_str::<Propstat>(xml).unwrap();
+        assert_eq!(
+            propstat.prop.getlastmodified,
+            "Tue, 01 May 2022 06:39:47 GMT"
+        );
+        assert_eq!(
+            propstat.prop.resourcetype.value.unwrap(),
+            ResourceType::Collection
+        );
+
+        assert_eq!(propstat.status, "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn test_response_simple() {
+        let xml = r#"<D:response>
+            <D:href>/</D:href>
+            <D:propstat>
+                <D:prop>
+                    <D:displayname>/</D:displayname>
+                    <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
+                    <D:resourcetype><D:collection/></D:resourcetype>
+                    <D:lockdiscovery/>
+                    <D:supportedlock>
+                        <D:lockentry>
+                            <D:lockscope><D:exclusive/></D:lockscope>
+                            <D:locktype><D:write/></D:locktype>
+                        </D:lockentry>
+                    </D:supportedlock>
+                </D:prop>
+                <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+        </D:response>"#;
+
+        let response = from_str::<ListOpResponse>(xml).unwrap();
+        assert_eq!(response.href, "/");
+
+        assert_eq!(response.propstat.prop.displayname, "/");
+
+        assert_eq!(
+            response.propstat.prop.getlastmodified,
+            "Tue, 01 May 2022 06:39:47 GMT"
+        );
+        assert_eq!(
+            response.propstat.prop.resourcetype.value.unwrap(),
+            ResourceType::Collection
+        );
+        assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn test_response_file() {
+        let xml = r#"<D:response>
+        <D:href>/test_file</D:href>
+        <D:propstat>
+          <D:prop>
+            <D:displayname>test_file</D:displayname>
+            <D:getcontentlength>1</D:getcontentlength>
+            <D:getlastmodified>Tue, 07 May 2022 05:52:22 GMT</D:getlastmodified>
+            <D:resourcetype></D:resourcetype>
+            <D:lockdiscovery />
+            <D:supportedlock>
+              <D:lockentry>
+                <D:lockscope>
+                  <D:exclusive />
+                </D:lockscope>
+                <D:locktype>
+                  <D:write />
+                </D:locktype>
+              </D:lockentry>
+            </D:supportedlock>
+          </D:prop>
+          <D:status>HTTP/1.1 200 OK</D:status>
+        </D:propstat>
+      </D:response>"#;
+
+        let response = from_str::<ListOpResponse>(xml).unwrap();
+        assert_eq!(response.href, "/test_file");
+        assert_eq!(
+            response.propstat.prop.getlastmodified,
+            "Tue, 07 May 2022 05:52:22 GMT"
+        );
+        assert_eq!(response.propstat.prop.getcontentlength.unwrap(), "1");
+        assert_eq!(response.propstat.prop.resourcetype.value, None);
+        assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn test_with_multiple_items_simple() {
+        let xml = r#"<D:multistatus xmlns:D="DAV:">
+        <D:response>
+        <D:href>/</D:href>
+        <D:propstat>
+            <D:prop>
+                <D:displayname>/</D:displayname>
+                <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
+                <D:resourcetype><D:collection/></D:resourcetype>
+                <D:lockdiscovery/>
+                <D:supportedlock>
+                    <D:lockentry>
+                        <D:lockscope><D:exclusive/></D:lockscope>
+                        <D:locktype><D:write/></D:locktype>
+                    </D:lockentry>
+                </D:supportedlock>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+        </D:propstat>
+    </D:response>
+    <D:response>
+            <D:href>/</D:href>
+            <D:propstat>
+                <D:prop>
+                    <D:displayname>/</D:displayname>
+                    <D:getlastmodified>Tue, 01 May 2022 06:39:47 GMT</D:getlastmodified>
+                    <D:resourcetype><D:collection/></D:resourcetype>
+                    <D:lockdiscovery/>
+                    <D:supportedlock>
+                        <D:lockentry>
+                            <D:lockscope><D:exclusive/></D:lockscope>
+                            <D:locktype><D:write/></D:locktype>
+                        </D:lockentry>
+                    </D:supportedlock>
+                </D:prop>
+                <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+        </D:response>
+        </D:multistatus>"#;
+
+        let multistatus = from_str::<Multistatus>(xml).unwrap();
+        assert_eq!(multistatus.response.len(), 2);
+        assert_eq!(multistatus.response[0].href, "/");
+        assert_eq!(
+            multistatus.response[0].propstat.prop.getlastmodified,
+            "Tue, 01 May 2022 06:39:47 GMT"
+        );
+    }
+
+    #[test]
+    fn test_with_multiple_items_mixed() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:">
+          <D:response>
+            <D:href>/</D:href>
+            <D:propstat>
+              <D:prop>
+                <D:displayname>/</D:displayname>
+                <D:getlastmodified>Tue, 07 May 2022 06:39:47 GMT</D:getlastmodified>
+                <D:resourcetype>
+                  <D:collection />
+                </D:resourcetype>
+                <D:lockdiscovery />
+                <D:supportedlock>
+                  <D:lockentry>
+                    <D:lockscope>
+                      <D:exclusive />
+                    </D:lockscope>
+                    <D:locktype>
+                      <D:write />
+                    </D:locktype>
+                  </D:lockentry>
+                </D:supportedlock>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+          <D:response>
+            <D:href>/testdir/</D:href>
+            <D:propstat>
+              <D:prop>
+                <D:displayname>testdir</D:displayname>
+                <D:getlastmodified>Tue, 07 May 2022 06:40:10 GMT</D:getlastmodified>
+                <D:resourcetype>
+                  <D:collection />
+                </D:resourcetype>
+                <D:lockdiscovery />
+                <D:supportedlock>
+                  <D:lockentry>
+                    <D:lockscope>
+                      <D:exclusive />
+                    </D:lockscope>
+                    <D:locktype>
+                      <D:write />
+                    </D:locktype>
+                  </D:lockentry>
+                </D:supportedlock>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+          <D:response>
+            <D:href>/test_file</D:href>
+            <D:propstat>
+              <D:prop>
+                <D:displayname>test_file</D:displayname>
+                <D:getcontentlength>1</D:getcontentlength>
+                <D:getlastmodified>Tue, 07 May 2022 05:52:22 GMT</D:getlastmodified>
+                <D:resourcetype></D:resourcetype>
+                <D:lockdiscovery />
+                <D:supportedlock>
+                  <D:lockentry>
+                    <D:lockscope>
+                      <D:exclusive />
+                    </D:lockscope>
+                    <D:locktype>
+                      <D:write />
+                    </D:locktype>
+                  </D:lockentry>
+                </D:supportedlock>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let multistatus = from_str::<Multistatus>(xml).unwrap();
+
+        assert_eq!(multistatus.response.len(), 3);
+        let first_response = &multistatus.response[0];
+        assert_eq!(first_response.href, "/");
+        assert_eq!(
+            first_response.propstat.prop.getlastmodified,
+            "Tue, 07 May 2022 06:39:47 GMT"
+        );
+
+        let second_response = &multistatus.response[1];
+        assert_eq!(second_response.href, "/testdir/");
+        assert_eq!(
+            second_response.propstat.prop.getlastmodified,
+            "Tue, 07 May 2022 06:40:10 GMT"
+        );
+
+        let third_response = &multistatus.response[2];
+        assert_eq!(third_response.href, "/test_file");
+        assert_eq!(
+            third_response.propstat.prop.getlastmodified,
+            "Tue, 07 May 2022 05:52:22 GMT"
+        );
+    }
+
+    #[test]
+    fn test_with_multiple_items_mixed_nginx() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+      <D:multistatus xmlns:D="DAV:">
+        <D:response>
+          <D:href>/</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
+              <D:resourcetype>
+                <D:collection />
+              </D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_75</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_36</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_38</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_59</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_9</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_93</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_43</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_95</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+      </D:multistatus>
+      "#;
+
+        let multistatus: Multistatus = from_str(xml).unwrap();
+
+        assert_eq!(multistatus.response.len(), 9);
+
+        let first_response = &multistatus.response[0];
+        assert_eq!(first_response.href, "/");
+        assert_eq!(
+            first_response.propstat.prop.getlastmodified,
+            "Fri, 17 Feb 2023 03:37:22 GMT"
+        );
     }
 }

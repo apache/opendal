@@ -673,11 +673,43 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn delete(&self, path: &str) -> Result<()> {
-        let path = normalize_path(path);
-
-        let _ = self.inner().blocking_delete(&path, OpDelete::new())?;
+        self.delete_with(path).call()?;
 
         Ok(())
+    }
+
+    /// Delete given path with options.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let _ = op
+    ///     .delete_with("path/to/file")
+    ///     .version("example_version").call()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn delete_with(&self, path: &str) -> FunctionDelete {
+        let path = normalize_path(path);
+
+        FunctionDelete(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpDelete::new(),
+            |inner, path, args| {
+                let _ = inner.blocking_delete(&path, args)?;
+
+                Ok(())
+            },
+        ))
     }
 
     /// remove will remove files via the given paths.

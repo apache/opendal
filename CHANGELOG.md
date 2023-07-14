@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.38.1] - 2023-07-14
+
+### Added
+* feat(binding/lua): add rename and create_dir operator function by @oowl in https://github.com/apache/incubator-opendal/pull/2564
+* feat(services/azblob): support sink by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2574
+* feat(services/gcs): support sink by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2576
+* feat(services/oss): support sink by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2577
+* feat(services/obs): support sink by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2578
+* feat(services/cos): impl sink by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2587
+* feat(service): Support stat for Dropbox by @Zheaoli in https://github.com/apache/incubator-opendal/pull/2588
+* feat(services/dropbox): impl create_dir and polish error handling by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2600
+* feat(services/dropbox): Implement refresh token support by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2604
+* feat(service/dropbox): impl batch delete by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2606
+* feat(CI): set Kvrocks test for service redis by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2613
+* feat(core): object versioning APIs by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2614
+* feat(oay): actually read configuration from `oay.toml` by @messense in https://github.com/apache/incubator-opendal/pull/2615
+* feat(services/webdav): impl sink by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2622
+* feat(services/fs): impl Sink for Fs by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/2626
+* feat(core): impl `delete_with` on blocking operator by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2633
+* feat(bindings/C): add support for list in C binding by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/2448
+### Changed
+* refactor(core): Add ErrorKind InvalidInput to indicate users input error by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2637
+### Fixed
+* fix(doc): fix codeblock rendering by @xxchan in https://github.com/apache/incubator-opendal/pull/2592
+* fix(service/minitrace): should set local parent by @andylokandy in https://github.com/apache/incubator-opendal/pull/2620
+* fix(service/minitrace): update doc by @andylokandy in https://github.com/apache/incubator-opendal/pull/2621
+### Docs
+* doc(bindings/haskell): add module document by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2566
+* docs: Update license related comments by @Prashanth-Chandra in https://github.com/apache/incubator-opendal/pull/2573
+* docs: add hdfs namenode High Availability related troubleshoot by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/2601
+* docs: polish release doc by @PsiACE in https://github.com/apache/incubator-opendal/pull/2608
+* docs(blog): add Apache OpenDAL(Incubating): Access Data Freely by @PsiACE in https://github.com/apache/incubator-opendal/pull/2607
+* docs(RFC): Object Versioning by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2602
+### CI
+* ci: Disable bindings/java deploy for now by @tisonkun in https://github.com/apache/incubator-opendal/pull/2560
+* ci: Disable the failed stage-release job instead by @tisonkun in https://github.com/apache/incubator-opendal/pull/2561
+* ci: add haddock generator for haskell binding by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2569
+* ci(binding/lua): add luarocks package manager support by @oowl in https://github.com/apache/incubator-opendal/pull/2558
+* build(deps): bump predicates from 2.1.5 to 3.0.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/2583
+* build(deps): bump tower-http from 0.4.0 to 0.4.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/2582
+* build(deps): bump chrono from 0.4.24 to 0.4.26 by @dependabot in https://github.com/apache/incubator-opendal/pull/2581
+* build(deps): bump redis from 0.22.3 to 0.23.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2580
+* build(deps): bump cbindgen from 0.24.3 to 0.24.5 by @dependabot in https://github.com/apache/incubator-opendal/pull/2579
+* ci: upgrade hawkeye to v3 by @tisonkun in https://github.com/apache/incubator-opendal/pull/2585
+* ci(services/webdav): Setup integration test for nextcloud by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2631
+### Chore
+* chore: add haskell binding link to website by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2571
+* chore: fix cargo warning for resolver by @xxchan in https://github.com/apache/incubator-opendal/pull/2590
+* chore: bump log to 0.4.19 by @xxchan in https://github.com/apache/incubator-opendal/pull/2591
+* chore(deps): update deps to latest version by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2596
+* chore: Add release 0.38.0 to download by @PsiACE in https://github.com/apache/incubator-opendal/pull/2597
+* chore(service/minitrace): automatically generate span name by @andylokandy in https://github.com/apache/incubator-opendal/pull/2618
+
+## New Contributors
+* @Prashanth-Chandra made their first contribution in https://github.com/apache/incubator-opendal/pull/2573
+* @andylokandy made their first contribution in https://github.com/apache/incubator-opendal/pull/2618
+
+**Full Changelog**: https://github.com/apache/incubator-opendal/compare/v0.38.0...v0.38.1
+
 ## [v0.38.0] - 2023-06-27
 
 ### Added
@@ -2370,6 +2429,7 @@ ing large files (#2231)
 
 Hello, OpenDAL!
 
+[v0.38.1]: https://github.com/apache/incubator-opendal/compare/v0.38.0...v0.38.1
 [v0.38.0]: https://github.com/apache/incubator-opendal/compare/v0.37.0...v0.38.0
 [v0.37.0]: https://github.com/apache/incubator-opendal/compare/v0.36.0...v0.37.0
 [v0.36.0]: https://github.com/apache/incubator-opendal/compare/v0.35.0...v0.36.0

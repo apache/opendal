@@ -517,6 +517,69 @@ impl S3Builder {
 
         self
     }
+
+    /// a helper function to make it easier to find region
+    /// Reference: [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
+    /// # Args
+    ///
+    /// endpoint: the endpoint of S3 service
+    ///
+    /// bucket: the bucket of S3 service
+    /// # Return
+    /// if get the region of given inputs, return Some(region)
+    /// else return None
+    ///
+    /// # Usage
+    /// let b = S3Builder::default();
+    /// let region = b.detect_region("https://s3.amazonaws.com", "buckets").await;
+    pub async fn detect_region(&self, endpoint: &str, bucket: &str) -> Option<String> {
+        let mut endpoint = if endpoint.starts_with("http") {
+            endpoint.to_string()
+        } else {
+            // Prefix https if endpoint doesn't start with scheme.
+            format!("https://{}", endpoint)
+        };
+
+        endpoint = endpoint.replace(&format!("//{0}.", bucket), "//");
+        let url = format!("{0}/{1}", endpoint, bucket);
+
+        debug!("backend detect region with url: {url}");
+
+        let req = match http::Request::head(&url).body(AsyncBody::Empty) {
+            Ok(reg) => reg,
+            Err(_) => return None,
+        };
+
+        let client = match HttpClient::new() {
+            Ok(client) => client,
+            Err(_) => return None,
+        };
+        let res = match client.send(req).await {
+            Ok(res) => res,
+            Err(_) => return None,
+        };
+
+        debug!(
+            "auto detect region got response: status {:?}, header: {:?}",
+            res.status(),
+            res.headers()
+        );
+
+        match res.status() {
+            // The endpoint works, return with not changed endpoint and
+            // default region.
+            StatusCode::OK | StatusCode::FORBIDDEN | StatusCode::MOVED_PERMANENTLY => {
+                let region = res.headers().get("x-amz-bucket-region").unwrap().to_str();
+                if let Ok(regin) = region {
+                    Some(regin.to_string())
+                } else {
+                    None
+                }
+            }
+            // Unexpected status code
+            _ => None,
+        }
+    }
 }
 
 impl Builder for S3Builder {
@@ -1048,5 +1111,11 @@ mod tests {
             let endpoint = b.build_endpoint("us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
         }
+    }
+    #[tokio::test]
+    async fn test_detect_region() {
+        let b = S3Builder::default();
+        let region = b.detect_region("https://s3.amazonaws.com", "buckets").await;
+        assert_eq!(region, Some("us-east-1".to_string()))
     }
 }

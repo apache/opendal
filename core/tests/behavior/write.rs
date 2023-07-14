@@ -86,7 +86,8 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_writer_copy,
         test_writer_abort,
         test_writer_futures_copy,
-        test_fuzz_unsized_writer
+        test_fuzz_unsized_writer,
+        test_invalid_reader_seek
     )
 }
 
@@ -1229,6 +1230,34 @@ pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
 
     let content = op.read(&path).await?;
     fuzzer.check(&content);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// seeking a negative position should return a InvalidInput error
+pub async fn test_invalid_reader_seek(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut r = op.reader(&path).await?;
+    let res = r.seek(std::io::SeekFrom::Current(-1024)).await;
+
+    assert!(res.is_err());
+
+    // the res should be a std::io::Error, which contains a ErrorKind::InvalidInput
+    let inner_error = res
+        .unwrap_err()
+        .into_inner()
+        .unwrap()
+        .downcast::<Error>()
+        .unwrap();
+    assert_eq!(inner_error.kind(), ErrorKind::InvalidInput);
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

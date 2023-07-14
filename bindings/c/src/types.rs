@@ -57,9 +57,6 @@ impl opendal_operator_ptr {
     /// ```
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_free(op: *const opendal_operator_ptr) {
-        if op.is_null() || unsafe { (*op).ptr.is_null() } {
-            return;
-        }
         let _ = unsafe { Box::from_raw((*op).ptr as *mut od::BlockingOperator) };
         let _ = unsafe { Box::from_raw(op as *mut opendal_operator_ptr) };
     }
@@ -159,13 +156,10 @@ impl opendal_metadata {
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
     pub extern "C" fn opendal_metadata_free(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                mem::drop(Box::from_raw(self.inner));
-            }
+        unsafe {
+            mem::drop(Box::from_raw(self.inner));
+            mem::drop(Box::from_raw(self as *mut Self));
         }
-
-        unsafe { mem::drop(Box::from_raw(self as *mut Self)) }
     }
 
     /// \brief Return the content_length of the metadata
@@ -306,14 +300,18 @@ impl opendal_operator_options {
     pub unsafe extern "C" fn opendal_operator_options_free(
         options: *const opendal_operator_options,
     ) {
-        if options.is_null() || unsafe { (*options).inner.is_null() } {
-            return;
-        }
         let _ = unsafe { Box::from_raw((*options).inner as *mut HashMap<String, String>) };
         let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
     }
 }
 
+/// \brief BlockingLister is designed to list entries at given path in a blocking
+/// manner.
+///
+/// Users can construct Lister by `blocking_list` or `blocking_scan`(currently not supported in C binding)
+///
+/// For examples, please see the comment section of opendal_operator_blocking_list()
+/// @see opendal_operator_blocking_list()
 #[repr(C)]
 pub struct opendal_blocking_lister {
     inner: *mut od::BlockingLister,
@@ -326,6 +324,13 @@ impl opendal_blocking_lister {
         }
     }
 
+    /// \brief Return the next object to be listed
+    ///
+    /// Lister is an iterator of the objects under its path, this method is the same as
+    /// calling next() on the iterator
+    ///
+    /// For examples, please see the comment section of opendal_operator_blocking_list()
+    /// @see opendal_operator_blocking_list()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_next(&self) -> *mut opendal_list_entry {
         let e = (*self.inner).next();
@@ -339,36 +344,52 @@ impl opendal_blocking_lister {
         }
     }
 
+    /// \brief Free the heap-allocated metadata used by opendal_blocking_lister
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_free(p: *const opendal_blocking_lister) {
         unsafe {
+            let _ = Box::from_raw((*p).inner as *mut od::BlockingLister);
             let _ = Box::from_raw(p as *mut opendal_blocking_lister);
         }
     }
 }
 
+/// \brief opendal_list_entry is the entry under a path, which is listed from the opendal_blocking_lister
+///
+/// For examples, please see the comment section of opendal_operator_blocking_list()
+/// @see opendal_operator_blocking_list()
+/// @see opendal_list_entry_path()
+/// @see opendal_list_entry_name()
 #[repr(C)]
 pub struct opendal_list_entry {
     inner: *mut od::Entry,
 }
 
 impl opendal_list_entry {
+    /// Used to convert the Rust type into C type
     pub(crate) fn new(entry: od::Entry) -> Self {
         Self {
             inner: Box::into_raw(Box::new(entry)),
         }
     }
 
+    /// Path of entry. Path is relative to operator's root.
+    /// Only valid in current operator.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *const c_char {
         (*self.inner).path().as_ptr() as *const c_char
     }
 
+    /// Name of entry. Name is the last segment of path.
+    ///
+    /// If this entry is a dir, `Name` MUST endswith `/`
+    /// Otherwise, `Name` MUST NOT endswith `/`.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *const c_char {
         (*self.inner).name().as_ptr() as *const c_char
     }
 
+    /// \brief Frees the heap memory used by the opendal_list_entry
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_free(p: *const opendal_list_entry) {
         unsafe {

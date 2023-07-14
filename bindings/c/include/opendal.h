@@ -274,6 +274,15 @@ typedef struct opendal_result_stat {
   enum opendal_code code;
 } opendal_result_stat;
 
+/**
+ * \brief BlockingLister is designed to list entries at given path in a blocking
+ * manner.
+ *
+ * Users can construct Lister by `blocking_list` or `blocking_scan`(currently not supported in C binding)
+ *
+ * For examples, please see the comment section of opendal_operator_blocking_list()
+ * @see opendal_operator_blocking_list()
+ */
 typedef struct opendal_blocking_lister {
   struct BlockingLister *inner;
 } opendal_blocking_lister;
@@ -283,6 +292,14 @@ typedef struct opendal_result_list {
   enum opendal_code code;
 } opendal_result_list;
 
+/**
+ * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_blocking_lister
+ *
+ * For examples, please see the comment section of opendal_operator_blocking_list()
+ * @see opendal_operator_blocking_list()
+ * @see opendal_list_entry_path()
+ * @see opendal_list_entry_name()
+ */
 typedef struct opendal_list_entry {
   struct Entry *inner;
 } opendal_list_entry;
@@ -724,14 +741,39 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
  */
 void opendal_operator_options_free(const struct opendal_operator_options *options);
 
+/**
+ * \brief Return the next object to be listed
+ *
+ * Lister is an iterator of the objects under its path, this method is the same as
+ * calling next() on the iterator
+ *
+ * For examples, please see the comment section of opendal_operator_blocking_list()
+ * @see opendal_operator_blocking_list()
+ */
 struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lister *self);
 
+/**
+ * \brief Free the heap-allocated metadata used by opendal_blocking_lister
+ */
 void opendal_lister_free(const struct opendal_blocking_lister *p);
 
+/**
+ * Path of entry. Path is relative to operator's root.
+ * Only valid in current operator.
+ */
 const char *opendal_list_entry_path(const struct opendal_list_entry *self);
 
+/**
+ * Name of entry. Name is the last segment of path.
+ *
+ * If this entry is a dir, `Name` MUST endswith `/`
+ * Otherwise, `Name` MUST NOT endswith `/`.
+ */
 const char *opendal_list_entry_name(const struct opendal_list_entry *self);
 
+/**
+ * \brief Frees the heap memory used by the opendal_list_entry
+ */
 void opendal_list_entry_free(const struct opendal_list_entry *p);
 
 #ifdef __cplusplus

@@ -3,7 +3,9 @@
 ![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 ## Example
+
 A simple read and write example
+
 ```C
 #include "assert.h"
 #include "opendal.h"
@@ -44,21 +46,25 @@ int main()
     opendal_operator_free(&op);
 }
 ```
+
 For more examples, please refer to `./examples`
 
 ## Prerequisites
 
 To build OpenDAL C binding, the following is all you need:
-- **A C++ compiler** that supports **c++14**, *e.g.* clang++ and g++
+
+- **A C++ compiler** that supports **c++14**, _e.g._ clang++ and g++
 
 - To format the code, you need to install **clang-format**
-    - The `opendal.h` is not formatted by hands when you contribute, please do not format the file. **Use `make format` only.**
-    - If your contribution is related to the files under `./tests`, you may format it before submitting your pull request. But notice that different versions of `clang-format` may format the files differently.
+
+  - The `opendal.h` is not formatted by hands when you contribute, please do not format the file. **Use `make format` only.**
+  - If your contribution is related to the files under `./tests`, you may format it before submitting your pull request. But notice that different versions of `clang-format` may format the files differently.
 
 - **GTest(Google Test)** need to be installed to build the BDD (Behavior Driven Development) tests. To see how to build, check [here](https://github.com/google/googletest).
 - (optional) **Doxygen** need to be installed to generate documentations.
 
 For Ubuntu and Debian:
+
 ```shell
 # install C/C++ toolchain
 sudo apt install -y build-essential
@@ -77,6 +83,7 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
 ```
 
 ## Makefile
+
 - To **build the library and header file**.
 
   ```sh
@@ -86,7 +93,6 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
   - The header file `opendal.h` is under `./include`
 
   - The library is under `../../target/debug` after building.
-
 
 - To **clean** the build results.
 
@@ -106,16 +112,15 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
   make examples
   ```
 
-
-
 ## Documentation
+
 The documentation index page source is under `./docs/doxygen/html/index.html`.
 If you want to build the documentations yourself, you could use
+
 ```sh
 # this requires you to install doxygen
 make doc
 ```
-
 
 ## License
 

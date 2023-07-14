@@ -21,6 +21,7 @@
 //! we are defining all Result types here
 
 use crate::error::opendal_code;
+use crate::types::opendal_blocking_lister;
 use crate::types::opendal_bytes;
 use crate::types::opendal_metadata;
 
@@ -63,5 +64,16 @@ pub struct opendal_result_stat {
     /// The metadata output of the stat
     pub meta: *mut opendal_metadata,
     /// The error code, should be OPENDAL_OK if succeeds
+    pub code: opendal_code,
+}
+
+/// \brief The result type returned by opendal_operator_blocking_list().
+///
+/// The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
+/// of the path, which is an iterator of the objects under the path. the field `code` represents
+/// whether the stat operation is successful.
+#[repr(C)]
+pub struct opendal_result_list {
+    pub lister: *mut opendal_blocking_lister,
     pub code: opendal_code,
 }

@@ -41,7 +41,9 @@ build:
 .PHONY: test
 test:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/list.cpp -o $(OBJ_DIR)/list $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(OBJ_DIR)/bdd
+	$(OBJ_DIR)/list
 
 .PHONY: doc
 doc:

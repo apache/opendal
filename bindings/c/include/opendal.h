@@ -82,6 +82,14 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
+ * BlockingLister is designed to list entries at given path in a blocking
+ * manner.
+ *
+ * Users can construct Lister by `blocking_list` or `blocking_scan`.
+ */
+typedef struct BlockingLister BlockingLister;
+
+/**
  * BlockingOperator is the entry for all public blocking APIs.
  *
  * Read [`concepts`][docs::concepts] for know more about [`Operator`].
@@ -112,6 +120,11 @@ typedef enum opendal_code {
  * ```
  */
 typedef struct BlockingOperator BlockingOperator;
+
+/**
+ * Entry is the file/dir entry returned by `Lister`.
+ */
+typedef struct Entry Entry;
 
 typedef struct HashMap_String__String HashMap_String__String;
 
@@ -260,6 +273,43 @@ typedef struct opendal_result_stat {
    */
   enum opendal_code code;
 } opendal_result_stat;
+
+/**
+ * \brief BlockingLister is designed to list entries at given path in a blocking
+ * manner.
+ *
+ * Users can construct Lister by `blocking_list` or `blocking_scan`(currently not supported in C binding)
+ *
+ * For examples, please see the comment section of opendal_operator_blocking_list()
+ * @see opendal_operator_blocking_list()
+ */
+typedef struct opendal_blocking_lister {
+  struct BlockingLister *inner;
+} opendal_blocking_lister;
+
+/**
+ * \brief The result type returned by opendal_operator_blocking_list().
+ *
+ * The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
+ * of the path, which is an iterator of the objects under the path. the field `code` represents
+ * whether the stat operation is successful.
+ */
+typedef struct opendal_result_list {
+  struct opendal_blocking_lister *lister;
+  enum opendal_code code;
+} opendal_result_list;
+
+/**
+ * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_blocking_lister
+ *
+ * For examples, please see the comment section of opendal_operator_blocking_list()
+ * @see opendal_operator_blocking_list()
+ * @see opendal_list_entry_path()
+ * @see opendal_list_entry_name()
+ */
+typedef struct opendal_list_entry {
+  struct Entry *inner;
+} opendal_list_entry;
 
 #ifdef __cplusplus
 extern "C" {
@@ -532,6 +582,56 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
                                                  const char *path);
 
 /**
+ * \brief Blockingly list the objects in `path`.
+ *
+ * List the object in `path` blockingly by `op_ptr`, return a result with a
+ * opendal_blocking_lister. Users should call opendal_lister_next() on the
+ * lister.
+ *
+ * @param ptr The opendal_operator_ptr created previously
+ * @param path The designated path you want to delete
+ * @see opendal_blocking_lister
+ * @return
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * // You have written some data into some files path "root/dir1"
+ * // Your opendal_operator_ptr was called ptr
+ * opendal_result_list l = opendal_operator_blocking_list(ptr, "root/dir1");
+ * assert(l.code == OPENDAL_OK);
+ *
+ * opendal_blocking_lister *lister = l.lister;
+ * opendal_list_entry *entry;
+ *
+ * while ((entry = opendal_lister_next(lister)) != NULL) {
+ *     const char* de_path = opendal_list_entry_path(entry);
+ *     const char* de_name = opendal_list_entry_name(entry);
+ *     // ...... your operations
+ *
+ *     // remember to free the entry after you are done using it
+ *     opendal_list_entry_free(entry);
+ * }
+ *
+ * // and remember to free the lister
+ * opendal_lister_free(lister);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_list opendal_operator_blocking_list(const struct opendal_operator_ptr *ptr,
+                                                          const char *path);
+
+/**
  * \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
  *
  * Please only use this for a pointer pointing at a valid opendal_operator_ptr.
@@ -647,6 +747,41 @@ void opendal_operator_options_set(struct opendal_operator_options *self,
  * \brief Free the allocated memory used by [`opendal_operator_options`]
  */
 void opendal_operator_options_free(const struct opendal_operator_options *options);
+
+/**
+ * \brief Return the next object to be listed
+ *
+ * Lister is an iterator of the objects under its path, this method is the same as
+ * calling next() on the iterator
+ *
+ * For examples, please see the comment section of opendal_operator_blocking_list()
+ * @see opendal_operator_blocking_list()
+ */
+struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lister *self);
+
+/**
+ * \brief Free the heap-allocated metadata used by opendal_blocking_lister
+ */
+void opendal_lister_free(const struct opendal_blocking_lister *p);
+
+/**
+ * Path of entry. Path is relative to operator's root.
+ * Only valid in current operator.
+ */
+const char *opendal_list_entry_path(const struct opendal_list_entry *self);
+
+/**
+ * Name of entry. Name is the last segment of path.
+ *
+ * If this entry is a dir, `Name` MUST endswith `/`
+ * Otherwise, `Name` MUST NOT endswith `/`.
+ */
+const char *opendal_list_entry_name(const struct opendal_list_entry *self);
+
+/**
+ * \brief Frees the heap memory used by the opendal_list_entry
+ */
+void opendal_list_entry_free(const struct opendal_list_entry *p);
 
 #ifdef __cplusplus
 } // extern "C"

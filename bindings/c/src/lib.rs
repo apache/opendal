@@ -15,7 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![warn(missing_docs)]
 #![allow(non_camel_case_types)]
+
+//! The OpenDAL C binding.
+//!
+//! The OpenDAL C binding allows users to utilize the OpenDAL's amazing storage accessing capability
+//! in the C programming language.
+//!
+//! For examples, you may see the examples subdirectory
 
 mod error;
 mod result;
@@ -26,6 +34,8 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
+use result::opendal_result_list;
+use types::opendal_blocking_lister;
 
 use crate::error::opendal_code;
 use crate::result::opendal_result_is_exist;
@@ -108,9 +118,9 @@ pub unsafe extern "C" fn opendal_operator_new(
     };
 
     // this prevents the operator memory from being dropped by the Box
-    let op = opendal_operator_ptr::from(Box::leak(Box::new(op)));
+    let op = opendal_operator_ptr::from(Box::into_raw(Box::new(op)));
 
-    Box::leak(Box::new(op))
+    Box::into_raw(Box::new(op))
 }
 
 /// \brief Blockingly write raw bytes to `path`.
@@ -412,6 +422,75 @@ pub unsafe extern "C" fn opendal_operator_stat(
         Err(err) => opendal_result_stat {
             meta: std::ptr::null_mut(),
             code: opendal_code::from_opendal_error(err),
+        },
+    }
+}
+
+/// \brief Blockingly list the objects in `path`.
+///
+/// List the object in `path` blockingly by `op_ptr`, return a result with a
+/// opendal_blocking_lister. Users should call opendal_lister_next() on the
+/// lister.
+///
+/// @param ptr The opendal_operator_ptr created previously
+/// @param path The designated path you want to delete
+/// @see opendal_blocking_lister
+/// @return
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// // You have written some data into some files path "root/dir1"
+/// // Your opendal_operator_ptr was called ptr
+/// opendal_result_list l = opendal_operator_blocking_list(ptr, "root/dir1");
+/// assert(l.code == OPENDAL_OK);
+///
+/// opendal_blocking_lister *lister = l.lister;
+/// opendal_list_entry *entry;
+///
+/// while ((entry = opendal_lister_next(lister)) != NULL) {
+///     const char* de_path = opendal_list_entry_path(entry);
+///     const char* de_name = opendal_list_entry_name(entry);
+///     // ...... your operations
+///
+///     // remember to free the entry after you are done using it
+///     opendal_list_entry_free(entry);
+/// }
+///
+/// // and remember to free the lister
+/// opendal_lister_free(lister);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_blocking_list(
+    ptr: *const opendal_operator_ptr,
+    path: *const c_char,
+) -> opendal_result_list {
+    if path.is_null() {
+        panic!("The path given is pointing at NULL");
+    }
+
+    let op = (*ptr).as_ref();
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    match op.list(path) {
+        Ok(lister) => opendal_result_list {
+            lister: Box::into_raw(Box::new(opendal_blocking_lister::new(lister))),
+            code: opendal_code::OPENDAL_OK,
+        },
+
+        Err(e) => opendal_result_list {
+            lister: std::ptr::null_mut(),
+            code: opendal_code::from_opendal_error(e),
         },
     }
 }

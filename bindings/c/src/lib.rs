@@ -15,8 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![allow(non_camel_case_types)]
 #![warn(missing_docs)]
+#![allow(non_camel_case_types)]
+
+//! The OpenDAL C binding.
+//!
+//! The OpenDAL C binding allows users to utilize the OpenDAL's amazing storage accessing capability
+//! in the C programming language.
+//!
+//! For examples, you may see the examples subdirectory
 
 mod error;
 mod result;

@@ -67,6 +67,11 @@ pub struct opendal_result_stat {
     pub code: opendal_code,
 }
 
+/// \brief The result type returned by opendal_operator_blocking_list().
+///
+/// The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
+/// of the path, which is an iterator of the objects under the path. the field `code` represents
+/// whether the stat operation is successful.
 #[repr(C)]
 pub struct opendal_result_list {
     pub lister: *mut opendal_blocking_lister,

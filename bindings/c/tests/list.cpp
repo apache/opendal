@@ -74,7 +74,7 @@ TEST_F(OpendalListTest, ListDirTest)
     // start checking the lister's result
     bool found = false;
 
-    opendal_list_entry *entry = opendal_lister_next(lister);
+    opendal_list_entry* entry = opendal_lister_next(lister);
     while (entry) {
         const char* de_path = opendal_list_entry_path(entry);
 
@@ -102,7 +102,7 @@ TEST_F(OpendalListTest, ListDirTest)
     // delete
     EXPECT_EQ(opendal_operator_blocking_delete(this->p, path.c_str()),
         OPENDAL_OK);
-    
+
     opendal_lister_free(lister);
 }
 

@@ -287,6 +287,13 @@ typedef struct opendal_blocking_lister {
   struct BlockingLister *inner;
 } opendal_blocking_lister;
 
+/**
+ * \brief The result type returned by opendal_operator_blocking_list().
+ *
+ * The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
+ * of the path, which is an iterator of the objects under the path. the field `code` represents
+ * whether the stat operation is successful.
+ */
 typedef struct opendal_result_list {
   struct opendal_blocking_lister *lister;
   enum opendal_code code;

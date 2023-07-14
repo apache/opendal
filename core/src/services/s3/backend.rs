@@ -25,7 +25,6 @@ use async_trait::async_trait;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
-use http::HeaderValue;
 use http::StatusCode;
 use log::debug;
 use md5::Digest;
@@ -520,56 +519,65 @@ impl S3Builder {
     }
 
     /// a helper function to make it easier to find region
-    pub async fn detect_region(&self) -> Result<Option<String>> {
-        if let Some(region) = &self.region {
-            return Ok(Some(region.to_string()));
-        }
+    /// Reference: [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
+    /// # Args
+    ///
+    /// endpoint: the endpoint of S3 service
+    ///
+    /// bucket: the bucket of S3 service
+    /// # Return
+    /// if get the region of given inputs, return Some(region)
+    /// else return None
+    ///
+    /// # Usage
+    /// let b = S3Builder::default();
+    /// let region = b.detect_region("https://s3.amazonaws.com", "buckets").await;
+    pub async fn detect_region(&self, endpoint: &str, bucket: &str) -> Option<String> {
+        let mut endpoint = if endpoint.starts_with("http") {
+            endpoint.to_string()
+        } else {
+            // Prefix https if endpoint doesn't start with scheme.
+            format!("https://{}", endpoint)
+        };
 
-        let mut endpoint = match &self.endpoint { 
-            Some(endpoint) => { 
-                if endpoint.starts_with("http") { 
-                    endpoint.to_string() 
-                } else { 
-                    // Prefix https if endpoint doesn't start with scheme. 
-                    format!("https://{}", endpoint) 
-                } 
-            } 
-            None => "https://s3.amazonaws.com".to_string(), 
-        }; 
-     
-        // If endpoint contains bucket name, we should trim them. 
-        endpoint = endpoint.replace(&format!("//{0}.", &self.bucket), "//");
+        endpoint = endpoint.replace(&format!("//{0}.", bucket), "//");
+        let url = format!("{0}/{1}", endpoint, bucket);
 
-        let url = format!("{0}/{1}", endpoint, &self.bucket); 
+        debug!("backend detect region with url: {url}");
 
-        debug!("backend detect region with url: {url}"); 
-     
-        let req = http::Request::head(&url).body(AsyncBody::Empty).map_err(new_request_build_error)?; 
-     
-        let client = HttpClient::new()?;
-        let res = client.send(req).await?; 
-     
-        debug!( 
-            "auto detect region got response: status {:?}, header: {:?}", 
-            res.status(), 
-            res.headers() 
-        ); 
-        
-        match res.status() { 
-            // The endpoint works, return with not changed endpoint and 
-            // default region. 
-            StatusCode::OK | StatusCode::FORBIDDEN | StatusCode::METHOD_NOT_ALLOWED => { 
-                let region = res 
-                    .headers() 
-                    .get("x-amz-bucket-region") 
-                    .unwrap_or(&HeaderValue::from_static("us-east-1")) 
-                    .to_str() 
-                    .map_err(|e| println!("{e:?}")).unwrap() 
-                    .to_string(); 
-                Ok(Some(region)) 
+        let req = match http::Request::head(&url).body(AsyncBody::Empty) {
+            Ok(reg) => reg,
+            Err(_) => return None,
+        };
+
+        let client = match HttpClient::new() {
+            Ok(client) => client,
+            Err(_) => return None,
+        };
+        let res = match client.send(req).await {
+            Ok(res) => res,
+            Err(_) => return None,
+        };
+
+        debug!(
+            "auto detect region got response: status {:?}, header: {:?}",
+            res.status(),
+            res.headers()
+        );
+
+        match res.status() {
+            // The endpoint works, return with not changed endpoint and
+            // default region.
+            StatusCode::OK | StatusCode::FORBIDDEN | StatusCode::MOVED_PERMANENTLY => {
+                let region = res.headers().get("x-amz-bucket-region").unwrap().to_str();
+                if let Ok(regin) = region {
+                    Some(regin.to_string())
+                } else {
+                    None
+                }
             }
-            // Unexpected status code 
-            code => Err(Error::new(ErrorKind::NotFound, format!("can't detect region automatically, no valid endpoint template for {endpoint} {code:?}").as_str()))
+            // Unexpected status code
+            _ => None,
         }
     }
 }
@@ -1106,10 +1114,8 @@ mod tests {
     }
     #[tokio::test]
     async fn test_detect_region() {
-        let mut b = S3Builder::default();
-        let region =  b.detect_region().await;
-        b.bucket("test");
-        println!("{b:?}");
-        println!("{region:?}");
+        let b = S3Builder::default();
+        let region = b.detect_region("https://s3.amazonaws.com", "buckets").await;
+        assert_eq!(region, Some("us-east-1".to_string()))
     }
 }

@@ -114,7 +114,7 @@ impl<A: Accessor> RangeReader<A> {
             Some(n) if n >= 0 => n as u64,
             _ => {
                 return Err(Error::new(
-                    ErrorKind::Unexpected,
+                    ErrorKind::InvalidInput,
                     "invalid seek to a negative or overflowing position",
                 ))
             }

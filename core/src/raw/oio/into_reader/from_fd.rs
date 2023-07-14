@@ -93,7 +93,7 @@ where
 
         match base.checked_add(offset) {
             Some(n) if n < 0 => Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
+                ErrorKind::InvalidInput,
                 "invalid seek to a negative or overflowing position",
             ))),
             Some(n) => {
@@ -109,7 +109,7 @@ where
                 Poll::Ready(Ok(self.offset - self.start))
             }
             None => Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
+                ErrorKind::InvalidInput,
                 "invalid seek to a negative or overflowing position",
             ))),
         }

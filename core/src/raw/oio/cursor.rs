@@ -84,7 +84,7 @@ impl oio::Read for Cursor {
             Some(n) if n >= 0 => n as u64,
             _ => {
                 return Poll::Ready(Err(Error::new(
-                    ErrorKind::Unexpected,
+                    ErrorKind::InvalidInput,
                     "invalid seek to a negative or overflowing position",
                 )))
             }
@@ -127,7 +127,7 @@ impl oio::BlockingRead for Cursor {
             Some(n) if n >= 0 => n as u64,
             _ => {
                 return Err(Error::new(
-                    ErrorKind::Unexpected,
+                    ErrorKind::InvalidInput,
                     "invalid seek to a negative or overflowing position",
                 ))
             }

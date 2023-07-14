@@ -90,7 +90,7 @@ where
 
         match base.checked_add(offset) {
             Some(n) if n < 0 => Err(Error::new(
-                ErrorKind::Unexpected,
+                ErrorKind::InvalidInput,
                 "invalid seek to a negative or overflowing position",
             )),
             Some(n) => {
@@ -104,7 +104,7 @@ where
                 Ok(self.offset - self.start)
             }
             None => Err(Error::new(
-                ErrorKind::Unexpected,
+                ErrorKind::InvalidInput,
                 "invalid seek to a negative or overflowing position",
             )),
         }

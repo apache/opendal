@@ -197,4 +197,4 @@ pub use self::redb::Redb;
 #[cfg(feature = "services-tikv")]
 mod tikv;
 #[cfg(feature = "services-tikv")]
-pub use self::tikv::TiKV;
+pub use self::tikv::Tikv;

@@ -18,4 +18,4 @@
 
 mod backend;
 
-pub use backend::TiKVBuilder as TiKV;
+pub use backend::TikvBuilder as Tikv;

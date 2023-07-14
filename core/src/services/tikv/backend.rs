@@ -34,7 +34,7 @@ use std::fmt::Formatter;
 
 /// TiKV backend builder
 #[derive(Clone, Default)]
-pub struct TiKVBuilder {
+pub struct TikvBuilder {
     /// network address of the TiKV service.
     ///
     /// default is "127.0.0.1:2379"
@@ -49,10 +49,10 @@ pub struct TiKVBuilder {
     key_path: Option<String>,
 }
 
-impl TiKVBuilder {
+impl TikvBuilder {
     /// Set the network address of the TiKV service.
-    pub fn endpoints(&mut self, endpoints: impl Into<Vec<String>>) -> &mut Self {
-        let ep: Vec<String> = endpoints.into().into_iter().collect();
+    pub fn endpoints(&mut self, endpoints: Vec<String>) -> &mut Self {
+        let ep: Vec<String> = endpoints.into_iter().collect();
         if !ep.is_empty() {
             self.endpoints = Some(ep)
         }
@@ -90,12 +90,12 @@ impl TiKVBuilder {
     }
 }
 
-impl Builder for TiKVBuilder {
+impl Builder for TikvBuilder {
     const SCHEME: Scheme = Scheme::Redb;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = TiKVBuilder::default();
+        let mut builder = TikvBuilder::default();
 
         map.get("endpoints")
             .map(|v| v.split(',').map(|s| s.to_owned()).collect::<Vec<String>>())
@@ -116,21 +116,21 @@ impl Builder for TiKVBuilder {
                 ErrorKind::ConfigInvalid,
                 "endpoints is required but not set",
             )
-            .with_context("service", Scheme::TiKV)
+            .with_context("service", Scheme::Tikv)
         })?;
 
         if self.insecure {
             if self.ca_path.is_some() || self.key_path.is_some() || self.cert_path.is_some() {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
-                        .with_context("service", Scheme::TiKV)
+                        .with_context("service", Scheme::Tikv)
                         .with_context("endpoints", format!("{:?}", endpoints)),
                 )?;
             }
         } else if !(self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some()) {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
-                    .with_context("service", Scheme::TiKV)
+                    .with_context("service", Scheme::Tikv)
                     .with_context("endpoints", format!("{:?}", endpoints)),
             )?;
         }
@@ -163,10 +163,6 @@ impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Adapter");
         ds.field("endpoints", &self.endpoints);
-        ds.field("insecure", &self.insecure);
-        ds.field("ca_path", &self.ca_path);
-        ds.field("cert_path", &self.cert_path);
-        ds.field("key_path", &self.key_path);
         ds.finish()
     }
 }
@@ -182,7 +178,7 @@ impl Adapter {
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                        .with_context("service", Scheme::TiKV)
+                        .with_context("service", Scheme::Tikv)
                         .with_context("endpoints", format!("{:?}", self.endpoints))
                         .set_source(err)
                 })?
@@ -197,14 +193,14 @@ impl Adapter {
                 .await
                 .map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                        .with_context("service", Scheme::TiKV)
+                        .with_context("service", Scheme::Tikv)
                         .with_context("endpoints", format!("{:?}", self.endpoints))
                         .set_source(err)
                 })?
         } else {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                    .with_context("service", Scheme::TiKV)
+                    .with_context("service", Scheme::Tikv)
                     .with_context("endpoints", format!("{:?}", self.endpoints)),
             );
         };
@@ -216,7 +212,7 @@ impl Adapter {
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
-            Scheme::TiKV,
+            Scheme::Tikv,
             "TiKV",
             Capability {
                 read: true,

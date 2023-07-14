@@ -100,9 +100,9 @@ pub enum ErrorKind {
     /// - Service expected to write 1024 bytes, but users write less bytes.
     ContentIncomplete,
     /// The input is invalid.
-    /// 
+    ///
     /// For example, user try to seek to a negative position
-    InvalidInput, 
+    InvalidInput,
 }
 
 impl ErrorKind {

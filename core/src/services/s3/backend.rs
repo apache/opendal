@@ -27,6 +27,7 @@ use base64::Engine;
 use bytes::Buf;
 use http::StatusCode;
 use log::debug;
+use log::warn;
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
@@ -56,6 +57,7 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
+
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
@@ -516,6 +518,116 @@ impl S3Builder {
         self.batch_max_operations = Some(batch_max_operations);
 
         self
+    }
+
+    /// Detect region of S3 bucket.
+    ///
+    /// # Args
+    ///
+    /// - endpoint: the endpoint of S3 service
+    /// - bucket: the bucket of S3 service
+    ///
+    /// # Return
+    ///
+    /// - `Some(region)` means we detect the region successfully
+    /// - `None` means we can't detect the region or meeting errors.
+    ///
+    /// # Notes
+    ///
+    /// We will try to detect region by the following methods.
+    ///
+    /// - Match endpoint with given rules to get region
+    ///   - Cloudflare R2
+    ///   - AWS S3
+    ///   - Aliyun OSS
+    /// - Send a `HEAD` request to endpoint with bucket name to get `x-amz-bucket-region`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use opendal::services::S3;
+    ///
+    /// # async fn example() {
+    /// let builder = S3::default();
+    /// let region: Option<String> = builder.detect_region("https://s3.amazonaws.com", "example").await;
+    /// # }
+    /// ```
+    ///
+    /// # Reference
+    ///
+    /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
+    pub async fn detect_region(&self, endpoint: &str, bucket: &str) -> Option<String> {
+        let mut endpoint = if endpoint.starts_with("http") {
+            endpoint.to_string()
+        } else {
+            // Prefix https if endpoint doesn't start with scheme.
+            format!("https://{}", endpoint)
+        };
+
+        // Remove bucket name from endpoint.
+        endpoint = endpoint.replace(&format!("//{bucket}."), "//");
+        let url = format!("{endpoint}/{bucket}");
+
+        debug!("detect region with url: {url}");
+
+        // Try to detect region by endpoint.
+
+        // If this bucket is R2, we can return auto directly.
+        //
+        // Reference: <https://developers.cloudflare.com/r2/api/s3/api/>
+        if endpoint.ends_with("r2.cloudflarestorage.com") {
+            return Some("auto".to_string());
+        }
+
+        // If this bucket is AWS, we can try to match the endpoint.
+        if let Some(v) = endpoint.strip_prefix("https://s3.") {
+            if let Some(region) = v.strip_suffix(".amazonaws.com") {
+                return Some(region.to_string());
+            }
+        }
+
+        // If this bucket is OSS, we can try to match the endpoint.
+        //
+        // - `oss-ap-southeast-1.aliyuncs.com` => `oss-ap-southeast-1`
+        // - `oss-cn-hangzhou-internal.aliyuncs.com` => `oss-cn-hangzhou`
+        if let Some(v) = endpoint.strip_prefix("https://") {
+            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
+                return Some(region.to_string());
+            }
+
+            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
+                return Some(region.to_string());
+            }
+        }
+
+        // Try to detect region by HeadBucket.
+        let req = http::Request::head(&url).body(AsyncBody::Empty).ok()?;
+
+        let client = HttpClient::new().ok()?;
+        let res = client
+            .send(req)
+            .await
+            .map_err(|err| warn!("detect region failed for: {err:?}"))
+            .ok()?;
+
+        debug!(
+            "auto detect region got response: status {:?}, header: {:?}",
+            res.status(),
+            res.headers()
+        );
+
+        match res.status() {
+            StatusCode::OK | StatusCode::FORBIDDEN | StatusCode::MOVED_PERMANENTLY => {
+                let region = res.headers().get("x-amz-bucket-region")?;
+                if let Ok(regin) = region.to_str() {
+                    Some(regin.to_string())
+                } else {
+                    None
+                }
+            }
+            // Unexpected status code
+            _ => None,
+        }
     }
 }
 
@@ -1047,6 +1159,55 @@ mod tests {
 
             let endpoint = b.build_endpoint("us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_detect_region() {
+        let cases = vec![
+            (
+                "aws s3 without region in endpoint",
+                "https://s3.amazonaws.com",
+                "example",
+                Some("us-east-1"),
+            ),
+            (
+                "aws s3 with region in endpoint",
+                "https://s3.us-east-1.amazonaws.com",
+                "example",
+                Some("us-east-1"),
+            ),
+            (
+                "oss with public endpoint",
+                "https://oss-ap-southeast-1.aliyuncs.com",
+                "example",
+                Some("oss-ap-southeast-1"),
+            ),
+            (
+                "oss with internal endpoint",
+                "https://oss-cn-hangzhou-internal.aliyuncs.com",
+                "example",
+                Some("oss-cn-hangzhou-internal"),
+            ),
+            (
+                "r2",
+                "https://abc.xxxxx.r2.cloudflarestorage.com",
+                "example",
+                Some("auto"),
+            ),
+            (
+                "invalid service",
+                "https://opendal.apache.org",
+                "example",
+                None,
+            ),
+        ];
+
+        let b = S3Builder::default();
+
+        for (name, endpoint, bucket, expected) in cases {
+            let region = b.detect_region(endpoint, bucket).await;
+            assert_eq!(region.as_deref(), expected, "{}", name);
         }
     }
 }

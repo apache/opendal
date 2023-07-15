@@ -67,6 +67,21 @@ To set `CLASSPATH`:
 export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':'):${CLASSPATH}
 ```
 
+- If HDFS has High Availability (HA) enabled with multiple available NameNodes, some configuration is required:
+1. Obtain the entire HDFS config folder (usually located at HADOOP_HOME/etc/hadoop).
+2. Set the environment variable HADOOP_CONF_DIR to the path of this folder.
+```shell
+export HADOOP_CONF_DIR=<path of the config folder>
+```
+3. Append the HADOOP_CONF_DIR to the `CLASSPATH`
+```shell
+export CLASSPATH=$CLASSPATH:$HADOOP_CONF_DIR
+```
+4. Use the `cluster_name` specified in the `core-site.xml` file (located in the HADOOP_CONF_DIR folder) to replace namenode:port.
+
+```rust
+builder.name_node("hdfs://cluster_name");
+```
 ## Example
 
 ### Via Builder

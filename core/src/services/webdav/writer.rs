@@ -35,19 +35,16 @@ impl WebdavWriter {
     pub fn new(backend: WebdavBackend, op: OpWrite, path: String) -> Self {
         WebdavWriter { backend, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for WebdavWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write_oneshot(&mut self, size: u64, body: AsyncBody) -> Result<()> {
         let resp = self
             .backend
             .webdav_put(
                 &self.path,
-                Some(bs.len()),
+                Some(size),
                 self.op.content_type(),
                 self.op.content_disposition(),
-                AsyncBody::Bytes(bs),
+                body,
             )
             .await?;
 
@@ -61,12 +58,17 @@ impl oio::Write for WebdavWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+#[async_trait]
+impl oio::Write for WebdavWriter {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        self.write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
+            .await
+    }
+
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        self.write_oneshot(size, AsyncBody::Stream(s)).await
     }
 
     async fn abort(&mut self) -> Result<()> {

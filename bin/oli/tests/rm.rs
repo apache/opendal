@@ -15,9 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::WebdavBuilder as Webdav;
+use std::env;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
-mod error;
-mod pager;
-mod writer;
+use anyhow::Result;
+use assert_cmd::prelude::*;
+
+#[tokio::test]
+async fn test_basic_rm() -> Result<()> {
+    let dir = env::temp_dir();
+    fs::create_dir_all(dir.clone())?;
+    let dst_path = Path::new(&dir).join("dst.txt");
+    let expect = "hello";
+    fs::write(&dst_path, expect)?;
+
+    let mut cmd = Command::cargo_bin("oli")?;
+
+    cmd.arg("rm").arg(dst_path.as_os_str());
+    cmd.assert().success();
+
+    assert!(fs::read_to_string(&dst_path).is_err());
+    Ok(())
+}

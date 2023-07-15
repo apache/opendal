@@ -192,7 +192,7 @@ pub trait ReadExt: Read {
         ReadFuture {
             reader: self,
             buf,
-            _pin: PhantomPinned::default(),
+            _pin: PhantomPinned,
         }
     }
 
@@ -201,7 +201,7 @@ pub trait ReadExt: Read {
         SeekFuture {
             reader: self,
             pos,
-            _pin: PhantomPinned::default(),
+            _pin: PhantomPinned,
         }
     }
 
@@ -209,7 +209,7 @@ pub trait ReadExt: Read {
     fn next(&mut self) -> NextFuture<'_, Self> {
         NextFuture {
             reader: self,
-            _pin: PhantomPinned::default(),
+            _pin: PhantomPinned,
         }
     }
 }

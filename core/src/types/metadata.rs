@@ -44,6 +44,7 @@ pub struct Metadata {
     content_type: Option<String>,
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
+    version: Option<String>,
 }
 
 impl Metadata {
@@ -69,6 +70,7 @@ impl Metadata {
             last_modified: None,
             etag: None,
             content_disposition: None,
+            version: None,
         }
     }
 
@@ -418,6 +420,42 @@ impl Metadata {
         self.bit |= Metakey::ContentDisposition;
         self
     }
+
+    /// Version of this entry.
+    ///
+    /// Version is a string that can be used to identify the version of this entry.
+    ///
+    /// This field may come out from the version control system, like object versioning in AWS S3.
+    pub fn version(&self) -> Option<&str> {
+        debug_assert!(
+            self.bit.contains(Metakey::Version) || self.bit.contains(Metakey::Complete),
+            "visiting not set metadata: version, maybe a bug"
+        );
+
+        self.version.as_deref()
+    }
+
+    /// Set version of this entry.
+    ///
+    /// Version is a string that can be used to identify the version of this entry.
+    ///
+    /// This field may come out from the version control system, like object versioning in AWS S3.
+    pub fn with_version(mut self, v: String) -> Self {
+        self.version = Some(v);
+        self.bit |= Metakey::Version;
+        self
+    }
+
+    /// Set version of this entry.
+    ///
+    /// Version is a string that can be used to identify the version of this entry.
+    ///
+    /// This field may come out from the version control system, like object versioning in AWS S3.
+    pub fn set_version(&mut self, v: &str) -> &mut Self {
+        self.version = Some(v.to_string());
+        self.bit |= Metakey::Version;
+        self
+    }
 }
 
 flags! {
@@ -457,5 +495,7 @@ flags! {
         Etag,
         /// Key for last last modified.
         LastModified,
+        /// Key for version.
+        Version,
     }
 }

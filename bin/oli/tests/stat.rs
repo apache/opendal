@@ -15,34 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::str::FromStr;
-use std::sync::Arc;
+use std::env;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
-use anyhow::Context;
 use anyhow::Result;
-use oay::services::S3Service;
-use oay::Config;
-use opendal::Operator;
-use opendal::Scheme;
-use tracing_subscriber::fmt;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::EnvFilter;
+use assert_cmd::prelude::*;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    tracing_subscriber::registry()
-        .with(fmt::layer().pretty())
-        .with(EnvFilter::from_default_env())
-        .init();
+#[tokio::test]
+async fn test_basic_stat() -> Result<()> {
+    let dir = env::temp_dir();
+    fs::create_dir_all(dir.clone())?;
+    let dst_path = Path::new(&dir).join("dst.txt");
+    let expect = "hello";
+    fs::write(&dst_path, expect)?;
 
-    let cfg: Config =
-        toml::from_str(&std::fs::read_to_string("oay.toml").context("failed to open oay.toml")?)?;
-    let scheme = Scheme::from_str(&cfg.backend.typ).context("unsupported scheme")?;
-    let op = Operator::via_map(scheme, cfg.backend.map.clone())?;
+    let mut cmd = Command::cargo_bin("oli")?;
 
-    let s3 = S3Service::new(Arc::new(cfg), op);
+    cmd.arg("stat").arg(dst_path.as_os_str());
+    let res = cmd.assert().success();
+    let output = res.get_output().stdout.clone();
 
-    s3.serve().await?;
+    let output_stdout = String::from_utf8(output)?;
+    assert!(output_stdout.contains("path: tmp/dst.txt"));
+    assert!(output_stdout.contains("size: 5"));
+    assert!(output_stdout.contains("type: file"));
+    assert!(output_stdout.contains("last-modified: "));
 
     Ok(())
 }

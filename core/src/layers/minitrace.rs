@@ -25,6 +25,7 @@ use bytes::Bytes;
 use futures::FutureExt;
 use minitrace::prelude::*;
 
+use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -63,32 +64,29 @@ use crate::*;
 /// fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
 ///     let collector = {
 ///         let (span, collector) = minitrace::Span::root("op");
-///         let _g = span.set_local_parent();
 ///         let runtime = tokio::runtime::Runtime::new()?;
-///
-///         runtime.block_on(async {
-///             let _ = dotenvy::dotenv();
-///             let op = Operator::from_env::<services::Memory>()
-///                 .expect("init operator must succeed")
-///                 .layer(MinitraceLayer)
-///                 .finish();
-///
-///             op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
-///                 .await
-///                 .expect("must succeed");
-///             op.stat("test").await.expect("must succeed");
-///             op.read("test").await.expect("must succeed");
-///         });
+///         runtime.block_on(
+///             async {
+///                 let _ = dotenvy::dotenv();
+///                 let op = Operator::from_env::<services::Memory>()
+///                     .expect("init operator must succeed")
+///                     .layer(MinitraceLayer)
+///                     .finish();
+///                 op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
+///                     .await
+///                     .expect("must succeed");
+///                 op.stat("test").await.expect("must succeed");
+///                 op.read("test").await.expect("must succeed");
+///             }
+///             .in_span(Span::enter_with_parent("test", &span)),
+///         );
 ///         collector
 ///     };
-///
 ///     let spans = block_on(collector.collect());
-///
 ///     let bytes =
 ///         minitrace_jaeger::encode("opendal".to_owned(), rand::random(), 0, 0, &spans).unwrap();
 ///     minitrace_jaeger::report_blocking("127.0.0.1:6831".parse().unwrap(), &bytes)
 ///         .expect("report error");
-///
 ///     Ok(())
 /// }
 /// ```
@@ -134,7 +132,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     type BlockingReader = MinitraceWrapper<A::BlockingReader>;
     type Writer = MinitraceWrapper<A::Writer>;
     type BlockingWriter = MinitraceWrapper<A::BlockingWriter>;
-    type Appender = A::Appender;
+    type Appender = MinitraceWrapper<A::Appender>;
     type Pager = MinitraceWrapper<A::Pager>;
     type BlockingPager = MinitraceWrapper<A::BlockingPager>;
 
@@ -142,7 +140,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         &self.inner
     }
 
-    #[trace("metadata")]
+    #[trace]
     fn metadata(&self) -> AccessorInfo {
         self.inner.info()
     }
@@ -152,115 +150,147 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.create_dir(path, args).await
     }
 
+    #[trace(enter_on_poll = true)]
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let span = Span::enter_with_local_parent("read");
         self.inner
             .read(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(span, r))))
+            .map(|v| {
+                v.map(|(rp, r)| {
+                    (
+                        rp,
+                        MinitraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
+                    )
+                })
+            })
             .await
     }
 
+    #[trace(enter_on_poll = true)]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let span = Span::enter_with_local_parent("write");
         self.inner
             .write(path, args)
-            .map(|v| v.map(|(rp, r)| (rp, MinitraceWrapper::new(span, r))))
+            .map(|v| {
+                v.map(|(rp, r)| {
+                    (
+                        rp,
+                        MinitraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
+                    )
+                })
+            })
             .await
     }
 
+    #[trace(enter_on_poll = true)]
     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner.append(path, args).await
+        self.inner
+            .append(path, args)
+            .map(|v| {
+                v.map(|(rp, r)| {
+                    (
+                        rp,
+                        MinitraceWrapper::new(Span::enter_with_local_parent("AppendOperation"), r),
+                    )
+                })
+            })
+            .await
     }
 
-    #[trace("copy", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().copy(from, to, args).await
     }
 
-    #[trace("rename", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.inner().rename(from, to, args).await
     }
 
-    #[trace("stat", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await
     }
 
-    #[trace("delete", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.delete(path, args).await
     }
 
+    #[trace(enter_on_poll = true)]
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let span = Span::enter_with_local_parent("list");
         self.inner
             .list(path, args)
-            .map(|v| v.map(|(rp, s)| (rp, MinitraceWrapper::new(span, s))))
+            .map(|v| {
+                v.map(|(rp, s)| {
+                    (
+                        rp,
+                        MinitraceWrapper::new(Span::enter_with_local_parent("ListOperation"), s),
+                    )
+                })
+            })
             .await
     }
 
-    #[trace("presign", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
     }
 
-    #[trace("batch", enter_on_poll = true)]
+    #[trace(enter_on_poll = true)]
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.inner.batch(args).await
     }
 
-    #[trace("blocking_create")]
+    #[trace]
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.blocking_create_dir(path, args)
     }
 
+    #[trace]
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let span = Span::enter_with_local_parent("blocking_read");
         self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                MinitraceWrapper::new(Span::enter_with_parent("ReadOperation", &span), r),
+                MinitraceWrapper::new(Span::enter_with_local_parent("ReadOperation"), r),
             )
         })
     }
 
+    #[trace]
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let span = Span::enter_with_local_parent("blocking_write");
         self.inner.blocking_write(path, args).map(|(rp, r)| {
             (
                 rp,
-                MinitraceWrapper::new(Span::enter_with_parent("WriteOperation", &span), r),
+                MinitraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
             )
         })
     }
 
-    #[trace("blocking_copy")]
+    #[trace]
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         self.inner().blocking_copy(from, to, args)
     }
 
-    #[trace("blocking_rename")]
+    #[trace]
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         self.inner().blocking_rename(from, to, args)
     }
 
-    #[trace("blocking_stat")]
+    #[trace]
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args)
     }
 
-    #[trace("blocking_delete")]
+    #[trace]
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.blocking_delete(path, args)
     }
 
+    #[trace]
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        let span = Span::enter_with_local_parent("blocking_list");
         self.inner.blocking_list(path, args).map(|(rp, it)| {
             (
                 rp,
-                MinitraceWrapper::new(Span::enter_with_parent("PageOperation", &span), it),
+                MinitraceWrapper::new(Span::enter_with_local_parent("PageOperation"), it),
             )
         })
     }
@@ -279,34 +309,40 @@ impl<R> MinitraceWrapper<R> {
 
 impl<R: oio::Read> oio::Read for MinitraceWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let _span = Span::enter_with_parent(ReadOperation::Read.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(ReadOperation::Read.into_static());
         self.inner.poll_read(cx, buf)
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
-        let _span = Span::enter_with_parent(ReadOperation::Seek.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(ReadOperation::Seek.into_static());
         self.inner.poll_seek(cx, pos)
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        let _span = Span::enter_with_parent(ReadOperation::Next.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(ReadOperation::Next.into_static());
         self.inner.poll_next(cx)
     }
 }
 
 impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let _span = Span::enter_with_parent(ReadOperation::BlockingRead.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingRead.into_static());
         self.inner.read(buf)
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let _span = Span::enter_with_parent(ReadOperation::BlockingSeek.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingSeek.into_static());
         self.inner.seek(pos)
     }
 
     fn next(&mut self) -> Option<Result<Bytes>> {
-        let _span = Span::enter_with_parent(ReadOperation::BlockingNext.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(ReadOperation::BlockingNext.into_static());
         self.inner.next()
     }
 }
@@ -356,15 +392,38 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        let _span =
-            Span::enter_with_parent(WriteOperation::BlockingWrite.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingWrite.into_static());
         self.inner.write(bs)
     }
 
     fn close(&mut self) -> Result<()> {
-        let _span =
-            Span::enter_with_parent(WriteOperation::BlockingClose.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingClose.into_static());
         self.inner.close()
+    }
+}
+
+#[async_trait]
+impl<R: oio::Append> oio::Append for MinitraceWrapper<R> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.inner
+            .append(bs)
+            .in_span(Span::enter_with_parent(
+                AppendOperation::Append.into_static(),
+                &self.span,
+            ))
+            .await
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.inner
+            .close()
+            .in_span(Span::enter_with_parent(
+                AppendOperation::Close.into_static(),
+                &self.span,
+            ))
+            .await
     }
 }
 
@@ -383,7 +442,8 @@ impl<R: oio::Page> oio::Page for MinitraceWrapper<R> {
 
 impl<R: oio::BlockingPage> oio::BlockingPage for MinitraceWrapper<R> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        let _span = Span::enter_with_parent(PageOperation::BlockingNext.into_static(), &self.span);
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(PageOperation::BlockingNext.into_static());
         self.inner.next()
     }
 }

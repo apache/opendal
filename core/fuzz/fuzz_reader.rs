@@ -24,6 +24,7 @@ use libfuzzer_sys::fuzz_target;
 use opendal::raw::oio::ReadExt;
 use opendal::Operator;
 use std::io::SeekFrom;
+use sha2::{Digest, Sha256};
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
@@ -70,9 +71,68 @@ impl Arbitrary<'_> for FuzzInput {
     }
 }
 
+struct ReaderFuzzerChecker {
+    data: Vec<u8>,
+    size: usize,
+    cur: usize,
+}
+
+impl ReaderFuzzerChecker {
+    fn new(data: Vec<u8>) -> Self {
+        Self {
+            size: data.len(),
+            data,
+            cur: 0,
+        }
+    }
+
+    fn check_read(&mut self, n: usize, output: &[u8]) {
+        let expected = &self.data[self.cur..self.cur + n];
+
+        // Check the read result
+        assert_eq!(
+            format!("{:x}", Sha256::digest(output)),
+            format!("{:x}", Sha256::digest(expected)),
+            "check read failed: output bs is different with expected bs",
+        );
+
+        // Update the current position
+        self.cur += n;
+    }
+
+    fn check_seek(&mut self, seek_from: SeekFrom, output: Result<u64>) {
+        let expected = match seek_from {
+            SeekFrom::Start(offset) => offset,
+            SeekFrom::End(offset) => {
+                if offset < 0 {
+                    self.size as u64 - offset.abs() as u64
+                } else {
+                    self.size as u64 + offset as u64
+                }
+            }
+            SeekFrom::Current(offset) => {
+                if offset < 0 {
+                    self.cur as u64 - offset.abs() as u64
+                } else {
+                    self.cur as u64 + offset as u64
+                }
+            }
+        };
+        assert_eq!(
+            output.unwrap(),
+            expected,
+            "check seek failed: output offset is different with expected offset",
+        );
+    }
+
+}
+
+
+
 async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Result<()> {
     let len = input.data.len();
     let path = uuid::Uuid::new_v4().to_string();
+    let mut checker = ReaderFuzzerChecker::new(input.data.clone());
     op.write(&path, input.data)
         .await
         .expect(format!("{} write must succeed", name).as_str());
@@ -80,19 +140,18 @@ async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Res
         .range_reader(&path, 0..len as u64)
         .await
         .expect(format!("{} init range_reader must succeed", name).as_str());
-    let cur = 0;
     for action in input.actions {
         match action {
             ReaderAction::Read { size } => {
                 let mut buf = vec![0; size];
-                o.read(&mut buf)
+                let n = o.read(&mut buf)
                     .await
                     .expect(format!("{} read must succeed", name).as_str());
+                checker.check_read(n, &buf[..n]);
             }
             ReaderAction::Seek(seek_from) => {
-                o.seek(seek_from)
-                    .await
-                    .expect(format!("{} seek must succeed", name).as_str());
+                let res = o.seek(seek_from).await;
+
             }
             ReaderAction::Next => {
                 o.next()

@@ -347,6 +347,7 @@ impl From<Error> for io::Error {
         let kind = match err.kind() {
             ErrorKind::NotFound => io::ErrorKind::NotFound,
             ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
+            ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
             _ => io::ErrorKind::Other,
         };
 

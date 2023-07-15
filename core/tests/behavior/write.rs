@@ -1250,15 +1250,13 @@ pub async fn test_invalid_reader_seek(op: Operator) -> Result<()> {
 
     assert!(res.is_err());
 
-    // the res should be a std::io::Error, which contains a ErrorKind::InvalidInput
-    let inner_error = res
-        .unwrap_err()
-        .into_inner()
-        .unwrap()
-        .downcast::<Error>()
-        .unwrap();
-    assert_eq!(inner_error.kind(), ErrorKind::InvalidInput);
-
+    assert_eq!(
+        res.unwrap_err().kind(),
+        std::io::ErrorKind::InvalidInput,
+        "seeking a negative position should return a InvalidInput error"
+    );
+    
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
+

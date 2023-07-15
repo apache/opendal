@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -65,8 +66,25 @@ use crate::*;
 ///     .layer(RetryLayer::new())
 ///     .finish();
 /// ```
-#[derive(Default, Clone)]
-pub struct RetryLayer(ExponentialBuilder);
+#[derive(Clone)]
+pub struct RetryLayer<N = fn(Operation, &Error, Duration)> {
+    builder: ExponentialBuilder,
+    notify: N,
+}
+
+impl Default for RetryLayer {
+    fn default() -> Self {
+        Self {
+            builder: ExponentialBuilder::default(),
+            notify: |op, err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    op, dur.as_secs_f64(), err)
+            },
+        }
+    }
+}
 
 impl RetryLayer {
     /// Create a new retry layer.
@@ -92,7 +110,7 @@ impl RetryLayer {
     /// If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)
     /// to current delay.
     pub fn with_jitter(mut self) -> Self {
-        self.0 = self.0.with_jitter();
+        self.builder = self.builder.with_jitter();
         self
     }
 
@@ -102,13 +120,13 @@ impl RetryLayer {
     ///
     /// This function will panic if input factor smaller than `1.0`.
     pub fn with_factor(mut self, factor: f32) -> Self {
-        self.0 = self.0.with_factor(factor);
+        self.builder = self.builder.with_factor(factor);
         self
     }
 
     /// Set min_delay of current backoff.
     pub fn with_min_delay(mut self, min_delay: Duration) -> Self {
-        self.0 = self.0.with_min_delay(min_delay);
+        self.builder = self.builder.with_min_delay(min_delay);
         self
     }
 
@@ -116,7 +134,7 @@ impl RetryLayer {
     ///
     /// Delay will not increasing if current delay is larger than max_delay.
     pub fn with_max_delay(mut self, max_delay: Duration) -> Self {
-        self.0 = self.0.with_max_delay(max_delay);
+        self.builder = self.builder.with_max_delay(max_delay);
         self
     }
 
@@ -124,29 +142,30 @@ impl RetryLayer {
     ///
     /// Backoff will return `None` if max times is reaching.
     pub fn with_max_times(mut self, max_times: usize) -> Self {
-        self.0 = self.0.with_max_times(max_times);
+        self.builder = self.builder.with_max_times(max_times);
         self
     }
 }
 
-impl<A: Accessor> Layer<A> for RetryLayer {
-    type LayeredAccessor = RetryAccessor<A>;
+impl<A: Accessor, N: Fn(Operation, &Error, Duration) + Send + Sync> Layer<A> for RetryLayer<N> {
+    type LayeredAccessor = RetryAccessor<A, N>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+    fn layer(self, inner: A) -> Self::LayeredAccessor {
         RetryAccessor {
             inner,
-            builder: self.0.clone(),
+            builder: self.builder,
+            notify: self.notify,
         }
     }
 }
 
-#[derive(Clone)]
-pub struct RetryAccessor<A: Accessor> {
+pub struct RetryAccessor<A: Accessor, N: Fn(Operation, &Error, Duration) + Send + Sync> {
     inner: A,
     builder: ExponentialBuilder,
+    notify: Pin<Box<N>>,
 }
 
-impl<A: Accessor> Debug for RetryAccessor<A> {
+impl<A: Accessor, N: Fn(Operation, &Error, Duration) + Send + Sync> Debug for RetryAccessor<A, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RetryAccessor")
             .field("inner", &self.inner)
@@ -155,7 +174,9 @@ impl<A: Accessor> Debug for RetryAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
+impl<A: Accessor, N: Fn(Operation, &Error, Duration) + Send + Sync> LayeredAccessor
+    for RetryAccessor<A, N>
+{
     type Inner = A;
     type Reader = RetryWrapper<A::Reader>;
     type BlockingReader = RetryWrapper<A::BlockingReader>;
@@ -173,12 +194,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
         { || self.inner.create_dir(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::CreateDir, dur.as_secs_f64(), err)
-            })
+            .notify(|err, dur| (self.notify)(Operation::CreateDir, dur, err))
             .map(|v| v.map_err(|e| e.set_persistent()))
             .await
     }

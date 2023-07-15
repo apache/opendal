@@ -149,12 +149,12 @@ impl<T: Read + ?Sized> Read for Box<T> {
     }
 }
 
-fn convert_to_io_error(err: Error) -> io::Error{
+fn convert_to_io_error(err: Error) -> io::Error {
     let kind = match err.kind() {
         ErrorKind::NotFound => io::ErrorKind::NotFound,
         ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
         ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
-        _=> io::ErrorKind::Interrupted,
+        _ => io::ErrorKind::Interrupted,
     };
 
     io::Error::new(kind, err)
@@ -361,8 +361,7 @@ impl io::Read for dyn BlockingRead {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.read(buf)
-            .map_err(|err| convert_to_io_error(err))
+        this.read(buf).map_err(|err| convert_to_io_error(err))
     }
 }
 
@@ -370,8 +369,7 @@ impl io::Seek for dyn BlockingRead {
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.seek(pos)
-            .map_err(|err| convert_to_io_error(err))
+        this.seek(pos).map_err(|err| convert_to_io_error(err))
     }
 }
 

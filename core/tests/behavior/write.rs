@@ -1255,8 +1255,7 @@ pub async fn test_invalid_reader_seek(op: Operator) -> Result<()> {
         std::io::ErrorKind::InvalidInput,
         "seeking a negative position should return a InvalidInput error"
     );
-    
+
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
-

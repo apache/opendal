@@ -167,8 +167,7 @@ impl futures::AsyncRead for dyn Read {
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
         let this: &mut dyn Read = &mut *self;
-        this.poll_read(cx, buf)
-            .map_err(|err| convert_to_io_error(err))
+        this.poll_read(cx, buf).map_err(convert_to_io_error)
     }
 }
 
@@ -179,8 +178,7 @@ impl futures::AsyncSeek for dyn Read {
         pos: io::SeekFrom,
     ) -> Poll<io::Result<u64>> {
         let this: &mut dyn Read = &mut *self;
-        this.poll_seek(cx, pos)
-            .map_err(|err| convert_to_io_error(err))
+        this.poll_seek(cx, pos).map_err(convert_to_io_error)
     }
 }
 
@@ -361,7 +359,7 @@ impl io::Read for dyn BlockingRead {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.read(buf).map_err(|err| convert_to_io_error(err))
+        this.read(buf).map_err(convert_to_io_error)
     }
 }
 
@@ -369,7 +367,7 @@ impl io::Seek for dyn BlockingRead {
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.seek(pos).map_err(|err| convert_to_io_error(err))
+        this.seek(pos).map_err(convert_to_io_error)
     }
 }
 

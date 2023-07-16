@@ -36,12 +36,28 @@ use crate::*;
 pub struct PersyBuilder {
     /// That path to the persy data file.
     datafile: Option<String>,
+    /// That name of the persy segment.
+    segment: Option<String>,
+    /// That name of the persy index.
+    index: Option<String>,
 }
 
 impl PersyBuilder {
     /// Set the path to the persy data directory. Will create if not exists.
     pub fn datafile(&mut self, path: &str) -> &mut Self {
         self.datafile = Some(path.into());
+        self
+    }
+
+    /// Set the name of the persy segment. Will create if not exists.
+    pub fn segment(&mut self, path: &str) -> &mut Self {
+        self.segment = Some(path.into());
+        self
+    }
+
+    /// Set the name of the persy index. Will create if not exists.
+    pub fn index(&mut self, path: &str) -> &mut Self {
+        self.index = Some(path.into());
         self
     }
 }
@@ -54,6 +70,8 @@ impl Builder for PersyBuilder {
         let mut builder = PersyBuilder::default();
 
         map.get("datafile").map(|v| builder.datafile(v));
+        map.get("segment").map(|v| builder.segment(v));
+        map.get("index").map(|v| builder.index(v));
 
         builder
     }
@@ -64,6 +82,27 @@ impl Builder for PersyBuilder {
                 .with_context("service", Scheme::Persy)
         })?;
 
+        let segment_name = self.segment.take().ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
+                .with_context("service", Scheme::Persy)
+        })?;
+
+        let index_name = self.index.take().ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
+                .with_context("service", Scheme::Persy)
+        })?;
+
+        match persy::Persy::create(&datafile_path) {
+            Ok(o) => o,
+            Err(e) if e.to_string() == "Cannot create a new file already exists" => (),
+            Err(e) => {
+                return Err(Error::new(ErrorKind::ConfigInvalid, "create db")
+                    .with_context("service", Scheme::Persy)
+                    .with_context("datafile", datafile_path.clone())
+                    .set_source(e))
+            }
+        };
+
         let persy = persy::Persy::open(&datafile_path, persy::Config::new()).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open db")
                 .with_context("service", Scheme::Persy)
@@ -71,8 +110,17 @@ impl Builder for PersyBuilder {
                 .set_source(e)
         })?;
 
+        let mut tx = persy.begin().map_err(parse_error)?;
+        tx.create_segment(&segment_name).map_err(parse_error)?;
+        tx.create_index::<String, persy::PersyId>(&index_name, persy::ValueMode::Replace)
+            .map_err(parse_error)?;
+        let prepared = tx.prepare().map_err(parse_error)?;
+        prepared.commit().map_err(parse_error)?;
+
         Ok(PersyBackend::new(Adapter {
             datafile: datafile_path,
+            segment: segment_name,
+            index: index_name,
             persy,
         }))
     }
@@ -84,6 +132,8 @@ pub type PersyBackend = kv::Backend<Adapter>;
 #[derive(Clone)]
 pub struct Adapter {
     datafile: String,
+    segment: String,
+    index: String,
     persy: persy::Persy,
 }
 
@@ -91,6 +141,8 @@ impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Adapter");
         ds.field("path", &self.datafile);
+        ds.field("segment", &self.segment);
+        ds.field("index", &self.index);
         ds.finish()
     }
 }
@@ -116,16 +168,16 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        match self.persy.scan(path) {
-            Ok(bs) => {
-                let mut value = vec![];
-                for (_id, content) in bs {
-                    value = content;
-                }
-                Ok(Some(value))
-            }
-            Err(_) => Ok(None),
+        let mut read_id = self
+            .persy
+            .get::<String, persy::PersyId>(&self.index, &path.to_string())
+            .map_err(parse_error)?;
+        if let Some(id) = read_id.next() {
+            let value = self.persy.read(&self.segment, &id).map_err(parse_error)?;
+            return Ok(value);
         }
+
+        Ok(None)
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -133,16 +185,13 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let mut tx = self
-            .persy
-            .begin()
-            .map_err(|e| parse_error(e.persy_error()))?;
-        tx.insert(path, value)
-            .map_err(|e| parse_error(e.persy_error()))?;
-        let prepared = tx.prepare().map_err(|e| parse_error(e.persy_error()))?;
-        prepared
-            .commit()
-            .map_err(|e| parse_error(e.persy_error()))?;
+        let mut tx = self.persy.begin().map_err(parse_error)?;
+        let id = tx.insert(&self.segment, value).map_err(parse_error)?;
+
+        tx.put::<String, persy::PersyId>(&self.index, path.to_string(), id)
+            .map_err(parse_error)?;
+        let prepared = tx.prepare().map_err(parse_error)?;
+        prepared.commit().map_err(parse_error)?;
 
         Ok(())
     }
@@ -152,28 +201,28 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        let mut tx = self
+        let mut delete_id = self
             .persy
-            .begin()
-            .map_err(|e| parse_error(e.persy_error()))?;
-        for (id, _content) in self
-            .persy
-            .scan(path)
-            .map_err(|e| parse_error(e.persy_error()))?
-        {
-            tx.delete(path, &id)
-                .map_err(|e| parse_error(e.persy_error()))?;
+            .get::<String, persy::PersyId>(&self.index, &path.to_string())
+            .map_err(parse_error)?;
+        if let Some(id) = delete_id.next() {
+            //Begin a transaction
+            let mut tx = self.persy.begin().map_err(parse_error)?;
+            // delete the record
+            tx.delete(&self.segment, &id).map_err(parse_error)?;
+            // remove the index
+            tx.remove::<String, persy::PersyId>(&self.index, path.to_string(), Some(id)).map_err(parse_error)?;
+            //Commit the tx.
+            let prepared = tx.prepare().map_err(parse_error)?;
+            prepared.commit().map_err(parse_error)?;
         }
-        let prepared = tx.prepare().map_err(|e| parse_error(e.persy_error()))?;
-        prepared
-            .commit()
-            .map_err(|e| parse_error(e.persy_error()))?;
 
         Ok(())
     }
 }
 
-fn parse_error(err: persy::PersyError) -> Error {
+fn parse_error<T: Into<persy::PersyError>>(err: persy::PE<T>) -> Error {
+    let err: persy::PersyError = err.persy_error();
     let kind = match err {
         persy::PersyError::RecordNotFound(_) => ErrorKind::NotFound,
         _ => ErrorKind::Unexpected,

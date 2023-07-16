@@ -136,7 +136,10 @@ impl VercelArtifactsBackend {
         hash: &str,
         args: OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let url: String = format!("https://api.vercel.com/v8/artifacts/{}", percent_encode_path(hash));
+        let url: String = format!(
+            "https://api.vercel.com/v8/artifacts/{}",
+            percent_encode_path(hash)
+        );
 
         let mut req = Request::get(&url);
 
@@ -160,7 +163,10 @@ impl VercelArtifactsBackend {
         size: u64,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("https://api.vercel.com/v8/artifacts/{}", percent_encode_path(hash));
+        let url = format!(
+            "https://api.vercel.com/v8/artifacts/{}",
+            percent_encode_path(hash)
+        );
 
         let mut req = Request::put(&url);
 
@@ -175,7 +181,10 @@ impl VercelArtifactsBackend {
     }
 
     pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("https://api.vercel.com/v8/artifacts/{}", percent_encode_path(hash));
+        let url = format!(
+            "https://api.vercel.com/v8/artifacts/{}",
+            percent_encode_path(hash)
+        );
 
         let mut req = Request::head(&url);
 

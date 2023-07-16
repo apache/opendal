@@ -16,9 +16,11 @@ This service can be used to:
 
 ## Configuration
 
-- `datadir`: Set the path to the cacache data directory
+- `datafile`: Set the path to the persy data file. The directory in the path must already exist.
+- `segment`: Set the name of the persy segment.
+- `index`: Set the name of the persy index.
 
-You can refer to [`CacacheBuilder`]'s docs for more information
+You can refer to [`PersyBuilder`]'s docs for more information
 
 ## Example
 
@@ -26,13 +28,15 @@ You can refer to [`CacacheBuilder`]'s docs for more information
 
 ```rust
 use anyhow::Result;
-use opendal::services::Cacache;
+use opendal::services::Persy;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Cacache::default();
-    builder.datadir("/tmp/opendal/cacache");
+    let mut builder = Persy::default();
+    builder.datafile("./test.persy");
+    builder.segment("data");
+    builder.index("index");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

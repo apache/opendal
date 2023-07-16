@@ -58,11 +58,11 @@ impl Arbitrary<'_> for FuzzInput {
                     actions.push(ReaderAction::Read { size });
                 }
                 1 => {
-                    let offset: i32 = u.int_in_range(-(data_len as i32)..=(data_len as i32))?;
+                    let offset: i64 = u.int_in_range(-(data_len as i64)..=(data_len as i64))?;
                     let seek_from = match u.int_in_range(0..=2)? {
-                        0 => SeekFrom::Start(offset.abs() as u64),
-                        1 => SeekFrom::End(offset as i64),
-                        _ => SeekFrom::Current(offset as i64),
+                        0 => SeekFrom::Start(offset.unsigned_abs()),
+                        1 => SeekFrom::End(offset),
+                        _ => SeekFrom::Current(offset),
                     };
                     actions.push(ReaderAction::Seek(seek_from));
                 }
@@ -206,7 +206,7 @@ fn fuzz_reader(name: &str, op: &Operator, input: FuzzInput) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     runtime.block_on(async {
-        fuzz_reader_process(input, &op, name)
+        fuzz_reader_process(input, op, name)
             .await
             .expect(format!("{} fuzz_reader must succeed", name).as_str());
     });

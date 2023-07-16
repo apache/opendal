@@ -89,7 +89,7 @@ impl Builder for PersyBuilder {
 
         let segment = segment_name.clone();
 
-        let index_name  = self.index.take().ok_or_else(|| {
+        let index_name = self.index.take().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
@@ -108,7 +108,11 @@ impl Builder for PersyBuilder {
             })?;
 
         // This function will only be called on database creation
-        fn init(persy: &persy::Persy, segment_name: &str, index_name: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        fn init(
+            persy: &persy::Persy,
+            segment_name: &str,
+            index_name: &str,
+        ) -> std::result::Result<(), Box<dyn std::error::Error>> {
             let mut tx = persy.begin()?;
 
             if !tx.exists_segment(segment_name)? {

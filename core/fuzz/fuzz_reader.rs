@@ -163,12 +163,12 @@ async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Res
     let mut checker = ReaderFuzzerChecker::new(input.data.clone());
     op.write(&path, input.data)
         .await
-        .expect(format!("{} write must succeed", name).as_str());
+        .unwrap_or_else(|_| panic!("{} write must succeed", name));
 
     let mut o = op
         .range_reader(&path, 0..len as u64)
         .await
-        .expect(format!("{} init range_reader must succeed", name).as_str());
+        .unwrap_or_else(|_| panic!("{} init range_reader must succeed", name));
 
     for action in input.actions {
         match action {
@@ -177,7 +177,7 @@ async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Res
                 let n = o
                     .read(&mut buf)
                     .await
-                    .expect(format!("{} read must succeed", name).as_str());
+                    .unwrap_or_else(|_| panic!("{} read must succeed", name));
                 checker.check_read(n, &buf[..n]);
             }
 
@@ -190,7 +190,7 @@ async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Res
                 let res = o
                     .next()
                     .await
-                    .map(|v| v.expect(format!("{} next should not return error", name).as_str()));
+                    .map(|v| v.unwrap_or_else(|_| panic!("{} next should not return error", name)));
                 checker.check_next(res);
             }
         }
@@ -198,7 +198,7 @@ async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Res
 
     op.delete(&path)
         .await
-        .expect(format!("{} delete must succeed", name).as_str());
+        .unwrap_or_else(|_| panic!("{} delete must succeed", name));
     Ok(())
 }
 
@@ -208,7 +208,7 @@ fn fuzz_reader(name: &str, op: &Operator, input: FuzzInput) {
     runtime.block_on(async {
         fuzz_reader_process(input, op, name)
             .await
-            .expect(format!("{} fuzz_reader must succeed", name).as_str());
+            .unwrap_or_else(|_| panic!("{} fuzz_reader must succeed", name));
     });
 }
 

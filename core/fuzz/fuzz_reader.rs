@@ -126,6 +126,8 @@ impl ReaderFuzzerChecker {
                 expected as u64,
                 "check seek failed: seek result is different with expected result",
             );
+
+            // only update the current position when seek succeed
             self.cur = expected as usize;
         }
     }
@@ -146,6 +148,7 @@ impl ReaderFuzzerChecker {
                 "check next failed: output bs is different with expected bs",
             );
 
+            // update the current position
             self.cur += output.len();
         } else {
             assert!(

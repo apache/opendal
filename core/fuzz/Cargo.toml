@@ -27,6 +27,7 @@ cargo-fuzz = true
 [dependencies]
 anyhow = "1.0.71"
 arbitrary = { version = "1.3.0", features = ["derive"] }
+bytes = "1.2"
 dotenvy = "0.15.6"
 libfuzzer-sys = "0.4"
 opendal = { path = ".." }

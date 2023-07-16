@@ -2940,6 +2940,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "bytes",
  "dotenvy",
  "libfuzzer-sys",
  "opendal",

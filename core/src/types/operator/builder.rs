@@ -195,6 +195,8 @@ impl Operator {
             Scheme::Gdrive => Self::from_map::<services::Gdrive>(map)?.finish(),
             #[cfg(feature = "services-oss")]
             Scheme::Oss => Self::from_map::<services::Oss>(map)?.finish(),
+            #[cfg(feature = "services-persy")]
+            Scheme::Persy => Self::from_map::<services::Persy>(map)?.finish(),
             #[cfg(feature = "services-redis")]
             Scheme::Redis => Self::from_map::<services::Redis>(map)?.finish(),
             #[cfg(feature = "services-rocksdb")]

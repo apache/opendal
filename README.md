@@ -76,6 +76,7 @@ Major components of the project include:
 - cacache: [cacache](https://crates.io/crates/cacache) backend
 - dashmap: [dashmap](https://github.com/xacrimon/dashmap) backend
 - memory: In memory backend
+- persy: [persy](https://crates.io/crates/persy) backend
 - redis: [Redis](https://redis.io/) services
 - rocksdb: [RocksDB](http://rocksdb.org/) services
 - sled: [sled](https://crates.io/crates/sled) backend

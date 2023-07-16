@@ -76,6 +76,8 @@ pub enum Scheme {
     Dropbox,
     /// [oss][crate::services::Oss]: Aliyun Object Storage Services
     Oss,
+    /// [persy][crate::services::Persy]: persy backend support.
+    Persy,
     /// [redis][crate::services::Redis]: Redis services
     Redis,
     /// [rocksdb][crate::services::Rocksdb]: RocksDB services
@@ -150,6 +152,7 @@ impl FromStr for Scheme {
             "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
+            "persy" => Ok(Scheme::Persy),
             "redis" => Ok(Scheme::Redis),
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
@@ -187,6 +190,7 @@ impl From<Scheme> for &'static str {
             Scheme::Moka => "moka",
             Scheme::Obs => "obs",
             Scheme::Onedrive => "onedrive",
+            Scheme::Persy => "persy",
             Scheme::Gdrive => "gdrive",
             Scheme::Dropbox => "dropbox",
             Scheme::Redis => "redis",

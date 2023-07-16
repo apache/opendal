@@ -34,7 +34,7 @@ use crate::*;
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct PersyBuilder {
-    /// That path to the persy data file.
+    /// That path to the persy data file. The directory in the path must already exist.
     datafile: Option<String>,
     /// That name of the persy segment.
     segment: Option<String>,
@@ -87,40 +87,48 @@ impl Builder for PersyBuilder {
                 .with_context("service", Scheme::Persy)
         })?;
 
-        let index_name = self.index.take().ok_or_else(|| {
+        let segment = segment_name.clone();
+
+        let index_name  = self.index.take().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", Scheme::Persy)
         })?;
 
-        match persy::Persy::create(&datafile_path) {
-            Ok(o) => o,
-            Err(e) if e.to_string() == "Cannot create a new file already exists" => (),
-            Err(e) => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "create db")
+        let index = index_name.clone();
+
+        let persy = persy::OpenOptions::new()
+            .create(true)
+            .prepare_with(move |p| init(p, &segment_name, &index_name))
+            .open(&datafile_path)
+            .map_err(|e| {
+                Error::new(ErrorKind::ConfigInvalid, "open db")
                     .with_context("service", Scheme::Persy)
                     .with_context("datafile", datafile_path.clone())
-                    .set_source(e))
+                    .set_source(e)
+            })?;
+
+        // This function will only be called on database creation
+        fn init(persy: &persy::Persy, segment_name: &str, index_name: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
+            let mut tx = persy.begin()?;
+
+            if !tx.exists_segment(segment_name)? {
+                tx.create_segment(segment_name)?;
             }
-        };
+            if !tx.exists_index(index_name)? {
+                tx.create_index::<String, persy::PersyId>(index_name, persy::ValueMode::Replace)?;
+            }
 
-        let persy = persy::Persy::open(&datafile_path, persy::Config::new()).map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "open db")
-                .with_context("service", Scheme::Persy)
-                .with_context("datafile", datafile_path.clone())
-                .set_source(e)
-        })?;
+            let prepared = tx.prepare()?;
+            prepared.commit()?;
 
-        let mut tx = persy.begin().map_err(parse_error)?;
-        tx.create_segment(&segment_name).map_err(parse_error)?;
-        tx.create_index::<String, persy::PersyId>(&index_name, persy::ValueMode::Replace)
-            .map_err(parse_error)?;
-        let prepared = tx.prepare().map_err(parse_error)?;
-        prepared.commit().map_err(parse_error)?;
+            println!("Segment and Index successfully created");
+            Ok(())
+        }
 
         Ok(PersyBackend::new(Adapter {
             datafile: datafile_path,
-            segment: segment_name,
-            index: index_name,
+            segment,
+            index,
             persy,
         }))
     }
@@ -211,7 +219,8 @@ impl kv::Adapter for Adapter {
             // delete the record
             tx.delete(&self.segment, &id).map_err(parse_error)?;
             // remove the index
-            tx.remove::<String, persy::PersyId>(&self.index, path.to_string(), Some(id)).map_err(parse_error)?;
+            tx.remove::<String, persy::PersyId>(&self.index, path.to_string(), Some(id))
+                .map_err(parse_error)?;
             //Commit the tx.
             let prepared = tx.prepare().map_err(parse_error)?;
             prepared.commit().map_err(parse_error)?;

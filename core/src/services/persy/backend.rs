@@ -125,7 +125,6 @@ impl Builder for PersyBuilder {
             let prepared = tx.prepare()?;
             prepared.commit()?;
 
-            println!("Segment and Index successfully created");
             Ok(())
         }
 
@@ -218,14 +217,14 @@ impl kv::Adapter for Adapter {
             .get::<String, persy::PersyId>(&self.index, &path.to_string())
             .map_err(parse_error)?;
         if let Some(id) = delete_id.next() {
-            //Begin a transaction
+            // Begin a transaction.
             let mut tx = self.persy.begin().map_err(parse_error)?;
-            // delete the record
+            // Delete the record.
             tx.delete(&self.segment, &id).map_err(parse_error)?;
-            // remove the index
+            // Remove the index.
             tx.remove::<String, persy::PersyId>(&self.index, path.to_string(), Some(id))
                 .map_err(parse_error)?;
-            //Commit the tx.
+            // Commit the tx.
             let prepared = tx.prepare().map_err(parse_error)?;
             prepared.commit().map_err(parse_error)?;
         }

@@ -120,14 +120,6 @@ impl Accessor for VercelArtifactsBackend {
             _ => Err(parse_error(res).await?),
         }
     }
-
-    async fn create_dir(&self, _path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        Ok(RpCreateDir::default())
-    }
-
-    async fn delete(&self, _path: &str, _args: OpDelete) -> Result<RpDelete> {
-        Ok(RpDelete::default())
-    }
 }
 
 impl VercelArtifactsBackend {

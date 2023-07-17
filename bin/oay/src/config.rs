@@ -26,7 +26,7 @@ pub struct Config {
     pub frontends: FrontendsConfig,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct BackendConfig {
     #[serde(rename = "type")]
     pub typ: String,
@@ -34,13 +34,20 @@ pub struct BackendConfig {
     pub map: HashMap<String, String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct FrontendsConfig {
     pub s3: S3Config,
+    pub webdav: WebdavConfig,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct S3Config {
+    pub enable: bool,
+    pub addr: String,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct WebdavConfig {
     pub enable: bool,
     pub addr: String,
 }

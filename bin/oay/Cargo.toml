@@ -29,6 +29,18 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
+[features]
+default = [
+  "frontends-webdav",
+  "frontends-s3"
+]
+
+frontends-webdav = [
+  "dep:dav-server",
+  "dep:bytes"
+]
+frontends-s3 = []
+
 [dependencies]
 anyhow = "1"
 axum = "0.6"
@@ -52,3 +64,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2.3.1"
 uuid = { version = "1", features = ["v4", "fast-rng"] }
+dav-server = { version = "0.5.5", optional = true }
+bytes = { version = "1.4.0", optional = true }

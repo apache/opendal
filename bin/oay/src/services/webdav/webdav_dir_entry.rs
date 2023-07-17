@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "frontends-s3")]
-mod s3;
-#[cfg(feature = "frontends-s3")]
-pub use s3::S3Service;
+use dav_server::fs::DavDirEntry;
 
-#[cfg(feature = "frontends-webdav")]
-mod webdav;
-#[cfg(feature = "frontends-webdav")]
-pub use webdav::*;
+struct WebDAVDirEntry {}
+
+impl DavDirEntry for WebDAVDirEntry {
+    fn name(&self) -> Vec<u8> {
+        todo!()
+    }
+
+    fn metadata(&self) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavMetaData>> {
+        todo!()
+    }
+}

@@ -15,12 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "frontends-s3")]
-mod s3;
-#[cfg(feature = "frontends-s3")]
-pub use s3::S3Service;
+use dav_server::fs::DavMetaData;
+use opendal::Metadata;
 
-#[cfg(feature = "frontends-webdav")]
-mod webdav;
-#[cfg(feature = "frontends-webdav")]
-pub use webdav::*;
+#[derive(Debug, Clone)]
+pub struct WebdavMetaData {
+    pub metadata: Metadata,
+}
+
+impl DavMetaData for WebdavMetaData {
+    fn len(&self) -> u64 {
+        self.metadata.content_length()
+    }
+
+    fn modified(&self) -> dav_server::fs::FsResult<std::time::SystemTime> {
+        Ok(self.metadata.last_modified().unwrap().into())
+    }
+
+    fn is_dir(&self) -> bool {
+        self.metadata.is_dir()
+    }
+}

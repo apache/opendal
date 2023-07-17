@@ -25,6 +25,8 @@ LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
 
 LIBS=-lopendal_c -lgtest -lpthread
 
+VALGRIND=valgrind --error-exitcode=1 -- 
+
 .PHONY: all
 all: build test examples
 
@@ -42,8 +44,8 @@ build:
 test:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(CXX) tests/list.cpp -o $(OBJ_DIR)/list $(CXXFLAGS) $(LDFLAGS) $(LIBS)
-	$(OBJ_DIR)/bdd
-	$(OBJ_DIR)/list
+	$(VALGRIND) $(OBJ_DIR)/bdd
+	$(VALGRIND) $(OBJ_DIR)/list
 
 .PHONY: doc
 doc:

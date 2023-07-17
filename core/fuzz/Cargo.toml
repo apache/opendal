@@ -15,40 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
-
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
-
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-
-  "bin/oli",
-  "bin/oay",
-
-  "core/fuzz",
-]
-resolver = "2"
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
+[package]
 edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.38.1"
+name = "opendal-fuzz"
+publish = false
+version = "0.0.0"
 
-[workspace.dependencies]
-opendal = { version = "0.38", path = "core" }
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+anyhow = "1.0.71"
+arbitrary = { version = "1.3.0", features = ["derive"] }
+bytes = "1.2"
+dotenvy = "0.15.6"
+libfuzzer-sys = "0.4"
+opendal = { path = ".." }
+sha2 = { version = "0.10.6" }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.3.0", features = ["v4"] }
+
+[profile.release]
+debug = 1
+
+[[bin]]
+doc = false
+name = "fuzz_reader"
+path = "fuzz_reader.rs"
+test = false

@@ -216,6 +216,6 @@ jobs:
           cargo test webdav
         env:
           OPENDAL_WEBDAV_TEST: on
-          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/dav/files/admin/
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/dav/files/admin
           OPENDAL_WEBDAV_USERNAME: admin
           OPENDAL_WEBDAV_PASSWORD: admin

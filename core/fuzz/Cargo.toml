@@ -35,9 +35,6 @@ sha2 = { version = "0.10.6" }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.3.0", features = ["v4"] }
 
-[profile.release]
-debug = 1
-
 [[bin]]
 doc = false
 name = "fuzz_reader"

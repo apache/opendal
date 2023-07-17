@@ -56,6 +56,8 @@ impl Accessor for VercelArtifactsBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::VercelArtifacts)
             .set_capability(Capability {
+                stat: true,
+
                 read: true,
                 read_can_next: true,
 
@@ -95,15 +97,37 @@ impl Accessor for VercelArtifactsBackend {
             VercelArtifactsWriter::new(self.clone(), args, path.to_string()),
         ))
     }
+
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        if (path == "/") || (path.ends_with('/')) {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        let res = self.vercel_artifacts_stat(path).await?;
+
+        let status = res.status();
+
+        match status {
+            StatusCode::OK => {
+                let meta = parse_into_metadata(path, res.headers())?;
+                Ok(RpStat::new(meta))
+            }
+
+            _ => Err(parse_error(res).await?),
+        }
+    }
 }
 
 impl VercelArtifactsBackend {
     async fn vercel_artifacts_get(
         &self,
-        path: &str,
+        hash: &str,
         args: OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let url: String = format!("https://api.vercel.com/v8/artifacts/{}", path);
+        let url: String = format!(
+            "https://api.vercel.com/v8/artifacts/{}",
+            percent_encode_path(hash)
+        );
 
         let mut req = Request::get(&url);
 
@@ -127,17 +151,38 @@ impl VercelArtifactsBackend {
         size: u64,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("https://api.vercel.com/v8/artifacts/{}", hash);
+        let url = format!(
+            "https://api.vercel.com/v8/artifacts/{}",
+            percent_encode_path(hash)
+        );
 
         let mut req = Request::put(&url);
 
         let auth_header_content = format!("Bearer {}", self.access_token);
-        // Borrowed from [vercel/remote-cache](https://github.com/vercel/remote-cache/blob/46cbc71346c84ec6c3022ec660ade52a25a20013/packages/remote/src/artifact-request.ts#LL41C34-L41C58)
         req = req.header(header::CONTENT_TYPE, "application/octet-stream");
         req = req.header(header::AUTHORIZATION, auth_header_content);
         req = req.header(header::CONTENT_LENGTH, size);
 
         let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send(req).await
+    }
+
+    pub async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<IncomingAsyncBody>> {
+        let url = format!(
+            "https://api.vercel.com/v8/artifacts/{}",
+            percent_encode_path(hash)
+        );
+
+        let mut req = Request::head(&url);
+
+        let auth_header_content = format!("Bearer {}", self.access_token);
+        req = req.header(header::AUTHORIZATION, auth_header_content);
+        req = req.header(header::CONTENT_LENGTH, 0);
+
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         self.client.send(req).await
     }

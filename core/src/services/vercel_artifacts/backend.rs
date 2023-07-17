@@ -63,10 +63,6 @@ impl Accessor for VercelArtifactsBackend {
 
                 write: true,
 
-                create_dir: true,
-
-                delete: true,
-
                 ..Default::default()
             });
 

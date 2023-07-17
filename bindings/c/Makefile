@@ -25,7 +25,7 @@ LDFLAGS=-L$(RPATH) -Wl,-rpath,$(RPATH)
 
 LIBS=-lopendal_c -lgtest -lpthread
 
-VALGRIND=valgrind --error-exitcode=1 -- 
+VALGRIND=valgrind --error-exitcode=1 --leak-check=full -- 
 
 .PHONY: all
 all: build test examples

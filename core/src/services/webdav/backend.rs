@@ -573,7 +573,7 @@ impl WebdavBackend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::delete(&url).header("Depth", 0);
+        let mut req = Request::delete(&url);
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())

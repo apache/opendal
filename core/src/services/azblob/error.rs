@@ -104,6 +104,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         Ok(azblob_err) => format!("{azblob_err:?}"),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
+
     // If there is no body here, fill with error code.
     if message.is_empty() {
         if let Some(v) = parts.headers.get("x-ms-error-code") {
@@ -119,7 +120,9 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         }
     }
 
-    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
+    let mut err = Error::new(kind, &message);
+
+    err = with_error_response_context(err, parts);
 
     if retryable {
         err = err.set_temporary();

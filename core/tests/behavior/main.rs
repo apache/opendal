@@ -139,7 +139,11 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Oss>());
     #[cfg(feature = "services-persy")]
     tests.extend(behavior_test::<services::Persy>());
-    #[cfg(feature = "services-redis")]
+    #[cfg(any(
+        feature = "services-redis",
+        feature = "services-redis-rustls",
+        feature = "services-redis-native-tls"
+    ))]
     tests.extend(behavior_test::<services::Redis>());
     #[cfg(feature = "services-rocksdb")]
     tests.extend(behavior_test::<services::Rocksdb>());

@@ -571,7 +571,11 @@ impl WebdavBackend {
     async fn webdav_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let url = format!(
+            "{}/{}",
+            self.endpoint,
+            percent_encode_path(&p).trim_end_matches('/')
+        );
 
         let mut req = Request::delete(&url);
 

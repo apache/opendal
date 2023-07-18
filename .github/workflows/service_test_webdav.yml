@@ -187,7 +187,7 @@ jobs:
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/
           OPENDAL_WEBDAV_USERNAME: admin
           OPENDAL_WEBDAV_PASSWORD: admin
-  
+
   owncloud:
     runs-on: ubuntu-latest
 
@@ -201,7 +201,7 @@ jobs:
           ADMIN_PASSWORD: admin
           OWNCLOUD_DOMAIN: localhost:8080
           HTTP_PORT: 8080
-          
+
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
@@ -216,6 +216,6 @@ jobs:
           cargo test webdav
         env:
           OPENDAL_WEBDAV_TEST: on
-          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/dav/files/admin
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/
           OPENDAL_WEBDAV_USERNAME: admin
           OPENDAL_WEBDAV_PASSWORD: admin

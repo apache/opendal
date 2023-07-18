@@ -214,7 +214,7 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test webdav
+          cargo test webdav -j=1
         env:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/

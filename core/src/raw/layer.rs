@@ -124,7 +124,7 @@ pub trait Layer<A: Accessor> {
     type LayeredAccessor: Accessor;
 
     /// Intercept the operations on the underlying storage.
-    fn layer(self, inner: A) -> Self::LayeredAccessor;
+    fn layer(&self, inner: A) -> Self::LayeredAccessor;
 }
 
 /// LayeredAccessor is layered accessor that forward all not implemented

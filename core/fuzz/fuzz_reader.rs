@@ -19,13 +19,17 @@
 
 mod utils;
 
+use std::io::SeekFrom;
+
 use bytes::Bytes;
-use libfuzzer_sys::arbitrary::{Arbitrary, Result, Unstructured};
+use libfuzzer_sys::arbitrary::Arbitrary;
+use libfuzzer_sys::arbitrary::Result;
+use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
 use opendal::raw::oio::ReadExt;
 use opendal::Operator;
-use sha2::{Digest, Sha256};
-use std::io::SeekFrom;
+use sha2::Digest;
+use sha2::Sha256;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 

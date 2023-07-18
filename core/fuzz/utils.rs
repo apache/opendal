@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::{services, Builder, Operator};
 use std::env;
+
+use opendal::services;
+use opendal::Builder;
+use opendal::Operator;
 
 fn service<B: Builder>() -> Option<Operator> {
     let test_key = format!("opendal_{}_test", B::SCHEME).to_uppercase();

@@ -157,18 +157,15 @@ impl Writer {
     /// use std::io::Result;
     ///
     /// use bytes::Bytes;
+    /// use futures::io::Cursor;
     /// use futures::stream;
     /// use futures::StreamExt;
     /// use opendal::Operator;
-    /// use futures::io::Cursor;
     ///
     /// #[tokio::main]
     /// async fn copy_example(op: Operator) -> Result<()> {
-    ///     let mut w = op
-    ///         .writer_with("path/to/file")
-    ///         .content_length(4096)
-    ///         .await?;
-    ///     let reader = Cursor::new(vec![0;4096]);
+    ///     let mut w = op.writer_with("path/to/file").content_length(4096).await?;
+    ///     let reader = Cursor::new(vec![0; 4096]);
     ///     w.copy(4096, reader).await?;
     ///     w.close().await?;
     ///     Ok(())

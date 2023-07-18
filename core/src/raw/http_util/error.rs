@@ -57,7 +57,7 @@ pub fn with_error_response_context(mut err: Error, mut parts: Parts) -> Error {
         err = err.with_context("uri", uri.to_string());
     }
 
-    // The folloing headers may contains sensitive information.
+    // The following headers may contains sensitive information.
     parts.headers.remove("Set-Cookie");
     parts.headers.remove("WWW-Authenticate");
     parts.headers.remove("Proxy-Authenticate");

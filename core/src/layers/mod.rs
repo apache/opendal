@@ -45,6 +45,7 @@ mod prometheus;
 pub use self::prometheus::PrometheusLayer;
 
 mod retry;
+pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
 
 #[cfg(feature = "layers-tracing")]

@@ -62,7 +62,9 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         (kind, retryable) = parse_wasabi_error_code(&wasabi_err.code).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
+    let mut err = Error::new(kind, &message);
+
+    err = with_error_response_context(err, parts);
 
     if retryable {
         err = err.set_temporary();

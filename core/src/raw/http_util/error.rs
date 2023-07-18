@@ -15,77 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Display;
-use std::fmt::Formatter;
-
-use anyhow::anyhow;
 use http::response::Parts;
-use http::HeaderMap;
-use http::HeaderValue;
-use http::Response;
-use http::StatusCode;
+use http::Uri;
 
-use super::IncomingAsyncBody;
 use crate::Error;
 use crate::ErrorKind;
-use crate::Result;
-
-/// ErrorResponse carries HTTP status code, headers and body.
-///
-/// This struct should only be used to parse error response which is small.
-pub struct ErrorResponse {
-    parts: Parts,
-    body: Vec<u8>,
-}
-
-impl ErrorResponse {
-    /// Get http status code
-    pub fn status_code(&self) -> StatusCode {
-        self.parts.status
-    }
-
-    /// Get http headers
-    pub fn headers(&self) -> &HeaderMap<HeaderValue> {
-        &self.parts.headers
-    }
-
-    /// Get http error response body content (in bytes).
-    pub fn body(&self) -> &[u8] {
-        &self.body
-    }
-}
-
-impl Display for ErrorResponse {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "status code: {:?}, headers: {:?}, body: {:?}",
-            self.status_code(),
-            self.headers(),
-            String::from_utf8_lossy(self.body())
-        )
-    }
-}
-
-/// parse_error_response will parse response into `ErrorResponse`.
-///
-/// # NOTE
-///
-/// Please only use this for parsing error response hence it will read the
-/// entire body into memory.
-pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<ErrorResponse> {
-    let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await.map_err(|err| {
-        Error::new(ErrorKind::Unexpected, "reading error response")
-            .with_operation("http_util::parse_error_response")
-            .set_source(anyhow!(err))
-    })?;
-
-    Ok(ErrorResponse {
-        parts,
-        body: bs.to_vec(),
-    })
-}
 
 /// Create a new error happened during building request.
 pub fn new_request_build_error(err: http::Error) -> Error {
@@ -110,4 +44,25 @@ pub fn new_request_sign_error(err: anyhow::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "signing http request")
         .with_operation("reqsign::Sign")
         .set_source(err)
+}
+
+/// Add response context to error.
+///
+/// This helper function will:
+///
+/// - remove sensitive or useless headers from parts.
+/// - fetch uri if parts extensions contains `Uri`.
+pub fn with_error_response_context(mut err: Error, mut parts: Parts) -> Error {
+    if let Some(uri) = parts.extensions.get::<Uri>() {
+        err = err.with_context("uri", uri.to_string());
+    }
+
+    // The following headers may contains sensitive information.
+    parts.headers.remove("Set-Cookie");
+    parts.headers.remove("WWW-Authenticate");
+    parts.headers.remove("Proxy-Authenticate");
+
+    err = err.with_context("response", format!("{parts:?}"));
+
+    err
 }

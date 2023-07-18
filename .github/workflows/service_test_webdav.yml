@@ -200,6 +200,7 @@ jobs:
           ADMIN_USERNAME: admin
           ADMIN_PASSWORD: admin
           OWNCLOUD_DOMAIN: localhost:8080
+          OWNCLOUD_TRUSTED_DOMAINS: localhost
           HTTP_PORT: 8080
 
     steps:
@@ -216,6 +217,6 @@ jobs:
           cargo test webdav
         env:
           OPENDAL_WEBDAV_TEST: on
-          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/owncloud/remote.php/webdav/
           OPENDAL_WEBDAV_USERNAME: admin
           OPENDAL_WEBDAV_PASSWORD: admin

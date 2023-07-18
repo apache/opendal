@@ -571,13 +571,9 @@ impl WebdavBackend {
     async fn webdav_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/{}",
-            self.endpoint,
-            percent_encode_path(&p).trim_end_matches('/')
-        );
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::delete(&url);
+        let mut req = Request::delete(&url).header("Depth", 0);
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())

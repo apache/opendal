@@ -17,7 +17,6 @@
 
 use bytes::Buf;
 use http::Response;
-use http::Uri;
 use quick_xml::de;
 use serde::Deserialize;
 
@@ -60,14 +59,12 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         (kind, retryable) = parse_s3_error_code(s3_err.code.as_str()).unwrap_or((kind, retryable));
     }
 
-    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
+    let mut err = Error::new(kind, &message);
+
+    err = with_error_response_context(err, parts);
 
     if retryable {
         err = err.set_temporary();
-    }
-
-    if let Some(uri) = parts.extensions.get::<Uri>() {
-        err = err.with_context("uri", uri.to_string());
     }
 
     Ok(err)

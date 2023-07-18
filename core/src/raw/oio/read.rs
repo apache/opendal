@@ -149,6 +149,17 @@ impl<T: Read + ?Sized> Read for Box<T> {
     }
 }
 
+fn convert_to_io_error(err: Error) -> io::Error {
+    let kind = match err.kind() {
+        ErrorKind::NotFound => io::ErrorKind::NotFound,
+        ErrorKind::PermissionDenied => io::ErrorKind::PermissionDenied,
+        ErrorKind::InvalidInput => io::ErrorKind::InvalidInput,
+        _ => io::ErrorKind::Interrupted,
+    };
+
+    io::Error::new(kind, err)
+}
+
 impl futures::AsyncRead for dyn Read {
     fn poll_read(
         mut self: Pin<&mut Self>,
@@ -156,8 +167,7 @@ impl futures::AsyncRead for dyn Read {
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
         let this: &mut dyn Read = &mut *self;
-        this.poll_read(cx, buf)
-            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
+        this.poll_read(cx, buf).map_err(convert_to_io_error)
     }
 }
 
@@ -168,8 +178,7 @@ impl futures::AsyncSeek for dyn Read {
         pos: io::SeekFrom,
     ) -> Poll<io::Result<u64>> {
         let this: &mut dyn Read = &mut *self;
-        this.poll_seek(cx, pos)
-            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
+        this.poll_seek(cx, pos).map_err(convert_to_io_error)
     }
 }
 
@@ -350,8 +359,7 @@ impl io::Read for dyn BlockingRead {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.read(buf)
-            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
+        this.read(buf).map_err(convert_to_io_error)
     }
 }
 
@@ -359,8 +367,7 @@ impl io::Seek for dyn BlockingRead {
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         let this: &mut dyn BlockingRead = &mut *self;
-        this.seek(pos)
-            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
+        this.seek(pos).map_err(convert_to_io_error)
     }
 }
 

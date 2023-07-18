@@ -141,6 +141,7 @@ services-oss = [
   "reqsign?/services-aliyun",
   "reqsign?/reqwest_request",
 ]
+services-persy = ["dep:persy"]
 services-redb = ["dep:redb"]
 services-redis = ["dep:redis"]
 services-rocksdb = ["dep:rocksdb"]
@@ -212,6 +213,7 @@ openssh-sftp-client = { version = "0.13.5", optional = true, features = [
 opentelemetry = { version = "0.19.0", optional = true }
 parking_lot = "0.12"
 percent-encoding = "2"
+persy = { version = "1.4.4", optional = true }
 pin-project = "1"
 prometheus = { version = "0.13", features = ["process"], optional = true }
 prost = { version = "0.11", optional = true }

@@ -661,7 +661,7 @@ void opendal_bytes_free(struct opendal_bytes *ptr);
 /**
  * \brief Free the heap-allocated metadata used by opendal_metadata
  */
-void opendal_metadata_free(struct opendal_metadata *self);
+void opendal_metadata_free(struct opendal_metadata *ptr);
 
 /**
  * \brief Return the content_length of the metadata
@@ -784,7 +784,7 @@ const char *opendal_list_entry_name(const struct opendal_list_entry *self);
 /**
  * \brief Frees the heap memory used by the opendal_list_entry
  */
-void opendal_list_entry_free(const struct opendal_list_entry *p);
+void opendal_list_entry_free(struct opendal_list_entry *ptr);
 
 #ifdef __cplusplus
 } // extern "C"

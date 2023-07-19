@@ -16,7 +16,6 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::mem;
 use std::os::raw::c_char;
 
 use ::opendal as od;
@@ -154,10 +153,10 @@ impl opendal_metadata {
 
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
-    pub extern "C" fn opendal_metadata_free(&mut self) {
+    pub extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
         unsafe {
-            mem::drop(Box::from_raw(self.inner));
-            mem::drop(Box::from_raw(self as *mut Self));
+            let _ = Box::from_raw((*ptr).inner);
+            let _ = Box::from_raw(ptr);
         }
     }
 
@@ -390,9 +389,10 @@ impl opendal_list_entry {
 
     /// \brief Frees the heap memory used by the opendal_list_entry
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_entry_free(p: *const opendal_list_entry) {
-        unsafe {
-            let _ = Box::from_raw(p as *mut opendal_list_entry);
+    pub unsafe extern "C" fn opendal_list_entry_free(ptr: *mut opendal_list_entry) {
+        if !ptr.is_null() {
+            let _ = unsafe { Box::from_raw((*ptr).inner) };
+            let _ = unsafe { Box::from_raw(ptr) };
         }
     }
 }

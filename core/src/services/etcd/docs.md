@@ -20,6 +20,9 @@ This service can be used to:
 - `endpoints`: Set the network address of etcd servers
 - `username`: Set the username of Redis
 - `password`: Set the password for authentication
+- `ca_path`: Set the ca path to the etcd connection
+- `cert_path`: Set the cert path to the etcd connection
+- `key_path`: Set the key path to the etcd connection
 
 You can refer to [`EtcdBuilder`]'s docs for more information
 

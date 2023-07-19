@@ -20,7 +20,10 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use etcd_client::Certificate;
 use etcd_client::Error as EtcdError;
+use etcd_client::Identity;
+use etcd_client::TlsOptions;
 use etcd_client::{Client, ConnectOptions, GetOptions};
 use tokio::sync::OnceCell;
 
@@ -34,8 +37,10 @@ const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct EtcdBuilder {
-    /// network address of the Etcd services. Can be "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792", e.g.
-    ///
+    /// network address of the Etcd services.
+    /// If use https, must set TLS options: `ca_path`, `cert_path`, `key_path`.
+    /// e.g. "127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792" or "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792" or "https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792"
+    /// 
     /// default is "http://127.0.0.1:2379"
     endpoints: Option<String>,
     /// the username to connect etcd service.
@@ -50,7 +55,18 @@ pub struct EtcdBuilder {
     ///
     /// default is "/"
     root: Option<String>,
-
+    /// certificate authority file path
+    ///
+    /// default is None
+    ca_path: Option<String>,
+    /// cert path
+    /// 
+    /// default is None
+    cert_path: Option<String>,
+    /// key path
+    /// 
+    /// default is None
+    key_path: Option<String>,
 }
 
 impl Debug for EtcdBuilder {
@@ -110,6 +126,36 @@ impl EtcdBuilder {
         }
         self
     }
+
+    /// Set the certificate authority file path.
+    /// 
+    /// default is None
+    pub fn ca_path(&mut self, ca_path: &str) -> &mut Self {
+        if !ca_path.is_empty() {
+            self.ca_path = Some(ca_path.to_string())
+        }
+        self
+    }
+
+    /// Set the certificate file path.
+    /// 
+    /// default is None
+    pub fn cert_path(&mut self, cert_path: &str) -> &mut Self {
+        if !cert_path.is_empty() {
+            self.cert_path = Some(cert_path.to_string())
+        }
+        self
+    }
+
+    /// Set the key file path.
+    /// 
+    /// default is None
+    pub fn key_path(&mut self, key_path: &str) -> &mut Self {
+        if !key_path.is_empty() {
+            self.key_path = Some(key_path.to_string())
+        }
+        self
+    }
 }
 
 impl Builder for EtcdBuilder {
@@ -123,6 +169,9 @@ impl Builder for EtcdBuilder {
         map.get("endpoints").map(|v| builder.endpoints(v));
         map.get("username").map(|v| builder.username(v));
         map.get("password").map(|v| builder.password(v));
+        map.get("ca_path").map(|v| builder.ca_path(v));
+        map.get("cert_path").map(|v| builder.cert_path(v));
+        map.get("key_path").map(|v| builder.key_path(v));
 
         builder
     }
@@ -134,9 +183,25 @@ impl Builder for EtcdBuilder {
             .unwrap_or_else(|| DEFAULT_ETCD_ENDPOINTS.to_string());
 
         let endpoints: Vec<String> = endpoints.split(",").map(|s| s.to_string()).collect();
+
         let mut options = ConnectOptions::new();
+
+        if self.ca_path.is_some() && self.cert_path.is_some() && self.key_path.is_some() {
+            let ca = self.load_pem( self.ca_path.clone().unwrap().as_str())?;
+            let key = self.load_pem( self.key_path.clone().unwrap().as_str())?;
+            let cert = self.load_pem(self.cert_path.clone().unwrap().as_str())?;
+
+            let tls_options = TlsOptions::default()
+                .ca_certificate(Certificate::from_pem(ca))
+                .identity(Identity::from_pem(cert, key));
+            options = options.with_tls(tls_options);
+        }
+        
         if let Some(username) = self.username.clone() {
-            options = options.with_user(username.to_owned(), self.password.clone().unwrap_or("".to_string()));
+            options = options.with_user(
+                username.clone(),
+                self.password.clone().unwrap_or("".to_string()),
+            );
         }
 
         let root = normalize_root(
@@ -153,6 +218,16 @@ impl Builder for EtcdBuilder {
             client,
             options,
         }))
+    }
+}
+
+impl EtcdBuilder {
+    fn load_pem(&self, path: &str) -> Result<String> {
+        let content = std::fs::read_to_string(path).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "invalid file path")
+                .set_source(err)
+        });
+        content
     }
 }
 

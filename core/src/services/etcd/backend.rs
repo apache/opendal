@@ -40,7 +40,7 @@ pub struct EtcdBuilder {
     /// network address of the Etcd services.
     /// If use https, must set TLS options: `ca_path`, `cert_path`, `key_path`.
     /// e.g. "127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792" or "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792" or "https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792"
-    /// 
+    ///
     /// default is "http://127.0.0.1:2379"
     endpoints: Option<String>,
     /// the username to connect etcd service.
@@ -60,11 +60,11 @@ pub struct EtcdBuilder {
     /// default is None
     ca_path: Option<String>,
     /// cert path
-    /// 
+    ///
     /// default is None
     cert_path: Option<String>,
     /// key path
-    /// 
+    ///
     /// default is None
     key_path: Option<String>,
 }
@@ -128,7 +128,7 @@ impl EtcdBuilder {
     }
 
     /// Set the certificate authority file path.
-    /// 
+    ///
     /// default is None
     pub fn ca_path(&mut self, ca_path: &str) -> &mut Self {
         if !ca_path.is_empty() {
@@ -138,7 +138,7 @@ impl EtcdBuilder {
     }
 
     /// Set the certificate file path.
-    /// 
+    ///
     /// default is None
     pub fn cert_path(&mut self, cert_path: &str) -> &mut Self {
         if !cert_path.is_empty() {
@@ -148,7 +148,7 @@ impl EtcdBuilder {
     }
 
     /// Set the key file path.
-    /// 
+    ///
     /// default is None
     pub fn key_path(&mut self, key_path: &str) -> &mut Self {
         if !key_path.is_empty() {
@@ -187,8 +187,8 @@ impl Builder for EtcdBuilder {
         let mut options = ConnectOptions::new();
 
         if self.ca_path.is_some() && self.cert_path.is_some() && self.key_path.is_some() {
-            let ca = self.load_pem( self.ca_path.clone().unwrap().as_str())?;
-            let key = self.load_pem( self.key_path.clone().unwrap().as_str())?;
+            let ca = self.load_pem(self.ca_path.clone().unwrap().as_str())?;
+            let key = self.load_pem(self.key_path.clone().unwrap().as_str())?;
             let cert = self.load_pem(self.cert_path.clone().unwrap().as_str())?;
 
             let tls_options = TlsOptions::default()
@@ -196,7 +196,7 @@ impl Builder for EtcdBuilder {
                 .identity(Identity::from_pem(cert, key));
             options = options.with_tls(tls_options);
         }
-        
+
         if let Some(username) = self.username.clone() {
             options = options.with_user(
                 username.clone(),
@@ -223,10 +223,8 @@ impl Builder for EtcdBuilder {
 
 impl EtcdBuilder {
     fn load_pem(&self, path: &str) -> Result<String> {
-        let content = std::fs::read_to_string(path).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "invalid file path")
-                .set_source(err)
-        });
+        let content = std::fs::read_to_string(path)
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "invalid file path").set_source(err));
         content
     }
 }

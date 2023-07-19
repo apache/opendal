@@ -15,6 +15,7 @@ This service can be used to:
 - [ ] ~~scan~~
 - [ ] ~~presign~~
 - [x] blocking
+- [x] append
 
 ## Differences with webhdfs
 

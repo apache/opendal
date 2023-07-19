@@ -15,10 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::HdfsBuilder as Hdfs;
+use async_trait::async_trait;
+use bytes::Bytes;
+use futures::AsyncWriteExt;
 
-mod appender;
-mod error;
-mod pager;
-mod writer;
+use super::error::parse_io_error;
+use crate::raw::*;
+use crate::*;
+
+pub struct HdfsAppender<F> {
+    f: F
+}
+
+impl<F> HdfsAppender<F> {
+    pub fn new(f: F) -> Self {
+        Self { f }
+    }
+}
+
+#[async_trait]
+impl oio::Append for HdfsAppender<hdrs::AsyncFile> {
+
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.f.write_all(&bs).await.map_err(parse_io_error)?;
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.f.flush().await.map_err(parse_io_error)?;
+        self.f.close().await.map_err(parse_io_error)?;
+        Ok(())
+    }
+}

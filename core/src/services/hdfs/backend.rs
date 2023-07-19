@@ -29,6 +29,7 @@ use log::debug;
 use super::error::parse_io_error;
 use super::pager::HdfsPager;
 use super::writer::HdfsWriter;
+use super::appender::HdfsAppender;
 use crate::raw::*;
 use crate::*;
 
@@ -133,7 +134,7 @@ impl Accessor for HdfsBackend {
     type BlockingReader = oio::into_blocking_reader::FdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
-    type Appender = ();
+    type Appender = HdfsAppender<hdrs::AsyncFile>;
     type Pager = Option<HdfsPager>;
     type BlockingPager = Option<HdfsPager>;
 
@@ -204,6 +205,35 @@ impl Accessor for HdfsBackend {
         r.seek(SeekFrom::Start(0)).await?;
 
         Ok((RpRead::new(end - start), r))
+    }
+
+    async fn append(&self, path: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let parent = PathBuf::from(&p)
+            .parent()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path should have parent but not, it must be malformed",
+                )
+                    .with_context("input", &p)
+            })?
+            .to_path_buf();
+        self.client
+            .create_dir(&parent.to_string_lossy())
+            .map_err(parse_io_error)?;
+
+        let f = self
+            .client
+            .open_file()
+            .create(true)
+            .append(true)
+            .async_open(&p)
+            .await
+            .map_err(parse_io_error)?;
+
+        Ok((RpAppend::new(), HdfsAppender::new(f)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

@@ -47,8 +47,8 @@ protected:
 // Basic usecase of list
 TEST_F(OpendalListTest, ListDirTest)
 {
-    std::string dname = "some_random_dir_name_152312dbfas";
-    std::string fname = "some_random_file_name_2138912rbf";
+    std::string dname = "some_random_dir_name_152312";
+    std::string fname = "some_random_file_name_21389";
 
     // 4 MiB of random bytes
     uintptr_t nbytes = 4 * 1024 * 1024;

@@ -82,16 +82,15 @@ TEST_F(OpendalListTest, ListDirTest)
         opendal_result_stat s = opendal_operator_stat(this->p, de_path);
         EXPECT_EQ(s.code, OPENDAL_OK);
 
-        opendal_metadata* meta = s.meta;
-
         if (!strcmp(de_path, path.c_str())) {
             found = true;
 
             // the path we found has to be a file, and the length must be coherent
-            EXPECT_TRUE(opendal_metadata_is_file(meta));
-            EXPECT_EQ(opendal_metadata_content_length(meta), nbytes);
+            EXPECT_TRUE(opendal_metadata_is_file(s.meta));
+            EXPECT_EQ(opendal_metadata_content_length(s.meta), nbytes);
         }
 
+        opendal_metadata_free(s.meta);
         opendal_list_entry_free(entry);
         entry = opendal_lister_next(lister);
     }

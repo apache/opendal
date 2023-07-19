@@ -219,6 +219,8 @@ impl Operator {
             Scheme::Webhdfs => Self::from_map::<services::Webhdfs>(map)?.finish(),
             #[cfg(feature = "services-redb")]
             Scheme::Redb => Self::from_map::<services::Redb>(map)?.finish(),
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd => Self::from_map::<services::Etcd>(map)?.finish(),
             v => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

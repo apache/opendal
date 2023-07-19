@@ -253,6 +253,11 @@ impl Config {
                 Operator::from_map::<services::Webhdfs>(profile.clone())?.finish(),
                 path,
             )),
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd => Ok((
+                Operator::from_map::<services::Etcd>(profile.clone())?.finish(),
+                path,
+            )),
             _ => Err(anyhow!(
                 "unknown type '{}' in profile '{}'",
                 scheme,

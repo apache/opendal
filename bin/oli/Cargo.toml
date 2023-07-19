@@ -50,6 +50,8 @@ services-redis = ["opendal/services-redis"]
 services-rocksdb = ["opendal/services-rocksdb"]
 # Enable services sled support
 services-sled = ["opendal/services-sled"]
+# Enable services etcd support
+services-etcd = ["opendal/services-etcd"]
 
 [dependencies]
 anyhow = "1"

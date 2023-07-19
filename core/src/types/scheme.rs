@@ -100,6 +100,8 @@ pub enum Scheme {
     Webhdfs,
     /// [redb][crate::services::Redb]: Redb Services
     Redb,
+    /// [etcd][crate::services::Etcd]: Etcd Services
+    Etcd,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -163,6 +165,7 @@ impl FromStr for Scheme {
             "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
+            "etcd" => Ok(Scheme::Etcd),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -205,6 +208,7 @@ impl From<Scheme> for &'static str {
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
             Scheme::Redb => "redb",
+            Scheme::Etcd => "etcd",
             Scheme::Custom(v) => v,
         }
     }

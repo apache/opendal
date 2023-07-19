@@ -188,3 +188,8 @@ pub use vercel_artifacts::VercelArtifacts;
 mod redb;
 #[cfg(feature = "services-redb")]
 pub use self::redb::Redb;
+
+#[cfg(feature = "services-etcd")]
+mod etcd;
+#[cfg(feature = "services-etcd")]
+pub use self::etcd::Etcd;

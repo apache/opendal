@@ -92,7 +92,7 @@ impl From<*mut od::BlockingOperator> for opendal_operator_ptr {
 #[repr(C)]
 pub struct opendal_bytes {
     /// Pointing to the byte array on heap
-    pub data: *mut u8,
+    pub data: *const u8,
     /// The length of the byte array
     pub len: usize,
 }
@@ -100,7 +100,7 @@ pub struct opendal_bytes {
 impl opendal_bytes {
     /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
     pub(crate) fn new(vec: Vec<u8>) -> Self {
-        let data = vec.as_ptr() as *mut u8;
+        let data = vec.as_ptr();
         let len = vec.len();
         std::mem::forget(vec);
         Self { data, len }
@@ -110,8 +110,9 @@ impl opendal_bytes {
     #[no_mangle]
     pub extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
         if !ptr.is_null() {
+            let data_mut = unsafe { (*ptr).data as *mut u8 };
             // free the vector
-            let _ = unsafe { Vec::from_raw_parts((*ptr).data, (*ptr).len, (*ptr).len) };
+            let _ = unsafe { Vec::from_raw_parts(data_mut, (*ptr).len, (*ptr).len) };
             // free the pointer
             let _ = unsafe { Box::from_raw(ptr) };
         }

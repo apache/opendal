@@ -191,7 +191,7 @@ typedef struct opendal_bytes {
   /**
    * Pointing to the byte array on heap
    */
-  uint8_t *data;
+  const uint8_t *data;
   /**
    * The length of the byte array
    */

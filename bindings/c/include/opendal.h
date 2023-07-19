@@ -366,7 +366,7 @@ const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
  * Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
  * if succeeds, others otherwise.
  *
- * @NOTE It is important to notice that the `bytes` that is passes in will be comsumed by this
+ * @NOTE It is important to notice that the `bytes` that is passes in will be consumed by this
  *       function.
  *
  * @param ptr The opendal_operator_ptr created previously

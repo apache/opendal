@@ -120,8 +120,8 @@ impl Builder for HdfsBuilder {
         debug!("backend use root {}", root);
 
         let builder = hdrs::ClientBuilder::new(name_node);
-        self.kerberos_ticket_cache_path.map(|v| builder.with_kerberos_ticket_cache_path(v));
-        self.user.map(|v| builder.with_user(v));
+        self.kerberos_ticket_cache_path.map(|v| builder.with_kerberos_ticket_cache_path(v.as_str()));
+        self.user.map(|v| builder.with_user(v.as_str()));
 
         let client = builder.connect().map_err(parse_io_error)?;
 

@@ -93,30 +93,29 @@ impl From<*mut od::BlockingOperator> for opendal_operator_ptr {
 #[repr(C)]
 pub struct opendal_bytes {
     /// Pointing to the byte array on heap
-    pub data: *const u8,
+    pub data: *mut u8,
     /// The length of the byte array
     pub len: usize,
 }
 
 impl opendal_bytes {
+    /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
+    pub(crate) fn new(vec: Vec<u8>) -> Self {
+        let data = vec.as_ptr() as *mut u8;
+        let len = vec.len();
+        std::mem::forget(vec);
+        Self { data, len }
+    }
+
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
-    pub extern "C" fn opendal_bytes_free(&self) {
-        unsafe {
-            // this deallocates the vector by reconstructing the vector and letting
-            // it be dropped when its out of scope
-            Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
+    pub extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
+        if !ptr.is_null() {
+            // free the vector
+            let _ = unsafe { Vec::from_raw_parts((*ptr).data, (*ptr).len, (*ptr).len) };
+            // free the pointer
+            let _ = unsafe { Box::from_raw(ptr) };
         }
-    }
-}
-
-impl opendal_bytes {
-    /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
-    pub(crate) fn from_vec(vec: Vec<u8>) -> Self {
-        let data = vec.as_ptr() as *const u8;
-        let len = vec.len();
-        std::mem::forget(vec); // To avoid deallocation of the vec.
-        Self { data, len }
     }
 }
 

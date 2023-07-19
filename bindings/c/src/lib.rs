@@ -126,7 +126,10 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// \brief Blockingly write raw bytes to `path`.
 ///
 /// Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
-/// if succeeds, others otherwise
+/// if succeeds, others otherwise.
+///
+/// @NOTE It is important to notice that the `bytes` that is passes in will be comsumed by this
+///       function.
 ///
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The designated path you want to write your bytes in
@@ -235,7 +238,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
     let data = op.read(path);
     match data {
         Ok(d) => {
-            let v = Box::new(opendal_bytes::from_vec(d));
+            let v = Box::new(opendal_bytes::new(d));
             opendal_result_read {
                 data: Box::into_raw(v),
                 code: opendal_code::OPENDAL_OK,

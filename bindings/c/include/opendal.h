@@ -191,7 +191,7 @@ typedef struct opendal_bytes {
   /**
    * Pointing to the byte array on heap
    */
-  const uint8_t *data;
+  uint8_t *data;
   /**
    * The length of the byte array
    */
@@ -364,7 +364,10 @@ const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
  * \brief Blockingly write raw bytes to `path`.
  *
  * Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
- * if succeeds, others otherwise
+ * if succeeds, others otherwise.
+ *
+ * @NOTE It is important to notice that the `bytes` that is passes in will be comsumed by this
+ *       function.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The designated path you want to write your bytes in
@@ -653,7 +656,7 @@ void opendal_operator_free(const struct opendal_operator_ptr *op);
 /**
  * \brief Frees the heap memory used by the opendal_bytes
  */
-void opendal_bytes_free(const struct opendal_bytes *self);
+void opendal_bytes_free(struct opendal_bytes *ptr);
 
 /**
  * \brief Free the heap-allocated metadata used by opendal_metadata

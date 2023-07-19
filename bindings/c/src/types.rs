@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::ffi::CString;
 use std::os::raw::c_char;
 
 use ::opendal as od;
@@ -372,20 +373,30 @@ impl opendal_list_entry {
         }
     }
 
-    /// Path of entry. Path is relative to operator's root.
-    /// Only valid in current operator.
+    /// \brief Path of entry.
+    ///
+    /// Path is relative to operator's root. Only valid in current operator.
+    ///
+    /// @NOTE To free the string, you can directly call free()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *const c_char {
-        (*self.inner).path().as_ptr() as *const c_char
+    pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *mut c_char {
+        let s = (*self.inner).path();
+        let c_str = CString::new(s).unwrap();
+        c_str.into_raw()
     }
 
-    /// Name of entry. Name is the last segment of path.
+    /// \brief Name of entry.
     ///
+    /// Name is the last segment of path.
     /// If this entry is a dir, `Name` MUST endswith `/`
     /// Otherwise, `Name` MUST NOT endswith `/`.
+    ///
+    /// @NOTE To free the string, you can directly call free()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *const c_char {
-        (*self.inner).name().as_ptr() as *const c_char
+    pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *mut c_char {
+        let s = (*self.inner).name();
+        let c_str = CString::new(s).unwrap();
+        c_str.into_raw()
     }
 
     /// \brief Frees the heap memory used by the opendal_list_entry

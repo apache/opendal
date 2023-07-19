@@ -768,18 +768,24 @@ struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lis
 void opendal_lister_free(const struct opendal_blocking_lister *p);
 
 /**
- * Path of entry. Path is relative to operator's root.
- * Only valid in current operator.
+ * \brief Path of entry.
+ *
+ * Path is relative to operator's root. Only valid in current operator.
+ *
+ * @NOTE To free the string, you can directly call free()
  */
-const char *opendal_list_entry_path(const struct opendal_list_entry *self);
+char *opendal_list_entry_path(const struct opendal_list_entry *self);
 
 /**
- * Name of entry. Name is the last segment of path.
+ * \brief Name of entry.
  *
+ * Name is the last segment of path.
  * If this entry is a dir, `Name` MUST endswith `/`
  * Otherwise, `Name` MUST NOT endswith `/`.
+ *
+ * @NOTE To free the string, you can directly call free()
  */
-const char *opendal_list_entry_name(const struct opendal_list_entry *self);
+char *opendal_list_entry_name(const struct opendal_list_entry *self);
 
 /**
  * \brief Frees the heap memory used by the opendal_list_entry

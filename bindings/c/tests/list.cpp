@@ -76,7 +76,7 @@ TEST_F(OpendalListTest, ListDirTest)
 
     opendal_list_entry* entry = opendal_lister_next(lister);
     while (entry) {
-        const char* de_path = opendal_list_entry_path(entry);
+        char* de_path = opendal_list_entry_path(entry);
 
         // stat must succeed
         opendal_result_stat s = opendal_operator_stat(this->p, de_path);
@@ -90,8 +90,10 @@ TEST_F(OpendalListTest, ListDirTest)
             EXPECT_EQ(opendal_metadata_content_length(s.meta), nbytes);
         }
 
+        free(de_path);
         opendal_metadata_free(s.meta);
         opendal_list_entry_free(entry);
+
         entry = opendal_lister_next(lister);
     }
 

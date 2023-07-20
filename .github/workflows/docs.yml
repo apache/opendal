@@ -44,6 +44,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
+          need-protoc: true
 
       - uses: actions/setup-java@v3
         with:

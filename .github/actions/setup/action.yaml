@@ -39,8 +39,10 @@ runs:
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
 
-    - name: Setup protoc
-      uses: arduino/setup-protoc@v2
+    - name: Setup protoc on linux
+      if: inputs.need-protoc == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: sudo apt install -y protobuf-compiler
 
     - name: Cache nextest on linux
       id: cache-nextest

@@ -693,7 +693,8 @@ impl BlockingOperator {
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let _ = op
     ///     .delete_with("path/to/file")
-    ///     .version("example_version").call()?;
+    ///     .version("example_version")
+    ///     .call()?;
     /// # Ok(())
     /// # }
     /// ```

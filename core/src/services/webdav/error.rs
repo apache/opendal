@@ -30,7 +30,8 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        // Some services (like owncloud) return 403 while file locked.
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -40,8 +41,11 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut err = Error::new(kind, &String::from_utf8_lossy(&bs))
-        .with_context("response", format!("{parts:?}"));
+    let message = String::from_utf8_lossy(&bs);
+
+    let mut err = Error::new(kind, &message);
+
+    err = with_error_response_context(err, parts);
 
     if retryable {
         err = err.set_temporary();

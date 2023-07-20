@@ -549,7 +549,9 @@ impl S3Builder {
     ///
     /// # async fn example() {
     /// let builder = S3::default();
-    /// let region: Option<String> = builder.detect_region("https://s3.amazonaws.com", "example").await;
+    /// let region: Option<String> = builder
+    ///     .detect_region("https://s3.amazonaws.com", "example")
+    ///     .await;
     /// # }
     /// ```
     ///

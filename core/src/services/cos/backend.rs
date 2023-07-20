@@ -35,7 +35,7 @@ use crate::raw::*;
 use crate::services::cos::appender::CosAppender;
 use crate::*;
 
-/// Huawei Cloud COS services support.
+/// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct CosBuilder {
@@ -233,7 +233,7 @@ impl Builder for CosBuilder {
     }
 }
 
-/// Backend for Huaweicloud COS services.
+/// Backend for Tencent-Cloud COS services.
 #[derive(Debug, Clone)]
 pub struct CosBackend {
     core: Arc<CosCore>,

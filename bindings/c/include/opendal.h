@@ -364,7 +364,10 @@ const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
  * \brief Blockingly write raw bytes to `path`.
  *
  * Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
- * if succeeds, others otherwise
+ * if succeeds, others otherwise.
+ *
+ * @NOTE It is important to notice that the `bytes` that is passes in will be consumed by this
+ *       function.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The designated path you want to write your bytes in
@@ -653,12 +656,12 @@ void opendal_operator_free(const struct opendal_operator_ptr *op);
 /**
  * \brief Frees the heap memory used by the opendal_bytes
  */
-void opendal_bytes_free(const struct opendal_bytes *self);
+void opendal_bytes_free(struct opendal_bytes *ptr);
 
 /**
  * \brief Free the heap-allocated metadata used by opendal_metadata
  */
-void opendal_metadata_free(struct opendal_metadata *self);
+void opendal_metadata_free(struct opendal_metadata *ptr);
 
 /**
  * \brief Return the content_length of the metadata
@@ -765,23 +768,29 @@ struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lis
 void opendal_lister_free(const struct opendal_blocking_lister *p);
 
 /**
- * Path of entry. Path is relative to operator's root.
- * Only valid in current operator.
+ * \brief Path of entry.
+ *
+ * Path is relative to operator's root. Only valid in current operator.
+ *
+ * @NOTE To free the string, you can directly call free()
  */
-const char *opendal_list_entry_path(const struct opendal_list_entry *self);
+char *opendal_list_entry_path(const struct opendal_list_entry *self);
 
 /**
- * Name of entry. Name is the last segment of path.
+ * \brief Name of entry.
  *
+ * Name is the last segment of path.
  * If this entry is a dir, `Name` MUST endswith `/`
  * Otherwise, `Name` MUST NOT endswith `/`.
+ *
+ * @NOTE To free the string, you can directly call free()
  */
-const char *opendal_list_entry_name(const struct opendal_list_entry *self);
+char *opendal_list_entry_name(const struct opendal_list_entry *self);
 
 /**
  * \brief Frees the heap memory used by the opendal_list_entry
  */
-void opendal_list_entry_free(const struct opendal_list_entry *p);
+void opendal_list_entry_free(struct opendal_list_entry *ptr);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -47,8 +47,8 @@ protected:
 // Basic usecase of list
 TEST_F(OpendalListTest, ListDirTest)
 {
-    std::string dname = "some_random_dir_name_152312dbfas";
-    std::string fname = "some_random_file_name_2138912rbf";
+    std::string dname = "some_random_dir_name_152312";
+    std::string fname = "some_random_file_name_21389";
 
     // 4 MiB of random bytes
     uintptr_t nbytes = 4 * 1024 * 1024;
@@ -76,23 +76,24 @@ TEST_F(OpendalListTest, ListDirTest)
 
     opendal_list_entry* entry = opendal_lister_next(lister);
     while (entry) {
-        const char* de_path = opendal_list_entry_path(entry);
+        char* de_path = opendal_list_entry_path(entry);
 
         // stat must succeed
         opendal_result_stat s = opendal_operator_stat(this->p, de_path);
         EXPECT_EQ(s.code, OPENDAL_OK);
 
-        opendal_metadata* meta = s.meta;
-
         if (!strcmp(de_path, path.c_str())) {
             found = true;
 
             // the path we found has to be a file, and the length must be coherent
-            EXPECT_TRUE(opendal_metadata_is_file(meta));
-            EXPECT_EQ(opendal_metadata_content_length(meta), nbytes);
+            EXPECT_TRUE(opendal_metadata_is_file(s.meta));
+            EXPECT_EQ(opendal_metadata_content_length(s.meta), nbytes);
         }
 
+        free(de_path);
+        opendal_metadata_free(s.meta);
         opendal_list_entry_free(entry);
+
         entry = opendal_lister_next(lister);
     }
 

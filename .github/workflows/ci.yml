@@ -59,6 +59,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
+          need-protoc: true
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -83,6 +84,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
+          need-protoc: true
 
       - name: Checkout python env
         uses: actions/setup-python@v4
@@ -145,6 +147,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
+          need-protoc: true
 
       - name: Build
         run: cargo build --all-features

@@ -16,7 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::mem;
+use std::ffi::CString;
 use std::os::raw::c_char;
 
 use ::opendal as od;
@@ -99,24 +99,24 @@ pub struct opendal_bytes {
 }
 
 impl opendal_bytes {
+    /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
+    pub(crate) fn new(vec: Vec<u8>) -> Self {
+        let data = vec.as_ptr();
+        let len = vec.len();
+        std::mem::forget(vec);
+        Self { data, len }
+    }
+
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
-    pub extern "C" fn opendal_bytes_free(&self) {
-        unsafe {
-            // this deallocates the vector by reconstructing the vector and letting
-            // it be dropped when its out of scope
-            Vec::from_raw_parts(self.data as *mut u8, self.len, self.len);
+    pub extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
+        if !ptr.is_null() {
+            let data_mut = unsafe { (*ptr).data as *mut u8 };
+            // free the vector
+            let _ = unsafe { Vec::from_raw_parts(data_mut, (*ptr).len, (*ptr).len) };
+            // free the pointer
+            let _ = unsafe { Box::from_raw(ptr) };
         }
-    }
-}
-
-impl opendal_bytes {
-    /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
-    pub(crate) fn from_vec(vec: Vec<u8>) -> Self {
-        let data = vec.as_ptr() as *const u8;
-        let len = vec.len();
-        std::mem::forget(vec); // To avoid deallocation of the vec.
-        Self { data, len }
     }
 }
 
@@ -155,10 +155,10 @@ impl opendal_metadata {
 
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
-    pub extern "C" fn opendal_metadata_free(&mut self) {
+    pub extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
         unsafe {
-            mem::drop(Box::from_raw(self.inner));
-            mem::drop(Box::from_raw(self as *mut Self));
+            let _ = Box::from_raw((*ptr).inner);
+            let _ = Box::from_raw(ptr);
         }
     }
 
@@ -373,27 +373,38 @@ impl opendal_list_entry {
         }
     }
 
-    /// Path of entry. Path is relative to operator's root.
-    /// Only valid in current operator.
+    /// \brief Path of entry.
+    ///
+    /// Path is relative to operator's root. Only valid in current operator.
+    ///
+    /// @NOTE To free the string, you can directly call free()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *const c_char {
-        (*self.inner).path().as_ptr() as *const c_char
+    pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *mut c_char {
+        let s = (*self.inner).path();
+        let c_str = CString::new(s).unwrap();
+        c_str.into_raw()
     }
 
-    /// Name of entry. Name is the last segment of path.
+    /// \brief Name of entry.
     ///
+    /// Name is the last segment of path.
     /// If this entry is a dir, `Name` MUST endswith `/`
     /// Otherwise, `Name` MUST NOT endswith `/`.
+    ///
+    /// @NOTE To free the string, you can directly call free()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *const c_char {
-        (*self.inner).name().as_ptr() as *const c_char
+    pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *mut c_char {
+        let s = (*self.inner).name();
+        let c_str = CString::new(s).unwrap();
+        c_str.into_raw()
     }
 
     /// \brief Frees the heap memory used by the opendal_list_entry
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_entry_free(p: *const opendal_list_entry) {
-        unsafe {
-            let _ = Box::from_raw(p as *mut opendal_list_entry);
+    pub unsafe extern "C" fn opendal_list_entry_free(ptr: *mut opendal_list_entry) {
+        if !ptr.is_null() {
+            let _ = unsafe { Box::from_raw((*ptr).inner) };
+            let _ = unsafe { Box::from_raw(ptr) };
         }
     }
 }

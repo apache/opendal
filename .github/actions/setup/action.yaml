@@ -22,6 +22,8 @@ inputs:
     description: "This setup needs rocksdb or not"
   need-nextest:
     description: "This setup needs nextest or not"
+  need-protoc:
+    description: "This setup needs protoc or not"
 
 runs:
   using: "composite"
@@ -38,6 +40,11 @@ runs:
         echo "RUST_LOG=opendal=debug" >> $GITHUB_ENV
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
+
+    - name: Setup protoc on linux
+      if: inputs.need-protoc == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: sudo apt install -y protobuf-compiler
 
     - name: Cache nextest on linux
       id: cache-nextest

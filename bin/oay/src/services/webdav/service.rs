@@ -23,6 +23,7 @@ use axum::http::Request;
 use axum::routing::any_service;
 use axum::Router;
 use dav_server::DavHandler;
+use opendal::Operator;
 
 use crate::Config;
 
@@ -34,8 +35,11 @@ pub struct WebdavService {
 }
 
 impl WebdavService {
-    pub fn new(cfg: Arc<Config>, webdavfs: Box<WebdavFs>) -> Self {
-        Self { cfg, webdavfs }
+    pub fn new(cfg: Arc<Config>, op: Operator) -> Self {
+        Self {
+            cfg,
+            webdavfs: WebdavFs::new(op),
+        }
     }
 
     pub async fn serve(&self) -> anyhow::Result<()> {

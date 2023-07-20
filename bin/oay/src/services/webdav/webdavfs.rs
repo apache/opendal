@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use dav_server::fs::{DavFile, DavFileSystem, DavMetaData};
 use futures::FutureExt;
 use opendal::Operator;
@@ -25,7 +23,7 @@ use super::{webdav_file::WebdavFile, webdav_metadata::WebdavMetaData};
 
 #[derive(Clone)]
 pub struct WebdavFs {
-    pub op: Arc<Operator>,
+    pub op: Operator,
 }
 
 impl DavFileSystem for WebdavFs {
@@ -64,9 +62,7 @@ impl DavFileSystem for WebdavFs {
                 .stat(path.as_rel_ospath().to_str().unwrap())
                 .await
                 .unwrap();
-            Ok(Box::new(WebdavMetaData {
-                metadata: opendal_metadata,
-            }) as Box<dyn DavMetaData>)
+            Ok(Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>)
         }
         .boxed()
     }
@@ -74,6 +70,6 @@ impl DavFileSystem for WebdavFs {
 
 impl WebdavFs {
     pub fn new(op: Operator) -> Box<WebdavFs> {
-        Box::new(WebdavFs { op: Arc::new(op) })
+        Box::new(WebdavFs { op })
     }
 }

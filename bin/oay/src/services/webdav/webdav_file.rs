@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{io::SeekFrom, sync::Arc};
+use std::io::SeekFrom;
 
 use dav_server::{
     davpath::DavPath,
@@ -28,7 +28,7 @@ use super::webdav_metadata::WebdavMetaData;
 
 #[derive(Debug)]
 pub struct WebdavFile {
-    pub op: Arc<Operator>,
+    pub op: Operator,
     pub path: DavPath,
     pub options: OpenOptions,
 }
@@ -55,9 +55,7 @@ impl DavFile for WebdavFile {
                 .stat(self.path.as_rel_ospath().to_str().unwrap())
                 .await
                 .unwrap();
-            Ok(Box::new(WebdavMetaData {
-                metadata: opendal_metadata,
-            }) as Box<dyn DavMetaData>)
+            Ok(Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>)
         }
         .boxed()
     }

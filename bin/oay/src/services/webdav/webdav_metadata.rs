@@ -20,7 +20,13 @@ use opendal::Metadata;
 
 #[derive(Debug, Clone)]
 pub struct WebdavMetaData {
-    pub metadata: Metadata,
+    metadata: Metadata,
+}
+
+impl WebdavMetaData {
+    pub fn new(metadata: Metadata) -> Self {
+        WebdavMetaData { metadata }
+    }
 }
 
 impl DavMetaData for WebdavMetaData {

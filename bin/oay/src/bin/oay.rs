@@ -22,14 +22,21 @@ use anyhow::Context;
 use anyhow::Result;
 use oay::services::S3Service;
 use oay::Config;
+use oay::services::WebdavService;
 use opendal::Operator;
 use opendal::Scheme;
+use opendal::services::Fs;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _ = s3().await;
+    webdav().await
+}
+
+async fn s3() -> Result<()> {
     tracing_subscriber::registry()
         .with(fmt::layer().pretty())
         .with(EnvFilter::from_default_env())
@@ -43,6 +50,34 @@ async fn main() -> Result<()> {
     let s3 = S3Service::new(Arc::new(cfg), op);
 
     s3.serve().await?;
+
+    Ok(())
+}
+
+async fn webdav() -> Result<()> {
+
+    let cfg: Config = Config {
+        backend: oay::BackendConfig {
+            typ: "fs".to_string(),
+            ..Default::default()
+        },
+        frontends: oay::FrontendsConfig {
+            webdav: oay::WebdavConfig {
+                enable: true,
+                addr: "127.0.0.1:3000".to_string(),
+            },
+            ..Default::default()
+        },
+    };
+
+    let mut builder = Fs::default();
+    builder.root("/tmp");
+
+    let op = Operator::new(builder)?.finish();
+
+    let webdav = WebdavService::new(Arc::new(cfg), op);
+
+    webdav.serve().await?;
 
     Ok(())
 }

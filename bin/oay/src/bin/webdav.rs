@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use oay::services::webdavfs::WebdavFs;
 
 use oay::services::WebdavService;
 use oay::Config;
@@ -55,7 +54,7 @@ async fn main() -> Result<()> {
 
     let op = Operator::new(builder)?.finish();
 
-    let webdav = WebdavService::new(Arc::new(cfg), WebdavFs::new(op));
+    let webdav = WebdavService::new(Arc::new(cfg), op);
 
     webdav.serve().await?;
 

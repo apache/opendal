@@ -23,4 +23,4 @@ pub use s3::S3Service;
 #[cfg(feature = "frontends-webdav")]
 mod webdav;
 #[cfg(feature = "frontends-webdav")]
-pub use webdav::*;
+pub use webdav::WebdavService;

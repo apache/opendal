@@ -50,6 +50,9 @@ jobs:
       - name: Cargo format
         run: cargo fmt --all -- --check
 
+      - name: Check diff
+        run: git diff --exit-code
+
   check_docs:
     runs-on: ubuntu-latest
     steps:

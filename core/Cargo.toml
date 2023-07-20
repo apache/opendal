@@ -113,6 +113,7 @@ services-cos = [
 ]
 services-dashmap = ["dep:dashmap"]
 services-dropbox = []
+services-etcd = ["dep:etcd-client"]
 services-fs = ["tokio/fs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
 services-gcs = [
@@ -161,7 +162,6 @@ services-wasabi = [
 ]
 services-webdav = []
 services-webhdfs = []
-services-etcd = ["dep:etcd-client"]
 
 [lib]
 bench = false

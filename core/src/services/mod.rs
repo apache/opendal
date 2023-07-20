@@ -39,6 +39,11 @@ mod dashmap;
 #[cfg(feature = "services-dashmap")]
 pub use self::dashmap::Dashmap;
 
+#[cfg(feature = "services-etcd")]
+mod etcd;
+#[cfg(feature = "services-etcd")]
+pub use self::etcd::Etcd;
+
 #[cfg(feature = "services-fs")]
 mod fs;
 #[cfg(feature = "services-fs")]
@@ -188,8 +193,3 @@ pub use vercel_artifacts::VercelArtifacts;
 mod redb;
 #[cfg(feature = "services-redb")]
 pub use self::redb::Redb;
-
-#[cfg(feature = "services-etcd")]
-mod etcd;
-#[cfg(feature = "services-etcd")]
-pub use self::etcd::Etcd;

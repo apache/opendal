@@ -163,6 +163,8 @@ impl Operator {
             Scheme::Cos => Self::from_map::<services::Cos>(map)?.finish(),
             #[cfg(feature = "services-dashmap")]
             Scheme::Dashmap => Self::from_map::<services::Dashmap>(map)?.finish(),
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd => Self::from_map::<services::Etcd>(map)?.finish(),
             #[cfg(feature = "services-fs")]
             Scheme::Fs => Self::from_map::<services::Fs>(map)?.finish(),
             #[cfg(feature = "services-ftp")]
@@ -219,8 +221,6 @@ impl Operator {
             Scheme::Webhdfs => Self::from_map::<services::Webhdfs>(map)?.finish(),
             #[cfg(feature = "services-redb")]
             Scheme::Redb => Self::from_map::<services::Redb>(map)?.finish(),
-            #[cfg(feature = "services-etcd")]
-            Scheme::Etcd => Self::from_map::<services::Etcd>(map)?.finish(),
             v => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,

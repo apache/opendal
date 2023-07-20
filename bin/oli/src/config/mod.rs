@@ -170,6 +170,11 @@ impl Config {
                 Operator::from_map::<services::Dashmap>(profile.clone())?.finish(),
                 path,
             )),
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd => Ok((
+                Operator::from_map::<services::Etcd>(profile.clone())?.finish(),
+                path,
+            )),
             Scheme::Gcs => Ok((
                 Operator::from_map::<services::Gcs>(profile.clone())?.finish(),
                 path,
@@ -251,11 +256,6 @@ impl Config {
             )),
             Scheme::Webhdfs => Ok((
                 Operator::from_map::<services::Webhdfs>(profile.clone())?.finish(),
-                path,
-            )),
-            #[cfg(feature = "services-etcd")]
-            Scheme::Etcd => Ok((
-                Operator::from_map::<services::Etcd>(profile.clone())?.finish(),
                 path,
             )),
             _ => Err(anyhow!(

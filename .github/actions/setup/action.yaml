@@ -48,7 +48,7 @@ runs:
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
 
     - name: Setup Java
-      if: inputs.need-java != ""
+      if: inputs.need-java
       uses: actions/setup-java@v3
       with:
           distribution: 'temurin'
@@ -56,13 +56,13 @@ runs:
           cache: 'maven'
 
     - name: Setup Python
-      if: inputs.need-python != ""
+      if: inputs.need-python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ inputs.need-python }}
 
     - name: Setup Nodejs
-      if: inputs.need-nodejs != ""
+      if: inputs.need-nodejs
       uses: actions/setup-nodejs@v4
       with:
         node-version: ${{ inputs.need-nodejs }}

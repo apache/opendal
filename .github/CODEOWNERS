@@ -1,9 +1,10 @@
-* @Xuanwo
+* @Xuanwo @PsiACE
 
+/core @Xuanwo
 /bindings/c/ @Ji-Xinyou
 /bindings/haskell/ @silver-ymz
 /bindings/java/ @tisonkun
-/bindings/ruby/ @oowl
+/bindings/lua/ @oowl
 /bindings/nodejs/ @suyanhanx
 /bindings/python/ @messense
 /bindings/ruby/ @PsiACE

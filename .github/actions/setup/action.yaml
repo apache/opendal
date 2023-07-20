@@ -39,6 +39,9 @@ runs:
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
 
+    - name: Setup protoc
+      uses: arduino/setup-protoc@v2
+
     - name: Cache nextest on linux
       id: cache-nextest
       uses: actions/cache@v3

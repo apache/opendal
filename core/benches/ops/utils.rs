@@ -58,7 +58,11 @@ pub fn services() -> Vec<(&'static str, Option<Operator>)> {
         ("mini-moka", service::<services::MiniMoka>()),
         #[cfg(feature = "services-moka")]
         ("moka", service::<services::Moka>()),
-        #[cfg(feature = "services-redis")]
+        #[cfg(any(
+            feature = "services-redis",
+            feature = "services-redis-rustls",
+            feature = "services-redis-native-tls"
+        ))]
         ("redis", service::<services::Redis>()),
     ]
 }

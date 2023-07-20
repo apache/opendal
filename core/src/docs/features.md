@@ -15,7 +15,9 @@
 - `services-mini-moka`: Enable mini-moka service support.
 - `services-moka`: Enable moka service support.
 - `services-ipfs`: Enable ipfs service support.
-- `services-redis`: Enable redis service support.
+- `services-redis`: Enable redis service support without TLS.
+- `services-redis-rustls`: Enable redis service support with `rustls`.
+- `services-redis-native-tls`: Enable redis service support with `native-tls`.
 - `services-rocksdb`: Enable rocksdb service support.
 - `services-sled`: Enable sled service support.
 

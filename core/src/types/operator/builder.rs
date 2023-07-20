@@ -197,7 +197,11 @@ impl Operator {
             Scheme::Oss => Self::from_map::<services::Oss>(map)?.finish(),
             #[cfg(feature = "services-persy")]
             Scheme::Persy => Self::from_map::<services::Persy>(map)?.finish(),
-            #[cfg(feature = "services-redis")]
+            #[cfg(any(
+                feature = "services-redis",
+                feature = "services-redis-rustls",
+                feature = "services-redis-native-tls"
+            ))]
             Scheme::Redis => Self::from_map::<services::Redis>(map)?.finish(),
             #[cfg(feature = "services-rocksdb")]
             Scheme::Rocksdb => Self::from_map::<services::Rocksdb>(map)?.finish(),

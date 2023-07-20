@@ -185,7 +185,18 @@ impl Builder for RedisBuilder {
                 let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
                 ConnectionAddr::Tcp(host, port)
             }
-            // TODO: wait for upstream to support `rustls` based TLS connection.
+            Some("rediss") => {
+                let host = ep_url
+                    .host()
+                    .map(|h| h.to_string())
+                    .unwrap_or_else(|| "127.0.0.1".to_string());
+                let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
+                ConnectionAddr::TcpTls {
+                    host,
+                    port,
+                    insecure: false,
+                }
+            }
             Some("unix") | Some("redis+unix") => {
                 let path = PathBuf::from(ep_url.path());
                 ConnectionAddr::Unix(path)

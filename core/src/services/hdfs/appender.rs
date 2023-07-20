@@ -24,7 +24,7 @@ use crate::raw::*;
 use crate::*;
 
 pub struct HdfsAppender<F> {
-    f: F
+    f: F,
 }
 
 impl<F> HdfsAppender<F> {
@@ -35,7 +35,6 @@ impl<F> HdfsAppender<F> {
 
 #[async_trait]
 impl oio::Append for HdfsAppender<hdrs::AsyncFile> {
-
     async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.f.write_all(&bs).await.map_err(parse_io_error)?;
         Ok(())

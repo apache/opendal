@@ -26,10 +26,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use log::debug;
 
+use super::appender::HdfsAppender;
 use super::error::parse_io_error;
 use super::pager::HdfsPager;
 use super::writer::HdfsWriter;
-use super::appender::HdfsAppender;
 use crate::raw::*;
 use crate::*;
 
@@ -217,7 +217,7 @@ impl Accessor for HdfsBackend {
                     ErrorKind::Unexpected,
                     "path should have parent but not, it must be malformed",
                 )
-                    .with_context("input", &p)
+                .with_context("input", &p)
             })?
             .to_path_buf();
         self.client

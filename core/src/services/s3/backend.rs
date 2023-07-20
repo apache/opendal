@@ -619,17 +619,15 @@ impl S3Builder {
         );
 
         match res.status() {
-            StatusCode::OK |  StatusCode::MOVED_PERMANENTLY => {
+            StatusCode::OK | StatusCode::MOVED_PERMANENTLY => {
                 let region = res.headers().get("x-amz-bucket-region")?;
                 if let Ok(regin) = region.to_str() {
                     Some(regin.to_string())
                 } else {
                     None
                 }
-            },
-            StatusCode::FORBIDDEN => {
-                Some("us-east-1".to_string())
             }
+            StatusCode::FORBIDDEN => Some("us-east-1".to_string()),
             // Unexpected status code
             _ => None,
         }

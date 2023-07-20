@@ -21,11 +21,11 @@ use std::sync::Arc;
 use anyhow::Context;
 use anyhow::Result;
 use oay::services::S3Service;
-use oay::Config;
 use oay::services::WebdavService;
+use oay::Config;
+use opendal::services::Fs;
 use opendal::Operator;
 use opendal::Scheme;
-use opendal::services::Fs;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
@@ -55,7 +55,6 @@ async fn s3() -> Result<()> {
 }
 
 async fn webdav() -> Result<()> {
-
     let cfg: Config = Config {
         backend: oay::BackendConfig {
             typ: "fs".to_string(),

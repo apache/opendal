@@ -15,5 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(feature = "frontends-s3")]
 mod s3;
+#[cfg(feature = "frontends-s3")]
 pub use s3::S3Service;
+
+#[cfg(feature = "frontends-webdav")]
+mod webdav;
+#[cfg(feature = "frontends-webdav")]
+pub use webdav::WebdavService;

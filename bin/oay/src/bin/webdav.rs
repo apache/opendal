@@ -15,46 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::Context;
 use anyhow::Result;
-use oay::services::S3Service;
+
 use oay::services::WebdavService;
 use oay::Config;
 use opendal::services::Fs;
+
 use opendal::Operator;
-use opendal::Scheme;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _ = s3().await;
-    webdav().await
-}
-
-async fn s3() -> Result<()> {
     tracing_subscriber::registry()
         .with(fmt::layer().pretty())
         .with(EnvFilter::from_default_env())
         .init();
 
-    let cfg: Config =
-        toml::from_str(&std::fs::read_to_string("oay.toml").context("failed to open oay.toml")?)?;
-    let scheme = Scheme::from_str(&cfg.backend.typ).context("unsupported scheme")?;
-    let op = Operator::via_map(scheme, cfg.backend.map.clone())?;
-
-    let s3 = S3Service::new(Arc::new(cfg), op);
-
-    s3.serve().await?;
-
-    Ok(())
-}
-
-async fn webdav() -> Result<()> {
     let cfg: Config = Config {
         backend: oay::BackendConfig {
             typ: "fs".to_string(),

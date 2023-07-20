@@ -15,39 +15,30 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
+use dav_server::fs::DavMetaData;
+use opendal::Metadata;
 
-use serde::Deserialize;
-use serde::Serialize;
-
-#[derive(Serialize, Deserialize)]
-pub struct Config {
-    pub backend: BackendConfig,
-    pub frontends: FrontendsConfig,
+#[derive(Debug, Clone)]
+pub struct WebdavMetaData {
+    metadata: Metadata,
 }
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct BackendConfig {
-    #[serde(rename = "type")]
-    pub typ: String,
-    #[serde(flatten)]
-    pub map: HashMap<String, String>,
+impl WebdavMetaData {
+    pub fn new(metadata: Metadata) -> Self {
+        WebdavMetaData { metadata }
+    }
 }
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct FrontendsConfig {
-    pub s3: S3Config,
-    pub webdav: WebdavConfig,
-}
+impl DavMetaData for WebdavMetaData {
+    fn len(&self) -> u64 {
+        self.metadata.content_length()
+    }
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct S3Config {
-    pub enable: bool,
-    pub addr: String,
-}
+    fn modified(&self) -> dav_server::fs::FsResult<std::time::SystemTime> {
+        Ok(self.metadata.last_modified().unwrap().into())
+    }
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct WebdavConfig {
-    pub enable: bool,
-    pub addr: String,
+    fn is_dir(&self) -> bool {
+        self.metadata.is_dir()
+    }
 }

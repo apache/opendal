@@ -15,39 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
+use dav_server::fs::DavDirEntry;
 
-use serde::Deserialize;
-use serde::Serialize;
+struct WebDAVDirEntry {}
 
-#[derive(Serialize, Deserialize)]
-pub struct Config {
-    pub backend: BackendConfig,
-    pub frontends: FrontendsConfig,
-}
+impl DavDirEntry for WebDAVDirEntry {
+    fn name(&self) -> Vec<u8> {
+        todo!()
+    }
 
-#[derive(Serialize, Deserialize, Default)]
-pub struct BackendConfig {
-    #[serde(rename = "type")]
-    pub typ: String,
-    #[serde(flatten)]
-    pub map: HashMap<String, String>,
-}
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct FrontendsConfig {
-    pub s3: S3Config,
-    pub webdav: WebdavConfig,
-}
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct S3Config {
-    pub enable: bool,
-    pub addr: String,
-}
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct WebdavConfig {
-    pub enable: bool,
-    pub addr: String,
+    fn metadata(&self) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavMetaData>> {
+        todo!()
+    }
 }

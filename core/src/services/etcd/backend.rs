@@ -182,7 +182,7 @@ impl Builder for EtcdBuilder {
             .clone()
             .unwrap_or_else(|| DEFAULT_ETCD_ENDPOINTS.to_string());
 
-        let endpoints: Vec<String> = endpoints.split(",").map(|s| s.to_string()).collect();
+        let endpoints: Vec<String> = endpoints.split(',').map(|s| s.to_string()).collect();
 
         let mut options = ConnectOptions::new();
 
@@ -198,10 +198,7 @@ impl Builder for EtcdBuilder {
         }
 
         if let Some(username) = self.username.clone() {
-            options = options.with_user(
-                username.clone(),
-                self.password.clone().unwrap_or("".to_string()),
-            );
+            options = options.with_user(username, self.password.clone().unwrap_or("".to_string()));
         }
 
         let root = normalize_root(
@@ -223,9 +220,8 @@ impl Builder for EtcdBuilder {
 
 impl EtcdBuilder {
     fn load_pem(&self, path: &str) -> Result<String> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "invalid file path").set_source(err));
-        content
+        std::fs::read_to_string(path)
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "invalid file path").set_source(err))
     }
 }
 
@@ -313,7 +309,7 @@ impl kv::Adapter for Adapter {
         let resp = client.get(p, get_options).await?;
         let mut res = Vec::default();
         for kv in resp.kvs() {
-            res.push(kv.key_str().map(|e| String::from(e)).map_err(|err| {
+            res.push(kv.key_str().map(String::from).map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?);

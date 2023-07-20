@@ -75,7 +75,7 @@ jobs:
           swapon --show
           echo
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true

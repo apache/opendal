@@ -46,7 +46,7 @@ jobs:
           - 5001:5001
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true

@@ -50,7 +50,7 @@ jobs:
           cp -r tests/data/* /tmp/static
           nginx -c `pwd`/src/services/http/fixtures/nginx.conf
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true
@@ -88,7 +88,7 @@ jobs:
           cp -r tests/data/* /tmp/static
           ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 --access-log &
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true

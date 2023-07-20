@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
       - name: Test sled
         shell: bash
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
       - name: Test sled with tree
         shell: bash

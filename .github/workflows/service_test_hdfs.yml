@@ -42,16 +42,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true
+          need-java: "11"
 
-      - name: Setup java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
       - name: Setup hadoop env
         shell: bash
         run: |
@@ -99,16 +95,12 @@ jobs:
 
           curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true
+          need-java: "11"
 
-      - name: Setup java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
       - name: Setup hadoop env
         shell: bash
         run: |

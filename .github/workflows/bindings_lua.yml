@@ -43,12 +43,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
       - name: Setup lua toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y lua-busted luarocks liblua5.2-dev
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
       - name: Build & Test
         working-directory: "bindings/lua"
         run: |

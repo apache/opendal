@@ -50,7 +50,7 @@ jobs:
           zig-version: master # 0.11.0 (nightly/master)
           #zig-version: 0.11.0 # TODO: replace to stable version - wait new zig release
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
 
       - name: Build Zig binding

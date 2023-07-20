@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Setup Rust Builder
+name: Setup Builder
 description: 'Prepare Rust Build Environment'
 inputs:
   need-rocksdb:
@@ -24,11 +24,17 @@ inputs:
     description: "This setup needs nextest or not"
   need-protoc:
     description: "This setup needs protoc or not"
+  need-java:
+    description: "This setup needs java or not, the value is java version"
+  need-python:
+    description: "This setup needs python or not, the value is python version"
+  need-nodejs:
+    description: "This setup needs nodejs or not, the value is nodejs version"
 
 runs:
   using: "composite"
   steps:
-    - name: Setup rust related environment variables
+    - name: Setup Rust
       shell: bash
       run: |
         # Disable full debug symbol generation to speed up CI build and keep memory down
@@ -41,11 +47,33 @@ runs:
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
 
+    - name: Setup Java
+      if: inputs.need-java != ""
+      uses: actions/setup-java@v3
+      with:
+          distribution: 'temurin'
+          java-version: ${{ inputs.need-java }}
+          cache: 'maven'
+
+    - name: Setup Python
+      if: inputs.need-python != ""
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.need-python }}
+
+    - name: Setup Nodejs
+      if: inputs.need-nodejs != ""
+      uses: actions/setup-nodejs@v4
+      with:
+        node-version: ${{ inputs.need-nodejs }}
+
+    # Setup protoc
     - name: Setup protoc on linux
       if: inputs.need-protoc == 'true' && runner.os == 'Linux'
       shell: bash
       run: sudo apt install -y protobuf-compiler
 
+    # Setup nextest
     - name: Cache nextest on linux
       id: cache-nextest
       uses: actions/cache@v3
@@ -60,7 +88,8 @@ runs:
       shell: bash
       run: cargo install cargo-nextest@0.9.53 --locked
 
-    - name: Setup rust on linux
+    # Setup rocksdb
+    - name: Setup rocksbd on linux
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       shell: bash
       run: |

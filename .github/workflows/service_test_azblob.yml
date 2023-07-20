@@ -55,7 +55,7 @@ jobs:
               --name test \
               --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true
@@ -78,7 +78,7 @@ jobs:
     if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true

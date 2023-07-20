@@ -46,14 +46,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
-      - name: Setup node
-        uses: actions/setup-node@v3
         with:
-          node-version: '18'
-          cache: yarn
-          cache-dependency-path: "bindings/nodejs/yarn.lock"
+          need-nodejs: 18
 
       - name: Corepack
         run: corepack enable

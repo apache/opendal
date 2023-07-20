@@ -64,7 +64,7 @@ jobs:
 
           curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
 
       - name: Test
@@ -103,7 +103,7 @@ jobs:
 
           curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
 
       - name: Test with disable_list_batch

@@ -50,7 +50,7 @@ jobs:
               --ulimit nofile=65536:65536 \
               -p 2222:22 -d atmoz/sftp \
               foo::::upload
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true
@@ -84,7 +84,7 @@ jobs:
               --ulimit nofile=65536:65536 \
               -p 2222:22 -d atmoz/sftp \
               foo::::upload
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true

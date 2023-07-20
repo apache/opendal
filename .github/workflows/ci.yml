@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
 
       - name: Check license headers
@@ -55,22 +55,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
           need-protoc: true
-
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
+          need-python: "3.8"
+          need-java: "11"
 
       - name: Cargo doc
         run: cargo doc --lib --no-deps --all-features -p opendal
@@ -80,22 +71,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
           need-protoc: true
-
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
+          need-python: "3.8"
+          need-java: "11"
 
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -124,7 +106,7 @@ jobs:
           - windows-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
       - name: Build
         run: cargo build -p opendal -p oli -p object_store_opendal
@@ -133,21 +115,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
           need-protoc: true
+          need-python: "3.8"
+          need-java: "11"
 
       - name: Build
         run: cargo build --all-features
@@ -156,20 +131,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.8"
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
 
-      - name: Setup Rust toolchain
+      - name: Setup CI
         uses: ./.github/actions/setup
         with:
           need-nextest: true
+          need-python: "3.8"
+          need-java: "11"
+
       - name: Test
         run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
         env:

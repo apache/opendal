@@ -48,8 +48,8 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
-          bundler-cache: true # runs 'bundle install' and caches installed gems automatically
-      - name: Setup Rust toolchain
+          bundler-cache: true
+      - name: Setup CI
         uses: ./.github/actions/setup
       - name: Bundle with rake
         working-directory: "bindings/ruby"

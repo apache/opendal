@@ -22,6 +22,8 @@ inputs:
     description: "This setup needs rocksdb or not"
   need-nextest:
     description: "This setup needs nextest or not"
+  need-protoc:
+    description: "This setup needs protoc or not"
 
 runs:
   using: "composite"

@@ -40,6 +40,7 @@ use crate::*;
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
+
 /// Aliyun Object Storage Service (OSS) support
 #[doc = include_str!("docs.md")]
 #[derive(Default)]

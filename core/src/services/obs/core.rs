@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
+use bytes::Bytes;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -30,6 +31,8 @@ use http::Response;
 use reqsign::HuaweicloudObsCredential;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::raw::*;
 use crate::*;
@@ -42,6 +45,7 @@ pub struct ObsCore {
     pub signer: HuaweicloudObsSigner,
     pub loader: HuaweicloudObsCredentialLoader,
     pub client: HttpClient,
+    pub write_min_size: usize,
 }
 
 impl Debug for ObsCore {
@@ -327,4 +331,162 @@ impl ObsCore {
 
         self.send(req).await
     }
+    pub async fn obs_initiate_multipart_upload(
+        &self,
+        path: &str,
+        content_type: Option<&str>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
+        let mut req = Request::post(&url);
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+        let mut req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+    pub async fn obs_upload_part_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        size: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            part_number,
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::put(&url);
+
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size);
+        }
+
+        // Set body
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn obs_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: &[CompleteMultipartUploadRequestPart],
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
+            part: parts.to_vec(),
+        })
+        .map_err(new_xml_deserialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
+        let mut req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    /// Abort an on-going multipart upload.
+    pub async fn obs_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+}
+/// Result of CreateMultipartUpload
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct InitiateMultipartUploadResult {
+    pub upload_id: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub part: Vec<CompleteMultipartUploadRequestPart>,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "PartNumber")]
+    pub part_number: usize,
+    ///
+    ///
+    /// quick-xml will do escape on `"` which leads to our serialized output is
+    /// not the same as aws s3's example.
+    ///
+    /// Ideally, we could use `serialize_with` to address this (buf failed)
+    ///
+    /// ```ignore
+    /// #[derive(Default, Debug, Serialize)]
+    /// #[serde(default, rename_all = "PascalCase")]
+    /// struct CompleteMultipartUploadRequestPart {
+    ///     #[serde(rename = "PartNumber")]
+    ///     part_number: usize,
+    ///     #[serde(rename = "ETag", serialize_with = "partial_escape")]
+    ///     etag: String,
+    /// }
+    ///
+    /// fn partial_escape<S>(s: &str, ser: S) -> std::result::Result<S::Ok, S::Error>
+    /// where
+    ///     S: serde::Serializer,
+    /// {
+    ///     ser.serialize_str(&String::from_utf8_lossy(
+    ///         &quick_xml::escape::partial_escape(s.as_bytes()),
+    ///     ))
+    /// }
+    /// ```
+    ///
+    /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "ETag")]
+    pub etag: String,
 }

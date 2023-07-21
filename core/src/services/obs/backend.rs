@@ -351,6 +351,7 @@ impl Accessor for ObsBackend {
                 write_can_sink: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
+                write_without_content_length: true,
 
                 append: true,
                 append_with_cache_control: true,

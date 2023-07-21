@@ -41,6 +41,8 @@ pub enum Scheme {
     Cos,
     /// [dashmap][crate::services::Dashmap]: dashmap backend support.
     Dashmap,
+    /// [etcd][crate::services::Etcd]: Etcd Services
+    Etcd,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
@@ -139,6 +141,7 @@ impl FromStr for Scheme {
             "cacache" => Ok(Scheme::Cacache),
             "cos" => Ok(Scheme::Cos),
             "dashmap" => Ok(Scheme::Dashmap),
+            "etcd" => Ok(Scheme::Etcd),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
             "ghac" => Ok(Scheme::Ghac),
@@ -176,6 +179,7 @@ impl From<Scheme> for &'static str {
             Scheme::Cacache => "cacache",
             Scheme::Cos => "cos",
             Scheme::Dashmap => "dashmap",
+            Scheme::Etcd => "etcd",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             Scheme::Ghac => "ghac",

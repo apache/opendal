@@ -32,6 +32,8 @@ version.workspace = true
 [features]
 # Enable services dashmap support
 services-dashmap = ["opendal/services-dashmap"]
+# Enable services etcd support
+services-etcd = ["opendal/services-etcd"]
 # Enable services ftp support
 services-ftp = ["opendal/services-ftp"]
 # Enable services hdfs support

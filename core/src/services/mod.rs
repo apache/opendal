@@ -119,17 +119,9 @@ mod persy;
 #[cfg(feature = "services-persy")]
 pub use self::persy::Persy;
 
-#[cfg(any(
-    feature = "services-redis",
-    feature = "services-redis-rustls",
-    feature = "services-redis-native-tls"
-))]
+#[cfg(feature = "services-redis")]
 mod redis;
-#[cfg(any(
-    feature = "services-redis",
-    feature = "services-redis-rustls",
-    feature = "services-redis-native-tls"
-))]
+#[cfg(feature = "services-redis")]
 pub use self::redis::Redis;
 
 #[cfg(feature = "services-rocksdb")]

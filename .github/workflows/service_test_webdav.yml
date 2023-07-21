@@ -202,6 +202,22 @@ jobs:
           OWNCLOUD_DOMAIN: localhost:8080
           OWNCLOUD_TRUSTED_DOMAINS: localhost
           HTTP_PORT: 8080
+          OWNCLOUD_REDIS_ENABLED: true
+          OWNCLOUD_REDIS_HOST: redis
+        options: >-
+          --health-cmd "/usr/bin/healthcheck"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5   
 
     steps:
       - uses: actions/checkout@v3
@@ -214,7 +230,7 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test webdav -j=1
+          cargo test webdav
         env:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/

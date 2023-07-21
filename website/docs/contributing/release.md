@@ -10,7 +10,7 @@ how the release manager releases a new version in accordance with the Apache req
 
 `Source Release` is the key point which Apache values, also, is necessary for a release. And OpenDAL will only have source release.
 
-Please remember that publishing software has legal consequences. 
+Please remember that publishing software has legal consequences.
 
 This guide complements the foundation-wide policies and guides:
 
@@ -89,7 +89,7 @@ SVN is required for this step.
 
 :::
 
-The svn repository of the dev branch is: https://dist.apache.org/repos/dist/dev/incubator/opendal
+The svn repository of the dev branch is: <https://dist.apache.org/repos/dist/dev/incubator/opendal>
 
 First, checkout OpenDAL to local directory:
 
@@ -119,6 +119,11 @@ svn commit -m "Prepare for ${release_version}"
 ```
 
 Visit <https://dist.apache.org/repos/dist/dev/incubator/opendal/> to make sure the artifacts are uploaded correctly.
+
+### Rescure
+
+If you accidentally published wrong or unexpected artifacts, like wrong signature files, wrong sha256 files,
+please cancel the release for the current `release_version`, _increase th RC counting_ and reinitiate a release with the new `release_version`.
 
 ## Voting
 

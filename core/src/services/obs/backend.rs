@@ -91,7 +91,11 @@ use crate::*;
 ///
 ///     Ok(())
 /// }
-/// ```
+///
+
+const DEFAULT_WRITE_MIN_SIZE: usize = 100 * 1024;
+
+/// Huawei-Cloud Object Storage Service (OBS) support
 #[derive(Default, Clone)]
 pub struct ObsBuilder {
     root: Option<String>,
@@ -100,6 +104,9 @@ pub struct ObsBuilder {
     secret_access_key: Option<String>,
     bucket: Option<String>,
     http_client: Option<HttpClient>,
+    /// the part size of obs multipart upload, which should be 100 KiB to 5 GiB.
+    /// There is no minimum size limit on the last part of your multipart upload
+    write_min_size: Option<usize>,
 }
 
 impl Debug for ObsBuilder {
@@ -184,6 +191,14 @@ impl ObsBuilder {
         self.http_client = Some(client);
         self
     }
+
+    /// set the minimum size of unsized write, it should be greater than 100 KB.
+    /// Reference: [Huawei Obs multipart upload limits](https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0099.html)
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
+
+        self
+    }
 }
 
 impl Builder for ObsBuilder {
@@ -199,6 +214,8 @@ impl Builder for ObsBuilder {
         map.get("access_key_id").map(|v| builder.access_key_id(v));
         map.get("secret_access_key")
             .map(|v| builder.secret_access_key(v));
+        map.get("write_min_size")
+            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
 
         builder
     }
@@ -274,6 +291,14 @@ impl Builder for ObsBuilder {
                 &endpoint
             }
         });
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 100 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::Obs));
+        }
 
         debug!("backend build finished");
         Ok(ObsBackend {
@@ -284,6 +309,7 @@ impl Builder for ObsBuilder {
                 signer,
                 loader: cred_loader,
                 client,
+                write_min_size,
             }),
         })
     }
@@ -429,7 +455,7 @@ impl Accessor for ObsBackend {
 
         Ok((
             RpWrite::default(),
-            ObsWriter::new(self.core.clone(), args, path.to_string()),
+            ObsWriter::new(self.core.clone(), path, args),
         ))
     }
 

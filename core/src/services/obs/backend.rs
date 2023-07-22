@@ -91,7 +91,7 @@ use crate::*;
 ///
 ///     Ok(())
 /// }
-///
+///```
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 100 * 1024;
 
@@ -447,13 +447,6 @@ impl Accessor for ObsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
             ObsWriter::new(self.core.clone(), path, args),

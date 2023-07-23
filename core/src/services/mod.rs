@@ -193,3 +193,8 @@ pub use vercel_artifacts::VercelArtifacts;
 mod redb;
 #[cfg(feature = "services-redb")]
 pub use self::redb::Redb;
+
+#[cfg(feature = "services-tikv")]
+mod tikv;
+#[cfg(feature = "services-tikv")]
+pub use self::tikv::Tikv;

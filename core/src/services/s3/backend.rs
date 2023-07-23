@@ -626,19 +626,19 @@ impl S3Builder {
             res.headers()
         );
 
-        match res.status() {
-            StatusCode::OK | StatusCode::MOVED_PERMANENTLY => {
-                let region = res.headers().get("x-amz-bucket-region")?;
-                if let Ok(regin) = region.to_str() {
-                    Some(regin.to_string())
-                } else {
-                    None
-                }
-            }
-            StatusCode::FORBIDDEN => Some("us-east-1".to_string()),
-            // Unexpected status code
-            _ => None,
+        // Get region from response header no matter status code.
+        let region = res.headers().get("x-amz-bucket-region")?;
+        if let Ok(regin) = region.to_str() {
+            return Some(regin.to_string());
         }
+
+        // Status code is 403 or 200 means we already visit the correct
+        // region, we can use the default region direcly.
+        if res.status() == StatusCode::FORBIDDEN || res.status() == StatusCode::OK {
+            return Some("us-east-1".to_string());
+        }
+
+        None
     }
 }
 

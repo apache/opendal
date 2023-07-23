@@ -61,13 +61,13 @@ jobs:
 
       - name: Run PD & TiKV
         run: |
-          mv ../../${{steps.extract-pd.outputs.destination}}/pd-server .
-          mv ../../${{steps.extract-tikv.outputs.destination}}/tikv-server .
+          mv ../${{steps.extract-pd.outputs.destination}}/pd-server .
+          mv ../${{steps.extract-tikv.outputs.destination}}/tikv-server .
           ./pd-server --client-urls="http://127.0.0.1:2379" > pd.log 2>&1 &
           sleep 5
           ./tikv-server --pd-endpoints="127.0.0.1:2379" --addr="127.0.0.1:20160"  > tikv.log 2>&1 &
           sleep 15
-        working-directory: integration_tests/raw
+        working-directory: integration_tests
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

@@ -95,4 +95,146 @@ jobs:
           RUST_LOG: debug
           OPENDAL_TIKV_TEST: on
           OPENDAL_TIKV_ENDPOINTS: "127.0.0.1:2379"
+          OPENDAL_TIKV_insecure: true
+
+
+  tikv-tls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure TiKV with TLS
+        run: |
+          mkdir /ssl
+
+          # Create CA
+
+          openssl req \
+            -x509 -new -nodes \
+            -keyout /ssl/ca.key \
+            -sha256 \
+            -days 365 \
+            -out /ssl/ca.crt \
+            -subj '/CN=Test Root CA/C=US/ST=Test/L=Test/O=Opendal'
+
+          # Create TiKV certificate
+
+          openssl req \
+            -new -nodes \
+            -out /ssl/tikv.csr \
+            -keyout /ssl/tikv.key \
+            -subj '/CN=Tikv certificate/C=US/ST=Test/L=Test/O=Opendal'
+
+          cat > /ssl/tikv.v3.ext << EOF
+          authorityKeyIdentifier=keyid,issuer
+          basicConstraints=CA:FALSE
+          keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+          subjectAltName = @alt_names
+          [alt_names]
+          DNS.1 = localhost
+          IP.1 = 127.0.0.1
+          EOF
+
+          openssl x509 \
+            -req \
+            -in /ssl/tikv.csr \
+            -CA /ssl/ca.crt \
+            -CAkey /ssl/ca.key \
+            -CAcreateserial \
+            -out /ssl/tikv.crt \
+            -days 300 \
+            -sha256 \
+            -extfile /ssl/tikv.v3.ext
+
+          # generate client certificate
+          openssl req \
+          -new -nodes \
+          -out /ssl/client.csr \
+          -keyout /ssl/client.key \
+          -subj '/CN=Tikv certificate/C=US/ST=Test/L=Test/O=Opendal'
+
+          openssl x509 \
+            -req \
+            -in /ssl/client.csr \
+            -CA /ssl/ca.crt \
+            -CAkey /ssl/ca.key \
+            -CAcreateserial \
+            -out /ssl/client.crt \
+            -days 300 \
+            -sha256 \
+            -extfile /ssl/tikv.v3.ext
+
+      - name: install tiup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
+      - name: start tiup playground
+        run: |
+          cat > pd.toml << EOF
+          [schedule]
+          max-merge-region-size = 1
+          max-merge-region-keys = 3
+
+          [security]
+          ## Path of file that contains list of trusted SSL CAs. if set, following four settings shouldn't be empty
+          cacert-path = "/ssl/ca.crt"
+          ## Path of file that contains X509 certificate in PEM format.
+          cert-path = "/ssl/tikv.crt"
+          ## Path of file that contains X509 key in PEM format.
+          key-path = "/ssl/tikv.key"
+          EOF
+
+          cat > tikv.toml << EOF
+          [coprocessor]
+          region-max-keys = 10
+          region-split-keys = 7
+          batch-split-limit = 100
+          
+          [raftstore]
+          region-split-check-diff = "1B"
+          pd-heartbeat-tick-interval = "2s"
+          pd-store-heartbeat-tick-interval = "5s"
+          split-region-check-tick-interval = "1s"
+          raft-entry-max-size = "10MB"
+          
+          [rocksdb]
+          max-open-files = 10000
+          
+          [raftdb]
+          max-open-files = 10000
+
+          [security]
+          ## Path of file that contains list of trusted SSL CAs. if set, following four settings shouldn't be empty
+          cacert-path = "/ssl/ca.crt"
+          ## Path of file that contains X509 certificate in PEM format.
+          cert-path = "/ssl/tikv.crt"
+          ## Path of file that contains X509 key in PEM format.
+          key-path = "/ssl/tikv.key"
+          EOF
+
+          # use latest stable version
+          ~/.tiup/bin/tiup install tikv pd
+          ~/.tiup/bin/tiup playground --mode tikv-slim --kv 3 --without-monitor --kv.config tikv.toml --pd.config pd.toml &
+          while :; do
+            echo "waiting cluster to be ready"
+            [[ "$(curl -I http://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break
+            sleep 1
+          done
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-protoc: true
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo test tikv --features services-tikv -j=1
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_TIKV_TEST: on
+          OPENDAL_TIKV_ENDPOINTS: "127.0.0.1:2379"
           OPENDAL_TIKV_insecure: false
+          OPENDAL_TIKV_CA_PATH: "/ssl/ca.crt"
+          OPENDAL_TIKV_CERT_PATH: "/ssl/client.crt"
+          OPENDAL_TIKV_KEY_PATH: "/ssl/client.key"
+  

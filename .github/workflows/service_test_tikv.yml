@@ -81,3 +81,4 @@ jobs:
           RUST_LOG: debug
           OPENDAL_TIKV_TEST: on
           OPENDAL_TIKV_ENDPOINTS: "127.0.0.1:2379"
+          OPENDAL_TIKV_insecure: false

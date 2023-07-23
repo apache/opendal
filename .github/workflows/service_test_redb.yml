@@ -30,7 +30,7 @@ on:
       - "!core/src/docs/**"
       - "!core/src/services/**"
       - "core/src/services/redb/**"
-      - ".github/workflows/redb.yml"
+      - ".github/workflows/service-test-redb.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

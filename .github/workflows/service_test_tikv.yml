@@ -39,9 +39,6 @@ concurrency:
 jobs:
   tikv:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        api_version: [v1ttl, v2]
     steps:
       - uses: actions/checkout@v3
 

@@ -42,29 +42,44 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Fetch PD
-        uses: shrink/actions-docker-extract@v1
-        id: extract-pd
-        with:
-          image: pingcap/pd:nightly
-          path: /pd-server
-
-      - name: Fetch TiKV
-        uses: shrink/actions-docker-extract@v1
-        id: extract-tikv
-        with:
-          image: pingcap/tikv:nightly
-          path: /tikv-server
-
-      - name: Run PD & TiKV
+      - name: install tiup
+        run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
+      - name: start tiup playground
         run: |
-          mv ../${{steps.extract-pd.outputs.destination}}/pd-server .
-          mv ../${{steps.extract-tikv.outputs.destination}}/tikv-server .
-          ./pd-server --client-urls="http://127.0.0.1:2379" > pd.log 2>&1 &
-          sleep 5
-          ./tikv-server --pd-endpoints="127.0.0.1:2379" --addr="127.0.0.1:20160"  > tikv.log 2>&1 &
-          sleep 15
-        working-directory: integration_tests
+          cat > pd.toml << EOF
+          [schedule]
+          max-merge-region-size = 1
+          max-merge-region-keys = 3
+          EOF
+
+          cat > tikv.toml << EOF
+          [coprocessor]
+          region-max-keys = 10
+          region-split-keys = 7
+          batch-split-limit = 100
+          
+          [raftstore]
+          region-split-check-diff = "1B"
+          pd-heartbeat-tick-interval = "2s"
+          pd-store-heartbeat-tick-interval = "5s"
+          split-region-check-tick-interval = "1s"
+          raft-entry-max-size = "1MB"
+          
+          [rocksdb]
+          max-open-files = 10000
+          
+          [raftdb]
+          max-open-files = 10000
+          EOF
+
+          # use latest stable version
+          ~/.tiup/bin/tiup install tikv pd
+          ~/.tiup/bin/tiup playground --mode tikv-slim --kv 3 --without-monitor --kv.config config/tikv.toml --pd.config config/pd.toml &
+          while :; do
+            echo "waiting cluster to be ready"
+            [[ "$(curl -I http://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break
+            sleep 1
+          done
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

@@ -105,27 +105,27 @@ jobs:
 
       - name: Configure TiKV with TLS
         run: |
-          mkdir /ssl
+          mkdir /tmp/ssl
 
           # Create CA
 
           openssl req \
             -x509 -new -nodes \
-            -keyout /ssl/ca.key \
+            -keyout /tmp/ssl/ca.key \
             -sha256 \
             -days 365 \
-            -out /ssl/ca.crt \
+            -out /tmp/ssl/ca.crt \
             -subj '/CN=Test Root CA/C=US/ST=Test/L=Test/O=Opendal'
 
           # Create TiKV certificate
 
           openssl req \
             -new -nodes \
-            -out /ssl/tikv.csr \
-            -keyout /ssl/tikv.key \
+            -out /tmp/ssl/tikv.csr \
+            -keyout /tmp/ssl/tikv.key \
             -subj '/CN=Tikv certificate/C=US/ST=Test/L=Test/O=Opendal'
 
-          cat > /ssl/tikv.v3.ext << EOF
+          cat > /tmp/ssl/tikv.v3.ext << EOF
           authorityKeyIdentifier=keyid,issuer
           basicConstraints=CA:FALSE
           keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
@@ -137,32 +137,32 @@ jobs:
 
           openssl x509 \
             -req \
-            -in /ssl/tikv.csr \
-            -CA /ssl/ca.crt \
-            -CAkey /ssl/ca.key \
+            -in /tmp/ssl/tikv.csr \
+            -CA /tmp/ssl/ca.crt \
+            -CAkey /tmp/ssl/ca.key \
             -CAcreateserial \
-            -out /ssl/tikv.crt \
+            -out /tmp/ssl/tikv.crt \
             -days 300 \
             -sha256 \
-            -extfile /ssl/tikv.v3.ext
+            -extfile /tmp/ssl/tikv.v3.ext
 
           # generate client certificate
           openssl req \
           -new -nodes \
-          -out /ssl/client.csr \
-          -keyout /ssl/client.key \
+          -out /tmp/ssl/client.csr \
+          -keyout /tmp/ssl/client.key \
           -subj '/CN=Tikv certificate/C=US/ST=Test/L=Test/O=Opendal'
 
           openssl x509 \
             -req \
-            -in /ssl/client.csr \
-            -CA /ssl/ca.crt \
-            -CAkey /ssl/ca.key \
+            -in /tmp/ssl/client.csr \
+            -CA /tmp/ssl/ca.crt \
+            -CAkey /tmp/ssl/ca.key \
             -CAcreateserial \
-            -out /ssl/client.crt \
+            -out /tmp/ssl/client.crt \
             -days 300 \
             -sha256 \
-            -extfile /ssl/tikv.v3.ext
+            -extfile /tmp/ssl/tikv.v3.ext
 
       - name: install tiup
         run: curl --proto '=https' --tlsv1.2 -sSf https://tiup-mirrors.pingcap.com/install.sh | sh
@@ -175,11 +175,11 @@ jobs:
 
           [security]
           ## Path of file that contains list of trusted SSL CAs. if set, following four settings shouldn't be empty
-          cacert-path = "/ssl/ca.crt"
+          cacert-path = "/tmp/ssl/ca.crt"
           ## Path of file that contains X509 certificate in PEM format.
-          cert-path = "/ssl/tikv.crt"
+          cert-path = "/tmp/ssl/tikv.crt"
           ## Path of file that contains X509 key in PEM format.
-          key-path = "/ssl/tikv.key"
+          key-path = "/tmp/ssl/tikv.key"
           EOF
 
           cat > tikv.toml << EOF
@@ -203,11 +203,11 @@ jobs:
 
           [security]
           ## Path of file that contains list of trusted SSL CAs. if set, following four settings shouldn't be empty
-          cacert-path = "/ssl/ca.crt"
+          cacert-path = "/tmp/ssl/ca.crt"
           ## Path of file that contains X509 certificate in PEM format.
-          cert-path = "/ssl/tikv.crt"
+          cert-path = "/tmp/ssl/tikv.crt"
           ## Path of file that contains X509 key in PEM format.
-          key-path = "/ssl/tikv.key"
+          key-path = "/tmp/ssl/tikv.key"
           EOF
 
           # use latest stable version
@@ -234,7 +234,7 @@ jobs:
           OPENDAL_TIKV_TEST: on
           OPENDAL_TIKV_ENDPOINTS: "127.0.0.1:2379"
           OPENDAL_TIKV_insecure: false
-          OPENDAL_TIKV_CA_PATH: "/ssl/ca.crt"
-          OPENDAL_TIKV_CERT_PATH: "/ssl/client.crt"
-          OPENDAL_TIKV_KEY_PATH: "/ssl/client.key"
+          OPENDAL_TIKV_CA_PATH: "/tmp/ssl/ca.crt"
+          OPENDAL_TIKV_CERT_PATH: "/tmp/ssl/client.crt"
+          OPENDAL_TIKV_KEY_PATH: "/tmp/ssl/client.key"
   

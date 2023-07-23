@@ -633,7 +633,7 @@ impl S3Builder {
         }
 
         // Status code is 403 or 200 means we already visit the correct
-        // region, we can use the default region direcly.
+        // region, we can use the default region directly.
         if res.status() == StatusCode::FORBIDDEN || res.status() == StatusCode::OK {
             return Some("us-east-1".to_string());
         }

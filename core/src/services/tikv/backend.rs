@@ -19,11 +19,11 @@ use std::collections::HashMap;
 use tikv_client::Config;
 use tikv_client::RawClient;
 
-use tokio::sync::OnceCell;
 use crate::raw::adapters::kv;
 use crate::Capability;
 use crate::Scheme;
 use async_trait::async_trait;
+use tokio::sync::OnceCell;
 
 use crate::Builder;
 use crate::Error;

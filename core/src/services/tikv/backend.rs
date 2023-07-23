@@ -53,9 +53,8 @@ pub struct TikvBuilder {
 impl TikvBuilder {
     /// Set the network address of the TiKV service.
     pub fn endpoints(&mut self, endpoints: Vec<String>) -> &mut Self {
-        let ep: Vec<String> = endpoints.into_iter().collect();
-        if !ep.is_empty() {
-            self.endpoints = Some(ep)
+        if !endpoints.is_empty() {
+            self.endpoints = Some(endpoints)
         }
         self
     }
@@ -92,7 +91,7 @@ impl TikvBuilder {
 }
 
 impl Builder for TikvBuilder {
-    const SCHEME: Scheme = Scheme::Redb;
+    const SCHEME: Scheme = Scheme::Tikv;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

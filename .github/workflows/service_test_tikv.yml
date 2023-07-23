@@ -74,7 +74,7 @@ jobs:
 
           # use latest stable version
           ~/.tiup/bin/tiup install tikv pd
-          ~/.tiup/bin/tiup playground --mode tikv-slim --kv 3 --without-monitor --kv.config config/tikv.toml --pd.config config/pd.toml &
+          ~/.tiup/bin/tiup playground --mode tikv-slim --kv 3 --without-monitor --kv.config tikv.toml --pd.config pd.toml &
           while :; do
             echo "waiting cluster to be ready"
             [[ "$(curl -I http://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break

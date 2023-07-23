@@ -193,7 +193,7 @@ cacache = { version = "11.6", default-features = false, features = [
 chrono = "0.4.26"
 dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }
-etcd-client = { version = "0.11", optional = true, features = ["tls"]}
+etcd-client = { version = "0.11", optional = true, features = ["tls"] }
 flagset = "0.4"
 futures = { version = "0.3", default-features = false, features = ["std"] }
 governor = { version = "0.5", optional = true, features = ["std"] }
@@ -228,7 +228,7 @@ redis = { version = "0.23", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = { version = "0.13.0", default-features = false, optional = true }
+reqsign = { version = "0.14.0", default-features = false, optional = true }
 reqwest = { version = "0.11.18", features = [
   "stream",
 ], default-features = false }

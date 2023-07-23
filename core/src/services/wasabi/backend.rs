@@ -32,7 +32,7 @@ use md5::Md5;
 use once_cell::sync::Lazy;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
-use reqsign::AwsLoader;
+use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 
 use super::core::*;
@@ -854,12 +854,9 @@ impl Builder for WasabiBuilder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg);
+        let mut loader = AwsDefaultLoader::new(client.client(), cfg);
         if self.disable_ec2_metadata {
             loader = loader.with_disable_ec2_metadata();
-        }
-        if let Some(v) = self.customed_credential_load.take() {
-            loader = loader.with_customed_credential_loader(v);
         }
 
         let signer = AwsV4Signer::new("s3", &region);

@@ -31,9 +31,10 @@ use log::warn;
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
+use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
-use reqsign::AwsLoader;
+use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 
 use super::core::*;
@@ -69,33 +70,34 @@ pub struct S3Builder {
     bucket: String,
     endpoint: Option<String>,
     region: Option<String>,
-    role_arn: Option<String>,
-    external_id: Option<String>,
+
+    // Credentials related values.
     access_key_id: Option<String>,
     secret_access_key: Option<String>,
+    security_token: Option<String>,
+    role_arn: Option<String>,
+    external_id: Option<String>,
+    disable_config_load: bool,
+    disable_ec2_metadata: bool,
+    allow_anonymous: bool,
+    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+
+    // S3 features flags
     server_side_encryption: Option<String>,
     server_side_encryption_aws_kms_key_id: Option<String>,
     server_side_encryption_customer_algorithm: Option<String>,
     server_side_encryption_customer_key: Option<String>,
     server_side_encryption_customer_key_md5: Option<String>,
     default_storage_class: Option<String>,
-
-    /// temporary credentials, check the official [doc](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html) for detail
-    security_token: Option<String>,
-
-    disable_config_load: bool,
-    disable_ec2_metadata: bool,
-    allow_anonymous: bool,
     enable_virtual_host_style: bool,
-
-    http_client: Option<HttpClient>,
-    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
 
     /// the part size of s3 multipart upload, which should be 5 MiB to 5 GiB.
     /// There is no minimum size limit on the last part of your multipart upload
     write_min_size: Option<usize>,
     /// batch_max_operations
     batch_max_operations: Option<usize>,
+
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for S3Builder {
@@ -191,6 +193,9 @@ impl S3Builder {
     }
 
     /// Set role_arn for this backend.
+    ///
+    /// If `role_arn` is set, we will use already known config as source
+    /// credential to assume role with `role_arn`.
     pub fn role_arn(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.role_arn = Some(v.to_string())
@@ -432,6 +437,9 @@ impl S3Builder {
     }
 
     /// Adding a customed credential load for service.
+    ///
+    /// If customed_credential_load has been set, we will ignore all other
+    /// credential load methods.
     pub fn customed_credential_load(&mut self, cred: Box<dyn AwsCredentialLoad>) -> &mut Self {
         self.customed_credential_load = Some(cred);
         self
@@ -756,32 +764,16 @@ impl Builder for S3Builder {
             })?
         };
 
+        // This is our current config.
         let mut cfg = AwsConfig::default();
         if !self.disable_config_load {
             cfg = cfg.from_profile();
             cfg = cfg.from_env();
         }
 
-        // Setting all value from user input if available.
         if let Some(v) = self.region.take() {
             cfg.region = Some(v);
         }
-        if let Some(v) = self.access_key_id.take() {
-            cfg.access_key_id = Some(v)
-        }
-        if let Some(v) = self.secret_access_key.take() {
-            cfg.secret_access_key = Some(v)
-        }
-        if let Some(v) = self.security_token.take() {
-            cfg.session_token = Some(v)
-        }
-        if let Some(v) = self.role_arn.take() {
-            cfg.role_arn = Some(v)
-        }
-        if let Some(v) = self.external_id.take() {
-            cfg.external_id = Some(v)
-        }
-
         if cfg.region.is_none() {
             // AWS S3 requires region to be set.
             if self.endpoint.is_none()
@@ -805,15 +797,66 @@ impl Builder for S3Builder {
         let endpoint = self.build_endpoint(&region);
         debug!("backend use endpoint: {endpoint}");
 
-        let mut loader = AwsLoader::new(client.client(), cfg);
-        if self.disable_ec2_metadata {
-            loader = loader.with_disable_ec2_metadata();
+        // Setting all value from user input if available.
+        if let Some(v) = self.access_key_id.take() {
+            cfg.access_key_id = Some(v)
         }
-        if let Some(v) = self.customed_credential_load.take() {
-            loader = loader.with_customed_credential_loader(v);
+        if let Some(v) = self.secret_access_key.take() {
+            cfg.secret_access_key = Some(v)
+        }
+        if let Some(v) = self.security_token.take() {
+            cfg.session_token = Some(v)
         }
 
+        let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
+        // If customed_credential_load is set, we will use it.
+        if let Some(v) = self.customed_credential_load.take() {
+            loader = Some(v);
+        }
+
+        // If role_arn is set, we must use AssumeRoleLoad.
+        if let Some(role_arn) = self.role_arn.take() {
+            // use current env as source credential loader.
+            let default_loader = AwsDefaultLoader::new(client.client(), cfg.clone());
+
+            // Build the config for assume role.
+            let assume_role_cfg = AwsConfig {
+                region: Some(region.clone()),
+                role_arn: Some(role_arn),
+                external_id: self.external_id.clone(),
+                sts_regional_endpoints: "regional".to_string(),
+                ..Default::default()
+            };
+            let assume_role_loader = AwsAssumeRoleLoader::new(
+                client.client(),
+                assume_role_cfg,
+                Box::new(default_loader),
+            )
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "The assume_role_loader is misconfigured",
+                )
+                .with_context("service", Scheme::S3)
+                .set_source(err)
+            })?;
+            loader = Some(Box::new(assume_role_loader));
+        }
+        // If loader is not set, we will use default loader.
+        let loader = match loader {
+            Some(v) => v,
+            None => {
+                let mut default_loader = AwsDefaultLoader::new(client.client(), cfg);
+                if self.disable_ec2_metadata {
+                    default_loader = default_loader.with_disable_ec2_metadata();
+                }
+
+                Box::new(default_loader)
+            }
+        };
+
         let signer = AwsV4Signer::new("s3", &region);
+
         let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
         if write_min_size < 5 * 1024 * 1024 {
             return Err(Error::new(

@@ -33,7 +33,7 @@ use http::HeaderValue;
 use http::Request;
 use http::Response;
 use reqsign::AwsCredential;
-use reqsign::AwsLoader;
+use reqsign::AwsCredentialLoad;
 use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
@@ -79,7 +79,7 @@ pub struct S3Core {
     pub allow_anonymous: bool,
 
     pub signer: AwsV4Signer,
-    pub loader: AwsLoader,
+    pub loader: Box<dyn AwsCredentialLoad>,
     pub client: HttpClient,
     pub write_min_size: usize,
     pub batch_max_operations: usize,
@@ -100,7 +100,7 @@ impl S3Core {
     async fn load_credential(&self) -> Result<Option<AwsCredential>> {
         let cred = self
             .loader
-            .load()
+            .load_credential(self.client.client())
             .await
             .map_err(new_request_credential_error)?;
 

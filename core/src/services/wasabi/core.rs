@@ -31,7 +31,7 @@ use http::HeaderValue;
 use http::Request;
 use http::Response;
 use reqsign::AwsCredential;
-use reqsign::AwsLoader;
+use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
@@ -82,7 +82,7 @@ pub struct WasabiCore {
     pub default_storage_class: Option<HeaderValue>,
 
     pub signer: AwsV4Signer,
-    pub loader: AwsLoader,
+    pub loader: AwsDefaultLoader,
     pub client: HttpClient,
 }
 

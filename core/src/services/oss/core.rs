@@ -772,9 +772,10 @@ mod tests {
         };
 
         // quick_xml::se::to_string()
-        let mut serializer = quick_xml::se::Serializer::new(String::new());
+        let mut serialized = String::new();
+        let mut serializer = quick_xml::se::Serializer::new(&mut serialized);
         serializer.indent(' ', 4);
-        let serialized = req.serialize(serializer).unwrap();
+        req.serialize(serializer).unwrap();
         pretty_assertions::assert_eq!(
             serialized,
             r#"<CompleteMultipartUpload>

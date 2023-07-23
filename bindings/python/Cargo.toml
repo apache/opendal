@@ -34,6 +34,6 @@ doc = false
 [dependencies]
 futures = "0.3.28"
 opendal.workspace = true
-pyo3 = { version = "0.18", features = ["abi3-py37"] }
-pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }
+pyo3 = { version = "0.19", features = ["abi3-py37"] }
+pyo3-asyncio = { version = "0.19", features = ["tokio-runtime"] }
 tokio = "1"

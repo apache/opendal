@@ -18,11 +18,9 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-
 use oay::services::WebdavService;
 use oay::Config;
 use opendal::services::Fs;
-
 use opendal::Operator;
 use tracing_subscriber::fmt;
 use tracing_subscriber::prelude::*;

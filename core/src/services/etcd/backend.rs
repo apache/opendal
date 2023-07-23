@@ -21,10 +21,12 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 use etcd_client::Certificate;
+use etcd_client::Client;
+use etcd_client::ConnectOptions;
 use etcd_client::Error as EtcdError;
+use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use etcd_client::{Client, ConnectOptions, GetOptions};
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

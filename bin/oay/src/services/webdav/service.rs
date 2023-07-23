@@ -25,9 +25,8 @@ use axum::Router;
 use dav_server::DavHandler;
 use opendal::Operator;
 
-use crate::Config;
-
 use super::webdavfs::WebdavFs;
+use crate::Config;
 
 pub struct WebdavService {
     cfg: Arc<Config>,

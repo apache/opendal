@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::{DavFile, DavFileSystem, DavMetaData};
+use dav_server::fs::DavFile;
+use dav_server::fs::DavFileSystem;
+use dav_server::fs::DavMetaData;
 use futures::FutureExt;
 use opendal::Operator;
 
-use super::{webdav_file::WebdavFile, webdav_metadata::WebdavMetaData};
+use super::webdav_file::WebdavFile;
+use super::webdav_metadata::WebdavMetaData;
 
 #[derive(Clone)]
 pub struct WebdavFs {

@@ -556,17 +556,14 @@ impl S3Builder {
     /// use opendal::services::S3;
     ///
     /// # async fn example() {
-    /// let builder = S3::default();
-    /// let region: Option<String> = builder
-    ///     .detect_region("https://s3.amazonaws.com", "example")
-    ///     .await;
+    /// let region: Option<String> = S3::detect_region("https://s3.amazonaws.com", "example").await;
     /// # }
     /// ```
     ///
     /// # Reference
     ///
     /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
-    pub async fn detect_region(&self, endpoint: &str, bucket: &str) -> Option<String> {
+    pub async fn detect_region(endpoint: &str, bucket: &str) -> Option<String> {
         let mut endpoint = if endpoint.starts_with("http") {
             endpoint.to_string()
         } else {
@@ -1249,10 +1246,8 @@ mod tests {
             ),
         ];
 
-        let b = S3Builder::default();
-
         for (name, endpoint, bucket, expected) in cases {
-            let region = b.detect_region(endpoint, bucket).await;
+            let region = S3Builder::detect_region(endpoint, bucket).await;
             assert_eq!(region.as_deref(), expected, "{}", name);
         }
     }

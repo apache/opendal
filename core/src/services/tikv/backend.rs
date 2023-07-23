@@ -19,6 +19,9 @@ use std::collections::HashMap;
 use tikv_client::Config;
 use tikv_client::RawClient;
 
+use tokio::sync::OnceCell;
+
+use crate::raw::adapters;
 use crate::raw::adapters::kv;
 use crate::Capability;
 use crate::Scheme;
@@ -130,7 +133,7 @@ impl Builder for TikvBuilder {
         }
 
         Ok(Backend::new(Adapter {
-            client: None,
+            client: OnceCell::new(),
             endpoints,
             insecure: self.insecure,
             ca_path: self.ca_path.clone(),
@@ -145,7 +148,7 @@ pub type Backend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    client: Option<RawClient>,
+    client: OnceCell<RawClient>,
     endpoints: Vec<String>,
     insecure: bool,
     ca_path: Option<String>,
@@ -163,19 +166,13 @@ impl Debug for Adapter {
 
 impl Adapter {
     async fn get_connection(&self) -> Result<RawClient> {
-        if let Some(client) = self.client.clone() {
-            return Ok(client);
+        if let Some(client) = self.client.get() {
+            return Ok(client.clone());
         }
-
         let client = if self.insecure {
             RawClient::new(self.endpoints.clone())
                 .await
-                .map_err(|err| {
-                    Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                        .with_context("service", Scheme::Tikv)
-                        .with_context("endpoints", format!("{:?}", self.endpoints))
-                        .set_source(err)
-                })?
+                .map_err(parse_tikv_config_error)?
         } else if self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
             let (ca_path, key_path, cert_path) = (
                 self.ca_path.clone().unwrap(),
@@ -185,12 +182,7 @@ impl Adapter {
             let config = Config::default().with_security(ca_path, cert_path, key_path);
             RawClient::new_with_config(self.endpoints.clone(), config)
                 .await
-                .map_err(|err| {
-                    Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                        .with_context("service", Scheme::Tikv)
-                        .with_context("endpoints", format!("{:?}", self.endpoints))
-                        .set_source(err)
-                })?
+                .map_err(parse_tikv_config_error)?
         } else {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
@@ -198,6 +190,7 @@ impl Adapter {
                     .with_context("endpoints", format!("{:?}", self.endpoints)),
             );
         };
+        self.client.set(client.clone()).ok();
         Ok(client)
     }
 }
@@ -244,4 +237,10 @@ impl kv::Adapter for Adapter {
 
 fn parse_tikv_error(e: tikv_client::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "error from tikv").set_source(e)
+}
+
+fn parse_tikv_config_error(e: tikv_client::Error) -> Error {
+    Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
+        .with_context("service", Scheme::Tikv)
+        .set_source(e)
 }

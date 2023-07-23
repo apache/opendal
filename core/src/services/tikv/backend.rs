@@ -119,15 +119,15 @@ impl Builder for TikvBuilder {
             .with_context("service", Scheme::Tikv)
         })?;
 
-        if self.insecure && 
-            (self.ca_path.is_some() || self.key_path.is_some() || self.cert_path.is_some()) {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
-                        .with_context("service", Scheme::Tikv)
-                        .with_context("endpoints", format!("{:?}", endpoints)),
-                )?;
-            }
-
+        if self.insecure
+            && (self.ca_path.is_some() || self.key_path.is_some() || self.cert_path.is_some())
+        {
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
+                    .with_context("service", Scheme::Tikv)
+                    .with_context("endpoints", format!("{:?}", endpoints)),
+            )?;
+        }
 
         Ok(Backend::new(Adapter {
             client: None,

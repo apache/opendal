@@ -20,8 +20,6 @@ use tikv_client::Config;
 use tikv_client::RawClient;
 
 use tokio::sync::OnceCell;
-
-use crate::raw::adapters;
 use crate::raw::adapters::kv;
 use crate::Capability;
 use crate::Scheme;

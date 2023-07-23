@@ -556,17 +556,14 @@ impl S3Builder {
     /// use opendal::services::S3;
     ///
     /// # async fn example() {
-    /// let builder = S3::default();
-    /// let region: Option<String> = builder
-    ///     .detect_region("https://s3.amazonaws.com", "example")
-    ///     .await;
+    /// let region: Option<String> = S3::detect_region("https://s3.amazonaws.com", "example").await;
     /// # }
     /// ```
     ///
     /// # Reference
     ///
     /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
-    pub async fn detect_region(&self, endpoint: &str, bucket: &str) -> Option<String> {
+    pub async fn detect_region(endpoint: &str, bucket: &str) -> Option<String> {
         let mut endpoint = if endpoint.starts_with("http") {
             endpoint.to_string()
         } else {
@@ -626,19 +623,19 @@ impl S3Builder {
             res.headers()
         );
 
-        match res.status() {
-            StatusCode::OK | StatusCode::MOVED_PERMANENTLY => {
-                let region = res.headers().get("x-amz-bucket-region")?;
-                if let Ok(regin) = region.to_str() {
-                    Some(regin.to_string())
-                } else {
-                    None
-                }
-            }
-            StatusCode::FORBIDDEN => Some("us-east-1".to_string()),
-            // Unexpected status code
-            _ => None,
+        // Get region from response header no matter status code.
+        let region = res.headers().get("x-amz-bucket-region")?;
+        if let Ok(regin) = region.to_str() {
+            return Some(regin.to_string());
         }
+
+        // Status code is 403 or 200 means we already visit the correct
+        // region, we can use the default region directly.
+        if res.status() == StatusCode::FORBIDDEN || res.status() == StatusCode::OK {
+            return Some("us-east-1".to_string());
+        }
+
+        None
     }
 }
 
@@ -1249,10 +1246,8 @@ mod tests {
             ),
         ];
 
-        let b = S3Builder::default();
-
         for (name, endpoint, bucket, expected) in cases {
-            let region = b.detect_region(endpoint, bucket).await;
+            let region = S3Builder::detect_region(endpoint, bucket).await;
             assert_eq!(region.as_deref(), expected, "{}", name);
         }
     }

@@ -91,7 +91,7 @@ use crate::*;
 ///
 ///     Ok(())
 /// }
-///```
+/// ```
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 100 * 1024;
 

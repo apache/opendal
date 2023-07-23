@@ -37,8 +37,6 @@ use std::fmt::Formatter;
 #[derive(Clone, Default)]
 pub struct TikvBuilder {
     /// network address of the TiKV service.
-    ///
-    /// default is "127.0.0.1:2379"
     endpoints: Option<Vec<String>>,
     /// whether using insecure connection to TiKV
     insecure: bool,

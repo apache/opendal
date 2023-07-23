@@ -59,7 +59,7 @@ impl TikvBuilder {
 
     /// Set the insecure connection to TiKV.
     pub fn insecure(&mut self) -> &mut Self {
-        self.insecure = false;
+        self.insecure = true;
         self
     }
 
@@ -164,7 +164,7 @@ impl Adapter {
         if let Some(client) = self.client.get() {
             return Ok(client.clone());
         }
-        let client = if self.insecure {
+        let client = if !self.insecure {
             RawClient::new(self.endpoints.clone())
                 .await
                 .map_err(parse_tikv_config_error)?

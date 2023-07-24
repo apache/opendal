@@ -27,7 +27,7 @@ use bytes::Bytes;
 
 use crate::raw::oio::to_flat_pager;
 use crate::raw::oio::to_hierarchy_pager;
-use crate::raw::oio::ByRangeReader;
+use crate::raw::oio::ByRangeSeekableReader;
 use crate::raw::oio::Entry;
 use crate::raw::oio::StreamableReader;
 use crate::raw::oio::ToFlatPager;
@@ -172,7 +172,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         match (seekable, streamable) {
             (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
             (true, false) => {
-                let r = oio::into_streamable_reader(r, 256 * 1024);
+                let r = oio::into_streamable_read(r, 256 * 1024);
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             _ => {
@@ -193,12 +193,12 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                         (offset, size)
                     }
                 };
-                let r = oio::into_read_by_range(self.inner.clone(), path, r, offset, size);
+                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
 
                 if streamable {
                     Ok((rp, CompleteReader::NeedSeekable(r)))
                 } else {
-                    let r = oio::into_streamable_reader(r, 256 * 1024);
+                    let r = oio::into_streamable_read(r, 256 * 1024);
                     Ok((rp, CompleteReader::NeedBoth(r)))
                 }
             }
@@ -223,7 +223,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         match (seekable, streamable) {
             (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
             (true, false) => {
-                let r = oio::into_streamable_reader(r, 256 * 1024);
+                let r = oio::into_streamable_read(r, 256 * 1024);
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             (false, _) => Err(Error::new(
@@ -532,9 +532,9 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
 pub enum CompleteReader<A: Accessor, R> {
     AlreadyComplete(R),
-    NeedSeekable(ByRangeReader<A>),
+    NeedSeekable(ByRangeSeekableReader<A>),
     NeedStreamable(StreamableReader<R>),
-    NeedBoth(StreamableReader<ByRangeReader<A>>),
+    NeedBoth(StreamableReader<ByRangeSeekableReader<A>>),
 }
 
 impl<A, R> oio::Read for CompleteReader<A, R>

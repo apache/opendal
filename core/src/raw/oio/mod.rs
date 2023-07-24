@@ -23,12 +23,12 @@
 //! our `output` traits.
 
 mod read;
-pub use read::into_read_by_range;
 pub use read::into_read_from_file;
-pub use read::into_streamable_reader;
+pub use read::into_seekable_read_by_range;
+pub use read::into_streamable_read;
 pub use read::BlockingRead;
 pub use read::BlockingReader;
-pub use read::ByRangeReader;
+pub use read::ByRangeSeekableReader;
 pub use read::FromFileReader;
 pub use read::Read;
 pub use read::ReadExt;

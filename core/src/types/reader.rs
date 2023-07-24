@@ -208,7 +208,7 @@ impl BlockingReader {
             r
         } else {
             // Make this capacity configurable.
-            Box::new(oio::into_streamable_reader(r, 256 * 1024))
+            Box::new(oio::into_streamable_read(r, 256 * 1024))
         };
 
         Ok(BlockingReader { inner: r })

@@ -19,12 +19,12 @@ mod api;
 pub use api::*;
 
 mod into_streamable_read;
-pub use into_streamable_read::into_streamable_reader;
+pub use into_streamable_read::into_streamable_read;
 pub use into_streamable_read::StreamableReader;
 
-mod into_read_by_range;
-pub use into_read_by_range::into_read_by_range;
-pub use into_read_by_range::ByRangeReader;
+mod into_seekable_read_by_range;
+pub use into_seekable_read_by_range::into_seekable_read_by_range;
+pub use into_seekable_read_by_range::ByRangeSeekableReader;
 
 mod into_read_from_file;
 pub use into_read_from_file::into_read_from_file;

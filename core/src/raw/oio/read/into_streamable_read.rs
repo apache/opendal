@@ -27,7 +27,7 @@ use crate::raw::*;
 use crate::*;
 
 /// into_streamable is used to make [`oio::Read`] or [`oio::BlockingRead`] streamable.
-pub fn into_streamable_reader<R>(r: R, capacity: usize) -> StreamableReader<R> {
+pub fn into_streamable_read<R>(r: R, capacity: usize) -> StreamableReader<R> {
     StreamableReader {
         r,
         cap: capacity,
@@ -113,7 +113,7 @@ mod tests {
         let cap = rng.gen_range(1..1024 * 1024);
 
         let r = oio::Cursor::from(content.clone());
-        let mut s = into_streamable_reader(Box::new(r) as oio::Reader, cap);
+        let mut s = into_streamable_read(Box::new(r) as oio::Reader, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next().await {
@@ -136,7 +136,7 @@ mod tests {
         let cap = rng.gen_range(1..1024 * 1024);
 
         let r = oio::Cursor::from(content.clone());
-        let mut s = into_streamable_reader(Box::new(r) as oio::BlockingReader, cap);
+        let mut s = into_streamable_read(Box::new(r) as oio::BlockingReader, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next() {

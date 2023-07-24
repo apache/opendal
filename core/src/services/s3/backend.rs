@@ -898,7 +898,7 @@ pub struct S3Backend {
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = S3Writer;
+    type Writer = oio::MultipartUploadWriter<S3Writer>;
     type BlockingWriter = ();
     type Appender = ();
     type Pager = S3Pager;

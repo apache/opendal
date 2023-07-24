@@ -19,7 +19,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -32,29 +31,26 @@ pub struct S3Writer {
 
     op: OpWrite,
     path: String,
-    upload_id: Option<String>,
-
-    parts: Vec<CompleteMultipartUploadRequestPart>,
-    buffer: oio::VectorCursor,
-    buffer_size: usize,
 }
 
 impl S3Writer {
-    pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite) -> Self {
-        let buffer_size = core.write_min_size;
-        S3Writer {
+    pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite) -> oio::MultipartUploadWriter<Self> {
+        let write_min_size = core.write_min_size;
+
+        let total_size = op.content_length();
+        let s3_writer = S3Writer {
             core,
             path: path.to_string(),
             op,
+        };
 
-            upload_id: None,
-            parts: vec![],
-            buffer: oio::VectorCursor::new(),
-            buffer_size,
-        }
+        oio::MultipartUploadWriter::new(s3_writer, total_size).with_write_min_size(write_min_size)
     }
+}
 
-    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
+#[async_trait]
+impl oio::MultipartUploadWrite for S3Writer {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.s3_put_object_request(
             &self.path,
             Some(size),
@@ -79,7 +75,7 @@ impl S3Writer {
         }
     }
 
-    async fn initiate_upload(&self) -> Result<String> {
+    async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
             .s3_initiate_multipart_upload(
@@ -108,18 +104,16 @@ impl S3Writer {
     async fn write_part(
         &self,
         upload_id: &str,
-        bs: Bytes,
-    ) -> Result<CompleteMultipartUploadRequestPart> {
+        part_number: usize,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<oio::MultipartUploadPart> {
         // AWS S3 requires part number must between [1..=10000]
-        let part_number = self.parts.len() + 1;
+        let part_number = part_number + 1;
 
-        let mut req = self.core.s3_upload_part_request(
-            &self.path,
-            upload_id,
-            part_number,
-            Some(bs.len() as u64),
-            AsyncBody::Bytes(bs),
-        )?;
+        let mut req =
+            self.core
+                .s3_upload_part_request(&self.path, upload_id, part_number, size, body)?;
 
         self.core.sign(&mut req).await?;
 
@@ -140,117 +134,28 @@ impl S3Writer {
 
                 resp.into_body().consume().await?;
 
-                Ok(CompleteMultipartUploadRequestPart { part_number, etag })
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-}
-
-#[async_trait]
-impl oio::Write for S3Writer {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let upload_id = match &self.upload_id {
-            Some(upload_id) => upload_id,
-            None => {
-                if self.op.content_length().unwrap_or_default() == bs.len() as u64 {
-                    return self
-                        .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-                        .await;
-                } else {
-                    let upload_id = self.initiate_upload().await?;
-                    self.upload_id = Some(upload_id);
-                    self.upload_id.as_deref().unwrap()
-                }
-            }
-        };
-
-        // Ignore empty bytes
-        if bs.is_empty() {
-            return Ok(());
-        }
-
-        self.buffer.push(bs);
-        // Return directly if the buffer is not full
-        if self.buffer.len() <= self.buffer_size {
-            return Ok(());
-        }
-
-        let bs = self.buffer.peak_at_least(self.buffer_size);
-        let size = bs.len();
-
-        match self.write_part(upload_id, bs).await {
-            Ok(part) => {
-                self.buffer.take(size);
-                self.parts.push(part);
-                Ok(())
-            }
-            Err(e) => {
-                // If the upload fails, we should pop the given bs to make sure
-                // write is re-enter safe.
-                self.buffer.pop();
-                Err(e)
-            }
-        }
-    }
-
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        if self.op.content_length().unwrap_or_default() == size {
-            return self.write_oneshot(size, AsyncBody::Stream(s)).await;
-        } else {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "S3 does not support streaming multipart upload",
-            ));
-        }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
-
-        let resp = self
-            .core
-            .s3_abort_multipart_upload(&self.path, upload_id)
-            .await?;
-        match resp.status() {
-            // s3 returns code 204 if abort succeeds.
-            StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(())
+                Ok(oio::MultipartUploadPart { part_number, etag })
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
-
-        // Make sure internal buffer has been flushed.
-        if !self.buffer.is_empty() {
-            let bs = self.buffer.peak_exact(self.buffer.len());
-
-            match self.write_part(upload_id, bs).await {
-                Ok(part) => {
-                    self.buffer.clear();
-                    self.parts.push(part);
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-            }
-        }
+    async fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartUploadPart],
+    ) -> Result<()> {
+        let parts = parts
+            .iter()
+            .map(|p| CompleteMultipartUploadRequestPart {
+                part_number: p.part_number,
+                etag: p.etag.clone(),
+            })
+            .collect();
 
         let resp = self
             .core
-            .s3_complete_multipart_upload(&self.path, upload_id, &self.parts)
+            .s3_complete_multipart_upload(&self.path, upload_id, parts)
             .await?;
 
         let status = resp.status();
@@ -259,6 +164,21 @@ impl oio::Write for S3Writer {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
 
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn abort_part(&self, upload_id: &str) -> Result<()> {
+        let resp = self
+            .core
+            .s3_abort_multipart_upload(&self.path, upload_id)
+            .await?;
+        match resp.status() {
+            // s3 returns code 204 if abort succeeds.
+            StatusCode::NO_CONTENT => {
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),

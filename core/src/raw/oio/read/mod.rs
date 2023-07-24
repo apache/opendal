@@ -15,32 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::task::Context;
-use std::task::Poll;
+mod api;
+pub use api::BlockingRead;
+pub use api::BlockingReader;
+pub use api::Read;
+pub use api::ReadExt;
+pub use api::ReadOperation;
+pub use api::Reader;
 
-use bytes::Bytes;
-use futures::TryStreamExt;
+mod into_streamable_read;
+pub use into_streamable_read::into_streamable_read;
+pub use into_streamable_read::StreamableReader;
 
-use crate::raw::*;
-use crate::*;
+mod into_seekable_read_by_range;
+pub use into_seekable_read_by_range::into_seekable_read_by_range;
+pub use into_seekable_read_by_range::ByRangeSeekableReader;
 
-/// Convert given futures stream into [`oio::Stream`].
-pub fn from_futures_stream<S>(stream: S) -> FromFuturesStream<S>
-where
-    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
-{
-    FromFuturesStream { inner: stream }
-}
-
-pub struct FromFuturesStream<S> {
-    inner: S,
-}
-
-impl<S> oio::Stream for FromFuturesStream<S>
-where
-    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
-{
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.try_poll_next_unpin(cx)
-    }
-}
+mod into_read_from_file;
+pub use into_read_from_file::into_read_from_file;
+pub use into_read_from_file::FromFileReader;

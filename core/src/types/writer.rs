@@ -129,9 +129,7 @@ impl Writer {
         T: Into<Bytes>,
     {
         if let State::Idle(Some(w)) = &mut self.state {
-            let s = Box::new(oio::into_stream::from_futures_stream(
-                sink_from.map_ok(|v| v.into()),
-            ));
+            let s = Box::new(oio::into_stream(sink_from.map_ok(|v| v.into())));
             w.sink(size, s).await
         } else {
             unreachable!(
@@ -176,7 +174,7 @@ impl Writer {
         R: futures::AsyncRead + Send + Sync + Unpin + 'static,
     {
         if let State::Idle(Some(w)) = &mut self.state {
-            let s = Box::new(oio::into_stream::from_futures_reader(read_from));
+            let s = Box::new(oio::into_stream_from_reader(read_from));
             w.sink(size, s).await
         } else {
             unreachable!(

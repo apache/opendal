@@ -32,18 +32,26 @@ use crate::*;
 
 /// Convert given reader into [`oio::Reader`] by range.
 ///
+/// # Input
+///
+/// The input is an Accessor will may return a non-seekable reader.
+///
+/// # Output
+///
+/// The output is a reader that can be seek by range.
+///
 /// # Notes
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn by_range<A: Accessor>(
+pub fn into_seekable_read_by_range<A: Accessor>(
     acc: Arc<A>,
     path: &str,
     reader: A::Reader,
     offset: u64,
     size: u64,
-) -> RangeReader<A> {
-    RangeReader {
+) -> ByRangeSeekableReader<A> {
+    ByRangeSeekableReader {
         acc,
         path: path.to_string(),
         offset,
@@ -55,8 +63,8 @@ pub fn by_range<A: Accessor>(
     }
 }
 
-/// RangeReader that can do seek on non-seekable reader.
-pub struct RangeReader<A: Accessor> {
+/// ByRangeReader that can do seek on non-seekable reader.
+pub struct ByRangeSeekableReader<A: Accessor> {
     acc: Arc<A>,
     path: String,
 
@@ -84,7 +92,7 @@ enum State<R: oio::Read> {
 /// Safety: State will only be accessed under &mut.
 unsafe impl<R: oio::Read> Sync for State<R> {}
 
-impl<A: Accessor> RangeReader<A> {
+impl<A: Accessor> ByRangeSeekableReader<A> {
     fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, A::Reader)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
@@ -123,7 +131,7 @@ impl<A: Accessor> RangeReader<A> {
     }
 }
 
-impl<A: Accessor> oio::Read for RangeReader<A> {
+impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match &mut self.state {
             State::Idle => {
@@ -387,7 +395,8 @@ mod tests {
         let r = MockReader {
             inner: futures::io::Cursor::new(bs.to_vec()),
         };
-        let mut r = Box::new(by_range(acc, "x", r, 0, bs.len() as u64)) as oio::Reader;
+        let mut r =
+            Box::new(into_seekable_read_by_range(acc, "x", r, 0, bs.len() as u64)) as oio::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -421,7 +430,7 @@ mod tests {
         let r = MockReader {
             inner: futures::io::Cursor::new(bs[4096..4096 + 4096].to_vec()),
         };
-        let mut r = Box::new(by_range(acc, "x", r, 4096, 4096)) as oio::Reader;
+        let mut r = Box::new(into_seekable_read_by_range(acc, "x", r, 4096, 4096)) as oio::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;

@@ -244,8 +244,8 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = oio::into_reader::FdReader<Compat<tokio::fs::File>>;
-    type BlockingReader = oio::into_blocking_reader::FdReader<std::fs::File>;
+    type Reader = oio::FromFileReader<Compat<tokio::fs::File>>;
+    type BlockingReader = oio::FromFileReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type Appender = FsAppender<tokio::fs::File>;
@@ -358,7 +358,7 @@ impl Accessor for FsBackend {
             (None, None) => (0, total_length),
         };
 
-        let mut r = oio::into_reader::from_fd(f, start, end);
+        let mut r = oio::into_read_from_file(f, start, end);
 
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).await?;
@@ -558,7 +558,7 @@ impl Accessor for FsBackend {
             (None, None) => (0, total_length),
         };
 
-        let mut r = oio::into_blocking_reader::from_fd(f, start, end);
+        let mut r: oio::FromFileReader<std::fs::File> = oio::into_read_from_file(f, start, end);
 
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0))?;

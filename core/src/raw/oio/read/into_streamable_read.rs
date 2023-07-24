@@ -26,9 +26,9 @@ use tokio::io::ReadBuf;
 use crate::raw::*;
 use crate::*;
 
-/// as_streamable is used to make [`oio::Read`] or [`oio::BlockingRead`] streamable.
-pub fn into_streamable_reader<R>(r: R, capacity: usize) -> IntoStreamableReader<R> {
-    IntoStreamableReader {
+/// into_streamable is used to make [`oio::Read`] or [`oio::BlockingRead`] streamable.
+pub fn into_streamable_read<R>(r: R, capacity: usize) -> StreamableReader<R> {
+    StreamableReader {
         r,
         cap: capacity,
         buf: Vec::with_capacity(capacity),
@@ -36,13 +36,13 @@ pub fn into_streamable_reader<R>(r: R, capacity: usize) -> IntoStreamableReader<
 }
 
 /// Make given read streamable.
-pub struct IntoStreamableReader<R> {
+pub struct StreamableReader<R> {
     r: R,
     cap: usize,
     buf: Vec<u8>,
 }
 
-impl<R: oio::Read> oio::Read for IntoStreamableReader<R> {
+impl<R: oio::Read> oio::Read for StreamableReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.r.poll_read(cx, buf)
     }
@@ -67,7 +67,7 @@ impl<R: oio::Read> oio::Read for IntoStreamableReader<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for IntoStreamableReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for StreamableReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.r.read(buf)
     }
@@ -113,7 +113,7 @@ mod tests {
         let cap = rng.gen_range(1..1024 * 1024);
 
         let r = oio::Cursor::from(content.clone());
-        let mut s = into_streamable_reader(Box::new(r) as oio::Reader, cap);
+        let mut s = into_streamable_read(Box::new(r) as oio::Reader, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next().await {
@@ -136,7 +136,7 @@ mod tests {
         let cap = rng.gen_range(1..1024 * 1024);
 
         let r = oio::Cursor::from(content.clone());
-        let mut s = into_streamable_reader(Box::new(r) as oio::BlockingReader, cap);
+        let mut s = into_streamable_read(Box::new(r) as oio::BlockingReader, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next() {

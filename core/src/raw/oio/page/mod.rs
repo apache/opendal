@@ -15,9 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! into_blocking_reader will provide different implementations to convert
-//! into [`oio::BlockingRead`][crate::raw::oio::BlockingRead]
+mod api;
+pub use api::BlockingPage;
+pub use api::BlockingPager;
+pub use api::Page;
+pub use api::PageOperation;
+pub use api::Pager;
 
-mod from_fd;
-pub use from_fd::from_fd;
-pub use from_fd::FdReader;
+mod into_flat_page;
+pub use into_flat_page::into_flat_page;
+pub use into_flat_page::FlatPager;
+
+mod into_hierarchy_pager;
+pub use into_hierarchy_pager::into_hierarchy_page;
+pub use into_hierarchy_pager::HierarchyPager;

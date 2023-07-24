@@ -15,31 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! `oio` provides OpenDAL's raw traits and types that opendal returns as
-//! output.
-//!
-//! Those types should only be used internally and we don't want users to
-//! depend on them. So we should also implement trait like `AsyncRead` for
-//! our `output` traits.
+mod api;
+pub use api::Stream;
+pub use api::Streamer;
 
-mod read;
-pub use read::*;
+mod into_stream_from_reader;
+pub use into_stream_from_reader::into_stream_from_reader;
 
-mod write;
-pub use write::*;
-
-mod append;
-pub use append::*;
-
-mod stream;
-pub use stream::*;
-
-mod page;
-pub use page::*;
-
-mod cursor;
-pub use cursor::Cursor;
-pub use cursor::VectorCursor;
-
-mod entry;
-pub use entry::Entry;
+mod into_stream;
+pub use into_stream::into_stream;

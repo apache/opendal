@@ -23,14 +23,14 @@ use crate::raw::*;
 use crate::*;
 
 /// to_hierarchy_pager is used to make a hierarchy pager flat.
-pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
+pub fn into_hierarchy_page<P>(pager: P, path: &str) -> HierarchyPager<P> {
     let path = if path == "/" {
         "".to_string()
     } else {
         path.to_string()
     };
 
-    ToHierarchyPager {
+    HierarchyPager {
         pager,
         path,
         visited: HashSet::default(),
@@ -47,13 +47,13 @@ pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
 /// returned.
 ///
 /// Please keep calling next_page until we returned `Ok(None)`
-pub struct ToHierarchyPager<P> {
+pub struct HierarchyPager<P> {
     pager: P,
     path: String,
     visited: HashSet<String>,
 }
 
-impl<P> ToHierarchyPager<P> {
+impl<P> HierarchyPager<P> {
     /// TODO: use retain_mut instead after we bump MSRV to 1.61.
     fn filter_entries(&mut self, entries: Vec<oio::Entry>) -> Vec<oio::Entry> {
         entries
@@ -117,7 +117,7 @@ impl<P> ToHierarchyPager<P> {
 }
 
 #[async_trait]
-impl<P: oio::Page> oio::Page for ToHierarchyPager<P> {
+impl<P: oio::Page> oio::Page for HierarchyPager<P> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let page = self.pager.next().await?;
 
@@ -133,7 +133,7 @@ impl<P: oio::Page> oio::Page for ToHierarchyPager<P> {
     }
 }
 
-impl<P: oio::BlockingPage> oio::BlockingPage for ToHierarchyPager<P> {
+impl<P: oio::BlockingPage> oio::BlockingPage for HierarchyPager<P> {
     fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let page = self.pager.next()?;
 
@@ -201,7 +201,7 @@ mod tests {
         let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let pager = MockPager::new(&["x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a"]);
-        let mut pager = to_hierarchy_pager(pager, "");
+        let mut pager = into_hierarchy_page(pager, "");
 
         let mut entries = Vec::default();
 

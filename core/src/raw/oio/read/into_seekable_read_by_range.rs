@@ -38,7 +38,7 @@ use crate::*;
 ///
 /// # Output
 ///
-/// The output is a reader that can be seeked by range.
+/// The output is a reader that can be seek by range.
 ///
 /// # Notes
 ///

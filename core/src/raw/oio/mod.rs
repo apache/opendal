@@ -23,12 +23,16 @@
 //! our `output` traits.
 
 mod read;
+pub use read::into_read_by_range;
+pub use read::into_streamable_reader;
 pub use read::BlockingRead;
 pub use read::BlockingReader;
+pub use read::ByRangeReader;
 pub use read::Read;
 pub use read::ReadExt;
 pub use read::ReadOperation;
 pub use read::Reader;
+pub use read::StreamableReader;
 
 pub mod into_blocking_reader;
 pub mod into_reader;
@@ -54,10 +58,6 @@ pub mod into_stream;
 mod cursor;
 pub use cursor::Cursor;
 pub use cursor::VectorCursor;
-
-mod into_streamable;
-pub use into_streamable::into_streamable_reader;
-pub use into_streamable::IntoStreamableReader;
 
 mod entry;
 pub use entry::Entry;

@@ -75,7 +75,7 @@ pub trait MultipartUploadWrite: Send + Sync + Unpin {
 ///
 /// services implement should convert MultipartUploadPart to their own represents.
 ///
-/// - `part_numer` is the index of the part, starting from 0.
+/// - `part_number` is the index of the part, starting from 0.
 /// - `etag` is the `ETag` of the part.
 pub struct MultipartUploadPart {
     /// The numbder of the part, starting from 0.
@@ -122,7 +122,7 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
     /// MultipartUploadWriter will flush the buffer to upload a part when
     /// the size of buffer is larger than write_min_size.
     ///
-    /// This value is default to 8 MiB (as recommanded by AWS).
+    /// This value is default to 8 MiB (as recommended by AWS).
     pub fn with_write_min_size(mut self, v: usize) -> Self {
         self.buffer_size = v;
         self

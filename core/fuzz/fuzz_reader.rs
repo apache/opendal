@@ -17,8 +17,6 @@
 
 #![no_main]
 
-mod utils;
-
 use std::io::SeekFrom;
 
 use bytes::Bytes;
@@ -26,10 +24,13 @@ use libfuzzer_sys::arbitrary::Arbitrary;
 use libfuzzer_sys::arbitrary::Result;
 use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
-use opendal::raw::oio::ReadExt;
-use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
+
+use opendal::Operator;
+use opendal::raw::oio::ReadExt;
+
+mod utils;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
@@ -163,7 +164,12 @@ impl ReaderFuzzerChecker {
     }
 }
 
-async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Result<()> {
+async fn fuzz_reader_process(
+    input: FuzzInput,
+    op: &Operator,
+    name: &str,
+    is_range: bool,
+) -> Result<()> {
     let len = input.data.len();
     let path = uuid::Uuid::new_v4().to_string();
 
@@ -172,10 +178,15 @@ async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Res
         .await
         .unwrap_or_else(|_| panic!("{} write must succeed", name));
 
-    let mut o = op
-        .range_reader(&path, 0..len as u64)
-        .await
-        .unwrap_or_else(|_| panic!("{} init range_reader must succeed", name));
+    let mut o = if is_range {
+        op.range_reader(&path, 0..len as u64)
+            .await
+            .unwrap_or_else(|_| panic!("{} init range_reader must succeed", name))
+    } else {
+        op.reader(&path)
+            .await
+            .unwrap_or_else(|_| panic!("{} init reader must succeed", name))
+    };
 
     for action in input.actions {
         match action {
@@ -213,9 +224,15 @@ fn fuzz_reader(name: &str, op: &Operator, input: FuzzInput) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     runtime.block_on(async {
-        fuzz_reader_process(input, op, name)
+        fuzz_reader_process(input.clone(), op, name, true)
             .await
-            .unwrap_or_else(|_| panic!("{} fuzz_reader must succeed", name));
+            .unwrap_or_else(|_| panic!("{} fuzz range reader must succeed", name));
+    });
+
+    runtime.block_on(async {
+        fuzz_reader_process(input, op, name, false)
+            .await
+            .unwrap_or_else(|_| panic!("{} fuzz reader must succeed", name));
     });
 }
 

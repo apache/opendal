@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod layers;
 mod result;
 mod types;
 
@@ -26,7 +25,6 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
-use layers::Layer;
 use od::BlockingLister;
 use result::FFIResult;
 use types::ByteSlice;
@@ -84,74 +82,6 @@ pub unsafe extern "C" fn via_map_ffi(
 
     let res = match od::Operator::via_map(scheme, map) {
         Ok(operator) => FFIResult::ok(operator.blocking()),
-        Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
-    };
-
-    *result = res;
-}
-
-/// # Safety
-///
-/// * The `keys`, `values`, `len` are valid from `HashMap`.
-/// * The memory pointed to by `scheme` contain a valid nul terminator at the end of
-///   the string.
-/// * The `result` is a valid pointer, and has available memory to write to.
-///
-/// # Panics
-///
-/// * If `keys` or `values` are not valid pointers.
-/// * If `len` is not the same for `keys` and `values`.
-/// * If `result` is not a valid pointer.
-#[no_mangle]
-pub unsafe extern "C" fn via_map_ffi_with_layers(
-    scheme: *const c_char,
-    keys: *const *const c_char,
-    values: *const *const c_char,
-    map_len: usize,
-    layers: *const Layer,
-    layers_len: usize,
-    result: *mut FFIResult<od::BlockingOperator>,
-) {
-    let scheme_str = match CStr::from_ptr(scheme).to_str() {
-        Ok(s) => s,
-        Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
-            return;
-        }
-    };
-
-    let scheme = match od::Scheme::from_str(scheme_str) {
-        Ok(s) => s,
-        Err(_) => {
-            *result = FFIResult::err("Failed to parse scheme");
-            return;
-        }
-    };
-
-    let keys_vec = std::slice::from_raw_parts(keys, map_len);
-    let values_vec = std::slice::from_raw_parts(values, map_len);
-
-    let map = keys_vec
-        .iter()
-        .zip(values_vec.iter())
-        .map(|(&k, &v)| {
-            (
-                CStr::from_ptr(k).to_string_lossy().into_owned(),
-                CStr::from_ptr(v).to_string_lossy().into_owned(),
-            )
-        })
-        .collect::<HashMap<String, String>>();
-
-    let layers_vec = std::slice::from_raw_parts(layers, layers_len);
-
-    let res = match od::Operator::via_map(scheme, map) {
-        Ok(mut operator) => {
-            for layer in layers_vec {
-                operator = layers::apply_layer(operator, layer);
-            }
-
-            FFIResult::ok(operator.blocking())
-        }
         Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
     };
 

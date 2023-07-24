@@ -129,46 +129,9 @@ instance Storable FFIMetadata where
     eTagOffset = contentTypeOffset + sizeOf (undefined :: CString)
     lastModifiedOffset = eTagOffset + sizeOf (undefined :: CString)
 
-data FFILayer
-  = FFIConcurrentLimit {concurrentLimitPermits :: CSize}
-  | FFIImmutableIndex {immutableIndexKeys :: Ptr CString, immutableIndexkeysLen :: CSize}
-
-instance Storable FFILayer where
-  sizeOf _ = sizeOf (undefined :: CSize) * 3
-  alignment _ = alignment (undefined :: CSize)
-  peek ptr = do
-    tag <- peekByteOff ptr tagOffset :: IO CUInt
-    case tag of
-      0 -> do
-        permits <- peekByteOff ptr dataPtrOffset
-        return $ FFIConcurrentLimit permits
-      1 -> do
-        keys <- peekByteOff ptr dataPtrOffset
-        keysLen <- peekByteOff ptr (dataPtrOffset + sizeOf (undefined :: Ptr ()))
-        return $ FFIImmutableIndex keys keysLen
-      _ -> error "unknown tag"
-   where
-    tagOffset = 0
-    dataPtrOffset = sizeOf (undefined :: CSize)
-  poke ptr layer = do
-    case layer of
-      FFIConcurrentLimit permits -> do
-        pokeByteOff ptr tagOffset (0 :: CUInt)
-        pokeByteOff ptr dataPtrOffset permits
-      FFIImmutableIndex keys keysLen -> do
-        pokeByteOff ptr tagOffset (1 :: CUInt)
-        pokeByteOff ptr dataPtrOffset keys
-        pokeByteOff ptr (dataPtrOffset + sizeOf (undefined :: Ptr ())) keysLen
-   where
-    tagOffset = 0
-    dataPtrOffset = sizeOf (undefined :: CSize)
-
 foreign import ccall "via_map_ffi"
   c_via_map_ffi ::
     CString -> Ptr CString -> Ptr CString -> CSize -> Ptr (FFIResult RawOperator) -> IO ()
-foreign import ccall "via_map_ffi_with_layers"
-  c_via_map_ffi_with_layers ::
-    CString -> Ptr CString -> Ptr CString -> CSize -> Ptr FFILayer -> CSize -> Ptr (FFIResult RawOperator) -> IO ()
 foreign import ccall "&free_operator" c_free_operator :: FunPtr (Ptr RawOperator -> IO ())
 foreign import ccall "free_byteslice" c_free_byteslice :: Ptr CChar -> CSize -> IO ()
 foreign import ccall "blocking_read" c_blocking_read :: Ptr RawOperator -> CString -> Ptr (FFIResult ByteSlice) -> IO ()

@@ -30,7 +30,6 @@ This module provides Haskell bindings for OpenDAL.
 module OpenDAL (
   Operator,
   Lister,
-  Layer (..),
   OpenDALError (..),
   ErrorCode (..),
   EntryMode (..),
@@ -39,7 +38,6 @@ module OpenDAL (
   MonadOperation (..),
   runOp,
   newOp,
-  newOpWithLayers,
   readOpRaw,
   writeOpRaw,
   isExistOpRaw,
@@ -74,13 +72,6 @@ newtype Operator = Operator (ForeignPtr RawOperator)
 Users can construct Lister by `listOp` or `scanOp`.
 -}
 newtype Lister = Lister (ForeignPtr RawLister)
-
-data Layer
-  = -- | Add concurrent request limit.
-    ConcurrentLimit {concurrentLimitPermits :: Int}
-  | -- | Add immutable in-memory index for underlying storage services.
-    ImmutableIndex {immutableIndexKeys :: [String]}
-  deriving (Eq, Show)
 
 -- | Represents the possible error codes that can be returned by OpenDAL.
 data ErrorCode
@@ -278,20 +269,6 @@ parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength
       , mLastModified = lastModified'
       }
 
-toFFILayer :: Layer -> IO FFILayer
-toFFILayer (ConcurrentLimit permits) = return $ FFIConcurrentLimit (fromIntegral permits)
-toFFILayer (ImmutableIndex keys) = do
-  cKeys <- mapM newCString keys
-  cKeysPtr <- newArray cKeys
-  return $ FFIImmutableIndex cKeysPtr (fromIntegral $ length keys)
-
-freeFFILayer :: FFILayer -> IO ()
-freeFFILayer (FFIImmutableIndex cKeysPtr len) = do
-  cKeys <- peekArray (fromIntegral len) cKeysPtr
-  mapM_ free cKeys
-  free cKeysPtr
-freeFFILayer _ = return ()
-
 -- Exported functions
 
 -- | Runs an OpenDAL operation in the 'OpMonad'.
@@ -320,33 +297,6 @@ newOp scheme hashMap = do
                   let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
                   errMsg <- peekCString (errorMessage ffiResult)
                   return $ Left $ OpenDALError code errMsg
-
--- | Creates a new OpenDAL operator via `HashMap`.
-newOpWithLayers :: String -> HashMap String String -> [Layer] -> IO (Either OpenDALError Operator)
-newOpWithLayers scheme hashMap layers = do
-  let keysAndValues = HashMap.toList hashMap
-  withCString scheme $ \cScheme ->
-    withMany withCString (map fst keysAndValues) $ \cKeys ->
-      withMany withCString (map snd keysAndValues) $ \cValues ->
-        allocaArray (length keysAndValues) $ \cKeysPtr ->
-          allocaArray (length keysAndValues) $ \cValuesPtr ->
-            allocaArray (length layers) $ \cLayersPtr ->
-              alloca $ \ffiResultPtr -> do
-                pokeArray cKeysPtr cKeys
-                pokeArray cValuesPtr cValues
-                cLayers <- mapM toFFILayer layers
-                pokeArray cLayersPtr cLayers
-                c_via_map_ffi_with_layers cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) cLayersPtr (fromIntegral $ length layers) ffiResultPtr
-                mapM_ freeFFILayer cLayers
-                ffiResult <- peek ffiResultPtr
-                if ffiCode ffiResult == 0
-                  then do
-                    op <- Operator <$> newForeignPtr c_free_operator (dataPtr ffiResult)
-                    return $ Right op
-                  else do
-                    let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-                    errMsg <- peekCString (errorMessage ffiResult)
-                    return $ Left $ OpenDALError code errMsg
 
 -- Functions for performing raw OpenDAL operations are defined below.
 -- These functions are not meant to be used directly in most cases.

@@ -32,6 +32,7 @@ basicTests =
     [ testCase "testBasicOperation" testRawOperation
     , testCase "testMonad" testMonad
     , testCase "testError" testError
+    , testCase "testLayer" testLayer
     ]
 
 testRawOperation :: Assertion
@@ -98,10 +99,10 @@ testMonad = do
     deleteOp "key1"
     isExistOp "key1" ?= False
     lister <- listOp "/"
-    liftIO $ findLister lister "key3" >>= (@?= True)
+    liftIO $ findLister lister "key3" ?= True
     renameOp "key3" "/dir1/key5"
     lister2 <- scanOp "/"
-    liftIO $ findLister lister2 "dir1/key5" >>= (@?= True)
+    liftIO $ findLister lister2 "dir1/key5" ?= True
   except_meta =
     Metadata
       { mMode = File
@@ -122,6 +123,16 @@ testError = do
     Right _ -> assertFailure "should not reach here"
  where
   operation = readOp "non-exist-path"
+
+testLayer :: Assertion
+testLayer = do
+  Right op <- newOpWithLayers "memory" HashMap.empty [layer]
+  runOp op operation >>= (@?= Right ())
+ where
+  layer = ImmutableIndex ["key1"]
+  operation = do
+    lister <- listOp "/"
+    liftIO $ findLister lister "key1" ?= True
 
 -- helper function
 

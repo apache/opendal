@@ -25,13 +25,13 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::to_flat_pager;
-use crate::raw::oio::to_hierarchy_pager;
+use crate::raw::oio::into_flat_page;
+use crate::raw::oio::into_hierarchy_page;
 use crate::raw::oio::ByRangeSeekableReader;
 use crate::raw::oio::Entry;
+use crate::raw::oio::FlatPager;
+use crate::raw::oio::HierarchyPager;
 use crate::raw::oio::StreamableReader;
-use crate::raw::oio::ToFlatPager;
-use crate::raw::oio::ToHierarchyPager;
 use crate::raw::*;
 use crate::*;
 
@@ -254,7 +254,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                 let (rp, p) = self.inner.list(path, args).await?;
                 Ok((rp, CompletePager::AlreadyComplete(p)))
             } else {
-                let p = to_flat_pager(
+                let p = into_flat_page(
                     self.inner.clone(),
                     path,
                     args.with_delimiter("/").limit().unwrap_or(1000),
@@ -269,7 +269,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                 Ok((rp, CompletePager::AlreadyComplete(p)))
             } else {
                 let (_, p) = self.inner.list(path, args.with_delimiter("")).await?;
-                let p = to_hierarchy_pager(p, path);
+                let p = into_hierarchy_page(p, path);
                 Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
             };
         }
@@ -303,7 +303,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                 let (rp, p) = self.inner.blocking_list(path, args)?;
                 Ok((rp, CompletePager::AlreadyComplete(p)))
             } else {
-                let p = to_flat_pager(
+                let p = into_flat_page(
                     self.inner.clone(),
                     path,
                     args.with_delimiter("/").limit().unwrap_or(1000),
@@ -318,8 +318,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                 Ok((rp, CompletePager::AlreadyComplete(p)))
             } else {
                 let (_, p) = self.inner.blocking_list(path, args.with_delimiter(""))?;
-                let p: ToHierarchyPager<<A as Accessor>::BlockingPager> =
-                    to_hierarchy_pager(p, path);
+                let p: HierarchyPager<<A as Accessor>::BlockingPager> =
+                    into_hierarchy_page(p, path);
                 Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
             };
         }
@@ -614,8 +614,8 @@ where
 
 pub enum CompletePager<A: Accessor, P> {
     AlreadyComplete(P),
-    NeedFlat(ToFlatPager<Arc<A>, P>),
-    NeedHierarchy(ToHierarchyPager<P>),
+    NeedFlat(FlatPager<Arc<A>, P>),
+    NeedHierarchy(HierarchyPager<P>),
 }
 
 #[async_trait]

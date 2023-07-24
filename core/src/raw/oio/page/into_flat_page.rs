@@ -24,7 +24,7 @@ use crate::raw::*;
 use crate::*;
 
 /// to_flat_pager is used to make a hierarchy pager flat.
-pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatPager<A, P> {
+pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str, size: usize) -> FlatPager<A, P> {
     #[cfg(debug_assertions)]
     {
         let meta = acc.info();
@@ -34,7 +34,7 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
         );
     }
 
-    ToFlatPager {
+    FlatPager {
         acc,
         size,
         root: path.to_string(),
@@ -80,7 +80,7 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
 /// Especially, for storage services that can't return dirs first, ToFlatPager
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
-pub struct ToFlatPager<A: Accessor, P> {
+pub struct FlatPager<A: Accessor, P> {
     acc: A,
     size: usize,
     root: String,
@@ -90,7 +90,7 @@ pub struct ToFlatPager<A: Accessor, P> {
 }
 
 #[async_trait]
-impl<A, P> oio::Page for ToFlatPager<A, P>
+impl<A, P> oio::Page for FlatPager<A, P>
 where
     A: Accessor<Pager = P>,
     P: oio::Page,
@@ -150,7 +150,7 @@ where
     }
 }
 
-impl<A, P> oio::BlockingPage for ToFlatPager<A, P>
+impl<A, P> oio::BlockingPage for FlatPager<A, P>
 where
     A: Accessor<BlockingPager = P>,
     P: oio::BlockingPage,
@@ -299,7 +299,7 @@ mod tests {
         let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
         let acc = MockService::new();
-        let mut pager = to_flat_pager(acc, "x/", 10);
+        let mut pager = into_flat_page(acc, "x/", 10);
 
         let mut entries = Vec::default();
 

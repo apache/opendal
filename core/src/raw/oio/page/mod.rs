@@ -16,21 +16,16 @@
 // under the License.
 
 mod api;
-pub use api::BlockingRead;
-pub use api::BlockingReader;
-pub use api::Read;
-pub use api::ReadExt;
-pub use api::ReadOperation;
-pub use api::Reader;
+pub use api::BlockingPage;
+pub use api::BlockingPager;
+pub use api::Page;
+pub use api::PageOperation;
+pub use api::Pager;
 
-mod into_streamable_read;
-pub use into_streamable_read::into_streamable_read;
-pub use into_streamable_read::StreamableReader;
+mod into_flat_page;
+pub use into_flat_page::into_flat_page;
+pub use into_flat_page::FlatPager;
 
-mod into_seekable_read_by_range;
-pub use into_seekable_read_by_range::into_seekable_read_by_range;
-pub use into_seekable_read_by_range::ByRangeSeekableReader;
-
-mod into_read_from_file;
-pub use into_read_from_file::into_read_from_file;
-pub use into_read_from_file::FromFileReader;
+mod into_hierarchy_pager;
+pub use into_hierarchy_pager::into_hierarchy_page;
+pub use into_hierarchy_pager::HierarchyPager;

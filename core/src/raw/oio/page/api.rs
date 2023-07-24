@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 
-use super::Entry;
+use crate::raw::oio::Entry;
 use crate::*;
 
 /// PageOperation is the name for APIs of pager.

@@ -35,6 +35,8 @@ use crate::raw::*;
 use crate::services::cos::appender::CosAppender;
 use crate::*;
 
+const DEFAULT_WRITE_MIN_SIZE: usize = 1024 * 1024;
+
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
@@ -45,6 +47,10 @@ pub struct CosBuilder {
     secret_key: Option<String>,
     bucket: Option<String>,
     http_client: Option<HttpClient>,
+
+    /// the part size of cos multipart upload, which should be 1 MB to 5 GB.
+    /// There is no minimum size limit on the last part of your multipart upload
+    write_min_size: Option<usize>,
 
     disable_config_load: bool,
 }
@@ -120,6 +126,14 @@ impl CosBuilder {
         self
     }
 
+    /// set the minimum size of unsized write, it should be greater than 1 MB.
+    /// Reference: [Upload Part | Tencent Cloud](https://www.tencentcloud.com/document/product/436/7750)
+    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
+        self.write_min_size = Some(write_min_size);
+
+        self
+    }
+
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///
@@ -155,6 +169,8 @@ impl Builder for CosBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("secret_id").map(|v| builder.secret_id(v));
         map.get("secret_key").map(|v| builder.secret_key(v));
+        map.get("write_min_size")
+            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
 
         builder
     }
@@ -218,6 +234,14 @@ impl Builder for CosBuilder {
         let cred_loader = TencentCosCredentialLoader::new(client.client(), cfg);
 
         let signer = TencentCosSigner::new();
+        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
+        if write_min_size < 1024 * 1024 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "The write minimum buffer size is misconfigured",
+            )
+            .with_context("service", Scheme::Cos));
+        }
 
         debug!("backend build finished");
         Ok(CosBackend {
@@ -228,6 +252,7 @@ impl Builder for CosBuilder {
                 signer,
                 loader: cred_loader,
                 client,
+                write_min_size,
             }),
         })
     }
@@ -269,6 +294,7 @@ impl Accessor for CosBackend {
                 write_can_sink: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
+                write_without_content_length: true,
 
                 append: true,
                 append_with_cache_control: true,
@@ -332,16 +358,9 @@ impl Accessor for CosBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
-            CosWriter::new(self.core.clone(), args, path.to_string()),
+            CosWriter::new(self.core.clone(), path, args),
         ))
     }
 

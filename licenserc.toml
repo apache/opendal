@@ -35,7 +35,4 @@ excludes = [
   # Documents
   "**/*.md",
   "**/*.mdx",
-
-  # Fixtures
-  "**/fixtures/**"
 ]

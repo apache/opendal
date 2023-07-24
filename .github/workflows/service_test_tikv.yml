@@ -36,8 +36,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-
-# todo: add insecure flag tls integration test
 jobs:
   tikv:
     runs-on: ubuntu-latest
@@ -66,7 +64,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test tikv --features services-tikv -j=1
+        run: cargo nextest tikv --features services-tikv
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

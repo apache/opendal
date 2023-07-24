@@ -25,6 +25,7 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
+use od::layers::RetryLayer;
 use od::BlockingLister;
 use result::FFIResult;
 use types::ByteSlice;
@@ -81,7 +82,7 @@ pub unsafe extern "C" fn via_map_ffi(
         .collect::<HashMap<String, String>>();
 
     let res = match od::Operator::via_map(scheme, map) {
-        Ok(operator) => FFIResult::ok(operator.blocking()),
+        Ok(operator) => FFIResult::ok(operator.layer(RetryLayer::new()).blocking()),
         Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
     };
 

@@ -162,7 +162,7 @@ unsafe impl Sync for HdfsBackend {}
 #[async_trait]
 impl Accessor for HdfsBackend {
     type Reader = oio::FromFileReader<hdrs::AsyncFile>;
-    type BlockingReader = oio::into_blocking_reader::FdReader<hdrs::File>;
+    type BlockingReader = oio::FromFileReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type Appender = HdfsAppender<hdrs::AsyncFile>;
@@ -397,7 +397,7 @@ impl Accessor for HdfsBackend {
             (None, None) => (0, meta.len()),
         };
 
-        let mut r = oio::into_blocking_reader::from_fd(f, start, end);
+        let mut r = oio::into_read_from_file(f, start, end);
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0))?;
 

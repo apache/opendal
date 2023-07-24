@@ -36,8 +36,6 @@ pub use read::ReadOperation;
 pub use read::Reader;
 pub use read::StreamableReader;
 
-pub mod into_blocking_reader;
-
 mod write;
 pub use write::BlockingWrite;
 pub use write::BlockingWriter;

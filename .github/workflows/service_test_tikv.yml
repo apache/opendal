@@ -60,11 +60,12 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-protoc: true
+          need-nextest: true
 
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest tikv --features services-tikv
+        run: cargo nextest run tikv --features services-tikv
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

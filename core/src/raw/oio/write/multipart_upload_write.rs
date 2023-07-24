@@ -78,7 +78,7 @@ pub trait MultipartUploadWrite: Send + Sync + Unpin {
 /// - `part_number` is the index of the part, starting from 0.
 /// - `etag` is the `ETag` of the part.
 pub struct MultipartUploadPart {
-    /// The numbder of the part, starting from 0.
+    /// The number of the part, starting from 0.
     pub part_number: usize,
     /// The etag of the part.
     pub etag: String,

@@ -33,22 +33,22 @@ use crate::*;
 const DEFAULT_CAPACITY: usize = 64 * 1024;
 
 /// Convert given futures reader into [`oio::Stream`].
-pub fn from_futures_reader<R>(r: R) -> FromFuturesReader<R>
+pub fn into_stream_from_reader<R>(r: R) -> FromReaderStream<R>
 where
     R: AsyncRead + Send + Sync + Unpin,
 {
-    FromFuturesReader {
+    FromReaderStream {
         inner: Some(r),
         buf: BytesMut::new(),
     }
 }
 
-pub struct FromFuturesReader<R> {
+pub struct FromReaderStream<R> {
     inner: Option<R>,
     buf: BytesMut,
 }
 
-impl<S> oio::Stream for FromFuturesReader<S>
+impl<S> oio::Stream for FromReaderStream<S>
 where
     S: AsyncRead + Send + Sync + Unpin,
 {

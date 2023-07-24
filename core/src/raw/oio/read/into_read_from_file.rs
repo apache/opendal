@@ -31,7 +31,7 @@ use futures::AsyncSeek;
 use crate::raw::*;
 use crate::*;
 
-/// Convert given fd into [`oio::Reader`].
+/// Convert given file into [`oio::Reader`].
 pub fn into_read_from_file<R>(fd: R, start: u64, end: u64) -> FromFileReader<R> {
     FromFileReader {
         inner: fd,

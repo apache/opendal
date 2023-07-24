@@ -15,11 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! into_stream will provide different implementations to convert into
-//! [`oio::Stream`][crate::raw::oio::Stream]
+use std::task::Context;
+use std::task::Poll;
 
-mod from_futures_stream;
-pub use from_futures_stream::from_futures_stream;
+use bytes::Bytes;
+use futures::TryStreamExt;
 
-mod from_futures_reader;
-pub use from_futures_reader::from_futures_reader;
+use crate::raw::*;
+use crate::*;
+
+/// Convert given futures stream into [`oio::Stream`].
+pub fn into_stream<S>(stream: S) -> IntoStream<S>
+where
+    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
+{
+    IntoStream { inner: stream }
+}
+
+pub struct IntoStream<S> {
+    inner: S,
+}
+
+impl<S> oio::Stream for IntoStream<S>
+where
+    S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
+{
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        self.inner.try_poll_next_unpin(cx)
+    }
+}

@@ -49,10 +49,10 @@ pub use append::AppendOperation;
 pub use append::Appender;
 
 mod stream;
+pub use stream::into_stream;
+pub use stream::into_stream_from_reader;
 pub use stream::Stream;
 pub use stream::Streamer;
-
-pub mod into_stream;
 
 mod cursor;
 pub use cursor::Cursor;

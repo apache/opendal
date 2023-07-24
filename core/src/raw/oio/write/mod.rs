@@ -21,3 +21,8 @@ pub use api::BlockingWriter;
 pub use api::Write;
 pub use api::WriteOperation;
 pub use api::Writer;
+
+mod multipart_upload_write;
+pub use multipart_upload_write::MultipartUploadPart;
+pub use multipart_upload_write::MultipartUploadWrite;
+pub use multipart_upload_write::MultipartUploadWriter;

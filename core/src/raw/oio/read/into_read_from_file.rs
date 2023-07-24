@@ -29,11 +29,11 @@ use crate::raw::*;
 use crate::*;
 
 /// Convert given fd into [`oio::Reader`].
-pub fn from_fd<R>(fd: R, start: u64, end: u64) -> FdReader<R>
+pub fn into_read_from_file<R>(fd: R, start: u64, end: u64) -> FromFileReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
-    FdReader {
+    FromFileReader {
         inner: fd,
         start,
         end,
@@ -42,7 +42,7 @@ where
 }
 
 /// FdReader is a wrapper of input fd to implement [`oio::Read`].
-pub struct FdReader<R: AsyncRead + AsyncSeek + Unpin + Send + Sync> {
+pub struct FromFileReader<R: AsyncRead + AsyncSeek + Unpin + Send + Sync> {
     inner: R,
 
     start: u64,
@@ -50,7 +50,7 @@ pub struct FdReader<R: AsyncRead + AsyncSeek + Unpin + Send + Sync> {
     offset: u64,
 }
 
-impl<R> FdReader<R>
+impl<R> FromFileReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
@@ -60,7 +60,7 @@ where
     }
 }
 
-impl<R> oio::Read for FdReader<R>
+impl<R> oio::Read for FromFileReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {

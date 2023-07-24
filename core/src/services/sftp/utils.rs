@@ -29,7 +29,7 @@ use openssh_sftp_client::file::TokioCompatFile;
 use openssh_sftp_client::metadata::MetaData as SftpMeta;
 
 use crate::raw::oio;
-use crate::raw::oio::into_reader::FdReader;
+use crate::raw::oio::FromFileReader;
 use crate::raw::oio::ReadExt;
 use crate::EntryMode;
 use crate::Metadata;
@@ -38,7 +38,7 @@ use crate::Result;
 pub struct SftpReaderInner {
     file: Pin<Box<Compat<TokioCompatFile>>>,
 }
-pub type SftpReader = FdReader<SftpReaderInner>;
+pub type SftpReader = FromFileReader<SftpReaderInner>;
 
 impl SftpReaderInner {
     pub async fn new(file: File) -> Self {
@@ -53,7 +53,7 @@ impl SftpReader {
     /// Create a new reader from a file, starting at the given offset and ending at the given offset.
     pub async fn new(file: File, start: u64, end: u64) -> Result<Self> {
         let file = SftpReaderInner::new(file).await;
-        let mut r = oio::into_reader::from_fd(file, start, end);
+        let mut r = oio::into_read_from_file(file, start, end);
         r.seek(SeekFrom::Start(0)).await?;
         Ok(r)
     }

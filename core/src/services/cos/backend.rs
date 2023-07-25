@@ -268,7 +268,7 @@ pub struct CosBackend {
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = CosWriter;
+    type Writer = oio::MultipartUploadWriter<CosWriter>;
     type BlockingWriter = ();
     type Appender = CosAppender;
     type Pager = CosPager;
@@ -323,7 +323,7 @@ impl Accessor for CosBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
-                .cos_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+                .cos_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -437,6 +437,7 @@ impl Accessor for CosBackend {
                 path,
                 None,
                 v.content_type(),
+                v.content_disposition(),
                 v.cache_control(),
                 AsyncBody::Empty,
             )?,

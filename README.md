@@ -81,6 +81,7 @@ Major components of the project include:
 - rocksdb: [RocksDB](http://rocksdb.org/) services
 - sled: [sled](https://crates.io/crates/sled) backend
 - redb: [redb](https://crates.io/crates/redb) backend
+- tikv: [tikv](https://tikv.org/) backend
 
 </details>
 

@@ -90,7 +90,7 @@ impl <A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .instrument_await("read")
+            .instrument_await("opendal read")
             .await
     }
 
@@ -98,21 +98,21 @@ impl <A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
 
         self.inner
             .write(path, args)
-            .instrument_await("write")
+            .instrument_await("opendal write")
             .await
     }
 
     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
         self.inner
             .append(path, args)
-            .instrument_await("append")
+            .instrument_await("opendal append")
             .await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
-            .instrument_await("list")
+            .instrument_await("opendal list")
             .await
     }
 

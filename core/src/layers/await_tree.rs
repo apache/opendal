@@ -54,6 +54,12 @@ impl AwaitTreeLayer {
     }
 }
 
+impl Default for AwaitTreeLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<A: Accessor> Layer<A> for AwaitTreeLayer {
     type LayeredAccessor = AwaitTreeAccessor<A>;
 

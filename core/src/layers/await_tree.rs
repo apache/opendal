@@ -15,19 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::*;
 use crate::raw::*;
+use crate::*;
 
 use async_trait::async_trait;
 
 use await_tree::InstrumentAwait;
 
-
 /// Add a Instrument await-tree for actor-based applications to the underlying services.
 ///
 /// # AwaitTree
 ///
-/// await-tree allows developers to dump this execution tree at runtime, 
+/// await-tree allows developers to dump this execution tree at runtime,
 /// with the span of each Future annotated by instrument_await.
 /// Read more about [await-tree](https://docs.rs/await-tree/latest/await_tree/)
 ///
@@ -46,9 +45,7 @@ use await_tree::InstrumentAwait;
 ///     .finish();
 /// ```
 #[derive(Clone)]
-pub struct AwaitTreeLayer {
-
-}
+pub struct AwaitTreeLayer {}
 
 impl AwaitTreeLayer {
     /// Create a new `AwaitTreeLayer`.
@@ -61,9 +58,7 @@ impl<A: Accessor> Layer<A> for AwaitTreeLayer {
     type LayeredAccessor = AwaitTreeAccessor<A>;
 
     fn layer(&self, accessor: A) -> Self::LayeredAccessor {
-        AwaitTreeAccessor {
-            inner: accessor,
-        }
+        AwaitTreeAccessor { inner: accessor }
     }
 }
 
@@ -73,7 +68,7 @@ pub struct AwaitTreeAccessor<A: Accessor> {
 }
 
 #[async_trait]
-impl <A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
+impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
@@ -95,7 +90,6 @@ impl <A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-
         self.inner
             .write(path, args)
             .instrument_await("opendal write")
@@ -117,17 +111,14 @@ impl <A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner
-            .blocking_read(path, args)
+        self.inner.blocking_read(path, args)
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner
-            .blocking_write(path, args)
+        self.inner.blocking_write(path, args)
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.inner.blocking_list(path, args)
     }
 }
-

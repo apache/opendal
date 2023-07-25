@@ -45,12 +45,19 @@ enum ReaderAction {
 struct FuzzInput {
     actions: Vec<ReaderAction>,
     data: Vec<u8>,
+
+    range: (u64, u64),
 }
 
 impl Arbitrary<'_> for FuzzInput {
     fn arbitrary(u: &mut Unstructured<'_>) -> Result<Self> {
         let data_len = u.int_in_range(1..=MAX_DATA_SIZE)?;
         let data: Vec<u8> = u.bytes(data_len)?.to_vec();
+
+        let range_start = u.int_in_range(0..=data_len as u64 - 1)?;
+        let range_end = u.int_in_range(range_start + 1..=data_len as u64)?;
+
+        let range = (range_start, range_end);
 
         let mut actions = vec![];
         let mut action_count = u.int_in_range(128..=1024)?;
@@ -74,7 +81,11 @@ impl Arbitrary<'_> for FuzzInput {
                 _ => actions.push(ReaderAction::Next),
             }
         }
-        Ok(FuzzInput { actions, data })
+        Ok(FuzzInput {
+            actions,
+            data,
+            range,
+        })
     }
 }
 
@@ -82,14 +93,16 @@ struct ReaderFuzzerChecker {
     data: Vec<u8>,
     size: usize,
     cur: usize,
+    start: usize,
 }
 
 impl ReaderFuzzerChecker {
-    fn new(data: Vec<u8>) -> Self {
+    fn new(data: Vec<u8>, start: usize, end: usize) -> Self {
         Self {
-            size: data.len(),
+            size: end - start,
             data,
             cur: 0,
+            start,
         }
     }
 
@@ -98,7 +111,8 @@ impl ReaderFuzzerChecker {
             return;
         }
 
-        let expected = &self.data[self.cur..self.cur + n];
+        let current = self.cur + self.start;
+        let expected = &self.data[current..current + n];
 
         // Check the read result
         assert_eq!(
@@ -123,7 +137,7 @@ impl ReaderFuzzerChecker {
             assert_eq!(
                 output.unwrap_err().kind(),
                 opendal::ErrorKind::InvalidInput,
-                "check seek failed: seek result is different with expected result"
+                "check seek failed: seek result is different with expected result",
             );
         } else {
             assert_eq!(
@@ -132,7 +146,6 @@ impl ReaderFuzzerChecker {
                 "check seek failed: seek result is different with expected result",
             );
 
-            // only update the current position when seek succeed
             self.cur = expected as usize;
         }
     }
@@ -144,12 +157,12 @@ impl ReaderFuzzerChecker {
                 "check next failed: output bs is larger than remaining bs",
             );
 
+            let current = self.cur + self.start;
+            let expected = &self.data[current..current + output.len()];
+
             assert_eq!(
                 format!("{:x}", Sha256::digest(&output)),
-                format!(
-                    "{:x}",
-                    Sha256::digest(&self.data[self.cur..self.cur + output.len()])
-                ),
+                format!("{:x}", Sha256::digest(expected)),
                 "check next failed: output bs is different with expected bs",
             );
 
@@ -164,16 +177,21 @@ impl ReaderFuzzerChecker {
     }
 }
 
-async fn fuzz_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Result<()> {
+async fn fuzz_range_reader_process(input: FuzzInput, op: &Operator, name: &str) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let mut checker = ReaderFuzzerChecker::new(input.data.clone());
+    let mut checker = ReaderFuzzerChecker::new(
+        input.data.clone(),
+        input.range.0 as usize,
+        input.range.1 as usize,
+    );
+
     op.write(&path, input.data)
         .await
         .unwrap_or_else(|_| panic!("{} write must succeed", name));
 
     let mut o = op
-        .reader(&path)
+        .range_reader(&path, input.range.0..input.range.1)
         .await
         .unwrap_or_else(|_| panic!("{} init reader must succeed", name));
 
@@ -213,9 +231,9 @@ fn fuzz_reader(name: &str, op: &Operator, input: FuzzInput) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     runtime.block_on(async {
-        fuzz_reader_process(input, op, name)
+        fuzz_range_reader_process(input, op, name)
             .await
-            .unwrap_or_else(|_| panic!("{} fuzz reader must succeed", name));
+            .unwrap_or_else(|_| panic!("{} fuzz range reader must succeed", name));
     });
 }
 

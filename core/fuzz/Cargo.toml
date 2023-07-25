@@ -46,3 +46,9 @@ doc = false
 name = "fuzz_writer"
 path = "fuzz_writer.rs"
 test = false
+
+[[bin]]
+doc = false
+name = "fuzz_range_reader"
+path = "fuzz_range_reader.rs"
+test = false

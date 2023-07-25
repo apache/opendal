@@ -70,7 +70,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core/fuzz
-        run: cargo +nightly fuzz run -D fuzz_range_reader -- -max_total_time=150 & cargo +nightly fuzz run -D fuzz_reader -- -max_total_time=150 & cargo +nightly fuzz run -D fuzz_writer -- -max_total_time=150
+        run: cargo +nightly fuzz run -D fuzz_range_reader -- -max_total_time=200 & cargo +nightly fuzz run -D fuzz_reader -- -max_total_time=200 & cargo +nightly fuzz run -D fuzz_writer -- -max_total_time=200
         env:
           OPENDAL_MEMORY_TEST: on
           OPENDAL_FS_TEST: on

@@ -27,8 +27,8 @@ use libfuzzer_sys::fuzz_target;
 use sha2::Digest;
 use sha2::Sha256;
 
-use opendal::Operator;
 use opendal::raw::oio::ReadExt;
+use opendal::Operator;
 
 mod utils;
 

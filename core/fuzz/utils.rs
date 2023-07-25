@@ -47,6 +47,6 @@ pub fn init_services() -> Vec<(&'static str, Option<Operator>)> {
     vec![
         ("fs", service::<services::Fs>()),
         ("memory", service::<services::Memory>()),
-        ("s3", service::<services::S3>())
+        ("s3", service::<services::S3>()),
     ]
 }

@@ -86,10 +86,47 @@ jobs:
           path: ./target
       - name: Run Fuzz Test
         shell: bash
-        run: ./target/${{ matrix.fuzz-targets }}
+        run: chmod 777 ./target/${{ matrix.fuzz-targets }} && ./target/${{ matrix.fuzz-targets }} -max_total_time=120
         env:
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
+  fuzz-test-run-fs:
+    runs-on: ubuntu-latest
+    needs: fuzz-test-build-target
+    strategy:
+      fail-fast: true
+      matrix:
+        fuzz-targets: [ fuzz_reader, fuzz_range_reader, fuzz_writer ]
+    steps:
+      - name: Download Fuzz Targets
+        uses: actions/download-artifact@v2
+        with:
+          name: fuzz_targets
+          path: ./target
+      - name: Run Fuzz Test
+        shell: bash
+        run: chmod 777 ./target/${{ matrix.fuzz-targets }} && ./target/${{ matrix.fuzz-targets }} -max_total_time=120
+        env:
+          OPENDAL_FS_TEST: on
+          OPENDAL_FS_ROOT: ${{ runner.temp }}/
+  fuzz-test-run-memory:
+    runs-on: ubuntu-latest
+    needs: fuzz-test-build-target
+    strategy:
+      fail-fast: true
+      matrix:
+        fuzz-targets: [ fuzz_reader, fuzz_range_reader, fuzz_writer ]
+    steps:
+      - name: Download Fuzz Targets
+        uses: actions/download-artifact@v2
+        with:
+          name: fuzz_targets
+          path: ./target
+      - name: Run Fuzz Test
+        shell: bash
+        run: chmod 777 ./target/${{ matrix.fuzz-targets }} && ./target/${{ matrix.fuzz-targets }} -max_total_time=120
+        env:
+          OPENDAL_MEMORY_TEST: on

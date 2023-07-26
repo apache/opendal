@@ -258,15 +258,26 @@ impl Accessor for HdfsBackend {
             .create_dir(&parent.to_string_lossy())
             .map_err(parse_io_error)?;
 
-        let f = self
-            .client
-            .open_file()
-            .create(true)
-            .write(true)
-            .append(true)
-            .async_open(&p)
-            .await
-            .map_err(parse_io_error)?;
+        let f = match self.client.metadata(&p) {
+            Ok(_) =>self
+                .client
+                .open_file()
+                .append(true)
+                .async_open(&p)
+                .await
+                .map_err(parse_io_error)?,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                self
+                    .client
+                    .open_file()
+                    .create(true)
+                    .write(true)
+                    .async_open(&p)
+                    .await
+                    .map_err(parse_io_error)?
+            },
+            Err(err) => return Err(parse_io_error(err))
+        };
 
         Ok((RpAppend::new(), HdfsAppender::new(f)))
     }

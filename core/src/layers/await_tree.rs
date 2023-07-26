@@ -85,28 +85,70 @@ impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .instrument_await("opendal::read")
+            .instrument_await(format!("opendal::{}", Operation::Read))
             .await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .instrument_await("opendal::write")
+            .instrument_await(format!("opendal::{}", Operation::Write))
             .await
     }
 
     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
         self.inner
             .append(path, args)
-            .instrument_await("opendal::append")
+            .instrument_await(format!("opendal::{}", Operation::Append))
+            .await
+    }
+
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        self.inner()
+            .copy(from, to, args)
+            .instrument_await(format!("opendal::{}", Operation::Copy))
+            .await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        self.inner()
+            .rename(from, to, args)
+            .instrument_await(format!("opendal::{}", Operation::Rename))
+            .await
+    }
+
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner
+            .stat(path, args)
+            .instrument_await(format!("opendal::{}", Operation::Stat))
+            .await
+    }
+
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        self.inner
+            .delete(path, args)
+            .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
-            .instrument_await("opendal::list")
+            .instrument_await(format!("opendal::{}", Operation::List))
+            .await
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner
+            .presign(path, args)
+            .instrument_await(format!("opendal::{}", Operation::Presign))
+            .await
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        self.inner
+            .batch(args)
+            .instrument_await(format!("opendal::{}", Operation::Batch))
             .await
     }
 

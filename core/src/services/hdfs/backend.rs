@@ -245,25 +245,26 @@ impl Accessor for HdfsBackend {
     async fn append(&self, path: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path should have parent but not, it must be malformed",
-                )
-                .with_context("input", &p)
-            })?
-            .to_path_buf();
-        self.client
-            .create_dir(&parent.to_string_lossy())
-            .map_err(parse_io_error)?;
-
         if let Err(err) = self.client.metadata(&p) {
             // Early return if other error happened.
             if err.kind() != io::ErrorKind::NotFound {
                 return Err(parse_io_error(err));
             }
+
+            let parent = PathBuf::from(&p)
+                .parent()
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "path should have parent but not, it must be malformed",
+                    )
+                    .with_context("input", &p)
+                })?
+                .to_path_buf();
+
+            self.client
+                .create_dir(&parent.to_string_lossy())
+                .map_err(parse_io_error)?;
 
             let mut f = self
                 .client

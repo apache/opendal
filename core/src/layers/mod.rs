@@ -84,3 +84,7 @@ mod throttle;
 pub use self::oteltrace::OtelTraceLayer;
 #[cfg(feature = "layers-throttle")]
 pub use self::throttle::ThrottleLayer;
+#[cfg(feature = "layers-await-tree")]
+mod await_tree;
+#[cfg(feature = "layers-await-tree")]
+pub use self::await_tree::AwaitTreeLayer;

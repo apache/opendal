@@ -24,6 +24,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::AsyncWriteExt;
 use log::debug;
 
 use super::appender::HdfsAppender;
@@ -258,26 +259,29 @@ impl Accessor for HdfsBackend {
             .create_dir(&parent.to_string_lossy())
             .map_err(parse_io_error)?;
 
-        let f = match self.client.metadata(&p) {
-            Ok(_) =>self
+        if let Err(err) = self.client.metadata(&p) {
+            // Early return if other error happened.
+            if err.kind() != io::ErrorKind::NotFound {
+                return Err(parse_io_error(err));
+            }
+
+            let mut f = self
                 .client
                 .open_file()
-                .append(true)
+                .create(true)
                 .async_open(&p)
                 .await
-                .map_err(parse_io_error)?,
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                self
-                    .client
-                    .open_file()
-                    .create(true)
-                    .write(true)
-                    .async_open(&p)
-                    .await
-                    .map_err(parse_io_error)?
-            },
-            Err(err) => return Err(parse_io_error(err))
-        };
+                .map_err(parse_io_error)?;
+            f.close().await.map_err(parse_io_error)?;
+        }
+
+        let f = self
+            .client
+            .open_file()
+            .append(true)
+            .async_open(&p)
+            .await
+            .map_err(parse_io_error)?;
 
         Ok((RpAppend::new(), HdfsAppender::new(f)))
     }

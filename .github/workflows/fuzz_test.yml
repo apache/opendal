@@ -39,8 +39,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fuzz-test:
+  fuzz-test-build-target:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - name: Install cargo fuzz
+        shell: bash
+        run: rustup install nightly && cargo +nightly install cargo-fuzz
+      - name: Build Fuzz Targets
+        shell: bash
+        working-directory: core/fuzz
+        run: cargo +nightly fuzz build -D
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuzz_targets
+          path: ./target/x86_64-unknown-linux-gnu/debug/fuzz_*
+  fuzz-test-run-s3:
+    runs-on: ubuntu-latest
+    needs: fuzz-test-build-target
     services:
       minio:
         image: wktk/minio-server
@@ -52,36 +71,25 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        fuzz-targets: [fuzz_reader, fuzz_range_reader, fuzz_writer]
+        fuzz-targets: [ fuzz_reader, fuzz_range_reader, fuzz_writer ]
     steps:
-      - uses: actions/checkout@v3
       - name: Setup Test Bucket
         env:
           AWS_ACCESS_KEY_ID: "minioadmin"
           AWS_SECRET_ACCESS_KEY: "minioadmin"
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - name: Install cargo fuzz
+      - name: Download Fuzz Targets
+        uses: actions/download-artifact@v2
+        with:
+          name: fuzz_targets
+          path: ./target
+      - name: Run Fuzz Test
         shell: bash
-        run: rustup install nightly && cargo +nightly install cargo-fuzz
-      - name: Build Fuzz Targets
-        shell: bash
-        working-directory: core/fuzz
-        run: cargo +nightly fuzz build -D
-      - name: Test
-        shell: bash
-        working-directory: core/fuzz
-        run: cargo +nightly fuzz run -D ${{ matrix.fuzz-targets }} -- -max_total_time=200
+        run: ./target/${{ matrix.fuzz-targets }}
         env:
-          OPENDAL_MEMORY_TEST: on
-          OPENDAL_FS_TEST: on
-          OPENDAL_FS_ROOT: ${{ runner.temp }}/
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
-
-

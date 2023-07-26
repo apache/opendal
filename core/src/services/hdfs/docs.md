@@ -78,7 +78,7 @@ export HADOOP_CONF_DIR=<path of the config folder>
 ```
 3. Append the HADOOP_CONF_DIR to the `CLASSPATH`
 ```shell
-export CLASSPATH=$CLASSPATH:$HADOOP_CONF_DIR
+export CLASSPATH=$HADOOP_CONF_DIR:$HADOOP_CLASSPATH:$CLASSPATH
 ```
 4. Use the `cluster_name` specified in the `core-site.xml` file (located in the HADOOP_CONF_DIR folder) to replace namenode:port.
 

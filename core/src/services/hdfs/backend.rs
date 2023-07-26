@@ -262,6 +262,7 @@ impl Accessor for HdfsBackend {
             .client
             .open_file()
             .create(true)
+            .write(true)
             .append(true)
             .async_open(&p)
             .await

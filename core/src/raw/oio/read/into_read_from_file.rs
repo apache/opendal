@@ -89,10 +89,19 @@ where
         };
 
         match base.checked_add(offset) {
+            // Seek to position like `-123` is invalid.
             Some(n) if n < 0 => Poll::Ready(Err(Error::new(
                 ErrorKind::InvalidInput,
-                "invalid seek to a negative or overflowing position",
-            ))),
+                "seek to a negative or overflowing position is invalid",
+            )
+            .with_context("position", n.to_string()))),
+            // Seek to position before the start of current file is invalid.
+            Some(n) if n < self.start as i64 => Poll::Ready(Err(Error::new(
+                ErrorKind::InvalidInput,
+                "seek to a position before start of file is invalid",
+            )
+            .with_context("position", n.to_string())
+            .with_context("start", self.start.to_string()))),
             Some(n) => {
                 let cur =
                     ready!(Pin::new(&mut self.inner).poll_seek(cx, SeekFrom::Start(n as u64)))

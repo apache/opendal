@@ -269,6 +269,7 @@ impl Accessor for HdfsBackend {
                 .client
                 .open_file()
                 .create(true)
+                .write(true)
                 .async_open(&p)
                 .await
                 .map_err(parse_io_error)?;

@@ -51,7 +51,7 @@ jobs:
       - name: Build Fuzz Targets
         shell: bash
         working-directory: core/fuzz
-        run: cargo +nightly fuzz build -D
+        run: cargo +nightly fuzz build
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -80,13 +80,16 @@ jobs:
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: fuzz_targets
           path: ./target
+      - name: Grant Execute Permissions
+        shell: bash
+        run: chmod +x ./target/${{ matrix.fuzz-targets }}
       - name: Run Fuzz Test
         shell: bash
-        run: chmod 777 ./target/${{ matrix.fuzz-targets }} && ./target/${{ matrix.fuzz-targets }} -max_total_time=120
+        run: ./target/${{ matrix.fuzz-targets }} -max_total_time=120
         env:
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test
@@ -102,13 +105,16 @@ jobs:
         fuzz-targets: [ fuzz_reader, fuzz_range_reader, fuzz_writer ]
     steps:
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: fuzz_targets
           path: ./target
+      - name: Grant Execute Permissions
+        shell: bash
+        run: chmod +x ./target/${{ matrix.fuzz-targets }}
       - name: Run Fuzz Test
         shell: bash
-        run: chmod 777 ./target/${{ matrix.fuzz-targets }} && ./target/${{ matrix.fuzz-targets }} -max_total_time=120
+        run: ./target/${{ matrix.fuzz-targets }} -max_total_time=120
         env:
           OPENDAL_FS_TEST: on
           OPENDAL_FS_ROOT: ${{ runner.temp }}/
@@ -121,12 +127,15 @@ jobs:
         fuzz-targets: [ fuzz_reader, fuzz_range_reader, fuzz_writer ]
     steps:
       - name: Download Fuzz Targets
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: fuzz_targets
           path: ./target
+      - name: Grant Execute Permissions
+        shell: bash
+        run: chmod +x ./target/${{ matrix.fuzz-targets }}
       - name: Run Fuzz Test
         shell: bash
-        run: chmod 777 ./target/${{ matrix.fuzz-targets }} && ./target/${{ matrix.fuzz-targets }} -max_total_time=120
+        run: ./target/${{ matrix.fuzz-targets }} -max_total_time=120
         env:
           OPENDAL_MEMORY_TEST: on

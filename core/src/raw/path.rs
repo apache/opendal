@@ -49,6 +49,8 @@ pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
 
     let p = root.to_string();
 
+    println!("path: {}", path);
+
     if path == "/" {
         p
     } else {

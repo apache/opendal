@@ -19,16 +19,16 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use chrono::Utc;
 use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
 use super::writer::GdriveWriter;
 use crate::raw::*;
+use crate::services::gdrive::core::GdriveFile;
 use crate::types::Result;
-use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
+use crate::*;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {
@@ -62,24 +62,74 @@ impl Accessor for GdriveBackend {
         ma.set_scheme(crate::Scheme::Gdrive)
             .set_root(&self.core.root)
             .set_full_capability(Capability {
+                stat: true,
+
                 read: true,
+
                 write: true,
+
+                create_dir: true,
+
                 delete: true,
+
                 ..Default::default()
             });
 
         ma
     }
 
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        let resp = self.core.gdrive_stat(path).await?;
+
+        let status = resp.status();
+
+        println!("status out: {:?}", status);
+
+        match status {
+            StatusCode::OK => {
+                let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let resp = self.core.gdrive_create_dir(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(RpCreateDir::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gdrive_get(path).await?;
+        // We need to request for metadata and body separately here.
+        // Request for metadata first to check if the file exists.
+        let resp = self.core.gdrive_stat(path).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body()))
+                let body = resp.into_body().bytes().await?;
+                let meta = self.parse_metadata(body)?;
+
+                let resp = self.core.gdrive_get(path).await?;
+
+                let status = resp.status();
+
+                match status {
+                    StatusCode::OK => Ok((RpRead::with_metadata(meta), resp.into_body())),
+                    _ => Err(parse_error(resp).await?),
+                }
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -108,5 +158,27 @@ impl Accessor for GdriveBackend {
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
+    }
+}
+
+impl GdriveBackend {
+    pub(crate) fn parse_metadata(&self, body: bytes::Bytes) -> Result<Metadata> {
+        let metadata =
+            serde_json::from_slice::<GdriveFile>(&body).map_err(new_json_deserialize_error)?;
+        let mut meta = Metadata::new(match metadata.mime_type.as_str() {
+            "application/vnd.google-apps.folder" => EntryMode::DIR,
+            _ => EntryMode::FILE,
+        });
+        meta = meta.with_content_length(match metadata.size.parse::<u64>() {
+            Ok(size) => size,
+            Err(_) => 0,
+        });
+        meta = meta.with_last_modified(
+            metadata
+                .modified_time
+                .parse::<chrono::DateTime<Utc>>()
+                .unwrap_or_default(),
+        );
+        Ok(meta)
     }
 }

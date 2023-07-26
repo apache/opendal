@@ -106,7 +106,7 @@ impl oio::MultipartUploadWrite for CosWriter {
         size: u64,
         body: AsyncBody,
     ) -> Result<oio::MultipartUploadPart> {
-        // AWS S3 requires part number must between [1..=10000]
+        // COS requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
         let resp = self
@@ -171,7 +171,8 @@ impl oio::MultipartUploadWrite for CosWriter {
             .cos_abort_multipart_upload(&self.path, upload_id)
             .await?;
         match resp.status() {
-            // s3 returns code 204 if abort succeeds.
+            // cos returns code 204 if abort succeeds.
+            // Reference: https://www.tencentcloud.com/document/product/436/7740
             StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
                 Ok(())

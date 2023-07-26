@@ -294,6 +294,7 @@ impl Accessor for CosBackend {
                 write_can_sink: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
+                write_with_content_disposition: true,
                 write_without_content_length: true,
 
                 append: true,

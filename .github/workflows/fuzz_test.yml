@@ -96,11 +96,14 @@ jobs:
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
+      - name: Clean Github ref
+          id: ref
+          run: echo "::set-output name=ref::$(echo ${{ github.ref }} | sed 's/\//_/g')"
       - name: Upload Crash Files
         if: ${{ failure() }}
         uses: actions/upload-artifact@v3
         with:
-          name: crash_s3_${{ matrix.fuzz-targets }}_${{ github.ref }}_${{ github.run_attempt }}_${{ github.sha }}
+          name: crash_s3_${{ matrix.fuzz-targets }}_${{ steps.ref.outputs.ref }}_${{ github.run_attempt }}_${{ github.sha }}
           path: ./crash*
   fuzz-test-run-fs:
     runs-on: ubuntu-latest
@@ -124,11 +127,14 @@ jobs:
         env:
           OPENDAL_FS_TEST: on
           OPENDAL_FS_ROOT: ${{ runner.temp }}/
+      - name: Clean Github ref
+        id: ref
+        run: echo "::set-output name=ref::$(echo ${{ github.ref }} | sed 's/\//_/g')"
       - name: Upload Crash Files
         uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
-          name: crash_fs_${{ matrix.fuzz-targets }}_${{ github.ref }}_${{ github.run_attempt }}_${{ github.sha }}
+          name: crash_fs_${{ matrix.fuzz-targets }}_${{ steps.ref.outputs.ref }}_${{ github.run_attempt }}_${{ github.sha }}
           path: ./crash*
   fuzz-test-run-memory:
     runs-on: ubuntu-latest
@@ -151,9 +157,12 @@ jobs:
         run: ./target/${{ matrix.fuzz-targets }} -max_total_time=120
         env:
           OPENDAL_MEMORY_TEST: on
+      - name: Clean Github ref
+        id: ref
+        run: echo "::set-output name=ref::$(echo ${{ github.ref }} | sed 's/\//_/g')"
       - name: Upload Crash Files
         if: ${{ failure() }}
         uses: actions/upload-artifact@v3
         with:
-          name: crash_memory_${{ matrix.fuzz-targets }}_${{ github.ref }}_${{ github.run_attempt }}_${{ github.sha }}
+          name: crash_memory_${{ matrix.fuzz-targets }}_${{ steps.ref.outputs.ref }}_${{ github.run_attempt }}_${{ github.sha }}
           path: ./crash*

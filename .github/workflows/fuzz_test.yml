@@ -97,6 +97,7 @@ jobs:
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
       - name: Upload Crash Files
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v3
         with:
           name: fuzz_crashes
@@ -125,6 +126,7 @@ jobs:
           OPENDAL_FS_ROOT: ${{ runner.temp }}/
       - name: Upload Crash Files
         uses: actions/upload-artifact@v3
+        if: ${{ failure() }}
         with:
           name: fuzz_crashes
           path: ./crash*
@@ -150,6 +152,7 @@ jobs:
         env:
           OPENDAL_MEMORY_TEST: on
       - name: Upload Crash Files
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v3
         with:
           name: fuzz_crashes

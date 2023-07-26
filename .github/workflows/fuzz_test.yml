@@ -96,6 +96,11 @@ jobs:
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
+      - name: Upload Crash Files
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuzz_crashes
+          path: ./crash*
   fuzz-test-run-fs:
     runs-on: ubuntu-latest
     needs: fuzz-test-build-target
@@ -118,6 +123,11 @@ jobs:
         env:
           OPENDAL_FS_TEST: on
           OPENDAL_FS_ROOT: ${{ runner.temp }}/
+      - name: Upload Crash Files
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuzz_crashes
+          path: ./crash*
   fuzz-test-run-memory:
     runs-on: ubuntu-latest
     needs: fuzz-test-build-target
@@ -139,3 +149,8 @@ jobs:
         run: ./target/${{ matrix.fuzz-targets }} -max_total_time=120
         env:
           OPENDAL_MEMORY_TEST: on
+      - name: Upload Crash Files
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuzz_crashes
+          path: ./crash*

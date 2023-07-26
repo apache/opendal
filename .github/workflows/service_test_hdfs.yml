@@ -130,3 +130,11 @@ jobs:
           OPENDAL_HDFS_TEST: on
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020
+
+      - name: Debugging
+        shell: bash
+        if: ${{ failure() }}
+        working-directory: core
+        run: |
+          docker logs namenode
+          docker logs datanode

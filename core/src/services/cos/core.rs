@@ -153,6 +153,7 @@ impl CosCore {
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
+        content_disposition: Option<&str>,
         cache_control: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
@@ -168,7 +169,9 @@ impl CosCore {
         if let Some(cache_control) = cache_control {
             req = req.header(CACHE_CONTROL, cache_control)
         }
-
+        if let Some(pos) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, pos)
+        }
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime)
         }
@@ -368,7 +371,7 @@ impl CosCore {
         path: &str,
         upload_id: &str,
         part_number: usize,
-        size: Option<u64>,
+        size: u64,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -382,11 +385,7 @@ impl CosCore {
         );
 
         let mut req = Request::put(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size);
-        }
-
+        req = req.header(CONTENT_LENGTH, size);
         // Set body
         let mut req = req.body(body).map_err(new_request_build_error)?;
 
@@ -399,7 +398,7 @@ impl CosCore {
         &self,
         path: &str,
         upload_id: &str,
-        parts: &[CompleteMultipartUploadRequestPart],
+        parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -412,10 +411,8 @@ impl CosCore {
 
         let req = Request::post(&url);
 
-        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
-            part: parts.to_vec(),
-        })
-        .map_err(new_xml_deserialize_error)?;
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_deserialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.

@@ -22,7 +22,6 @@ on:
   push:
     branches:
       - main
-      - fuzz-ci
   pull_request:
     branches:
       - main
@@ -50,6 +49,10 @@ jobs:
         env:
           MINIO_ACCESS_KEY: "minioadmin"
           MINIO_SECRET_KEY: "minioadmin"
+    strategy:
+      fail-fast: true
+      matrix:
+        fuzz-targets: [fuzz_reader, fuzz_range_reader, fuzz_writer]
     steps:
       - uses: actions/checkout@v3
       - name: Setup Test Bucket
@@ -70,7 +73,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core/fuzz
-        run: cargo +nightly fuzz run -D fuzz_range_reader -- -max_total_time=200 & cargo +nightly fuzz run -D fuzz_reader -- -max_total_time=200 & cargo +nightly fuzz run -D fuzz_writer -- -max_total_time=200
+        run: cargo +nightly fuzz run -D ${{ matrix.fuzz-targets }} -- -max_total_time=200
         env:
           OPENDAL_MEMORY_TEST: on
           OPENDAL_FS_TEST: on

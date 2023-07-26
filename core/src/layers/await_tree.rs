@@ -44,19 +44,13 @@ use await_tree::InstrumentAwait;
 ///     .layer(AwaitTreeLayer::new())
 ///     .finish();
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AwaitTreeLayer {}
 
 impl AwaitTreeLayer {
     /// Create a new `AwaitTreeLayer`.
     pub fn new() -> Self {
         Self {}
-    }
-}
-
-impl Default for AwaitTreeLayer {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -91,28 +85,28 @@ impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner
             .read(path, args)
-            .instrument_await("opendal read")
+            .instrument_await("opendal::read")
             .await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .instrument_await("opendal write")
+            .instrument_await("opendal::write")
             .await
     }
 
     async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
         self.inner
             .append(path, args)
-            .instrument_await("opendal append")
+            .instrument_await("opendal::append")
             .await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
-            .instrument_await("opendal list")
+            .instrument_await("opendal::list")
             .await
     }
 

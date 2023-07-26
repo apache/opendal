@@ -76,6 +76,7 @@ layers-all = [
   "layers-tracing",
   "layers-minitrace",
   "layers-throttle",
+  "layers-await-tree",
 ]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]

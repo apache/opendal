@@ -55,12 +55,17 @@ pub async fn test_append_create_append(op: Operator) -> Result<()> {
         .await
         .expect("append file first time must success");
 
+    // The file content length must equal to size_one.
+    let meta = op.stat(&path).await?;
+    assert_eq!(meta.content_length(), size_one as u64);
+
     op.append(&path, content_two.clone())
         .await
         .expect("append to an existing file must success");
 
     let bs = op.read(&path).await.expect("read file must success");
 
+    // The file content length must equal to size_one + size_two.
     assert_eq!(bs.len(), size_one + size_two);
     assert_eq!(bs[..size_one], content_one);
     assert_eq!(bs[size_one..], content_two);

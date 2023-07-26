@@ -100,7 +100,7 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@v3
         with:
-          name: crash_s3_${{ matrix.fuzz-targets }}_${GITHUB_REF}_${GITHUB_RUN_NUMBER}_${$EPOCHSECONDS}
+          name: crash_s3_${{ matrix.fuzz-targets }}_${{ github.ref }}_${{ github.run_attempt }}_${EPOCHSECONDS}
           path: ./crash*
   fuzz-test-run-fs:
     runs-on: ubuntu-latest
@@ -128,7 +128,7 @@ jobs:
         uses: actions/upload-artifact@v3
         if: ${{ failure() }}
         with:
-          name: crash_fs_${{ matrix.fuzz-targets }}_${GITHUB_REF}_${GITHUB_RUN_NUMBER}_${$EPOCHSECONDS}
+          name: crash_fs_${{ matrix.fuzz-targets }}_${{ github.ref }}_${{ github.run_attempt }}_${EPOCHSECONDS}
           path: ./crash*
   fuzz-test-run-memory:
     runs-on: ubuntu-latest
@@ -155,5 +155,5 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@v3
         with:
-          name: crash_memory_${{ matrix.fuzz-targets }}_${GITHUB_REF}_${GITHUB_RUN_NUMBER}_${$EPOCHSECONDS}
+          name: crash_memory_${{ matrix.fuzz-targets }}_${{ github.ref }}_${{ github.run_attempt }}_${EPOCHSECONDS}
           path: ./crash*

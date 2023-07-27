@@ -37,234 +37,126 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  etcd-cluster:
+  etcd:
     runs-on: ubuntu-latest
+          
+    services:
+        etcd:
+            image: bitnami/etcd:latest
+            ports:
+                - "2379:2379"
+                - "2380:2380"
+            env:
+                ALLOW_NONE_AUTHENTICATION: yes
+                ETCD_NAME: etcd
+                ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+                ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+                ETCD_MAX_REQUEST_BYTES: 10485760
 
     steps:
-      - uses: actions/checkout@v3
+        - uses: actions/checkout@v3
+        - name: Setup Rust toolchain
+          uses: ./.github/actions/setup
+          with:
+            need-protoc: true
+            need-nextest: true
+        - name: Test
+          shell: bash
+          working-directory: core
+          run: cargo nextest run etcd --features services-etcd
+          env:
+            OPENDAL_ETCD_TEST: on
+            OPENDAL_ETCD_ENDPOINTS: http://127.0.0.1:2379
+            OPENDAL_ETCD_ROOT: /tmp/opendal
 
-      - name: Configure Etcd Service
-        # ETCD will use ports: 23790,23791,23792,23800,23801,23802
-        run: |
-            docker network create -d bridge etcd-net
-            docker run -d \
-            -p 23790:2379 \
-            -p 23800:2380 \
-            --network etcd-net \
-            --name etcd1 \
-            -e ALLOW_NONE_AUTHENTICATION=yes \
-            -e ETCD_NAME=etcd1 \
-            -e ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd1:2380 \
-            -e ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380 \
-            -e ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379 \
-            -e ETCD_ADVERTISE_CLIENT_URLS=http://etcd1:2379 \
-            -e ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster \
-            -e ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380 \
-            -e ETCD_INITIAL_CLUSTER_STATE=new \
-            -e ETCD_MAX_REQUEST_BYTES=10485760 \
-            bitnami/etcd:latest
-            
-            docker run -d \
-            -p 23791:2379 \
-            -p 23801:2380 \
-            --network etcd-net \
-            --name etcd2 \
-            -e ALLOW_NONE_AUTHENTICATION=yes \
-            -e ETCD_NAME=etcd2 \
-            -e ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd2:2380 \
-            -e ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380 \
-            -e ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379 \
-            -e ETCD_ADVERTISE_CLIENT_URLS=http://etcd2:2379 \
-            -e ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster \
-            -e ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380 \
-            -e ETCD_INITIAL_CLUSTER_STATE=new \
-            -e ETCD_MAX_REQUEST_BYTES=10485760 \
-            bitnami/etcd:latest
-            
-            docker run -d \
-            -p 23792:2379 \
-            -p 23802:2380 \
-            --network etcd-net \
-            --name etcd3 \
-            -e ALLOW_NONE_AUTHENTICATION=yes \
-            -e ETCD_NAME=etcd3 \
-            -e ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd3:2380 \
-            -e ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380 \
-            -e ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379 \
-            -e ETCD_ADVERTISE_CLIENT_URLS=http://etcd3:2379 \
-            -e ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster \
-            -e ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380 \
-            -e ETCD_INITIAL_CLUSTER_STATE=new \
-            -e ETCD_MAX_REQUEST_BYTES=10485760 \
-            bitnami/etcd:latest
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-protoc: true
-          need-nextest: true
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo nextest run etcd --features services-etcd
-        env:
-          OPENDAL_ETCD_TEST: on
-          OPENDAL_ETCD_ENDPOINTS: http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792
-          OPENDAL_ETCD_ROOT: /tmp/opendal
+  etcd-cluster:
+    runs-on: ubuntu-latest
+        
+    services:
+        etcd1:
+          image: bitnami/etcd:latest
+          ports:
+              - "23790:2379"
+              - "23800:2380"
+          env:
+              ALLOW_NONE_AUTHENTICATION: yes
+              ETCD_NAME: etcd1
+              ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
+              ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+              ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+              ETCD_ADVERTISE_CLIENT_URLS: http://etcd1:2379
+              ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
+              ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+              ETCD_INITIAL_CLUSTER_STATE: new
+              ETCD_MAX_REQUEST_BYTES: 10485760
+        etcd2:
+          image: bitnami/etcd:latest
+          ports:
+              - "23791:2379"
+              - "23801:2380"
+          env:
+              ALLOW_NONE_AUTHENTICATION: yes
+              ETCD_NAME: etcd2
+              ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
+              ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+              ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+              ETCD_ADVERTISE_CLIENT_URLS: http://etcd2:2379
+              ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
+              ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+              ETCD_INITIAL_CLUSTER_STATE: new
+              ETCD_MAX_REQUEST_BYTES: 10485760
+        etcd3:
+          image: bitnami/etcd:latest
+          ports:
+              - "23792:2379"
+              - "23802:2380"
+          env:
+              ALLOW_NONE_AUTHENTICATION: yes
+              ETCD_NAME: etcd3
+              ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
+              ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+              ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+              ETCD_ADVERTISE_CLIENT_URLS: http://etcd3:2379
+              ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
+              ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+              ETCD_INITIAL_CLUSTER_STATE: new
+              ETCD_MAX_REQUEST_BYTES: 10485760
+
+    steps:
+        - uses: actions/checkout@v3
+        - name: Setup Rust toolchain
+          uses: ./.github/actions/setup
+          with:
+            need-protoc: true
+            need-nextest: true
+        - name: Test
+          shell: bash
+          working-directory: core
+          run: cargo nextest run etcd --features services-etcd
+          env:
+            OPENDAL_ETCD_TEST: on
+            OPENDAL_ETCD_ENDPOINTS: http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792
+            OPENDAL_ETCD_ROOT: /tmp/opendal
 
   etcd-cluster-tls:
     runs-on: ubuntu-latest
     steps:
         - uses: actions/checkout@v3
 
+        - name: Copy Etcd Certificate Files
+          shell: bash
+          working-directory: core
+          run: |
+            mkdir -p /tmp/etcd
+            cp -r `pwd`/src/services/etcd/fixtures/* /tmp/etcd
+
         - name: Configure Etcd Service With TLS
           # ETCD will use ports: 23790,23791,23792,23800,23801,23802
           run: |
-            # Install cfssl & cfssljson
-            mkdir ~/bin
-            curl -s -L -o ~/bin/cfssl https://pkg.cfssl.org/R1.2/cfssl_linux-amd64
-            curl -s -L -o ~/bin/cfssljson https://pkg.cfssl.org/R1.2/cfssljson_linux-amd64
-            chmod +x ~/bin/{cfssl,cfssljson}
-
-            # Create ca
-            mkdir -p /etc/etcd/cfssl
-            cd /etc/etcd/cfssl
-            cat > ca-config.json << EOF
-            {
-                "signing": {
-                    "default": {
-                        "expiry": "43800h"
-                    },
-                    "profiles": {
-                        "server": {
-                            "expiry": "43800h",
-                            "usages": ["signing", "key encipherment", "server auth", "client auth"]
-                        },
-                        "client": {
-                            "expiry": "43800h",
-                            "usages": ["signing", "key encipherment", "client auth"]
-                        },
-                        "peer": {
-                            "expiry": "43800h",
-                            "usages": ["signing", "key encipherment", "server auth", "client auth"]
-                        }
-                    }
-                }
-            }
-            EOF
-            cat > ca-csr.json << EOF
-            {
-                "CN": "Etcd-CA",
-                "key": {
-                    "algo": "rsa",
-                    "size": 2048
-                },
-                "names": [
-                    {
-                        "C": "CN",
-                        "L": "SZ",
-                        "ST": "JS",
-                        "O": "Hillstone",
-                        "OU": "Cloud"
-                    }
-                ]
-            }
-            EOF
-            ~/bin/cfssl gencert -initca ca-csr.json | ~/bin/cfssljson -bare ca -
-            
-            # Create server certificate
-            cat > server.json << EOF
-            {
-                "CN": "etcd-ssl-cluster-server",
-                "hosts": [
-                    "176.16.12.1",
-                    "176.16.12.2",
-                    "176.16.12.3",
-                    "176.16.12.4",
-                    "127.0.0.1"
-                ],
-                "key": {
-                    "algo": "ecdsa",
-                    "size": 256
-                },
-                "names": [
-                    {
-                        "C": "CN",
-                        "L": "SZ",
-                        "ST": "JS",
-                        "O": "Hillstone",
-                        "OU": "Cloud"
-                    }
-                ]
-            }
-            EOF
-            ~/bin/cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=server server.json | ~/bin/cfssljson -bare server
-
-            # Create client certificate
-            cat > client.json << EOF
-            {
-                "CN": "etcd-ssl-cluster-client",
-                "hosts": [""],
-                "key": {
-                    "algo": "ecdsa",
-                    "size": 256
-                },
-                "names": [
-                    {
-                        "C": "CN",
-                        "L": "SZ",
-                        "ST": "JS",
-                        "O": "Hillstone",
-                        "OU": "Cloud"
-                    }
-                ]
-            }
-            EOF
-            ~/bin/cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=client client.json | ~/bin/cfssljson -bare client
-
-            # Create point to point certificate
-            for no in `seq 1 3`; do \
-                mkdir etcd${no}
-                cd etcd${no}
-                cat > etcd.json << EOF
-            {
-                "CN": "etcd-ssl-cluster-node${no}",
-                "hosts": [
-                    "176.16.12.1",
-                    "176.16.12.2",
-                    "176.16.12.3",
-                    "176.16.12.4",
-                    "127.0.0.1",
-                    "etcd${no}"
-                ],
-                "key": {
-                    "algo": "ecdsa",
-                    "size": 256
-                },
-                "names": [
-                    {
-                        "C": "CN",
-                        "L": "SZ",
-                        "ST": "JS",
-                        "O": "Hillstone",
-                        "OU": "Cloud"
-                    }
-                ]
-            }
-            EOF
-                cp ../ca* .
-                cp ../client* .
-                cp ../server* .    
-                ~/bin/cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=peer etcd.json | ~/bin/cfssljson -bare etcd
-                cd ..
-            done
-
-            # allow the etcd docker to read these files
-            chmod 777 /etc/etcd/cfssl/* /etc/etcd/cfssl/etcd1/* /etc/etcd/cfssl/etcd2/* /etc/etcd/cfssl/etcd3/*
-
             # Create docker network
             docker network create -d bridge --subnet=176.16.12.0/24 --gateway=176.16.12.1 etcd-tls-net
 
-            # Launch etcd services
+            # Launch etcd
             for no in `seq 0 2`; do \
                 num=$((no+1))
                 ip=$((no+2))
@@ -275,13 +167,13 @@ jobs:
                 --network etcd-tls-net \
                 --name etcd-tls-${num} \
                 --ip 176.16.12.${ip} \
-                -v /etc/etcd/cfssl/etcd${num}/ca.pem:/opt/bitnami/etcd/conf/ca.pem \
-                -v /etc/etcd/cfssl/etcd${num}/etcd.pem:/opt/bitnami/etcd/conf/peer.pem \
-                -v /etc/etcd/cfssl/etcd${num}/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem \
-                -v /etc/etcd/cfssl/etcd${num}/server.pem:/opt/bitnami/etcd/conf/server.pem \
-                -v /etc/etcd/cfssl/etcd${num}/server-key.pem:/opt/bitnami/etcd/conf/server-key.pem \
-                -v /etc/etcd/cfssl/etcd${num}/client-key.pem:/opt/bitnami/etcd/client-key.pem \
-                -v /etc/etcd/cfssl/etcd${num}/client.pem:/opt/bitnami/etcd/client.pem \
+                -v /tmp/etcd/ca.pem:/opt/bitnami/etcd/conf/ca.pem \
+                -v /tmp/etcd/server.pem:/opt/bitnami/etcd/conf/server.pem \
+                -v /tmp/etcd/server-key.pem:/opt/bitnami/etcd/conf/server-key.pem \
+                -v /tmp/etcd/client-key.pem:/opt/bitnami/etcd/client-key.pem \
+                -v /tmp/etcd/client.pem:/opt/bitnami/etcd/client.pem \
+                -v /tmp/etcd/etcd${num}/etcd.pem:/opt/bitnami/etcd/conf/peer.pem \
+                -v /tmp/etcd/etcd${num}/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem \
                 -e ETCD_ROOT_PASSWORD=opendal \
                 -e ETCD_CLIENT_CERT_AUTH=true \
                 -e ETCD_PEER_CLIENT_CERT_AUTH=true \
@@ -302,6 +194,7 @@ jobs:
                 -e ETCD_PEER_CERT_FILE=/opt/bitnami/etcd/conf/peer.pem \
                 bitnami/etcd:latest
             done
+
         - name: Setup Rust toolchain
           uses: ./.github/actions/setup
           with:
@@ -317,6 +210,6 @@ jobs:
             OPENDAL_ETCD_ROOT: /tmp/opendal
             OPENDAL_ETCD_USERNAME: root
             OPENDAL_ETCD_PASSWORD: opendal
-            OPENDAL_ETCD_CA_PATH: /etc/etcd/cfssl/ca.pem
-            OPENDAL_ETCD_CERT_PATH: /etc/etcd/cfssl/client.pem
-            OPENDAL_ETCD_KEY_PATH: /etc/etcd/cfssl/client-key.pem
+            OPENDAL_ETCD_CA_PATH: /tmp/etcd/ca.pem
+            OPENDAL_ETCD_CERT_PATH: /tmp/etcd/client.pem
+            OPENDAL_ETCD_KEY_PATH: /tmp/etcd/client-key.pem

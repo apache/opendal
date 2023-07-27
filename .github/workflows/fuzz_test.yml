@@ -62,7 +62,9 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: fuzz_targets
-          path: ./target/x86_64-unknown-linux-gnu/release/fuzz_*
+          path: |
+            ./target/x86_64-unknown-linux-gnu/release/fuzz_reader
+            ./target/x86_64-unknown-linux-gnu/release/fuzz_writer
 
   fuzz-test-s3:
     runs-on: ubuntu-latest

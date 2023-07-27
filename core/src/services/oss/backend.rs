@@ -386,7 +386,7 @@ pub struct OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = OssWriter;
+    type Writer = oio::MultipartUploadWriter<OssWriter>;
     type BlockingWriter = ();
     type Appender = OssAppender;
     type Pager = OssPager;
@@ -412,6 +412,7 @@ impl Accessor for OssBackend {
                 write_can_sink: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
+                write_with_content_disposition: true,
                 write_without_content_length: true,
                 delete: true,
                 create_dir: true,

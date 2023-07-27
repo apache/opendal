@@ -489,25 +489,11 @@ impl OssCore {
     pub async fn oss_initiate_upload(
         &self,
         path: &str,
-        args: &OpWrite,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let cache_control = args.cache_control();
-        let req = self
-            .oss_initiate_upload_request(path, None, None, cache_control, AsyncBody::Empty, false)
-            .await?;
-        self.send(req).await
-    }
-
-    /// Creates a request that initiates multipart upload
-    async fn oss_initiate_upload_request(
-        &self,
-        path: &str,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
-        body: AsyncBody,
         is_presign: bool,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let path = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
@@ -522,9 +508,11 @@ impl OssCore {
             req = req.header(CACHE_CONTROL, cache_control);
         }
         req = self.insert_sse_headers(req);
-        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        Ok(req)
+        self.send(req).await
     }
 
     /// Creates a request to upload a part
@@ -534,9 +522,9 @@ impl OssCore {
         upload_id: &str,
         part_number: usize,
         is_presign: bool,
-        size: Option<u64>,
+        size: u64,
         body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
 
@@ -549,13 +537,10 @@ impl OssCore {
         );
 
         let mut req = Request::put(&url);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size);
-        }
+        req = req.header(CONTENT_LENGTH, size);
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        Ok(req)
+        self.send(req).await
     }
 
     pub async fn oss_complete_multipart_upload_request(
@@ -563,7 +548,7 @@ impl OssCore {
         path: &str,
         upload_id: &str,
         is_presign: bool,
-        parts: &[MultipartUploadPart],
+        parts: Vec<MultipartUploadPart>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
@@ -589,6 +574,29 @@ impl OssCore {
             .body(AsyncBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    /// Abort an on-going multipart upload.
+    /// reference docs https://www.alibabacloud.com/help/zh/oss/developer-reference/abortmultipartupload
+    pub async fn oss_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }

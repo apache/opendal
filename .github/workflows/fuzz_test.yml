@@ -56,7 +56,7 @@ jobs:
         working-directory: core/fuzz
         run: cargo +nightly fuzz build
         env:
-          CUSTOM_LIBFUZZER_PATH: /usr/lib/llvm-14/lib
+          CUSTOM_LIBFUZZER_PATH: /usr/lib/llvm-14/lib/libFuzzer.a
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3

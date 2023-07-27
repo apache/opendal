@@ -17,17 +17,16 @@
 
 use std::env;
 
-use opendal::services;
-use opendal::Builder;
 use opendal::Operator;
+use opendal::Scheme;
 
-fn service<B: Builder>() -> Option<Operator> {
-    let test_key = format!("opendal_{}_test", B::SCHEME).to_uppercase();
+fn service(scheme: Scheme) -> Option<Operator> {
+    let test_key = format!("opendal_{}_test", scheme).to_uppercase();
     if env::var(test_key).unwrap_or_default() != "on" {
         return None;
     }
 
-    let prefix = format!("opendal_{}_", B::SCHEME);
+    let prefix = format!("opendal_{}_", scheme);
     let envs = env::vars()
         .filter_map(move |(k, v)| {
             k.to_lowercase()
@@ -36,17 +35,15 @@ fn service<B: Builder>() -> Option<Operator> {
         })
         .collect();
 
-    Some(
-        Operator::from_map::<B>(envs)
-            .unwrap_or_else(|_| panic!("init {} must succeed", B::SCHEME))
-            .finish(),
-    )
+    Some(Operator::via_map(scheme, envs).unwrap_or_else(|_| panic!("init {} must succeed", scheme)))
 }
 
-pub fn init_services() -> Vec<(&'static str, Option<Operator>)> {
-    vec![
-        ("fs", service::<services::Fs>()),
-        ("memory", service::<services::Memory>()),
-        ("s3", service::<services::S3>()),
-    ]
+pub fn init_services() -> Vec<Operator> {
+    let ops = vec![
+        service(Scheme::Memory),
+        service(Scheme::Fs),
+        service(Scheme::S3),
+    ];
+
+    ops.into_iter().flatten().collect()
 }

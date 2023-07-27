@@ -24,7 +24,6 @@ use etcd_client::Certificate;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
 use etcd_client::Error as EtcdError;
-use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;

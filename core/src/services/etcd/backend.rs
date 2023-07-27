@@ -24,7 +24,6 @@ use etcd_client::Certificate;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
 use etcd_client::Error as EtcdError;
-use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
@@ -272,7 +271,6 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 create_dir: true,
-                list: true,
 
                 ..Default::default()
             },
@@ -302,22 +300,6 @@ impl kv::Adapter for Adapter {
         let mut client = self.conn().await?;
         let _ = client.delete(p, None).await?;
         Ok(())
-    }
-
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        let p = build_rooted_abs_path(&self.root, path);
-        let mut client = self.conn().await?;
-        let get_options = Some(GetOptions::new().with_prefix().with_keys_only());
-        let resp = client.get(p, get_options).await?;
-        let mut res = Vec::default();
-        for kv in resp.kvs() {
-            res.push(kv.key_str().map(String::from).map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
-                    .set_source(err)
-            })?);
-        }
-
-        Ok(res)
     }
 }
 

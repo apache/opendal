@@ -3194,6 +3194,7 @@ dependencies = [
  "dotenvy",
  "libfuzzer-sys",
  "opendal",
+ "rand 0.8.5",
  "sha2",
  "tokio",
  "uuid",

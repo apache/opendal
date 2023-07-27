@@ -75,7 +75,7 @@ impl Arbitrary<'_> for FuzzInput {
         };
         let range = BytesRange::new(offset, size);
 
-        let count = u.int_in_range(128..=1024)?;
+        let count = u.int_in_range(1..=1024)?;
         let mut actions = vec![];
 
         for _ in 0..count {
@@ -118,8 +118,6 @@ impl Arbitrary<'_> for FuzzInput {
 }
 
 struct ReadChecker {
-    size: usize,
-
     /// Raw Data is the data we write to the storage.
     raw_data: Bytes,
     /// Ranged Data is the data that we read from the storage.
@@ -138,7 +136,6 @@ impl ReadChecker {
         let ranged_data = range.apply_on_bytes(raw_data.clone());
 
         Self {
-            size,
             raw_data,
             ranged_data,
 
@@ -172,7 +169,7 @@ impl ReadChecker {
     fn check_seek(&mut self, seek_from: SeekFrom, output: Result<u64>) {
         let expected = match seek_from {
             SeekFrom::Start(offset) => offset as i64,
-            SeekFrom::End(offset) => self.size as i64 + offset,
+            SeekFrom::End(offset) => self.ranged_data.len() as i64 + offset,
             SeekFrom::Current(offset) => self.cur as i64 + offset,
         };
 
@@ -200,7 +197,7 @@ impl ReadChecker {
     fn check_next(&mut self, output: Option<Bytes>) {
         if let Some(output) = output {
             assert!(
-                self.cur + output.len() <= self.size,
+                self.cur + output.len() <= self.ranged_data.len(),
                 "check next failed: output bs is larger than remaining bs",
             );
 
@@ -217,7 +214,7 @@ impl ReadChecker {
             self.cur += output.len();
         } else {
             assert!(
-                self.cur >= self.size,
+                self.cur >= self.ranged_data.len(),
                 "check next failed: output bs is None, we still have bytes to read",
             )
         }

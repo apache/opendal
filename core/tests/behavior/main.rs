@@ -24,6 +24,7 @@ pub use utils::*;
 // Async test cases
 mod append;
 mod copy;
+mod fuzz;
 mod list;
 mod list_only;
 mod presign;
@@ -32,6 +33,7 @@ mod rename;
 mod write;
 use append::behavior_append_tests;
 use copy::behavior_copy_tests;
+use fuzz::behavior_fuzz_tests;
 use list::behavior_list_tests;
 use list_only::behavior_list_only_tests;
 use presign::behavior_presign_tests;
@@ -45,6 +47,7 @@ mod blocking_list;
 mod blocking_read_only;
 mod blocking_rename;
 mod blocking_write;
+
 use blocking_copy::behavior_blocking_copy_tests;
 use blocking_list::behavior_blocking_list_tests;
 use blocking_read_only::behavior_blocking_read_only_tests;
@@ -84,6 +87,7 @@ fn behavior_test<B: Builder>() -> Vec<Trial> {
     trials.extend(behavior_read_only_tests(&operator));
     trials.extend(behavior_rename_tests(&operator));
     trials.extend(behavior_write_tests(&operator));
+    trials.extend(behavior_fuzz_tests(&operator));
 
     trials
 }

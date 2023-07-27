@@ -20,7 +20,7 @@ use std::{io, vec};
 
 use anyhow::Result;
 use futures::AsyncSeekExt;
-use log::{debug};
+use log::debug;
 
 use crate::*;
 

@@ -120,7 +120,11 @@ impl Arbitrary<'_> for FuzzInput {
 struct ReadChecker {
     size: usize,
 
-    data: Bytes,
+    /// Raw Data is the data we write to the storage.
+    raw_data: Bytes,
+    /// Ranged Data is the data that we read from the storage.
+    ranged_data: Bytes,
+
     cur: usize,
 }
 
@@ -130,9 +134,16 @@ impl ReadChecker {
         let mut data = vec![0; size];
         rng.fill_bytes(&mut data);
 
-        let data = range.apply_on_bytes(Bytes::from(data));
+        let raw_data = Bytes::from(data);
+        let ranged_data = range.apply_on_bytes(raw_data.clone());
 
-        Self { size, data, cur: 0 }
+        Self {
+            size,
+            raw_data,
+            ranged_data,
+
+            cur: 0,
+        }
     }
 
     fn check_read(&mut self, n: usize, output: &[u8]) {
@@ -145,7 +156,7 @@ impl ReadChecker {
             return;
         }
 
-        let expected = &self.data[self.cur..self.cur + n];
+        let expected = &self.ranged_data[self.cur..self.cur + n];
 
         // Check the read result
         assert_eq!(
@@ -197,7 +208,7 @@ impl ReadChecker {
                 format!("{:x}", Sha256::digest(&output)),
                 format!(
                     "{:x}",
-                    Sha256::digest(&self.data[self.cur..self.cur + output.len()])
+                    Sha256::digest(&self.ranged_data[self.cur..self.cur + output.len()])
                 ),
                 "check next failed: output bs is different with expected bs",
             );
@@ -217,7 +228,7 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let mut checker = ReadChecker::new(input.size, input.range);
-    op.write(&path, checker.data.clone()).await?;
+    op.write(&path, checker.raw_data.clone()).await?;
 
     let mut o = op.range_reader(&path, input.range.to_range()).await?;
 

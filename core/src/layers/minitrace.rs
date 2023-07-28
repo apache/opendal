@@ -103,14 +103,13 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```ignore
+/// ```no_run
 /// extern crate minitrace_jaeger;
 ///
-/// let spans = block_on(collector.collect());
-///
-/// let bytes =
-///     minitrace_jaeger::encode("opendal".to_owned(), rand::random(), 0, 0, &spans).unwrap();
-/// minitrace_jaeger::report_blocking("127.0.0.1:6831".parse().unwrap(), &bytes).expect("report error");
+/// let reporter =
+///     minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
+///         .unwrap();
+/// minitrace::set_reporter(reporter, Config::default());
 /// ```
 ///
 /// For real-world usage, please take a look at [`minitrace-datadog`](https://crates.io/crates/minitrace-datadog) or [`minitrace-jaeger`](https://crates.io/crates/minitrace-jaeger) .

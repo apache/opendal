@@ -1,0 +1,21 @@
+{
+    "authors": [
+        {
+            "name": "Godruoyi",
+            "email": "godruoyi@gmail.com"
+        }
+    ],
+    "require-dev": {
+        "php": ">=8.1",
+        "pestphp/pest": "^2.9"
+    },
+    "license": "Apache-2.0",
+    "scripts": {
+        "test": "vendor/bin/pest"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": false
+        }
+    }
+}

@@ -148,7 +148,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.info()
     }
 
-    #[trace("create", enter_on_poll = true)]
+    #[trace(name = "create", enter_on_poll = true)]
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.create_dir(path, args).await
     }

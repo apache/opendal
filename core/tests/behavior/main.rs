@@ -109,6 +109,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Dashmap>());
     #[cfg(feature = "services-etcd")]
     tests.extend(behavior_test::<services::Etcd>());
+    #[cfg(feature = "services-foundationdb")]
+    tests.extend(behavior_test::<services::Foundationdb>());
     #[cfg(feature = "services-fs")]
     tests.extend(behavior_test::<services::Fs>());
     #[cfg(feature = "services-ftp")]

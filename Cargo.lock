@@ -1238,6 +1238,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaa37046cc0f6c3cc6090fbdbf73ef0b8ef4cfcc37f6befc0020f63e8cf121e1"
 
 [[package]]
+name = "defer"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "647605a6345d5e89c3950a36a638c56478af9b414c55c6f2477c73b115f9acde"
+
+[[package]]
 name = "der"
 version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2688,23 +2694,25 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "minitrace"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "317e28b8c337ada2fd437611c241ce053d5b7f5480b79e945597996b87b1de96"
+checksum = "5bdc5c5a697f93f25a109f36988a60ce534c05b944afb8ef3c1498e131638133"
 dependencies = [
+ "defer",
  "futures",
  "minitrace-macro",
  "minstant",
  "once_cell",
  "parking_lot 0.12.1",
  "pin-project",
+ "rand 0.8.5",
 ]
 
 [[package]]
 name = "minitrace-macro"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77814d165883613a1846517efdc50b88fabd9c210b7ff4d3745b38b99d539652"
+checksum = "f2277f13e7d585f02062590b3496cc0ca862aefadd24888efa01d50843605b79"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",

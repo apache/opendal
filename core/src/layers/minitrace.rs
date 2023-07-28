@@ -57,13 +57,20 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use futures::executor::block_on;
+/// use minitrace::collector::Config;
+/// use minitrace::prelude::*;
 /// use opendal::layers::MinitraceLayer;
 /// use opendal::services;
 /// use opendal::Operator;
 ///
 /// fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-///     let collector = {
-///         let (span, collector) = minitrace::Span::root("op");
+///     let reporter =
+///         minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
+///             .unwrap();
+///     minitrace::set_reporter(reporter, Config::default());
+///
+///     {
+///         let root = Span::root("op", SpanContext::random());
 ///         let runtime = tokio::runtime::Runtime::new()?;
 ///         runtime.block_on(
 ///             async {
@@ -78,15 +85,12 @@ use crate::*;
 ///                 op.stat("test").await.expect("must succeed");
 ///                 op.read("test").await.expect("must succeed");
 ///             }
-///             .in_span(Span::enter_with_parent("test", &span)),
+///             .in_span(Span::enter_with_parent("test", &root)),
 ///         );
-///         collector
-///     };
-///     let spans = block_on(collector.collect());
-///     let bytes =
-///         minitrace_jaeger::encode("opendal".to_owned(), rand::random(), 0, 0, &spans).unwrap();
-///     minitrace_jaeger::report_blocking("127.0.0.1:6831".parse().unwrap(), &bytes)
-///         .expect("report error");
+///     }
+///
+///     minitrace::flush();
+///
 ///     Ok(())
 /// }
 /// ```
@@ -99,14 +103,13 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```ignore
+/// ```no_run
 /// extern crate minitrace_jaeger;
 ///
-/// let spans = block_on(collector.collect());
-///
-/// let bytes =
-///     minitrace_jaeger::encode("opendal".to_owned(), rand::random(), 0, 0, &spans).unwrap();
-/// minitrace_jaeger::report_blocking("127.0.0.1:6831".parse().unwrap(), &bytes).expect("report error");
+/// let reporter =
+///     minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")
+///         .unwrap();
+/// minitrace::set_reporter(reporter, Config::default());
 /// ```
 ///
 /// For real-world usage, please take a look at [`minitrace-datadog`](https://crates.io/crates/minitrace-datadog) or [`minitrace-jaeger`](https://crates.io/crates/minitrace-jaeger) .
@@ -145,7 +148,7 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
         self.inner.info()
     }
 
-    #[trace("create", enter_on_poll = true)]
+    #[trace(name = "create", enter_on_poll = true)]
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
         self.inner.create_dir(path, args).await
     }

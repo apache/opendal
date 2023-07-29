@@ -75,7 +75,7 @@ use crate::*;
 ///         runtime.block_on(
 ///             async {
 ///                 let _ = dotenvy::dotenv();
-///                 let op = Operator::from_env::<services::Memory>()
+///                 let op = Operator::new(services::Memory::default())
 ///                     .expect("init operator must succeed")
 ///                     .layer(MinitraceLayer)
 ///                     .finish();
@@ -105,6 +105,8 @@ use crate::*;
 ///
 /// ```no_run
 /// extern crate minitrace_jaeger;
+///
+/// use minitrace::collector::Config;
 ///
 /// let reporter =
 ///     minitrace_jaeger::JaegerReporter::new("127.0.0.1:6831".parse().unwrap(), "opendal")

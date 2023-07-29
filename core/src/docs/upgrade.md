@@ -1,3 +1,7 @@
+# Upgrade to v0.39
+
+There are no public API changes.
+
 # Upgrade to v0.38
 
 There are no public API changes.

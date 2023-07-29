@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.39.0] - 2023-07-29
+
+### Added
+* feat: add a behaviour test for InvalidInput by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2644
+* feat(services/persy): add a basic persy service impl by @PsiACE in https://github.com/apache/incubator-opendal/pull/2648
+* feat(services/vercel_artifacts): Impl `stat` by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2649
+* feat(test): add fuzz test for range_reader by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2609
+* feat(core/http_util): Remove sensitive header like Set-Cookie by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2664
+* feat: Add RetryInterceptor support for RetryLayer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2666
+* feat: support kerberos for hdfs service by @zuston in https://github.com/apache/incubator-opendal/pull/2668
+* feat: support append for hdfs by @zuston in https://github.com/apache/incubator-opendal/pull/2671
+* feat(s3): Use us-east-1 while head bucket returns 403 without X-Amz-Bucket-Region by @john8628 in https://github.com/apache/incubator-opendal/pull/2677
+* feat(oay): Add webdav basic read impl by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2658
+* feat(services/redis): enable TLS by @Stormshield-robinc in https://github.com/apache/incubator-opendal/pull/2670
+* feat(services/etcd): introduce new service backend etcd by @G-XD in https://github.com/apache/incubator-opendal/pull/2672
+* feat(service/obs):add multipart upload function support by @A-Stupid-Sun in https://github.com/apache/incubator-opendal/pull/2685
+* feat(services/s3): Add assume role support by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2687
+* feat(services/tikv): introduce new service backend tikv by @oowl in https://github.com/apache/incubator-opendal/pull/2565
+* feat(service/cos): add multipart upload function support by @ArmandoZ in https://github.com/apache/incubator-opendal/pull/2697
+* feat(oio): Add MultipartUploadWrite to easier the work for Writer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2699
+* feat(test): add fuzz target for writer by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2706
+* feat: cos multipart uploads write by @parkma99 in https://github.com/apache/incubator-opendal/pull/2712
+* feat(layers): support await_tree instrument by @oowl in https://github.com/apache/incubator-opendal/pull/2623
+* feat(tests): Extract fuzz test of #2717 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2720
+* feat: oss multipart uploads write by @parkma99 in https://github.com/apache/incubator-opendal/pull/2723
+### Changed
+* refactor(services/redis): Polish features of redis by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2681
+* refactor(services/s3): Check header first for region detect by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2691
+* refactor(raw/oio): Reorganize to allow adding more features by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2698
+* refactor: Polish fuzz build time by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2721
+### Fixed
+* fix(services/cos): fix cos service comments by @A-Stupid-Sun in https://github.com/apache/incubator-opendal/pull/2656
+* fix(test): profile setting warning by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2657
+* fix(bindings/C): fix the memory found in valgrind. by @Ji-Xinyou in https://github.com/apache/incubator-opendal/pull/2673
+* fix: owncloud test sometimes fail by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2684
+* fix(services/obs): remove content-length check in backend by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2686
+* fix: fix `HADOOP_CONF_DIR` setting in guidance document by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/2713
+* fix: Seek before the start of file should be invalid by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2718
+### Docs
+* docs: add instructions to fix wrong vote mail and uploads by @ClSlaid in https://github.com/apache/incubator-opendal/pull/2682
+* doc(services/tikv): add tikv service backend to readme by @oowl in https://github.com/apache/incubator-opendal/pull/2711
+### CI
+* ci(services/webdav): Setup integration test for owncloud by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2659
+* ci: Fix unexpected error in owncloud by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2663
+* ci: upgrade hawkeye action by @tisonkun in https://github.com/apache/incubator-opendal/pull/2665
+* ci: Make owncloud happy by reduce the concurrency by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2667
+* ci: Setup protoc in rust builder by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2674
+* ci: Fix Cargo.lock not updated by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2680
+* ci: Add services fuzz test for read/write/range_read by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2710
+### Chore
+* chore: Update CODEOWNERS by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2676
+* chore(bindings/python): upgrade pyo3 to 0.19 by @messense in https://github.com/apache/incubator-opendal/pull/2694
+* chore: upgrade quick-xml to 0.29 by @messense in https://github.com/apache/incubator-opendal/pull/2696
+* chore(download): update version 0.38.1 by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2714
+* chore(service/minitrace): update to v0.5.0 by @andylokandy in https://github.com/apache/incubator-opendal/pull/2725
+
 ## [v0.38.1] - 2023-07-14
 
 ### Added

@@ -48,7 +48,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/incubator-opendal"
 rust-version = "1.65"
-version = "0.38.1"
+version = "0.39.0"
 
 [workspace.dependencies]
-opendal = { version = "0.38", path = "core" }
+opendal = { version = "0.39", path = "core" }

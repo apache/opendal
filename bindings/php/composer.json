@@ -1,8 +1,8 @@
 {
     "authors": [
         {
-            "name": "Godruoyi",
-            "email": "godruoyi@gmail.com"
+            "name": "OpenDAL Contributors",
+            "email": "dev@opendal.apache.org"
         }
     ],
     "require-dev": {

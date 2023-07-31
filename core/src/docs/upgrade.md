@@ -1,6 +1,22 @@
 # Upgrade to v0.39
 
-There are no public API changes.
+## Public API
+
+### Service S3 Role Arn Behavior
+
+In PR #2687, OpenDAL changed the behavior when `role_arn` has been specified.
+
+OpenDAL used to override role_arn simply. But since this version, OpenDAL will make sure to use assume_role with specified `role_arn` and `external_id` (if supplied).
+
+### RetryLayer supports RetryInterceptor
+
+In PR #2666, `RetryLayer` supports `RetryInterceptor`. To implement this change, `RetryLayer` changed it's in-memory layout by adding a new generic parameter `I` to `RetryLayer<I>`.
+
+Users who stores `RetryLayer` in struct or enum will need to change the type if they don't want to use default behavior.
+
+## Raw API
+
+In PR #2698, OpenDAL re-org the internal structure of `opendal::raw::oio` and changed some APIs name.
 
 # Upgrade to v0.38
 

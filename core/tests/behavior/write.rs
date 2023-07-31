@@ -75,6 +75,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_read_with_special_chars,
         test_read_with_override_cache_control,
         test_read_with_override_content_disposition,
+        test_read_with_override_content_type,
         test_delete_file,
         test_delete_empty_dir,
         test_delete_with_special_chars,
@@ -919,6 +920,54 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
             .to_str()
             .expect("content-disposition header must be string"),
         target_content_disposition
+    );
+    assert_eq!(resp.bytes().await?, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+
+    Ok(())
+}
+
+/// Read file with override_content_type should succeed.
+pub async fn test_read_with_override_content_type(op: Operator) -> Result<()> {
+    if !(op.info().capability().read_with_override_content_type && op.info().can_presign()) {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes();
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_content_type = "application/opendal";
+
+    let signed_req = op
+        .presign_read_with(&path, Duration::from_secs(60))
+        .override_content_type(target_content_type)
+        .await
+        .expect("presign must succeed");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send must succeed");
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(http::header::CONTENT_TYPE)
+            .expect("content-type header must exist")
+            .to_str()
+            .expect("content-type header must be string"),
+        target_content_type
     );
     assert_eq!(resp.bytes().await?, content);
 

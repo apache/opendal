@@ -242,6 +242,7 @@ pub struct OpRead {
     br: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
+    override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
     version: Option<String>,
@@ -285,6 +286,17 @@ impl OpRead {
     /// Returns the cache-control header that should be send back by the remote read operation.
     pub fn override_cache_control(&self) -> Option<&str> {
         self.override_cache_control.as_deref()
+    }
+
+    /// Sets the content-type header that should be send back by the remote read operation.
+    pub fn with_override_content_type(mut self, content_type: &str) -> Self {
+        self.override_content_type = Some(content_type.into());
+        self
+    }
+
+    /// Returns the content-type header that should be send back by the remote read operation.
+    pub fn override_content_type(&self) -> Option<&str> {
+        self.override_content_type.as_deref()
     }
 
     /// Set the If-Match of the option

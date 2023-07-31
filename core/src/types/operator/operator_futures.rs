@@ -251,6 +251,14 @@ impl FuturePresignRead {
         self
     }
 
+    /// Sets the content-type header that should be send back by the remote read operation.
+    pub fn override_content_type(mut self, v: &str) -> Self {
+        self.0 = self
+            .0
+            .map_args(|(args, dur)| (args.with_override_content_type(v), dur));
+        self
+    }
+
     /// Set the If-Match of the option
     pub fn if_match(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|(args, dur)| (args.with_if_match(v), dur));
@@ -352,6 +360,14 @@ impl FutureRead {
         self
     }
 
+    /// Sets the content-type header that should be send back by the remote read operation.
+    pub fn override_content_type(mut self, content_type: &str) -> Self {
+        self.0 = self
+            .0
+            .map_args(|args| args.with_override_content_type(content_type));
+        self
+    }
+
     /// Set the If-Match for this operation.
     pub fn if_match(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_if_match(v));
@@ -404,6 +420,14 @@ impl FutureReader {
         self.0 = self
             .0
             .map_args(|args| args.with_override_cache_control(cache_control));
+        self
+    }
+
+    /// Sets the content-type header that should be send back by the remote read operation.
+    pub fn override_content_type(mut self, content_type: &str) -> Self {
+        self.0 = self
+            .0
+            .map_args(|args| args.with_override_content_type(content_type));
         self
     }
 

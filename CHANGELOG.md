@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(layers): support await_tree instrument by @oowl in https://github.com/apache/incubator-opendal/pull/2623
 * feat(tests): Extract fuzz test of #2717 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2720
 * feat: oss multipart uploads write by @parkma99 in https://github.com/apache/incubator-opendal/pull/2723
+* feat: add override_content_type by @G-XD in https://github.com/apache/incubator-opendal/pull/2734
 ### Changed
 * refactor(services/redis): Polish features of redis by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2681
 * refactor(services/s3): Check header first for region detect by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2691
@@ -43,9 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(services/obs): remove content-length check in backend by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2686
 * fix: fix `HADOOP_CONF_DIR` setting in guidance document by @wcy-fdu in https://github.com/apache/incubator-opendal/pull/2713
 * fix: Seek before the start of file should be invalid by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2718
+* fix(layer/minitrace): fix doctest by @andylokandy in https://github.com/apache/incubator-opendal/pull/2728
 ### Docs
 * docs: add instructions to fix wrong vote mail and uploads by @ClSlaid in https://github.com/apache/incubator-opendal/pull/2682
 * doc(services/tikv): add tikv service backend to readme by @oowl in https://github.com/apache/incubator-opendal/pull/2711
+* docs(bindings/java): improve safety doc for get_current_env by @tisonkun in https://github.com/apache/incubator-opendal/pull/2733
 ### CI
 * ci(services/webdav): Setup integration test for owncloud by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2659
 * ci: Fix unexpected error in owncloud by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2663
@@ -60,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore: upgrade quick-xml to 0.29 by @messense in https://github.com/apache/incubator-opendal/pull/2696
 * chore(download): update version 0.38.1 by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2714
 * chore(service/minitrace): update to v0.5.0 by @andylokandy in https://github.com/apache/incubator-opendal/pull/2725
+
 
 ## [v0.38.1] - 2023-07-14
 

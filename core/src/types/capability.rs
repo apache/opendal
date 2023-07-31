@@ -71,6 +71,8 @@ pub struct Capability {
     pub read_with_override_cache_control: bool,
     /// if operator supports read with override content disposition natively, it will be true.
     pub read_with_override_content_disposition: bool,
+    /// if operator supports read with override content type natively, it will be true.
+    pub read_with_override_content_type: bool,
 
     /// If operator supports write natively, it will be true.
     pub write: bool,

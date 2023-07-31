@@ -921,6 +921,7 @@ impl Accessor for S3Backend {
                 read_with_if_none_match: true,
                 read_with_override_cache_control: true,
                 read_with_override_content_disposition: true,
+                read_with_override_content_type: true,
 
                 write: true,
                 write_can_sink: true,
@@ -980,6 +981,7 @@ impl Accessor for S3Backend {
                 args.if_none_match(),
                 args.if_match(),
                 args.override_content_disposition(),
+                args.override_content_type(),
             )
             .await?;
 
@@ -1075,6 +1077,7 @@ impl Accessor for S3Backend {
                 path,
                 v.range(),
                 v.override_content_disposition(),
+                v.override_content_type(),
                 v.override_cache_control(),
                 v.if_none_match(),
                 v.if_match(),

@@ -63,6 +63,7 @@ mod constants {
         "x-amz-copy-source-server-side-encryption-customer-key-md5";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+    pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
@@ -243,6 +244,7 @@ impl S3Core {
         path: &str,
         range: BytesRange,
         override_content_disposition: Option<&str>,
+        override_content_type: Option<&str>,
         override_cache_control: Option<&str>,
         if_none_match: Option<&str>,
         if_match: Option<&str>,
@@ -259,6 +261,13 @@ impl S3Core {
                 "{}={}",
                 constants::RESPONSE_CONTENT_DISPOSITION,
                 percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = override_content_type {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
             ))
         }
         if let Some(override_cache_control) = override_cache_control {
@@ -303,11 +312,13 @@ impl S3Core {
         if_none_match: Option<&str>,
         if_match: Option<&str>,
         override_content_disposition: Option<&str>,
+        override_content_type: Option<&str>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.s3_get_object_request(
             path,
             range,
             override_content_disposition,
+            override_content_type,
             None,
             if_none_match,
             if_match,

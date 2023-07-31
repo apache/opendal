@@ -44,7 +44,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    unit_tests.addIncludePath("../c/include");
+    unit_tests.addIncludePath(.{ .path = "../c/include" });
     unit_tests.addModule("opendal", module(b));
     if (optimize == .Debug) {
         unit_tests.addLibraryPath("../../target/debug");

@@ -212,18 +212,3 @@ impl kv::Adapter for ZkAdapter {
         }
     }
 }
-
-#[test]
-fn test_get() {
-
-}
-
-#[test]
-fn test_set() {
-
-}
-
-#[test]
-fn test_delete() {
-
-}

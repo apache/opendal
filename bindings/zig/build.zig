@@ -44,12 +44,12 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    unit_tests.addIncludePath("../c/include");
+    unit_tests.addIncludePath(.{ .path = "../c/include" });
     unit_tests.addModule("opendal", module(b));
     if (optimize == .Debug) {
-        unit_tests.addLibraryPath("../../target/debug");
+        unit_tests.addLibraryPath(.{ .path = "../../target/debug" });
     } else {
-        unit_tests.addLibraryPath("../../target/release");
+        unit_tests.addLibraryPath(.{ .path = "../../target/release" });
     }
     unit_tests.linkSystemLibrary("opendal_c");
     unit_tests.linkLibCpp();

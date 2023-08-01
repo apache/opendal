@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cell::OnceCell;
 use std::collections::HashMap;
 use zookeeper_client as zk;
 
 use crate::raw::adapters::kv;
 use crate::Scheme;
 use async_trait::async_trait;
+use tokio::sync::OnceCell;
 
 use crate::Builder;
 use crate::Error;
@@ -106,7 +106,7 @@ impl Builder for ZookeeperBuilder {
             Some(endpoint) => endpoint,
         };
 
-        Ok(Backend::new(ZkAdapter {
+        Ok(ZookeeperBackend::new(ZkAdapter {
             endpoint: endpoint.to_string(),
             user: self.user.clone(),
             password: self.password.clone(),
@@ -115,7 +115,7 @@ impl Builder for ZookeeperBuilder {
     }
 }
 
-pub type Backend = kv::Backend<ZkAdapter>;
+pub type ZookeeperBackend = kv::Backend<ZkAdapter>;
 
 #[derive(Clone)]
 pub struct ZkAdapter {
@@ -140,7 +140,7 @@ impl ZkAdapter {
         if let Some(client) = self.client.get() {
             return Ok(client.clone());
         }
-        match zk::Client::connect(endpoint).await {
+        match zk::Client::connect(&self.endpoint.clone()).await {
             Ok(client) => {
                 match (self.user.clone(), self.password.clone()) {
                     (Some(user), Some(password)) => {

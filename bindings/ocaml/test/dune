@@ -1,0 +1,9 @@
+(executables
+ (libraries opendal ounit2)
+ (names test)
+ (modules test))
+
+(rule
+ (alias runtest)
+ (action
+  (run ./test.exe)))

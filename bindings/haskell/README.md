@@ -4,6 +4,8 @@
 
 ## Example
 
+Basic usage
+
 ```haskell
 import OpenDAL
 import qualified Data.HashMap.Strict as HashMap
@@ -18,6 +20,19 @@ main = do
     writeOp op "key2" "value2"
     value1 <- readOp op "key1"
     value2 <- readOp op "key2"
+```
+
+Integrates with [monad-logger](https://hackage.haskell.org/package/monad-logger) to log messages
+
+```haskell
+import OpenDAL
+import qualified Data.HashMap.Strict as HashMap
+
+main :: IO ()
+main = do
+  let logger msg = runStdoutLoggingT (logInfoN (pack msg))
+  Right op <- newOpWithLogger "memory" HashMap.empty Info logger
+  return ()
 ```
 
 ## Build

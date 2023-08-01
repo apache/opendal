@@ -165,14 +165,14 @@ impl GdriveBackend {
     pub(crate) fn parse_metadata(&self, body: bytes::Bytes) -> Result<Metadata> {
         let metadata =
             serde_json::from_slice::<GdriveFile>(&body).map_err(new_json_deserialize_error)?;
+
+        println!("metadata: {:?}", metadata.size);
+
         let mut meta = Metadata::new(match metadata.mime_type.as_str() {
             "application/vnd.google-apps.folder" => EntryMode::DIR,
             _ => EntryMode::FILE,
         });
-        meta = meta.with_content_length(match metadata.size.parse::<u64>() {
-            Ok(size) => size,
-            Err(_) => 0,
-        });
+        meta = meta.with_content_length(metadata.size.parse::<u64>().unwrap_or(0));
         meta = meta.with_last_modified(
             metadata
                 .modified_time

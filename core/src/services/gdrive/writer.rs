@@ -34,6 +34,7 @@ pub struct GdriveWriter {
 
     target: Option<String>,
     position: u64,
+    written: u64,
     size: Option<u64>,
 }
 
@@ -44,8 +45,30 @@ impl GdriveWriter {
             op,
             path,
             position: 0,
+            written: 0,
             size: None,
             target: None,
+        }
+    }
+
+    /// Write a single chunk of data to the object.
+    ///
+    /// This is used for small objects.
+    /// And should overwrite the object if it already exists.
+    pub async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
+        let resp = self
+            .core
+            .gdrive_upload_simple_request(&self.path, bs.len() as u64, bs)
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::CREATED => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -63,20 +86,23 @@ impl GdriveWriter {
 
                 match headers.get("location") {
                     Some(location) => {
-                        self.target = Some(location.to_str().map_err(|_| {
-                            Error::new(
-                                ErrorKind::Unexpected,
-                                "initial upload failed: location header parse failed",
-                            )
-                        })?.to_string());
+                        self.target = Some(
+                            location
+                                .to_str()
+                                .map_err(|_| {
+                                    Error::new(
+                                        ErrorKind::Unexpected,
+                                        "initial upload failed: location header parse failed",
+                                    )
+                                })?
+                                .to_string(),
+                        );
                         Ok(())
                     }
-                    _ => {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            "initial upload failed: location header not found",
-                        ))
-                    }
+                    _ => Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "initial upload failed: location header not found",
+                    )),
                 }
             }
             _ => Err(parse_error(resp).await?),
@@ -96,7 +122,37 @@ impl GdriveWriter {
 
             match status {
                 StatusCode::PERMANENT_REDIRECT => {
-                    self.position = self.position + size;
+                    let headers = resp.headers();
+
+                    let range = headers.get("range").ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "write part failed: range header not found",
+                        )
+                    })?;
+                    self.position = range
+                        .to_str()
+                        .map_err(|_| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "write part failed: range header parse failed",
+                            )
+                        })?
+                        .split('-')
+                        .last()
+                        .ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "write part failed: range header parse failed",
+                            )
+                        })?
+                        .parse()
+                        .map_err(|_| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "write part failed: range header parse failed",
+                            )
+                        })?;
 
                     resp.into_body().consume().await?;
                     Ok(())
@@ -170,19 +226,24 @@ impl GdriveWriter {
 #[async_trait]
 impl oio::Write for GdriveWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
+        if bs.is_empty() {
+            return Ok(());
+        }
+
         if self.target.is_none() {
-            self.initial_upload().await?;
+            if self.op.content_length().unwrap_or_default() == bs.len() as u64 && self.written == 0
+            {
+                return self.write_oneshot(bs).await;
+            } else {
+                self.initial_upload().await?;
+            }
         }
 
         self.write_part(bs.len() as u64, AsyncBody::Bytes(bs)).await
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        if self.target.is_none() {
-            self.initial_upload().await?;
-        }
-
-        self.write_part(size, AsyncBody::Stream(s)).await
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+        Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {

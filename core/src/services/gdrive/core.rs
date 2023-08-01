@@ -76,17 +76,21 @@ impl GdriveCore {
     async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, file_path);
 
+        println!("file path: {}", path);
+
         let mut parent_id = "root".to_owned();
         let file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
 
         for (i, item) in file_path_items.iter().enumerate() {
             let mut query = format!(
-                "name = '{}' and parents = '{}' and trashed = false",
+                "name = \"{}\" and \"{}\" in parents and trashed = false",
                 item, parent_id
             );
             if i != file_path_items.len() - 1 {
-                query += "and mimeType = 'application/vnd.google-apps.folder'";
+                query += " and mimeType = 'application/vnd.google-apps.folder'";
             }
+
+            println!("query: {}", query);
 
             let req = self.sign(
                 Request::get(format!(
@@ -111,10 +115,10 @@ impl GdriveCore {
 
                     println!("gdrive_file_list: {:?}", gdrive_file_list.files.len());
 
-                    if gdrive_file_list.files.len() == 0 {
+                    if gdrive_file_list.files.is_empty() {
                         return Err(Error::new(
                             ErrorKind::NotFound,
-                            &format!("path not found: {}", file_path),
+                            &format!("path not found: {}", item),
                         ));
                     }
 
@@ -149,7 +153,7 @@ impl GdriveCore {
 
         for (i, item) in file_path_items.iter().enumerate() {
             let query = format!(
-                "name = '{}' and '{}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
+                "name = \"{}\" and \"{}\" in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
                 item, parent
             );
 
@@ -295,8 +299,8 @@ impl GdriveCore {
         // For now, we only need the file id, name, mime type and modified time.
         let req = self.sign(
             Request::get(&format!(
-                "https://www.googleapis.com/drive/v3/files/{}?fields=files(id,name,mimeType,modifiedTime)",
-                self.get_file_id_by_path(path_id.as_str()).await?
+                "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
+                path_id.as_str()
             ))
                 .body(AsyncBody::Empty)
                 .map_err(new_request_build_error)?,
@@ -362,6 +366,39 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
+    pub async fn gdrive_upload_simple_request(
+        &self,
+        path: &str,
+        size: u64,
+        bs: bytes::Bytes,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let parent = self.ensure_parent_path(path).await?;
+
+        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=media";
+
+        let file_name = path.split('/').filter(|&x| !x.is_empty()).last().unwrap();
+
+        let metadata = &json!({
+            "name": file_name,
+            "parents": [parent],
+        });
+
+        let fd = reqwest::multipart::Form::new()
+            .text("metadata", metadata.to_string())
+            .part("file", reqwest::multipart::Part::bytes(bs));
+
+        let mut req = Request::post(url)
+            .header(header::CONTENT_TYPE, "application/json; charset=UTF-8")
+            .header(header::CONTENT_LENGTH, size)
+            .header("X-Upload-Content-Length", size)
+            .body(fd)
+            .map_err(new_request_build_error)?;
+
+        req = self.sign(req);
+
+        self.client.send(req).await
+    }
+
     /// Start an upload session.
     ///
     /// ## Notes
@@ -372,18 +409,22 @@ impl GdriveCore {
         path: &str,
         size: Option<u64>,
     ) -> Result<Response<IncomingAsyncBody>> {
+        let parent = self.ensure_parent_path(path).await?;
+
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable";
 
         let file_name = path.split('/').filter(|&x| !x.is_empty()).last().unwrap();
 
         let bs = serde_json::to_vec(&json!({
-            "name": file_name
-        })).map_err(
-            |e| Error::new(
+            "name": file_name,
+            "parents": [parent],
+        }))
+        .map_err(|e| {
+            Error::new(
                 ErrorKind::Unexpected,
                 &format!("failed to serialize json(upload initial request): {}", e),
             )
-        )?;
+        })?;
 
         let mut req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json; charset=UTF-8")
@@ -393,8 +434,8 @@ impl GdriveCore {
             req = req.header("X-Upload-Content-Length", size);
         }
 
-
-            let mut req = req.body(AsyncBody::Bytes(bytes::Bytes::from(bs)))
+        let mut req = req
+            .body(AsyncBody::Bytes(bytes::Bytes::from(bs)))
             .map_err(new_request_build_error)?;
 
         req = self.sign(req);
@@ -468,7 +509,7 @@ impl GdriveCore {
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = Request::put(target)
             .header("Content-Length", 0)
-            .header("Content-Range", format!("bytes {}-{}/{}", size - 1, size - 1, size))
+            .header("Content-Range", format!("bytes */{}", size))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -493,7 +534,7 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    fn sign(&self, mut req: Request<AsyncBody>) -> Request<AsyncBody> {
+    fn sign<T>(&self, mut req: Request<T>) -> Request<T> {
         let auth_header_content = format!("Bearer {}", self.access_token);
         req.headers_mut().insert(
             header::AUTHORIZATION,

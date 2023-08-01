@@ -32,4 +32,5 @@ doc = false
 
 [dependencies]
 chrono = "0.4"
+log = { version = "0.4", features = ["std"] }
 opendal.workspace = true

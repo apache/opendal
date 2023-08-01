@@ -30,6 +30,7 @@ This module provides Haskell bindings for OpenDAL.
 module OpenDAL (
   Operator,
   Lister,
+  LogLevel (..),
   OpenDALError (..),
   ErrorCode (..),
   EntryMode (..),
@@ -38,6 +39,7 @@ module OpenDAL (
   MonadOperation (..),
   runOp,
   newOp,
+  newOpWithLogger,
   readOpRaw,
   writeOpRaw,
   isExistOpRaw,
@@ -51,6 +53,7 @@ module OpenDAL (
   nextLister,
 ) where
 
+import Control.Monad ((<=<))
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Reader (ReaderT, ask, liftIO, runReaderT)
 import Data.ByteString (ByteString)
@@ -72,6 +75,17 @@ newtype Operator = Operator (ForeignPtr RawOperator)
 Users can construct Lister by `listOp` or `scanOp`.
 -}
 newtype Lister = Lister (ForeignPtr RawLister)
+
+{- | Represents the level of logging, which is used to filter logs. The higher the level is, the more logs will be printed.
+Currently, Error level contains all unexpected failure, Warn level contains all expected error, Debug level contains all debug info.
+-}
+data LogLevel
+  = Error
+  | Warn
+  | Info
+  | Debug
+  | Trace
+  deriving (Eq, Show, Enum)
 
 -- | Represents the possible error codes that can be returned by OpenDAL.
 data ErrorCode
@@ -288,6 +302,30 @@ newOp scheme hashMap = do
               pokeArray cKeysPtr cKeys
               pokeArray cValuesPtr cValues
               c_via_map_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) ffiResultPtr
+              ffiResult <- peek ffiResultPtr
+              if ffiCode ffiResult == 0
+                then do
+                  op <- Operator <$> newForeignPtr c_free_operator (dataPtr ffiResult)
+                  return $ Right op
+                else do
+                  let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
+                  errMsg <- peekCString (errorMessage ffiResult)
+                  return $ Left $ OpenDALError code errMsg
+
+-- | Creates a new OpenDAL operator via `HashMap` with logger. The logger parameter is a function that accepts a string. OpenDAL will call this function to output logs.
+newOpWithLogger :: String -> HashMap String String -> LogLevel -> (String -> IO ()) -> IO (Either OpenDALError Operator)
+newOpWithLogger scheme hashMap logLevel logger = do
+  let keysAndValues = HashMap.toList hashMap
+  withCString scheme $ \cScheme ->
+    withMany withCString (map fst keysAndValues) $ \cKeys ->
+      withMany withCString (map snd keysAndValues) $ \cValues ->
+        allocaArray (length keysAndValues) $ \cKeysPtr ->
+          allocaArray (length keysAndValues) $ \cValuesPtr ->
+            alloca $ \ffiResultPtr -> do
+              logFnPtr <- wrapLogFn (logger <=< peekCString)
+              pokeArray cKeysPtr cKeys
+              pokeArray cValuesPtr cValues
+              c_via_map_with_logger_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) (fromIntegral $ fromEnum logLevel) logFnPtr ffiResultPtr
               ffiResult <- peek ffiResultPtr
               if ffiCode ffiResult == 0
                 then do

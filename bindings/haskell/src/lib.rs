@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod logger;
 mod result;
 mod types;
 
@@ -25,6 +26,8 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
+use logger::HsLogger;
+use od::layers::LoggingLayer;
 use od::layers::RetryLayer;
 use od::BlockingLister;
 use result::FFIResult;
@@ -83,6 +86,96 @@ pub unsafe extern "C" fn via_map_ffi(
 
     let res = match od::Operator::via_map(scheme, map) {
         Ok(operator) => FFIResult::ok(operator.layer(RetryLayer::new()).blocking()),
+        Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * The `keys`, `values`, `len` are valid from `HashMap`.
+/// * The memory pointed to by `scheme` contain a valid nul terminator at the end of
+///   the string.
+/// * The `result` is a valid pointer, and has available memory to write to.
+///
+/// # Panics
+///
+/// * If `keys` or `values` are not valid pointers.
+/// * If `len` is not the same for `keys` and `values`.
+/// * If `log_level` is not a valid value passed by haskell.
+/// * If `callback` is not a valid function pointer.
+/// * If `result` is not a valid pointer.
+#[no_mangle]
+pub unsafe extern "C" fn via_map_with_logger_ffi(
+    scheme: *const c_char,
+    keys: *const *const c_char,
+    values: *const *const c_char,
+    len: usize,
+    log_level: u32,
+    callback: extern "C" fn(*const c_char),
+    result: *mut FFIResult<od::BlockingOperator>,
+) {
+    let scheme_str = match CStr::from_ptr(scheme).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let scheme = match od::Scheme::from_str(scheme_str) {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to parse scheme");
+            return;
+        }
+    };
+
+    let keys_vec = std::slice::from_raw_parts(keys, len);
+    let values_vec = std::slice::from_raw_parts(values, len);
+
+    let map = keys_vec
+        .iter()
+        .zip(values_vec.iter())
+        .map(|(&k, &v)| {
+            (
+                CStr::from_ptr(k).to_string_lossy().into_owned(),
+                CStr::from_ptr(v).to_string_lossy().into_owned(),
+            )
+        })
+        .collect::<HashMap<String, String>>();
+
+    let log_level = match log_level {
+        0 => log::Level::Error,
+        1 => log::Level::Warn,
+        2 => log::Level::Info,
+        3 => log::Level::Debug,
+        4 => log::Level::Trace,
+        _ => {
+            *result = FFIResult::err("Invalid log level");
+            return;
+        }
+    };
+
+    let register_logger_res = log::set_boxed_logger(Box::new(HsLogger { callback })).map(|()| {
+        log::set_max_level(log_level.to_level_filter());
+    });
+    if let Err(e) = register_logger_res {
+        *result = FFIResult::err_with_source(
+            "Failed to register logger",
+            od::Error::new(od::ErrorKind::Unexpected, e.to_string().as_str()),
+        );
+        return;
+    }
+
+    let res = match od::Operator::via_map(scheme, map) {
+        Ok(operator) => FFIResult::ok(
+            operator
+                .layer(RetryLayer::new())
+                .layer(LoggingLayer::default())
+                .blocking(),
+        ),
         Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
     };
 

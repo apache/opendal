@@ -21,6 +21,7 @@ module BasicTest (basicTests) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.HashMap.Strict as HashMap
+import Data.IORef
 import OpenDAL
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -32,36 +33,36 @@ basicTests =
     [ testCase "testBasicOperation" testRawOperation
     , testCase "testMonad" testMonad
     , testCase "testError" testError
-    , testCase "testLayer" testLayer
+    , testCase "testLogger" testLogger
     ]
 
 testRawOperation :: Assertion
 testRawOperation = do
   Right op <- newOp "memory" HashMap.empty
-  writeOpRaw op "key1" "value1" >>= (@?= Right ())
-  writeOpRaw op "key2" "value2" >>= (@?= Right ())
-  readOpRaw op "key1" >>= (@?= Right "value1")
-  readOpRaw op "key2" >>= (@?= Right "value2")
-  isExistOpRaw op "key1" >>= (@?= Right True)
-  isExistOpRaw op "key2" >>= (@?= Right True)
-  createDirOpRaw op "dir1/" >>= (@?= Right ())
-  isExistOpRaw op "dir1/" >>= (@?= Right True)
-  copyOpRaw op "key1" "key3" >>= (@?= Right ())
-  isExistOpRaw op "key1" >>= (@?= Right True)
-  isExistOpRaw op "key3" >>= (@?= Right True)
-  renameOpRaw op "key2" "key4" >>= (@?= Right ())
-  isExistOpRaw op "key2" >>= (@?= Right False)
-  isExistOpRaw op "key4" >>= (@?= Right True)
+  writeOpRaw op "key1" "value1" ?= Right ()
+  writeOpRaw op "key2" "value2" ?= Right ()
+  readOpRaw op "key1" ?= Right "value1"
+  readOpRaw op "key2" ?= Right "value2"
+  isExistOpRaw op "key1" ?= Right True
+  isExistOpRaw op "key2" ?= Right True
+  createDirOpRaw op "dir1/" ?= Right ()
+  isExistOpRaw op "dir1/" ?= Right True
+  copyOpRaw op "key1" "key3" ?= Right ()
+  isExistOpRaw op "key1" ?= Right True
+  isExistOpRaw op "key3" ?= Right True
+  renameOpRaw op "key2" "key4" ?= Right ()
+  isExistOpRaw op "key2" ?= Right False
+  isExistOpRaw op "key4" ?= Right True
   statOpRaw op "key1" >>= \case
     Right meta -> meta @?= except_meta
     Left _ -> assertFailure "should not reach here"
-  deleteOpRaw op "key1" >>= (@?= Right ())
-  isExistOpRaw op "key1" >>= (@?= Right False)
+  deleteOpRaw op "key1" ?= Right ()
+  isExistOpRaw op "key1" ?= Right False
   Right lister <- listOpRaw op "/"
-  liftIO $ findLister lister "key3" >>= (@?= True)
-  renameOpRaw op "key3" "/dir1/key5" >>= (@?= Right ())
+  liftIO $ findLister lister "key3" ?= True
+  renameOpRaw op "key3" "/dir1/key5" ?= Right ()
   Right lister2 <- scanOpRaw op "/"
-  liftIO $ findLister lister2 "dir1/key5" >>= (@?= True)
+  liftIO $ findLister lister2 "dir1/key5" ?= True
  where
   except_meta =
     Metadata
@@ -78,7 +79,7 @@ testRawOperation = do
 testMonad :: Assertion
 testMonad = do
   Right op <- newOp "memory" HashMap.empty
-  runOp op operation >>= (@?= Right ())
+  runOp op operation ?= Right ()
  where
   operation = do
     writeOp "key1" "value1"
@@ -124,15 +125,14 @@ testError = do
  where
   operation = readOp "non-exist-path"
 
-testLayer :: Assertion
-testLayer = do
-  Right op <- newOpWithLayers "memory" HashMap.empty [layer]
-  runOp op operation >>= (@?= Right ())
+testLogger :: Assertion
+testLogger = do
+  state <- newIORef ""
+  Right _ <- newOpWithLogger "memory" HashMap.empty Debug (logger state)
+  logStr <- readIORef state
+  take 77 logStr @?= "service=memory operation=metadata -> startedservice=memory operation=metadata"
  where
-  layer = ImmutableIndex ["key1"]
-  operation = do
-    lister <- listOp "/"
-    liftIO $ findLister lister "key1" ?= True
+  logger initStr msg = modifyIORef' initStr (++ msg)
 
 -- helper function
 

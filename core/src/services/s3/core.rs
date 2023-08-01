@@ -63,6 +63,7 @@ mod constants {
         "x-amz-copy-source-server-side-encryption-customer-key-md5";
 
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+    pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
@@ -238,15 +239,7 @@ impl S3Core {
         Ok(req)
     }
 
-    pub fn s3_get_object_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        override_content_disposition: Option<&str>,
-        override_cache_control: Option<&str>,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn s3_get_object_request(&self, path: &str, args: OpRead) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // Construct headers to add to the request
@@ -254,14 +247,21 @@ impl S3Core {
 
         // Add query arguments to the URL based on response overrides
         let mut query_args = Vec::new();
-        if let Some(override_content_disposition) = override_content_disposition {
+        if let Some(override_content_disposition) = args.override_content_disposition() {
             query_args.push(format!(
                 "{}={}",
                 constants::RESPONSE_CONTENT_DISPOSITION,
                 percent_encode_path(override_content_disposition)
             ))
         }
-        if let Some(override_cache_control) = override_cache_control {
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
             query_args.push(format!(
                 "{}={}",
                 constants::RESPONSE_CACHE_CONTROL,
@@ -274,15 +274,16 @@ impl S3Core {
 
         let mut req = Request::get(&url);
 
+        let range = args.range();
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
         // Set SSE headers.
@@ -299,19 +300,9 @@ impl S3Core {
     pub async fn s3_get_object(
         &self,
         path: &str,
-        range: BytesRange,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-        override_content_disposition: Option<&str>,
+        args: OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(
-            path,
-            range,
-            override_content_disposition,
-            None,
-            if_none_match,
-            if_match,
-        )?;
+        let mut req = self.s3_get_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 

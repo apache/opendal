@@ -66,13 +66,14 @@ Our release page will only display ASF releases instead of GitHub Releases.
 
 - `opendal_version`: the version for opendal, like `0.36.0`.
 - `release_version`: the version for voting, like `0.36.0-rc1`.
+- `rc_version`: the minor version for voting, like `rc1`.
 
 ### Create an ASF Release
 
 After GitHub Release has been created, we can start to create ASF Release.
 
 - Checkout to released tag.
-- Use the release script to create a new release: `OPENDAL_VERSION=<opendal_version> OPENDAL_VERSION_RC=<release_version> ./scripts/release.sh`
+- Use the release script to create a new release: `OPENDAL_VERSION=<opendal_version> OPENDAL_VERSION_RC=<rc_version> ./scripts/release.sh`
 - Push the newly created branch to GitHub
 
 This script will create a new release under `dist`.

@@ -921,6 +921,7 @@ impl Accessor for S3Backend {
                 read_with_if_none_match: true,
                 read_with_override_cache_control: true,
                 read_with_override_content_disposition: true,
+                read_with_override_content_type: true,
 
                 write: true,
                 write_can_sink: true,
@@ -972,16 +973,7 @@ impl Accessor for S3Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .s3_get_object(
-                path,
-                args.range(),
-                args.if_none_match(),
-                args.if_match(),
-                args.override_content_disposition(),
-            )
-            .await?;
+        let resp = self.core.s3_get_object(path, args).await?;
 
         let status = resp.status();
 
@@ -1071,14 +1063,7 @@ impl Accessor for S3Backend {
                 self.core
                     .s3_head_object_request(path, v.if_none_match(), v.if_match())?
             }
-            PresignOperation::Read(v) => self.core.s3_get_object_request(
-                path,
-                v.range(),
-                v.override_content_disposition(),
-                v.override_cache_control(),
-                v.if_none_match(),
-                v.if_match(),
-            )?,
+            PresignOperation::Read(v) => self.core.s3_get_object_request(path, v.clone())?,
             PresignOperation::Write(_) => {
                 self.core
                     .s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?

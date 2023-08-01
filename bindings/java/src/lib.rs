@@ -77,7 +77,7 @@ pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
 
 /// # Safety
 ///
-/// This function could be only when the lib is loaded.
+/// This function could be only when the lib is loaded and within a RUNTIME-spawned thread.
 unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
     let env = ENV.with(|cell| *cell.borrow_mut()).unwrap();
     JNIEnv::from_raw(env).unwrap()

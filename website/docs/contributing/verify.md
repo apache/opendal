@@ -56,7 +56,7 @@ brew install gnupg
 Firstly, import the OpenDAL release manager's public key:
 
 ```shell
-curl https://downloads.apache.org/opendal/KEYS > KEYS # Download KEYS
+curl https://downloads.apache.org/incubator/opendal/KEYS > KEYS # Download KEYS
 gpg --import KEYS # Import KEYS to local
 ```
 

@@ -219,7 +219,7 @@ openssh-sftp-client = { version = "0.13.5", optional = true, features = [
   "openssh",
   "tracing",
 ] }
-opentelemetry = { version = "0.19.0", optional = true }
+opentelemetry = { version = "0.20.0", optional = true }
 parking_lot = "0.12"
 percent-encoding = "2"
 persy = { version = "1.4.4", optional = true }
@@ -257,7 +257,7 @@ dotenvy = "0.15"
 libtest-mimic = "0.6"
 minitrace = { version = "0.5", features = ["enable"] }
 minitrace-jaeger = "0.5"
-opentelemetry = { version = "0.19", default-features = false, features = [
+opentelemetry = { version = "0.20", default-features = false, features = [
   "trace",
 ] }
 opentelemetry-jaeger = "0.18"

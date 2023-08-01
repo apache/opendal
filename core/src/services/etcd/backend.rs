@@ -24,6 +24,7 @@ use etcd_client::Certificate;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
 use etcd_client::Error as EtcdError;
+use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
@@ -211,11 +212,11 @@ impl Builder for EtcdBuilder {
 
         let client = OnceCell::new();
         Ok(EtcdBackend::new(Adapter {
-            root,
             endpoints,
             client,
             options,
-        }))
+        })
+        .with_root(root.as_str()))
     }
 }
 
@@ -231,7 +232,6 @@ pub type EtcdBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    root: String,
     endpoints: Vec<String>,
     client: OnceCell<Client>,
     options: ConnectOptions,
@@ -242,7 +242,6 @@ impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Adapter");
 
-        ds.field("root", &self.root);
         ds.field("endpoints", &self.endpoints.join(","));
         ds.field("options", &self.options.clone());
         ds.finish()
@@ -271,6 +270,7 @@ impl kv::Adapter for Adapter {
                 read: true,
                 write: true,
                 create_dir: true,
+                list: true,
 
                 ..Default::default()
             },
@@ -278,9 +278,8 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        let p = build_rooted_abs_path(&self.root, key);
         let mut client = self.conn().await?;
-        let resp = client.get(p, None).await?;
+        let resp = client.get(key, None).await?;
         if let Some(kv) = resp.kvs().first() {
             Ok(Some(kv.value().to_vec()))
         } else {
@@ -289,17 +288,30 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, key);
         let mut client = self.conn().await?;
-        let _ = client.put(p, value, None).await?;
+        let _ = client.put(key, value, None).await?;
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, key);
         let mut client = self.conn().await?;
-        let _ = client.delete(p, None).await?;
+        let _ = client.delete(key, None).await?;
         Ok(())
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        let mut client = self.conn().await?;
+        let get_options = Some(GetOptions::new().with_prefix().with_keys_only());
+        let resp = client.get(path, get_options).await?;
+        let mut res = Vec::default();
+        for kv in resp.kvs() {
+            res.push(kv.key_str().map(String::from).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
+                    .set_source(err)
+            })?);
+        }
+
+        Ok(res)
     }
 }
 

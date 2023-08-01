@@ -32,7 +32,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run_dune_build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -40,9 +40,10 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Set up ocaml
-        uses: avsm/setup-ocaml@v1
+        uses: ocaml/setup-ocaml@v2
         with:
           ocaml-version: 4.14.0
+          opam-pin: true
 
       - name: Checks
         run: |

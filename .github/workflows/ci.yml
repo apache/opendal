@@ -75,6 +75,11 @@ jobs:
           distribution: temurin
           java-version: "11"
 
+      - name: Checkout ocaml env
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 4.14
+
       - name: Cargo doc
         run: cargo doc --lib --no-deps --all-features -p opendal
 
@@ -99,6 +104,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+      - name: Checkout ocaml env
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 4.14
 
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -145,6 +154,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+      - name: Checkout ocaml env
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 4.14
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -168,6 +181,10 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+      - name: Checkout ocaml env
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 4.14
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

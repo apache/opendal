@@ -2,7 +2,7 @@
 
 ## What `oli` is
 
-`oli` stands for Opendal command Line Interface. It aims to provide a unified and user-friendly way to manipulate data stored in various cloud services such as S3 compatible services(Minio, AWS S3, etc.), KV Database(Redis, etcd, TiKV, etc.), Filesystem-like service(HDFS, Azdfs, etc.), and also [all the other supported services](https://opendal.apache.org/docs/category/services).
+`oli` stands for OpenDAL Command Line Interface. It aims to provide a unified and user-friendly way to manipulate data stored in various storage services such as Object storage services(s3, azblob, gcs, minio, etc.), Key-Value services(Redis, etcd, TiKV, etc.), Filesystem-like service(HDFS, Azdfs, etc.), and also [all the other supported services](https://opendal.apache.org/docs/category/services).
 
 ## How to use `oli`
 

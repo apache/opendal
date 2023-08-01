@@ -3056,14 +3056,15 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.5.6"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec9cd6ca25e796a49fa242876d1c4de36a24a6da5258e9f0bc062dbf5e81c53b"
+checksum = "27c776db4f332b571958444982ff641d2531417a326ca368995073b639205d58"
 dependencies = [
  "async-trait",
  "bytes",
  "chrono",
  "futures",
+ "humantime",
  "itertools",
  "parking_lot 0.12.1",
  "percent-encoding",

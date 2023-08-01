@@ -15,16 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::DavDirEntry;
+use dav_server::fs::{DavDirEntry, DavMetaData};
+use futures::FutureExt;
+use opendal::{Entry, Operator};
 
-struct WebDAVDirEntry {}
+use super::webdav_metadata::WebdavMetaData;
+
+pub struct WebDAVDirEntry {
+    dir_entry: Entry,
+    op: Operator,
+}
 
 impl DavDirEntry for WebDAVDirEntry {
     fn name(&self) -> Vec<u8> {
-        todo!()
+        self.dir_entry.name().as_bytes().to_vec()
     }
 
     fn metadata(&self) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavMetaData>> {
-        todo!()
+        async move {
+            let metedata = self.op.stat(self.dir_entry.path()).await.unwrap();
+            Ok(Box::new(WebdavMetaData::new(metedata)) as Box<dyn DavMetaData>)
+        }
+        .boxed()
+    }
+}
+
+impl WebDAVDirEntry {
+    pub fn new(dir_entry: Entry, op: Operator) -> Self {
+        WebDAVDirEntry { dir_entry, op }
     }
 }

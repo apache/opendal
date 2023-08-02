@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::DavMetaData;
+use dav_server::fs::{DavMetaData, FsError};
 use opendal::Metadata;
 
 #[derive(Debug, Clone)]
@@ -35,7 +35,10 @@ impl DavMetaData for WebdavMetaData {
     }
 
     fn modified(&self) -> dav_server::fs::FsResult<std::time::SystemTime> {
-        Ok(self.metadata.last_modified().unwrap().into())
+        match self.metadata.last_modified() {
+            Some(t) => Ok(t.into()),
+            None => Err(FsError::GeneralFailure),
+        }
     }
 
     fn is_dir(&self) -> bool {

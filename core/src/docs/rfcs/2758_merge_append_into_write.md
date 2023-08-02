@@ -1,6 +1,6 @@
 - Proposal Name: `merge_append_into_write`
 - Start Date: 2023-08-02
-- RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
+- RFC PR: [apache/incubator-opendal#2758](https://github.com/apache/incubator-opendal/pull/2758)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary

@@ -37,10 +37,10 @@ pub struct WebdavFile {
 impl DavFile for WebdavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<bytes::Bytes> {
         async move {
-            let file_path = self.path.as_rel_ospath();
+            let file_path = self.path.as_url_string();
             let content = self
                 .op
-                .range_read(file_path.to_str().unwrap(), 0..count as u64)
+                .range_read(&file_path, 0..count as u64)
                 .await
                 .unwrap();
             //error handle ?
@@ -53,7 +53,7 @@ impl DavFile for WebdavFile {
         async move {
             let opendal_metadata = self
                 .op
-                .stat(self.path.as_rel_ospath().to_str().unwrap())
+                .stat(self.path.as_url_string().as_str())
                 .await
                 .unwrap();
             Ok(Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>)

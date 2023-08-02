@@ -15,33 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::{DavMetaData, FsError};
-use opendal::Metadata;
+use ext_php_rs::prelude::*;
+use opendal::{EntryMode, Metadata};
 
-#[derive(Debug, Clone)]
-pub struct WebdavMetaData {
-    metadata: Metadata,
+#[php_function]
+pub fn debug() -> String {
+    let metadata = Metadata::new(EntryMode::FILE);
+
+    format!("{:?}", metadata)
 }
 
-impl WebdavMetaData {
-    pub fn new(metadata: Metadata) -> Self {
-        WebdavMetaData { metadata }
-    }
-}
-
-impl DavMetaData for WebdavMetaData {
-    fn len(&self) -> u64 {
-        self.metadata.content_length()
-    }
-
-    fn modified(&self) -> dav_server::fs::FsResult<std::time::SystemTime> {
-        match self.metadata.last_modified() {
-            Some(t) => Ok(t.into()),
-            None => Err(FsError::GeneralFailure),
-        }
-    }
-
-    fn is_dir(&self) -> bool {
-        self.metadata.is_dir()
-    }
+#[php_module]
+pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
+    module
 }

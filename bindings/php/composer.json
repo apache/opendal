@@ -1,0 +1,21 @@
+{
+    "authors": [
+        {
+            "name": "OpenDAL Contributors",
+            "email": "dev@opendal.apache.org"
+        }
+    ],
+    "require-dev": {
+        "php": ">=8.1",
+        "pestphp/pest": "^2.9"
+    },
+    "license": "Apache-2.0",
+    "scripts": {
+        "test": "vendor/bin/pest"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": false
+        }
+    }
+}

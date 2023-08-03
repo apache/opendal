@@ -79,6 +79,8 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: 4.14
+      - name: Update ocaml env
+        run: eval $(opam env)
 
       - name: Cargo doc
         run: cargo doc --lib --no-deps --all-features -p opendal
@@ -108,6 +110,8 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: 4.14
+      - name: Update ocaml env
+        run: eval $(opam env)
 
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -158,6 +162,8 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: 4.14
+      - name: Update ocaml env
+        run: eval $(opam env)
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -185,6 +191,8 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: 4.14
+      - name: Update ocaml env
+        run: eval $(opam env)
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

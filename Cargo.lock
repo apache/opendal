@@ -171,6 +171,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-backtrace"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a2a4168316d920764f19e516d4d0f5b079ecdf0ced2ea2ef08a266102a38802"
+dependencies = [
+    "async-backtrace-attributes",
+    "dashmap",
+    "futures",
+    "itertools",
+    "loom",
+    "once_cell",
+    "pin-project-lite",
+    "rustc-hash",
+    "static_assertions",
+]
+
+[[package]]
+name = "async-backtrace-attributes"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "840d2e9edec91ac974365978efc6f00781ff497e706a12306fff29ae92f8ad46"
+dependencies = [
+    "proc-macro2",
+    "quote",
+    "syn 2.0.23",
+]
+
+[[package]]
 name = "async-channel"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1718,6 +1746,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "generator"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cc16584ff22b460a382b7feec54b23d2908d858152e5739a120b949293bd74e"
+dependencies = [
+    "cc",
+    "libc",
+    "log",
+    "rustversion",
+    "windows",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2449,6 +2490,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "loom"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff50ecb28bb86013e935fb6683ab1f6d3a20016f123c76fd4c27470076ac30f5"
+dependencies = [
+    "cfg-if",
+    "generator",
+    "scoped-tls",
+    "tracing",
+    "tracing-subscriber",
+]
+
+[[package]]
 name = "lru"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3122,6 +3176,7 @@ name = "opendal"
 version = "0.38.1"
 dependencies = [
  "anyhow",
+    "async-backtrace",
  "async-compat",
  "async-tls",
  "async-trait",
@@ -4695,6 +4750,12 @@ checksum = "3cbc66816425a074528352f5789333ecff06ca41b36b0b0efdfbb29edc391a19"
 dependencies = [
  "parking_lot 0.12.1",
 ]
+
+[[package]]
+name = "scoped-tls"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294"
 
 [[package]]
 name = "scopeguard"

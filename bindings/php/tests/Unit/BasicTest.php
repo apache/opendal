@@ -22,6 +22,13 @@ it('opendal-php extension loaded', function () {
     expect(extension_loaded('opendal-php'))->toBeTrue();
 });
 
-it('debug function works', function () {
-    expect(debug())->toStartWith('Metadata');
+it('OpenDAL works', function () {
+    expect(class_exists('OpenDAL'))->toBeTrue();
+
+    $op = new OpenDAL('fs', ['root' => '/tmp']);
+
+    expect($op)
+        ->toBeInstanceOf(OpenDAL::class)
+        ->not->toHaveProperty('op')
+        ->not->toThrow(Exception::class);
 });

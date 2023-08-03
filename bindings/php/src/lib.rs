@@ -15,14 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+use std::str::FromStr;
 use ext_php_rs::prelude::*;
-use opendal::{EntryMode, Metadata};
+use ext_php_rs::types::ZendClassObject;
+use ::opendal as od;
 
-#[php_function]
-pub fn debug() -> String {
-    let metadata = Metadata::new(EntryMode::FILE);
+#[php_class]
+pub struct OpenDAL {
+    op: od::Operator,
+}
 
-    format!("{:?}", metadata)
+// #[php_impl]
+// #[php_class(name = "OpenDAL\\OpenDAL")]
+impl OpenDAL {
+    pub fn __construct(scheme_str: String, mp: HashMap<String, String>) -> Self {
+        let scheme = od::Scheme::from_str(&scheme_str).unwrap();
+        let mut op = od::Operator::via_map(scheme, mp).unwrap();
+
+        Self { op }
+    }
+}
+
+#[php_class(name = "OpenDAL\\OpenDALException")]
+#[extends(ce::exception())]
+struct OpenDALException {
+    message: String,
 }
 
 #[php_module]

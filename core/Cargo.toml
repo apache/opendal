@@ -77,6 +77,7 @@ layers-all = [
   "layers-minitrace",
   "layers-throttle",
   "layers-await-tree",
+  "layers-async-backtrace",
 ]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
@@ -96,6 +97,8 @@ layers-otel-trace = ["dep:opentelemetry"]
 layers-throttle = ["dep:governor"]
 # Enable layers await-tree support.
 layers-await-tree = ["dep:await-tree"]
+# Enable layers async-backtrace support.
+layers-async-backtrace = ["dep:async-backtrace"]
 
 services-azblob = [
   "dep:sha2",
@@ -183,6 +186,7 @@ path = "tests/behavior/main.rs"
 
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
+async-backtrace = { version = "0.2.6", optional = true }
 async-compat = "0.2"
 async-tls = { version = "0.11", optional = true }
 async-trait = "0.1.68"

@@ -48,12 +48,14 @@ jobs:
         run: |
           # make sure tests pass
           opam install -y dune ounit2
+          eval $(opam env)
           dune runtest
 
       - name: Format
         run: |
           # make sure the project is well-formatted
           opam install -y ocamlformat
+          eval $(opam env)
           dune build @fmt
           
           

@@ -49,7 +49,10 @@ jobs:
           # make sure tests pass
           dune runtest
 
-      - name: Lint fmt
-        uses: ocaml/setup-ocaml/lint-fmt@v2
+      - name: Format
+        run: |
+          # make sure the project is well-formatted
+          opam install ocamlformat
+          dune build @fmt
           
           

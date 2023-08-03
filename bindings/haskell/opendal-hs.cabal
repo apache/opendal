@@ -55,9 +55,6 @@ test-suite opendal-hs-test
     ghc-options:      -Wall
     build-depends:    
         base,
-        unordered-containers,
-        mtl,
-        containers,
         opendal-hs,
         tasty,
         tasty-hunit

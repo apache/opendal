@@ -20,7 +20,6 @@
 module BasicTest (basicTests) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.HashMap.Strict as HashMap
 import Data.IORef
 import OpenDAL
 import Test.Tasty
@@ -30,15 +29,15 @@ basicTests :: TestTree
 basicTests =
   testGroup
     "Basic Tests"
-    [ testCase "testBasicOperation" testRawOperation
-    , testCase "testMonad" testMonad
-    , testCase "testError" testError
-    , testCase "testLogger" testLogger
+    [ testCase "testBasicOperation" testRawOperation,
+      testCase "testMonad" testMonad,
+      testCase "testError" testError,
+      testCase "testLogger" testLogger
     ]
 
 testRawOperation :: Assertion
 testRawOperation = do
-  Right op <- newOp "memory" HashMap.empty
+  Right op <- newOperator "memory"
   writeOpRaw op "key1" "value1" ?= Right ()
   writeOpRaw op "key2" "value2" ?= Right ()
   readOpRaw op "key1" ?= Right "value1"
@@ -63,76 +62,76 @@ testRawOperation = do
   renameOpRaw op "key3" "/dir1/key5" ?= Right ()
   Right lister2 <- scanOpRaw op "/"
   liftIO $ findLister lister2 "dir1/key5" ?= True
- where
-  except_meta =
-    Metadata
-      { mMode = File
-      , mCacheControl = Nothing
-      , mContentDisposition = Nothing
-      , mContentLength = 6
-      , mContentMD5 = Nothing
-      , mContentType = Nothing
-      , mETag = Nothing
-      , mLastModified = Nothing
-      }
+  where
+    except_meta =
+      Metadata
+        { mMode = File,
+          mCacheControl = Nothing,
+          mContentDisposition = Nothing,
+          mContentLength = 6,
+          mContentMD5 = Nothing,
+          mContentType = Nothing,
+          mETag = Nothing,
+          mLastModified = Nothing
+        }
 
 testMonad :: Assertion
 testMonad = do
-  Right op <- newOp "memory" HashMap.empty
+  Right op <- newOperator "memory"
   runOp op operation ?= Right ()
- where
-  operation = do
-    writeOp "key1" "value1"
-    writeOp "key2" "value2"
-    readOp "key1" ?= "value1"
-    readOp "key2" ?= "value2"
-    isExistOp "key1" ?= True
-    isExistOp "key2" ?= True
-    createDirOp "dir1/"
-    isExistOp "dir1/" ?= True
-    copyOp "key1" "key3"
-    isExistOp "key1" ?= True
-    isExistOp "key3" ?= True
-    renameOp "key2" "key4"
-    isExistOp "key2" ?= False
-    isExistOp "key4" ?= True
-    statOp "key1" ?= except_meta
-    deleteOp "key1"
-    isExistOp "key1" ?= False
-    lister <- listOp "/"
-    liftIO $ findLister lister "key3" ?= True
-    renameOp "key3" "/dir1/key5"
-    lister2 <- scanOp "/"
-    liftIO $ findLister lister2 "dir1/key5" ?= True
-  except_meta =
-    Metadata
-      { mMode = File
-      , mCacheControl = Nothing
-      , mContentDisposition = Nothing
-      , mContentLength = 6
-      , mContentMD5 = Nothing
-      , mContentType = Nothing
-      , mETag = Nothing
-      , mLastModified = Nothing
-      }
+  where
+    operation = do
+      writeOp "key1" "value1"
+      writeOp "key2" "value2"
+      readOp "key1" ?= "value1"
+      readOp "key2" ?= "value2"
+      isExistOp "key1" ?= True
+      isExistOp "key2" ?= True
+      createDirOp "dir1/"
+      isExistOp "dir1/" ?= True
+      copyOp "key1" "key3"
+      isExistOp "key1" ?= True
+      isExistOp "key3" ?= True
+      renameOp "key2" "key4"
+      isExistOp "key2" ?= False
+      isExistOp "key4" ?= True
+      statOp "key1" ?= except_meta
+      deleteOp "key1"
+      isExistOp "key1" ?= False
+      lister <- listOp "/"
+      liftIO $ findLister lister "key3" ?= True
+      renameOp "key3" "/dir1/key5"
+      lister2 <- scanOp "/"
+      liftIO $ findLister lister2 "dir1/key5" ?= True
+    except_meta =
+      Metadata
+        { mMode = File,
+          mCacheControl = Nothing,
+          mContentDisposition = Nothing,
+          mContentLength = 6,
+          mContentMD5 = Nothing,
+          mContentType = Nothing,
+          mETag = Nothing,
+          mLastModified = Nothing
+        }
 
 testError :: Assertion
 testError = do
-  Right op <- newOp "memory" HashMap.empty
+  Right op <- newOperator "memory"
   runOp op operation >>= \case
     Left err -> errorCode err @?= NotFound
     Right _ -> assertFailure "should not reach here"
- where
-  operation = readOp "non-exist-path"
+  where
+    operation = readOp "non-exist-path"
 
 testLogger :: Assertion
 testLogger = do
   state <- newIORef ""
-  Right _ <- newOpWithLogger "memory" HashMap.empty Debug (logger state)
+  let logger initStr msg = modifyIORef' initStr (++ msg)
+  let logFn = logger state
+  Right _ <- newOperator "memory" {ocLogConfig = Just $ OperatorLogConfig Debug logFn}
   logStr <- readIORef state
   take 77 logStr @?= "service=memory operation=metadata -> startedservice=memory operation=metadata"
- where
-  logger initStr msg = modifyIORef' initStr (++ msg)
 
 -- helper function
 

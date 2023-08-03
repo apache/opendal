@@ -16,42 +16,43 @@
 -- under the License.
 {-# LANGUAGE FlexibleInstances #-}
 
-{- |
-Module      : OpenDAL
-Description : Haskell bindings for OpenDAL
-Copyright   : (c) 2023 OpenDAL
-License     : Apache-2.0
-Maintainer  : OpenDAL Contributors <dev@opendal.apache.org>"
-Stability   : experimental
-Portability : non - portable (GHC extensions)
-
-This module provides Haskell bindings for OpenDAL.
--}
-module OpenDAL (
-  Operator,
-  Lister,
-  LogLevel (..),
-  OpenDALError (..),
-  ErrorCode (..),
-  EntryMode (..),
-  Metadata (..),
-  OpMonad,
-  MonadOperation (..),
-  runOp,
-  newOp,
-  newOpWithLogger,
-  readOpRaw,
-  writeOpRaw,
-  isExistOpRaw,
-  createDirOpRaw,
-  copyOpRaw,
-  renameOpRaw,
-  deleteOpRaw,
-  statOpRaw,
-  listOpRaw,
-  scanOpRaw,
-  nextLister,
-) where
+-- |
+-- Module      : OpenDAL
+-- Description : Haskell bindings for OpenDAL
+-- Copyright   : (c) 2023 OpenDAL
+-- License     : Apache-2.0
+-- Maintainer  : OpenDAL Contributors <dev@opendal.apache.org>"
+-- Stability   : experimental
+-- Portability : non - portable (GHC extensions)
+--
+-- This module provides Haskell bindings for OpenDAL.
+module OpenDAL
+  ( OperatorConfig (..),
+    OperatorLogConfig (..),
+    Operator,
+    Lister,
+    LogLevel (..),
+    OpenDALError (..),
+    ErrorCode (..),
+    EntryMode (..),
+    Metadata (..),
+    OpMonad,
+    MonadOperation (..),
+    runOp,
+    newOperator,
+    readOpRaw,
+    writeOpRaw,
+    isExistOpRaw,
+    createDirOpRaw,
+    copyOpRaw,
+    renameOpRaw,
+    deleteOpRaw,
+    statOpRaw,
+    listOpRaw,
+    scanOpRaw,
+    nextLister,
+  )
+where
 
 import Control.Monad ((<=<))
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
@@ -60,25 +61,37 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.String (IsString (fromString))
 import Data.Time (UTCTime, parseTimeM, zonedTimeToUTC)
 import Data.Time.Format (defaultTimeLocale)
 import Foreign
 import Foreign.C.String
 import OpenDAL.FFI
 
-{- | `Operator` is the entry for all public blocking APIs.
-Create an `Operator` with `newOp`.
--}
+data OperatorConfig = OperatorConfig
+  { ocScheme :: String,
+    ocConfig :: HashMap String String,
+    ocLogConfig :: Maybe OperatorLogConfig
+  }
+
+instance IsString OperatorConfig where
+  fromString s = OperatorConfig s HashMap.empty Nothing
+
+data OperatorLogConfig = OperatorLogConfig
+  { olcLogLevel :: LogLevel,
+    olcLogFn :: String -> IO ()
+  }
+
+-- | `Operator` is the entry for all public blocking APIs.
+-- Create an `Operator` with `newOp`.
 newtype Operator = Operator (ForeignPtr RawOperator)
 
-{- | `Lister` is designed to list entries at given path in a blocking manner.
-Users can construct Lister by `listOp` or `scanOp`.
--}
+-- | `Lister` is designed to list entries at given path in a blocking manner.
+-- Users can construct Lister by `listOp` or `scanOp`.
 newtype Lister = Lister (ForeignPtr RawLister)
 
-{- | Represents the level of logging, which is used to filter logs. The higher the level is, the more logs will be printed.
-Currently, Error level contains all unexpected failure, Warn level contains all expected error, Debug level contains all debug info.
--}
+-- | Represents the level of logging, which is used to filter logs. The higher the level is, the more logs will be printed.
+-- Currently, Error level contains all unexpected failure, Warn level contains all expected error, Debug level contains all debug info.
 data LogLevel
   = Error
   | Warn
@@ -115,10 +128,10 @@ data ErrorCode
 
 -- | Represents an error that can occur when using OpenDAL.
 data OpenDALError = OpenDALError
-  { errorCode :: ErrorCode
-  -- ^ The error code.
-  , message :: String
-  -- ^ The error message.
+  { -- | The error code.
+    errorCode :: ErrorCode,
+    -- | The error message.
+    message :: String
   }
   deriving (Eq, Show)
 
@@ -127,22 +140,22 @@ data EntryMode = File | Dir | Unknown deriving (Eq, Show)
 
 -- | Represents metadata for an entry in a storage system.
 data Metadata = Metadata
-  { mMode :: EntryMode
-  -- ^ The mode of the entry.
-  , mCacheControl :: Maybe String
-  -- ^ The cache control of the entry.
-  , mContentDisposition :: Maybe String
-  -- ^ The content disposition of the entry.
-  , mContentLength :: Integer
-  -- ^ The content length of the entry.
-  , mContentMD5 :: Maybe String
-  -- ^ The content MD5 of the entry.
-  , mContentType :: Maybe String
-  -- ^ The content type of the entry.
-  , mETag :: Maybe String
-  -- ^ The ETag of the entry.
-  , mLastModified :: Maybe UTCTime
-  -- ^ The last modified time of the entry.
+  { -- | The mode of the entry.
+    mMode :: EntryMode,
+    -- | The cache control of the entry.
+    mCacheControl :: Maybe String,
+    -- | The content disposition of the entry.
+    mContentDisposition :: Maybe String,
+    -- | The content length of the entry.
+    mContentLength :: Integer,
+    -- | The content MD5 of the entry.
+    mContentMD5 :: Maybe String,
+    -- | The content type of the entry.
+    mContentType :: Maybe String,
+    -- | The ETag of the entry.
+    mETag :: Maybe String,
+    -- | The last modified time of the entry.
+    mLastModified :: Maybe UTCTime
   }
   deriving (Eq, Show)
 
@@ -273,14 +286,14 @@ parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength
   lastModified' <- (>>= parseTime) <$> parseCString lastModified
   return $
     Metadata
-      { mMode = mode'
-      , mCacheControl = cacheControl'
-      , mContentDisposition = contentDisposition'
-      , mContentLength = contentLength'
-      , mContentMD5 = contentMD5'
-      , mContentType = contentType'
-      , mETag = eTag'
-      , mLastModified = lastModified'
+      { mMode = mode',
+        mCacheControl = cacheControl',
+        mContentDisposition = contentDisposition',
+        mContentLength = contentLength',
+        mContentMD5 = contentMD5',
+        mContentType = contentType',
+        mETag = eTag',
+        mLastModified = lastModified'
       }
 
 -- Exported functions
@@ -290,8 +303,8 @@ runOp :: Operator -> OpMonad a -> IO (Either OpenDALError a)
 runOp operator op = runExceptT $ runReaderT op operator
 
 -- | Creates a new OpenDAL operator via `HashMap`.
-newOp :: String -> HashMap String String -> IO (Either OpenDALError Operator)
-newOp scheme hashMap = do
+newOperator :: OperatorConfig -> IO (Either OpenDALError Operator)
+newOperator (OperatorConfig scheme hashMap Nothing) = do
   let keysAndValues = HashMap.toList hashMap
   withCString scheme $ \cScheme ->
     withMany withCString (map fst keysAndValues) $ \cKeys ->
@@ -311,10 +324,7 @@ newOp scheme hashMap = do
                   let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
                   errMsg <- peekCString (errorMessage ffiResult)
                   return $ Left $ OpenDALError code errMsg
-
--- | Creates a new OpenDAL operator via `HashMap` with logger. The logger parameter is a function that accepts a string. OpenDAL will call this function to output logs.
-newOpWithLogger :: String -> HashMap String String -> LogLevel -> (String -> IO ()) -> IO (Either OpenDALError Operator)
-newOpWithLogger scheme hashMap logLevel logger = do
+newOperator (OperatorConfig scheme hashMap (Just (OperatorLogConfig logLevel logger))) = do
   let keysAndValues = HashMap.toList hashMap
   withCString scheme $ \cScheme ->
     withMany withCString (map fst keysAndValues) $ \cKeys ->
@@ -465,10 +475,9 @@ statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
           errMsg <- peekCString (errorMessage ffiResult)
           return $ Left $ OpenDALError code errMsg
 
-{- | List current dir path.
-This function will create a new handle to list entries.
-An error will be returned if path doesn’t end with /.
--}
+-- | List current dir path.
+-- This function will create a new handle to list entries.
+-- An error will be returned if path doesn’t end with /.
 listOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
 listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
@@ -485,10 +494,9 @@ listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
           errMsg <- peekCString (errorMessage ffiResult)
           return $ Left $ OpenDALError code errMsg
 
-{- | List dir in flat way.
-Also, this function can be used to list a prefix.
-An error will be returned if given path doesn’t end with /.
--}
+-- | List dir in flat way.
+-- Also, this function can be used to list a prefix.
+-- An error will be returned if given path doesn’t end with /.
 scanOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
 scanOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->

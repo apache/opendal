@@ -12,7 +12,7 @@ import qualified Data.HashMap.Strict as HashMap
 
 main :: IO ()
 main = do
-  Right op <- operator "memory" HashMap.empty
+  Right op <- newOperator "memory"
   runOp op operation
  where
   operation = do
@@ -31,7 +31,7 @@ import qualified Data.HashMap.Strict as HashMap
 main :: IO ()
 main = do
   let logger msg = runStdoutLoggingT (logInfoN (pack msg))
-  Right op <- newOpWithLogger "memory" HashMap.empty Info logger
+  Right op <- newOperator "memory" {ocLogConfig = Just $ OperatorLogConfig Info logger}
   return ()
 ```
 

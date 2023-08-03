@@ -20,6 +20,28 @@ use crate::*;
 
 use async_trait::async_trait;
 
+/// Add Efficient, logical 'stack' traces of async functions for the underlying services.
+///
+/// # Async Backtrace
+///
+/// async-backtrace allows developers to get a stack trace of the async functions.
+/// Read more about [async-backtrace](https://docs.rs/async-backtrace/latest/async_backtrace/)
+///
+/// # Examples
+///
+/// ```
+/// use anyhow::Result;
+/// use opendal::layers::AsyncBacktraceLayer;
+/// use opendal::services;
+/// use opendal::Operator;
+/// use opendal::Scheme;
+///
+/// let _ = Operator::new(services::Memory::default())
+///     .expect("must init")
+///     .layer(AsyncBacktraceLayer::new())
+///     .finish();
+/// ```
+
 #[derive(Clone, Default)]
 pub struct AsyncBacktraceLayer;
 

@@ -168,6 +168,8 @@ impl FromStr for Scheme {
             "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
+            "redb" => Ok(Scheme::Redb),
+            "tikv" => Ok(Scheme::Tikv),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }

@@ -13,12 +13,12 @@ main :: IO ()
 main = do
   Right op <- newOperator "memory"
   runOp op operation
- where
-  operation = do
-    writeOp op "key1" "value1"
-    writeOp op "key2" "value2"
-    value1 <- readOp op "key1"
-    value2 <- readOp op "key2"
+  where
+    operation = do
+      writeOp op "key1" "value1"
+      writeOp op "key2" "value2"
+      value1 <- readOp op "key1"
+      value2 <- readOp op "key2"
 ```
 
 Use logger

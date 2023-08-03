@@ -68,10 +68,7 @@ impl DavFile for WebdavFile {
     fn write_bytes(&mut self, buf: bytes::Bytes) -> FsFuture<()> {
         async move {
             let file_path = self.path.as_url_string();
-            self.op
-                .write(&file_path, buf)
-                .await
-                .map_err(convert_error)
+            self.op.write(&file_path, buf).await.map_err(convert_error)
         }
         .boxed()
     }

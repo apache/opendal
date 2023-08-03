@@ -19,8 +19,10 @@
 
 module BasicTest (basicTests) where
 
+import Colog (LogAction (LogAction), Msg (msgText))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.IORef
+import qualified Data.Text as T
 import OpenDAL
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -127,11 +129,11 @@ testError = do
 testLogger :: Assertion
 testLogger = do
   state <- newIORef ""
-  let logger initStr msg = modifyIORef' initStr (++ msg)
-  let logFn = logger state
-  Right _ <- newOperator "memory" {ocLogConfig = Just $ OperatorLogConfig Debug logFn}
+  let logger initStr msg = modifyIORef' initStr (<> msgText msg)
+  let logFn = LogAction $ logger state
+  Right _ <- newOperator "memory" {ocLogAction = Just logFn}
   logStr <- readIORef state
-  take 77 logStr @?= "service=memory operation=metadata -> startedservice=memory operation=metadata"
+  T.take 77 logStr @?= "service=memory operation=metadata -> startedservice=memory operation=metadata"
 
 -- helper function
 

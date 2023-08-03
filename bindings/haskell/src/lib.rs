@@ -112,8 +112,7 @@ pub unsafe extern "C" fn via_map_with_logger_ffi(
     keys: *const *const c_char,
     values: *const *const c_char,
     len: usize,
-    log_level: u32,
-    callback: extern "C" fn(*const c_char),
+    callback: extern "C" fn(u32, *const c_char),
     result: *mut FFIResult<od::BlockingOperator>,
 ) {
     let scheme_str = match CStr::from_ptr(scheme).to_str() {
@@ -146,22 +145,9 @@ pub unsafe extern "C" fn via_map_with_logger_ffi(
         })
         .collect::<HashMap<String, String>>();
 
-    let log_level = match log_level {
-        0 => log::Level::Error,
-        1 => log::Level::Warn,
-        2 => log::Level::Info,
-        3 => log::Level::Debug,
-        4 => log::Level::Trace,
-        _ => {
-            *result = FFIResult::err("Invalid log level");
-            return;
-        }
-    };
-
-    let register_logger_res = log::set_boxed_logger(Box::new(HsLogger { callback })).map(|()| {
-        log::set_max_level(log_level.to_level_filter());
-    });
-    if let Err(e) = register_logger_res {
+    if let Err(e) = log::set_boxed_logger(Box::new(HsLogger { callback }))
+        .map(|()| log::set_max_level(log::LevelFilter::Debug))
+    {
         *result = FFIResult::err_with_source(
             "Failed to register logger",
             od::Error::new(od::ErrorKind::Unexpected, e.to_string().as_str()),

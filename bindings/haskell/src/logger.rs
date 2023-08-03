@@ -18,7 +18,7 @@
 use std::ffi::{c_char, CString};
 
 pub struct HsLogger {
-    pub callback: extern "C" fn(*const c_char),
+    pub callback: extern "C" fn(u32, *const c_char),
 }
 
 impl log::Log for HsLogger {
@@ -29,7 +29,14 @@ impl log::Log for HsLogger {
     fn log(&self, record: &log::Record) {
         let msg = format!("{}", record.args());
         let c_str_msg = CString::new(msg).unwrap();
-        (self.callback)(c_str_msg.as_ptr());
+        let c_level = match record.level() {
+            log::Level::Debug => 0,
+            log::Level::Info => 1,
+            log::Level::Warn => 2,
+            log::Level::Error => 3,
+            _ => 0,
+        };
+        (self.callback)(c_level, c_str_msg.as_ptr());
     }
 
     fn flush(&self) {}

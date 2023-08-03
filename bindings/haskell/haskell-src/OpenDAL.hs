@@ -28,10 +28,8 @@
 -- This module provides Haskell bindings for OpenDAL.
 module OpenDAL
   ( OperatorConfig (..),
-    OperatorLogConfig (..),
     Operator,
     Lister,
-    LogLevel (..),
     OpenDALError (..),
     ErrorCode (..),
     EntryMode (..),
@@ -54,7 +52,7 @@ module OpenDAL
   )
 where
 
-import Control.Monad ((<=<))
+import Colog (LogAction, Message, Msg (Msg), (<&))
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Reader (ReaderT, ask, liftIO, runReaderT)
 import Data.ByteString (ByteString)
@@ -62,25 +60,24 @@ import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.String (IsString (fromString))
+import Data.Text (pack)
 import Data.Time (UTCTime, parseTimeM, zonedTimeToUTC)
 import Data.Time.Format (defaultTimeLocale)
 import Foreign
 import Foreign.C.String
+import GHC.Stack (emptyCallStack)
 import OpenDAL.FFI
 
+-- | `OperatorConfig` is the configuration for an `Operator`. Currently, it contains the scheme, config and log action.
+-- Recommend using `OverloadedStrings` to construct a default config.
 data OperatorConfig = OperatorConfig
   { ocScheme :: String,
     ocConfig :: HashMap String String,
-    ocLogConfig :: Maybe OperatorLogConfig
+    ocLogAction :: Maybe (LogAction IO Message)
   }
 
 instance IsString OperatorConfig where
   fromString s = OperatorConfig s HashMap.empty Nothing
-
-data OperatorLogConfig = OperatorLogConfig
-  { olcLogLevel :: LogLevel,
-    olcLogFn :: String -> IO ()
-  }
 
 -- | `Operator` is the entry for all public blocking APIs.
 -- Create an `Operator` with `newOp`.
@@ -89,16 +86,6 @@ newtype Operator = Operator (ForeignPtr RawOperator)
 -- | `Lister` is designed to list entries at given path in a blocking manner.
 -- Users can construct Lister by `listOp` or `scanOp`.
 newtype Lister = Lister (ForeignPtr RawLister)
-
--- | Represents the level of logging, which is used to filter logs. The higher the level is, the more logs will be printed.
--- Currently, Error level contains all unexpected failure, Warn level contains all expected error, Debug level contains all debug info.
-data LogLevel
-  = Error
-  | Warn
-  | Info
-  | Debug
-  | Trace
-  deriving (Eq, Show, Enum)
 
 -- | Represents the possible error codes that can be returned by OpenDAL.
 data ErrorCode
@@ -324,7 +311,7 @@ newOperator (OperatorConfig scheme hashMap Nothing) = do
                   let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
                   errMsg <- peekCString (errorMessage ffiResult)
                   return $ Left $ OpenDALError code errMsg
-newOperator (OperatorConfig scheme hashMap (Just (OperatorLogConfig logLevel logger))) = do
+newOperator (OperatorConfig scheme hashMap (Just logger)) = do
   let keysAndValues = HashMap.toList hashMap
   withCString scheme $ \cScheme ->
     withMany withCString (map fst keysAndValues) $ \cKeys ->
@@ -332,10 +319,10 @@ newOperator (OperatorConfig scheme hashMap (Just (OperatorLogConfig logLevel log
         allocaArray (length keysAndValues) $ \cKeysPtr ->
           allocaArray (length keysAndValues) $ \cValuesPtr ->
             alloca $ \ffiResultPtr -> do
-              logFnPtr <- wrapLogFn (logger <=< peekCString)
+              logFnPtr <- wrapLogFn logFn
               pokeArray cKeysPtr cKeys
               pokeArray cValuesPtr cValues
-              c_via_map_with_logger_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) (fromIntegral $ fromEnum logLevel) logFnPtr ffiResultPtr
+              c_via_map_with_logger_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) logFnPtr ffiResultPtr
               ffiResult <- peek ffiResultPtr
               if ffiCode ffiResult == 0
                 then do
@@ -345,6 +332,10 @@ newOperator (OperatorConfig scheme hashMap (Just (OperatorLogConfig logLevel log
                   let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
                   errMsg <- peekCString (errorMessage ffiResult)
                   return $ Left $ OpenDALError code errMsg
+  where
+    logFn enumSeverity cStr = do
+      str <- peekCString cStr
+      logger <& Msg (toEnum (fromIntegral enumSeverity)) emptyCallStack (pack str)
 
 -- Functions for performing raw OpenDAL operations are defined below.
 -- These functions are not meant to be used directly in most cases.

@@ -8,7 +8,6 @@ Basic usage
 
 ```haskell
 import OpenDAL
-import qualified Data.HashMap.Strict as HashMap
 
 main :: IO ()
 main = do
@@ -22,16 +21,15 @@ main = do
     value2 <- readOp op "key2"
 ```
 
-Integrates with [monad-logger](https://hackage.haskell.org/package/monad-logger) to log messages
+Use logger
 
 ```haskell
 import OpenDAL
-import qualified Data.HashMap.Strict as HashMap
+import Colog (simpleMessageAction)
 
 main :: IO ()
 main = do
-  let logger msg = runStdoutLoggingT (logInfoN (pack msg))
-  Right op <- newOperator "memory" {ocLogConfig = Just $ OperatorLogConfig Info logger}
+  Right op <- newOperator "memory" {ocLogAction = Just simpleMessageAction}
   return ()
 ```
 

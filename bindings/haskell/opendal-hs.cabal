@@ -39,13 +39,13 @@ library
     extra-libraries:  opendal_hs
     ghc-options:      -Wall
     build-depends:
-        base >=4.10.0.0 && <5,
-        unordered-containers >=0.2.0.0, 
-        bytestring >=0.11.0.0,
-        mtl >=2.2.0.0,
-        time >=1.10.0.0,
-        co-log >=0.5.0.0,
-        text >=2.0.0.0
+        base >=4.10 && <4.17,
+        unordered-containers >=0.2,
+        bytestring >=0.11,
+        mtl >=2.2,
+        time >=1.10,
+        co-log >=0.5,
+        text >=2
 
 test-suite opendal-hs-test
     type:             exitcode-stdio-1.0

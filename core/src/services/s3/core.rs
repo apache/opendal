@@ -297,18 +297,6 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_get_object(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.s3_get_object_request(path, args)?;
-
-        self.sign(&mut req).await?;
-
-        self.send(req).await
-    }
-
     pub fn s3_put_object_request(
         &self,
         path: &str,
@@ -352,6 +340,41 @@ impl S3Core {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
+    }
+
+    pub async fn s3_get_object(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.s3_get_object_request(path, args)?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
+    pub async fn s3_put_object(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        cache_control: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.s3_put_object_request(
+            path,
+            size,
+            content_type,
+            content_disposition,
+            cache_control,
+            body,
+        )?;
+
+        self.sign(&mut req).await?;
+
+        self.send(req).await
     }
 
     pub async fn s3_head_object(
@@ -533,14 +556,14 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub fn s3_upload_part_request(
+    pub async fn s3_upload_part(
         &self,
         path: &str,
         upload_id: &str,
         part_number: usize,
         size: u64,
         body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -559,9 +582,11 @@ impl S3Core {
         req = self.insert_sse_headers(req, true);
 
         // Set body
-        let req = req.body(body).map_err(new_request_build_error)?;
+        let mut req = req.body(body).map_err(new_request_build_error)?;
 
-        Ok(req)
+        self.sign(&mut req).await?;
+
+        self.send(req).await
     }
 
     pub async fn s3_complete_multipart_upload(

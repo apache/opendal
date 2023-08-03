@@ -53,19 +53,18 @@ impl OssWriter {
 #[async_trait]
 impl oio::MultipartUploadWrite for OssWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
-        let mut req = self.core.oss_put_object_request(
-            &self.path,
-            Some(size),
-            self.op.content_type(),
-            self.op.content_disposition(),
-            self.op.cache_control(),
-            body,
-            false,
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .oss_put_object(
+                &self.path,
+                Some(size),
+                self.op.content_type(),
+                self.op.content_disposition(),
+                self.op.cache_control(),
+                body,
+                false,
+            )
+            .await?;
 
         let status = resp.status();
 

@@ -80,17 +80,16 @@ impl oio::Append for OssAppender {
             }
         }
 
-        let mut req = self.core.oss_append_object_request(
-            &self.path,
-            self.position.expect("position is not set"),
-            bs.len(),
-            &self.op,
-            AsyncBody::Bytes(bs),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .oss_append_object(
+                &self.path,
+                self.position.expect("position is not set"),
+                bs.len(),
+                &self.op,
+                AsyncBody::Bytes(bs),
+            )
+            .await?;
 
         let status = resp.status();
 

@@ -444,7 +444,7 @@ impl Accessor for OssBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self
             .core
-            .oss_put_object(path, None, None, None, None, AsyncBody::Empty)
+            .oss_put_object(path, None, None, None, None, AsyncBody::Empty, false)
             .await?;
         let status = resp.status();
 

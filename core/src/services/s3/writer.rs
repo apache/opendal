@@ -51,18 +51,17 @@ impl S3Writer {
 #[async_trait]
 impl oio::MultipartUploadWrite for S3Writer {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
-        let mut req = self.core.s3_put_object_request(
-            &self.path,
-            Some(size),
-            self.op.content_type(),
-            self.op.content_disposition(),
-            self.op.cache_control(),
-            body,
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .s3_put_object(
+                &self.path,
+                Some(size),
+                self.op.content_type(),
+                self.op.content_disposition(),
+                self.op.cache_control(),
+                body,
+            )
+            .await?;
 
         let status = resp.status();
 
@@ -111,13 +110,10 @@ impl oio::MultipartUploadWrite for S3Writer {
         // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
-        let mut req =
-            self.core
-                .s3_upload_part_request(&self.path, upload_id, part_number, size, body)?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
+        let resp = self
+            .core
+            .s3_upload_part(&self.path, upload_id, part_number, size, body)
+            .await?;
 
         let status = resp.status();
 

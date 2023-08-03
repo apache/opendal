@@ -186,46 +186,6 @@ impl OssCore {
         Ok(req)
     }
 
-    pub fn oss_append_object_request(
-        &self,
-        path: &str,
-        position: u64,
-        size: usize,
-        args: &OpAppend,
-        body: AsyncBody,
-    ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(false);
-        let url = format!(
-            "{}/{}?append&position={}",
-            endpoint,
-            percent_encode_path(&p),
-            position
-        );
-
-        let mut req = Request::post(&url);
-
-        req = req.header(CONTENT_LENGTH, size);
-
-        if let Some(mime) = args.content_type() {
-            req = req.header(CONTENT_TYPE, mime);
-        }
-
-        if let Some(pos) = args.content_disposition() {
-            req = req.header(CONTENT_DISPOSITION, pos);
-        }
-
-        if let Some(cache_control) = args.cache_control() {
-            req = req.header(CACHE_CONTROL, cache_control)
-        }
-
-        // set sse headers
-        req = self.insert_sse_headers(req);
-
-        let req = req.body(body).map_err(new_request_build_error)?;
-        Ok(req)
-    }
-
     pub fn oss_get_object_request(
         &self,
         path: &str,
@@ -341,6 +301,48 @@ impl OssCore {
         Ok(req)
     }
 
+    pub async fn oss_append_object(
+        &self,
+        path: &str,
+        position: u64,
+        size: usize,
+        args: &OpAppend,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let endpoint = self.get_endpoint(false);
+        let url = format!(
+            "{}/{}?append&position={}",
+            endpoint,
+            percent_encode_path(&p),
+            position
+        );
+
+        let mut req = Request::post(&url);
+
+        req = req.header(CONTENT_LENGTH, size);
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // set sse headers
+        req = self.insert_sse_headers(req);
+
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+
+        self.send(req).await
+    }
+
     pub async fn oss_get_object(
         &self,
         path: &str,
@@ -373,6 +375,7 @@ impl OssCore {
         self.send(req).await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn oss_put_object(
         &self,
         path: &str,
@@ -381,6 +384,7 @@ impl OssCore {
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
         body: AsyncBody,
+        is_presign: bool,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_put_object_request(
             path,
@@ -389,7 +393,7 @@ impl OssCore {
             content_disposition,
             cache_control,
             body,
-            false,
+            is_presign,
         )?;
 
         self.sign(&mut req).await?;

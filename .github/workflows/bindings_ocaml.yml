@@ -43,31 +43,13 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-version: 4.14.0
-          opam-pin: true
 
       - name: Checks
         run: |
-          set -x
-          eval $(opam env)
-
-          # make sure we can run opam pin
-          opam pin add .
-
           # make sure tests pass
           dune runtest
 
-          # make sure opam package file is valid
-          opam install opam-dune-lint
-          opam lint
-          opam-dune-lint
-
-      - name: Format
-        run: |
-          set -x
-          eval $(opam env)
-
-          # make sure the project is well-formatted
-          opam install ocamlformat
-          dune build @fmt
+      - name: Lint fmt
+        uses: ocaml/setup-ocaml/lint-fmt@v2
           
           

@@ -47,12 +47,13 @@ jobs:
       - name: Checks
         run: |
           # make sure tests pass
+          opam install -y dune ounit2
           dune runtest
 
       - name: Format
         run: |
           # make sure the project is well-formatted
-          opam install ocamlformat
+          opam install -y ocamlformat
           dune build @fmt
           
           

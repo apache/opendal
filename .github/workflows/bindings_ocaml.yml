@@ -42,7 +42,7 @@ jobs:
       - name: Set up ocaml
         uses: ocaml/setup-ocaml@v2
         with:
-          ocaml-version: 4.14.0
+          ocaml-compiler: 4.14
 
       - name: Checks
         run: |

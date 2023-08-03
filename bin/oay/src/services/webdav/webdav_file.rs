@@ -71,13 +71,13 @@ impl DavFile for WebdavFile {
             self.op
                 .write(&file_path, buf)
                 .await
-                .map_err(|e| convert_error(e))
+                .map_err(convert_error)
         }
         .boxed()
     }
 
     fn seek(&mut self, _pos: SeekFrom) -> FsFuture<u64> {
-        futures_util::future::ok(0).boxed()
+        futures_util::future::err(dav_server::fs::FsError::NotImplemented).boxed()
     }
 
     fn flush(&mut self) -> FsFuture<()> {

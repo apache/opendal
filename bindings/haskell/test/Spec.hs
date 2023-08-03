@@ -15,10 +15,9 @@
 -- specific language governing permissions and limitations
 -- under the License.
 
+import BasicTest
 import Test.Tasty
 import Test.Tasty.Ingredients.Basic (consoleTestReporter)
-
-import BasicTest
 
 main :: IO ()
 main =

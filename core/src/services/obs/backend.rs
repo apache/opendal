@@ -269,13 +269,19 @@ impl Builder for ObsBuilder {
             })?
         };
 
-        let config = HuaweicloudObsConfig {
-            access_key_id: self.access_key_id.take(),
-            secret_access_key: self.secret_access_key.take(),
-            security_token: None,
-        };
+        let mut cfg = HuaweicloudObsConfig::default();
+        // Load cfg from env first.
+        cfg = cfg.from_env();
 
-        let cred_loader = HuaweicloudObsCredentialLoader::new(config);
+        if let Some(v) = self.access_key_id.take() {
+            cfg.access_key_id = Some(v);
+        }
+
+        if let Some(v) = self.secret_access_key.take() {
+            cfg.secret_access_key = Some(v);
+        }
+
+        let loader = HuaweicloudObsCredentialLoader::new(cfg);
 
         // Set the bucket name in CanonicalizedResource.
         // 1. If the bucket is bound to a user domain name, use the user domain name as the bucket name,
@@ -307,7 +313,7 @@ impl Builder for ObsBuilder {
                 root,
                 endpoint: format!("{}://{}", &scheme, &endpoint),
                 signer,
-                loader: cred_loader,
+                loader,
                 client,
                 write_min_size,
             }),

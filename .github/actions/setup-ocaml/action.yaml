@@ -15,44 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Bindings OCaml CI
+name: Setup OCaml 
+description: 'Prepare OCaml Build Environment'
+inputs:
+  need-depext:
+    description: "Enable the automation feature for opam depext."
+  need-pin:
+    description: "Enable the automation feature for opam pin."
 
-on:
-  push:
-    branches:
-      - main
-    tags:
-      - '*'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "bindings/ocaml/**"
-      - ".github/workflows/bindings_ocaml.yml"
-  workflow_dispatch:
+runs:
+  using: "composite"
+  steps:
+    - name: Setup OCaml
+      uses: ocaml/setup-ocaml@v2
+      with:
+        ocaml-compiler: 4.14
+        dune-cache: true
+        opam-depext: ${{inputs.need-depext}}
+        opam-pin: ${{inputs.need-pin}}
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout PR
-        uses: actions/checkout@v2
-
-      - name: Setup OCaml toolchain
-        uses: ./.github/actions/setup-ocaml
-        with:
-          need-depext: true
-          need-pin: true
-
-      - name: Checks
-        run: |
-          # make sure tests pass
-          opam install -y dune ounit2 ocamlformat
-          eval $(opam env)
-          cd bindings/ocaml
-          dune runtest
-          dune build @fmt
-
-          
-          
+    - name: Set Opam env
+      run: opam env | tr '\n' ' ' >> $GITHUB_ENV
+    - name: Add Opam switch to PATH
+      run: opam var bin >> $GITHUB_PATH

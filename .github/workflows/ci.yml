@@ -75,15 +75,11 @@ jobs:
           distribution: temurin
           java-version: "11"
 
-      - name: Checkout ocaml env
-        uses: ocaml/setup-ocaml@v2
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
         with:
-          ocaml-compiler: 4.14
-          dune-cache: true
-      - name: Set Opam env
-        run: opam env | tr '\n' ' ' >> $GITHUB_ENV
-      - name: Add Opam switch to PATH
-        run: opam var bin >> $GITHUB_PATH
+          need-depext: false
+          need-pin: false
 
       - name: Cargo doc
         run: cargo doc --lib --no-deps --all-features -p opendal
@@ -109,15 +105,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
-      - name: Checkout ocaml env
-        uses: ocaml/setup-ocaml@v2
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
         with:
-          ocaml-compiler: 4.14
-          dune-cache: true
-      - name: Set Opam env
-        run: opam env | tr '\n' ' ' >> $GITHUB_ENV
-      - name: Add Opam switch to PATH
-        run: opam var bin >> $GITHUB_PATH
+          need-depext: false
+          need-pin: false
 
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -164,15 +156,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
-      - name: Checkout ocaml env
-        uses: ocaml/setup-ocaml@v2
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
         with:
-          ocaml-compiler: 4.14
-          dune-cache: true
-      - name: Set Opam env
-        run: opam env | tr '\n' ' ' >> $GITHUB_ENV
-      - name: Add Opam switch to PATH
-        run: opam var bin >> $GITHUB_PATH
+          need-depext: false
+          need-pin: false
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -196,15 +184,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
-      - name: Checkout ocaml env
-        uses: ocaml/setup-ocaml@v2
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
         with:
-          ocaml-compiler: 4.14
-          dune-cache: true
-      - name: Set Opam env
-        run: opam env | tr '\n' ' ' >> $GITHUB_ENV
-      - name: Add Opam switch to PATH
-        run: opam var bin >> $GITHUB_PATH
+          need-depext: false
+          need-pin: false
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

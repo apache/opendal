@@ -15,41 +15,44 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+name: Bindings OCaml CI
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "bindings/ocaml/**"
+      - ".github/workflows/bindings_ocaml.yml"
+  workflow_dispatch:
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/ocaml",
+jobs:
+  test:
+    runs-on: ubuntu-latest
 
-  "bin/oli",
-  "bin/oay",
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v2
 
-  "core/fuzz",
-]
-resolver = "2"
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
+        with:
+          need-depext: true
+          need-pin: true
 
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.39.0"
+      - name: Checks
+        run: |
+          # make sure tests pass
+          opam install -y dune ounit2 ocamlformat
+          eval $(opam env)
+          cd bindings/ocaml
+          dune runtest
+          dune build @fmt
 
-[workspace.dependencies]
-opendal = { version = "0.39", path = "core" }
+          
+          

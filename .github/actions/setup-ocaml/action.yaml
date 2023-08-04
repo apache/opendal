@@ -30,7 +30,6 @@ runs:
       uses: ocaml/setup-ocaml@v2
       with:
         ocaml-compiler: 4.14
-        dune-cache: true
         opam-depext: ${{inputs.need-depext == true}}
         opam-pin: ${{inputs.need-pin == true}}
 

@@ -48,6 +48,7 @@ cargo +nightly fuzz run fuzz_reader
 If you want to reproduce a crash, you first need to obtain the Base64 encoded code, which usually appears at the end of a crash report, and store it in a file.
 
 Alternatively, if you already have the crash file, you can skip this step.
+
 ```bash
 echo "Base64" > .crash
 ```

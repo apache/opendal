@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod logger;
 mod result;
 mod types;
 
@@ -25,6 +26,9 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
+use logger::HsLogger;
+use od::layers::LoggingLayer;
+use od::layers::RetryLayer;
 use od::BlockingLister;
 use result::FFIResult;
 use types::ByteSlice;
@@ -81,7 +85,83 @@ pub unsafe extern "C" fn via_map_ffi(
         .collect::<HashMap<String, String>>();
 
     let res = match od::Operator::via_map(scheme, map) {
-        Ok(operator) => FFIResult::ok(operator.blocking()),
+        Ok(operator) => FFIResult::ok(operator.layer(RetryLayer::new()).blocking()),
+        Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
+    };
+
+    *result = res;
+}
+
+/// # Safety
+///
+/// * The `keys`, `values`, `len` are valid from `HashMap`.
+/// * The memory pointed to by `scheme` contain a valid nul terminator at the end of
+///   the string.
+/// * The `result` is a valid pointer, and has available memory to write to.
+///
+/// # Panics
+///
+/// * If `keys` or `values` are not valid pointers.
+/// * If `len` is not the same for `keys` and `values`.
+/// * If `log_level` is not a valid value passed by haskell.
+/// * If `callback` is not a valid function pointer.
+/// * If `result` is not a valid pointer.
+#[no_mangle]
+pub unsafe extern "C" fn via_map_with_logger_ffi(
+    scheme: *const c_char,
+    keys: *const *const c_char,
+    values: *const *const c_char,
+    len: usize,
+    callback: extern "C" fn(u32, *const c_char),
+    result: *mut FFIResult<od::BlockingOperator>,
+) {
+    let scheme_str = match CStr::from_ptr(scheme).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to convert scheme to string");
+            return;
+        }
+    };
+
+    let scheme = match od::Scheme::from_str(scheme_str) {
+        Ok(s) => s,
+        Err(_) => {
+            *result = FFIResult::err("Failed to parse scheme");
+            return;
+        }
+    };
+
+    let keys_vec = std::slice::from_raw_parts(keys, len);
+    let values_vec = std::slice::from_raw_parts(values, len);
+
+    let map = keys_vec
+        .iter()
+        .zip(values_vec.iter())
+        .map(|(&k, &v)| {
+            (
+                CStr::from_ptr(k).to_string_lossy().into_owned(),
+                CStr::from_ptr(v).to_string_lossy().into_owned(),
+            )
+        })
+        .collect::<HashMap<String, String>>();
+
+    if let Err(e) = log::set_boxed_logger(Box::new(HsLogger { callback }))
+        .map(|()| log::set_max_level(log::LevelFilter::Debug))
+    {
+        *result = FFIResult::err_with_source(
+            "Failed to register logger",
+            od::Error::new(od::ErrorKind::Unexpected, e.to_string().as_str()),
+        );
+        return;
+    }
+
+    let res = match od::Operator::via_map(scheme, map) {
+        Ok(operator) => FFIResult::ok(
+            operator
+                .layer(RetryLayer::new())
+                .layer(LoggingLayer::default())
+                .blocking(),
+        ),
         Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
     };
 
@@ -128,7 +208,7 @@ pub unsafe extern "C" fn blocking_read(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };
@@ -172,7 +252,7 @@ pub unsafe extern "C" fn blocking_write(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };
@@ -216,7 +296,7 @@ pub unsafe extern "C" fn blocking_is_exist(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };
@@ -255,7 +335,7 @@ pub unsafe extern "C" fn blocking_create_dir(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };
@@ -296,7 +376,7 @@ pub unsafe extern "C" fn blocking_copy(
     let path_from_str = match CStr::from_ptr(path_from).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert source path to string");
             return;
         }
     };
@@ -304,7 +384,7 @@ pub unsafe extern "C" fn blocking_copy(
     let path_to_str = match CStr::from_ptr(path_to).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert destination path to string");
             return;
         }
     };
@@ -345,7 +425,7 @@ pub unsafe extern "C" fn blocking_rename(
     let path_from_str = match CStr::from_ptr(path_from).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert source path to string");
             return;
         }
     };
@@ -353,7 +433,7 @@ pub unsafe extern "C" fn blocking_rename(
     let path_to_str = match CStr::from_ptr(path_to).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert destination path to string");
             return;
         }
     };
@@ -392,7 +472,7 @@ pub unsafe extern "C" fn blocking_delete(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };
@@ -431,7 +511,7 @@ pub unsafe extern "C" fn blocking_stat(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };
@@ -470,7 +550,7 @@ pub unsafe extern "C" fn blocking_list(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };
@@ -509,7 +589,7 @@ pub unsafe extern "C" fn blocking_scan(
     let path_str = match CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            *result = FFIResult::err("Failed to convert scheme to string");
+            *result = FFIResult::err("Failed to convert path to string");
             return;
         }
     };

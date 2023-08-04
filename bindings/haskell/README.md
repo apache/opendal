@@ -4,20 +4,33 @@
 
 ## Example
 
+Basic usage
+
 ```haskell
 import OpenDAL
-import qualified Data.HashMap.Strict as HashMap
 
 main :: IO ()
 main = do
-  Right op <- operator "memory" HashMap.empty
+  Right op <- newOperator "memory"
   runOp op operation
- where
-  operation = do
-    writeOp op "key1" "value1"
-    writeOp op "key2" "value2"
-    value1 <- readOp op "key1"
-    value2 <- readOp op "key2"
+  where
+    operation = do
+      writeOp op "key1" "value1"
+      writeOp op "key2" "value2"
+      value1 <- readOp op "key1"
+      value2 <- readOp op "key2"
+```
+
+Use logger
+
+```haskell
+import OpenDAL
+import Colog (simpleMessageAction)
+
+main :: IO ()
+main = do
+  Right op <- newOperator "memory" {ocLogAction = Just simpleMessageAction}
+  return ()
 ```
 
 ## Build

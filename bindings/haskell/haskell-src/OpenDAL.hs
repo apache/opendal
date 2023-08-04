@@ -71,8 +71,11 @@ import OpenDAL.FFI
 -- | `OperatorConfig` is the configuration for an `Operator`. Currently, it contains the scheme, config and log action.
 -- Recommend using `OverloadedStrings` to construct a default config.
 data OperatorConfig = OperatorConfig
-  { ocScheme :: String,
+  { -- | The scheme of the operator. For example, "s3" or "gcs".
+    ocScheme :: String,
+    -- | The config for the operator services. For example, "endpoint" and "access_key_id" for s3. The config is same as rust core.
     ocConfig :: HashMap String String,
+    -- | The log action for the operator. If it's `Nothing`, the operator won't enable logging.
     ocLogAction :: Maybe (LogAction IO Message)
   }
 
@@ -291,7 +294,7 @@ runOp operator op = runExceptT $ runReaderT op operator
 
 -- | Creates a new OpenDAL operator via `HashMap`.
 newOperator :: OperatorConfig -> IO (Either OpenDALError Operator)
-newOperator (OperatorConfig scheme hashMap Nothing) = do
+newOperator (OperatorConfig scheme hashMap maybeLogger) = do
   let keysAndValues = HashMap.toList hashMap
   withCString scheme $ \cScheme ->
     withMany withCString (map fst keysAndValues) $ \cKeys ->
@@ -299,30 +302,12 @@ newOperator (OperatorConfig scheme hashMap Nothing) = do
         allocaArray (length keysAndValues) $ \cKeysPtr ->
           allocaArray (length keysAndValues) $ \cValuesPtr ->
             alloca $ \ffiResultPtr -> do
+              logFnPtr <- case maybeLogger of
+                Just logger -> wrapLogFn (logFn logger)
+                Nothing -> return nullFunPtr
               pokeArray cKeysPtr cKeys
               pokeArray cValuesPtr cValues
-              c_via_map_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) ffiResultPtr
-              ffiResult <- peek ffiResultPtr
-              if ffiCode ffiResult == 0
-                then do
-                  op <- Operator <$> newForeignPtr c_free_operator (dataPtr ffiResult)
-                  return $ Right op
-                else do
-                  let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-                  errMsg <- peekCString (errorMessage ffiResult)
-                  return $ Left $ OpenDALError code errMsg
-newOperator (OperatorConfig scheme hashMap (Just logger)) = do
-  let keysAndValues = HashMap.toList hashMap
-  withCString scheme $ \cScheme ->
-    withMany withCString (map fst keysAndValues) $ \cKeys ->
-      withMany withCString (map snd keysAndValues) $ \cValues ->
-        allocaArray (length keysAndValues) $ \cKeysPtr ->
-          allocaArray (length keysAndValues) $ \cValuesPtr ->
-            alloca $ \ffiResultPtr -> do
-              logFnPtr <- wrapLogFn logFn
-              pokeArray cKeysPtr cKeys
-              pokeArray cValuesPtr cValues
-              c_via_map_with_logger_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) logFnPtr ffiResultPtr
+              c_via_map_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) logFnPtr ffiResultPtr
               ffiResult <- peek ffiResultPtr
               if ffiCode ffiResult == 0
                 then do
@@ -333,7 +318,7 @@ newOperator (OperatorConfig scheme hashMap (Just logger)) = do
                   errMsg <- peekCString (errorMessage ffiResult)
                   return $ Left $ OpenDALError code errMsg
   where
-    logFn enumSeverity cStr = do
+    logFn logger enumSeverity cStr = do
       str <- peekCString cStr
       logger <& Msg (toEnum (fromIntegral enumSeverity)) emptyCallStack (pack str)
 

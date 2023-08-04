@@ -35,6 +35,8 @@ runs:
         opam-pin: ${{inputs.need-pin}}
 
     - name: Set Opam env
+      shell: bash
       run: opam env | tr '\n' ' ' >> $GITHUB_ENV
     - name: Add Opam switch to PATH
+      shell: bash
       run: opam var bin >> $GITHUB_PATH

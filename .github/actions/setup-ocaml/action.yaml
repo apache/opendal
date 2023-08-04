@@ -15,41 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+name: Setup OCaml 
+description: 'Prepare OCaml Build Environment'
+inputs:
+  need-depext:
+    description: "Enable the automation feature for opam depext."
+  need-pin:
+    description: "Enable the automation feature for opam pin."
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
+runs:
+  using: "composite"
+  steps:
+    - name: Setup OCaml
+      uses: ocaml/setup-ocaml@v2
+      with:
+        ocaml-compiler: 4.14
+        opam-depext: ${{inputs.need-depext == true}}
+        opam-pin: ${{inputs.need-pin == true}}
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/object_store",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/ocaml",
-
-  "bin/oli",
-  "bin/oay",
-
-  "core/fuzz",
-]
-resolver = "2"
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.39.0"
-
-[workspace.dependencies]
-opendal = { version = "0.39", path = "core" }
+    - name: Set Opam env
+      shell: bash
+      run: opam env | tr '\n' ' ' >> $GITHUB_ENV
+    - name: Add Opam switch to PATH
+      shell: bash
+      run: opam var bin >> $GITHUB_PATH

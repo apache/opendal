@@ -75,6 +75,9 @@ jobs:
           distribution: temurin
           java-version: "11"
 
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
+
       - name: Cargo doc
         run: cargo doc --lib --no-deps --all-features -p opendal
 
@@ -99,6 +102,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
 
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -145,6 +150,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -168,6 +175,8 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

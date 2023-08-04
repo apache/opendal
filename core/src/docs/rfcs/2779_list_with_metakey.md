@@ -94,7 +94,7 @@ There are following possibilities:
 - The entry metadata is not met and not fully filled: `Lister` will try to send `stat` call to fetch the metadata
 - The entry metadata is not met and fully filled: `Lister` will return the entry directly.
 
-To make sure we can handle all metadata correctly, we will add a new capability called `stat_max_metakey`. This capability will be used to indicate the maximum number of metadata that can be fetched via `stat` call. `Lister` can use this capability to decide whether to send `stat` call or not.
+To make sure we can handle all metadata correctly, we will add a new capability called `stat_complete_metakey`. This capability will be used to indicate the complete set of metadata that can be fetched via `stat` call. For example, `s3` can set this capability to `ContentLength | ContentType | LastModified | ...`, and `fs` only have `ContentLength | LastModified`. `Lister` can use this capability to decide whether to send `stat` call or not.
 
 Services' lister implementation should not changed.
 

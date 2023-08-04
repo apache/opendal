@@ -28,9 +28,9 @@ use futures::Future;
 use libtest_mimic::Failed;
 use libtest_mimic::Trial;
 use log::debug;
-use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::layers::TimeoutLayer;
+use opendal::layers::{BlockingLayer, LoggingLayer};
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
@@ -81,7 +81,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
         op.layer(ChaosLayer::new(0.1))
     };
 
-    let op = op
+    let mut op = op
         .layer(LoggingLayer::default())
         .layer(TimeoutLayer::new())
         .layer(RetryLayer::new())

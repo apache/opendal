@@ -22,13 +22,37 @@ it('opendal-php extension loaded', function () {
     expect(extension_loaded('opendal-php'))->toBeTrue();
 });
 
-it('OpenDAL works', function () {
-    expect(class_exists('OpenDAL'))->toBeTrue();
+it('class & methods exists', function ($class, $methods) {
+    expect(class_exists($class))->toBeTrue();
+    foreach ($methods as $method) {
+        expect(method_exists($class, $method))->toBeTrue();
+    }
+})->with([
+    ['OpenDAL\Operator', ['exist', 'read', 'write', 'delete', 'stat', 'createDir']],
+    ['OpenDAL\Metadata', []],
+    ['OpenDAL\EntryMode', []],
+]);
 
-    $op = new OpenDAL('fs', ['root' => '/tmp']);
+describe('throw exception', function () {
+    it('invalid driver', function () {
+        new \OpenDAL\Operator('invalid', []);
+    })->throws('Exception');
+
+    it('unspecified root path', function () {
+        new \OpenDAL\Operator('fs', []);
+    })->throws('Exception');
+
+    it('read non-exist file', function () {
+        $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
+        $op->read('non-exist.txt');
+    })->throws('Exception');
+});
+
+it('initialization OpenDAL', function () {
+    $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
 
     expect($op)
-        ->toBeInstanceOf(OpenDAL::class)
+        ->toBeInstanceOf(\OpenDAL\Operator::class)
         ->not->toHaveProperty('op')
         ->not->toThrow(Exception::class);
 });

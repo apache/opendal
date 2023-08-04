@@ -3396,7 +3396,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-ocaml"
-version = "0.38.1"
+version = "0.39.0"
 dependencies = [
  "ocaml",
  "ocaml-build",

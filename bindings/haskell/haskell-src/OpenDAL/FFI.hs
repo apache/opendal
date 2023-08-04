@@ -131,10 +131,6 @@ instance Storable FFIMetadata where
 
 foreign import ccall "via_map_ffi"
   c_via_map_ffi ::
-    CString -> Ptr CString -> Ptr CString -> CSize -> Ptr (FFIResult RawOperator) -> IO ()
-
-foreign import ccall "via_map_with_logger_ffi"
-  c_via_map_with_logger_ffi ::
     CString -> Ptr CString -> Ptr CString -> CSize -> FunPtr (CUInt -> CString -> IO ()) -> Ptr (FFIResult RawOperator) -> IO ()
 
 foreign import ccall "wrapper"

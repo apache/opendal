@@ -77,9 +77,6 @@ jobs:
 
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
-        with:
-          need-depext: false
-          need-pin: false
 
       - name: Cargo doc
         run: cargo doc --lib --no-deps --all-features -p opendal
@@ -107,9 +104,6 @@ jobs:
           java-version: "11"
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
-        with:
-          need-depext: false
-          need-pin: false
 
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -158,9 +152,6 @@ jobs:
           java-version: "11"
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
-        with:
-          need-depext: false
-          need-pin: false
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -186,9 +177,6 @@ jobs:
           java-version: "11"
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
-        with:
-          need-depext: false
-          need-pin: false
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

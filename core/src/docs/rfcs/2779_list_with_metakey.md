@@ -5,7 +5,7 @@
 
 # Summary
 
-Move `metadata` API to `Lister` to simplify the usage.
+Move `Operator` `metadata` API to `list_with().metakey()` to simplify the usage.
 
 # Motivation
 

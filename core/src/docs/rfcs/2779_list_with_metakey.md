@@ -70,6 +70,11 @@ By introducing this change:
 - Users don't need to capture `Operator` in the closure.
 - Users don't need to do async call like `metadata()` again.
 
+If we don't have this change:
+
+- every place that could receive a `fn()` must use `Fn()` instead which enforce users to have a generic parameter in their code.
+- It's harder for other languages binding to implement `op.metadata()` right.
+
 # Guide-level explanation
 
 The new API will be:

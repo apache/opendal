@@ -24,6 +24,7 @@ use dav_server::fs::FsFuture;
 use dav_server::fs::OpenOptions;
 use futures::FutureExt;
 use opendal::Operator;
+use bytes::Bytes;
 
 use super::webdav_metadata::WebdavMetaData;
 
@@ -35,7 +36,7 @@ pub struct WebdavFile {
 }
 
 impl DavFile for WebdavFile {
-    fn read_bytes(&mut self, count: usize) -> FsFuture<bytes::Bytes> {
+    fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let file_path = self.path.as_url_string();
             let content = self
@@ -44,7 +45,7 @@ impl DavFile for WebdavFile {
                 .await
                 .unwrap();
             //error handle ?
-            Ok(bytes::Bytes::from(content))
+            Ok(Bytes::from(content))
         }
         .boxed()
     }
@@ -61,11 +62,11 @@ impl DavFile for WebdavFile {
         .boxed()
     }
 
-    fn write_buf(&mut self, _buf: Box<dyn bytes::Buf + Send>) -> FsFuture<()> {
-        self.write_bytes(bytes::Bytes::copy_from_slice(_buf.chunk()))
+    fn write_buf(&mut self, buf: Box<dyn bytes::Buf + Send>) -> FsFuture<()> {
+        self.write_bytes(Bytes::copy_from_slice(buf.chunk()))
     }
 
-    fn write_bytes(&mut self, buf: bytes::Bytes) -> FsFuture<()> {
+    fn write_bytes(&mut self, buf: Bytes) -> FsFuture<()> {
         async move {
             let file_path = self.path.as_url_string();
             self.op.write(&file_path, buf).await.map_err(convert_error)

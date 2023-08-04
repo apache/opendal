@@ -29,6 +29,9 @@ pub use logging::LoggingLayer;
 mod timeout;
 pub use timeout::TimeoutLayer;
 
+mod blocking;
+pub use blocking::BlockingLayer;
+
 #[cfg(feature = "layers-chaos")]
 mod chaos;
 #[cfg(feature = "layers-chaos")]

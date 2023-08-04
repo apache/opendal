@@ -192,7 +192,7 @@ async-compat = "0.2"
 async-tls = { version = "0.11", optional = true }
 async-trait = "0.1.68"
 await-tree = { version = "0.1.1", optional = true }
-backon = "0.4.0"
+backon = "0.4.1"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bytes = "1.2"

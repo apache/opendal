@@ -43,6 +43,8 @@ pub enum Scheme {
     Dashmap,
     /// [etcd][crate::services::Etcd]: Etcd Services
     Etcd,
+    /// [foundationdb][crate::services::Foundationdb]: Foundationdb services.
+    Foundationdb,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
@@ -193,6 +195,7 @@ impl From<Scheme> for &'static str {
             Scheme::Ghac => "ghac",
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",
+            Scheme::Foundationdb => "foundationdb",
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",

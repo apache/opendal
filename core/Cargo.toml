@@ -120,6 +120,7 @@ services-cos = [
 services-dashmap = ["dep:dashmap"]
 services-dropbox = []
 services-etcd = ["dep:etcd-client"]
+services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
 services-gcs = [
@@ -204,6 +205,9 @@ dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }
 etcd-client = { version = "0.11", optional = true, features = ["tls"] }
 flagset = "0.4"
+foundationdb = { version = "0.8.0", features = [
+  "embedded-fdb-include",
+], optional = true }
 futures = { version = "0.3", default-features = false, features = ["std"] }
 governor = { version = "0.5", optional = true, features = ["std"] }
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }

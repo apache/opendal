@@ -152,7 +152,10 @@ impl ZkAdapter {
                     (Some(user), Some(digest_path)) => {
                         let password = std::fs::read(digest_path).map_err(parse_file_error)?;
                         let auth = [format!("{user}:").as_bytes().to_vec(), password].concat();
-                        client.auth(ZOOKEEPER_AUTH_SCHEME.to_string(), auth).await.map_err(parse_zookeeper_error)?;
+                        client
+                            .auth(ZOOKEEPER_AUTH_SCHEME.to_string(), auth)
+                            .await
+                            .map_err(parse_zookeeper_error)?;
                     }
                     _ => log::warn!("username and password isn't set, default use `anyone` acl"),
                 }
@@ -180,10 +183,12 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        match self.get_connection().await?.get_data(path).await {
-            Ok((data, _)) => Ok(Some(data)),
-            Err(e) => Err(parse_zookeeper_error(e))
-        }
+        self.get_connection()
+            .await?
+            .get_data(path)
+            .await
+            .map(|data| Some(data.0))
+            .map_err(parse_zookeeper_error)
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -196,16 +201,34 @@ impl kv::Adapter for ZkAdapter {
             Ok(_) => Ok(()),
             Err(e) => match e {
                 zk::Error::NoNode => match (self.user.clone(), self.digest_path.clone()) {
-                    (Some(_), Some(_)) => self.get_connection().await?.create(
-                        path,
-                        value,
-                        &zk::CreateOptions::new(zk::CreateMode::Persistent, zk::Acl::creator_all()),
-                    ).await.map(|_|()).map_err(parse_zookeeper_error),
-                    _ => self.get_connection().await?.create(
-                        path,
-                        value,
-                        &zk::CreateOptions::new(zk::CreateMode::Persistent, zk::Acl::anyone_all()),
-                    ).await.map(|_|()).map_err(parse_zookeeper_error),
+                    (Some(_), Some(_)) => self
+                        .get_connection()
+                        .await?
+                        .create(
+                            path,
+                            value,
+                            &zk::CreateOptions::new(
+                                zk::CreateMode::Persistent,
+                                zk::Acl::creator_all(),
+                            ),
+                        )
+                        .await
+                        .map(|_| ())
+                        .map_err(parse_zookeeper_error),
+                    _ => self
+                        .get_connection()
+                        .await?
+                        .create(
+                            path,
+                            value,
+                            &zk::CreateOptions::new(
+                                zk::CreateMode::Persistent,
+                                zk::Acl::anyone_all(),
+                            ),
+                        )
+                        .await
+                        .map(|_| ())
+                        .map_err(parse_zookeeper_error),
                 },
                 _ => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
             },

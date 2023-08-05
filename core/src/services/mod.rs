@@ -181,6 +181,7 @@ pub use gdrive::Gdrive;
 mod dropbox;
 #[cfg(feature = "services-dropbox")]
 pub use dropbox::Dropbox;
+
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::Webhdfs;
 
@@ -198,6 +199,11 @@ pub use self::redb::Redb;
 mod tikv;
 #[cfg(feature = "services-tikv")]
 pub use self::tikv::Tikv;
+
+#[cfg(feature = "services-box")]
+mod r#box;
+#[cfg(feature = "services-box")]
+pub use r#box::Box;
 
 #[cfg(feature = "services-foundationdb")]
 mod foundationdb;

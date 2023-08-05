@@ -111,6 +111,7 @@ services-azdfs = [
   "reqsign?/services-azblob",
   "reqsign?/reqwest_request",
 ]
+services-box = []
 services-cacache = ["dep:cacache"]
 services-cos = [
   "dep:reqsign",

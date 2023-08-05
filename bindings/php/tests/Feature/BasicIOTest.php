@@ -23,18 +23,18 @@ describe('basic io', function () {
 
     it('ensure file not exist', function () use ($op) {
         $op->delete('test.txt');
-        expect($op->exist('test.txt'))->toEqual(0);
+        expect($op->is_exist('test.txt'))->toEqual(0);
     });
 
     it('write/read file', function () use ($op) {
         $op->write('test.txt', 'hello world');
-        expect($op->exist('test.txt'))->toEqual(1)
+        expect($op->is_exist('test.txt'))->toEqual(1)
             ->and($op->read('test.txt'))->toEqual('hello world');
     });
 
     it('write/read file overwrite', function () use ($op) {
         $op->write('test.txt', 'new content');
-        expect($op->exist('test.txt'))->toEqual(1)
+        expect($op->is_exist('test.txt'))->toEqual(1)
             ->and($op->read('test.txt'))->toEqual('new content');
     });
 
@@ -49,11 +49,11 @@ describe('basic io', function () {
 
     it('delete file', function () use ($op) {
         $op->delete('test.txt');
-        expect($op->exist('test.txt'))->toEqual(0);
+        expect($op->is_exist('test.txt'))->toEqual(0);
     });
 
     it('create dir', function () use ($op) {
-        $op->createDir('test/');
+        $op->create_dir('test/');
         expect(is_dir('/tmp/test'))->toBeTrue();
     });
 });

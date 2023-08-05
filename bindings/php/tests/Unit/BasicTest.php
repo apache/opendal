@@ -28,7 +28,7 @@ it('class & methods exists', function ($class, $methods) {
         expect(method_exists($class, $method))->toBeTrue();
     }
 })->with([
-    ['OpenDAL\Operator', ['exist', 'read', 'write', 'delete', 'stat', 'createDir']],
+    ['OpenDAL\Operator', ['is_exist', 'read', 'write', 'delete', 'stat', 'create_dir']],
     ['OpenDAL\Metadata', []],
     ['OpenDAL\EntryMode', []],
 ]);

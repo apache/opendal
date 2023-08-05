@@ -27,11 +27,11 @@ use ::opendal as od;
 #[php_class(name = "OpenDAL\\Operator")]
 pub struct Operator(od::BlockingOperator);
 
-#[php_impl]
+#[php_impl(rename_methods = "none")]
 impl Operator {
-    pub fn __construct(scheme_str: String, mp: HashMap<String, String>) -> PhpResult<Self> {
+    pub fn __construct(scheme_str: String, config: HashMap<String, String>) -> PhpResult<Self> {
         let scheme = od::Scheme::from_str(&scheme_str).map_err(format_php_err)?;
-        let op = od::Operator::via_map(scheme, mp).map_err(format_php_err)?;
+        let op = od::Operator::via_map(scheme, config).map_err(format_php_err)?;
 
         Ok(Operator(op.blocking()))
     }
@@ -50,7 +50,7 @@ impl Operator {
     }
 
     /// Check if this path exists or not.
-    pub fn exist(&self, path: &str) -> PhpResult<u8> {
+    pub fn is_exist(&self, path: &str) -> PhpResult<u8> {
         self.0
             .is_exist(path)
             .map_err(format_php_err)
@@ -98,7 +98,7 @@ impl Operator {
 #[php_class(name = "OpenDAL\\Metadata")]
 pub struct Metadata(od::Metadata);
 
-#[php_impl]
+#[php_impl(rename_methods = "none")]
 impl Metadata {
     #[getter]
     pub fn content_disposition(&self) -> Option<String> {
@@ -148,7 +148,7 @@ impl<'b> FromZval<'b> for EntryMode {
     }
 }
 
-#[php_impl]
+#[php_impl(rename_methods = "none")]
 impl EntryMode {
     #[getter]
     pub fn is_dir(&self) -> u8 {

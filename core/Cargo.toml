@@ -195,7 +195,7 @@ await-tree = { version = "0.1.1", optional = true }
 backon = "0.4.1"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
-bytes = "1.2"
+bytes = "1.4"
 cacache = { version = "11.6", default-features = false, features = [
   "tokio-runtime",
   "mmap",

@@ -30,24 +30,27 @@ use crate::*;
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io;
 
 const DEFAULT_ZOOKEEPER_ENDPOINT: &str = "127.0.0.1:2181";
 /// The scheme for zookeeper authentication
 /// currently we do not support sasl authentication
 const ZOOKEEPER_AUTH_SCHEME: &str = "digest";
 
+/// Zookeeper backend builder
 #[derive(Clone, Default)]
 pub struct ZookeeperBuilder {
     /// network address of the Zookeeper service
     /// Default: 127.0.0.1:2181
-    endpoint: Option<String>,
+    endpoints: Option<Vec<String>>,
     /// the user to connect to zookeeper service, default None
     user: Option<String>,
-    /// the password of the user to connect to zookeeper service, default None
-    password: Option<String>,
+    /// the path to the password file of the user to connect to zookeeper service, default None
+    digest_path: Option<String>,
 }
 
 impl ZookeeperBuilder {
+    /// Set the network addresses of zookeeper service
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.to_string());
@@ -55,6 +58,7 @@ impl ZookeeperBuilder {
         self
     }
 
+    /// Set the username of zookeeper service
     pub fn user(&mut self, user: &str) -> &mut Self {
         if !user.is_empty() {
             self.user = Some(user.to_string());
@@ -62,9 +66,10 @@ impl ZookeeperBuilder {
         self
     }
 
-    pub fn password(&mut self, password: &str) -> &mut Self {
-        if !password.is_empty() {
-            self.password = Some(password.to_string());
+    /// Specify the auth digest path of zookeeper service
+    pub fn digest_path(&mut self, digest_path: &str) -> &mut Self {
+        if !digest_path.is_empty() {
+            self.digest_path = Some(digest_path.to_string());
         }
         self
     }
@@ -74,13 +79,13 @@ impl Debug for ZookeeperBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
         if let Some(endpoint) = self.endpoint.clone() {
-            ds.field("endpoint", &endpoint)
+            ds.field("endpoint", &endpoint);
         }
         if let Some(user) = self.user.clone() {
-            ds.field("user", &user)
+            ds.field("user", &user);
         }
-        if let Some(password) = self.password.clone() {
-            ds.field("password", &password)
+        if let Some(digest_path) = self.digest_path.clone() {
+            ds.field("digest_path", &digest_path);
         }
         ds.finish()
     }
@@ -95,33 +100,34 @@ impl Builder for ZookeeperBuilder {
 
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("user").map(|v| builder.user(v));
-        map.get("password").map(|v| builder.password(v));
+        map.get("digest_path").map(|v| builder.digest_path(v));
 
         builder
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
         let endpoint = match self.endpoint.clone() {
-            None => DEFAULT_ZOOKEEPER_ENDPOINT,
+            None => DEFAULT_ZOOKEEPER_ENDPOINT.to_string(),
             Some(endpoint) => endpoint,
         };
 
         Ok(ZookeeperBackend::new(ZkAdapter {
-            endpoint: endpoint.to_string(),
+            endpoint,
             user: self.user.clone(),
-            password: self.password.clone(),
+            digest_path: self.digest_path.clone(),
             client: OnceCell::new(),
         }))
     }
 }
 
+/// Backend for Zookeeper service
 pub type ZookeeperBackend = kv::Backend<ZkAdapter>;
 
 #[derive(Clone)]
 pub struct ZkAdapter {
     endpoint: String,
     user: Option<String>,
-    password: Option<String>,
+    digest_path: Option<String>,
     client: OnceCell<zk::Client>,
 }
 
@@ -130,7 +136,7 @@ impl Debug for ZkAdapter {
         let mut ds = f.debug_struct("Adapter");
         ds.field("endpoint", &self.endpoint);
         ds.field("user", &self.user);
-        ds.field("password", &self.password);
+        ds.field("digest_path", &self.digest_path);
         ds.finish()
     }
 }
@@ -142,17 +148,18 @@ impl ZkAdapter {
         }
         match zk::Client::connect(&self.endpoint.clone()).await {
             Ok(client) => {
-                match (self.user.clone(), self.password.clone()) {
-                    (Some(user), Some(password)) => {
-                        let auth = format!("{user}:{password}").as_bytes();
-                        client.auth(ZOOKEEPER_AUTH_SCHEME.to_string(), auth.to_vec());
+                match (self.user.clone(), self.digest_path.clone()) {
+                    (Some(user), Some(digest_path)) => {
+                        let password = std::fs::read(digest_path).map_err(parse_file_error)?;
+                        let auth = [format!("{user}:").as_bytes().to_vec(), password].concat();
+                        client.auth(ZOOKEEPER_AUTH_SCHEME.to_string(), auth).await.map_err(parse_zookeeper_error)?;
                     }
                     _ => log::warn!("username and password isn't set, default use `anyone` acl"),
                 }
                 self.client.set(client.clone()).ok();
                 Ok(client)
             }
-            Err(e) => Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e),
+            Err(e) => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
         }
     }
 }
@@ -173,7 +180,10 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Ok(Some(self.get_connection().await?.get_data(path).0))
+        match self.get_connection().await?.get_data(path).await {
+            Ok((data, _)) => Ok(Some(data)),
+            Err(e) => Err(parse_zookeeper_error(e))
+        }
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -185,19 +195,19 @@ impl kv::Adapter for ZkAdapter {
         {
             Ok(_) => Ok(()),
             Err(e) => match e {
-                zk::Error::NoNode => match (self.user.clone(), self.password.clone()) {
-                    (Some(user), Some(password)) => self.get_connection().await?.create(
+                zk::Error::NoNode => match (self.user.clone(), self.digest_path.clone()) {
+                    (Some(_), Some(_)) => self.get_connection().await?.create(
                         path,
                         value,
                         &zk::CreateOptions::new(zk::CreateMode::Persistent, zk::Acl::creator_all()),
-                    ),
+                    ).await.map(|_|()).map_err(parse_zookeeper_error),
                     _ => self.get_connection().await?.create(
                         path,
                         value,
                         &zk::CreateOptions::new(zk::CreateMode::Persistent, zk::Acl::anyone_all()),
-                    ),
+                    ).await.map(|_|()).map_err(parse_zookeeper_error),
                 },
-                _ => Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e),
+                _ => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
             },
         }
     }
@@ -207,8 +217,16 @@ impl kv::Adapter for ZkAdapter {
             Ok(()) => Ok(()),
             Err(e) => match e {
                 zk::Error::NoNode => Ok(()),
-                _ => Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e),
+                _ => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
             },
         }
     }
+}
+
+fn parse_zookeeper_error(e: zk::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)
+}
+
+fn parse_file_error(e: io::Error) -> Error {
+    Error::new(ErrorKind::ConfigInvalid, "file error").set_source(e)
 }

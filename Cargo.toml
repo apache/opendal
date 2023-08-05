@@ -33,7 +33,7 @@ members = [
   "bindings/haskell",
   "bindings/lua",
   "bindings/dotnet",
-  "bindings/ocaml",
+#  "bindings/ocaml",
 
   "bin/oli",
   "bin/oay",

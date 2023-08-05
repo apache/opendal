@@ -66,7 +66,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 
     op.write(&path, content).await.expect("write must succeed");
 
-    let mut obs = op.list(&format!("{parent}/")).await?;
+    let mut obs = op.lister(&format!("{parent}/")).await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
         let meta = op.stat(de.path()).await?;
@@ -105,7 +105,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
         .collect::<Vec<_>>()
         .await;
 
-    let mut objects = op.with_limit(10).list("test_list_rich_dir/").await?;
+    let mut objects = op.with_limit(10).lister("test_list_rich_dir/").await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();
@@ -126,7 +126,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
 
     op.create_dir(&dir).await.expect("write must succeed");
 
-    let mut obs = op.list(&dir).await?;
+    let mut obs = op.lister(&dir).await?;
     let mut objects = HashMap::new();
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
@@ -143,7 +143,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
 pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
-    let mut obs = op.list(&dir).await?;
+    let mut obs = op.lister(&dir).await?;
     let mut objects = HashMap::new();
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
@@ -160,7 +160,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
     op.create_dir(&path).await.expect("creat must succeed");
 
-    let mut obs = op.list("/").await?;
+    let mut obs = op.lister("/").await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
         if de.path() == path {
@@ -192,7 +192,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .expect("creat must succeed");
     op.create_dir(&dir_path).await.expect("creat must succeed");
 
-    let mut obs = op.list(&dir).await?;
+    let mut obs = op.lister(&dir).await?;
     let mut objects = HashMap::new();
 
     while let Some(de) = obs.try_next().await? {
@@ -235,7 +235,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
 pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
-    let obs = op.list(&parent).await.map(|_| ());
+    let obs = op.lister(&parent).await.map(|_| ());
     assert!(obs.is_err());
     assert_eq!(obs.unwrap_err().kind(), ErrorKind::NotADirectory);
 
@@ -267,7 +267,7 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
         .collect::<Vec<_>>()
         .await;
 
-    let mut objects = op.list_with(dir).start_after(&given[2]).await?;
+    let mut objects = op.lister_with(dir).start_after(&given[2]).await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();

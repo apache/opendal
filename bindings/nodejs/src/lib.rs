@@ -408,7 +408,9 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn list(&self, path: String) -> Result<Lister> {
-        Ok(Lister(self.0.list(&path).await.map_err(format_napi_error)?))
+        Ok(Lister(
+            self.0.lister(&path).await.map_err(format_napi_error)?,
+        ))
     }
 
     /// List given path synchronously.

@@ -41,14 +41,14 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let (op, path) = cfg.parse_location(target)?;
 
     if !recursive {
-        let mut ds = op.list(&path).await?;
+        let mut ds = op.lister(&path).await?;
         while let Some(de) = ds.try_next().await? {
             println!("{}", de.name());
         }
         return Ok(());
     }
 
-    let mut ds = op.scan(&path).await?;
+    let mut ds = op.lister_with(&path).delimiter("").await?;
     while let Some(de) = ds.try_next().await? {
         println!("{}", de.path());
     }

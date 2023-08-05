@@ -170,7 +170,7 @@ impl ObjectStore for OpendalStore {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
         let mut stream = self
             .inner
-            .list(&path)
+            .lister(&path)
             .await
             .map_err(|err| format_object_store_error(err, &path))?;
 

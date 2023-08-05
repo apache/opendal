@@ -1356,7 +1356,7 @@ mod tests {
         let expected = vec!["hello", "world", "2023/", "0208/"];
 
         let mut lister = op
-            .list("retryable_error/")
+            .lister("retryable_error/")
             .await
             .expect("service must support list");
         let mut actual = Vec::new();

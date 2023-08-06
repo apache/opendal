@@ -200,12 +200,25 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Restore haskell cache
+        uses: actions/cache/restore@v3
+        with:
+          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal') }}
+          path: ~/.cabal/store
+          restore-keys: ${{ runner.os }}-haskell-
+
       - name: Build Docs
         working-directory: "bindings/haskell"
         run: |
           cargo build
           LIBRARY_PATH=../../target/debug cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal-hs/ doc \;
+        
+      - name: Save haskell cache
+        uses: actions/cache/save@v3
+        with:
+          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal') }}
+          path: ~/.cabal/store
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

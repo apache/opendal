@@ -20,14 +20,15 @@ use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 
 mod block_operator;
+mod scheme;
 
 pub fn new_operator(
     scheme_str: String,
     map: BTreeMap<String, String>,
 ) -> Result<od::Operator, od::Error> {
     let hm: HashMap<String, String> = map.into_iter().collect();
-    let schema: od::Scheme = od::Scheme::from_str(&scheme_str)?;
-    od::Operator::via_map(schema, hm)
+    let scheme: od::Scheme = od::Scheme::from_str(&scheme_str)?;
+    od::Operator::via_map(scheme, hm)
 }
 
 pub fn map_res_error<T>(res: Result<T, od::Error>) -> Result<T, String> {

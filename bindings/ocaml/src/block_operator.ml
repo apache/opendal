@@ -2,10 +2,11 @@
 
 open! Bigarray
 
-(* file: block_operator.rs *)
+(* file: mod.rs *)
 
 type blocking_operator
-external new_blocking_operator: string -> (string * string) list -> (blocking_operator, string) Result.t  = "new_blocking_operator"
+external new_blocking_operator_str: string -> (string * string) list -> (blocking_operator, string) Result.t  = "new_blocking_operator_str"
+external new_blocking_operator: Scheme.scheme -> (string * string) list -> (blocking_operator, string) Result.t  = "new_blocking_operator"
 external blocking_is_exist: blocking_operator -> string -> (bool, string) Result.t  = "blocking_is_exist"
 external blocking_create_dir: blocking_operator -> string -> (bool, string) Result.t  = "blocking_create_dir"
 external blocking_read: blocking_operator -> string -> (char array, string) Result.t  = "blocking_read"

@@ -23,11 +23,22 @@ ocaml::custom!(BlockingOperator);
 
 #[ocaml::func]
 #[ocaml::sig("string -> (string * string) list -> (blocking_operator, string) Result.t ")]
-pub fn new_blocking_operator(
+pub fn new_blocking_operator_str(
     scheme_str: String,
     map: BTreeMap<String, String>,
 ) -> Result<ocaml::Pointer<BlockingOperator>, String> {
     let op = map_res_error(new_operator(scheme_str, map))?;
+    Ok(BlockingOperator(op.blocking()).into())
+}
+
+#[ocaml::func]
+#[ocaml::sig("Scheme.scheme -> (string * string) list -> (blocking_operator, string) Result.t ")]
+pub fn new_blocking_operator(
+    scheme: scheme::Scheme,
+    map: BTreeMap<String, String>,
+) -> Result<ocaml::Pointer<BlockingOperator>, String> {
+    let hm: HashMap<String, String> = map.into_iter().collect();
+    let op = map_res_error(od::Operator::via_map(od::Scheme::from(scheme), hm))?;
     Ok(BlockingOperator(op.blocking()).into())
 }
 

@@ -15,21 +15,7 @@
 ; specific language governing permissions and limitations
 ; under the License.
 
-(rule
- (targets libinner.a dllinner.so)
- (deps
-  (glob_files *.rs))
- (action
-  (progn
-   (run sh -c "cd %{project_root}/../.. && cargo build --release")
-   (run sh -c
-     "mv %{project_root}/../../../../target/release/libopendal_ocaml.so ./dllinner.so 2> /dev/null || mv %{project_root}/../../../../target/release/libopendal_ocaml.dylib ./dllinner.so")
-   (run mv %{project_root}/../../../../target/release/libopendal_ocaml.a
-     libinner.a))))
-
 (library
- (name inner)
- (public_name opendal.inner)
- (foreign_archives inner)
- (c_library_flags
-  (-lpthread -lc -lm)))
+ (name opendal)
+ (public_name opendal)
+ (libraries opendal.inner))

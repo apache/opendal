@@ -1014,7 +1014,7 @@ mod tests {
     capability_test!(rename, |op| {
         op.rename("/path/to/mock_file", "/path/to/mock_file_2")
     });
-    capability_test!(list, |op| { op.list("/path/to/mock_dir/") });
+    capability_test!(list, |op| { op.lister("/path/to/mock_dir/") });
     capability_test!(presign, |op| {
         op.presign_read("/path/to/mock_file", Duration::from_secs(1))
     });

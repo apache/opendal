@@ -41,6 +41,7 @@ We will:
 
 - Rename existing `list` to `lister`
 - Add new `list` method to call `lister` and return all entries
+- Merge `scan` into `list_with` with `delimiter("")`
 
 This keeps the pagination logic encapsulated in `lister`.
 

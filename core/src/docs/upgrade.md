@@ -1,3 +1,15 @@
+# Unreleased
+
+## Public API
+
+### RFC-2774 Lister API
+
+RFC-2774 proposes a new `lister` API to replace current `list` and `scan`. And we add a new API `list` to return entries directly.
+
+For users who want to list a directory at once, please use `Operator::list` and `Operator::list_with` for convenience.
+
+For users who want to list a directory in streaming, please use `Operator::lister` and `Operator::lister_with` instead.
+
 # Upgrade to v0.39
 
 ## Public API

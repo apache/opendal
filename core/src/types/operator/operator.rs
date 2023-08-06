@@ -1270,6 +1270,14 @@ impl Operator {
     ///
     /// # Notes
     ///
+    /// ## For listing recursively
+    ///
+    /// This function only read the children of the given directory. To read
+    /// all entries recursively, use `Operator::list_with("path").delimiter("")`
+    /// instead.
+    ///
+    /// ## For streaming
+    ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
     /// contains a lot of entries.
@@ -1309,6 +1317,8 @@ impl Operator {
     /// List entries within a given directory with options.
     ///
     /// # Notes
+    ///
+    /// ## For streaming
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory

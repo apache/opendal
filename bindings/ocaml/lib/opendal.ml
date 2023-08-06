@@ -17,7 +17,7 @@
    under the License.
 *)
 
-module Scheme = Inner.Scheme
+module Scheme = Opendalinner.Scheme
 module Blocking_operator = Blocking_operator
 
-type blocking_operator = Inner.Block_operator.blocking_operator
+type blocking_operator = Opendalinner.Block_operator.blocking_operator

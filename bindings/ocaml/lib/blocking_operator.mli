@@ -20,13 +20,13 @@
 (** Services that OpenDAL supports *)
 type scheme = 
 | SchemeStr of string (** [SchemeStr]: Parse a string as Scheme *)
-| Scheme of Inner.Scheme.scheme (** [Scheme]: Use the scheme directly *)
+| Scheme of Opendalinner.Scheme.scheme (** [Scheme]: Use the scheme directly *)
 
 
 val new_operator :
   scheme ->
   (string * string) list ->
-  (Inner.Block_operator.blocking_operator, string) result
+  (Opendalinner.Block_operator.blocking_operator, string) result
 (** [new_operator scheme config_map] Create a new block operator from given scheme and config_map.
     
     @param scheme The support service
@@ -35,7 +35,7 @@ val new_operator :
 *)
 
 val is_exist :
-  Inner.Block_operator.blocking_operator -> string -> (bool, string) result
+  Opendalinner.Block_operator.blocking_operator -> string -> (bool, string) result
 (** [is_exist operator path] Check if this path exists or not.
     
     @param operator The block operator
@@ -44,7 +44,7 @@ val is_exist :
 *)
 
 val create_dir :
-  Inner.Block_operator.blocking_operator -> string -> (bool, string) result
+  Opendalinner.Block_operator.blocking_operator -> string -> (bool, string) result
 (** [create_dir operator path] Create a dir at given path.
     
     # Notes
@@ -62,7 +62,7 @@ val create_dir :
 *)
 
 val read :
-  Inner.Block_operator.blocking_operator ->
+  Opendalinner.Block_operator.blocking_operator ->
   string ->
   (char array, string) result
 (** [read operator path] Read the whole path into a bytes.
@@ -73,7 +73,7 @@ val read :
 *)
 
 val write :
-  Inner.Block_operator.blocking_operator ->
+  Opendalinner.Block_operator.blocking_operator ->
   string ->
   bytes ->
   (unit, string) result
@@ -85,7 +85,7 @@ val write :
 *)
 
 val copy :
-  Inner.Block_operator.blocking_operator ->
+  Opendalinner.Block_operator.blocking_operator ->
   string ->
   string ->
   (unit, string) result
@@ -100,7 +100,7 @@ val copy :
 *)
 
 val rename :
-  Inner.Block_operator.blocking_operator ->
+  Opendalinner.Block_operator.blocking_operator ->
   string ->
   string ->
   (unit, string) result
@@ -114,7 +114,7 @@ val rename :
 *)
 
 val delete :
-  Inner.Block_operator.blocking_operator -> string -> (unit, string) result
+  Opendalinner.Block_operator.blocking_operator -> string -> (unit, string) result
 (** [delete operator path] Delete given path.
     - Delete not existing error won't return errors.
     @param operator The block operator
@@ -122,7 +122,7 @@ val delete :
 *)
 
 val remove :
-  Inner.Block_operator.blocking_operator ->
+  Opendalinner.Block_operator.blocking_operator ->
   string array ->
   (unit, string) result
 (** [remove operator paths] Remove path array.
@@ -132,7 +132,7 @@ val remove :
 *)
 
 val remove_all :
-  Inner.Block_operator.blocking_operator -> string -> (unit, string) result
+  Opendalinner.Block_operator.blocking_operator -> string -> (unit, string) result
 (** [remove_all operator path] Remove the path and all nested dirs and files recursively.
     - We don't support batch delete now, will call delete on each object in turn
     @param operator The block operator

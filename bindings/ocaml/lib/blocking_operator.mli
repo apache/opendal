@@ -18,10 +18,10 @@
 *)
 
 (** Services that OpenDAL supports *)
-type scheme = 
-| SchemeStr of string (** [SchemeStr]: Parse a string as Scheme *)
-| Scheme of Opendalinner.Scheme.scheme (** [Scheme]: Use the scheme directly *)
-
+type scheme =
+  | SchemeStr of string  (** [SchemeStr]: Parse a string as Scheme *)
+  | Scheme of Opendalinner.Scheme.scheme
+      (** [Scheme]: Use the scheme directly *)
 
 val new_operator :
   scheme ->
@@ -35,7 +35,9 @@ val new_operator :
 *)
 
 val is_exist :
-  Opendalinner.Block_operator.blocking_operator -> string -> (bool, string) result
+  Opendalinner.Block_operator.blocking_operator ->
+  string ->
+  (bool, string) result
 (** [is_exist operator path] Check if this path exists or not.
     
     @param operator The block operator
@@ -44,7 +46,9 @@ val is_exist :
 *)
 
 val create_dir :
-  Opendalinner.Block_operator.blocking_operator -> string -> (bool, string) result
+  Opendalinner.Block_operator.blocking_operator ->
+  string ->
+  (bool, string) result
 (** [create_dir operator path] Create a dir at given path.
     
     # Notes
@@ -114,7 +118,9 @@ val rename :
 *)
 
 val delete :
-  Opendalinner.Block_operator.blocking_operator -> string -> (unit, string) result
+  Opendalinner.Block_operator.blocking_operator ->
+  string ->
+  (unit, string) result
 (** [delete operator path] Delete given path.
     - Delete not existing error won't return errors.
     @param operator The block operator
@@ -132,7 +138,9 @@ val remove :
 *)
 
 val remove_all :
-  Opendalinner.Block_operator.blocking_operator -> string -> (unit, string) result
+  Opendalinner.Block_operator.blocking_operator ->
+  string ->
+  (unit, string) result
 (** [remove_all operator path] Remove the path and all nested dirs and files recursively.
     - We don't support batch delete now, will call delete on each object in turn
     @param operator The block operator

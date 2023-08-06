@@ -21,7 +21,8 @@ type scheme = SchemeStr of string | Scheme of Opendalinner.Scheme.scheme
 
 let new_operator (input : scheme) (args : (string * string) list) =
   match input with
-  | SchemeStr str -> Opendalinner.Block_operator.new_blocking_operator_str str args
+  | SchemeStr str ->
+      Opendalinner.Block_operator.new_blocking_operator_str str args
   | Scheme s -> Opendalinner.Block_operator.new_blocking_operator s args
 
 let is_exist = Opendalinner.Block_operator.blocking_is_exist

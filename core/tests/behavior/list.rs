@@ -284,7 +284,7 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
 }
 
 pub async fn test_scan_root(op: Operator) -> Result<()> {
-    let w = op.scan("").await?;
+    let w = op.lister_with("").delimiter("").await?;
     let actual = w
         .try_collect::<Vec<_>>()
         .await?
@@ -312,7 +312,10 @@ pub async fn test_scan(op: Operator) -> Result<()> {
         }
     }
 
-    let w = op.scan(&format!("{parent}/x/")).await?;
+    let w = op
+        .lister_with(&format!("{parent}/x/"))
+        .delimiter("")
+        .await?;
     let actual = w
         .try_collect::<Vec<_>>()
         .await?

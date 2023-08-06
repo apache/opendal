@@ -149,7 +149,11 @@ impl AsyncOperator {
     pub fn scan<'p>(&'p self, py: Python<'p>, path: String) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
-            let lister = this.scan(&path).await.map_err(format_pyerr)?;
+            let lister = this
+                .lister_with(&path)
+                .delimiter("")
+                .await
+                .map_err(format_pyerr)?;
             let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
             Ok(pylister)
         })

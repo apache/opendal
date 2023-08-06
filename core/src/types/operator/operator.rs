@@ -1232,7 +1232,7 @@ impl Operator {
             return self.delete(path).await;
         }
 
-        let obs = self.scan(path).await?;
+        let obs = self.lister_with(path).delimiter("").await?;
 
         if self.info().can_batch() {
             let mut obs = obs.try_chunks(self.limit());

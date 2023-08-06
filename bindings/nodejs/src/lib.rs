@@ -288,6 +288,7 @@ impl Operator {
     /// An error will be returned if given path doesn't end with /.
     ///
     /// ### Example
+    ///
     /// ```javascript
     /// const lister = await op.scan("/path/to/dir/");
     /// while (true) {
@@ -303,7 +304,13 @@ impl Operator {
     /// `````
     #[napi]
     pub async fn scan(&self, path: String) -> Result<Lister> {
-        Ok(Lister(self.0.scan(&path).await.map_err(format_napi_error)?))
+        Ok(Lister(
+            self.0
+                .lister_with(&path)
+                .delimiter("")
+                .await
+                .map_err(format_napi_error)?,
+        ))
     }
 
     /// List dir in flat way synchronously.

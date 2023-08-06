@@ -452,7 +452,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.scan("/").await?;
+        let mut ds = op.lister_with("/").delimiter("").await?;
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();

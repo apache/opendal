@@ -182,7 +182,7 @@ data Metadata = Metadata
 -- | @newtype@ wrapper 'ReaderT' that keeps 'Operator' in its context.
 newtype OperatorT m a = OperatorT
   {runOperatorT :: ReaderT Operator (ExceptT OpenDALError m) a}
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Operator, MonadError OpenDALError)
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Operator, MonadError OpenDALError)
 
 instance MonadTrans OperatorT where
   lift = OperatorT . lift . lift

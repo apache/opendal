@@ -1,3 +1,4 @@
+cabal-version:      2.2
 -- Licensed to the Apache Software Foundation (ASF) under one
 -- or more contributor license agreements.  See the NOTICE file
 -- distributed with this work for additional information
@@ -15,7 +16,6 @@
 -- specific language governing permissions and limitations
 -- under the License.
 
-cabal-version:      2.0
 name:               opendal-hs
 version:            0.1.0.0
 license:            Apache-2.0
@@ -29,13 +29,7 @@ source-repository head
     type:     git
     location: https://github.com/apache/incubator-opendal
 
-library
-    exposed-modules:
-        OpenDAL
-    other-modules:
-        OpenDAL.FFI
-    hs-source-dirs:   haskell-src
-    default-language: Haskell2010
+common base
     extra-libraries:  opendal_hs
     ghc-options:      -Wall
     build-depends:
@@ -46,19 +40,29 @@ library
         time >=1.10,
         co-log >=0.5,
         text >=2
+    default-language: Haskell2010
+    default-extensions:
+        OverloadedStrings,
+        ForeignFunctionInterface,
+        DerivingStrategies,
+        GeneralizedNewtypeDeriving,
+        LambdaCase
+
+library
+    import:           base
+    exposed-modules:
+        OpenDAL
+    other-modules:
+        OpenDAL.FFI
+    hs-source-dirs:   haskell-src
 
 test-suite opendal-hs-test
+    import:           base
     type:             exitcode-stdio-1.0
     main-is:          Spec.hs
     other-modules:    BasicTest
     hs-source-dirs:   test
-    default-language: Haskell2010
-    other-extensions: OverloadedStrings
-    ghc-options:      -Wall
     build-depends:    
-        base,
         opendal-hs,
         tasty,
-        tasty-hunit,
-        co-log,
-        text
+        tasty-hunit

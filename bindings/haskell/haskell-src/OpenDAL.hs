@@ -14,7 +14,6 @@
 -- KIND, either express or implied.  See the License for the
 -- specific language governing permissions and limitations
 -- under the License.
-{-# LANGUAGE FlexibleInstances #-}
 
 -- |
 -- Module      : OpenDAL
@@ -27,17 +26,28 @@
 --
 -- This module provides Haskell bindings for OpenDAL.
 module OpenDAL
-  ( OperatorConfig (..),
+  ( -- * Operator APIs
+
+    -- ** Types
+    OperatorConfig (..),
     Operator,
     Lister,
     OpenDALError (..),
     ErrorCode (..),
     EntryMode (..),
     Metadata (..),
-    OpMonad,
+    OperatorT (..),
     MonadOperation (..),
+
+    -- ** Functions
     runOp,
     newOperator,
+
+    -- * Lister APIs
+    nextLister,
+
+    -- * Operator Raw APIs
+    -- $raw-operations
     readOpRaw,
     writeOpRaw,
     isExistOpRaw,
@@ -48,13 +58,13 @@ module OpenDAL
     statOpRaw,
     listOpRaw,
     scanOpRaw,
-    nextLister,
   )
 where
 
 import Colog (LogAction, Message, Msg (Msg), (<&))
-import Control.Monad.Except (ExceptT, runExceptT, throwError)
-import Control.Monad.Reader (ReaderT, ask, liftIO, runReaderT)
+import Control.Monad.Except (ExceptT, MonadError, MonadTrans, runExceptT, throwError)
+import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, ask, liftIO, runReaderT)
+import Control.Monad.Trans (MonadTrans (lift))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
@@ -68,8 +78,28 @@ import Foreign.C.String
 import GHC.Stack (emptyCallStack)
 import OpenDAL.FFI
 
--- | `OperatorConfig` is the configuration for an `Operator`. Currently, it contains the scheme, config and log action.
--- Recommend using `OverloadedStrings` to construct a default config.
+-- | `OperatorConfig` is the configuration for an `Operator`.
+-- We recommend using `OverloadedStrings` to construct a default config.
+--
+-- For example:
+--
+-- default config
+--
+-- @
+-- newOperator "memory"
+-- @
+--
+-- custom services config
+--
+-- @
+-- newOperator "memory" {ocConfig = HashMap.fromList [("root", "/tmp")]}
+-- @
+--
+-- enable logging
+--
+-- @
+-- newOperator "memory" {ocLogAction = Just simpleMessageAction}
+-- @
 data OperatorConfig = OperatorConfig
   { -- | The scheme of the operator. For example, "s3" or "gcs".
     ocScheme :: String,
@@ -83,7 +113,7 @@ instance IsString OperatorConfig where
   fromString s = OperatorConfig s HashMap.empty Nothing
 
 -- | `Operator` is the entry for all public blocking APIs.
--- Create an `Operator` with `newOp`.
+-- Create an `Operator` with `newOperator`.
 newtype Operator = Operator (ForeignPtr RawOperator)
 
 -- | `Lister` is designed to list entries at given path in a blocking manner.
@@ -149,8 +179,13 @@ data Metadata = Metadata
   }
   deriving (Eq, Show)
 
--- | The monad used for OpenDAL operations.
-type OpMonad = ReaderT Operator (ExceptT OpenDALError IO)
+-- | @newtype@ wrapper 'ReaderT' that keeps 'Operator' in its context.
+newtype OperatorT m a = OperatorT
+  {runOperatorT :: ReaderT Operator (ExceptT OpenDALError m) a}
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Operator, MonadError OpenDALError)
+
+instance MonadTrans OperatorT where
+  lift = OperatorT . lift . lift
 
 -- | A type class for monads that can perform OpenDAL operations.
 class (Monad m) => MonadOperation m where
@@ -188,7 +223,7 @@ class (Monad m) => MonadOperation m where
   -- An error will be returned if given path doesn’t end with /.
   scanOp :: String -> m Lister
 
-instance MonadOperation OpMonad where
+instance (MonadIO m) => MonadOperation (OperatorT m) where
   readOp path = do
     op <- ask
     result <- liftIO $ readOpRaw op path
@@ -288,11 +323,30 @@ parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength
 
 -- Exported functions
 
--- | Runs an OpenDAL operation in the 'OpMonad'.
-runOp :: Operator -> OpMonad a -> IO (Either OpenDALError a)
-runOp operator op = runExceptT $ runReaderT op operator
+-- |  Runner for 'OperatorT' monad.
+-- This function will run given 'OperatorT' monad with given 'Operator'.
+--
+-- Let's see an example:
+--
+-- @
+-- operation :: MonadOperation m => m ()
+-- operation = __do__
+--    writeOp op "key1" "value1"
+--    writeOp op "key2" "value2"
+--    value1 <- readOp op "key1"
+--    value2 <- readOp op "key2"
+-- @
+--
+-- You can run this operation with 'runOp' function:
+--
+-- @
+-- runOp operator operation
+-- @
+runOp :: Operator -> OperatorT m a -> m (Either OpenDALError a)
+runOp op = runExceptT . flip runReaderT op . runOperatorT
+{-# INLINE runOp #-}
 
--- | Creates a new OpenDAL operator via `HashMap`.
+-- | Creates a new OpenDAL operator via `OperatorConfig`.
 newOperator :: OperatorConfig -> IO (Either OpenDALError Operator)
 newOperator (OperatorConfig scheme hashMap maybeLogger) = do
   let keysAndValues = HashMap.toList hashMap
@@ -322,6 +376,7 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
       str <- peekCString cStr
       logger <& Msg (toEnum (fromIntegral enumSeverity)) emptyCallStack (pack str)
 
+-- $raw-operations
 -- Functions for performing raw OpenDAL operations are defined below.
 -- These functions are not meant to be used directly in most cases.
 -- Instead, use the high-level interface provided by the 'MonadOperation' type class.

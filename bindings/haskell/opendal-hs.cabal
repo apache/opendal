@@ -30,7 +30,6 @@ source-repository head
     location: https://github.com/apache/incubator-opendal
 
 common base
-    extra-libraries:  opendal_hs
     ghc-options:      -Wall
     build-depends:
         base >=4.10 && <4.17,
@@ -50,6 +49,7 @@ common base
 
 library
     import:           base
+    extra-libraries:  opendal_hs
     exposed-modules:
         OpenDAL
     other-modules:

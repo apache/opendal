@@ -39,7 +39,7 @@ pub struct GdriveWriter {
 }
 
 impl GdriveWriter {
-    pub fn new(core: Arc<GdriveCore>, op: OpWrite, path: String) -> Self {
+    pub fn new(core: Arc<GdriveCore>, op: OpWrite, path: String, file_id: Option<String>) -> Self {
         GdriveWriter {
             core,
             op,
@@ -47,7 +47,7 @@ impl GdriveWriter {
             position: 0,
             written: 0,
             size: None,
-            target: None,
+            target: file_id,
         }
     }
 
@@ -55,10 +55,10 @@ impl GdriveWriter {
     ///
     /// This is used for small objects.
     /// And should overwrite the object if it already exists.
-    pub async fn write_oneshot(&self, bs: Bytes) -> Result<()> {
+    pub async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
         let resp = self
             .core
-            .gdrive_upload_simple_request(&self.path, bs.len() as u64, bs)
+            .gdrive_upload_simple_request(&self.path, size, body)
             .await?;
 
         let status = resp.status();
@@ -233,7 +233,9 @@ impl oio::Write for GdriveWriter {
         if self.target.is_none() {
             if self.op.content_length().unwrap_or_default() == bs.len() as u64 && self.written == 0
             {
-                return self.write_oneshot(bs).await;
+                return self
+                    .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
+                    .await;
             } else {
                 self.initial_upload().await?;
             }

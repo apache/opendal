@@ -143,9 +143,11 @@ impl Accessor for GdriveBackend {
             ));
         }
 
+        // As Google Drive allows files have the same name, we need to check if the file exists.
+        // If the file exists, we will keep its ID and update it.
         Ok((
             RpWrite::default(),
-            GdriveWriter::new(self.core.clone(), args, String::from(path)),
+            GdriveWriter::new(self.core.clone(), args, String::from(path), None),
         ))
     }
 

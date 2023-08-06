@@ -25,6 +25,8 @@ use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use reqwest::multipart::Form;
+use reqwest::multipart::Part;
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::Mutex;
@@ -370,11 +372,11 @@ impl GdriveCore {
         &self,
         path: &str,
         size: u64,
-        bs: bytes::Bytes,
+        body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let parent = self.ensure_parent_path(path).await?;
 
-        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=media";
+        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
         let file_name = path.split('/').filter(|&x| !x.is_empty()).last().unwrap();
 
@@ -383,9 +385,20 @@ impl GdriveCore {
             "parents": [parent],
         });
 
-        let fd = reqwest::multipart::Form::new()
-            .text("metadata", metadata.to_string())
-            .part("file", reqwest::multipart::Part::bytes(bs));
+        let mut fd = Form::new().text("metadata", metadata.to_string());
+
+        match body {
+            AsyncBody::Bytes(bs) => {
+                fd = fd.part("file", Part::bytes(bs.to_vec()));
+            }
+            AsyncBody::Stream(bs) => {
+                fd = fd.part("file", Part::stream(reqwest::Body::wrap_stream(bs)));
+            }
+            AsyncBody::Empty => {
+                // We do nothing here.
+                fd = fd.part("file", Part::bytes(Vec::new()));
+            }
+        };
 
         let mut req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json; charset=UTF-8")
@@ -396,7 +409,7 @@ impl GdriveCore {
 
         req = self.sign(req);
 
-        self.client.send(req).await
+        self.client.send_form_data(req).await
     }
 
     /// Start an upload session.

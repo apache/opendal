@@ -1356,7 +1356,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list_with(&self, path: &str) -> FutureList {
+    pub fn list_with(&self, path: &str) -> FutureList {
         let path = normalize_path(path);
 
         let fut = FutureList(OperatorFuture::new(

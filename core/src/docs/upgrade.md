@@ -6,9 +6,9 @@
 
 RFC-2774 proposes a new `lister` API to replace current `list` and `scan`. And we add a new API `list` to return entries directly.
 
-For users who want to list a directory at once, please use `Operator::list` and `Operator::list_with` for convenience.
-
-For users who want to list a directory in streaming, please use `Operator::lister` and `Operator::lister_with` instead.
+- For listing a directory at once, please use `list()` for convenience.
+- For listing a directory recursively, please use `list_with().delimiter("")` or `lister_with().delimiter("")` instead.
+- For listing in streaming, please use `lister()` or `lister_with()` instead.
 
 # Upgrade to v0.39
 

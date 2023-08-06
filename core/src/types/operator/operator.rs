@@ -1266,32 +1266,29 @@ impl Operator {
         Ok(())
     }
 
-    /// List dir in flat way.
-    ///
-    /// Also, this function can be used to list a prefix.
-    ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// List entries within a given directory.
     ///
     /// # Notes
     ///
-    /// - `scan` will not return the prefix itself.
-    /// - `scan` is an alias of `list_with(path).delimiter("")`
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// a streaming way.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op.scan("/path/to/dir/").await?;
-    /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    /// let mut entries = op.list("path/to/dir/").await?;
+    /// for entry in entries {
+    ///     let meta = op.metadata(&entry, Metakey::Mode).await?;
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
@@ -1305,11 +1302,81 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn scan(&self, path: &str) -> Result<Lister> {
-        self.lister_with(path).delimiter("").await
+    pub async fn list(&self, path: &str) -> Result<Vec<Entry>> {
+        self.lister_with(path).await?.try_collect().await
     }
 
-    /// List given path.
+    /// List entries within a given directory with options.
+    ///
+    /// # Notes
+    ///
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// a streaming way.
+    ///
+    /// # Examples
+    ///
+    /// ## List entries with prefix
+    ///
+    /// This function can also be used to list entries in recursive way.
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.list_with("prefix/").delimiter("").await?;
+    /// for entry in entries {
+    ///     let meta = op.metadata(&entry, Metakey::Mode).await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list_with(&self, path: &str) -> FutureList {
+        let path = normalize_path(path);
+
+        let fut = FutureList(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::DIR) {
+                        return Err(Error::new(
+                            ErrorKind::NotADirectory,
+                            "the path trying to list should end with `/`",
+                        )
+                        .with_operation("Operator::list")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+
+                    let (_, pager) = inner.list(&path, args).await?;
+                    let lister = Lister::new(pager);
+
+                    lister.try_collect().await
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
+    }
+
+    /// List entries within a given directory as a stream.
     ///
     /// This function will create a new handle to list entries.
     ///
@@ -1346,7 +1413,7 @@ impl Operator {
         self.lister_with(path).await
     }
 
-    /// List given path with OpList.
+    /// List entries within a given directory as a stream with options.
     ///
     /// This function will create a new handle to list entries.
     ///
@@ -1388,8 +1455,6 @@ impl Operator {
     ///
     /// ## List all files recursively
     ///
-    /// We can use `op.scan()` as a shorter alias.
-    ///
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
@@ -1415,10 +1480,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister_with(&self, path: &str) -> FutureList {
+    pub fn lister_with(&self, path: &str) -> FutureLister {
         let path = normalize_path(path);
 
-        let fut = FutureList(OperatorFuture::new(
+        let fut = FutureLister(OperatorFuture::new(
             self.inner().clone(),
             path,
             OpList::default(),

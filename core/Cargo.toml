@@ -200,7 +200,7 @@ cacache = { version = "11.6", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }
-chrono = "0.4.26"
+chrono = { version = "0.4.26", default-features = false, features = ["clock", "std"] }
 dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }
 etcd-client = { version = "0.11", optional = true, features = ["tls"] }

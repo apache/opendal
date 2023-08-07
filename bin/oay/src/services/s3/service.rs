@@ -101,7 +101,7 @@ async fn handle_list_objects(
 
     let mut lister = state
         .op
-        .list_with(&params.prefix)
+        .lister_with(&params.prefix)
         .start_after(&params.start_after)
         .await?;
 

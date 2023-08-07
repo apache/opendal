@@ -151,7 +151,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn check(&self) -> Result<()> {
-        let mut ds = self.list("/").await?;
+        let mut ds = self.lister("/").await?;
 
         match ds.next().await {
             Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
@@ -1232,7 +1232,7 @@ impl Operator {
             return self.delete(path).await;
         }
 
-        let obs = self.scan(path).await?;
+        let obs = self.lister_with(path).delimiter("").await?;
 
         if self.info().can_batch() {
             let mut obs = obs.try_chunks(self.limit());
@@ -1266,26 +1266,37 @@ impl Operator {
         Ok(())
     }
 
-    /// List given path.
+    /// List entries within a given directory.
     ///
-    /// This function will create a new handle to list entries.
+    /// # Notes
     ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// ## For listing recursively
+    ///
+    /// This function only read the children of the given directory. To read
+    /// all entries recursively, use `Operator::list_with("path").delimiter("")`
+    /// instead.
+    ///
+    /// ## For streaming
+    ///
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// a streaming way.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op.list("path/to/dir/").await?;
-    /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    /// let mut entries = op.list("path/to/dir/").await?;
+    /// for entry in entries {
+    ///     let meta = op.metadata(&entry, Metakey::Mode).await?;
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
@@ -1299,66 +1310,39 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self, path: &str) -> Result<Lister> {
-        self.list_with(path).await
+    pub async fn list(&self, path: &str) -> Result<Vec<Entry>> {
+        self.lister_with(path).await?.try_collect().await
     }
 
-    /// List given path with OpList.
+    /// List entries within a given directory with options.
     ///
-    /// This function will create a new handle to list entries.
+    /// # Notes
     ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// ## For streaming
+    ///
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// a streaming way.
     ///
     /// # Examples
     ///
-    /// ## List current dir
+    /// ## List entries with prefix
+    ///
+    /// This function can also be used to list entries in recursive way.
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op
-    ///     .list_with("path/to/dir/")
-    ///     .limit(10)
-    ///     .start_after("start")
-    ///     .await?;
-    /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
-    ///     match meta.mode() {
-    ///         EntryMode::FILE => {
-    ///             println!("Handling file")
-    ///         }
-    ///         EntryMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
-    ///         }
-    ///         EntryMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## List all files recursively
-    ///
-    /// We can use `op.scan()` as a shorter alias.
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
-    /// use opendal::Metakey;
-    /// use opendal::Operator;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op.list_with("path/to/dir/").delimiter("").await?;
-    /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    /// let mut entries = op.list_with("prefix/").delimiter("").await?;
+    /// for entry in entries {
+    ///     let meta = op.metadata(&entry, Metakey::Mode).await?;
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
@@ -1392,8 +1376,9 @@ impl Operator {
                     }
 
                     let (_, pager) = inner.list(&path, args).await?;
+                    let lister = Lister::new(pager);
 
-                    Ok(Lister::new(pager))
+                    lister.try_collect().await
                 };
                 Box::pin(fut)
             },
@@ -1401,16 +1386,11 @@ impl Operator {
         fut
     }
 
-    /// List dir in flat way.
+    /// List entries within a given directory as a stream.
     ///
-    /// Also, this function can be used to list a prefix.
+    /// This function will create a new handle to list entries.
     ///
     /// An error will be returned if given path doesn't end with `/`.
-    ///
-    /// # Notes
-    ///
-    /// - `scan` will not return the prefix itself.
-    /// - `scan` is an alias of `list_with(path).delimiter("")`
     ///
     /// # Examples
     ///
@@ -1421,10 +1401,9 @@ impl Operator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::Operator;
-    /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op.scan("/path/to/dir/").await?;
+    /// let mut ds = op.lister("path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = op.metadata(&de, Metakey::Mode).await?;
     ///     match meta.mode() {
@@ -1440,10 +1419,107 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn scan(&self, path: &str) -> Result<Lister> {
-        self.list_with(path).delimiter("").await
+    pub async fn lister(&self, path: &str) -> Result<Lister> {
+        self.lister_with(path).await
+    }
+
+    /// List entries within a given directory as a stream with options.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ## List current dir
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut ds = op
+    ///     .lister_with("path/to/dir/")
+    ///     .limit(10)
+    ///     .start_after("start")
+    ///     .await?;
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List all files recursively
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut ds = op.lister_with("path/to/dir/").delimiter("").await?;
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn lister_with(&self, path: &str) -> FutureLister {
+        let path = normalize_path(path);
+
+        let fut = FutureLister(OperatorFuture::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, args| {
+                let fut = async move {
+                    if !validate_path(&path, EntryMode::DIR) {
+                        return Err(Error::new(
+                            ErrorKind::NotADirectory,
+                            "the path trying to list should end with `/`",
+                        )
+                        .with_operation("Operator::list")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path));
+                    }
+
+                    let (_, pager) = inner.list(&path, args).await?;
+
+                    Ok(Lister::new(pager))
+                };
+                Box::pin(fut)
+            },
+        ));
+        fut
     }
 }
+
 /// Operator presign API.
 impl Operator {
     /// Presign an operation for stat(head).

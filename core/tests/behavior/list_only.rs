@@ -36,7 +36,7 @@ pub fn behavior_list_only_tests(op: &Operator) -> Vec<Trial> {
 pub async fn test_list_only(op: Operator) -> Result<()> {
     let mut entries = HashMap::new();
 
-    let mut ds = op.list("/").await?;
+    let mut ds = op.lister("/").await?;
     while let Some(de) = ds.try_next().await? {
         entries.insert(de.path().to_string(), op.stat(de.path()).await?.mode());
     }

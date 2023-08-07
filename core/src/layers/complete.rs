@@ -218,7 +218,9 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         let seekable = capability.read_can_seek;
         let streamable = capability.read_can_next;
 
+        let range = args.range();
         let (rp, r) = self.inner.blocking_read(path, args)?;
+        let content_length = rp.metadata().content_length();
 
         match (seekable, streamable) {
             (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
@@ -226,10 +228,36 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                 let r = oio::into_streamable_read(r, 256 * 1024);
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
-            (false, _) => Err(Error::new(
-                ErrorKind::Unsupported,
-                "non seekable blocking reader is not supported",
-            )),
+            _ => {
+                let (offset, size) = match (range.offset(), range.size()) {
+                    (Some(offset), _) => (offset, content_length),
+                    (None, None) => (0, content_length),
+                    (None, Some(size)) => {
+                        // TODO: we can read content range to calculate
+                        // the total content length.
+                        let om = self
+                            .inner
+                            .blocking_stat(path, OpStat::new())?
+                            .into_metadata();
+                        let total_size = om.content_length();
+                        let (offset, size) = if size > total_size {
+                            (0, total_size)
+                        } else {
+                            (total_size - size, size)
+                        };
+
+                        (offset, size)
+                    }
+                };
+                let r = oio::into_seekable_read_by_range(self.inner.clone(), path, r, offset, size);
+
+                if streamable {
+                    Ok((rp, CompleteReader::NeedSeekable(r)))
+                } else {
+                    let r = oio::into_streamable_read(r, 256 * 1024);
+                    Ok((rp, CompleteReader::NeedBoth(r)))
+                }
+            }
         }
     }
 
@@ -532,9 +560,9 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
 pub enum CompleteReader<A: Accessor, R> {
     AlreadyComplete(R),
-    NeedSeekable(ByRangeSeekableReader<A>),
+    NeedSeekable(ByRangeSeekableReader<A, R>),
     NeedStreamable(StreamableReader<R>),
-    NeedBoth(StreamableReader<ByRangeSeekableReader<A>>),
+    NeedBoth(StreamableReader<ByRangeSeekableReader<A, R>>),
 }
 
 impl<A, R> oio::Read for CompleteReader<A, R>
@@ -586,8 +614,9 @@ where
 
         match self {
             AlreadyComplete(r) => r.read(buf),
+            NeedSeekable(r) => r.read(buf),
             NeedStreamable(r) => r.read(buf),
-            _ => unreachable!("not supported types of complete reader"),
+            NeedBoth(r) => r.read(buf),
         }
     }
 
@@ -596,8 +625,9 @@ where
 
         match self {
             AlreadyComplete(r) => r.seek(pos),
+            NeedSeekable(r) => r.seek(pos),
             NeedStreamable(r) => r.seek(pos),
-            _ => unreachable!("not supported types of complete reader"),
+            NeedBoth(r) => r.seek(pos),
         }
     }
 
@@ -606,8 +636,9 @@ where
 
         match self {
             AlreadyComplete(r) => r.next(),
+            NeedSeekable(r) => r.next(),
             NeedStreamable(r) => r.next(),
-            _ => unreachable!("not supported types of complete reader"),
+            NeedBoth(r) => r.next(),
         }
     }
 }
@@ -1014,7 +1045,7 @@ mod tests {
     capability_test!(rename, |op| {
         op.rename("/path/to/mock_file", "/path/to/mock_file_2")
     });
-    capability_test!(list, |op| { op.list("/path/to/mock_dir/") });
+    capability_test!(list, |op| { op.lister("/path/to/mock_dir/") });
     capability_test!(presign, |op| {
         op.presign_read("/path/to/mock_file", Duration::from_secs(1))
     });

@@ -217,3 +217,44 @@ impl<I: oio::Page> oio::BlockingPage for BlockingWrapper<I> {
         self.handle.block_on(self.inner.next())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use once_cell::sync::Lazy;
+
+    use crate::types::Result;
+
+    use super::*;
+
+    static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    });
+
+    fn create_blocking_layer() -> Result<BlockingLayer> {
+        let _guard = RUNTIME.enter();
+        BlockingLayer::create()
+    }
+
+    #[test]
+    fn test_blocking_layer_in_blocking_context() {
+        // create in a blocking context should fail
+        let layer = BlockingLayer::create();
+        assert_eq!(layer.is_err(), true);
+
+        // create in an async context and drop in a blocking context
+        let layer = create_blocking_layer();
+        assert_eq!(layer.is_err(), false)
+    }
+
+    #[test]
+    fn test_blocking_layer_in_async_context() {
+        // create and drop in an async context
+        let _guard = RUNTIME.enter();
+
+        let layer = BlockingLayer::create();
+        assert_eq!(layer.is_err(), false);
+    }
+}

@@ -18,7 +18,8 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::{raw::*, *};
+use crate::raw::*;
+use crate::*;
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
 

@@ -85,6 +85,18 @@ impl Metadata {
         self
     }
 
+    /// Check if there metadata already contains given bit.
+    pub(crate) fn contains_bit(&self, bit: impl Into<FlagSet<Metakey>>) -> bool {
+        let input_bit = bit.into();
+
+        // If meta already contains complete, we don't need to check.
+        if self.bit.contains(Metakey::Complete) {
+            return true;
+        }
+
+        self.bit.contains(input_bit)
+    }
+
     /// mode represent this entry's mode.
     pub fn mode(&self) -> EntryMode {
         debug_assert!(
@@ -155,6 +167,11 @@ impl Metadata {
     ///
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::ContentLength`], otherwise it will panic.
     pub fn content_length(&self) -> u64 {
         debug_assert!(
             self.bit.contains(Metakey::ContentLength) || self.bit.contains(Metakey::Complete),
@@ -189,6 +206,11 @@ impl Metadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     ///
     /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::ContentMd5`], otherwise it will panic.
     pub fn content_md5(&self) -> Option<&str> {
         debug_assert!(
             self.bit.contains(Metakey::ContentMd5) || self.bit.contains(Metakey::Complete),
@@ -221,6 +243,11 @@ impl Metadata {
     /// Content Type of this entry.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::ContentType`], otherwise it will panic.
     pub fn content_type(&self) -> Option<&str> {
         debug_assert!(
             self.bit.contains(Metakey::ContentType) || self.bit.contains(Metakey::Complete),
@@ -251,6 +278,11 @@ impl Metadata {
     /// Content Range of this entry.
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::ContentRange`], otherwise it will panic.
     pub fn content_range(&self) -> Option<BytesContentRange> {
         debug_assert!(
             self.bit.contains(Metakey::ContentRange) || self.bit.contains(Metakey::Complete),
@@ -284,6 +316,11 @@ impl Metadata {
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     ///
     /// OpenDAL parse the raw value into [`DateTime`] for convenient.
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::LastModified`], otherwise it will panic.
     pub fn last_modified(&self) -> Option<DateTime<Utc>> {
         debug_assert!(
             self.bit.contains(Metakey::LastModified) || self.bit.contains(Metakey::Complete),
@@ -324,6 +361,11 @@ impl Metadata {
     /// - `W/"0815"`
     ///
     /// `"` is part of etag.
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::Etag`], otherwise it will panic.
     pub fn etag(&self) -> Option<&str> {
         debug_assert!(
             self.bit.contains(Metakey::Etag) || self.bit.contains(Metakey::Complete),
@@ -378,6 +420,11 @@ impl Metadata {
     /// - "inline"
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::ContentDisposition`], otherwise it will panic.
     pub fn content_disposition(&self) -> Option<&str> {
         debug_assert!(
             self.bit.contains(Metakey::ContentDisposition) || self.bit.contains(Metakey::Complete),
@@ -426,6 +473,11 @@ impl Metadata {
     /// Version is a string that can be used to identify the version of this entry.
     ///
     /// This field may come out from the version control system, like object versioning in AWS S3.
+    ///
+    /// # Panics
+    ///
+    /// This value is only available when calling on result of `stat` or `list` with
+    /// [`Metakey::Version`], otherwise it will panic.
     pub fn version(&self) -> Option<&str> {
         debug_assert!(
             self.bit.contains(Metakey::Version) || self.bit.contains(Metakey::Complete),

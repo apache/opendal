@@ -47,7 +47,7 @@ Take [Bump to version 0.36.0](https://github.com/apache/incubator-opendal/pull/2
 
 After bump version PR gets merged, we can create a GitHub release:
 
-- Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
+- Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0-rc1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
 - Push tags to GitHub: `git push --tags`.
 - Create Release on the newly created tag
   - If there are breaking changes, please add the content from `upgrade.md` before.
@@ -361,6 +361,19 @@ Example: <https://lists.apache.org/thread/h3x9pq1djpg76q3ojpqmdr3d0o03fld1>
 
 ```shell
 svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version} https://dist.apache.org/repos/dist/release/incubator/opendal/${opendal_version} -m "Release ${opendal_version}"
+```
+
+### Push the release Git tag
+
+- `opendal_version`: the version for opendal, like `0.36.0`.
+- `release_version`: the version for the passed cadidate, like `0.36.0-rc1`.
+
+Check out the passed release candidate, tag an alias and push.
+
+```shell
+git checkout ${release_version}
+git tag -s ${opendal_version}
+git push origin ${opendal_version}
 ```
 
 ### Release Maven artifacts

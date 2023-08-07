@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
 use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -135,6 +136,23 @@ where
     }
 }
 
+impl<A, R> ByRangeSeekableReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
+{
+    fn read_action(&self) -> Result<(RpRead, R)> {
+        let acc = self.acc.clone();
+        let path = self.path.clone();
+        let op = OpRead::default().with_range(BytesRange::new(
+            Some(self.offset + self.cur),
+            Some(self.size - self.cur),
+        ));
+
+        acc.blocking_read(&path, op)
+    }
+}
+
 impl<A, R> oio::Read for ByRangeSeekableReader<A, R>
 where
     A: Accessor<Reader = R>,
@@ -215,7 +233,7 @@ where
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         match &mut self.state {
             State::Idle => {
                 if self.cur >= self.size {
@@ -253,6 +271,103 @@ where
                     Poll::Ready(None)
                 }
             },
+        }
+    }
+}
+
+impl<A, R> oio::BlockingRead for ByRangeSeekableReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
+{
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match &mut self.state {
+            State::Idle => {
+                if self.cur >= self.size {
+                    return Ok(0);
+                }
+
+                let (_, r) = self.read_action()?;
+                self.state = State::Reading(r);
+                self.read(buf)
+            }
+            State::Reading(r) => {
+                match r.read(buf) {
+                    Ok(n) if n == 0 => {
+                        // Reset state to Idle after all data has been consumed.
+                        self.state = State::Idle;
+                        Ok(0)
+                    }
+                    Ok(n) => {
+                        self.cur += n as u64;
+                        Ok(n)
+                    }
+                    Err(e) => {
+                        self.state = State::Idle;
+                        Err(e)
+                    }
+                }
+            }
+            State::Sending(_) => {
+                unreachable!("It's invalid to go into State::Sending for BlockingRead, please report this bug")
+            }
+        }
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let seek_pos = self.seek_pos(pos)?;
+
+        match &mut self.state {
+            State::Idle => {
+                self.cur = seek_pos;
+                Ok(self.cur)
+            }
+            State::Reading(_) => {
+                if seek_pos == self.cur {
+                    return Ok(self.cur);
+                }
+
+                self.state = State::Idle;
+                self.cur = seek_pos;
+                Ok(self.cur)
+            }
+            State::Sending(_) => {
+                unreachable!("It's invalid to go into State::Sending for BlockingRead, please report this bug")
+            }
+        }
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        match &mut self.state {
+            State::Idle => {
+                if self.cur >= self.size {
+                    return None;
+                }
+
+                let r = match self.read_action() {
+                    Ok((_, r)) => r,
+                    Err(err) => return Some(Err(err)),
+                };
+                self.state = State::Reading(r);
+                self.next()
+            }
+            State::Reading(r) => match r.next() {
+                Some(Ok(bs)) => {
+                    self.cur += bs.len() as u64;
+                    Some(Ok(bs))
+                }
+                Some(Err(err)) => {
+                    self.state = State::Idle;
+                    Some(Err(err))
+                }
+                None => {
+                    self.state = State::Idle;
+                    None
+                }
+            },
+            State::Sending(_) => {
+                unreachable!("It's invalid to go into State::Sending for BlockingRead, please report this bug")
+            }
         }
     }
 }

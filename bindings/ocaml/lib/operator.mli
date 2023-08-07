@@ -20,7 +20,7 @@
 val new_operator :
   string ->
   (string * string) list ->
-  (Opendal_core.Operator.operator, string) result
+  (OpendalCore.Operator.operator, string) result
 (** [new_operator scheme config_map] Create a new block operator from given scheme and config_map.
     
     @param scheme Supported services, for details, refer to https://opendal.apache.org/docs/category/services/
@@ -28,7 +28,7 @@ val new_operator :
     @return The block operator
 *)
 
-val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
+val is_exist : OpendalCore.Operator.operator -> string -> (bool, string) result
 (** [is_exist operator path] Check if this path exists or not.
     
     @param operator The operator
@@ -37,7 +37,7 @@ val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
 *)
 
 val create_dir :
-  Opendal_core.Operator.operator -> string -> (bool, string) result
+  OpendalCore.Operator.operator -> string -> (bool, string) result
 (** [create_dir operator path] Create a dir at given path.
     
     # Notes
@@ -55,7 +55,7 @@ val create_dir :
 *)
 
 val read :
-  Opendal_core.Operator.operator -> string -> (char array, string) result
+  OpendalCore.Operator.operator -> string -> (char array, string) result
 (** [read operator path] Read the whole path into a bytes.
     
     @param operator The operator
@@ -64,7 +64,7 @@ val read :
 *)
 
 val write :
-  Opendal_core.Operator.operator -> string -> bytes -> (unit, string) result
+  OpendalCore.Operator.operator -> string -> bytes -> (unit, string) result
 (** [write operator path data] Write bytes into given path.
     - Write will make sure all bytes has been written, or an error will be returned.
     @param operator The operator
@@ -73,7 +73,7 @@ val write :
 *)
 
 val copy :
-  Opendal_core.Operator.operator -> string -> string -> (unit, string) result
+  OpendalCore.Operator.operator -> string -> string -> (unit, string) result
 (** [copy operator from to] Copy a file from [from] to [to].
     - [from] and [to] must be a file.
     - [to] will be overwritten if it exists.
@@ -85,7 +85,7 @@ val copy :
 *)
 
 val rename :
-  Opendal_core.Operator.operator -> string -> string -> (unit, string) result
+  OpendalCore.Operator.operator -> string -> string -> (unit, string) result
 (** [rename operator from to] Rename a file from [from] to [to].
     - [from] and [to] must be a file.
     - [to] will be overwritten if it exists.
@@ -95,7 +95,7 @@ val rename :
     @param to file path
 *)
 
-val delete : Opendal_core.Operator.operator -> string -> (unit, string) result
+val delete : OpendalCore.Operator.operator -> string -> (unit, string) result
 (** [delete operator path] Delete given path.
     - Delete not existing error won't return errors.
     @param operator The block operator
@@ -103,7 +103,7 @@ val delete : Opendal_core.Operator.operator -> string -> (unit, string) result
 *)
 
 val remove :
-  Opendal_core.Operator.operator -> string array -> (unit, string) result
+  OpendalCore.Operator.operator -> string array -> (unit, string) result
 (** [remove operator paths] Remove path array.
     - We don't support batch delete now, will call delete on each object in turn
     @param operator The block operator
@@ -111,7 +111,7 @@ val remove :
 *)
 
 val remove_all :
-  Opendal_core.Operator.operator -> string -> (unit, string) result
+  OpendalCore.Operator.operator -> string -> (unit, string) result
 (** [remove_all operator path] Remove the path and all nested dirs and files recursively.
     - We don't support batch delete now, will call delete on each object in turn
     @param operator The block operator

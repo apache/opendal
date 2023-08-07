@@ -19,4 +19,4 @@
 
 module Operator = Operator
 
-type operator = Opendal_core.Operator.operator
+type operator = OpendalCore.Operator.operator

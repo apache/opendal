@@ -1,7 +1,7 @@
 - Proposal Name: `list_with_metakey`
 - Start Date: 2023-08-04
 - RFC PR: [apache/incubator-opendal#2779](https://github.com/apache/incubator-opendal/pull/2779)
-- Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
+- Tracking Issue: [apache/incubator-opendal#2802](https://github.com/apache/incubator-opendal/issues/2802)
 
 # Summary
 
@@ -90,6 +90,23 @@ let meta: &Metadata = entries[0].metadata();
 Metadata can be queried directly when listing entries via `metadata()`, and later extracted via `into_parts()`.
 
 # Reference-level explanation
+
+## How metakey works
+
+For every services, `stat` will return the full set of it's metadata. For example, `s3` will return `ContentLength | ContentType | LastModified | ...`, and `fs` will return `ContentLength | LastModified`. And most services will return part of those metadata during `list`. `s3` will return `ContentLength`, `LastModified`, but `fs` returns none of them.
+
+So when users use `list` to list entries, they will get a list of entries with incomplete metadata. The metadata could be in three states:
+
+- Filled: the metadata is returned in `list`
+- NotExist: the metadata is not supported by service.
+- Unknown: the metadata is supported by service but not returned in `list`.
+
+By accept `metakey`, we can compare the returning entry's metadata with metakey:
+
+- Return the entry if metakey already met by `Filled` and `NotExist`.
+- Send `stat` call to fetch the metadata if metadata is `Unknown`.
+
+## Changes
 
 We will add `metakey` into `OpList`. Underlying services can use those information to try their best to fetch the metadata.
 

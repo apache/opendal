@@ -149,19 +149,16 @@ impl ObjectStore for OpendalStore {
         let stream = self
             .inner
             .lister_with(&path)
+            .metakey(Metakey::ContentLength | Metakey::LastModified)
             .delimiter("")
             .await
             .map_err(|err| format_object_store_error(err, &path))?;
 
         let stream = stream.then(|res| async {
             let entry = res.map_err(|err| format_object_store_error(err, ""))?;
-            let meta = self
-                .inner
-                .metadata(&entry, Metakey::ContentLength | Metakey::LastModified)
-                .await
-                .map_err(|err| format_object_store_error(err, entry.path()))?;
+            let meta = entry.metadata();
 
-            Ok(format_object_meta(entry.path(), &meta))
+            Ok(format_object_meta(entry.path(), meta))
         });
 
         Ok(stream.boxed())
@@ -171,7 +168,8 @@ impl ObjectStore for OpendalStore {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
         let mut stream = self
             .inner
-            .lister(&path)
+            .lister_with(&path)
+            .metakey(Metakey::Mode | Metakey::ContentLength | Metakey::LastModified)
             .await
             .map_err(|err| format_object_store_error(err, &path))?;
 
@@ -180,19 +178,12 @@ impl ObjectStore for OpendalStore {
 
         while let Some(res) = stream.next().await {
             let entry = res.map_err(|err| format_object_store_error(err, ""))?;
-            let meta = self
-                .inner
-                .metadata(
-                    &entry,
-                    Metakey::Mode | Metakey::ContentLength | Metakey::LastModified,
-                )
-                .await
-                .map_err(|err| format_object_store_error(err, entry.path()))?;
+            let meta = entry.metadata();
 
             if meta.is_dir() {
                 common_prefixes.push(entry.path().into());
             } else {
-                objects.push(format_object_meta(entry.path(), &meta));
+                objects.push(format_object_meta(entry.path(), meta));
             }
         }
 

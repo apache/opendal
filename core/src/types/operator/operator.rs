@@ -501,7 +501,7 @@ impl Operator {
                         .with_context("path", path));
                     }
 
-                    Reader::create_dir(inner.clone(), &path, args).await
+                    Reader::create(inner.clone(), &path, args).await
                 };
 
                 Box::pin(fut)

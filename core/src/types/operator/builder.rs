@@ -370,7 +370,6 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// Finish the building to construct an Operator.
     pub fn finish(self) -> Operator {
         let ob = self.layer(TypeEraseLayer);
-
         Operator::from_inner(Arc::new(ob.accessor) as FusedAccessor)
     }
 }

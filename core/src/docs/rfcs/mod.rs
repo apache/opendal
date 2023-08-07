@@ -151,3 +151,6 @@ pub mod rfc_2758_merge_append_into_write {}
 
 #[doc = include_str!("2774_lister_api.md")]
 pub mod rfc_2774_lister_api {}
+
+#[doc = include_str!("2779_list_with_metakey.md")]
+pub mod rfc_2779_list_with_metakey {}

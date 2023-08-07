@@ -16,20 +16,20 @@
 ; under the License.
 
 (rule
- (targets libopendalCore.a dllopendalCore.so)
+ (targets libopendal_core.a dllopendal_core.so)
  (deps
   (glob_files *.rs))
  (action
   (progn
    (run sh -c "cd %{project_root}/../.. && cargo build --release")
    (run sh -c
-     "mv %{project_root}/../../../../target/release/libopendal_ocaml.so ./dllopendalCore.so 2> /dev/null || mv %{project_root}/../../../../target/release/libopendal_ocaml.dylib ./dllopendalCore.so")
+     "mv %{project_root}/../../../../target/release/libopendal_ocaml.so ./dllopendal_core.so 2> /dev/null || mv %{project_root}/../../../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so")
    (run mv %{project_root}/../../../../target/release/libopendal_ocaml.a
-     libopendalCore.a))))
+     libopendal_core.a))))
 
 (library
- (name opendalCore)
- (public_name opendal.opendalCore)
- (foreign_archives opendalCore)
+ (name opendal_core)
+ (public_name opendal.opendal_core)
+ (foreign_archives opendal_core)
  (c_library_flags
   (-lpthread -lc -lm)))

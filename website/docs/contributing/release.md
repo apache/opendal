@@ -366,7 +366,7 @@ svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_versio
 ### Push the release Git tag
 
 - `opendal_version`: the version for opendal, like `0.36.0`.
-- `release_version`: the version for the passed cadidate, like `0.36.0-rc1`.
+- `release_version`: the version for the passed candidate, like `0.36.0-rc1`.
 
 Check out the passed release candidate, tag an alias and push.
 

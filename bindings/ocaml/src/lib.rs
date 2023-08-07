@@ -19,8 +19,7 @@ use ::opendal as od;
 use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 
-mod block_operator;
-mod scheme;
+mod operator;
 
 pub fn new_operator(
     scheme_str: String,

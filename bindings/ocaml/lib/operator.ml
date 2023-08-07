@@ -17,6 +17,13 @@
    under the License.
 *)
 
-module Operator = Operator
-
-type operator = Opendalinner.Operator.operator
+let new_operator = Opendalinner.Operator.operator
+let is_exist = Opendalinner.Operator.blocking_is_exist
+let create_dir = Opendalinner.Operator.blocking_create_dir
+let read = Opendalinner.Operator.blocking_read
+let write = Opendalinner.Operator.blocking_write
+let copy = Opendalinner.Operator.blocking_copy
+let rename = Opendalinner.Operator.blocking_rename
+let delete = Opendalinner.Operator.blocking_delete
+let remove = Opendalinner.Operator.blocking_remove
+let remove_all = Opendalinner.Operator.blocking_remove_all

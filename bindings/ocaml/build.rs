@@ -19,10 +19,7 @@ use std::path::PathBuf;
 
 pub fn main() -> std::io::Result<()> {
     let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    ocaml_build::Sigs::new("src/block_operator.ml")
-        .with_source_dir(root.join("src/block_operator"))
-        .generate()?;
-    ocaml_build::Sigs::new("src/scheme.ml")
-        .with_source_dir(root.join("src/scheme"))
+    ocaml_build::Sigs::new("src/operator.ml")
+        .with_source_dir(root.join("src/operator"))
         .generate()
 }

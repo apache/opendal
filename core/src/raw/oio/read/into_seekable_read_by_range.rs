@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
 use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -25,7 +24,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
@@ -59,7 +57,6 @@ pub fn into_seekable_read_by_range<A: Accessor>(
         cur: 0,
         state: State::Reading(reader),
         last_seek_pos: None,
-        sink: Vec::new(),
     }
 }
 
@@ -79,8 +76,6 @@ pub struct ByRangeSeekableReader<A: Accessor> {
     /// So we need to store the last seek pos to make sure
     /// we always seek to the right position.
     last_seek_pos: Option<u64>,
-    /// sink is to consume bytes for seek optimize.
-    sink: Vec<u8>,
 }
 
 enum State<R: oio::Read> {
@@ -174,7 +169,7 @@ impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    fn poll_seek(&mut self, _: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         let seek_pos = self.seek_pos(pos)?;
         self.last_seek_pos = Some(seek_pos);
 
@@ -186,11 +181,14 @@ impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
             }
             State::Sending(_) => {
                 // It's impossible for us to go into this state while
-                // poll_seek. We can just drop this future.
+                // poll_seek. We can just drop this future and check state.
                 self.state = State::Idle;
-                self.poll_seek(cx, SeekFrom::Start(seek_pos))
+
+                self.cur = seek_pos;
+                self.last_seek_pos = None;
+                Poll::Ready(Ok(self.cur))
             }
-            State::Reading(r) => {
+            State::Reading(_) => {
                 if seek_pos == self.cur {
                     self.last_seek_pos = None;
                     return Poll::Ready(Ok(self.cur));

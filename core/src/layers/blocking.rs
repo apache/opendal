@@ -242,11 +242,11 @@ mod tests {
     fn test_blocking_layer_in_blocking_context() {
         // create in a blocking context should fail
         let layer = BlockingLayer::create();
-        assert_eq!(layer.is_err(), true);
+        assert!(layer.is_err());
 
         // create in an async context and drop in a blocking context
         let layer = create_blocking_layer();
-        assert_eq!(layer.is_err(), false)
+        assert!(layer.is_ok())
     }
 
     #[test]
@@ -255,6 +255,6 @@ mod tests {
         let _guard = RUNTIME.enter();
 
         let layer = BlockingLayer::create();
-        assert_eq!(layer.is_err(), false);
+        assert!(layer.is_ok());
     }
 }

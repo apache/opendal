@@ -51,7 +51,7 @@ impl<A: Accessor> Layer<A> for BlockingLayer {
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
         BlockingAccessor {
-            inner: inner,
+            inner,
             handle: self.handle.clone(),
         }
     }

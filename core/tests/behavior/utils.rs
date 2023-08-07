@@ -81,7 +81,8 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
         op.layer(ChaosLayer::new(0.1))
     };
 
-    let mut op = op
+    let op = op
+        .layer(BlockingLayer::create().expect("blocking layer must be created"))
         .layer(LoggingLayer::default())
         .layer(TimeoutLayer::new())
         .layer(RetryLayer::new())

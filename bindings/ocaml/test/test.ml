@@ -24,38 +24,38 @@ let test_check_result = function
   | Ok data -> data
   | Error err -> assert_failure err
 
-let new_test_block_operator test_ctxt : blocking_operator =
+let new_test_block_operator test_ctxt : operator =
   let cfgs = [ ("root", bracket_tmpdir test_ctxt) ] in
-  test_check_result (new_blocking_operator "fs" cfgs)
+  test_check_result (Operator.new_operator "fs" cfgs)
 
 let test_new_block_operator _ = ignore new_test_block_operator
 
 let test_create_dir_and_remove_all test_ctxt =
   let bo = new_test_block_operator test_ctxt in
-  ignore (test_check_result (blocking_create_dir bo "/testdir/"));
+  ignore (test_check_result (Operator.create_dir bo "/testdir/"));
   ignore
     (test_check_result
-       (blocking_write bo "/testdir/foo" (Bytes.of_string "bar")));
+       (Operator.write bo "/testdir/foo" (Bytes.of_string "bar")));
   ignore
     (test_check_result
-       (blocking_write bo "/testdir/bar" (Bytes.of_string "foo")));
-  ignore (test_check_result (blocking_remove_all bo "/testdir/"))
+       (Operator.write bo "/testdir/bar" (Bytes.of_string "foo")));
+  ignore (test_check_result (Operator.remove_all bo "/testdir/"))
 
 let test_block_write_and_read test_ctxt =
   let bo = new_test_block_operator test_ctxt in
   ignore
     (test_check_result
-       (blocking_write bo "tempfile" (Bytes.of_string "helloworld")));
-  let data = test_check_result (blocking_read bo "tempfile") in
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let data = test_check_result (Operator.read bo "tempfile") in
   assert_equal "helloworld"
     (data |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string)
 
 let test_copy_and_read test_ctxt =
   let bo = new_test_block_operator test_ctxt in
   let data = "helloworld" in
-  ignore (test_check_result (blocking_write bo "foo" (Bytes.of_string data)));
-  ignore (test_check_result (blocking_copy bo "foo" "bar"));
-  let got_res = test_check_result (blocking_read bo "bar") in
+  ignore (test_check_result (Operator.write bo "foo" (Bytes.of_string data)));
+  ignore (test_check_result (Operator.copy bo "foo" "bar"));
+  let got_res = test_check_result (Operator.read bo "bar") in
   assert_equal data (got_res |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string)
 
 let suite =

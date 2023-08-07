@@ -19,7 +19,6 @@ use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bytes::Bytes;
-use flagset::FlagSet;
 use futures::stream;
 use futures::AsyncReadExt;
 use futures::Stream;
@@ -159,18 +158,13 @@ impl Operator {
         }
     }
 
-    /// Get current path's metadata **without cache** directly.
+    /// Get current path's metadata.
     ///
     /// # Notes
     ///
-    /// Use `stat` if you:
-    ///
-    /// - Want to detect the outside changes of path.
-    /// - Don't want to read from cached metadata.
-    ///
-    /// You may want to use `metadata` if you are working with entries
-    /// returned by [`Lister`]. It's highly possible that metadata
-    /// you want has already been cached.
+    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
+    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
+    /// so that we can avoid extra requests.
     ///
     /// # Examples
     ///
@@ -243,107 +237,6 @@ impl Operator {
         ));
 
         fut
-    }
-
-    /// Get current metadata with cache.
-    ///
-    /// `metadata` will check the given query with already cached metadata
-    ///  first. And query from storage if not found.
-    ///
-    /// # Notes
-    ///
-    /// Use `metadata` if you are working with entries returned by
-    /// [`Lister`]. It's highly possible that metadata you want
-    /// has already been cached.
-    ///
-    /// You may want to use `stat`, if you:
-    ///
-    /// - Want to detect the outside changes of path.
-    /// - Don't want to read from cached metadata.
-    ///
-    /// # Behavior
-    ///
-    /// Visiting not fetched metadata will lead to panic in debug build.
-    /// It must be a bug, please fix it instead.
-    ///
-    /// # Examples
-    ///
-    /// ## Query already cached metadata
-    ///
-    /// By querying metadata with `None`, we can only query in-memory metadata
-    /// cache. In this way, we can make sure that no API call will be sent.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::Operator;
-    /// use opendal::Entry;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
-    /// let meta = op.metadata(&entry, None).await?;
-    /// // content length COULD be correct.
-    /// let _ = meta.content_length();
-    /// // etag COULD be correct.
-    /// let _ = meta.etag();
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Query content length and content type
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::Operator;
-    /// use opendal::Entry;
-    /// use opendal::Metakey;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
-    /// let meta = op
-    ///     .metadata(&entry, Metakey::ContentLength | Metakey::ContentType)
-    ///     .await?;
-    /// // content length MUST be correct.
-    /// let _ = meta.content_length();
-    /// // etag COULD be correct.
-    /// let _ = meta.etag();
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Query all metadata
-    ///
-    /// By querying metadata with `Complete`, we can make sure that we have fetched all metadata of this entry.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::Operator;
-    /// use opendal::Entry;
-    /// use opendal::Metakey;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
-    /// let meta = op.metadata(&entry, Metakey::Complete).await?;
-    /// // content length MUST be correct.
-    /// let _ = meta.content_length();
-    /// // etag MUST be correct.
-    /// let _ = meta.etag();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn metadata(
-        &self,
-        entry: &Entry,
-        flags: impl Into<FlagSet<Metakey>>,
-    ) -> Result<Metadata> {
-        // Check if cached metadata saticifies the query.
-        if let Some(meta) = entry.metadata() {
-            if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
-                return Ok(meta.clone());
-            }
-        }
-
-        // Else request from backend..
-        let meta = self.stat(entry.path()).await?;
-        Ok(meta)
     }
 
     /// Check if this path exists or not.
@@ -1270,13 +1163,13 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// ## For listing recursively
+    /// ## Listing recursively
     ///
     /// This function only read the children of the given directory. To read
     /// all entries recursively, use `Operator::list_with("path").delimiter("")`
     /// instead.
     ///
-    /// ## For streaming
+    /// ## Streaming
     ///
     /// This function will read all entries in the given directory. It could
     /// take very long time and consume a lot of memory if the directory
@@ -1284,6 +1177,11 @@ impl Operator {
     ///
     /// In order to avoid this, you can use [`Operator::lister`] to list entries in
     /// a streaming way.
+    ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please use [`Operator::list_with`] and `metakey`.
     ///
     /// # Examples
     ///
@@ -1296,13 +1194,12 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/").await?;
     /// for entry in entries {
-    ///     let meta = op.metadata(&entry, Metakey::Mode).await?;
-    ///     match meta.mode() {
+    ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
     ///         EntryMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
+    ///             println!("Handling dir {}", entry.path())
     ///         }
     ///         EntryMode::Unknown => continue,
     ///     }
@@ -1327,6 +1224,11 @@ impl Operator {
     /// In order to avoid this, you can use [`Operator::lister`] to list entries in
     /// a streaming way.
     ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please specify the `metakey`.
+    ///
     /// # Examples
     ///
     /// ## List entries with prefix
@@ -1342,13 +1244,38 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("prefix/").delimiter("").await?;
     /// for entry in entries {
-    ///     let meta = op.metadata(&entry, Metakey::Mode).await?;
-    ///     match meta.mode() {
+    ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
     ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List entries with metakey for more metadata
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut entries = op.list_with("dir/").metakey(Metakey::ContentLength|Metakey::LastModified).await?;
+    /// for entry in entries {
+    ///     let meta = entry.metadata();
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file {} with size {}", entry.path(), meta.content_length())
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
     ///         }
     ///         EntryMode::Unknown => continue,
     ///     }
@@ -1375,8 +1302,7 @@ impl Operator {
                         .with_context("path", &path));
                     }
 
-                    let (_, pager) = inner.list(&path, args).await?;
-                    let lister = Lister::new(pager);
+                    let lister = Lister::create(inner, &path, args).await?;
 
                     lister.try_collect().await
                 };
@@ -1392,6 +1318,19 @@ impl Operator {
     ///
     /// An error will be returned if given path doesn't end with `/`.
     ///
+    /// # Notes
+    ///
+    /// ## Listing recursively
+    ///
+    /// This function only read the children of the given directory. To read
+    /// all entries recursively, use [`Operator::lister_with`] and `delimiter("")`
+    /// instead.
+    ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please use [`Operator::lister_with`] and `metakey`.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -1405,8 +1344,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
-    ///     match meta.mode() {
+    ///     match de.metadata().mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1447,14 +1385,13 @@ impl Operator {
     ///     .limit(10)
     ///     .start_after("start")
     ///     .await?;
-    /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
-    ///     match meta.mode() {
+    /// while let Some(mut entry) = ds.try_next().await? {
+    ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
-    ///             println!("Handling file")
+    ///             println!("Handling file {}", entry.path())
     ///         }
     ///         EntryMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
+    ///             println!("Handling dir {}", entry.path())
     ///         }
     ///         EntryMode::Unknown => continue,
     ///     }
@@ -1475,14 +1412,42 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.lister_with("path/to/dir/").delimiter("").await?;
-    /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = op.metadata(&de, Metakey::Mode).await?;
-    ///     match meta.mode() {
+    /// while let Some(mut entry) = ds.try_next().await? {
+    ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
-    ///             println!("Handling file")
+    ///             println!("Handling file {}", entry.path())
     ///         }
     ///         EntryMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List files with required metadata
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut ds = op.lister_with("path/to/dir/")
+    ///     .metakey(Metakey::ContentLength | Metakey::LastModified).await?;
+    /// while let Some(mut entry) = ds.try_next().await? {
+    ///     let meta = entry.metadata();
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file {} with size {}", entry.path(), meta.content_length())
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
     ///         }
     ///         EntryMode::Unknown => continue,
     ///     }
@@ -1509,9 +1474,7 @@ impl Operator {
                         .with_context("path", &path));
                     }
 
-                    let (_, pager) = inner.list(&path, args).await?;
-
-                    Ok(Lister::new(pager))
+                    Lister::create(inner, &path, args).await
                 };
                 Box::pin(fut)
             },

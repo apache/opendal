@@ -18,14 +18,16 @@
 use crate::raw::*;
 use crate::*;
 
-/// Entry is the file/dir entry returned by `Lister`.
+/// Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
+///
+/// TODO: add notes about metakey here.
 #[derive(Clone, Debug)]
 pub struct Entry {
-    /// Path of the entry.
+    /// Path of this entry.
     path: String,
 
-    /// Optional cached metadata
-    metadata: Option<Metadata>,
+    /// Metadata of this entry.
+    metadata: Metadata,
 }
 
 impl Entry {
@@ -38,43 +40,35 @@ impl Entry {
     ///
     /// The only way to get an entry with associated cached metadata
     /// is `Operator::list` or `Operator::scan`.
-    pub(crate) fn new_with(path: String, metadata: Metadata) -> Self {
-        Self {
-            path,
-            metadata: Some(metadata),
-        }
-    }
-
-    /// Create an [`Entry`] with empty cached metadata.
-    pub fn new(path: &str) -> Self {
-        Self {
-            path: normalize_path(path),
-            metadata: None,
-        }
+    pub(crate) fn new(path: String, metadata: Metadata) -> Self {
+        Self { path, metadata }
     }
 
     /// Path of entry. Path is relative to operator's root.
+    ///
     /// Only valid in current operator.
+    ///
+    /// If this entry is a dir, `path` MUST end with `/`
+    /// Otherwise, `path` MUST NOT end with `/`.
     pub fn path(&self) -> &str {
         &self.path
     }
 
     /// Name of entry. Name is the last segment of path.
     ///
-    /// If this entry is a dir, `Name` MUST endswith `/`
-    /// Otherwise, `Name` MUST NOT endswith `/`.
+    /// If this entry is a dir, `name` MUST end with `/`
+    /// Otherwise, `name` MUST NOT end with `/`.
     pub fn name(&self) -> &str {
         get_basename(&self.path)
     }
 
-    /// Get the cached metadata of entry.
-    ///
-    /// # Notes
-    ///
-    /// This function is crate internal only. Because the returning
-    /// metadata could be incomplete. Users must use `Operator::metadata`
-    /// to query the cached metadata instead.
-    pub(crate) fn metadata(&self) -> &Option<Metadata> {
+    /// Fetch metadata of this entry.
+    pub fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    /// Consume this entry to get it's path and metadata.
+    pub fn into_parts(self) -> (String, Metadata) {
+        (self.path, self.metadata)
     }
 }

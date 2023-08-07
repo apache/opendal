@@ -19,7 +19,6 @@ use std::io::Read;
 use std::ops::RangeBounds;
 
 use bytes::Bytes;
-use flagset::FlagSet;
 
 use super::operator_functions::*;
 use crate::raw::*;
@@ -150,99 +149,6 @@ impl BlockingOperator {
         let rp = self.inner().blocking_stat(&path, OpStat::new())?;
         let meta = rp.into_metadata();
 
-        Ok(meta)
-    }
-
-    /// Get current metadata with cache in blocking way.
-    ///
-    /// `metadata` will check the given query with already cached metadata
-    ///  first. And query from storage if not found.
-    ///
-    /// # Notes
-    ///
-    /// Use `metadata` if you are working with entries returned by
-    /// [`Lister`]. It's highly possible that metadata you want
-    /// has already been cached.
-    ///
-    /// You may want to use `stat`, if you:
-    ///
-    /// - Want detect the outside changes of file.
-    /// - Don't want to read from cached file metadata.
-    ///
-    /// # Behavior
-    ///
-    /// Visiting not fetched metadata will lead to panic in debug build.
-    /// It must be a bug, please fix it instead.
-    ///
-    /// # Examples
-    ///
-    /// ## Query already cached metadata
-    ///
-    /// By query metadata with `None`, we can only query in-memory metadata
-    /// cache. In this way, we can make sure that no API call will send.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::BlockingOperator;
-    /// use opendal::Entry;
-    ///
-    /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
-    /// let meta = op.metadata(&entry, None)?;
-    /// // content length COULD be correct.
-    /// let _ = meta.content_length();
-    /// // etag COULD be correct.
-    /// let _ = meta.etag();
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Query content length and content type
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::BlockingOperator;
-    /// use opendal::Entry;
-    /// use opendal::Metakey;
-    ///
-    /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
-    /// let meta = op.metadata(&entry, { Metakey::ContentLength | Metakey::ContentType })?;
-    /// // content length MUST be correct.
-    /// let _ = meta.content_length();
-    /// // etag COULD be correct.
-    /// let _ = meta.etag();
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Query all metadata
-    ///
-    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this entry.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::BlockingOperator;
-    /// use opendal::Entry;
-    /// use opendal::Metakey;
-    ///
-    /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
-    /// let meta = op.metadata(&entry, { Metakey::Complete })?;
-    /// // content length MUST be correct.
-    /// let _ = meta.content_length();
-    /// // etag MUST be correct.
-    /// let _ = meta.etag();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn metadata(&self, entry: &Entry, flags: impl Into<FlagSet<Metakey>>) -> Result<Metadata> {
-        // Check if cached metadata saticifies the query.
-        if let Some(meta) = entry.metadata() {
-            if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
-                return Ok(meta.clone());
-            }
-        }
-
-        // Else request from backend..
-        let meta = self.stat(entry.path())?;
         Ok(meta)
     }
 

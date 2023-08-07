@@ -57,3 +57,18 @@ describe('basic io', function () {
         expect(is_dir('/tmp/test'))->toBeTrue();
     });
 });
+
+describe('binary safe IO', function () {
+    $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
+
+    it('write & read invalid UTF-8', function () use ($op) {
+        $bytesArray = unpack('C*', "hello: \x80\x80\x80");
+
+        expect($bytesArray)->toBeArray();
+
+        $op->write_binary('test.txt', $bytesArray);
+        $content = $op->read_binary('test.txt');
+
+        expect($content)->toBeString()->toEqual("hello: \x80\x80\x80");
+    });
+});

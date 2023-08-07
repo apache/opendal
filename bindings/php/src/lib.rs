@@ -15,14 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use ::opendal as od;
+use ext_php_rs::binary::Binary;
+use ext_php_rs::convert::FromZval;
+use ext_php_rs::exception::PhpException;
+use ext_php_rs::flags::DataType;
+use ext_php_rs::prelude::*;
+use ext_php_rs::types::Zval;
 use std::collections::HashMap;
 use std::str::FromStr;
-use ext_php_rs::prelude::*;
-use ext_php_rs::{exception::PhpException, zend::ce};
-use ext_php_rs::convert::FromZval;
-use ext_php_rs::flags::DataType;
-use ext_php_rs::types::Zval;
-use ::opendal as od;
 
 #[php_class(name = "OpenDAL\\Operator")]
 pub struct Operator(od::BlockingOperator);
@@ -36,9 +37,19 @@ impl Operator {
         Ok(Operator(op.blocking()))
     }
 
-    /// Write bytes into given path.
+    /// Write string into given path.
     pub fn write(&self, path: &str, content: String) -> PhpResult<()> {
         self.0.write(path, content).map_err(format_php_err)
+    }
+
+    /// Write bytes into given path, binary safe.
+    pub fn write_binary(&self, path: &str, content: Vec<u8>) -> PhpResult<()> {
+        self.0.write(path, content).map_err(format_php_err)
+    }
+
+    /// Read the whole path into bytes, binary safe.
+    pub fn read_binary(&self, path: &str) -> PhpResult<Binary<u8>> {
+        self.0.read(path).map_err(format_php_err).map(Binary::from)
     }
 
     /// Read the whole path into bytes.
@@ -143,8 +154,7 @@ impl<'b> FromZval<'b> for EntryMode {
     const TYPE: DataType = DataType::Object(Some("OpenDAL\\EntryMode"));
 
     fn from_zval(zval: &'b Zval) -> Option<Self> {
-        zval.object()
-            .and_then(|obj| obj.get_property("mode").ok())
+        zval.object().and_then(|obj| obj.get_property("mode").ok())
     }
 }
 
@@ -168,12 +178,9 @@ impl EntryMode {
 }
 
 fn format_php_err(e: od::Error) -> PhpException {
-    match e.kind() {
-        // @todo use custom exception, we cannot use custom exception now,
-        // see https://github.com/davidcole1340/ext-php-rs/issues/262
-
-        _ => PhpException::default(e.to_string()),
-    }
+    // @todo use custom exception, we cannot use custom exception now,
+    // see https://github.com/davidcole1340/ext-php-rs/issues/262
+    PhpException::default(e.to_string())
 }
 
 #[php_module]

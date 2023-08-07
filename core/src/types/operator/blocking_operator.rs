@@ -330,7 +330,7 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn read(&self, path: &str) -> Result<Vec<u8>> {
-        self.range _read(path, ..)
+        self.range_read(path, ..)
     }
 
     /// Read the specified range of path into a bytes.

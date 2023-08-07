@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
 use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -25,7 +24,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
@@ -59,7 +57,6 @@ pub fn into_seekable_read_by_range<A: Accessor>(
         cur: 0,
         state: State::Reading(reader),
         last_seek_pos: None,
-        sink: Vec::new(),
     }
 }
 
@@ -79,8 +76,6 @@ pub struct ByRangeSeekableReader<A: Accessor> {
     /// So we need to store the last seek pos to make sure
     /// we always seek to the right position.
     last_seek_pos: Option<u64>,
-    /// sink is to consume bytes for seek optimize.
-    sink: Vec<u8>,
 }
 
 enum State<R: oio::Read> {
@@ -174,7 +169,7 @@ impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    fn poll_seek(&mut self, _: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         let seek_pos = self.seek_pos(pos)?;
         self.last_seek_pos = Some(seek_pos);
 
@@ -186,56 +181,23 @@ impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
             }
             State::Sending(_) => {
                 // It's impossible for us to go into this state while
-                // poll_seek. We can just drop this future.
+                // poll_seek. We can just drop this future and check state.
                 self.state = State::Idle;
-                self.poll_seek(cx, SeekFrom::Start(seek_pos))
+
+                self.cur = seek_pos;
+                self.last_seek_pos = None;
+                Poll::Ready(Ok(self.cur))
             }
-            State::Reading(r) => {
+            State::Reading(_) => {
                 if seek_pos == self.cur {
                     self.last_seek_pos = None;
                     return Poll::Ready(Ok(self.cur));
                 }
 
-                // If the next seek pos is close enough, we can just
-                // read the cnt instead of dropping the reader.
-                //
-                // TODO: make this value configurable
-                if seek_pos > self.cur && seek_pos - self.cur < 1024 * 1024 {
-                    // 212992 is the default read mem buffer of archlinux.
-                    // Ideally we should make this configurable.
-                    //
-                    // TODO: make this value configurable
-                    let consume = cmp::min((seek_pos - self.cur) as usize, 212992);
-                    self.sink.reserve(consume);
-
-                    let mut buf = ReadBuf::uninit(self.sink.spare_capacity_mut());
-                    unsafe { buf.assume_init(consume) };
-
-                    match ready!(Pin::new(r).poll_read(cx, buf.initialized_mut())) {
-                        Ok(n) => {
-                            assert!(n > 0, "consumed bytes must be valid");
-                            self.cur += n as u64;
-                            // Make sure the pos is absolute from start.
-                            self.poll_seek(cx, SeekFrom::Start(seek_pos))
-                        }
-                        Err(_) => {
-                            // If we are hitting errors while read ahead.
-                            // It's better to drop this reader and seek to
-                            // correct position directly.
-                            self.state = State::Idle;
-                            self.cur = seek_pos;
-                            self.last_seek_pos = None;
-                            Poll::Ready(Ok(self.cur))
-                        }
-                    }
-                } else {
-                    // If we are trying to seek to far more away.
-                    // Let's just drop the reader.
-                    self.state = State::Idle;
-                    self.cur = seek_pos;
-                    self.last_seek_pos = None;
-                    Poll::Ready(Ok(self.cur))
-                }
+                self.state = State::Idle;
+                self.cur = seek_pos;
+                self.last_seek_pos = None;
+                Poll::Ready(Ok(self.cur))
             }
         }
     }

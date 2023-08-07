@@ -532,9 +532,9 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
 pub enum CompleteReader<A: Accessor, R> {
     AlreadyComplete(R),
-    NeedSeekable(ByRangeSeekableReader<A>),
+    NeedSeekable(ByRangeSeekableReader<A, R>),
     NeedStreamable(StreamableReader<R>),
-    NeedBoth(StreamableReader<ByRangeSeekableReader<A>>),
+    NeedBoth(StreamableReader<ByRangeSeekableReader<A, R>>),
 }
 
 impl<A, R> oio::Read for CompleteReader<A, R>

@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use flagset::FlagSet;
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use flagset::FlagSet;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use futures::Stream;

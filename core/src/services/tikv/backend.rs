@@ -16,22 +16,21 @@
 // under the License.
 
 use std::collections::HashMap;
-use tikv_client::Config;
-use tikv_client::RawClient;
-
-use crate::raw::adapters::kv;
-use crate::Capability;
-use crate::Scheme;
-use async_trait::async_trait;
-use tokio::sync::OnceCell;
-
-use crate::Builder;
-use crate::Error;
-use crate::ErrorKind;
-use crate::*;
-
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
+use async_trait::async_trait;
+use tikv_client::Config;
+use tikv_client::RawClient;
+use tokio::sync::OnceCell;
+
+use crate::raw::adapters::kv;
+use crate::Builder;
+use crate::Capability;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Scheme;
+use crate::*;
 
 /// TiKV backend builder
 #[derive(Clone, Default)]

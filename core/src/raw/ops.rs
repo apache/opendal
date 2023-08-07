@@ -19,11 +19,12 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use crate::Metakey;
-use flagset::FlagSet;
 use std::time::Duration;
 
+use flagset::FlagSet;
+
 use crate::raw::*;
+use crate::Metakey;
 
 /// Args for `create` operation.
 ///

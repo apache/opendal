@@ -20,7 +20,44 @@ use crate::*;
 
 /// Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
 ///
-/// TODO: add notes about metakey here.
+/// # Notes
+///
+/// Entry returned by [`Lister`] or [`BlockingLister`] may carry some already known metadata.
+/// Lister by default only make sure that `Mode` is fetched. To make sure the entry contains
+/// metadata you want, please use `list_with` or `lister_with` and `metakey`.
+///
+/// For example:
+///
+/// ```no_run
+/// # use anyhow::Result;
+/// use opendal::EntryMode;
+/// use opendal::Metakey;
+/// use opendal::Operator;
+/// # #[tokio::main]
+/// # async fn test(op: Operator) -> Result<()> {
+/// let mut entries = op
+///     .list_with("dir/")
+///     .metakey(Metakey::ContentLength | Metakey::LastModified)
+///     .await?;
+/// for entry in entries {
+///     let meta = entry.metadata();
+///     match meta.mode() {
+///         EntryMode::FILE => {
+///             println!(
+///                 "Handling file {} with size {}",
+///                 entry.path(),
+///                 meta.content_length()
+///             )
+///         }
+///         EntryMode::DIR => {
+///             println!("Handling dir {}", entry.path())
+///         }
+///         EntryMode::Unknown => continue,
+///     }
+/// }
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Debug)]
 pub struct Entry {
     /// Path of this entry.
@@ -31,15 +68,12 @@ pub struct Entry {
 }
 
 impl Entry {
-    /// Create an entry with .
+    /// Create an entry with metadata.
     ///
     /// # Notes
     ///
-    /// This function is crate internal only. Users don't have public
-    /// methods to construct an entry with arbitrary cached metadata.
-    ///
     /// The only way to get an entry with associated cached metadata
-    /// is `Operator::list` or `Operator::scan`.
+    /// is `Operator::list`.
     pub(crate) fn new(path: String, metadata: Metadata) -> Self {
         Self { path, metadata }
     }

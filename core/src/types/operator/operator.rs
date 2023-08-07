@@ -1267,12 +1267,19 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut entries = op.list_with("dir/").metakey(Metakey::ContentLength|Metakey::LastModified).await?;
+    /// let mut entries = op
+    ///     .list_with("dir/")
+    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
+    ///     .await?;
     /// for entry in entries {
     ///     let meta = entry.metadata();
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
-    ///             println!("Handling file {} with size {}", entry.path(), meta.content_length())
+    ///             println!(
+    ///                 "Handling file {} with size {}",
+    ///                 entry.path(),
+    ///                 meta.content_length()
+    ///             )
     ///         }
     ///         EntryMode::DIR => {
     ///             println!("Handling dir {}", entry.path())
@@ -1438,13 +1445,19 @@ impl Operator {
     /// use opendal::Operator;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut ds = op.lister_with("path/to/dir/")
-    ///     .metakey(Metakey::ContentLength | Metakey::LastModified).await?;
+    /// let mut ds = op
+    ///     .lister_with("path/to/dir/")
+    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
+    ///     .await?;
     /// while let Some(mut entry) = ds.try_next().await? {
     ///     let meta = entry.metadata();
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
-    ///             println!("Handling file {} with size {}", entry.path(), meta.content_length())
+    ///             println!(
+    ///                 "Handling file {} with size {}",
+    ///                 entry.path(),
+    ///                 meta.content_length()
+    ///             )
     ///         }
     ///         EntryMode::DIR => {
     ///             println!("Handling dir {}", entry.path())

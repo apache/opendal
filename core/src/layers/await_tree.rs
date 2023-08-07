@@ -15,12 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use async_trait::async_trait;
+use await_tree::InstrumentAwait;
+
 use crate::raw::*;
 use crate::*;
-
-use async_trait::async_trait;
-
-use await_tree::InstrumentAwait;
 
 /// Add a Instrument await-tree for actor-based applications to the underlying services.
 ///

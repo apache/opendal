@@ -57,7 +57,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     }
 
     let dst_root = Path::new(&dst_path);
-    let mut ds = src_op.scan(&src_path).await?;
+    let mut ds = src_op.lister_with(&src_path).delimiter("").await?;
     while let Some(de) = ds.try_next().await? {
         let meta = src_op.metadata(&de, Metakey::Mode).await?;
         if meta.mode().is_dir() {

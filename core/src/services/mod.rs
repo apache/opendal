@@ -198,3 +198,8 @@ pub use self::redb::Redb;
 mod tikv;
 #[cfg(feature = "services-tikv")]
 pub use self::tikv::Tikv;
+
+#[cfg(feature = "services-foundationdb")]
+mod foundationdb;
+#[cfg(feature = "services-foundationdb")]
+pub use self::foundationdb::Foundationdb;

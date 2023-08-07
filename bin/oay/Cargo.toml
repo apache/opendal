@@ -37,7 +37,8 @@ default = [
 
 frontends-webdav = [
   "dep:dav-server",
-  "dep:bytes"
+  "dep:bytes",
+  "dep:futures-util"
 ]
 frontends-s3 = []
 
@@ -66,3 +67,4 @@ url = "2.3.1"
 uuid = { version = "1", features = ["v4", "fast-rng"] }
 dav-server = { version = "0.5.5", optional = true }
 bytes = { version = "1.4.0", optional = true }
+futures-util = { version = "0.3.16", optional = true }

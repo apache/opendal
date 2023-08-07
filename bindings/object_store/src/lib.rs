@@ -26,6 +26,7 @@ use futures::stream::BoxStream;
 use futures::Stream;
 use futures::StreamExt;
 use object_store::path::Path;
+use object_store::GetOptions;
 use object_store::GetResult;
 use object_store::ListResult;
 use object_store::MultipartId;
@@ -87,6 +88,16 @@ impl ObjectStore for OpendalStore {
         })
     }
 
+    async fn get_opts(&self, location: &Path, _: GetOptions) -> Result<GetResult> {
+        let r = self
+            .inner
+            .reader(location.as_ref())
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        Ok(GetResult::Stream(Box::pin(OpendalReader { inner: r })))
+    }
+
     async fn get(&self, location: &Path) -> Result<GetResult> {
         let r = self
             .inner
@@ -118,6 +129,7 @@ impl ObjectStore for OpendalStore {
             location: location.clone(),
             last_modified: meta.last_modified().unwrap_or_default(),
             size: meta.content_length() as usize,
+            e_tag: None,
         })
     }
 
@@ -136,7 +148,8 @@ impl ObjectStore for OpendalStore {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
         let stream = self
             .inner
-            .scan(&path)
+            .lister_with(&path)
+            .delimiter("")
             .await
             .map_err(|err| format_object_store_error(err, &path))?;
 
@@ -158,7 +171,7 @@ impl ObjectStore for OpendalStore {
         let path = prefix.map_or("".into(), |x| format!("{}/", x));
         let mut stream = self
             .inner
-            .list(&path)
+            .lister(&path)
             .await
             .map_err(|err| format_object_store_error(err, &path))?;
 
@@ -243,6 +256,7 @@ fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
         location: path.into(),
         last_modified: meta.last_modified().unwrap_or_default(),
         size: meta.content_length() as usize,
+        e_tag: None,
     }
 }
 

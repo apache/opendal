@@ -43,6 +43,8 @@ pub enum Scheme {
     Dashmap,
     /// [etcd][crate::services::Etcd]: Etcd Services
     Etcd,
+    /// [foundationdb][crate::services::Foundationdb]: Foundationdb services.
+    Foundationdb,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
     /// [ftp][crate::services::Ftp]: FTP backend.
@@ -143,9 +145,11 @@ impl FromStr for Scheme {
             "cacache" => Ok(Scheme::Cacache),
             "cos" => Ok(Scheme::Cos),
             "dashmap" => Ok(Scheme::Dashmap),
+            "dropbox" => Ok(Scheme::Dropbox),
             "etcd" => Ok(Scheme::Etcd),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
+            "gdrive" => Ok(Scheme::Gdrive),
             "ghac" => Ok(Scheme::Ghac),
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
@@ -157,10 +161,13 @@ impl FromStr for Scheme {
             "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
+            "onedrive" => Ok(Scheme::Onedrive),
             "persy" => Ok(Scheme::Persy),
+            "redb" => Ok(Scheme::Redb),
             "redis" => Ok(Scheme::Redis),
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
+            "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
             "supabase" => Ok(Scheme::Supabase),
             "oss" => Ok(Scheme::Oss),
@@ -168,6 +175,7 @@ impl FromStr for Scheme {
             "wasabi" => Ok(Scheme::Wasabi),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
+            "tikv" => Ok(Scheme::Tikv),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -187,6 +195,7 @@ impl From<Scheme> for &'static str {
             Scheme::Ghac => "ghac",
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",
+            Scheme::Foundationdb => "foundationdb",
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",

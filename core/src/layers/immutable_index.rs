@@ -302,7 +302,7 @@ mod tests {
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
-        let mut ds = op.list("").await?;
+        let mut ds = op.lister("").await?;
         while let Some(entry) = ds.try_next().await? {
             debug!("got entry: {}", entry.path());
             assert!(
@@ -341,7 +341,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.scan("/").await?;
+        let mut ds = op.lister_with("/").delimiter("").await?;
         let mut set = HashSet::new();
         let mut map = HashMap::new();
         while let Some(entry) = ds.try_next().await? {
@@ -391,7 +391,7 @@ mod tests {
         //  List /
         let mut map = HashMap::new();
         let mut set = HashSet::new();
-        let mut ds = op.list("/").await?;
+        let mut ds = op.lister("/").await?;
         while let Some(entry) = ds.try_next().await? {
             assert!(
                 set.insert(entry.path().to_string()),
@@ -410,7 +410,7 @@ mod tests {
         //  List dataset/stateful/
         let mut map = HashMap::new();
         let mut set = HashSet::new();
-        let mut ds = op.list("dataset/stateful/").await?;
+        let mut ds = op.lister("dataset/stateful/").await?;
         while let Some(entry) = ds.try_next().await? {
             assert!(
                 set.insert(entry.path().to_string()),
@@ -452,7 +452,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.scan("/").await?;
+        let mut ds = op.lister_with("/").delimiter("").await?;
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();

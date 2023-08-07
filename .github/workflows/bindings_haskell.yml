@@ -43,16 +43,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Haskell toolchain
+      - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ghc cabal-install
+          curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+          ghcup install ghc 9.2.8 --set
+          ghcup install cabal --set
           cabal update
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+      - name: Restore haskell cache
+        uses: actions/cache/restore@v3
+        with:
+          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal') }}
+          path: ~/.cabal/store
+          restore-keys: ${{ runner.os }}-haskell-
       - name: Build & Test
         working-directory: "bindings/haskell"
         run: |
           cargo build
-          LIBRARY_PATH=../../target/debug cabal build
-          LD_LIBRARY_PATH=../../target/debug cabal test
+          LIBRARY_PATH=../../target/debug LD_LIBRARY_PATH=../../target/debug cabal test
+      - name: Save haskell cache
+        uses: actions/cache/save@v3
+        with:
+          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal') }}
+          path: ~/.cabal/store

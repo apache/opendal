@@ -165,6 +165,8 @@ impl Operator {
             Scheme::Dashmap => Self::from_map::<services::Dashmap>(map)?.finish(),
             #[cfg(feature = "services-etcd")]
             Scheme::Etcd => Self::from_map::<services::Etcd>(map)?.finish(),
+            #[cfg(feature = "services-foundationdb")]
+            Scheme::Foundationdb => Self::from_map::<services::Foundationdb>(map)?.finish(),
             #[cfg(feature = "services-fs")]
             Scheme::Fs => Self::from_map::<services::Fs>(map)?.finish(),
             #[cfg(feature = "services-ftp")]
@@ -368,7 +370,6 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// Finish the building to construct an Operator.
     pub fn finish(self) -> Operator {
         let ob = self.layer(TypeEraseLayer);
-
         Operator::from_inner(Arc::new(ob.accessor) as FusedAccessor)
     }
 }

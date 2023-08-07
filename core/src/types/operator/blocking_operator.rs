@@ -730,11 +730,8 @@ impl BlockingOperator {
     /// # use opendal::EntryMode;
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let mut ds = op.list("path/to/dir/")?;
-    /// while let Some(mut de) = ds.next() {
-    ///     let meta = op.metadata(&de?, {
-    ///         use opendal::Metakey::*;
-    ///         Mode
-    ///     })?;
+    /// while let Some(mut entry) = ds.next() {
+    ///     let meta = entry.metadata();
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
@@ -785,11 +782,8 @@ impl BlockingOperator {
     /// # use opendal::EntryMode;
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let mut ds = op.list("path/to/dir/")?;
-    /// while let Some(mut de) = ds.next() {
-    ///     let meta = op.metadata(&de?, {
-    ///         use opendal::Metakey::*;
-    ///         Mode
-    ///     })?;
+    /// while let Some(mut entry) = ds.next() {
+    ///     let meta = entry.metadata();
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")

@@ -16,20 +16,20 @@
 ; under the License.
 
 (rule
- (targets libopendalinner.a dllopendalinner.so)
+ (targets libopendal_core.a dllopendal_core.so)
  (deps
   (glob_files *.rs))
  (action
   (progn
    (run sh -c "cd %{project_root}/../.. && cargo build --release")
    (run sh -c
-     "mv %{project_root}/../../../../target/release/libopendal_ocaml.so ./dllopendalinner.so 2> /dev/null || mv %{project_root}/../../../../target/release/libopendal_ocaml.dylib ./dllopendalinner.so")
+     "mv %{project_root}/../../../../target/release/libopendal_ocaml.so ./dllopendal_core.so 2> /dev/null || mv %{project_root}/../../../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so")
    (run mv %{project_root}/../../../../target/release/libopendal_ocaml.a
-     libopendalinner.a))))
+     libopendal_core.a))))
 
 (library
- (name opendalinner)
- (public_name opendal.opendalinner)
- (foreign_archives opendalinner)
+ (name opendal_core)
+ (public_name opendal.opendal_core)
+ (foreign_archives opendal_core)
  (c_library_flags
   (-lpthread -lc -lm)))

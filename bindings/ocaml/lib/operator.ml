@@ -17,13 +17,13 @@
    under the License.
 *)
 
-let new_operator = Opendalinner.Operator.operator
-let is_exist = Opendalinner.Operator.blocking_is_exist
-let create_dir = Opendalinner.Operator.blocking_create_dir
-let read = Opendalinner.Operator.blocking_read
-let write = Opendalinner.Operator.blocking_write
-let copy = Opendalinner.Operator.blocking_copy
-let rename = Opendalinner.Operator.blocking_rename
-let delete = Opendalinner.Operator.blocking_delete
-let remove = Opendalinner.Operator.blocking_remove
-let remove_all = Opendalinner.Operator.blocking_remove_all
+let new_operator = Opendal_core.Operator.operator
+let is_exist = Opendal_core.Operator.blocking_is_exist
+let create_dir = Opendal_core.Operator.blocking_create_dir
+let read = Opendal_core.Operator.blocking_read
+let write = Opendal_core.Operator.blocking_write
+let copy = Opendal_core.Operator.blocking_copy
+let rename = Opendal_core.Operator.blocking_rename
+let delete = Opendal_core.Operator.blocking_delete
+let remove = Opendal_core.Operator.blocking_remove
+let remove_all = Opendal_core.Operator.blocking_remove_all

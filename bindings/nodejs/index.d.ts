@@ -216,6 +216,7 @@ export class Operator {
    * An error will be returned if given path doesn't end with /.
    *
    * ### Example
+   *
    * ```javascript
    * const lister = await op.scan("/path/to/dir/");
    * while (true) {

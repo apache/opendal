@@ -1,3 +1,15 @@
+# Unreleased
+
+## Public API
+
+### RFC-2774 Lister API
+
+RFC-2774 proposes a new `lister` API to replace current `list` and `scan`. And we add a new API `list` to return entries directly.
+
+- For listing a directory at once, please use `list()` for convenience.
+- For listing a directory recursively, please use `list_with().delimiter("")` or `lister_with().delimiter("")` instead of `scan()`.
+- For listing in streaming, please use `lister()` or `lister_with()` instead.
+
 # Upgrade to v0.39
 
 ## Public API

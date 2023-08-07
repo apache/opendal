@@ -731,6 +731,7 @@ impl BlockingOperator {
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let mut ds = op.list("path/to/dir/")?;
     /// while let Some(mut entry) = ds.next() {
+    ///     let entry = entry?;
     ///     let meta = entry.metadata();
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
@@ -783,6 +784,7 @@ impl BlockingOperator {
     /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let mut ds = op.list("path/to/dir/")?;
     /// while let Some(mut entry) = ds.next() {
+    ///     let entry = entry?;
     ///     let meta = entry.metadata();
     ///     match meta.mode() {
     ///         EntryMode::FILE => {

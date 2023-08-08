@@ -108,6 +108,7 @@ jobs:
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
+          OPENDAL_S3_REGION: us-east-1
 
   fuzz-test-fs:
     runs-on: ubuntu-latest

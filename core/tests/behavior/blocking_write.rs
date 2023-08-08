@@ -19,7 +19,7 @@ use std::io::Read;
 use std::io::Seek;
 
 use anyhow::Result;
-use log::debug;
+use log::{debug, warn};
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -112,6 +112,12 @@ pub fn test_blocking_write_with_dir_path(op: BlockingOperator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()> {
+    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    if op.info().scheme() == opendal::Scheme::Supabase {
+        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -156,6 +162,12 @@ pub fn test_blocking_stat_dir(op: BlockingOperator) -> Result<()> {
 
 /// Stat existing file with special chars should return metadata
 pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()> {
+    // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
+    if op.info().scheme() == opendal::Scheme::Supabase {
+        warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -204,6 +216,10 @@ pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
 
 /// Read range content should match.
 pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -229,6 +245,10 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
 
 /// Read large range content should match.
 pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -265,6 +285,10 @@ pub fn test_blocking_read_not_exist(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -298,6 +322,10 @@ pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
@@ -331,6 +359,10 @@ pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
+    if !op.info().capability().read_with_range {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();

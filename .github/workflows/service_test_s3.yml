@@ -142,6 +142,7 @@ jobs:
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
+          OPENDAL_S3_REGION: us-east-1
 
   anonymous_minio_s3:
     runs-on: ubuntu-latest
@@ -178,6 +179,7 @@ jobs:
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ALLOW_ANONYMOUS: on
+          OPENDAL_S3_REGION: us-east-1
 
   r2:
     runs-on: ubuntu-latest

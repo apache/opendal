@@ -20,11 +20,27 @@ use std::env;
 use opendal::Operator;
 use opendal::Scheme;
 
+pub fn apply_args_to_env() {
+    // for oss-fuzz integration, set envs from args
+    // example: -opendal_fs_test=on -> OPENDAL_FS_TEST=on
+    let args: Vec<String> = env::args().collect();
+
+    for arg in &args[1..] {
+        let parts: Vec<&str> = arg[1..].split('=').collect();
+        if parts.len() == 2 {
+            env::set_var(parts[0].to_uppercase(), parts[1]);
+        }
+    }
+}
+
 fn service(scheme: Scheme) -> Option<Operator> {
     let test_key = format!("opendal_{}_test", scheme).to_uppercase();
     if env::var(test_key).unwrap_or_default() != "on" {
+        println!("not init {} service", scheme);
         return None;
     }
+
+    println!("init {} service", scheme);
 
     let prefix = format!("opendal_{}_", scheme);
     let envs = env::vars()

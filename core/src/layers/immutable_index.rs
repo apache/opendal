@@ -310,10 +310,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(
-                entry.path().to_string(),
-                op.metadata(&entry, Metakey::Mode).await?.mode(),
-            );
+            map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
         assert_eq!(map["file"], EntryMode::FILE);
@@ -351,10 +348,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(
-                entry.path().to_string(),
-                op.metadata(&entry, Metakey::Mode).await?.mode(),
-            );
+            map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
         debug!("current files: {:?}", map);
@@ -398,10 +392,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(
-                entry.path().to_string(),
-                op.metadata(&entry, Metakey::Mode).await?.mode(),
-            );
+            map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
         assert_eq!(map.len(), 1);
@@ -417,10 +408,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(
-                entry.path().to_string(),
-                op.metadata(&entry, Metakey::Mode).await?.mode(),
-            );
+            map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
         assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
@@ -462,10 +450,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(
-                entry.path().to_string(),
-                op.metadata(&entry, Metakey::Mode).await?.mode(),
-            );
+            map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
         debug!("current files: {:?}", map);

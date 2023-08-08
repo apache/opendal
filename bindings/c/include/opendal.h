@@ -85,7 +85,7 @@ typedef enum opendal_code {
  * BlockingLister is designed to list entries at given path in a blocking
  * manner.
  *
- * Users can construct Lister by `blocking_list` or `blocking_scan`.
+ * Users can construct Lister by `blocking_lister`.
  */
 typedef struct BlockingLister BlockingLister;
 
@@ -122,7 +122,46 @@ typedef struct BlockingLister BlockingLister;
 typedef struct BlockingOperator BlockingOperator;
 
 /**
- * Entry is the file/dir entry returned by `Lister`.
+ * Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
+ *
+ * # Notes
+ *
+ * Entry returned by [`Lister`] or [`BlockingLister`] may carry some already known metadata.
+ * Lister by default only make sure that `Mode` is fetched. To make sure the entry contains
+ * metadata you want, please use `list_with` or `lister_with` and `metakey`.
+ *
+ * For example:
+ *
+ * ```no_run
+ * # use anyhow::Result;
+ * use opendal::EntryMode;
+ * use opendal::Metakey;
+ * use opendal::Operator;
+ * # #[tokio::main]
+ * # async fn test(op: Operator) -> Result<()> {
+ * let mut entries = op
+ *     .list_with("dir/")
+ *     .metakey(Metakey::ContentLength | Metakey::LastModified)
+ *     .await?;
+ * for entry in entries {
+ *     let meta = entry.metadata();
+ *     match meta.mode() {
+ *         EntryMode::FILE => {
+ *             println!(
+ *                 "Handling file {} with size {}",
+ *                 entry.path(),
+ *                 meta.content_length()
+ *             )
+ *         }
+ *         EntryMode::DIR => {
+ *             println!("Handling dir {}", entry.path())
+ *         }
+ *         EntryMode::Unknown => continue,
+ *     }
+ * }
+ * # Ok(())
+ * # }
+ * ```
  */
 typedef struct Entry Entry;
 

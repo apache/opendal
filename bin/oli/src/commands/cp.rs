@@ -25,7 +25,6 @@ use clap::ArgAction;
 use clap::ArgMatches;
 use clap::Command;
 use futures::TryStreamExt;
-use opendal::Metakey;
 
 use crate::config::Config;
 
@@ -59,7 +58,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let dst_root = Path::new(&dst_path);
     let mut ds = src_op.lister_with(&src_path).delimiter("").await?;
     while let Some(de) = ds.try_next().await? {
-        let meta = src_op.metadata(&de, Metakey::Mode).await?;
+        let meta = de.metadata();
         if meta.mode().is_dir() {
             continue;
         }

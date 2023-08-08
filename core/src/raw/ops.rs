@@ -21,7 +21,10 @@
 
 use std::time::Duration;
 
+use flagset::FlagSet;
+
 use crate::raw::*;
+use crate::Metakey;
 
 /// Args for `create` operation.
 ///
@@ -77,6 +80,8 @@ pub struct OpList {
 
     /// The delimiter used to for the list operation. Default to be `/`
     delimiter: String,
+
+    metakey: FlagSet<Metakey>,
 }
 
 impl Default for OpList {
@@ -85,6 +90,8 @@ impl Default for OpList {
             limit: None,
             start_after: None,
             delimiter: "/".to_string(),
+            // By default, we want to know what's the mode of this entry.
+            metakey: Metakey::Mode.into(),
         }
     }
 }
@@ -126,6 +133,19 @@ impl OpList {
     /// Get the current delimiter.
     pub fn delimiter(&self) -> &str {
         &self.delimiter
+    }
+
+    /// Change the metakey of this list operation.
+    ///
+    /// The default metakey is `Metakey::Mode`.
+    pub fn with_metakey(mut self, metakey: impl Into<FlagSet<Metakey>>) -> Self {
+        self.metakey = metakey.into();
+        self
+    }
+
+    /// Get the current metakey.
+    pub fn metakey(&self) -> FlagSet<Metakey> {
+        self.metakey
     }
 }
 

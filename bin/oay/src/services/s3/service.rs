@@ -25,6 +25,7 @@ use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use chrono::SecondsFormat;
+use futures_util::StreamExt;
 use opendal::Metakey;
 use opendal::Operator;
 use serde::Deserialize;
@@ -103,21 +104,18 @@ async fn handle_list_objects(
         .op
         .lister_with(&params.prefix)
         .start_after(&params.start_after)
-        .await?;
+        .metakey(Metakey::Mode | Metakey::LastModified | Metakey::Etag | Metakey::ContentLength)
+        .await?
+        .chunks(1000);
 
-    let page = lister.next_page().await?.unwrap_or_default();
+    let page = lister.next().await.unwrap_or_default();
 
-    let is_truncated = lister.has_next().await?;
+    let is_truncated = page.len() >= 1000;
 
     let (mut common_prefixes, mut contents) = (vec![], vec![]);
     for v in page {
-        let meta = state
-            .op
-            .metadata(
-                &v,
-                Metakey::Mode | Metakey::LastModified | Metakey::Etag | Metakey::ContentLength,
-            )
-            .await?;
+        let v = v?;
+        let meta = v.metadata();
 
         if meta.is_dir() {
             common_prefixes.push(CommonPrefix {

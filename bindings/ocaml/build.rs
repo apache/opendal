@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::path::PathBuf;
+
 pub fn main() -> std::io::Result<()> {
-    ocaml_build::Sigs::new("src/opendal.ml").generate()
+    let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    ocaml_build::Sigs::new("src/operator.ml")
+        .with_source_dir(root.join("src/operator"))
+        .generate()
 }

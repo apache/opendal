@@ -79,6 +79,6 @@ impl Entry {
     ///
     /// NOTE: implement this by hand to avoid leaking raw entry to end-users.
     pub(crate) fn into_entry(self) -> crate::Entry {
-        crate::Entry::new_with(self.path, self.meta)
+        crate::Entry::new(self.path, self.meta)
     }
 }

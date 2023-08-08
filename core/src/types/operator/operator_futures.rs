@@ -27,6 +27,7 @@ use std::task::Poll;
 use std::time::Duration;
 
 use bytes::Bytes;
+use flagset::FlagSet;
 use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
@@ -582,6 +583,12 @@ impl FutureList {
         self.0 = self.0.map_args(|args| args.with_delimiter(v));
         self
     }
+
+    /// Change the metakey. The default metakey is `Metakey::Mode`.
+    pub fn metakey(mut self, v: impl Into<FlagSet<Metakey>>) -> Self {
+        self.0 = self.0.map_args(|args| args.with_metakey(v));
+        self
+    }
 }
 
 impl Future for FutureList {
@@ -613,6 +620,12 @@ impl FutureLister {
     /// Change the delimiter. The default delimiter is "/"
     pub fn delimiter(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_delimiter(v));
+        self
+    }
+
+    /// Change the metakey. The default metakey is `Metakey::Mode`.
+    pub fn metakey(mut self, v: impl Into<FlagSet<Metakey>>) -> Self {
+        self.0 = self.0.map_args(|args| args.with_metakey(v));
         self
     }
 }

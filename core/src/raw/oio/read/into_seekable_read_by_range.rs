@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
 use std::future::Future;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -24,8 +23,8 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Bytes;
 use futures::future::BoxFuture;
-use tokio::io::ReadBuf;
 
 use crate::raw::*;
 use crate::*;
@@ -44,13 +43,13 @@ use crate::*;
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn into_seekable_read_by_range<A: Accessor>(
+pub fn into_seekable_read_by_range<A: Accessor, R>(
     acc: Arc<A>,
     path: &str,
-    reader: A::Reader,
+    reader: R,
     offset: u64,
     size: u64,
-) -> ByRangeSeekableReader<A> {
+) -> ByRangeSeekableReader<A, R> {
     ByRangeSeekableReader {
         acc,
         path: path.to_string(),
@@ -59,19 +58,18 @@ pub fn into_seekable_read_by_range<A: Accessor>(
         cur: 0,
         state: State::Reading(reader),
         last_seek_pos: None,
-        sink: Vec::new(),
     }
 }
 
 /// ByRangeReader that can do seek on non-seekable reader.
-pub struct ByRangeSeekableReader<A: Accessor> {
+pub struct ByRangeSeekableReader<A: Accessor, R> {
     acc: Arc<A>,
     path: String,
 
     offset: u64,
     size: u64,
     cur: u64,
-    state: State<A::Reader>,
+    state: State<R>,
 
     /// Seek operation could return Pending which may lead
     /// `SeekFrom::Current(off)` been input multiple times.
@@ -79,31 +77,21 @@ pub struct ByRangeSeekableReader<A: Accessor> {
     /// So we need to store the last seek pos to make sure
     /// we always seek to the right position.
     last_seek_pos: Option<u64>,
-    /// sink is to consume bytes for seek optimize.
-    sink: Vec<u8>,
 }
 
-enum State<R: oio::Read> {
+enum State<R> {
     Idle,
     Sending(BoxFuture<'static, Result<(RpRead, R)>>),
     Reading(R),
 }
 
 /// Safety: State will only be accessed under &mut.
-unsafe impl<R: oio::Read> Sync for State<R> {}
+unsafe impl<R> Sync for State<R> {}
 
-impl<A: Accessor> ByRangeSeekableReader<A> {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, A::Reader)>> {
-        let acc = self.acc.clone();
-        let path = self.path.clone();
-        let op = OpRead::default().with_range(BytesRange::new(
-            Some(self.offset + self.cur),
-            Some(self.size - self.cur),
-        ));
-
-        Box::pin(async move { acc.read(&path, op).await })
-    }
-
+impl<A, R> ByRangeSeekableReader<A, R>
+where
+    A: Accessor,
+{
     /// calculate the seek position.
     ///
     /// This operation will not update the `self.cur`.
@@ -131,7 +119,45 @@ impl<A: Accessor> ByRangeSeekableReader<A> {
     }
 }
 
-impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
+impl<A, R> ByRangeSeekableReader<A, R>
+where
+    A: Accessor<Reader = R>,
+    R: oio::Read,
+{
+    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, R)>> {
+        let acc = self.acc.clone();
+        let path = self.path.clone();
+        let op = OpRead::default().with_range(BytesRange::new(
+            Some(self.offset + self.cur),
+            Some(self.size - self.cur),
+        ));
+
+        Box::pin(async move { acc.read(&path, op).await })
+    }
+}
+
+impl<A, R> ByRangeSeekableReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
+{
+    fn read_action(&self) -> Result<(RpRead, R)> {
+        let acc = self.acc.clone();
+        let path = self.path.clone();
+        let op = OpRead::default().with_range(BytesRange::new(
+            Some(self.offset + self.cur),
+            Some(self.size - self.cur),
+        ));
+
+        acc.blocking_read(&path, op)
+    }
+}
+
+impl<A, R> oio::Read for ByRangeSeekableReader<A, R>
+where
+    A: Accessor<Reader = R>,
+    R: oio::Read,
+{
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match &mut self.state {
             State::Idle => {
@@ -174,7 +200,7 @@ impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    fn poll_seek(&mut self, _: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         let seek_pos = self.seek_pos(pos)?;
         self.last_seek_pos = Some(seek_pos);
 
@@ -186,61 +212,28 @@ impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
             }
             State::Sending(_) => {
                 // It's impossible for us to go into this state while
-                // poll_seek. We can just drop this future.
+                // poll_seek. We can just drop this future and check state.
                 self.state = State::Idle;
-                self.poll_seek(cx, SeekFrom::Start(seek_pos))
+
+                self.cur = seek_pos;
+                self.last_seek_pos = None;
+                Poll::Ready(Ok(self.cur))
             }
-            State::Reading(r) => {
+            State::Reading(_) => {
                 if seek_pos == self.cur {
                     self.last_seek_pos = None;
                     return Poll::Ready(Ok(self.cur));
                 }
 
-                // If the next seek pos is close enough, we can just
-                // read the cnt instead of dropping the reader.
-                //
-                // TODO: make this value configurable
-                if seek_pos > self.cur && seek_pos - self.cur < 1024 * 1024 {
-                    // 212992 is the default read mem buffer of archlinux.
-                    // Ideally we should make this configurable.
-                    //
-                    // TODO: make this value configurable
-                    let consume = cmp::min((seek_pos - self.cur) as usize, 212992);
-                    self.sink.reserve(consume);
-
-                    let mut buf = ReadBuf::uninit(self.sink.spare_capacity_mut());
-                    unsafe { buf.assume_init(consume) };
-
-                    match ready!(Pin::new(r).poll_read(cx, buf.initialized_mut())) {
-                        Ok(n) => {
-                            assert!(n > 0, "consumed bytes must be valid");
-                            self.cur += n as u64;
-                            // Make sure the pos is absolute from start.
-                            self.poll_seek(cx, SeekFrom::Start(seek_pos))
-                        }
-                        Err(_) => {
-                            // If we are hitting errors while read ahead.
-                            // It's better to drop this reader and seek to
-                            // correct position directly.
-                            self.state = State::Idle;
-                            self.cur = seek_pos;
-                            self.last_seek_pos = None;
-                            Poll::Ready(Ok(self.cur))
-                        }
-                    }
-                } else {
-                    // If we are trying to seek to far more away.
-                    // Let's just drop the reader.
-                    self.state = State::Idle;
-                    self.cur = seek_pos;
-                    self.last_seek_pos = None;
-                    Poll::Ready(Ok(self.cur))
-                }
+                self.state = State::Idle;
+                self.cur = seek_pos;
+                self.last_seek_pos = None;
+                Poll::Ready(Ok(self.cur))
             }
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         match &mut self.state {
             State::Idle => {
                 if self.cur >= self.size {
@@ -278,6 +271,103 @@ impl<A: Accessor> oio::Read for ByRangeSeekableReader<A> {
                     Poll::Ready(None)
                 }
             },
+        }
+    }
+}
+
+impl<A, R> oio::BlockingRead for ByRangeSeekableReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: oio::BlockingRead,
+{
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match &mut self.state {
+            State::Idle => {
+                if self.cur >= self.size {
+                    return Ok(0);
+                }
+
+                let (_, r) = self.read_action()?;
+                self.state = State::Reading(r);
+                self.read(buf)
+            }
+            State::Reading(r) => {
+                match r.read(buf) {
+                    Ok(n) if n == 0 => {
+                        // Reset state to Idle after all data has been consumed.
+                        self.state = State::Idle;
+                        Ok(0)
+                    }
+                    Ok(n) => {
+                        self.cur += n as u64;
+                        Ok(n)
+                    }
+                    Err(e) => {
+                        self.state = State::Idle;
+                        Err(e)
+                    }
+                }
+            }
+            State::Sending(_) => {
+                unreachable!("It's invalid to go into State::Sending for BlockingRead, please report this bug")
+            }
+        }
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let seek_pos = self.seek_pos(pos)?;
+
+        match &mut self.state {
+            State::Idle => {
+                self.cur = seek_pos;
+                Ok(self.cur)
+            }
+            State::Reading(_) => {
+                if seek_pos == self.cur {
+                    return Ok(self.cur);
+                }
+
+                self.state = State::Idle;
+                self.cur = seek_pos;
+                Ok(self.cur)
+            }
+            State::Sending(_) => {
+                unreachable!("It's invalid to go into State::Sending for BlockingRead, please report this bug")
+            }
+        }
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        match &mut self.state {
+            State::Idle => {
+                if self.cur >= self.size {
+                    return None;
+                }
+
+                let r = match self.read_action() {
+                    Ok((_, r)) => r,
+                    Err(err) => return Some(Err(err)),
+                };
+                self.state = State::Reading(r);
+                self.next()
+            }
+            State::Reading(r) => match r.next() {
+                Some(Ok(bs)) => {
+                    self.cur += bs.len() as u64;
+                    Some(Ok(bs))
+                }
+                Some(Err(err)) => {
+                    self.state = State::Idle;
+                    Some(Err(err))
+                }
+                None => {
+                    self.state = State::Idle;
+                    None
+                }
+            },
+            State::Sending(_) => {
+                unreachable!("It's invalid to go into State::Sending for BlockingRead, please report this bug")
+            }
         }
     }
 }

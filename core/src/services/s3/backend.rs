@@ -772,9 +772,12 @@ impl Builder for S3Builder {
             cfg.region = Some(v);
         }
         if cfg.region.is_none() {
-            return Err(Error::new(ErrorKind::ConfigInvalid, "region is missing")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::S3));
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "region is missing. Please find it by S3::detect_region() or set them in env.",
+            )
+            .with_operation("Builder::build")
+            .with_context("service", Scheme::S3));
         }
 
         let region = cfg.region.to_owned().unwrap();

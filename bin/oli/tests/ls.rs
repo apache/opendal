@@ -24,7 +24,7 @@ use anyhow::Result;
 use assert_cmd::prelude::*;
 
 #[tokio::test]
-async fn test_basic_cat() -> Result<()> {
+async fn test_basic_ls() -> Result<()> {
     let dir = env::temp_dir();
     fs::create_dir_all(dir.clone())?;
     let dst_path_1 = Path::new(&dir).join("dst_1.txt");

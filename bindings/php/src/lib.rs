@@ -48,19 +48,11 @@ impl Operator {
     }
 
     /// Read the whole path into bytes, binary safe.
-    pub fn read_binary(&self, path: &str) -> PhpResult<Binary<u8>> {
+    pub fn read(&self, path: &str) -> PhpResult<Binary<u8>> {
         self.0.read(path).map_err(format_php_err).map(Binary::from)
     }
 
-    /// Read the whole path into bytes.
-    pub fn read(&self, path: &str) -> PhpResult<String> {
-        self.0
-            .read(path)
-            .map(|res| String::from_utf8(res).unwrap())
-            .map_err(format_php_err)
-    }
-
-    /// Check if this path exists or not.
+    /// Check if this path exists or not, return 1 if exists, 0 otherwise.
     pub fn is_exist(&self, path: &str) -> PhpResult<u8> {
         self.0
             .is_exist(path)

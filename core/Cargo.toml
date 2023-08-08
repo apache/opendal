@@ -34,23 +34,7 @@ version.workspace = true
 all-features = true
 
 [features]
-default = [
-  "rustls",
-  "services-azblob",
-  "services-azdfs",
-  "services-cos",
-  "services-fs",
-  "services-gcs",
-  "services-ghac",
-  "services-http",
-  "services-ipmfs",
-  "services-memory",
-  "services-obs",
-  "services-oss",
-  "services-s3",
-  "services-webdav",
-  "services-webhdfs",
-]
+default = ["rustls", "services-azblob", "services-azdfs", "services-cos", "services-fs", "services-gcs", "services-ghac", "services-http", "services-ipmfs", "services-memory", "services-obs", "services-oss", "services-s3", "services-webdav", "services-webhdfs"]
 
 # Build docs or not.
 #
@@ -69,16 +53,7 @@ native-tls = ["reqwest/native-tls"]
 native-tls-vendored = ["reqwest/native-tls-vendored"]
 
 # Enable all layers.
-layers-all = [
-  "layers-chaos",
-  "layers-metrics",
-  "layers-prometheus",
-  "layers-tracing",
-  "layers-minitrace",
-  "layers-throttle",
-  "layers-await-tree",
-  "layers-async-backtrace",
-]
+layers-all = ["layers-chaos", "layers-metrics", "layers-prometheus", "layers-tracing", "layers-minitrace", "layers-throttle", "layers-await-tree", "layers-async-backtrace"]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
@@ -100,34 +75,17 @@ layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
 
-services-azblob = [
-  "dep:sha2",
-  "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
-]
-services-azdfs = [
-  "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
-]
+services-azblob = ["dep:sha2", "dep:reqsign", "reqsign?/services-azblob", "reqsign?/reqwest_request"]
+services-azdfs = ["dep:reqsign", "reqsign?/services-azblob", "reqsign?/reqwest_request"]
 services-cacache = ["dep:cacache"]
-services-cos = [
-  "dep:reqsign",
-  "reqsign?/services-tencent",
-  "reqsign?/reqwest_request",
-]
+services-cos = ["dep:reqsign", "reqsign?/services-tencent", "reqsign?/reqwest_request"]
 services-dashmap = ["dep:dashmap"]
 services-dropbox = []
 services-etcd = ["dep:etcd-client"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
-services-gcs = [
-  "dep:reqsign",
-  "reqsign?/services-google",
-  "reqsign?/reqwest_request",
-]
+services-gcs = ["dep:reqsign", "reqsign?/services-google", "reqsign?/reqwest_request"]
 services-gdrive = []
 services-ghac = []
 services-hdfs = ["dep:hdrs"]
@@ -138,38 +96,23 @@ services-memcached = ["dep:bb8"]
 services-memory = []
 services-mini-moka = ["dep:mini-moka"]
 services-moka = ["dep:moka"]
-services-obs = [
-  "dep:reqsign",
-  "reqsign?/services-huaweicloud",
-  "reqsign?/reqwest_request",
-]
+services-obs = ["dep:reqsign", "reqsign?/services-huaweicloud", "reqsign?/reqwest_request"]
 services-onedrive = []
-services-oss = [
-  "dep:reqsign",
-  "reqsign?/services-aliyun",
-  "reqsign?/reqwest_request",
-]
+services-postgresql = ["dep:tokio-postgres", "dep:hex"]
+services-oss = ["dep:reqsign", "reqsign?/services-aliyun", "reqsign?/reqwest_request"]
 services-persy = ["dep:persy"]
 services-redb = ["dep:redb"]
 services-redis = ["dep:redis"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-redis-rustls = ["services-redis", "redis?/tokio-rustls-comp"]
 services-rocksdb = ["dep:rocksdb"]
-services-s3 = [
-  "dep:reqsign",
-  "reqsign?/services-aws",
-  "reqsign?/reqwest_request",
-]
+services-s3 = ["dep:reqsign", "reqsign?/services-aws", "reqsign?/reqwest_request"]
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:dirs"]
 services-sled = ["dep:sled"]
 services-supabase = []
 services-tikv = ["tikv-client"]
 services-vercel-artifacts = []
-services-wasabi = [
-  "dep:reqsign",
-  "reqsign?/services-aws",
-  "reqsign?/reqwest_request",
-]
+services-wasabi = ["dep:reqsign", "reqsign?/services-aws", "reqsign?/reqwest_request"]
 services-webdav = []
 services-webhdfs = []
 
@@ -211,6 +154,7 @@ foundationdb = { version = "0.8.0", features = [
 futures = { version = "0.3", default-features = false, features = ["std"] }
 governor = { version = "0.5", optional = true, features = ["std"] }
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }
+hex = { version = "0.4.3", optional = true }
 http = "0.2.9"
 hyper = "0.14"
 lazy-regex = { version = "2.5.0", optional = true }
@@ -256,6 +200,7 @@ suppaftp = { version = "4.5", default-features = false, features = [
 ], optional = true }
 tikv-client = { version = "0.2.0", optional = true }
 tokio = "1.27"
+tokio-postgres = { version = "0.7.8", optional = true }
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
 

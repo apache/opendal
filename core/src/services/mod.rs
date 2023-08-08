@@ -203,3 +203,6 @@ pub use self::tikv::Tikv;
 mod foundationdb;
 #[cfg(feature = "services-foundationdb")]
 pub use self::foundationdb::Foundationdb;
+
+#[cfg(feature = "services-postgresql")]
+mod postgresql;

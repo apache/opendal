@@ -74,3 +74,4 @@ url = "2.3.1"
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
+tempfile = "3.7.1"

@@ -54,4 +54,4 @@ jobs:
       - name: Build & Test
         working-directory: "bindings/haskell"
         run: |
-          cabal test
+          LD_LIBRARY_PATH=../../target/release cabal test

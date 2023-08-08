@@ -43,7 +43,8 @@
 //!
 //! # Available Adapters
 //!
-//! - [`kv::Adapter`]: Adapter for Key Value Services like in-memory map, `redis`.
+//! - [`kv::Adapter`]: Adapter for Key Value Services like `redis`.
+//! - [`typed_kv::Adapter`]: Adapter key key value services that in-memory.
 
 pub mod kv;
 pub mod typed_kv;

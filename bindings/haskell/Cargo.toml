@@ -17,6 +17,7 @@
 
 [package]
 name = "opendal-hs"
+publish = false
 version = "0.1.0"
 
 authors.workspace = true

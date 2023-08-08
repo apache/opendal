@@ -170,18 +170,18 @@ jobs:
           NEXTCLOUD_ADMIN_PASSWORD: admin
           REDIS_HOST: redis
         options: >-
-          --health-cmd="curl -f http://localhost" 
-          --health-interval=10s 
-          --health-timeout=5s 
+          --health-cmd="curl -f http://localhost"
+          --health-interval=10s
+          --health-timeout=5s
           --health-retries=5
-      
+
       redis:
         image: redis
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5   
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v3
@@ -194,7 +194,7 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test webdav
+          cargo test webdav -j=1
         env:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/
@@ -229,7 +229,7 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5   
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v3
@@ -242,7 +242,7 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test webdav
+          cargo test webdav -j=1
         env:
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/

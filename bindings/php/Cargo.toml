@@ -32,4 +32,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 ext-php-rs = "0.10.1"
-opendal = {version = "0.38.1", path = "../../core" }
+opendal.workspace = true

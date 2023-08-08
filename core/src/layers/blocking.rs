@@ -189,8 +189,7 @@ impl<I> BlockingWrapper<I> {
 
 impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        self.handle
-            .block_on(oio::ReadExt::read(&mut self.inner, buf))
+        self.handle.block_on(self.inner.read(buf))
     }
 
     fn seek(&mut self, pos: std::io::SeekFrom) -> Result<u64> {
@@ -204,11 +203,11 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.handle.block_on(oio::Write::write(&mut self.inner, bs))
+        self.handle.block_on(self.inner.write(bs))
     }
 
     fn close(&mut self) -> Result<()> {
-        self.handle.block_on(oio::Write::close(&mut self.inner))
+        self.handle.block_on(self.inner.close())
     }
 }
 

@@ -612,6 +612,44 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
             .map_err(|e| e.set_persistent())
     }
 
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        { || self.inner.blocking_copy(from, to, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                self.notify.intercept(
+                    err,
+                    dur,
+                    &[
+                        ("operation", Operation::BlockingCopy.into_static()),
+                        ("from", from),
+                        ("to", to),
+                    ],
+                )
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        { || self.inner.blocking_rename(from, to, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                self.notify.intercept(
+                    err,
+                    dur,
+                    &[
+                        ("operation", Operation::BlockingRename.into_static()),
+                        ("from", from),
+                        ("to", to),
+                    ],
+                )
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         { || self.inner.blocking_list(path, args.clone()) }
             .retry(&self.builder)

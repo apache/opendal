@@ -23,7 +23,12 @@ synopsis:           OpenDAL Haskell Binding
 description:
     OpenDAL Haskell Binding. Open Data Access Layer: Access data freely, painlessly, and efficiently
 category:           Storage, Binding
-build-type:         Simple
+tested-with:        GHC ==9.2.7
+build-type:         Custom
+custom-setup
+    setup-depends:  Cabal, base, directory, process
+
+extra-source-files: src/*.rs, Cargo.toml, build.rs
 
 source-repository head
     type:     git
@@ -49,12 +54,12 @@ common base
 
 library
     import:           base
-    extra-libraries:  opendal_hs
     exposed-modules:
         OpenDAL
     other-modules:
         OpenDAL.FFI
     hs-source-dirs:   haskell-src
+    extra-bundled-libraries: opendal_hs
 
 test-suite opendal-hs-test
     import:           base

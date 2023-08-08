@@ -28,6 +28,7 @@ use futures::Future;
 use libtest_mimic::Failed;
 use libtest_mimic::Trial;
 use log::debug;
+use opendal::layers::BlockingLayer;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::layers::TimeoutLayer;
@@ -83,7 +84,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
 
     let _guard = RUNTIME.enter();
     let op = op
-        // .layer(BlockingLayer::create().expect("blocking layer must be created"))
+        .layer(BlockingLayer::create().expect("blocking layer must be created"))
         .layer(LoggingLayer::default())
         .layer(TimeoutLayer::new())
         .layer(RetryLayer::new())

@@ -22,6 +22,43 @@ it('opendal-php extension loaded', function () {
     expect(extension_loaded('opendal-php'))->toBeTrue();
 });
 
-it('debug function works', function () {
-    expect(debug())->toStartWith('Metadata');
+it('class & methods exists', function ($class, $methods) {
+    expect(class_exists($class))->toBeTrue();
+    foreach ($methods as $method) {
+        expect(method_exists($class, $method))->toBeTrue();
+    }
+})->with([
+    ['OpenDAL\Operator', ['is_exist', 'read', 'write', 'delete', 'stat', 'create_dir', 'write_binary']],
+    ['OpenDAL\Metadata', []],
+    ['OpenDAL\EntryMode', []],
+]);
+
+describe('throw exception', function () {
+    it('invalid driver', function () {
+        new \OpenDAL\Operator('invalid', []);
+    })->throws('Exception');
+
+    it('unspecified root path', function () {
+        new \OpenDAL\Operator('fs', []);
+    })->throws('Exception');
+
+    it('read non-exist file', function () {
+        $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
+        $op->read('non-exist.txt');
+    })->throws('Exception');
 });
+
+it('initialization OpenDAL', function () {
+    $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
+
+    expect($op)
+        ->toBeInstanceOf(\OpenDAL\Operator::class)
+        ->not->toHaveProperty('op')
+        ->not->toThrow(Exception::class);
+});
+
+it('invalid UTF-8 encoding', function () {
+    $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
+
+    $op->write('test.txt', 'invalid UTF-8: '.chr(0x80));
+})->throws('Exception')->expectExceptionMessage('Invalid value given for argument `content`.');

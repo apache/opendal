@@ -342,7 +342,19 @@ impl Accessor for WebdavBackend {
         Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))
     }
 
+    /// # Notes
+    ///
+    /// There is a strange dead lock issues when copying a non-exist file, so we will check
+    /// if the source exists first.
+    ///
+    /// For example: <https://github.com/apache/incubator-opendal/pull/2809>
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        if let Err(err) = self.stat(from, OpStat::default()).await {
+            if err.kind() == ErrorKind::NotFound {
+                return Err(err);
+            }
+        }
+
         self.ensure_parent_path(to).await?;
 
         let resp = self.webdav_copy(from, to).await?;

@@ -54,5 +54,4 @@ jobs:
       - name: Build & Test
         working-directory: "bindings/haskell"
         run: |
-          cargo build
-          LIBRARY_PATH=../../target/debug LD_LIBRARY_PATH=../../target/debug cabal test
+          cabal test

@@ -110,6 +110,8 @@ impl kv::Adapter for Adapter {
             Capability {
                 read: true,
                 write: true,
+                list: true,
+                blocking: true,
                 ..Default::default()
             },
         )
@@ -137,6 +139,25 @@ impl kv::Adapter for Adapter {
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
         Ok(self.db.delete(path)?)
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        self.blocking_scan(path)
+    }
+
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let it = self.db.prefix_iterator(path).map(|r| r.map(|(k, _v)| k));
+        let mut res = Vec::default();
+
+        for i in it {
+            let bs = i?.to_vec();
+            res.push(String::from_utf8(bs).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
+                    .set_source(err)
+            })?);
+        }
+
+        Ok(res)
     }
 }
 

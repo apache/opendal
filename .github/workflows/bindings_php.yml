@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        php: [8.1]
+        php: [8.1, 8.2]
 
     steps:
       - name: Checkout code
@@ -66,9 +66,6 @@ jobs:
         working-directory: "bindings/php"
         run: cargo build
 
-      - name: List artifacts
-        run: ls -la target/debug
-
       - name: Enable opendal-php extension in php.ini
         run: |
           # 1. Find the extension_dir
@@ -76,9 +73,9 @@ jobs:
           # 2. Create the extension_dir if it doesn't exist
           sudo mkdir -p $extension_dir
           # 3. Copy the extension to the extension_dir
-          sudo cp target/debug/libopendal_php.dylib $extension_dir/libopendal_php.dylib
+          sudo cp target/debug/libopendal_php.so $extension_dir/libopendal_php.so
           # 4. Enable the extension
-          echo "extension=libopendal_php.dylib" >> $(php -r "echo php_ini_loaded_file();")
+          echo "extension=libopendal_php.so" >> $(php -r "echo php_ini_loaded_file();")
 
       - name: Check PHP Extensions
         run: php -m

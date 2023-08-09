@@ -16,5 +16,5 @@
 # under the License.
 
 [schedule]
-max-merge-region-size = 1
 max-merge-region-keys = 3
+max-merge-region-size = 1

@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "tempfile::TempDir::into_path", reason = "tempdir will no longer be deleted automatically" }
+]

@@ -56,3 +56,11 @@ zigup master #TODO: replace to 0.11.0 (stable)
 # Setup for Haskell binding
 sudo apt install -y ghc cabal-install
 cabal update
+
+# Setup for PHP binding
+sudo apt install -y php
+
+# Setup for OCaml binding
+sudo apt install -y opam
+opam init --auto-setup --yes
+opam install -y dune ounit2 ocamlformat

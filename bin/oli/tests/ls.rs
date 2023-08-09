@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::env;
 use std::fs;
-use std::path::Path;
 use std::process::Command;
 
 use anyhow::Result;
@@ -25,11 +23,10 @@ use assert_cmd::prelude::*;
 
 #[tokio::test]
 async fn test_basic_ls() -> Result<()> {
-    let dir = env::temp_dir();
-    fs::create_dir_all(dir.clone())?;
-    let dst_path_1 = Path::new(&dir).join("dst_1.txt");
-    let dst_path_2 = Path::new(&dir).join("dst_2.txt");
-    let dst_path_3 = Path::new(&dir).join("dst_3.txt");
+    let dir = tempfile::tempdir()?;
+    let dst_path_1 = dir.path().join("dst_1.txt");
+    let dst_path_2 = dir.path().join("dst_2.txt");
+    let dst_path_3 = dir.path().join("dst_3.txt");
 
     let expect = "hello";
     fs::write(dst_path_1, expect)?;
@@ -38,7 +35,7 @@ async fn test_basic_ls() -> Result<()> {
 
     let mut cmd = Command::cargo_bin("oli")?;
 
-    let current_dir = dir.to_str().unwrap().to_string() + "/";
+    let current_dir = dir.path().to_string_lossy().to_string() + "/";
 
     cmd.arg("ls").arg(current_dir);
     let res = cmd.assert().success();

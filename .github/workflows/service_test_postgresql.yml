@@ -57,8 +57,11 @@ jobs:
           --health-retries 5
 
     steps:
-      - name: Check out repository code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
 
       - name: Setup PostgreSQL CLI
         run: |

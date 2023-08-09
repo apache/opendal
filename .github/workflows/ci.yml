@@ -108,6 +108,9 @@ jobs:
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
 
+      - name: Check diff
+        run: git diff --exit-code
+
   check_msrv:
     runs-on: ubuntu-latest
     env:

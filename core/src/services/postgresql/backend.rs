@@ -280,9 +280,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
         let query = format!(
-            "INSERT INTO {} ({}, {}) VALUES ($1, $2)",
-            self.table, self.key_field, self.value_field,
+            "INSERT INTO {table} ({key_field}, {value_field}) \
+                VALUES ($1, $2) \
+                ON CONFLICT ({key_field}) \
+                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         );
         let statement = self
             .statement_set

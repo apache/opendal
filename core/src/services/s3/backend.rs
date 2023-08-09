@@ -159,7 +159,7 @@ impl S3Builder {
     ///
     /// If using a custom endpoint,
     /// - If region is set, we will take user's input first.
-    /// - If not, the default `us-east-1` will be used.
+    /// - If not, we will try to load it from environment.
     pub fn region(&mut self, region: &str) -> &mut Self {
         if !region.is_empty() {
             self.region = Some(region.to_string())
@@ -772,19 +772,12 @@ impl Builder for S3Builder {
             cfg.region = Some(v);
         }
         if cfg.region.is_none() {
-            // AWS S3 requires region to be set.
-            if self.endpoint.is_none()
-                || self.endpoint.as_deref() == Some("https://s3.amazonaws.com")
-            {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "region is missing")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::S3));
-            }
-
-            // For other compatible services, if we don't know region
-            // after loading from builder and env, we can use `us-east-1`
-            // as default.
-            cfg.region = Some("us-east-1".to_string());
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "region is missing. Please find it by S3::detect_region() or set them in env.",
+            )
+            .with_operation("Builder::build")
+            .with_context("service", Scheme::S3));
         }
 
         let region = cfg.region.to_owned().unwrap();

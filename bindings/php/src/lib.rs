@@ -15,14 +15,164 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use ::opendal as od;
+use ext_php_rs::binary::Binary;
+use ext_php_rs::convert::FromZval;
+use ext_php_rs::exception::PhpException;
+use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
-use opendal::{EntryMode, Metadata};
+use ext_php_rs::types::Zval;
+use std::collections::HashMap;
+use std::str::FromStr;
 
-#[php_function]
-pub fn debug() -> String {
-    let metadata = Metadata::new(EntryMode::FILE);
+#[php_class(name = "OpenDAL\\Operator")]
+pub struct Operator(od::BlockingOperator);
 
-    format!("{:?}", metadata)
+#[php_impl(rename_methods = "none")]
+impl Operator {
+    pub fn __construct(scheme_str: String, config: HashMap<String, String>) -> PhpResult<Self> {
+        let scheme = od::Scheme::from_str(&scheme_str).map_err(format_php_err)?;
+        let op = od::Operator::via_map(scheme, config).map_err(format_php_err)?;
+
+        Ok(Operator(op.blocking()))
+    }
+
+    /// Write string into given path.
+    pub fn write(&self, path: &str, content: String) -> PhpResult<()> {
+        self.0.write(path, content).map_err(format_php_err)
+    }
+
+    /// Write bytes into given path, binary safe.
+    pub fn write_binary(&self, path: &str, content: Vec<u8>) -> PhpResult<()> {
+        self.0.write(path, content).map_err(format_php_err)
+    }
+
+    /// Read the whole path into bytes, binary safe.
+    pub fn read(&self, path: &str) -> PhpResult<Binary<u8>> {
+        self.0.read(path).map_err(format_php_err).map(Binary::from)
+    }
+
+    /// Check if this path exists or not, return 1 if exists, 0 otherwise.
+    pub fn is_exist(&self, path: &str) -> PhpResult<u8> {
+        self.0
+            .is_exist(path)
+            .map_err(format_php_err)
+            .map(|b| if b { 1 } else { 0 })
+    }
+
+    /// Get current path's metadata **without cache** directly.
+    ///
+    /// # Notes
+    ///
+    /// Use `stat` if you:
+    ///
+    /// - Want detect the outside changes of path.
+    /// - Don't want to read from cached metadata.
+    pub fn stat(&self, path: &str) -> PhpResult<Metadata> {
+        self.0.stat(path).map_err(format_php_err).map(Metadata)
+    }
+
+    /// Delete given path.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
+    pub fn delete(&self, path: &str) -> PhpResult<()> {
+        self.0.delete(path).map_err(format_php_err)
+    }
+
+    /// Create a dir at given path.
+    ///
+    /// # Notes
+    ///
+    /// To indicate that a path is a directory, it is compulsory to include
+    /// a trailing / in the path. Failure to do so may result in
+    /// `NotADirectory` error being returned by OpenDAL.
+    ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create dir is always recursive, works like `mkdir -p`
+    pub fn create_dir(&self, path: &str) -> PhpResult<()> {
+        self.0.create_dir(path).map_err(format_php_err)
+    }
+}
+
+#[php_class(name = "OpenDAL\\Metadata")]
+pub struct Metadata(od::Metadata);
+
+#[php_impl(rename_methods = "none")]
+impl Metadata {
+    #[getter]
+    pub fn content_disposition(&self) -> Option<String> {
+        self.0.content_disposition().map(|s| s.to_string())
+    }
+
+    /// Content length of this entry.
+    #[getter]
+    pub fn content_length(&self) -> u64 {
+        self.0.content_length()
+    }
+
+    /// Content MD5 of this entry.
+    #[getter]
+    pub fn content_md5(&self) -> Option<String> {
+        self.0.content_md5().map(|s| s.to_string())
+    }
+
+    /// Content Type of this entry.
+    #[getter]
+    pub fn content_type(&self) -> Option<String> {
+        self.0.content_type().map(|s| s.to_string())
+    }
+
+    /// ETag of this entry.
+    #[getter]
+    pub fn etag(&self) -> Option<String> {
+        self.0.etag().map(|s| s.to_string())
+    }
+
+    /// mode represent this entry's mode.
+    #[getter]
+    pub fn mode(&self) -> EntryMode {
+        EntryMode(self.0.mode())
+    }
+}
+
+#[php_class(name = "OpenDAL\\EntryMode")]
+pub struct EntryMode(od::EntryMode);
+
+impl<'b> FromZval<'b> for EntryMode {
+    const TYPE: DataType = DataType::Object(Some("OpenDAL\\EntryMode"));
+
+    fn from_zval(zval: &'b Zval) -> Option<Self> {
+        zval.object().and_then(|obj| obj.get_property("mode").ok())
+    }
+}
+
+#[php_impl(rename_methods = "none")]
+impl EntryMode {
+    #[getter]
+    pub fn is_dir(&self) -> u8 {
+        match self.0.is_dir() {
+            true => 1,
+            false => 0,
+        }
+    }
+
+    #[getter]
+    pub fn is_file(&self) -> u8 {
+        match self.0.is_file() {
+            true => 1,
+            false => 0,
+        }
+    }
+}
+
+fn format_php_err(e: od::Error) -> PhpException {
+    // @todo use custom exception, we cannot use custom exception now,
+    // see https://github.com/davidcole1340/ext-php-rs/issues/262
+    PhpException::default(e.to_string())
 }
 
 #[php_module]

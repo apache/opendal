@@ -302,8 +302,8 @@ mod tests {
 
     #[test]
     fn test_load_from_toml() -> Result<()> {
-        let dir = env::temp_dir();
-        let tmpfile = dir.join("oli1.toml");
+        let dir = tempfile::tempdir()?;
+        let tmpfile = dir.path().join("oli1.toml");
         fs::write(
             &tmpfile,
             r#"
@@ -324,8 +324,8 @@ enable_virtual_host_style = "on"
 
     #[test]
     fn test_load_config_from_file_and_env() -> Result<()> {
-        let dir = env::temp_dir();
-        let tmpfile = dir.join("oli2.toml");
+        let dir = tempfile::tempdir()?;
+        let tmpfile = dir.path().join("oli2.toml");
         fs::write(
             &tmpfile,
             r#"

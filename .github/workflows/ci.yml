@@ -102,6 +102,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
 

@@ -67,6 +67,7 @@ jobs:
 
       - name: Create table
         run: |
+          export PGPASSWORD=password
           psql -h localhost -U user -d testdb -c "CREATE TABLE data (key TEXT PRIMARY KEY, value BYTEA);"
 
       - name: Test

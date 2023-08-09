@@ -69,7 +69,7 @@ jobs:
       - name: Install PHP OpenDAL Extension
         working-directory: "bindings/php"
         run: |
-          cargo php install --yes
+          sudo cargo php install --yes
 
       - name: Check PHP Extensions
         run: |

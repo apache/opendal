@@ -47,7 +47,7 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
     let src_path = dir.path().join("src.txt");
     let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
-    fs::write(&src_path, expect)?;
+    fs::write(src_path, expect)?;
 
     let mut cmd = Command::cargo_bin("oli")?;
 
@@ -57,7 +57,7 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
         .current_dir(dir.path().clone());
     cmd.assert().success();
 
-    let actual = fs::read_to_string(&dst_path)?;
+    let actual = fs::read_to_string(dst_path)?;
     assert_eq!(expect, actual);
     Ok(())
 }

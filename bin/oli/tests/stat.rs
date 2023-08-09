@@ -50,7 +50,7 @@ async fn test_stat_for_path_in_current_dir() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
-    fs::write(&dst_path, expect)?;
+    fs::write(dst_path, expect)?;
 
     let mut cmd = Command::cargo_bin("oli")?;
 

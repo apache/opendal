@@ -98,7 +98,7 @@ services-mini-moka = ["dep:mini-moka"]
 services-moka = ["dep:moka"]
 services-obs = ["dep:reqsign", "reqsign?/services-huaweicloud", "reqsign?/reqwest_request"]
 services-onedrive = []
-services-postgresql = ["dep:tokio-postgres", "dep:hex"]
+services-postgresql = ["dep:tokio-postgres"]
 services-oss = ["dep:reqsign", "reqsign?/services-aliyun", "reqsign?/reqwest_request"]
 services-persy = ["dep:persy"]
 services-redb = ["dep:redb"]
@@ -154,7 +154,6 @@ foundationdb = { version = "0.8.0", features = [
 futures = { version = "0.3", default-features = false, features = ["std"] }
 governor = { version = "0.5", optional = true, features = ["std"] }
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }
-hex = { version = "0.4.3", optional = true }
 http = "0.2.9"
 hyper = "0.14"
 lazy-regex = { version = "2.5.0", optional = true }

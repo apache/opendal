@@ -271,7 +271,11 @@ impl kv::Adapter for Adapter {
             })
             .await?;
 
-        let rows = self.get_client().await?.query(statement, &[&path]).await?;
+        let rows = self
+            .get_client()
+            .await?
+            .query(statement, &[&path.as_bytes()])
+            .await?;
         if rows.is_empty() {
             return Ok(None);
         }
@@ -281,8 +285,8 @@ impl kv::Adapter for Adapter {
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
         let query = format!(
-            "INSERT INTO {} ({}, {}) VALUES ('{}', '\\x$1')",
-            self.table, self.key_field, self.value_field, path,
+            "INSERT INTO {} ({}, {}) VALUES ($1, $2)",
+            self.table, self.key_field, self.value_field,
         );
         let statement = self
             .statement_set
@@ -298,7 +302,7 @@ impl kv::Adapter for Adapter {
         let _ = self
             .get_client()
             .await?
-            .query(statement, &[&hex::encode(value)])
+            .query(statement, &[&path.as_bytes(), &value])
             .await?;
         Ok(())
     }
@@ -316,7 +320,11 @@ impl kv::Adapter for Adapter {
             })
             .await?;
 
-        let _ = self.get_client().await?.query(statement, &[&path]).await?;
+        let _ = self
+            .get_client()
+            .await?
+            .query(statement, &[&path.as_bytes()])
+            .await?;
         Ok(())
     }
 }

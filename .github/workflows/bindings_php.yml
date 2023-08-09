@@ -62,18 +62,23 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Install Cargo-PHP
-        run: |
-          cargo install cargo-php
-
-      - name: Install PHP OpenDAL Extension
+      - name: Build opendal-php extension
         working-directory: "bindings/php"
+        run: cargo build
+
+      - name: Enable opendal-php extension in php.ini
         run: |
-          sudo -E cargo php install --yes
+          # 1. Find the extension_dir
+          extension_dir=$(php -r "echo ini_get('extension_dir');")
+          # 2. Create the extension_dir if it doesn't exist
+          sudo mkdir -p $extension_dir
+          # 3. Copy the extension to the extension_dir
+          sudo cp target/debug/libopendal_php.dylib $extension_dir/libopendal_php.dylib
+          # 4. Enable the extension
+          echo "extension=libopendal_php.dylib" >> $(php -r "echo php_ini_loaded_file();")
 
       - name: Check PHP Extensions
-        run: |
-          php -m
+        run: php -m
 
       - name: Install Composer dependencies
         working-directory: "bindings/php"

@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::path::Path;
 use std::pin::Pin;
 use std::task::Poll::{Pending, Ready};
 
+use dav_server::davpath::DavPath;
 use dav_server::fs::DavDirEntry;
 use dav_server::fs::DavFile;
 use dav_server::fs::DavFileSystem;
@@ -30,7 +32,7 @@ use opendal::Operator;
 
 use crate::services::webdav::webdav_dir_entry::WebDAVDirEntry;
 
-use super::webdav_file::WebdavFile;
+use super::webdav_file::{convert_error, WebdavFile};
 use super::webdav_metadata::WebdavMetaData;
 
 #[derive(Clone)]
@@ -73,8 +75,87 @@ impl DavFileSystem for WebdavFs {
         path: &'a dav_server::davpath::DavPath,
     ) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavMetaData>> {
         async move {
-            let opendal_metadata = self.op.stat(path.as_url_string().as_str()).await.unwrap();
-            Ok(Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>)
+            let opendal_metadata = self.op.stat(path.as_url_string().as_str()).await;
+            match opendal_metadata {
+                Ok(metadata) => {
+                    let webdav_metadata = WebdavMetaData::new(metadata);
+                    Ok(Box::new(webdav_metadata) as Box<dyn DavMetaData>)
+                }
+                Err(e) => Err(convert_error(e)),
+            }
+        }
+        .boxed()
+    }
+
+    fn create_dir<'a>(&'a self, path: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+        async move {
+            let path = path.as_url_string();
+
+            // check if the parent path is exist.
+            // During MKCOL processing, a server MUST make the Request-URI a member of its parent collection, unless the Request-URI is "/".  If no such ancestor exists, the method MUST fail.
+            // refer to https://datatracker.ietf.org/doc/html/rfc2518#section-8.3.1
+            let parent = Path::new(&path).parent().unwrap();
+            match self.op.is_exist(parent.to_str().unwrap()).await {
+                Ok(exist) => {
+                    if !exist && parent != Path::new("/") {
+                        return Err(dav_server::fs::FsError::NotFound);
+                    }
+                }
+                Err(e) => {
+                    return Err(convert_error(e));
+                }
+            }
+
+            let path = path.as_str();
+            // check if the given path is exist (MKCOL on existing collection should fail (RFC2518:8.3.1))
+            let exist = self.op.is_exist(path).await;
+            match exist {
+                Ok(exist) => match exist {
+                    true => Err(dav_server::fs::FsError::Exists),
+                    false => {
+                        let res = self.op.create_dir(path).await;
+                        match res {
+                            Ok(_) => Ok(()),
+                            Err(e) => Err(convert_error(e)),
+                        }
+                    }
+                },
+                Err(e) => Err(convert_error(e)),
+            }
+        }
+        .boxed()
+    }
+
+    fn remove_file<'a>(&'a self, path: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+        async move {
+            self.op
+                .delete(path.as_url_string().as_str())
+                .await
+                .map_err(convert_error)
+        }
+        .boxed()
+    }
+
+    fn remove_dir<'a>(&'a self, path: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+        self.remove_file(path)
+    }
+
+    fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+        async move {
+            self.op
+                .copy(&from.as_url_string(), &to.as_url_string())
+                .await
+                .map_err(convert_error)
+        }
+        .boxed()
+    }
+
+    fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
+        async move {
+            self.op
+                .rename(from.as_url_string().as_str(), to.as_url_string().as_str())
+                .await
+                .map_err(convert_error)
         }
         .boxed()
     }

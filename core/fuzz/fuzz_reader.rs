@@ -256,8 +256,6 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
 fuzz_target!(|input: FuzzInput| {
     let _ = dotenvy::dotenv();
 
-    utils::apply_args_to_env();
-
     let runtime = tokio::runtime::Runtime::new().expect("init runtime must succeed");
 
     for op in utils::init_services() {

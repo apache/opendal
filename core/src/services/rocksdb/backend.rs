@@ -145,16 +145,19 @@ impl kv::Adapter for Adapter {
         self.blocking_scan(path)
     }
 
+    /// TODO: we only need key here.
     fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
-        let it = self.db.prefix_iterator(path).map(|r| r.map(|(k, _v)| k));
+        let it = self.db.prefix_iterator(path).map(|r| r.map(|(k, _)| k));
         let mut res = Vec::default();
 
-        for i in it {
-            let bs = i?.to_vec();
-            res.push(String::from_utf8(bs).map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
-                    .set_source(err)
-            })?);
+        for key in it {
+            let key = key?;
+            let key = String::from_utf8_lossy(&key);
+            // FIXME: it's must a bug that rocksdb returns key that not start with path.
+            if !key.starts_with(path) {
+                continue;
+            }
+            res.push(key.to_string());
         }
 
         Ok(res)

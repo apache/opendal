@@ -3445,7 +3445,6 @@ dependencies = [
  "futures",
  "governor",
  "hdrs",
- "hex",
  "http",
  "hyper",
  "lazy-regex",

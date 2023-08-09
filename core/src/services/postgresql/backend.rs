@@ -257,7 +257,7 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
         let query = format!(
-            "SELECT {} FROM {} WHERE {} = $1 LIMIT 1",
+            "SELECT {} FROM {} WHERE {} = '$1' LIMIT 1",
             self.value_field, self.table, self.key_field
         );
         let statement = self
@@ -271,11 +271,7 @@ impl kv::Adapter for Adapter {
             })
             .await?;
 
-        let rows = self
-            .get_client()
-            .await?
-            .query(statement, &[&path.as_bytes()])
-            .await?;
+        let rows = self.get_client().await?.query(statement, &[&path]).await?;
         if rows.is_empty() {
             return Ok(None);
         }
@@ -285,7 +281,7 @@ impl kv::Adapter for Adapter {
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
         let query = format!(
-            "INSERT INTO {} ({}, {}) VALUES ($1, $2)",
+            "INSERT INTO {} ({}, {}) VALUES ('$1', $2)",
             self.table, self.key_field, self.value_field,
         );
         let statement = self
@@ -302,13 +298,13 @@ impl kv::Adapter for Adapter {
         let _ = self
             .get_client()
             .await?
-            .query(statement, &[&path.as_bytes(), &value])
+            .query(statement, &[&path, &value])
             .await?;
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let query = format!("DELETE FROM {} WHERE {} = $1", self.table, self.key_field);
+        let query = format!("DELETE FROM {} WHERE {} = '$1'", self.table, self.key_field);
         let statement = self
             .statement_del
             .get_or_try_init(|| async {
@@ -320,11 +316,7 @@ impl kv::Adapter for Adapter {
             })
             .await?;
 
-        let _ = self
-            .get_client()
-            .await?
-            .query(statement, &[&path.as_bytes()])
-            .await?;
+        let _ = self.get_client().await?.query(statement, &[&path]).await?;
         Ok(())
     }
 }

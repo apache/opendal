@@ -128,11 +128,10 @@ impl DavFileSystem for WebdavFs {
 
     fn remove_file<'a>(&'a self, path: &'a DavPath) -> dav_server::fs::FsFuture<()> {
         async move {
-            let res = self.op.delete(path.as_url_string().as_str()).await;
-            match res {
-                Ok(_) => Ok(()),
-                Err(e) => Err(convert_error(e)),
-            }
+            self.op
+                .delete(path.as_url_string().as_str())
+                .await
+                .map_err(convert_error)
         }
         .boxed()
     }
@@ -143,28 +142,20 @@ impl DavFileSystem for WebdavFs {
 
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
         async move {
-            let res = self
-                .op
-                .copy(from.as_url_string().as_str(), to.as_url_string().as_str())
-                .await;
-            match res {
-                Ok(_) => Ok(()),
-                Err(e) => Err(convert_error(e)),
-            }
+            self.op
+                .copy(&from.as_url_string(), &to.as_url_string())
+                .await
+                .map_err(convert_error)
         }
         .boxed()
     }
 
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
         async move {
-            let res = self
-                .op
+            self.op
                 .rename(from.as_url_string().as_str(), to.as_url_string().as_str())
-                .await;
-            match res {
-                Ok(_) => Ok(()),
-                Err(e) => Err(convert_error(e)),
-            }
+                .await
+                .map_err(convert_error)
         }
         .boxed()
     }

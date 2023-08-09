@@ -135,7 +135,10 @@ impl Config {
                     fs_builder.root(if base.is_empty() { "/" } else { base });
                     filename
                 }
-                _ => s,
+                _ => {
+                    fs_builder.root(".");
+                    s
+                }
             };
 
             return Ok((Operator::new(fs_builder)?.finish(), filename.into()));

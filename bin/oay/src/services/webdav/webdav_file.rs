@@ -83,7 +83,7 @@ impl DavFile for WebdavFile {
     }
 }
 
-fn convert_error(opendal_error: opendal::Error) -> dav_server::fs::FsError {
+pub fn convert_error(opendal_error: opendal::Error) -> dav_server::fs::FsError {
     match opendal_error.kind() {
         opendal::ErrorKind::AlreadyExists | opendal::ErrorKind::IsSameFile => {
             dav_server::fs::FsError::Exists

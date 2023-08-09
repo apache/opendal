@@ -139,6 +139,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Obs>());
     #[cfg(feature = "services-onedrive")]
     tests.extend(behavior_test::<services::Onedrive>());
+    #[cfg(feature = "services-postgresql")]
+    tests.extend(behavior_test::<services::Postgresql>());
     #[cfg(feature = "services-gdrive")]
     tests.extend(behavior_test::<services::Gdrive>());
     #[cfg(feature = "services-dropbox")]

@@ -150,6 +150,7 @@ services-oss = [
   "reqsign?/reqwest_request",
 ]
 services-persy = ["dep:persy"]
+services-postgresql = ["dep:tokio-postgres"]
 services-redb = ["dep:redb"]
 services-redis = ["dep:redis"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
@@ -200,7 +201,10 @@ cacache = { version = "11.6", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }
-chrono = { version = "0.4.26", default-features = false, features = ["clock", "std"] }
+chrono = { version = "0.4.26", default-features = false, features = [
+  "clock",
+  "std",
+] }
 dashmap = { version = "5.4", optional = true }
 dirs = { version = "5.0.1", optional = true }
 etcd-client = { version = "0.11", optional = true, features = ["tls"] }
@@ -256,6 +260,7 @@ suppaftp = { version = "4.5", default-features = false, features = [
 ], optional = true }
 tikv-client = { version = "0.2.0", optional = true }
 tokio = "1.27"
+tokio-postgres = { version = "0.7.8", optional = true }
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
 

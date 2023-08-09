@@ -16,16 +16,16 @@
 # under the License.
 
 [coprocessor]
+batch-split-limit = 100
 region-max-keys = 10
 region-split-keys = 7
-batch-split-limit = 100
 
 [raftstore]
-region-split-check-diff = "1B"
 pd-heartbeat-tick-interval = "2s"
 pd-store-heartbeat-tick-interval = "5s"
-split-region-check-tick-interval = "1s"
 raft-entry-max-size = "10MB"
+region-split-check-diff = "1B"
+split-region-check-tick-interval = "1s"
 
 [rocksdb]
 max-open-files = 10000

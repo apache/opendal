@@ -32,9 +32,8 @@ crate-type = ["staticlib", "cdylib"]
 doc = false
 
 [dependencies]
+ocaml = { version = "^1.0.0-beta" }
 opendal.workspace = true
-ocaml = {version = "^1.0.0-beta"}
 
 [build-dependencies]
-ocaml-build = {version = "^1.0.0-beta"}
-
+ocaml-build = { version = "^1.0.0-beta" }

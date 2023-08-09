@@ -206,3 +206,5 @@ pub use self::foundationdb::Foundationdb;
 
 #[cfg(feature = "services-postgresql")]
 mod postgresql;
+#[cfg(feature = "services-postgresql")]
+pub use self::postgresql::Postgresql;

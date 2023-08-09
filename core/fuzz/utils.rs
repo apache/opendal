@@ -36,11 +36,8 @@ pub fn apply_args_to_env() {
 fn service(scheme: Scheme) -> Option<Operator> {
     let test_key = format!("opendal_{}_test", scheme).to_uppercase();
     if env::var(test_key).unwrap_or_default() != "on" {
-        println!("not init {} service", scheme);
         return None;
     }
-
-    println!("init {} service", scheme);
 
     let prefix = format!("opendal_{}_", scheme);
     let envs = env::vars()

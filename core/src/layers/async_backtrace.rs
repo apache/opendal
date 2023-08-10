@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use async_trait::async_trait;
+
 use crate::raw::*;
 use crate::*;
-
-use async_trait::async_trait;
 
 /// Add Efficient, logical 'stack' traces of async functions for the underlying services.
 ///

@@ -102,11 +102,15 @@ jobs:
         with:
           distribution: temurin
           java-version: "11"
+
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
 
       - name: Cargo clippy
         run: cargo clippy --all-targets --all-features --workspace -- -D warnings
+
+      - name: Check diff
+        run: git diff --exit-code
 
   check_msrv:
     runs-on: ubuntu-latest

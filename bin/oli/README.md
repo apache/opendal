@@ -29,11 +29,11 @@ cargo install oli --all-features
 The content of `config.toml` should be follow these pattern:
 
 ```toml
-[<profile_name>]
+[profiles.<profile_name>]
 configuration_key1 = "value1"
 configuration_key2 = "value2"
 
-[<another_profile_name>]
+[profiles.<another_profile_name>]
 configuration_key3 = "value3"
 configuration_key4 = "value4"
 
@@ -42,7 +42,7 @@ configuration_key4 = "value4"
 Here is an example of `config.toml`:
 
 ```toml
-[s3]
+[profiles.s3]
 type = "s3"
 root = "/assets"
 bucket = "<bucket>"
@@ -51,7 +51,7 @@ endpoint = "https://s3.amazonaws.com"
 access_key_id = "<access_key_id>"
 secret_access_key = "<secret_access_key>"
 
-[r2]
+[profiles.r2]
 type = "s3"
 root = "/assets"
 bucket = "<bucket>"

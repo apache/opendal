@@ -16,12 +16,12 @@
 // under the License.
 
 use std::collections::VecDeque;
-use std::mem;
 use std::pin::Pin;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
+use flagset::FlagSet;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use futures::Stream;
@@ -29,22 +29,26 @@ use futures::Stream;
 use crate::raw::*;
 use crate::*;
 
+/// Future constructed by listing.
+type ListFuture = BoxFuture<'static, (oio::Pager, Result<Option<Vec<oio::Entry>>>)>;
+/// Future constructed by stating.
+type StatFuture = BoxFuture<'static, (String, Result<RpStat>)>;
+
 /// Lister is designed to list entries at given path in an asynchronous
 /// manner.
 ///
-/// Users can construct Lister by `list` or `scan`.
+/// Users can construct Lister by [`Operator::lister`].
 ///
-/// User can use lister as `Stream<Item = Result<Entry>>` or
-/// call `next_page` directly.
+/// User can use lister as `Stream<Item = Result<Entry>>`.
 pub struct Lister {
-    pager: Option<oio::Pager>,
+    acc: FusedAccessor,
+    /// required_metakey is the metakey required by users.
+    required_metakey: FlagSet<Metakey>,
 
     buf: VecDeque<oio::Entry>,
-    /// We will move `pager` inside future and return it back while future is ready.
-    /// Thus, we should not allow calling other function while we already have
-    /// a future.
-    #[allow(clippy::type_complexity)]
-    fut: Option<BoxFuture<'static, (oio::Pager, Result<Option<Vec<oio::Entry>>>)>>,
+    pager: Option<oio::Pager>,
+    listing: Option<ListFuture>,
+    stating: Option<StatFuture>,
 }
 
 /// # Safety
@@ -54,75 +58,19 @@ unsafe impl Sync for Lister {}
 
 impl Lister {
     /// Create a new lister.
-    pub(crate) fn new(pager: oio::Pager) -> Self {
-        Self {
+    pub(crate) async fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
+        let required_metakey = args.metakey();
+        let (_, pager) = acc.list(path, args).await?;
+
+        Ok(Self {
+            acc,
+            required_metakey,
+
+            buf: VecDeque::new(),
             pager: Some(pager),
-            buf: VecDeque::default(),
-            fut: None,
-        }
-    }
-
-    /// has_next can be used to check if there are more pages.
-    pub async fn has_next(&mut self) -> Result<bool> {
-        debug_assert!(
-            self.fut.is_none(),
-            "there are ongoing futures for next page"
-        );
-
-        if !self.buf.is_empty() {
-            return Ok(true);
-        }
-
-        let entries = match self
-            .pager
-            .as_mut()
-            .expect("pager must be valid")
-            .next()
-            .await?
-        {
-            // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
-            //
-            // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
-            Some(entries) => entries.into(),
-            None => return Ok(false),
-        };
-        // Push fetched entries into buffer.
-        self.buf = entries;
-
-        Ok(true)
-    }
-
-    /// next_page can be used to fetch a new page.
-    ///
-    /// # Notes
-    ///
-    /// Don't mix the usage of `next_page` and `Stream<Item = Result<Entry>>`.
-    /// Always using the same calling style.
-    pub async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
-        debug_assert!(
-            self.fut.is_none(),
-            "there are ongoing futures for next page"
-        );
-
-        let entries = if !self.buf.is_empty() {
-            mem::take(&mut self.buf)
-        } else {
-            match self
-                .pager
-                .as_mut()
-                .expect("pager must be valid")
-                .next()
-                .await?
-            {
-                // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
-                //
-                // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
-                Some(entries) => entries.into(),
-                None => return Ok(None),
-            }
-        };
-
-        Ok(Some(entries.into_iter().map(|v| v.into_entry()).collect()))
+            listing: None,
+            stating: None,
+        })
     }
 }
 
@@ -130,22 +78,44 @@ impl Stream for Lister {
     type Item = Result<Entry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(oe) = self.buf.pop_front() {
-            return Poll::Ready(Some(Ok(oe.into_entry())));
+        if let Some(fut) = self.stating.as_mut() {
+            let (path, rp) = ready!(fut.poll_unpin(cx));
+            let metadata = rp?.into_metadata();
+
+            self.stating = None;
+            return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
         }
 
-        if let Some(fut) = self.fut.as_mut() {
+        if let Some(oe) = self.buf.pop_front() {
+            let (path, metadata) = oe.into_entry().into_parts();
+            // TODO: we can optimize this by checking the provided metakey provided by services.
+            if metadata.contains_bit(self.required_metakey) {
+                return Poll::Ready(Some(Ok(Entry::new(path, metadata))));
+            }
+
+            let acc = self.acc.clone();
+            let fut = async move {
+                let path = path;
+                let res = acc.stat(&path, OpStat::default()).await;
+
+                (path, res)
+            };
+            self.stating = Some(Box::pin(fut));
+            return self.poll_next(cx);
+        }
+
+        if let Some(fut) = self.listing.as_mut() {
             let (op, res) = ready!(fut.poll_unpin(cx));
             self.pager = Some(op);
 
             return match res? {
                 Some(oes) => {
-                    self.fut = None;
+                    self.listing = None;
                     self.buf = oes.into();
                     self.poll_next(cx)
                 }
                 None => {
-                    self.fut = None;
+                    self.listing = None;
                     Poll::Ready(None)
                 }
             };
@@ -157,7 +127,7 @@ impl Stream for Lister {
 
             (pager, res)
         };
-        self.fut = Some(Box::pin(fut));
+        self.listing = Some(Box::pin(fut));
         self.poll_next(cx)
     }
 }
@@ -165,7 +135,7 @@ impl Stream for Lister {
 /// BlockingLister is designed to list entries at given path in a blocking
 /// manner.
 ///
-/// Users can construct Lister by `blocking_list` or `blocking_scan`.
+/// Users can construct Lister by `blocking_lister`.
 pub struct BlockingLister {
     pager: oio::BlockingPager,
     buf: VecDeque<oio::Entry>,
@@ -183,23 +153,6 @@ impl BlockingLister {
             pager,
             buf: VecDeque::default(),
         }
-    }
-
-    /// next_page can be used to fetch a new page.
-    pub fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
-        let entries = if !self.buf.is_empty() {
-            mem::take(&mut self.buf)
-        } else {
-            match self.pager.next()? {
-                // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
-                //
-                // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
-                Some(entries) => entries.into(),
-                None => return Ok(None),
-            }
-        };
-
-        Ok(Some(entries.into_iter().map(|v| v.into_entry()).collect()))
     }
 }
 

@@ -110,6 +110,8 @@ impl kv::Adapter for Adapter {
             Capability {
                 read: true,
                 write: true,
+                list: true,
+                blocking: true,
                 ..Default::default()
             },
         )
@@ -137,6 +139,28 @@ impl kv::Adapter for Adapter {
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
         Ok(self.db.delete(path)?)
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        self.blocking_scan(path)
+    }
+
+    /// TODO: we only need key here.
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let it = self.db.prefix_iterator(path).map(|r| r.map(|(k, _)| k));
+        let mut res = Vec::default();
+
+        for key in it {
+            let key = key?;
+            let key = String::from_utf8_lossy(&key);
+            // FIXME: it's must a bug that rocksdb returns key that not start with path.
+            if !key.starts_with(path) {
+                continue;
+            }
+            res.push(key.to_string());
+        }
+
+        Ok(res)
     }
 }
 

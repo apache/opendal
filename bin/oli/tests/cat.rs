@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::env;
 use std::fs;
-use std::path::Path;
 use std::process::Command;
 
 use anyhow::Result;
@@ -25,15 +23,36 @@ use assert_cmd::prelude::*;
 
 #[tokio::test]
 async fn test_basic_cat() -> Result<()> {
-    let dir = env::temp_dir();
-    fs::create_dir_all(dir.clone())?;
-    let dst_path = Path::new(&dir).join("dst.txt");
+    let dir = tempfile::tempdir()?;
+    let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
     fs::write(&dst_path, expect)?;
 
     let mut cmd = Command::cargo_bin("oli")?;
 
     cmd.arg("cat").arg(dst_path.as_os_str());
+    let actual = fs::read_to_string(&dst_path)?;
+    let res = cmd.assert().success();
+    let output = res.get_output().stdout.clone();
+
+    let output_stdout = String::from_utf8(output)?;
+
+    assert_eq!(output_stdout, actual);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_cat_for_path_in_current_dir() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let dst_path = dir.path().join("dst.txt");
+    let expect = "hello";
+    fs::write(&dst_path, expect)?;
+
+    let mut cmd = Command::cargo_bin("oli")?;
+
+    cmd.arg("cat")
+        .arg("dst.txt")
+        .current_dir(dir.path().clone());
     let actual = fs::read_to_string(&dst_path)?;
     let res = cmd.assert().success();
     let output = res.get_output().stdout.clone();

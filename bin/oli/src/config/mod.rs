@@ -31,6 +31,7 @@ use opendal::Operator;
 use opendal::Scheme;
 use serde::Deserialize;
 use toml;
+use url::Url;
 
 #[derive(Deserialize, Default)]
 pub struct Config {
@@ -125,7 +126,7 @@ impl Config {
 
     /// Parse `<profile>://abc/def` into `op` and `location`.
     pub fn parse_location(&self, s: &str) -> Result<(Operator, String)> {
-        if !s.contains("://") {
+        if !s.contains(":/") {
             let mut fs_builder = services::Fs::default();
             let fp = resolve_relative_path(Path::new(s));
             let fp_str = fp.as_os_str().to_string_lossy();
@@ -135,18 +136,22 @@ impl Config {
                     fs_builder.root(if base.is_empty() { "/" } else { base });
                     filename
                 }
-                _ => s,
+                _ => {
+                    fs_builder.root(".");
+                    s
+                }
             };
 
             return Ok((Operator::new(fs_builder)?.finish(), filename.into()));
         }
 
-        let parts = s.splitn(2, "://").collect::<Vec<_>>();
-        debug_assert!(parts.len() == 2);
+        let location = Url::parse(s)?;
+        if location.has_host() {
+            Err(anyhow!("Host part in a location is not supported."))?;
+        }
 
-        let profile_name = parts[0];
-        let path = parts[1].into();
-
+        let profile_name = location.scheme();
+        let path = location.path().to_string();
         let profile = self
             .profiles
             .get(profile_name)
@@ -302,8 +307,8 @@ mod tests {
 
     #[test]
     fn test_load_from_toml() -> Result<()> {
-        let dir = env::temp_dir();
-        let tmpfile = dir.join("oli1.toml");
+        let dir = tempfile::tempdir()?;
+        let tmpfile = dir.path().join("oli1.toml");
         fs::write(
             &tmpfile,
             r#"
@@ -324,8 +329,8 @@ enable_virtual_host_style = "on"
 
     #[test]
     fn test_load_config_from_file_and_env() -> Result<()> {
-        let dir = env::temp_dir();
-        let tmpfile = dir.join("oli2.toml");
+        let dir = tempfile::tempdir()?;
+        let tmpfile = dir.path().join("oli2.toml");
         fs::write(
             &tmpfile,
             r#"
@@ -397,10 +402,54 @@ enable_virtual_host_style = "on"
                 ]),
             )]),
         };
-        let (op, path) = cfg.parse_location("mys3://foo/1.txt").unwrap();
-        assert_eq!("foo/1.txt", path);
+        let (op, path) = cfg.parse_location("mys3:///foo/1.txt").unwrap();
+        assert_eq!("/foo/1.txt", path);
         let info = op.info();
         assert_eq!(Scheme::S3, info.scheme());
         assert_eq!("mybucket", info.name());
+    }
+
+    #[test]
+    fn test_parse_s3_location2() {
+        let cfg = Config {
+            profiles: HashMap::from([(
+                "mys3".into(),
+                HashMap::from([
+                    ("type".into(), "s3".into()),
+                    ("bucket".into(), "mybucket".into()),
+                    ("region".into(), "us-east-1".into()),
+                ]),
+            )]),
+        };
+        let (op, path) = cfg.parse_location("mys3:/foo/1.txt").unwrap();
+        assert_eq!("/foo/1.txt", path);
+        let info = op.info();
+        assert_eq!(Scheme::S3, info.scheme());
+        assert_eq!("mybucket", info.name());
+    }
+
+    #[test]
+    fn test_parse_s3_location3() -> Result<()> {
+        let cfg = Config {
+            profiles: HashMap::from([(
+                "mys3".into(),
+                HashMap::from([
+                    ("type".into(), "s3".into()),
+                    ("bucket".into(), "mybucket".into()),
+                    ("region".into(), "us-east-1".into()),
+                ]),
+            )]),
+        };
+
+        let uri = "mys3://foo/1.txt";
+        let expected_msg = "Host part in a location is not supported.";
+        match cfg.parse_location(uri) {
+            Err(e) if e.to_string() == expected_msg => Ok(()),
+            _ => Err(anyhow!(
+                "Getting an message \"{}\" is expected when parsing {}.",
+                expected_msg,
+                uri
+            ))?,
+        }
     }
 }

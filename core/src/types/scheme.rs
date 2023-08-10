@@ -84,6 +84,8 @@ pub enum Scheme {
     Persy,
     /// [redis][crate::services::Redis]: Redis services
     Redis,
+    /// [postgresql][crate::services::Postgresql]: Postgresql services
+    Postgresql,
     /// [rocksdb][crate::services::Rocksdb]: RocksDB services
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
@@ -163,6 +165,7 @@ impl FromStr for Scheme {
             "obs" => Ok(Scheme::Obs),
             "onedrive" => Ok(Scheme::Onedrive),
             "persy" => Ok(Scheme::Persy),
+            "postgresql" => Ok(Scheme::Postgresql),
             "redb" => Ok(Scheme::Redb),
             "redis" => Ok(Scheme::Redis),
             "rocksdb" => Ok(Scheme::Rocksdb),
@@ -206,6 +209,7 @@ impl From<Scheme> for &'static str {
             Scheme::Obs => "obs",
             Scheme::Onedrive => "onedrive",
             Scheme::Persy => "persy",
+            Scheme::Postgresql => "postgresql",
             Scheme::Gdrive => "gdrive",
             Scheme::Dropbox => "dropbox",
             Scheme::Redis => "redis",

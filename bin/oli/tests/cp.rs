@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::env;
 use std::fs;
-use std::path::Path;
 use std::process::Command;
 
 use anyhow::Result;
@@ -25,10 +23,9 @@ use assert_cmd::prelude::*;
 
 #[tokio::test]
 async fn test_basic_cp() -> Result<()> {
-    let dir = env::temp_dir();
-    fs::create_dir_all(dir.clone())?;
-    let src_path = Path::new(&dir).join("src.txt");
-    let dst_path = Path::new(&dir).join("dst.txt");
+    let dir = tempfile::tempdir()?;
+    let src_path = dir.path().join("src.txt");
+    let dst_path = dir.path().join("dst.txt");
     let expect = "hello";
     fs::write(&src_path, expect)?;
 
@@ -40,6 +37,27 @@ async fn test_basic_cp() -> Result<()> {
     cmd.assert().success();
 
     let actual = fs::read_to_string(&dst_path)?;
+    assert_eq!(expect, actual);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_cp_for_path_in_current_dir() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let src_path = dir.path().join("src.txt");
+    let dst_path = dir.path().join("dst.txt");
+    let expect = "hello";
+    fs::write(src_path, expect)?;
+
+    let mut cmd = Command::cargo_bin("oli")?;
+
+    cmd.arg("cp")
+        .arg("src.txt")
+        .arg("dst.txt")
+        .current_dir(dir.path().clone());
+    cmd.assert().success();
+
+    let actual = fs::read_to_string(dst_path)?;
     assert_eq!(expect, actual);
     Ok(())
 }

@@ -15,7 +15,7 @@
     },
     "config": {
         "allow-plugins": {
-            "pestphp/pest-plugin": false
+            "pestphp/pest-plugin": true
         }
     }
 }

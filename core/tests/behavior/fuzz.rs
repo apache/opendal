@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io;
 use std::io::SeekFrom;
-use std::{io, vec};
+use std::vec;
 
 use anyhow::Result;
 use futures::AsyncSeekExt;

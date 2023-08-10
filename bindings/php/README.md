@@ -66,6 +66,14 @@ This command will automatically build the extension and copy it to the extension
 
 5. Test
 
+use `php -m` to check if the extension is installed successfully.
+
+```agsl
+php -m | grep opendal-php
+```
+
+Composer test:
+
 ```bash
 cd incubator-opendal/bindings/php
 

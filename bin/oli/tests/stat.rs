@@ -44,3 +44,27 @@ async fn test_basic_stat() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_stat_for_path_in_current_dir() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let dst_path = dir.path().join("dst.txt");
+    let expect = "hello";
+    fs::write(dst_path, expect)?;
+
+    let mut cmd = Command::cargo_bin("oli")?;
+
+    cmd.arg("stat")
+        .arg("dst.txt")
+        .current_dir(dir.path().clone());
+    let res = cmd.assert().success();
+    let output = res.get_output().stdout.clone();
+
+    let output_stdout = String::from_utf8(output)?;
+    assert!(output_stdout.contains("path: dst.txt"));
+    assert!(output_stdout.contains("size: 5"));
+    assert!(output_stdout.contains("type: file"));
+    assert!(output_stdout.contains("last-modified: "));
+
+    Ok(())
+}

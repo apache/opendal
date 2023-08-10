@@ -36,3 +36,19 @@ async fn test_basic_rm() -> Result<()> {
     assert!(fs::read_to_string(&dst_path).is_err());
     Ok(())
 }
+
+#[tokio::test]
+async fn test_rm_for_path_in_current_dir() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let dst_path = dir.path().join("dst.txt");
+    let expect = "hello";
+    fs::write(&dst_path, expect)?;
+
+    let mut cmd = Command::cargo_bin("oli")?;
+
+    cmd.arg("rm").arg("dst.txt").current_dir(dir.path().clone());
+    cmd.assert().success();
+
+    assert!(fs::read_to_string(&dst_path).is_err());
+    Ok(())
+}

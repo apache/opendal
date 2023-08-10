@@ -40,3 +40,25 @@ async fn test_basic_cat() -> Result<()> {
     assert_eq!(output_stdout, actual);
     Ok(())
 }
+
+#[tokio::test]
+async fn test_cat_for_path_in_current_dir() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let dst_path = dir.path().join("dst.txt");
+    let expect = "hello";
+    fs::write(&dst_path, expect)?;
+
+    let mut cmd = Command::cargo_bin("oli")?;
+
+    cmd.arg("cat")
+        .arg("dst.txt")
+        .current_dir(dir.path().clone());
+    let actual = fs::read_to_string(&dst_path)?;
+    let res = cmd.assert().success();
+    let output = res.get_output().stdout.clone();
+
+    let output_stdout = String::from_utf8(output)?;
+
+    assert_eq!(output_stdout, actual);
+    Ok(())
+}

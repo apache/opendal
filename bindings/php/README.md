@@ -68,7 +68,7 @@ This command will automatically build the extension and copy it to the extension
 
 use `php -m` to check if the extension is installed successfully.
 
-```agsl
+```bash
 php -m | grep opendal-php
 ```
 

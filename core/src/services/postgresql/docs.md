@@ -35,8 +35,8 @@ use opendal::Operator;
 async fn main() -> Result<()> {
     let mut builder = Postgresql::default();
     builder
-        .root("/");
-    builder.connection_string("postgresql://you_username:your_password@127.0.0.1:5432/your_database")
+        .root("/")
+        .connection_string("postgresql://you_username:your_password@127.0.0.1:5432/your_database")
         .table("test_tbl1")
         // key field type in the table should be compatible with Rust's &str like text
         .key_field("key")

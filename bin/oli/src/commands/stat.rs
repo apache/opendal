@@ -37,7 +37,7 @@ pub async fn main(args: &ArgMatches) -> Result<()> {
     let (op, path) = cfg.parse_location(target)?;
 
     let meta = op.stat(&path).await?;
-    println!("path: {path}");
+    println!("path: {target}");
     let size = meta.content_length();
     println!("size: {size}");
     if let Some(etag) = meta.etag() {

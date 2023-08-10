@@ -36,7 +36,7 @@ async fn test_basic_stat() -> Result<()> {
 
     let output_stdout = String::from_utf8(output)?;
     let mut expected_path = "path: ".to_string();
-    expected_path.push_str(&dst_path.to_string_lossy()[1..]);
+    expected_path.push_str(&dst_path.to_string_lossy());
     assert!(output_stdout.contains(&expected_path));
     assert!(output_stdout.contains("size: 5"));
     assert!(output_stdout.contains("type: file"));

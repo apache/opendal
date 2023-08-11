@@ -194,7 +194,6 @@ impl typed_kv::Adapter for Adapter {
                 set: true,
                 delete: true,
                 scan: true,
-                ..Default::default()
             },
         )
     }

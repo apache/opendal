@@ -33,7 +33,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
 
-use crate::raw::build_rooted_abs_path;
 use crate::raw::new_json_deserialize_error;
 use crate::raw::new_json_serialize_error;
 use crate::raw::new_request_build_error;
@@ -43,6 +42,7 @@ use crate::raw::HttpClient;
 use crate::raw::IncomingAsyncBody;
 use crate::raw::RpBatch;
 use crate::raw::RpDelete;
+use crate::raw::{build_rooted_abs_path, OpRead};
 use crate::services::dropbox::backend::DropboxDeleteBatchResponse;
 use crate::services::dropbox::backend::DropboxDeleteBatchResponseEntry;
 use crate::services::dropbox::error::parse_error;
@@ -71,16 +71,28 @@ impl DropboxCore {
         path.trim_end_matches('/').to_string()
     }
 
-    pub async fn dropbox_get(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn dropbox_get(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let url: String = "https://content.dropboxapi.com/2/files/download".to_string();
         let download_args = DropboxDownloadArgs {
             path: build_rooted_abs_path(&self.root, path),
         };
         let request_payload =
             serde_json::to_string(&download_args).map_err(new_json_serialize_error)?;
-        let mut request = Request::post(&url)
+
+        let mut req = Request::post(&url)
             .header("Dropbox-API-Arg", request_payload)
-            .header(CONTENT_LENGTH, 0)
+            .header(CONTENT_LENGTH, 0);
+
+        let range = args.range();
+        if !range.is_full() {
+            req = req.header(header::RANGE, range.to_header());
+        }
+
+        let mut request = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

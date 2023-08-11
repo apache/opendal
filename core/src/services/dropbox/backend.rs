@@ -63,6 +63,7 @@ impl Accessor for DropboxBackend {
                 stat: true,
 
                 read: true,
+                read_with_range: true,
 
                 write: true,
 
@@ -93,8 +94,8 @@ impl Accessor for DropboxBackend {
         }
     }
 
-    async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.dropbox_get(path).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.core.dropbox_get(path, args).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {

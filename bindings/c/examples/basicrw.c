@@ -24,8 +24,8 @@
 int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
-    opendal_operator_ptr op = opendal_operator_new("memory", 0);
-    assert(op.ptr != NULL);
+    const opendal_operator_ptr *op = opendal_operator_new("memory", 0);
+    assert(op->ptr != NULL);
 
     /* Prepare some data to be written */
     opendal_bytes data = {
@@ -53,5 +53,5 @@ int main()
     opendal_bytes_free(read_bytes);
 
     /* the operator_ptr is also heap allocated */
-    opendal_operator_free(&op);
+    opendal_operator_free(op);
 }

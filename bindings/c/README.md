@@ -74,6 +74,19 @@ sudo apt install clang-format
 
 # install and build GTest library under /usr/lib and softlink to /usr/local/lib
 sudo apt-get install libgtest-dev
+
+# install CMake
+sudo apt-get install cmake
+
+# install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# If you run the tests, install additional components
+
+# install Valgrind
+sudo apt-get install Valgrind
+
+# install GTest
 cd /usr/src/gtest
 sudo cmake CMakeLists.txt
 sudo make
@@ -100,7 +113,7 @@ sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
   make clean
   ```
 
-- To build and run the **tests**. (Note that you need to install GTest)
+- To build and run the **tests**. (Note that you need to install Valgrind and GTest)
 
   ```sh
   make test

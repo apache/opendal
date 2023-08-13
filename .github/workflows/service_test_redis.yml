@@ -65,50 +65,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Copy Redis Certificate Files
+        shell: bash
+        working-directory: core
+        run: |
+          mkdir -p /tmp/redis
+          cp -r `pwd`/src/services/redis/fixtures/* /tmp/redis
+
       - name: Configure Redis with TLS
         run: |
-          mkdir ssl
 
-          # Create CA
-
-          openssl req \
-            -x509 -new -nodes \
-            -keyout ssl/ca.key \
-            -sha256 \
-            -days 365 \
-            -out ssl/ca.crt \
-            -subj '/CN=Test Root CA/C=US/ST=Test/L=Test/O=Opendal'
-
-          # Create redis certificate
-
-          openssl req \
-            -new -nodes \
-            -out ssl/redis.csr \
-            -keyout ssl/redis.key \
-            -subj '/CN=Redis certificate/C=US/ST=Test/L=Test/O=Opendal'
-
-          cat > ssl/redis.v3.ext << EOF
-          authorityKeyIdentifier=keyid,issuer
-          basicConstraints=CA:FALSE
-          keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-          subjectAltName = @alt_names
-          [alt_names]
-          DNS.1 = localhost
-          IP.1 = 127.0.0.1
-          EOF
-
-          openssl x509 \
-            -req \
-            -in ssl/redis.csr \
-            -CA ssl/ca.crt \
-            -CAkey ssl/ca.key \
-            -CAcreateserial \
-            -out ssl/redis.crt \
-            -days 300 \
-            -sha256 \
-            -extfile ssl/redis.v3.ext
-
-          chmod 777 ssl/redis.crt ssl/redis.key # allow the redis docker to read these files
+          # allow the redis docker to read these files
+          chmod 777 /tmp/redis/redis.crt /tmp/redis/redis.key
 
           # Launch redis
 
@@ -116,7 +84,7 @@ jobs:
             --rm \
             --name redis \
             --network host \
-            --mount type=bind,source=$PWD/ssl,target=/etc/redis/ssl \
+            --mount type=bind,source=/tmp/redis,target=/etc/redis/ssl \
             redis \
               --tls-port 6380 \
               --tls-cert-file /etc/redis/ssl/redis.crt \
@@ -125,7 +93,7 @@ jobs:
 
           # Install the CA in the system
 
-          sudo cp ssl/ca.crt /usr/local/share/ca-certificates
+          sudo cp /tmp/redis/ca.crt /usr/local/share/ca-certificates
           sudo update-ca-certificates
 
       - name: Setup Rust toolchain
@@ -140,6 +108,108 @@ jobs:
           OPENDAL_REDIS_TEST: on
           OPENDAL_REDIS_ENDPOINT: rediss://localhost:6380
           OPENDAL_REDIS_ROOT: /
+          OPENDAL_REDIS_DB: 0
+
+  redis-cluster:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      - name: Setup redis cluster
+        uses: vishnudxb/redis-cluster@1.0.5
+        with:
+          master1-port: 6380
+          master2-port: 6381
+          master3-port: 6382
+          slave1-port: 6383
+          slave2-port: 6384
+          slave3-port: 6385
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run redis --features services-redis
+        env:
+          OPENDAL_REDIS_TEST: on
+          OPENDAL_REDIS_CLUSTER_ENDPOINTS: redis://127.0.0.1:6380/,redis://127.0.0.1:6381/,redis://127.0.0.1:6382/,redis://127.0.0.1:6383/,redis://127.0.0.1:6384/,redis://127.0.0.1:6385/
+          OPENDAL_REDIS_ROOT: /test/opendal
+          OPENDAL_REDIS_DB: 0
+
+  redis-cluster-tls:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Copy Redis Certificate Files
+        shell: bash
+        working-directory: core
+        run: |
+            mkdir -p /tmp/redis
+            cp -r `pwd`/src/services/redis/fixtures/* /tmp/redis
+
+      - name: Configure Redis Cluster with TLS
+        run: |
+
+            # allow the redis docker to read these files
+            chmod 777 /tmp/redis/redis.crt /tmp/redis/redis.key
+
+            # Install the CA in the system
+            sudo cp /tmp/redis/ca.crt /usr/local/share/ca-certificates
+            sudo update-ca-certificates
+            
+            # Launch redis cluster
+            for no in `seq 0 5`; do \
+
+                docker run -d \
+                    --rm \
+                    --name redis-${no} \
+                    --network host \
+                    --mount type=bind,source=/tmp/redis,target=/etc/redis/ssl \
+                    redis:latest \
+                    --requirepass opendal \
+                    --masterauth opendal \
+                    --port 0 \
+                    --cluster-enabled yes \
+                    --cluster-config-file nodes.conf \
+                    --cluster-node-timeout 15000 \
+                    --cluster-announce-ip 127.0.0.1 \
+                    --cluster-announce-port 638${no} \
+                    --cluster-announce-bus-port 1638${no} \
+                    --tls-protocols 'TLSv1.2' \
+                    --tls-replication yes \
+                    --tls-cluster yes \
+                    --tls-port 638${no} \
+                    --tls-cert-file /etc/redis/ssl/redis.crt \
+                    --tls-key-file /etc/redis/ssl/redis.key \
+                    --tls-ca-cert-file /etc/redis/ssl/ca.crt \
+                    --tls-auth-clients no
+            done
+    
+            docker run --rm \
+                --name redis-cluster-create \
+                --network host \
+                --mount type=bind,source=/tmp/redis,target=/etc/redis/ssl \
+                redis:latest \
+                sh -c "echo yes | redis-cli --cluster create 127.0.0.1:6380 127.0.0.1:6381 127.0.0.1:6382 127.0.0.1:6383 127.0.0.1:6384 127.0.0.1:6385 --cluster-replicas 1 --tls -a opendal --cacert /etc/redis/ssl/ca.crt"
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run redis --features services-redis-rustls
+        env:
+          OPENDAL_REDIS_TEST: on
+          OPENDAL_REDIS_CLUSTER_ENDPOINTS: rediss://127.0.0.1:6380/,rediss://127.0.0.1:6381/,rediss://127.0.0.1:6382/,rediss://127.0.0.1:6383/,rediss://127.0.0.1:6384/,rediss://127.0.0.1:6385/
+          OPENDAL_REDIS_PASSWORD: opendal
+          OPENDAL_REDIS_ROOT: /test/opendal
           OPENDAL_REDIS_DB: 0
 
   dragonfly:

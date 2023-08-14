@@ -845,13 +845,14 @@ impl BlockingOperator {
             path,
             OpList::default(),
             |inner, path, args| {
-                if !validate_path(&path, EntryMode::FILE) {
-                    return Err(
-                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                            .with_operation("BlockingOperator::write_with")
-                            .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path),
-                    );
+                if !validate_path(&path, EntryMode::DIR) {
+                    return Err(Error::new(
+                        ErrorKind::NotADirectory,
+                        "the path trying to list should end with `/`",
+                    )
+                    .with_operation("BlockingOperator::list")
+                    .with_context("service", inner.info().scheme().into_static())
+                    .with_context("path", &path));
                 }
 
                 let (_, pager) = inner.blocking_list(&path, args)?;
@@ -1019,13 +1020,14 @@ impl BlockingOperator {
             path,
             OpList::default(),
             |inner, path, args| {
-                if !validate_path(&path, EntryMode::FILE) {
-                    return Err(
-                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                            .with_operation("BlockingOperator::write_with")
-                            .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path),
-                    );
+                if !validate_path(&path, EntryMode::DIR) {
+                    return Err(Error::new(
+                        ErrorKind::NotADirectory,
+                        "the path trying to list should end with `/`",
+                    )
+                    .with_operation("BlockingOperator::list")
+                    .with_context("service", inner.info().scheme().into_static())
+                    .with_context("path", &path));
                 }
 
                 let (_, pager) = inner.blocking_list(&path, args)?;

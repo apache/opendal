@@ -711,6 +711,159 @@ impl BlockingOperator {
         Ok(())
     }
 
+    /// List entries within a given directory.
+    ///
+    /// # Notes
+    ///
+    /// ## Listing recursively
+    ///
+    /// This function only read the children of the given directory. To read
+    /// all entries recursively, use `BlockingOperator::list_with("path").delimiter("")`
+    /// instead.
+    ///
+    /// ## Streaming
+    ///
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`BlockingOperator::lister`] to list entries in
+    /// a streaming way.
+    ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please use [`BlockingOperator::list_with`] and `metakey`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::BlockingOperator;
+    /// #  fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut entries = op.list("path/to/dir/")?;
+    /// for entry in entries {
+    ///     match entry.metadata().mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list(&self, path: &str) -> Result<Vec<Entry>> {
+        self.list_with(path).call()
+    }
+
+    /// List entries within a given directory with options.
+    ///
+    /// # Notes
+    ///
+    /// ## For streaming
+    ///
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// a streaming way.
+    ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please specify the `metakey`.
+    ///
+    /// # Examples
+    ///
+    /// ## List entries with prefix
+    ///
+    /// This function can also be used to list entries in recursive way.
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut entries = op.list_with("prefix/").delimiter("").call()?;
+    /// for entry in entries {
+    ///     match entry.metadata().mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List entries with metakey for more metadata
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut entries = op
+    ///     .list_with("dir/")
+    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
+    ///     .call()?;
+    /// for entry in entries {
+    ///     let meta = entry.metadata();
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!(
+    ///                 "Handling file {} with size {}",
+    ///                 entry.path(),
+    ///                 meta.content_length()
+    ///             )
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list_with(&self, path: &str) -> FunctionList {
+        let path = normalize_path(path);
+
+        FunctionList(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, args| {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                            .with_operation("BlockingOperator::write_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
+
+                let (_, pager) = inner.blocking_list(&path, args)?;
+                let lister = BlockingLister::new(pager);
+
+                lister.collect()
+            },
+        ))
+    }
+
     /// List entries within a given directory as an iterator.
     ///
     /// This function will create a new handle to list entries.

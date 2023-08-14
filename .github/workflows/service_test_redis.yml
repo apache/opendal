@@ -39,13 +39,12 @@ concurrency:
 jobs:
   redis:
     runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Redis Server
+        shell: bash
+        working-directory: core
+        run: docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis.yml up -d
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -65,36 +64,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Copy Redis Certificate Files
-        shell: bash
-        working-directory: core
+      - name: Setup Redis with TLS
         run: |
-          mkdir -p /tmp/redis
-          cp -r `pwd`/src/services/redis/fixtures/ssl/* /tmp/redis
-
-      - name: Configure Redis with TLS
-        run: |
-
-          # allow the redis docker to read these files
-          chmod 777 /tmp/redis/redis.crt /tmp/redis/redis.key
-
-          # Launch redis
-
-          docker run -d \
-            --rm \
-            --name redis \
-            --network host \
-            --mount type=bind,source=/tmp/redis,target=/etc/redis/ssl \
-            redis \
-              --tls-port 6380 \
-              --tls-cert-file /etc/redis/ssl/redis.crt \
-              --tls-key-file /etc/redis/ssl/redis.key \
-              --tls-auth-clients no
 
           # Install the CA in the system
-
-          sudo cp /tmp/redis/ca.crt /usr/local/share/ca-certificates
+          sudo cp `pwd`/src/services/redis/fixtures/ssl/ca.crt /usr/local/share/ca-certificates
           sudo update-ca-certificates
+
+          docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-tls.yml up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

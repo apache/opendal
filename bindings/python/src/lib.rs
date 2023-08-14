@@ -146,12 +146,18 @@ impl Operator {
 
     /// List current dir path.
     pub fn list(&self, path: &str) -> PyResult<BlockingLister> {
-        Ok(BlockingLister(self.0.list(path).map_err(format_pyerr)?))
+        Ok(BlockingLister(self.0.lister(path).map_err(format_pyerr)?))
     }
 
     /// List dir in flat way.
     pub fn scan(&self, path: &str) -> PyResult<BlockingLister> {
-        Ok(BlockingLister(self.0.scan(path).map_err(format_pyerr)?))
+        Ok(BlockingLister(
+            self.0
+                .lister_with(path)
+                .delimiter("")
+                .call()
+                .map_err(format_pyerr)?,
+        ))
     }
 
     fn __repr__(&self) -> String {

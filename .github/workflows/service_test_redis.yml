@@ -119,15 +119,32 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-nextest: true
-      - name: Setup redis cluster
-        uses: vishnudxb/redis-cluster@1.0.5
-        with:
-          master1-port: 6380
-          master2-port: 6381
-          master3-port: 6382
-          slave1-port: 6383
-          slave2-port: 6384
-          slave3-port: 6385
+      - name: Configure Redis Cluster
+        run: |
+
+            # Launch redis cluster
+            for no in `seq 0 5`; do \
+
+                docker run -d \
+                    --rm \
+                    --name redis-${no} \
+                    --network host \
+                    redis:latest \
+                    --port 638${no} \
+                    --cluster-enabled yes \
+                    --cluster-config-file nodes.conf \
+                    --cluster-node-timeout 15000 \
+                    --cluster-announce-ip 127.0.0.1 \
+                    --cluster-announce-port 638${no} \
+                    --cluster-announce-bus-port 1638${no}
+            done
+
+            docker run --rm \
+                    --name redis-cluster-create \
+                    --network host \
+                    redis:latest \
+                    sh -c "echo yes | redis-cli --cluster create 127.0.0.1:6380 127.0.0.1:6381 127.0.0.1:6382 127.0.0.1:6383 127.0.0.1:6384 127.0.0.1:6385 --cluster-replicas 1"
+
       - name: Test
         shell: bash
         working-directory: core

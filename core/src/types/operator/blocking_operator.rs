@@ -100,8 +100,7 @@ impl BlockingOperator {
     /// # use anyhow::Result;
     /// use opendal::BlockingOperator;
     ///
-    /// # #[tokio::main]
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let info = op.info();
     /// # Ok(())
     /// # }
@@ -129,8 +128,7 @@ impl BlockingOperator {
     /// # use opendal::BlockingOperator;
     /// use opendal::ErrorKind;
     /// #
-    /// # #[tokio::main]
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// if let Err(e) = op.stat("test") {
     ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("file not exist")
@@ -191,7 +189,7 @@ impl BlockingOperator {
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// op.create_dir("path/to/dir/")?;
     /// # Ok(())
     /// # }
@@ -247,7 +245,7 @@ impl BlockingOperator {
     /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = op.range_read("path/to/file", 1024..2048)?;
     /// # Ok(())
     /// # }
@@ -481,7 +479,7 @@ impl BlockingOperator {
     /// # use opendal::BlockingOperator;
     /// use bytes::Bytes;
     ///
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let _ = op
     ///     .write_with("hello.txt", bs)
@@ -892,7 +890,7 @@ impl BlockingOperator {
     /// use opendal::EntryMode;
     /// use opendal::Metakey;
     /// use opendal::BlockingOperator;
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/")?;
     /// for de in ds {
     ///     let de = de?;

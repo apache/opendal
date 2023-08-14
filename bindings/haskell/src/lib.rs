@@ -501,7 +501,7 @@ pub unsafe extern "C" fn blocking_list(
         }
     };
 
-    let res = match op.list(path_str) {
+    let res = match op.lister(path_str) {
         Ok(lister) => FFIResult::ok(Box::into_raw(Box::new(lister))),
         Err(e) => FFIResult::err_with_source("Failed to list", e),
     };
@@ -540,7 +540,7 @@ pub unsafe extern "C" fn blocking_scan(
         }
     };
 
-    let res = match op.scan(path_str) {
+    let res = match op.lister_with(path_str).delimiter("").call() {
         Ok(lister) => FFIResult::ok(Box::into_raw(Box::new(lister))),
         Err(e) => FFIResult::err_with_source("Failed to scan", e),
     };

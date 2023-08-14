@@ -48,7 +48,7 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
 
     op.write(&path, content).expect("write must succeed");
 
-    let obs = op.list(&format!("{parent}/"))?;
+    let obs = op.lister(&format!("{parent}/"))?;
     let mut found = false;
     for de in obs {
         let de = de?;
@@ -71,7 +71,7 @@ pub fn test_blocking_list_dir(op: BlockingOperator) -> Result<()> {
 pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
-    let obs = op.list(&dir)?;
+    let obs = op.lister(&dir)?;
     let mut objects = HashMap::new();
     for de in obs {
         let de = de?;
@@ -98,7 +98,10 @@ pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
         }
     }
 
-    let w = op.scan(&format!("{parent}/x/"))?;
+    let w = op
+        .lister_with(&format!("{parent}/x/"))
+        .delimiter("")
+        .call()?;
     let actual = w
         .collect::<Vec<_>>()
         .into_iter()

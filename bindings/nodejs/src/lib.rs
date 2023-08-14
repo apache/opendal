@@ -336,7 +336,12 @@ impl Operator {
     #[napi]
     pub fn scan_sync(&self, path: String) -> Result<BlockingLister> {
         Ok(BlockingLister(
-            self.0.blocking().scan(&path).map_err(format_napi_error)?,
+            self.0
+                .blocking()
+                .lister_with(&path)
+                .delimiter("")
+                .call()
+                .map_err(format_napi_error)?,
         ))
     }
 
@@ -443,7 +448,12 @@ impl Operator {
     #[napi]
     pub fn list_sync(&self, path: String) -> Result<BlockingLister> {
         Ok(BlockingLister(
-            self.0.blocking().scan(&path).map_err(format_napi_error)?,
+            self.0
+                .blocking()
+                .lister_with(&path)
+                .delimiter("")
+                .call()
+                .map_err(format_napi_error)?,
         ))
     }
 

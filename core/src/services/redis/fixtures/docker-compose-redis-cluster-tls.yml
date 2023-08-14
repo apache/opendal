@@ -20,6 +20,9 @@ version: '3.8'
 services:
   redis-node-0:
     image: docker.io/bitnami/redis-cluster:7.0
+    networks:
+      redis_cluster:
+        ipv4_address: 172.30.0.2
     ports:
       - '6380:6379'
     environment:
@@ -35,6 +38,9 @@ services:
 
   redis-node-1:
     image: docker.io/bitnami/redis-cluster:7.0
+    networks:
+      redis_cluster:
+        ipv4_address: 172.30.0.3
     ports:
       - '6381:6379'
     environment:
@@ -50,6 +56,9 @@ services:
 
   redis-node-2:
     image: docker.io/bitnami/redis-cluster:7.0
+    networks:
+      redis_cluster:
+        ipv4_address: 172.30.0.4
     ports:
       - '6382:6379'
     environment:
@@ -65,6 +74,9 @@ services:
 
   redis-node-3:
     image: docker.io/bitnami/redis-cluster:7.0
+    networks:
+      redis_cluster:
+        ipv4_address: 172.30.0.5
     ports:
       - '6383:6379'
     environment:
@@ -80,6 +92,9 @@ services:
 
   redis-node-4:
     image: docker.io/bitnami/redis-cluster:7.0
+    networks:
+      redis_cluster:
+        ipv4_address: 172.30.0.6
     ports:
       - '6384:6379'
     environment:
@@ -95,6 +110,9 @@ services:
 
   redis-node-5:
     image: docker.io/bitnami/redis-cluster:7.0
+    networks:
+      redis_cluster:
+        ipv4_address: 172.30.0.7
     ports:
       - '6385:6379'
     depends_on:
@@ -116,3 +134,12 @@ services:
       - 'REDIS_TLS_AUTH_CLIENTS=no'
     volumes:
       - ./ssl:/etc/redis/ssl/
+
+networks:
+  redis_cluster:
+    driver: bridge
+    ipam:
+      config:
+        - 
+          subnet: 172.30.0.0/16
+          gateway: 172.30.0.1

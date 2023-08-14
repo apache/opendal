@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  redis-cluster-tls-master-1:
+    image: redis:latest
+    container_name: redis-cluster-tls-master-1
+    network_mode: host
+    command: "redis-server --requirepass opendal --masterauth opendal --appendonly yes \
+      --port 0 \
+      --cluster-enabled yes \
+      --cluster-config-file nodes.conf \
+      --cluster-node-timeout 15000 \
+      --cluster-announce-ip 127.0.0.1 \
+      --cluster-announce-port 6380 \
+      --cluster-announce-bus-port 16380 \
+      --tls-protocols 'TLSv1.2 TLSv1.3' \
+      --tls-replication yes \
+      --tls-cluster yes \
+      --tls-port 6380 \
+      --tls-cert-file /etc/redis/ssl/redis.crt \
+      --tls-key-file /etc/redis/ssl/redis.key \
+      --tls-ca-cert-file /etc/redis/ssl/ca.crt \
+      --tls-auth-clients no"
+    volumes:
+      - /tmp/redis:/etc/redis/ssl/
+
+  redis-cluster-tls-master-2:
+    image: redis:latest
+    container_name: redis-cluster-tls-master-2
+    network_mode: host
+    command: "redis-server --requirepass opendal --masterauth opendal --appendonly yes \
+      --port 0 \
+      --cluster-enabled yes \
+      --cluster-config-file nodes.conf \
+      --cluster-node-timeout 15000 \
+      --cluster-announce-ip 127.0.0.1 \
+      --cluster-announce-port 6381 \
+      --cluster-announce-bus-port 16381 \
+      --tls-protocols 'TLSv1.2 TLSv1.3' \
+      --tls-replication yes \
+      --tls-cluster yes \
+      --tls-port 6381 \
+      --tls-cert-file /etc/redis/ssl/redis.crt \
+      --tls-key-file /etc/redis/ssl/redis.key \
+      --tls-ca-cert-file /etc/redis/ssl/ca.crt \
+      --tls-auth-clients no"
+    volumes:
+      - /tmp/redis:/etc/redis/ssl/
+
+  redis-cluster-tls-master-3:
+    image: redis:latest
+    container_name: redis-cluster-tls-master-3
+    network_mode: host
+    command: "redis-server --requirepass opendal --masterauth opendal --appendonly yes \
+      --port 0 \
+      --cluster-enabled yes \
+      --cluster-config-file nodes.conf \
+      --cluster-node-timeout 15000 \
+      --cluster-announce-ip 127.0.0.1 \
+      --cluster-announce-port 6382 \
+      --cluster-announce-bus-port 16382 \
+      --tls-protocols 'TLSv1.2 TLSv1.3' \
+      --tls-replication yes \
+      --tls-cluster yes \
+      --tls-port 6382 \
+      --tls-cert-file /etc/redis/ssl/redis.crt \
+      --tls-key-file /etc/redis/ssl/redis.key \
+      --tls-ca-cert-file /etc/redis/ssl/ca.crt \
+      --tls-auth-clients no"
+    volumes:
+      - /tmp/redis:/etc/redis/ssl/
+
+  redis-cluster-tls-slave-1:
+    image: redis:latest
+    container_name: redis-cluster-tls-slave-1
+    network_mode: host
+    command: "redis-server --requirepass opendal --masterauth opendal --appendonly yes \
+      --port 0 \
+      --cluster-enabled yes \
+      --cluster-config-file nodes.conf \
+      --cluster-node-timeout 15000 \
+      --cluster-announce-ip 127.0.0.1 \
+      --cluster-announce-port 6383 \
+      --cluster-announce-bus-port 16383 \
+      --tls-protocols 'TLSv1.2 TLSv1.3' \
+      --tls-replication yes \
+      --tls-cluster yes \
+      --tls-port 6383 \
+      --tls-cert-file /etc/redis/ssl/redis.crt \
+      --tls-key-file /etc/redis/ssl/redis.key \
+      --tls-ca-cert-file /etc/redis/ssl/ca.crt \
+      --tls-auth-clients no"
+    volumes:
+      - /tmp/redis:/etc/redis/ssl/
+
+  redis-cluster-tls-slave-2:
+    image: redis:latest
+    container_name: redis-cluster-tls-slave-2
+    network_mode: host
+    command: "redis-server --requirepass opendal --masterauth opendal --appendonly yes \
+      --port 0 \
+      --cluster-enabled yes \
+      --cluster-config-file nodes.conf \
+      --cluster-node-timeout 15000 \
+      --cluster-announce-ip 127.0.0.1 \
+      --cluster-announce-port 6384 \
+      --cluster-announce-bus-port 16384 \
+      --tls-protocols 'TLSv1.2 TLSv1.3' \
+      --tls-replication yes \
+      --tls-cluster yes \
+      --tls-port 6384 \
+      --tls-cert-file /etc/redis/ssl/redis.crt \
+      --tls-key-file /etc/redis/ssl/redis.key \
+      --tls-ca-cert-file /etc/redis/ssl/ca.crt \
+      --tls-auth-clients no"
+    volumes:
+      - /tmp/redis:/etc/redis/ssl/
+      
+  redis-cluster-tls-slave-3:
+    image: redis:latest
+    container_name: redis-cluster-tls-slave-3
+    network_mode: host
+    command: "redis-server --requirepass opendal --masterauth opendal --appendonly yes \
+      --port 0 \
+      --cluster-enabled yes \
+      --cluster-config-file nodes.conf \
+      --cluster-node-timeout 15000 \
+      --cluster-announce-ip 127.0.0.1 \
+      --cluster-announce-port 6385 \
+      --cluster-announce-bus-port 16385 \
+      --tls-protocols 'TLSv1.2 TLSv1.3' \
+      --tls-replication yes \
+      --tls-cluster yes \
+      --tls-port 6385 \
+      --tls-cert-file /etc/redis/ssl/redis.crt \
+      --tls-key-file /etc/redis/ssl/redis.key \
+      --tls-ca-cert-file /etc/redis/ssl/ca.crt \
+      --tls-auth-clients no"
+    volumes:
+      - /tmp/redis:/etc/redis/ssl/
+
+  redis-cli:
+    image: redis:latest
+    network_mode: host
+    volumes:
+      - /tmp/redis:/etc/redis/ssl/
+    command: sh -c "echo yes | redis-cli --cluster create 127.0.0.1:6380 127.0.0.1:6381 127.0.0.1:6382 127.0.0.1:6383 127.0.0.1:6384 127.0.0.1:6385 --cluster-replicas 1 --tls -a opendal --cacert /etc/redis/ssl/ca.crt"
+    depends_on:
+      - redis-cluster-tls-master-1
+      - redis-cluster-tls-master-2
+      - redis-cluster-tls-master-3
+      - redis-cluster-tls-slave-1
+      - redis-cluster-tls-slave-2
+      - redis-cluster-tls-slave-3

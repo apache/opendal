@@ -119,31 +119,13 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-nextest: true
-      - name: Configure Redis Cluster
+      - name: Setup Redis Cluster
+        shell: bash
+        working-directory: core
         run: |
 
-            # Launch redis cluster
-            for no in `seq 0 5`; do \
-
-                docker run -d \
-                    --rm \
-                    --name redis-${no} \
-                    --network host \
-                    redis:latest \
-                    --port 638${no} \
-                    --cluster-enabled yes \
-                    --cluster-config-file nodes.conf \
-                    --cluster-node-timeout 15000 \
-                    --cluster-announce-ip 127.0.0.1 \
-                    --cluster-announce-port 638${no} \
-                    --cluster-announce-bus-port 1638${no}
-            done
-
-            docker run --rm \
-                    --name redis-cluster-create \
-                    --network host \
-                    redis:latest \
-                    sh -c "echo yes | redis-cli --cluster create 127.0.0.1:6380 127.0.0.1:6381 127.0.0.1:6382 127.0.0.1:6383 127.0.0.1:6384 127.0.0.1:6385 --cluster-replicas 1"
+            cd `pwd`/src/services/redis/fixtures/redis_cluster
+            docker-compose up -d
 
       - name: Test
         shell: bash
@@ -161,57 +143,24 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Copy Redis Certificate Files
+      - name: Setup Redis Cluster with TLS
         shell: bash
         working-directory: core
         run: |
-            mkdir -p /tmp/redis
-            cp -r `pwd`/src/services/redis/fixtures/* /tmp/redis
 
-      - name: Configure Redis Cluster with TLS
-        run: |
+            mkdir -p /tmp/redis
+            cp `pwd`/src/services/redis/fixtures/ca.* `pwd`/src/services/redis/fixtures/redis.* /tmp/redis
 
             # allow the redis docker to read these files
             chmod 777 /tmp/redis/redis.crt /tmp/redis/redis.key
 
             # Install the CA in the system
+
             sudo cp /tmp/redis/ca.crt /usr/local/share/ca-certificates
             sudo update-ca-certificates
-            
-            # Launch redis cluster
-            for no in `seq 0 5`; do \
 
-                docker run -d \
-                    --rm \
-                    --name redis-${no} \
-                    --network host \
-                    --mount type=bind,source=/tmp/redis,target=/etc/redis/ssl \
-                    redis:latest \
-                    --requirepass opendal \
-                    --masterauth opendal \
-                    --port 0 \
-                    --cluster-enabled yes \
-                    --cluster-config-file nodes.conf \
-                    --cluster-node-timeout 15000 \
-                    --cluster-announce-ip 127.0.0.1 \
-                    --cluster-announce-port 638${no} \
-                    --cluster-announce-bus-port 1638${no} \
-                    --tls-protocols 'TLSv1.2' \
-                    --tls-replication yes \
-                    --tls-cluster yes \
-                    --tls-port 638${no} \
-                    --tls-cert-file /etc/redis/ssl/redis.crt \
-                    --tls-key-file /etc/redis/ssl/redis.key \
-                    --tls-ca-cert-file /etc/redis/ssl/ca.crt \
-                    --tls-auth-clients no
-            done
-    
-            docker run --rm \
-                --name redis-cluster-create \
-                --network host \
-                --mount type=bind,source=/tmp/redis,target=/etc/redis/ssl \
-                redis:latest \
-                sh -c "echo yes | redis-cli --cluster create 127.0.0.1:6380 127.0.0.1:6381 127.0.0.1:6382 127.0.0.1:6383 127.0.0.1:6384 127.0.0.1:6385 --cluster-replicas 1 --tls -a opendal --cacert /etc/redis/ssl/ca.crt"
+            cd `pwd`/src/services/redis/fixtures/redis_cluster_tls
+            docker-compose up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

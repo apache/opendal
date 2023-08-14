@@ -70,7 +70,7 @@ jobs:
         working-directory: core
         run: |
           mkdir -p /tmp/redis
-          cp -r `pwd`/src/services/redis/fixtures/* /tmp/redis
+          cp -r `pwd`/src/services/redis/fixtures/ssl/* /tmp/redis
 
       - name: Configure Redis with TLS
         run: |
@@ -122,11 +122,7 @@ jobs:
       - name: Setup Redis Cluster
         shell: bash
         working-directory: core
-        run: |
-
-            cd `pwd`/src/services/redis/fixtures/redis_cluster
-            docker-compose up -d
-
+        run: docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-cluster.yml up -d
       - name: Test
         shell: bash
         working-directory: core
@@ -148,19 +144,12 @@ jobs:
         working-directory: core
         run: |
 
-            mkdir -p /tmp/redis
-            cp `pwd`/src/services/redis/fixtures/ca.* `pwd`/src/services/redis/fixtures/redis.* /tmp/redis
-
-            # allow the redis docker to read these files
-            chmod 777 /tmp/redis/redis.crt /tmp/redis/redis.key
-
             # Install the CA in the system
 
-            sudo cp /tmp/redis/ca.crt /usr/local/share/ca-certificates
+            sudo cp `pwd`/src/services/redis/fixtures/ssl/ca.crt /usr/local/share/ca-certificates
             sudo update-ca-certificates
 
-            cd `pwd`/src/services/redis/fixtures/redis_cluster_tls
-            docker-compose up -d
+            docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-cluster-tls.yml up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

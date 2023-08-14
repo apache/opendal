@@ -85,7 +85,7 @@ jobs:
         run: cargo nextest run redis --features services-redis-rustls
         env:
           OPENDAL_REDIS_TEST: on
-          OPENDAL_REDIS_ENDPOINT: rediss://localhost:6380
+          OPENDAL_REDIS_ENDPOINT: rediss://localhost:6379
           OPENDAL_REDIS_ROOT: /
           OPENDAL_REDIS_DB: 0
 

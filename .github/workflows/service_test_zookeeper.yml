@@ -50,10 +50,13 @@ jobs:
           uses: ./.github/actions/setup
           with:
             need-nextest: true
-        - name: Teset
+        - name: Test
           shell: bash
           working-directory: core
           run: cargo nextest run zookeeper --features services-zookeeper
           env:
+            RUST_BACKTRACE: full
+            RUST_LOG: debug
             OPENDAL_ZOOKEEPER_TEST: on
-            OPENDAL_ZOOKEEPER_ENDPOINT: 127.0.0.1:2181
+            OPENDAL_ZOOKEEPER_ENDPOINT: "127.0.0.1:2181"
+

@@ -39,13 +39,12 @@ concurrency:
 jobs:
   redis:
     runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Redis Server
+        shell: bash
+        working-directory: core
+        run: docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis.yml up -d
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -65,68 +64,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Configure Redis with TLS
+      - name: Setup Redis with TLS
+        shell: bash
+        working-directory: core
         run: |
-          mkdir ssl
-
-          # Create CA
-
-          openssl req \
-            -x509 -new -nodes \
-            -keyout ssl/ca.key \
-            -sha256 \
-            -days 365 \
-            -out ssl/ca.crt \
-            -subj '/CN=Test Root CA/C=US/ST=Test/L=Test/O=Opendal'
-
-          # Create redis certificate
-
-          openssl req \
-            -new -nodes \
-            -out ssl/redis.csr \
-            -keyout ssl/redis.key \
-            -subj '/CN=Redis certificate/C=US/ST=Test/L=Test/O=Opendal'
-
-          cat > ssl/redis.v3.ext << EOF
-          authorityKeyIdentifier=keyid,issuer
-          basicConstraints=CA:FALSE
-          keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-          subjectAltName = @alt_names
-          [alt_names]
-          DNS.1 = localhost
-          IP.1 = 127.0.0.1
-          EOF
-
-          openssl x509 \
-            -req \
-            -in ssl/redis.csr \
-            -CA ssl/ca.crt \
-            -CAkey ssl/ca.key \
-            -CAcreateserial \
-            -out ssl/redis.crt \
-            -days 300 \
-            -sha256 \
-            -extfile ssl/redis.v3.ext
-
-          chmod 777 ssl/redis.crt ssl/redis.key # allow the redis docker to read these files
-
-          # Launch redis
-
-          docker run -d \
-            --rm \
-            --name redis \
-            --network host \
-            --mount type=bind,source=$PWD/ssl,target=/etc/redis/ssl \
-            redis \
-              --tls-port 6380 \
-              --tls-cert-file /etc/redis/ssl/redis.crt \
-              --tls-key-file /etc/redis/ssl/redis.key \
-              --tls-auth-clients no
 
           # Install the CA in the system
-
-          sudo cp ssl/ca.crt /usr/local/share/ca-certificates
+          sudo cp `pwd`/src/services/redis/fixtures/ssl/ca.crt /usr/local/share/ca-certificates
           sudo update-ca-certificates
+
+          docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-tls.yml up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -138,8 +85,65 @@ jobs:
         run: cargo nextest run redis --features services-redis-rustls
         env:
           OPENDAL_REDIS_TEST: on
-          OPENDAL_REDIS_ENDPOINT: rediss://localhost:6380
+          OPENDAL_REDIS_ENDPOINT: rediss://localhost:6379
           OPENDAL_REDIS_ROOT: /
+          OPENDAL_REDIS_DB: 0
+
+  redis-cluster:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      - name: Setup Redis Cluster
+        shell: bash
+        working-directory: core
+        run: docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-cluster.yml up -d
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run redis --features services-redis
+        env:
+          OPENDAL_REDIS_TEST: on
+          OPENDAL_REDIS_CLUSTER_ENDPOINTS: redis://127.0.0.1:6380/,redis://127.0.0.1:6381/,redis://127.0.0.1:6382/,redis://127.0.0.1:6383/,redis://127.0.0.1:6384/,redis://127.0.0.1:6385/
+          OPENDAL_REDIS_ROOT: /test/opendal
+          OPENDAL_REDIS_DB: 0
+
+  redis-cluster-tls:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Redis Cluster with TLS
+        shell: bash
+        working-directory: core
+        run: |
+
+            # Install the CA in the system
+
+            sudo cp `pwd`/src/services/redis/fixtures/ssl/ca.crt /usr/local/share/ca-certificates
+            sudo update-ca-certificates
+
+            docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-cluster-tls.yml up -d
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run redis --features services-redis-rustls
+        env:
+          OPENDAL_REDIS_TEST: on
+          OPENDAL_REDIS_CLUSTER_ENDPOINTS: rediss://127.0.0.1:6380/,rediss://127.0.0.1:6381/,rediss://127.0.0.1:6382/,rediss://127.0.0.1:6383/,rediss://127.0.0.1:6384/,rediss://127.0.0.1:6385/
+          OPENDAL_REDIS_PASSWORD: opendal
+          OPENDAL_REDIS_ROOT: /test/opendal
           OPENDAL_REDIS_DB: 0
 
   dragonfly:

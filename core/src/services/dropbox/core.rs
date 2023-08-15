@@ -58,8 +58,9 @@ pub struct DropboxCore {
 
 impl Debug for DropboxCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("DropboxCore");
-        de.finish()
+        f.debug_struct("DropboxCore")
+            .field("root", &self.root)
+            .finish()
     }
 }
 

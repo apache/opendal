@@ -30,6 +30,7 @@ on:
       - "!core/src/docs/**"
       - "!core/src/services/**"
       - "core/src/services/rocksdb/**"
+      - ".github/actions/setup/action.yaml"
       - ".github/workflows/service_test_rocksdb.yml"
 
 concurrency:

@@ -150,7 +150,7 @@ async fn main() -> Result<()> {
 
 ## Examples
 
-The examples are available at [here](./examples/rust).
+The examples are available at [here](../examples/rust).
 
 ## Contributing
 

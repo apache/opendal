@@ -24,6 +24,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use http::Uri;
 use redis::aio::ConnectionManager;
+use redis::cluster::ClusterClient;
+use redis::cluster::ClusterClientBuilder;
+use redis::cluster_async::ClusterConnection;
 use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
@@ -47,6 +50,10 @@ pub struct RedisBuilder {
     ///
     /// default is "tcp://127.0.0.1:6379"
     endpoint: Option<String>,
+    /// network address of the Redis cluster service. Can be "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381", e.g.
+    ///
+    /// default is None
+    cluster_endpoints: Option<String>,
     /// the username to connect redis service.
     ///
     /// default is None
@@ -75,6 +82,9 @@ impl Debug for RedisBuilder {
         if let Some(endpoint) = self.endpoint.clone() {
             ds.field("endpoint", &endpoint);
         }
+        if let Some(cluster_endpoints) = self.cluster_endpoints.clone() {
+            ds.field("cluster_endpoints", &cluster_endpoints);
+        }
         if let Some(username) = self.username.clone() {
             ds.field("username", &username);
         }
@@ -95,6 +105,20 @@ impl RedisBuilder {
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.to_owned());
+        }
+        self
+    }
+
+    /// set the network address of redis cluster service.
+    /// This parameter is mutually exclusive with the endponit parameter.
+    ///
+    /// currently supported schemes:
+    /// - no scheme: will be seen as "tcp"
+    /// - "tcp" or "redis": unsecured redis connections
+    /// - "unix" or "redis+unix": unix socket connection
+    pub fn cluster_endpoints(&mut self, cluster_endpoints: &str) -> &mut Self {
+        if !cluster_endpoints.is_empty() {
+            self.cluster_endpoints = Some(cluster_endpoints.to_owned());
         }
         self
     }
@@ -155,6 +179,8 @@ impl Builder for RedisBuilder {
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("cluster_endpoints")
+            .map(|v| builder.cluster_endpoints(v));
         map.get("username").map(|v| builder.username(v));
         map.get("password").map(|v| builder.password(v));
         map.get("db")
@@ -164,11 +190,67 @@ impl Builder for RedisBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let endpoint = self
-            .endpoint
-            .clone()
-            .unwrap_or_else(|| DEFAULT_REDIS_ENDPOINT.to_string());
+        let root = normalize_root(
+            self.root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
 
+        if let Some(endpoints) = self.cluster_endpoints.clone() {
+            let mut cluster_endpoints: Vec<ConnectionInfo> = Vec::default();
+            for endpoint in endpoints.split(',') {
+                cluster_endpoints.push(self.get_connection_info(endpoint.to_string())?);
+            }
+            let mut client_builder = ClusterClientBuilder::new(cluster_endpoints);
+            if let Some(username) = &self.username {
+                client_builder = client_builder.username(username.clone());
+            }
+            if let Some(password) = &self.password {
+                client_builder = client_builder.password(password.clone());
+            }
+            let client = client_builder.build()?;
+
+            let conn = OnceCell::new();
+
+            Ok(RedisBackend::new(Adapter {
+                addr: endpoints,
+                client: None,
+                cluster_client: Some(client),
+                conn,
+                default_ttl: self.default_ttl,
+            })
+            .with_root(&root))
+        } else {
+            let endpoint = self
+                .endpoint
+                .clone()
+                .unwrap_or_else(|| DEFAULT_REDIS_ENDPOINT.to_string());
+
+            let client =
+                Client::open(self.get_connection_info(endpoint.clone())?).map_err(|e| {
+                    Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
+                        .with_context("service", Scheme::Redis)
+                        .with_context("endpoint", self.endpoint.as_ref().unwrap())
+                        .with_context("db", self.db.to_string())
+                        .set_source(e)
+                })?;
+
+            let conn = OnceCell::new();
+            Ok(RedisBackend::new(Adapter {
+                addr: endpoint,
+                client: Some(client),
+                cluster_client: None,
+                conn,
+                default_ttl: self.default_ttl,
+            })
+            .with_root(&root))
+        }
+    }
+}
+
+impl RedisBuilder {
+    fn get_connection_info(&self, endpoint: String) -> Result<ConnectionInfo> {
         let ep_url = endpoint.parse::<Uri>().map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                 .with_context("service", Scheme::Redis)
@@ -216,33 +298,10 @@ impl Builder for RedisBuilder {
             password: self.password.clone(),
         };
 
-        let con_info = ConnectionInfo {
+        Ok(ConnectionInfo {
             addr: con_addr,
             redis: redis_info,
-        };
-
-        let client = Client::open(con_info).map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
-                .with_context("service", Scheme::Redis)
-                .with_context("endpoint", self.endpoint.as_ref().unwrap())
-                .with_context("db", self.db.to_string())
-                .set_source(e)
-        })?;
-
-        let root = normalize_root(
-            self.root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
-        );
-
-        let conn = OnceCell::new();
-        Ok(RedisBackend::new(Adapter {
-            client,
-            conn,
-            default_ttl: self.default_ttl,
         })
-        .with_root(&root))
     }
 }
 
@@ -250,9 +309,17 @@ impl Builder for RedisBuilder {
 pub type RedisBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
+enum RedisConnection {
+    Normal(ConnectionManager),
+    Cluster(ClusterConnection),
+}
+
+#[derive(Clone)]
 pub struct Adapter {
-    client: Client,
-    conn: OnceCell<ConnectionManager>,
+    addr: String,
+    client: Option<Client>,
+    cluster_client: Option<ClusterClient>,
+    conn: OnceCell<RedisConnection>,
 
     default_ttl: Option<Duration>,
 }
@@ -262,19 +329,29 @@ impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Adapter");
 
-        let info = self.client.get_connection_info();
-        ds.field("addr", &info.addr);
-        ds.field("db", &info.redis.db);
-        ds.field("user", &info.redis.username);
+        ds.field("addr", &self.addr);
         ds.finish()
     }
 }
 
 impl Adapter {
-    async fn conn(&self) -> Result<ConnectionManager> {
+    async fn conn(&self) -> Result<RedisConnection> {
         Ok(self
             .conn
-            .get_or_try_init(|| async { ConnectionManager::new(self.client.clone()).await })
+            .get_or_try_init(|| async {
+                if let Some(client) = self.client.clone() {
+                    ConnectionManager::new(client.clone())
+                        .await
+                        .map(RedisConnection::Normal)
+                } else {
+                    self.cluster_client
+                        .clone()
+                        .unwrap()
+                        .get_async_connection()
+                        .await
+                        .map(RedisConnection::Cluster)
+                }
+            })
             .await?
             .clone())
     }
@@ -285,7 +362,7 @@ impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
             Scheme::Redis,
-            &self.client.get_connection_info().addr.to_string(),
+            self.addr.as_str(),
             Capability {
                 read: true,
                 write: true,
@@ -297,29 +374,61 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        let mut conn = self.conn().await?;
-        let bs: Option<Vec<u8>> = conn.get(key).await?;
-        Ok(bs)
+        let conn = self.conn().await?;
+        match conn {
+            RedisConnection::Normal(mut conn) => {
+                let bs = conn.get(key).await?;
+                Ok(bs)
+            }
+            RedisConnection::Cluster(mut conn) => {
+                let bs = conn.get(key).await?;
+                Ok(bs)
+            }
+        }
     }
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
-        let mut conn = self.conn().await?;
+        let conn = self.conn().await?;
         match self.default_ttl {
-            Some(ttl) => conn.set_ex(key, value, ttl.as_secs() as usize).await?,
-            None => conn.set(key, value).await?,
+            Some(ttl) => match conn {
+                RedisConnection::Normal(mut conn) => {
+                    conn.set_ex(key, value, ttl.as_secs() as usize).await?
+                }
+                RedisConnection::Cluster(mut conn) => {
+                    conn.set_ex(key, value, ttl.as_secs() as usize).await?
+                }
+            },
+            None => match conn {
+                RedisConnection::Normal(mut conn) => conn.set(key, value).await?,
+                RedisConnection::Cluster(mut conn) => conn.set(key, value).await?,
+            },
         }
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
-        let mut conn = self.conn().await?;
-        let _: () = conn.del(key).await?;
+        let conn = self.conn().await?;
+        match conn {
+            RedisConnection::Normal(mut conn) => {
+                let _: () = conn.del(key).await?;
+            }
+            RedisConnection::Cluster(mut conn) => {
+                let _: () = conn.del(key).await?;
+            }
+        }
         Ok(())
     }
 
     async fn append(&self, key: &str, value: &[u8]) -> Result<()> {
-        let mut conn = self.conn().await?;
-        conn.append(key, value).await?;
+        let conn = self.conn().await?;
+        match conn {
+            RedisConnection::Normal(mut conn) => {
+                conn.append(key, value).await?;
+            }
+            RedisConnection::Cluster(mut conn) => {
+                conn.append(key, value).await?;
+            }
+        }
         Ok(())
     }
 }

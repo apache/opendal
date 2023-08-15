@@ -54,7 +54,7 @@ The internal logic of the Operator would look like this:
 
 Its main job is to encapsulate the interface for the user:
 
-- Completing the construction of `OpRead`
+- Completing the construction of `OpRead`: the args for read operation.
 - Calling the `read` function provided by `Accessor`
 - Wrapping the returned value as `Reader` and implementing interfaces like `AsyncSeek`, `AsyncRead`, etc., based on `Reader`
 
@@ -114,11 +114,11 @@ After the completion of the Layers, it's time to call the specific implementatio
 
 ### Service fs
 
-`tokio::fs::File` implements `tokio::AsyncRead` and `tokio::AsyncSeek`. Using `async_compat::Compat`, we have transformed it into `futures::AsyncRead` and `futures::AsyncSeek`. Based on this, we provide a built-in function `oio::into_read_from_file` to transform it into a type that implements `oio::Read`, with the final type name being `oio::FromFileReader<Compat<tokio::fs::File>>`.
+`tokio::fs::File` implements `tokio::AsyncRead` and `tokio::AsyncSeek`. Using `async_compat::Compat`, we have transformed it into `futures::AsyncRead` and `futures::AsyncSeek`. Based on this, we provide a built-in function `oio::into_read_from_file` to transform it into a type that implements `oio::Read`.
 
 There's nothing particularly complex in the implementation of `oio::into_read_from_file`; read and seek are mostly calling the functions provided by the incoming File type. The tricky part is about the correct handling of seek and range: seeking to the right side of the range is allowed, and this will not cause an error, and reading will only return empty, but seeking to the left side of the range is illegal, and the Reader must return `InvalidInput` for proper upper-level handling.
 
-> Interesting history: there was an issue in the initial implementation of this part, discovered during fuzz testing.
+> Interesting history: there was [an issue](https://github.com/apache/incubator-opendal/issues/2717) in the initial implementation of this part, discovered during fuzz testing.
 
 ### Services s3
 

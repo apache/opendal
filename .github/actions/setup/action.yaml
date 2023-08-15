@@ -43,6 +43,12 @@ runs:
         # Enable sparse index
         echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV
 
+    # Make sure all required lib has been installed.
+    - name: Setup Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+
     - name: Setup protoc on linux
       if: inputs.need-protoc == 'true' && runner.os == 'Linux'
       shell: bash
@@ -76,15 +82,13 @@ runs:
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       with:
         path: /tmp/rocksdb
-        key: r0-rocksdb-8.1.1
+        key: r1-rocksdb-8.1.1
 
     - name: Build rocksdb if not cached
       if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       shell: bash
       run: |
         set -e
-
-        sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
 
         cd /tmp
         curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
@@ -98,7 +102,7 @@ runs:
 
         cd ..
         rm -rf /tmp/rocksdb-8.1.1
-    
+
     - name: Cache foundationdb
       id: cache-foundationdb
       uses: actions/cache@v3
@@ -106,7 +110,7 @@ runs:
       with:
         path: /etc/foundationdb
         key: r0-foundationdb-7.1.17
-    
+
     - name: Build foundationdb if not cached
       if: steps.cache-foundationdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-foundationdb == 'true'
       shell: bash

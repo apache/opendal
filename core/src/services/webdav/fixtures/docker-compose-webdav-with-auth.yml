@@ -23,8 +23,10 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./webdav-data:/data
+      - webdav-data:/data
     environment:
       - WEBDAV_USERNAME=bar
       - WEBDAV_PASSWORD=bar
 
+volumes:
+  webdav-data:

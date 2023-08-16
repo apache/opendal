@@ -49,10 +49,7 @@ jobs:
       - name: Start nginx
         shell: bash
         working-directory: core/src/services/webdav/fixtures
-        run: |
-          mkdir -p webdav-data
-          chmod a+rw webdav-data
-          docker compose -f docker-compose-webdav.yml up -d
+        run: docker compose -f docker-compose-webdav.yml up -d
 
       - name: Test
         shell: bash
@@ -74,10 +71,7 @@ jobs:
       - name: Start nginx
         shell: bash
         working-directory: core/src/services/webdav/fixtures
-        run: |
-          mkdir -p webdav-data
-          chmod a+rw webdav-data
-          docker compose -f docker-compose-webdav-with-auth.yml up -d
+        run: docker compose -f docker-compose-webdav-with-auth.yml up -d
 
       - name: Test with password
         shell: bash
@@ -101,10 +95,7 @@ jobs:
       - name: Start nginx
         shell: bash
         working-directory: core/src/services/webdav/fixtures
-        run: |
-          mkdir -p webdav-data
-          chmod a+rw webdav-data
-          docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d
+        run: docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d
 
       - name: Test empty password
         shell: bash
@@ -127,10 +118,7 @@ jobs:
       - name: Start nginx
         shell: bash
         working-directory: core/src/services/webdav/fixtures
-        run: |
-          mkdir -p webdav-data
-          chmod a+rw webdav-data
-          docker compose -f docker-compose-webdav.yml up -d
+        run: docker compose -f docker-compose-webdav.yml up -d
 
       - name: Test with redirect
         shell: bash

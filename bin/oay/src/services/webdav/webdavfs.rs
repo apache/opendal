@@ -17,7 +17,8 @@
 
 use std::path::Path;
 use std::pin::Pin;
-use std::task::Poll::{Pending, Ready};
+use std::task::Poll::Pending;
+use std::task::Poll::Ready;
 
 use dav_server::davpath::DavPath;
 use dav_server::fs::DavDirEntry;
@@ -30,10 +31,10 @@ use futures_util::StreamExt;
 use opendal::Lister;
 use opendal::Operator;
 
-use crate::services::webdav::webdav_dir_entry::WebDAVDirEntry;
-
-use super::webdav_file::{convert_error, WebdavFile};
+use super::webdav_file::convert_error;
+use super::webdav_file::WebdavFile;
 use super::webdav_metadata::WebdavMetaData;
+use crate::services::webdav::webdav_dir_entry::WebDAVDirEntry;
 
 #[derive(Clone)]
 pub struct WebdavFs {

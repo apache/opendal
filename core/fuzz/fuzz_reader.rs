@@ -23,14 +23,13 @@ use bytes::Bytes;
 use libfuzzer_sys::arbitrary::Arbitrary;
 use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
-use rand::prelude::*;
-use sha2::Digest;
-use sha2::Sha256;
-
 use opendal::raw::oio::ReadExt;
 use opendal::raw::BytesRange;
 use opendal::Operator;
 use opendal::Result;
+use rand::prelude::*;
+use sha2::Digest;
+use sha2::Sha256;
 
 mod utils;
 

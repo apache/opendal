@@ -19,7 +19,8 @@ use std::io::Read;
 use std::io::Seek;
 
 use anyhow::Result;
-use log::{debug, warn};
+use log::debug;
+use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
 

@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+use std::str::FromStr;
+
 use ::opendal as od;
 use ext_php_rs::binary::Binary;
 use ext_php_rs::convert::FromZval;
@@ -22,8 +25,6 @@ use ext_php_rs::exception::PhpException;
 use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::Zval;
-use std::collections::HashMap;
-use std::str::FromStr;
 
 #[php_class(name = "OpenDAL\\Operator")]
 pub struct Operator(od::BlockingOperator);

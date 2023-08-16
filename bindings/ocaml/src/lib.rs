@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as od;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::str::FromStr;
+
+use ::opendal as od;
 
 mod operator;
 

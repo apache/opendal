@@ -221,9 +221,8 @@ impl<I: oio::Page> oio::BlockingPage for BlockingWrapper<I> {
 mod tests {
     use once_cell::sync::Lazy;
 
-    use crate::types::Result;
-
     use super::*;
+    use crate::types::Result;
 
     static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
         tokio::runtime::Builder::new_multi_thread()

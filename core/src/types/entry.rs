@@ -175,11 +175,7 @@ impl Entry {
     ///     let (path, meta) = entry.into_parts();
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
-    ///             println!(
-    ///                 "Handling file {} with size {}",
-    ///                 path,
-    ///                 meta.content_length()
-    ///             )
+    ///             println!("Handling file {} with size {}", path, meta.content_length())
     ///         }
     ///         EntryMode::DIR => {
     ///             println!("Handling dir {}", path)

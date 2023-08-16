@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::{DavDirEntry, DavMetaData};
+use dav_server::fs::DavDirEntry;
+use dav_server::fs::DavMetaData;
 use futures::FutureExt;
-use opendal::{Entry, Operator};
+use opendal::Entry;
+use opendal::Operator;
 
 use super::webdav_metadata::WebdavMetaData;
 

@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dav_server::fs::{DavMetaData, FsError};
+use dav_server::fs::DavMetaData;
+use dav_server::fs::FsError;
 use opendal::Metadata;
 
 #[derive(Debug, Clone)]

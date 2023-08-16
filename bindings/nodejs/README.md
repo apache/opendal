@@ -31,7 +31,7 @@ main();
 
 ## Contributing
 
-- Start with [Contributing Guide](CONTRIBUTING.md).
+- Start with [Contributing Guide](https://github.com/apache/incubator-opendal/blob/main/bindings/nodejs/CONTRIBUTING.md).
 - Submit [Issues](https://github.com/apache/incubator-opendal/issues/new) for bug report or feature requests.
 - Asking questions in the [Discussions](https://github.com/apache/incubator-opendal/discussions/new?category=q-a).
 - Talk to community at [Discord](https://discord.gg/XQy8yGR2dg).

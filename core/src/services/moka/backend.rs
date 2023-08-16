@@ -28,22 +28,7 @@ use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// [moka](https://github.com/moka-rs/moka) backend support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] list
-/// - [ ] ~~scan~~
-/// - [ ] presign
-/// - [ ] blocking
+#[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct MokaBuilder {
     /// Name for this cache instance.
@@ -208,7 +193,7 @@ impl typed_kv::Adapter for Adapter {
                 get: true,
                 set: true,
                 delete: true,
-                ..Default::default()
+                scan: true,
             },
         )
     }
@@ -242,5 +227,18 @@ impl typed_kv::Adapter for Adapter {
         self.inner.invalidate(path);
 
         Ok(())
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        self.blocking_scan(path)
+    }
+
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let keys = self.inner.iter().map(|kv| kv.0.to_string());
+        if path.is_empty() {
+            Ok(keys.collect())
+        } else {
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
+        }
     }
 }

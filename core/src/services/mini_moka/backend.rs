@@ -28,27 +28,7 @@ use crate::raw::adapters::typed_kv;
 use crate::*;
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] list
-/// - [ ] ~~scan~~
-/// - [ ] presign
-/// - [ ] blocking
-///
-/// # Notes
-///
-/// To better assist you in choosing the right cache for your use case,
-/// Here's a comparison table with [moka](https://github.com/moka-rs/moka#choosing-the-right-cache-for-your-use-case)
+#[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct MiniMokaBuilder {
     /// Sets the max capacity of the cache.
@@ -167,7 +147,7 @@ impl typed_kv::Adapter for Adapter {
                 get: true,
                 set: true,
                 delete: true,
-                ..Default::default()
+                scan: true,
             },
         )
     }
@@ -201,5 +181,18 @@ impl typed_kv::Adapter for Adapter {
         self.inner.invalidate(&path.to_string());
 
         Ok(())
+    }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        self.blocking_scan(path)
+    }
+
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let keys = self.inner.iter().map(|kv| kv.key().to_string());
+        if path.is_empty() {
+            Ok(keys.collect())
+        } else {
+            Ok(keys.filter(|k| k.starts_with(path)).collect())
+        }
     }
 }

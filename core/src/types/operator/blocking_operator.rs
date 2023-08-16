@@ -100,8 +100,7 @@ impl BlockingOperator {
     /// # use anyhow::Result;
     /// use opendal::BlockingOperator;
     ///
-    /// # #[tokio::main]
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let info = op.info();
     /// # Ok(())
     /// # }
@@ -113,18 +112,13 @@ impl BlockingOperator {
 
 /// # Operator blocking API.
 impl BlockingOperator {
-    /// Get current path's metadata **without cache** directly.
+    /// Get current path's metadata.
     ///
     /// # Notes
     ///
-    /// Use `stat` if you:
-    ///
-    /// - Want detect the outside changes of path.
-    /// - Don't want to read from cached metadata.
-    ///
-    /// You may want to use `metadata` if you are working with entries
-    /// returned by [`Lister`]. It's highly possible that metadata
-    /// you want has already been cached.
+    /// For fetch metadata of entries returned by [`Lister`], it's better to use [`list_with`] and
+    /// [`lister_with`] with `metakey` query like `Metakey::ContentLength | Metakey::LastModified`
+    /// so that we can avoid extra requests.
     ///
     /// # Examples
     ///
@@ -195,7 +189,7 @@ impl BlockingOperator {
     /// # use std::io::Result;
     /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// op.create_dir("path/to/dir/")?;
     /// # Ok(())
     /// # }
@@ -251,7 +245,7 @@ impl BlockingOperator {
     /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = op.range_read("path/to/file", 1024..2048)?;
     /// # Ok(())
     /// # }
@@ -485,7 +479,7 @@ impl BlockingOperator {
     /// # use opendal::BlockingOperator;
     /// use bytes::Bytes;
     ///
-    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let _ = op
     ///     .write_with("hello.txt", bs)
@@ -697,7 +691,7 @@ impl BlockingOperator {
             return self.delete(path);
         }
 
-        let obs = self.scan(path)?;
+        let obs = self.lister_with(path).delimiter("").call()?;
 
         for v in obs {
             match v {
@@ -715,30 +709,46 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// List current dir path.
+    /// List entries within a given directory.
     ///
-    /// This function will create a new handle to list entries.
+    /// # Notes
     ///
-    /// An error will be returned if path doesn't end with `/`.
+    /// ## Listing recursively
+    ///
+    /// This function only read the children of the given directory. To read
+    /// all entries recursively, use `BlockingOperator::list_with("path").delimiter("")`
+    /// instead.
+    ///
+    /// ## Streaming
+    ///
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`BlockingOperator::lister`] to list entries in
+    /// a streaming way.
+    ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please use [`BlockingOperator::list_with`] and `metakey`.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// # use futures::io;
-    /// # use opendal::BlockingOperator;
-    /// # use opendal::EntryMode;
-    /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let mut ds = op.list("path/to/dir/")?;
-    /// while let Some(mut entry) = ds.next() {
-    ///     let entry = entry?;
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// #  fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut entries = op.list("path/to/dir/")?;
+    /// for entry in entries {
+    ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
     ///         EntryMode::DIR => {
-    ///             println!("Handling dir like start a new list via de.path()")
+    ///             println!("Handling dir {}", entry.path())
     ///         }
     ///         EntryMode::Unknown => continue,
     ///     }
@@ -746,47 +756,43 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn list(&self, path: &str) -> Result<BlockingLister> {
-        let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "the path trying to list should end with `/`",
-            )
-            .with_operation("BlockingOperator::list")
-            .with_context("service", self.info().scheme().into_static())
-            .with_context("path", &path));
-        }
-
-        let (_, pager) = self.inner().blocking_list(&path, OpList::new())?;
-        Ok(BlockingLister::new(pager))
+    pub fn list(&self, path: &str) -> Result<Vec<Entry>> {
+        self.list_with(path).call()
     }
 
-    /// List dir in flat way.
-    ///
-    /// Also, this function can be used to list a prefix.
-    ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// List entries within a given directory with options.
     ///
     /// # Notes
     ///
-    /// - `scan` will not return the prefix itself.
-    /// - `scan` is an alias of `list_with(OpList::new().with_delimiter(""))`
+    /// ## For streaming
+    ///
+    /// This function will read all entries in the given directory. It could
+    /// take very long time and consume a lot of memory if the directory
+    /// contains a lot of entries.
+    ///
+    /// In order to avoid this, you can use [`Operator::lister`] to list entries in
+    /// a streaming way.
+    ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please specify the `metakey`.
     ///
     /// # Examples
     ///
+    /// ## List entries with prefix
+    ///
+    /// This function can also be used to list entries in recursive way.
+    ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// # use futures::io;
-    /// # use opendal::BlockingOperator;
-    /// # use opendal::EntryMode;
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let mut ds = op.list("path/to/dir/")?;
-    /// while let Some(mut entry) = ds.next() {
-    ///     let entry = entry?;
-    ///     let meta = entry.metadata();
-    ///     match meta.mode() {
+    /// let mut entries = op.list_with("prefix/").delimiter("").call()?;
+    /// for entry in entries {
+    ///     match entry.metadata().mode() {
     ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -799,22 +805,235 @@ impl BlockingOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn scan(&self, path: &str) -> Result<BlockingLister> {
+    ///
+    /// ## List entries with metakey for more metadata
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut entries = op
+    ///     .list_with("dir/")
+    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
+    ///     .call()?;
+    /// for entry in entries {
+    ///     let meta = entry.metadata();
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!(
+    ///                 "Handling file {} with size {}",
+    ///                 entry.path(),
+    ///                 meta.content_length()
+    ///             )
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn list_with(&self, path: &str) -> FunctionList {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::NotADirectory,
-                "the path trying to scan should end with `/`",
-            )
-            .with_operation("BlockingOperator::list")
-            .with_context("service", self.info().scheme().into_static())
-            .with_context("path", path));
-        }
+        FunctionList(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, args| {
+                if !validate_path(&path, EntryMode::DIR) {
+                    return Err(Error::new(
+                        ErrorKind::NotADirectory,
+                        "the path trying to list should end with `/`",
+                    )
+                    .with_operation("BlockingOperator::list")
+                    .with_context("service", inner.info().scheme().into_static())
+                    .with_context("path", &path));
+                }
 
-        let (_, pager) = self
-            .inner()
-            .blocking_list(&path, OpList::new().with_delimiter(""))?;
-        Ok(BlockingLister::new(pager))
+                let (_, pager) = inner.blocking_list(&path, args)?;
+                let lister = BlockingLister::new(pager);
+
+                lister.collect()
+            },
+        ))
+    }
+
+    /// List entries within a given directory as an iterator.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Notes
+    ///
+    /// ## Listing recursively
+    ///
+    /// This function only read the children of the given directory. To read
+    /// all entries recursively, use [`BlockingOperator::lister_with`] and `delimiter("")`
+    /// instead.
+    ///
+    /// ## Metadata
+    ///
+    /// The only metadata that is guaranteed to be available is the `Mode`.
+    /// For fetching more metadata, please use [`BlockingOperator::lister_with`] and `metakey`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut ds = op.lister("path/to/dir/")?;
+    /// for de in ds {
+    ///     let de = de?;
+    ///     match de.metadata().mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn lister(&self, path: &str) -> Result<BlockingLister> {
+        self.lister_with(path).call()
+    }
+
+    /// List entries within a given directory as an iterator with options.
+    ///
+    /// This function will create a new handle to list entries.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ## List current dir
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut ds = op
+    ///     .lister_with("path/to/dir/")
+    ///     .limit(10)
+    ///     .start_after("start")
+    ///     .call()?;
+    /// for entry in ds {
+    ///     let entry = entry?;
+    ///     match entry.metadata().mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file {}", entry.path())
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List all files recursively
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut ds = op.lister_with("path/to/dir/").delimiter("").call()?;
+    /// for entry in ds {
+    ///     let entry = entry?;
+    ///     match entry.metadata().mode() {
+    ///         EntryMode::FILE => {
+    ///             println!("Handling file {}", entry.path())
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## List files with required metadata
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// use futures::TryStreamExt;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut ds = op
+    ///     .lister_with("path/to/dir/")
+    ///     .metakey(Metakey::ContentLength | Metakey::LastModified)
+    ///     .call()?;
+    /// for entry in ds {
+    ///     let entry = entry?;
+    ///     let meta = entry.metadata();
+    ///     match meta.mode() {
+    ///         EntryMode::FILE => {
+    ///             println!(
+    ///                 "Handling file {} with size {}",
+    ///                 entry.path(),
+    ///                 meta.content_length()
+    ///             )
+    ///         }
+    ///         EntryMode::DIR => {
+    ///             println!("Handling dir {}", entry.path())
+    ///         }
+    ///         EntryMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn lister_with(&self, path: &str) -> FunctionLister {
+        let path = normalize_path(path);
+
+        FunctionLister(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpList::default(),
+            |inner, path, args| {
+                if !validate_path(&path, EntryMode::DIR) {
+                    return Err(Error::new(
+                        ErrorKind::NotADirectory,
+                        "the path trying to list should end with `/`",
+                    )
+                    .with_operation("BlockingOperator::list")
+                    .with_context("service", inner.info().scheme().into_static())
+                    .with_context("path", &path));
+                }
+
+                let (_, pager) = inner.blocking_list(&path, args)?;
+
+                Ok(BlockingLister::new(pager))
+            },
+        ))
     }
 }

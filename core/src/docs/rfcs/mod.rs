@@ -154,3 +154,6 @@ pub mod rfc_2774_lister_api {}
 
 #[doc = include_str!("2779_list_with_metakey.md")]
 pub mod rfc_2779_list_with_metakey {}
+
+#[doc = include_str!("2852_native_capability.md")]
+pub mod rfc_2852_native_capability {}

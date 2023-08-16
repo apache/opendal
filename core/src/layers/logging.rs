@@ -87,6 +87,7 @@ use crate::*;
 pub struct LoggingLayer {
     error_level: Option<Level>,
     failure_level: Option<Level>,
+    backtrace_output: bool,
 }
 
 impl Default for LoggingLayer {
@@ -94,6 +95,7 @@ impl Default for LoggingLayer {
         Self {
             error_level: Some(Level::Warn),
             failure_level: Some(Level::Error),
+            backtrace_output: false,
         }
     }
 }
@@ -134,6 +136,17 @@ impl LoggingLayer {
         }
         Ok(self)
     }
+
+    /// Setting whether to output backtrace while unexpected failure happened.
+    ///
+    /// # Notes
+    ///
+    /// - When the error is an expected error, backtrace will not be output.
+    /// - backtrace output is disable by default.
+    pub fn with_backtrace_output(mut self, enable: bool) -> Self {
+        self.backtrace_output = enable;
+        self
+    }
 }
 
 impl<A: Accessor> Layer<A> for LoggingLayer {
@@ -142,45 +155,60 @@ impl<A: Accessor> Layer<A> for LoggingLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
         let meta = inner.info();
         LoggingAccessor {
-            scheme: meta.scheme(),
             inner,
 
-            error_level: self.error_level,
-            failure_level: self.failure_level,
+            ctx: LoggingContext {
+                scheme: meta.scheme(),
+                error_level: self.error_level,
+                failure_level: self.failure_level,
+                backtrace_output: self.backtrace_output,
+            },
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct LoggingAccessor<A: Accessor> {
+pub struct LoggingContext {
     scheme: Scheme,
-    inner: A,
-
     error_level: Option<Level>,
     failure_level: Option<Level>,
+    backtrace_output: bool,
 }
 
-static LOGGING_TARGET: &str = "opendal::services";
-
-impl<A: Accessor> LoggingAccessor<A> {
+impl LoggingContext {
     #[inline]
-    fn err_status(&self, err: &Error) -> &'static str {
-        if err.kind() == ErrorKind::Unexpected {
-            "failed"
-        } else {
-            "errored"
-        }
-    }
-
-    #[inline]
-    fn err_level(&self, err: &Error) -> Option<Level> {
+    fn error_level(&self, err: &Error) -> Option<Level> {
         if err.kind() == ErrorKind::Unexpected {
             self.failure_level
         } else {
             self.error_level
         }
     }
+
+    /// Print error with backtrace if it's unexpected error.
+    #[inline]
+    fn error_print(&self, err: &Error) -> String {
+        // Don't print backtrace if it's not unexpected error.
+        if err.kind() != ErrorKind::Unexpected {
+            return format!("{err}");
+        }
+
+        if self.backtrace_output {
+            format!("{err:?}")
+        } else {
+            format!("{err}")
+        }
+    }
 }
+
+#[derive(Clone, Debug)]
+pub struct LoggingAccessor<A: Accessor> {
+    inner: A,
+
+    ctx: LoggingContext,
+}
+
+static LOGGING_TARGET: &str = "opendal::services";
 
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
@@ -201,14 +229,14 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Info
         );
         let result = self.inner.info();
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} -> finished: {:?}",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Info,
             result
         );
@@ -220,7 +248,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::CreateDir,
             path
         );
@@ -232,22 +260,22 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::CreateDir,
                     path
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::CreateDir,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     )
                 };
                 err
@@ -258,7 +286,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Read,
             path,
             args.range()
@@ -273,27 +301,27 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} range={} -> got reader",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Read,
                     path,
                     range
                 );
                 (
                     rp,
-                    LoggingReader::new(self.scheme, Operation::Read, path, r, self.failure_level),
+                    LoggingReader::new(self.ctx.clone(), Operation::Read, path, r),
                 )
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} range={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} range={} -> {}",
+                        self.ctx.scheme,
                         Operation::Read,
                         path,
                         range,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     )
                 }
                 err
@@ -304,7 +332,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Write,
             path
         );
@@ -316,24 +344,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> start writing",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Write,
                     path,
                 );
-                let w =
-                    LoggingWriter::new(self.scheme, Operation::Write, path, w, self.failure_level);
+                let w = LoggingWriter::new(self.ctx.clone(), Operation::Write, path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::Write,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     )
                 };
                 err
@@ -344,7 +371,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Append,
             path
         );
@@ -356,29 +383,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> start appending",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Append,
                     path,
                 );
-                let a = LoggingAppender::new(
-                    self.scheme,
-                    Operation::Append,
-                    path,
-                    a,
-                    self.failure_level,
-                );
+                let a = LoggingAppender::new(self.ctx.clone(), Operation::Append, path, a);
                 (rp, a)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::Append,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     )
                 };
                 err
@@ -389,7 +410,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} from={} to={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Copy,
             from,
             to
@@ -402,7 +423,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} from={} to={} -> finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Copy,
                     from,
                     to
@@ -410,16 +431,17 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} from={} to={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} from={} to={} -> {}",
+                        self.ctx.scheme,
                         Operation::Copy,
                         from,
                         to,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err),
+
                     )
                 };
                 err
@@ -430,7 +452,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} from={} to={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Rename,
             from,
             to
@@ -443,7 +465,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} from={} to={} -> finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Rename,
                     from,
                     to
@@ -451,16 +473,16 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} from={} to={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} from={} to={} -> {}",
+                        self.ctx.scheme,
                         Operation::Rename,
                         from,
                         to,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     )
                 };
                 err
@@ -471,7 +493,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Stat,
             path
         );
@@ -483,22 +505,22 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished: {v:?}",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Stat,
                     path
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::Stat,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 };
                 err
@@ -509,7 +531,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Delete,
             path
         );
@@ -521,21 +543,21 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     debug!(
                         target: LOGGING_TARGET,
                         "service={} operation={} path={} -> finished",
-                        self.scheme,
+                        self.ctx.scheme,
                         Operation::Delete,
                         path
                     );
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.err_level(err) {
+                    if let Some(lvl) = self.ctx.error_level(err) {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} -> {}: {err:?}",
-                            self.scheme,
+                            "service={} operation={} path={} -> {}",
+                            self.ctx.scheme,
                             Operation::Delete,
                             path,
-                            self.err_status(err)
+                            self.ctx.error_print(err)
                         );
                     }
                 }
@@ -547,7 +569,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::List,
             path
         );
@@ -559,30 +581,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     debug!(
                         target: LOGGING_TARGET,
                         "service={} operation={} path={} -> start listing dir",
-                        self.scheme,
+                        self.ctx.scheme,
                         Operation::List,
                         path
                     );
-                    let streamer = LoggingPager::new(
-                        self.scheme,
-                        path,
-                        Operation::List,
-                        v,
-                        self.error_level,
-                        self.failure_level,
-                    );
+                    let streamer = LoggingPager::new(self.ctx.clone(), path, Operation::List, v);
                     Ok((rp, streamer))
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.err_level(&err) {
+                    if let Some(lvl) = self.ctx.error_level(&err) {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} -> {}: {err:?}",
-                            self.scheme,
+                            "service={} operation={} path={} -> {}",
+                            self.ctx.scheme,
                             Operation::List,
                             path,
-                            self.err_status(&err)
+                            self.ctx.error_print(&err)
                         );
                     }
                     Err(err)
@@ -595,7 +610,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Presign,
             path
         );
@@ -607,22 +622,22 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished: {v:?}",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Presign,
                     path
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::Presign,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -635,7 +650,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={}-{op} count={count} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::Batch,
         );
 
@@ -645,7 +660,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={}-{op} count={count} -> finished: {}, succeed: {}, failed: {}",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::Batch,
                     v.results().len(),
                     v.results().iter().filter(|(_, v)|v.is_ok()).count(),
@@ -654,14 +669,14 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={}-{op} count={count} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={}-{op} count={count} -> {}",
+                        self.ctx.scheme,
                         Operation::Batch,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -673,7 +688,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingCreateDir,
             path
         );
@@ -684,22 +699,22 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingCreateDir,
                     path
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingCreateDir,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -710,7 +725,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingRead,
             path,
             args.range(),
@@ -722,31 +737,25 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} range={} -> got reader",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingRead,
                     path,
                     args.range(),
                 );
-                let r = LoggingReader::new(
-                    self.scheme,
-                    Operation::BlockingRead,
-                    path,
-                    r,
-                    self.failure_level,
-                );
+                let r = LoggingReader::new(self.ctx.clone(), Operation::BlockingRead, path, r);
                 (rp, r)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} range={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} range={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingRead,
                         path,
                         args.range(),
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -757,7 +766,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingWrite,
             path,
         );
@@ -768,29 +777,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> start writing",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingWrite,
                     path,
                 );
-                let w = LoggingWriter::new(
-                    self.scheme,
-                    Operation::BlockingWrite,
-                    path,
-                    w,
-                    self.failure_level,
-                );
+                let w = LoggingWriter::new(self.ctx.clone(), Operation::BlockingWrite, path, w);
                 (rp, w)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingWrite,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -801,7 +804,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} from={} to={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingCopy,
             from,
             to,
@@ -813,7 +816,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} from={} to={} -> finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingCopy,
                     from,
                     to,
@@ -821,16 +824,16 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} from={} to={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} from={} to={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingCopy,
                         from,
                         to,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -841,7 +844,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} from={} to={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingRename,
             from,
             to,
@@ -853,7 +856,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} from={} to={} -> finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingRename,
                     from,
                     to,
@@ -861,16 +864,16 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} from={} to={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} from={} to={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingRename,
                         from,
                         to,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -881,7 +884,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingStat,
             path
         );
@@ -892,22 +895,22 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished: {v:?}",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingStat,
                     path
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingStat,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -918,7 +921,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingDelete,
             path
         );
@@ -929,22 +932,22 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingDelete,
                     path
                 );
                 v
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingDelete,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -955,7 +958,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme,
+            self.ctx.scheme,
             Operation::BlockingList,
             path
         );
@@ -966,30 +969,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> got dir",
-                    self.scheme,
+                    self.ctx.scheme,
                     Operation::BlockingList,
                     path
                 );
-                let li = LoggingPager::new(
-                    self.scheme,
-                    path,
-                    Operation::BlockingList,
-                    v,
-                    self.error_level,
-                    self.failure_level,
-                );
+                let li = LoggingPager::new(self.ctx.clone(), path, Operation::BlockingList, v);
                 (rp, li)
             })
             .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         Operation::BlockingList,
                         path,
-                        self.err_status(&err)
+                        self.ctx.error_print(&err)
                     );
                 }
                 err
@@ -999,33 +995,23 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
 /// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
 pub struct LoggingReader<R> {
-    scheme: Scheme,
+    ctx: LoggingContext,
     path: String,
     op: Operation,
 
     read: u64,
-    failure_level: Option<Level>,
-
     inner: R,
 }
 
 impl<R> LoggingReader<R> {
-    fn new(
-        scheme: Scheme,
-        op: Operation,
-        path: &str,
-        reader: R,
-        failure_level: Option<Level>,
-    ) -> Self {
+    fn new(ctx: LoggingContext, op: Operation, path: &str, reader: R) -> Self {
         Self {
-            scheme,
+            ctx,
             op,
             path: path.to_string(),
 
             read: 0,
-
             inner: reader,
-            failure_level,
         }
     }
 }
@@ -1035,7 +1021,7 @@ impl<R> Drop for LoggingReader<R> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} read={} -> data read finished",
-            self.scheme,
+            self.ctx.scheme,
             self.op,
             self.path,
             self.read
@@ -1052,7 +1038,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     trace!(
                         target: LOGGING_TARGET,
                         "service={} operation={} path={} read={} -> data read {}B ",
-                        self.scheme,
+                        self.ctx.scheme,
                         ReadOperation::Read,
                         self.path,
                         self.read,
@@ -1061,15 +1047,16 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     Poll::Ready(Ok(n))
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.failure_level {
+                    if let Some(lvl) = self.ctx.error_level(&err) {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} read={} -> data read failed: {err:?}",
-                            self.scheme,
+                            "service={} operation={} path={} read={} -> data read failed: {}",
+                            self.ctx.scheme,
                             ReadOperation::Read,
                             self.path,
                             self.read,
+                            self.ctx.error_print(&err)
                         )
                     }
                     Poll::Ready(Err(err))
@@ -1079,7 +1066,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data read pending",
-                    self.scheme,
+                    self.ctx.scheme,
                     ReadOperation::Read,
                     self.path,
                     self.read
@@ -1096,7 +1083,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     trace!(
                         target: LOGGING_TARGET,
                         "service={} operation={} path={} read={} -> data seek to offset {n}",
-                        self.scheme,
+                        self.ctx.scheme,
                         ReadOperation::Seek,
                         self.path,
                         self.read,
@@ -1104,15 +1091,16 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     Poll::Ready(Ok(n))
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.failure_level {
+                    if let Some(lvl) = self.ctx.error_level(&err) {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} read={} -> data read failed: {err:?}",
-                            self.scheme,
+                            "service={} operation={} path={} read={} -> data read failed: {}",
+                            self.ctx.scheme,
                             ReadOperation::Seek,
                             self.path,
                             self.read,
+                            self.ctx.error_print(&err),
                         )
                     }
                     Poll::Ready(Err(err))
@@ -1122,7 +1110,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data seek pending",
-                    self.scheme,
+                    self.ctx.scheme,
                     ReadOperation::Seek,
                     self.path,
                     self.read
@@ -1140,7 +1128,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     trace!(
                         target: LOGGING_TARGET,
                         "service={} operation={} path={} read={} -> data read {}B",
-                        self.scheme,
+                        self.ctx.scheme,
                         ReadOperation::Next,
                         self.path,
                         self.read,
@@ -1149,15 +1137,16 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                     Poll::Ready(Some(Ok(bs)))
                 }
                 Some(Err(err)) => {
-                    if let Some(lvl) = self.failure_level {
+                    if let Some(lvl) = self.ctx.error_level(&err) {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
-                            "service={} operation={} path={} read={} -> data read failed: {err:?}",
-                            self.scheme,
+                            "service={} operation={} path={} read={} -> data read failed: {}",
+                            self.ctx.scheme,
                             ReadOperation::Next,
                             self.path,
                             self.read,
+                            self.ctx.error_print(&err),
                         )
                     }
                     Poll::Ready(Some(Err(err)))
@@ -1168,7 +1157,7 @@ impl<R: oio::Read> oio::Read for LoggingReader<R> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data read pending",
-                    self.scheme,
+                    self.ctx.scheme,
                     ReadOperation::Next,
                     self.path,
                     self.read
@@ -1187,7 +1176,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data read {}B",
-                    self.scheme,
+                    self.ctx.scheme,
                     ReadOperation::BlockingRead,
                     self.path,
                     self.read,
@@ -1196,15 +1185,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 Ok(n)
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} read={} -> data read failed: {}",
+                        self.ctx.scheme,
                         ReadOperation::BlockingRead,
                         self.path,
                         self.read,
+                        self.ctx.error_print(&err),
                     );
                 }
                 Err(err)
@@ -1219,7 +1209,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data seek to offset {n}",
-                    self.scheme,
+                    self.ctx.scheme,
                     ReadOperation::BlockingSeek,
                     self.path,
                     self.read,
@@ -1227,15 +1217,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 Ok(n)
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} read={} -> data read failed: {}",
+                        self.ctx.scheme,
                         ReadOperation::BlockingSeek,
                         self.path,
                         self.read,
+                        self.ctx.error_print(&err),
                     );
                 }
                 Err(err)
@@ -1250,7 +1241,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} read={} -> data read {}B",
-                    self.scheme,
+                    self.ctx.scheme,
                     ReadOperation::BlockingNext,
                     self.path,
                     self.read,
@@ -1259,15 +1250,16 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
                 Some(Ok(bs))
             }
             Some(Err(err)) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} read={} -> data read failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} read={} -> data read failed: {}",
+                        self.ctx.scheme,
                         ReadOperation::BlockingNext,
                         self.path,
                         self.read,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Some(Err(err))
@@ -1278,32 +1270,23 @@ impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
 }
 
 pub struct LoggingWriter<W> {
-    scheme: Scheme,
+    ctx: LoggingContext,
     op: Operation,
     path: String,
 
     written: u64,
-    failure_level: Option<Level>,
-
     inner: W,
 }
 
 impl<W> LoggingWriter<W> {
-    fn new(
-        scheme: Scheme,
-        op: Operation,
-        path: &str,
-        writer: W,
-        failure_level: Option<Level>,
-    ) -> Self {
+    fn new(ctx: LoggingContext, op: Operation, path: &str, writer: W) -> Self {
         Self {
-            scheme,
+            ctx,
             op,
             path: path.to_string(),
 
             written: 0,
             inner: writer,
-            failure_level,
         }
     }
 }
@@ -1318,7 +1301,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data write {}B",
-                    self.scheme,
+                    self.ctx.scheme,
                     WriteOperation::Write,
                     self.path,
                     self.written,
@@ -1327,15 +1310,16 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} written={} -> data write failed: {}",
+                        self.ctx.scheme,
                         WriteOperation::Write,
                         self.path,
                         self.written,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Err(err)
@@ -1350,7 +1334,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data sink {}B",
-                    self.scheme,
+                    self.ctx.scheme,
                     WriteOperation::Sink,
                     self.path,
                     self.written,
@@ -1359,15 +1343,16 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data sink failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} written={} -> data sink failed: {}",
+                        self.ctx.scheme,
                         WriteOperation::Sink,
                         self.path,
                         self.written,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Err(err)
@@ -1381,7 +1366,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> abort writer",
-                    self.scheme,
+                    self.ctx.scheme,
                     WriteOperation::Abort,
                     self.path,
                     self.written,
@@ -1389,15 +1374,16 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> abort writer failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} written={} -> abort writer failed: {}",
+                        self.ctx.scheme,
                         WriteOperation::Abort,
                         self.path,
                         self.written,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Err(err)
@@ -1411,7 +1397,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data written finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     self.op,
                     self.path,
                     self.written
@@ -1419,15 +1405,16 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data close failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} written={} -> data close failed: {}",
+                        self.ctx.scheme,
                         WriteOperation::Close,
                         self.path,
                         self.written,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Err(err)
@@ -1445,7 +1432,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data write {}B",
-                    self.scheme,
+                    self.ctx.scheme,
                     WriteOperation::BlockingWrite,
                     self.path,
                     self.written,
@@ -1454,15 +1441,16 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} written={} -> data write failed: {}",
+                        self.ctx.scheme,
                         WriteOperation::BlockingWrite,
                         self.path,
                         self.written,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Err(err)
@@ -1476,7 +1464,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data written finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     self.op,
                     self.path,
                     self.written
@@ -1484,15 +1472,16 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data close failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} written={} -> data close failed: {}",
+                        self.ctx.scheme,
                         WriteOperation::BlockingClose,
                         self.path,
                         self.written,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Err(err)
@@ -1502,29 +1491,19 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
 }
 
 pub struct LoggingAppender<A> {
-    scheme: Scheme,
+    ctx: LoggingContext,
     op: Operation,
     path: String,
-
-    failure_level: Option<Level>,
 
     inner: A,
 }
 
 impl<A> LoggingAppender<A> {
-    fn new(
-        scheme: Scheme,
-        op: Operation,
-        path: &str,
-        appender: A,
-        failure_level: Option<Level>,
-    ) -> Self {
+    fn new(ctx: LoggingContext, op: Operation, path: &str, appender: A) -> Self {
         Self {
-            scheme,
+            ctx,
             op,
             path: path.to_string(),
-
-            failure_level,
 
             inner: appender,
         }
@@ -1541,7 +1520,7 @@ impl<A: oio::Append> oio::Append for LoggingAppender<A> {
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> data append {}B",
-                    self.scheme,
+                    self.ctx.scheme,
                     self.op,
                     self.path,
                     len
@@ -1549,14 +1528,15 @@ impl<A: oio::Append> oio::Append for LoggingAppender<A> {
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> data append failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> data append failed: {}",
+                        self.ctx.scheme,
                         self.op,
                         self.path,
+                        self.ctx.error_print(&err)
                     )
                 }
                 Err(err)
@@ -1570,21 +1550,22 @@ impl<A: oio::Append> oio::Append for LoggingAppender<A> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> data appended finished",
-                    self.scheme,
+                    self.ctx.scheme,
                     self.op,
                     self.path,
                 );
                 Ok(())
             }
             Err(err) => {
-                if let Some(lvl) = self.failure_level {
+                if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> data appender close failed: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> data appender close failed: {}",
+                        self.ctx.scheme,
                         self.op,
                         self.path,
+                        self.ctx.error_print(&err),
                     )
                 }
                 Err(err)
@@ -1594,33 +1575,22 @@ impl<A: oio::Append> oio::Append for LoggingAppender<A> {
 }
 
 pub struct LoggingPager<P> {
-    scheme: Scheme,
+    ctx: LoggingContext,
     path: String,
     op: Operation,
 
     finished: bool,
     inner: P,
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
 }
 
 impl<P> LoggingPager<P> {
-    fn new(
-        scheme: Scheme,
-        path: &str,
-        op: Operation,
-        inner: P,
-        error_level: Option<Level>,
-        failure_level: Option<Level>,
-    ) -> Self {
+    fn new(ctx: LoggingContext, path: &str, op: Operation, inner: P) -> Self {
         Self {
-            scheme,
+            ctx,
             path: path.to_string(),
             op,
             finished: false,
             inner,
-            error_level,
-            failure_level,
         }
     }
 }
@@ -1631,7 +1601,7 @@ impl<P> Drop for LoggingPager<P> {
             debug!(
                 target: LOGGING_TARGET,
                 "service={} operation={} path={} -> all entries read finished",
-                self.scheme,
+                self.ctx.scheme,
                 self.op,
                 self.path
             );
@@ -1639,30 +1609,10 @@ impl<P> Drop for LoggingPager<P> {
             debug!(
                 target: LOGGING_TARGET,
                 "service={} operation={} path={} -> partial entries read finished",
-                self.scheme,
+                self.ctx.scheme,
                 self.op,
                 self.path
             );
-        }
-    }
-}
-
-impl<P> LoggingPager<P> {
-    #[inline]
-    fn err_status(&self, err: &Error) -> &'static str {
-        if err.kind() == ErrorKind::Unexpected {
-            "failed"
-        } else {
-            "errored"
-        }
-    }
-
-    #[inline]
-    fn err_level(&self, err: &Error) -> Option<Level> {
-        if err.kind() == ErrorKind::Unexpected {
-            self.failure_level
-        } else {
-            self.error_level
         }
     }
 }
@@ -1677,7 +1627,7 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> listed {} entries",
-                    self.scheme,
+                    self.ctx.scheme,
                     self.op,
                     self.path,
                     des.len(),
@@ -1686,20 +1636,20 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
             Ok(None) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished", self.scheme, self.op, self.path
+                    "service={} operation={} path={} -> finished", self.ctx.scheme, self.op, self.path
                 );
                 self.finished = true;
             }
             Err(err) => {
-                if let Some(lvl) = self.err_level(err) {
+                if let Some(lvl) = self.ctx.error_level(err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         self.op,
                         self.path,
-                        self.err_status(err)
+                        self.ctx.error_print(err)
                     )
                 }
             }
@@ -1718,7 +1668,7 @@ impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> got {} entries",
-                    self.scheme,
+                    self.ctx.scheme,
                     self.op,
                     self.path,
                     des.len(),
@@ -1727,20 +1677,20 @@ impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
             Ok(None) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished", self.scheme, self.op, self.path
+                    "service={} operation={} path={} -> finished", self.ctx.scheme, self.op, self.path
                 );
                 self.finished = true;
             }
             Err(err) => {
-                if let Some(lvl) = self.err_level(err) {
+                if let Some(lvl) = self.ctx.error_level(err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
+                        "service={} operation={} path={} -> {}",
+                        self.ctx.scheme,
                         self.op,
                         self.path,
-                        self.err_status(err)
+                        self.ctx.error_print(err)
                     )
                 }
             }

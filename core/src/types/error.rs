@@ -35,6 +35,8 @@
 //! # }
 //! ```
 
+use std::backtrace::Backtrace;
+use std::backtrace::BacktraceStatus;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -172,6 +174,65 @@ impl Display for ErrorStatus {
 }
 
 /// Error is the error struct returned by all opendal functions.
+///
+/// ## Display
+///
+/// Error can be displayed in two ways:
+///
+/// - Via `Display`: like `err.to_string()` or `format!("{err}")`
+///
+/// Error will be printed in a single line:
+///
+/// ```shell
+/// Unexpected, context: { path: /path/to/file, called: send_async } => something wrong happened, source: networking error"
+/// ```
+///
+/// - Via `Debug`: like `format!("{err:?}")`
+///
+/// Error will be printed in multi lines with more details and backtraces (if captured):
+///
+/// ```shell
+/// Unexpected => something wrong happened
+///
+/// Context:
+///    path: /path/to/file
+///    called: send_async
+///
+/// Source: networking error
+///
+/// Backtrace:
+///    0: opendal::error::Error::new
+///              at ./src/error.rs:197:24
+///    1: opendal::error::tests::generate_error
+///              at ./src/error.rs:241:9
+///    2: opendal::error::tests::test_error_debug_with_backtrace::{{closure}}
+///              at ./src/error.rs:305:41
+///    ...
+/// ```
+///
+/// - For conventional struct-style Debug representation, like `format!("{err:#?}")`:
+///
+/// ```shell
+/// Error {
+///     kind: Unexpected,
+///     message: "something wrong happened",
+///     status: Permanent,
+///     operation: "Read",
+///     context: [
+///         (
+///             "path",
+///             "/path/to/file",
+///         ),
+///         (
+///             "called",
+///             "send_async",
+///         ),
+///     ],
+///     source: Some(
+///         "networking error",
+///     ),
+/// }
+/// ```
 pub struct Error {
     kind: ErrorKind,
     message: String,
@@ -180,6 +241,7 @@ pub struct Error {
     operation: &'static str,
     context: Vec<(&'static str, String)>,
     source: Option<anyhow::Error>,
+    backtrace: Backtrace,
 }
 
 impl Display for Error {
@@ -236,12 +298,18 @@ impl Debug for Error {
             writeln!(f)?;
             writeln!(f, "Context:")?;
             for (k, v) in self.context.iter() {
-                writeln!(f, "    {k}: {v}")?;
+                writeln!(f, "   {k}: {v}")?;
             }
         }
         if let Some(source) = &self.source {
             writeln!(f)?;
-            writeln!(f, "Source: {source:?}")?;
+            writeln!(f, "Source:")?;
+            writeln!(f, "   {source:#}")?;
+        }
+        if self.backtrace.status() == BacktraceStatus::Captured {
+            writeln!(f)?;
+            writeln!(f, "Backtrace:")?;
+            writeln!(f, "{}", self.backtrace)?;
         }
 
         Ok(())
@@ -265,6 +333,9 @@ impl Error {
             operation: "",
             context: Vec::default(),
             source: None,
+            // `Backtrace::capture()` will check if backtrace has been enabled
+            // internally. It's zero cost if backtrace is disabled.
+            backtrace: Backtrace::capture(),
         }
     }
 
@@ -359,6 +430,7 @@ impl From<Error> for io::Error {
 mod tests {
     use anyhow::anyhow;
     use once_cell::sync::Lazy;
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -372,6 +444,7 @@ mod tests {
             ("called", "send_async".to_string()),
         ],
         source: Some(anyhow!("networking error")),
+        backtrace: Backtrace::disabled(),
     });
 
     #[test]
@@ -380,7 +453,8 @@ mod tests {
         assert_eq!(
             s,
             r#"Unexpected (permanent) at Read, context: { path: /path/to/file, called: send_async } => something wrong happened, source: networking error"#
-        )
+        );
+        println!("{:#?}", Lazy::force(&TEST_ERROR));
     }
 
     #[test]
@@ -391,10 +465,11 @@ mod tests {
             r#"Unexpected (permanent) at Read => something wrong happened
 
 Context:
-    path: /path/to/file
-    called: send_async
+   path: /path/to/file
+   called: send_async
 
-Source: networking error
+Source:
+   networking error
 "#
         )
     }

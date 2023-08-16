@@ -15,16 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use tokio::sync::OnceCell;
+use tokio_postgres::Client;
+use tokio_postgres::Config;
+use tokio_postgres::Statement;
+
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
-use async_trait::async_trait;
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::str::FromStr;
-use std::sync::Arc;
-use tokio::sync::OnceCell;
-use tokio_postgres::{Client, Config, Statement};
 
 /// [Postgresql](https://www.postgresql.org/) services support.
 #[doc = include_str!("docs.md")]

@@ -17,16 +17,16 @@
 
 #![no_main]
 
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
+use bytes::BytesMut;
 use libfuzzer_sys::arbitrary::Arbitrary;
 use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
+use opendal::Operator;
+use opendal::Result;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
-
-use opendal::Operator;
-use opendal::Result;
 
 mod utils;
 

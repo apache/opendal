@@ -24,6 +24,6 @@ services:
       - "8080:80"
       - "8081:81"
     volumes:
-      - ./data:/data
+      - ./webdav-data:/data
       - ./config:/config
 

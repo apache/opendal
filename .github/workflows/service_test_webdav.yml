@@ -50,8 +50,8 @@ jobs:
         shell: bash
         working-directory: core/src/services/webdav/fixtures
         run: |
-          mkdir -p data
-          chmod a+rw data
+          mkdir -p webdav-data
+          chmod a+rw webdav-data
           docker compose -f docker-compose-webdav.yml up -d
 
       - name: Test
@@ -75,8 +75,8 @@ jobs:
         shell: bash
         working-directory: core/src/services/webdav/fixtures
         run: |
-          mkdir -p data
-          chmod a+rw data
+          mkdir -p webdav-data
+          chmod a+rw webdav-data
           docker compose -f docker-compose-webdav-with-auth.yml up -d
 
       - name: Test with password
@@ -102,8 +102,8 @@ jobs:
         shell: bash
         working-directory: core/src/services/webdav/fixtures
         run: |
-          mkdir -p data
-          chmod a+rw data
+          mkdir -p webdav-data
+          chmod a+rw webdav-data
           docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d
 
       - name: Test empty password
@@ -128,8 +128,8 @@ jobs:
         shell: bash
         working-directory: core/src/services/webdav/fixtures
         run: |
-          mkdir -p data
-          chmod a+rw data
+          mkdir -p webdav-data
+          chmod a+rw webdav-data
           docker compose -f docker-compose-webdav.yml up -d
 
       - name: Test with redirect

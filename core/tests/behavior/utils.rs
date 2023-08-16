@@ -85,7 +85,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
     let _guard = RUNTIME.enter();
     let op = op
         .layer(BlockingLayer::create().expect("blocking layer must be created"))
-        .layer(LoggingLayer::default())
+        .layer(LoggingLayer::default().with_backtrace_output(true))
         .layer(TimeoutLayer::new())
         .layer(RetryLayer::new())
         .finish();

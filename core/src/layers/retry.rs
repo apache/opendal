@@ -259,7 +259,7 @@ impl RetryInterceptor for DefaultRetryInterceptor {
 
         warn!(
             target: "opendal::service",
-            "{} -> retry after {}s: error={:?}",
+            "{} -> retry after {}s: error={}",
             context, dur.as_secs_f64(), err)
     }
 }

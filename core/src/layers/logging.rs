@@ -143,9 +143,9 @@ impl LoggingLayer {
     ///
     /// - When the error is an expected error, backtrace will not be output.
     /// - backtrace output is disable by default.
-    pub fn with_backtrace_output(mut self, enable: bool) -> Result<Self> {
+    pub fn with_backtrace_output(mut self, enable: bool) -> Self {
         self.backtrace_output = enable;
-        Ok(self)
+        self
     }
 }
 

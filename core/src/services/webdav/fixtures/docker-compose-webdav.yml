@@ -22,8 +22,11 @@ services:
     image: dgraziotin/nginx-webdav-nononsense
     ports:
       - "8080:80"
+      # the following port is used by the test redirect
       - "8081:81"
     volumes:
       - ./webdav-data:/data
+      # the following volume is used to redirect 81 port to 80 port
+      # ./config/nginx/http.conf will be appended to the default nginx.conf
       - ./config:/config
 

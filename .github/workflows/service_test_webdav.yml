@@ -104,7 +104,7 @@ jobs:
         run: |
           mkdir -p data
           chmod a+rw data
-          docker compose -f docker-compose-webdav-with-auth.yml up -d
+          docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d
 
       - name: Test empty password
         shell: bash

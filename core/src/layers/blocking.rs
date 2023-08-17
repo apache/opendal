@@ -85,7 +85,7 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     }
 
     fn metadata(&self) -> AccessorInfo {
-        self.meta
+        self.meta.clone()
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

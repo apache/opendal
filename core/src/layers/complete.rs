@@ -382,7 +382,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn metadata(&self) -> AccessorInfo {
-        self.meta
+        self.meta.clone()
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

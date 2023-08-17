@@ -832,7 +832,9 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
 
 /// Read file with override-cache-control should succeed.
 pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().read_with_override_cache_control && op.info().can_presign()) {
+    if !(op.info().full_capability().read_with_override_cache_control
+        && op.info().full_capability().presign)
+    {
         return Ok(());
     }
 
@@ -881,7 +883,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
         .info()
         .full_capability()
         .read_with_override_content_disposition
-        && op.info().can_presign())
+        && op.info().full_capability().presign)
     {
         return Ok(());
     }
@@ -930,7 +932,9 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
 
 /// Read file with override_content_type should succeed.
 pub async fn test_read_with_override_content_type(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().read_with_override_content_type && op.info().can_presign()) {
+    if !(op.info().full_capability().read_with_override_content_type
+        && op.info().full_capability().presign)
+    {
         return Ok(());
     }
 

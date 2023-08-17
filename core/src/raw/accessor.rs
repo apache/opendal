@@ -555,7 +555,7 @@ impl AccessorInfo {
         self
     }
 
-    // Get backend's native capabilities.
+    /// Get backend's native capabilities.
     pub fn native_capability(&self) -> Capability {
         self.native_capability
     }

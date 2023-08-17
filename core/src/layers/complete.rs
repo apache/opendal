@@ -131,14 +131,8 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
     type LayeredAccessor = CompleteReaderAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let mut meta = inner.info();
-        let cap = meta.full_capability_mut();
-        if cap.read {
-            cap.read_can_next = true;
-            cap.read_can_seek = true;
-        }
         CompleteReaderAccessor {
-            meta,
+            meta: inner.info(),
             inner: Arc::new(inner),
         }
     }
@@ -382,7 +376,13 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn metadata(&self) -> AccessorInfo {
-        self.meta.clone()
+        let mut meta = self.meta.clone();
+        let cap = meta.full_capability_mut();
+        if cap.read {
+            cap.read_can_next = true;
+            cap.read_can_seek = true;
+        }
+        meta
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

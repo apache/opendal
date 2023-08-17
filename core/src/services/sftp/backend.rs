@@ -233,7 +233,7 @@ impl Accessor for SftpBackend {
         let mut am = AccessorInfo::default();
         am.set_root(self.root.as_str())
             .set_scheme(Scheme::Sftp)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,

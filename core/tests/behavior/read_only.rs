@@ -23,7 +23,7 @@ use sha2::Sha256;
 use crate::*;
 
 pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !cap.read || cap.write {
         return vec![];
@@ -97,7 +97,7 @@ pub async fn test_read_only_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Stat with if_match should succeed, else get a ConditionNotMatch error.
 pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
-    if !op.info().capability().stat_with_if_match {
+    if !op.info().full_capability().stat_with_if_match {
         return Ok(());
     }
 
@@ -122,7 +122,7 @@ pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
 
 /// Stat with if_none_match should succeed, else get a ConditionNotMatch.
 pub async fn test_read_only_stat_with_if_none_match(op: Operator) -> Result<()> {
-    if !op.info().capability().stat_with_if_none_match {
+    if !op.info().full_capability().stat_with_if_none_match {
         return Ok(());
     }
 
@@ -271,7 +271,7 @@ pub async fn test_read_only_read_with_dir_path(op: Operator) -> Result<()> {
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_if_match {
+    if !op.info().full_capability().read_with_if_match {
         return Ok(());
     }
 
@@ -300,7 +300,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_none_match(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_if_none_match {
+    if !op.info().full_capability().read_with_if_none_match {
         return Ok(());
     }
 

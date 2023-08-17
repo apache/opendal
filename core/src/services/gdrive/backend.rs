@@ -62,7 +62,7 @@ impl Accessor for GdriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(crate::Scheme::Gdrive)
             .set_root(&self.core.root)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 read: true,
                 write: true,
                 delete: true,

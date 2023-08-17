@@ -518,7 +518,7 @@ impl Accessor for AzblobBackend {
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.core.root)
             .set_name(&self.core.container)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,

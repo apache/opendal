@@ -67,7 +67,7 @@ pub fn behavior_fuzz_tests(op: &Operator) -> Vec<Trial> {
 /// is invalid for given range `1..2`. However, the actual behavior is we seek to `0`
 /// and results in a panic.
 pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write & cap.read_with_range) {
         return Ok(());

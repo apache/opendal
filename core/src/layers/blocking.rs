@@ -50,7 +50,11 @@ impl<A: Accessor> Layer<A> for BlockingLayer {
     type LayeredAccessor = BlockingAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        let mut meta = inner.info();
+        meta.full_capability_mut().blocking = true;
+
         BlockingAccessor {
+            meta: meta,
             inner,
             handle: self.handle.clone(),
         }
@@ -59,6 +63,7 @@ impl<A: Accessor> Layer<A> for BlockingLayer {
 
 #[derive(Clone, Debug)]
 pub struct BlockingAccessor<A: Accessor> {
+    meta: AccessorInfo,
     inner: A,
 
     handle: Handle,
@@ -80,10 +85,7 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     }
 
     fn metadata(&self) -> AccessorInfo {
-        let mut info = self.inner.info();
-        let cap = info.capability_mut();
-        cap.blocking = true;
-        info
+        self.meta
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

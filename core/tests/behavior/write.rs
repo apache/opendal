@@ -35,7 +35,7 @@ use sha2::Sha256;
 use crate::*;
 
 pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write) {
         return vec![];
@@ -168,7 +168,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
 
 /// Write a single file with cache control should succeed.
 pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
-    if !op.info().capability().write_with_cache_control {
+    if !op.info().full_capability().write_with_cache_control {
         return Ok(());
     }
 
@@ -194,7 +194,7 @@ pub async fn test_write_with_cache_control(op: Operator) -> Result<()> {
 
 /// Write a single file with content type should succeed.
 pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
-    if !op.info().capability().write_with_content_type {
+    if !op.info().full_capability().write_with_content_type {
         return Ok(());
     }
 
@@ -221,7 +221,7 @@ pub async fn test_write_with_content_type(op: Operator) -> Result<()> {
 
 /// Write a single file with content disposition should succeed.
 pub async fn test_write_with_content_disposition(op: Operator) -> Result<()> {
-    if !op.info().capability().write_with_content_disposition {
+    if !op.info().full_capability().write_with_content_disposition {
         return Ok(());
     }
 
@@ -324,7 +324,7 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Stat with if_match should succeed, else get a ConditionNotMatch error.
 pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
-    if !op.info().capability().stat_with_if_match {
+    if !op.info().full_capability().stat_with_if_match {
         return Ok(());
     }
 
@@ -356,7 +356,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
 
 /// Stat with if_none_match should succeed, else get a ConditionNotMatch.
 pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
-    if !op.info().capability().stat_with_if_none_match {
+    if !op.info().full_capability().stat_with_if_none_match {
         return Ok(());
     }
 
@@ -425,7 +425,7 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
 
 /// Read range content should match.
 pub async fn test_read_range(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -455,7 +455,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
 
 /// Read large range content should match.
 pub async fn test_read_large_range(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -486,7 +486,7 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
 
 /// Read range content should match.
 pub async fn test_reader_range(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -519,7 +519,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
 
 /// Read range from should match.
 pub async fn test_reader_from(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -550,7 +550,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
 
 /// Read range tail should match.
 pub async fn test_reader_tail(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -600,7 +600,7 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_if_match {
+    if !op.info().full_capability().read_with_if_match {
         return Ok(());
     }
 
@@ -631,7 +631,7 @@ pub async fn test_read_with_if_match(op: Operator) -> Result<()> {
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_if_none_match {
+    if !op.info().full_capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -664,7 +664,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -705,7 +705,7 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -746,7 +746,7 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
 }
 
 pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -832,7 +832,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
 
 /// Read file with override-cache-control should succeed.
 pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
-    if !(op.info().capability().read_with_override_cache_control && op.info().can_presign()) {
+    if !(op.info().full_capability().read_with_override_cache_control && op.info().can_presign()) {
         return Ok(());
     }
 
@@ -879,7 +879,7 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> Result<()> {
 pub async fn test_read_with_override_content_disposition(op: Operator) -> Result<()> {
     if !(op
         .info()
-        .capability()
+        .full_capability()
         .read_with_override_content_disposition
         && op.info().can_presign())
     {
@@ -930,7 +930,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> Result
 
 /// Read file with override_content_type should succeed.
 pub async fn test_read_with_override_content_type(op: Operator) -> Result<()> {
-    if !(op.info().capability().read_with_override_content_type && op.info().can_presign()) {
+    if !(op.info().full_capability().read_with_override_content_type && op.info().can_presign()) {
         return Ok(());
     }
 
@@ -1144,7 +1144,7 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
 
 /// Streaming data into writer
 pub async fn test_writer_sink(op: Operator) -> Result<()> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
     if !(cap.write && cap.write_can_sink) {
         return Ok(());
     }
@@ -1184,7 +1184,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
 
 /// Reading data into writer
 pub async fn test_writer_copy(op: Operator) -> Result<()> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
     if !(cap.write && cap.write_can_sink) {
         return Ok(());
     }
@@ -1259,7 +1259,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
 
 /// Add test for unsized writer
 pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
-    if !op.info().capability().write_without_content_length {
+    if !op.info().full_capability().write_without_content_length {
         warn!("{op:?} doesn't support write without content length, test skip");
         return Ok(());
     }

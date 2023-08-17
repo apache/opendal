@@ -24,7 +24,7 @@ use log::debug;
 use crate::*;
 
 pub fn behavior_blocking_list_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write && cap.copy && cap.blocking && cap.list) {
         return vec![];

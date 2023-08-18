@@ -97,6 +97,8 @@ fn main() -> anyhow::Result<()> {
 
     let mut tests = Vec::new();
 
+    #[cfg(feature = "services-atomicdata")]
+    tests.extend(behavior_test::<services::Atomicdata>());
     #[cfg(feature = "services-azblob")]
     tests.extend(behavior_test::<services::Azblob>());
     #[cfg(feature = "services-Azdls")]

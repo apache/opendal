@@ -40,38 +40,17 @@ jobs:
   postgresql:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_USER: user
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        # needed because the postgres container does not provide a healthcheck
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Postgresql Server
+        shell: bash
+        working-directory: core
+        run: docker-compose -f `pwd`/src/services/postgresql/fixtures/docker-compose.yml up -d
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           need-nextest: true
-
-      - name: Setup PostgreSQL CLI
-        run: |
-          sudo apt -y install postgresql-client
-          psql -V
-
-      - name: Create table
-        run: |
-          export PGPASSWORD=password
-          psql -h localhost -U user -d testdb -c "CREATE TABLE data (key TEXT PRIMARY KEY, value BYTEA);"
 
       - name: Test
         shell: bash

@@ -85,8 +85,8 @@ impl Builder for AtomicdataBuilder {
 /// Backend for Atomicdata services.
 pub type AtomicdataBackend = kv::Backend<Adapter>;
 
-const KEY_PROPERTY: &'static str = "https://atomicdata.dev/properties/name";
-const VALUE_PROPERTY: &'static str = "https://atomicdata.dev/properties/atom/value";
+const KEY_PROPERTY: &str = "https://atomicdata.dev/properties/name";
+const VALUE_PROPERTY: &str = "https://atomicdata.dev/properties/atom/value";
 
 #[derive(Clone)]
 pub struct Adapter {
@@ -118,10 +118,10 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let query = Query::new_prop_val(&KEY_PROPERTY, &path);
+        let query = Query::new_prop_val(KEY_PROPERTY, path);
         let query_result = self.store.query(&query).map_err(format_atomic_error)?;
 
-        if query_result.resources.len() == 0 {
+        if query_result.resources.is_empty() {
             return Err(Error::new(ErrorKind::NotFound, "atomicdata: key not found"));
         }
 
@@ -137,10 +137,10 @@ impl kv::Adapter for Adapter {
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
         let mut subject;
 
-        let query = Query::new_prop_val(&KEY_PROPERTY, &path);
+        let query = Query::new_prop_val(KEY_PROPERTY, path);
         let query_result = self.store.query(&query).map_err(format_atomic_error)?;
 
-        if query_result.resources.len() > 0 {
+        if !query_result.resources.is_empty() {
             subject = query_result.resources[0].clone();
         } else {
             subject = atomic_lib::Resource::new_instance(
@@ -150,7 +150,7 @@ impl kv::Adapter for Adapter {
             .map_err(format_atomic_error)?;
 
             subject
-                .set_propval_string(KEY_PROPERTY.to_string(), &path, &*self.store)
+                .set_propval_string(KEY_PROPERTY.to_string(), path, &*self.store)
                 .map_err(format_atomic_error)?;
         }
 
@@ -170,12 +170,12 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let query = Query::new_prop_val(&KEY_PROPERTY, &path);
+        let query = Query::new_prop_val(KEY_PROPERTY, path);
         let query_result = self.store.query(&query).map_err(format_atomic_error)?;
 
-        if query_result.resources.len() > 0 {
+        if !query_result.resources.is_empty() {
             self.store
-                .remove_resource(&query_result.resources[0].get_subject())
+                .remove_resource(query_result.resources[0].get_subject())
                 .map_err(format_atomic_error)?;
         }
 

@@ -37,7 +37,7 @@ use crate::Scheme;
 use crate::*;
 
 /// Atomicdata service support.
-// #[doc = include_str!("docs.md")]
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AtomicdataBuilder {
     root: Option<String>,

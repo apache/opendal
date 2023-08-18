@@ -19,6 +19,7 @@
 - `services-redis-rustls`: Enable redis service support with `rustls`.
 - `services-redis-native-tls`: Enable redis service support with `native-tls`.
 - `services-rocksdb`: Enable rocksdb service support.
+- `services-atomicdata`: Enable atomicdata service support.
 - `services-sled`: Enable sled service support.
 
 ## Dependencies Features

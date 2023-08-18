@@ -82,6 +82,7 @@ Major components of the project include:
 - sled: [sled](https://crates.io/crates/sled) backend
 - redb: [redb](https://crates.io/crates/redb) backend
 - tikv: [tikv](https://tikv.org/) backend
+- atomicdata: [AtomicData](https://github.com/atomicdata-dev) services
 
 </details>
 

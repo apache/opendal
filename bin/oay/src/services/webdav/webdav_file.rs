@@ -39,25 +39,28 @@ impl DavFile for WebdavFile {
     fn read_bytes(&mut self, count: usize) -> FsFuture<Bytes> {
         async move {
             let file_path = self.path.as_url_string();
-            let content = self
-                .op
+            self.op
                 .range_read(&file_path, 0..count as u64)
                 .await
-                .unwrap();
-            //error handle ?
-            Ok(Bytes::from(content))
+                .map_or_else(
+                    |e| Err(convert_error(e)),
+                    |content| Ok(Bytes::from(content)),
+                )
         }
         .boxed()
     }
 
     fn metadata(&mut self) -> FsFuture<Box<dyn DavMetaData>> {
         async move {
-            let opendal_metadata = self
-                .op
+            self.op
                 .stat(self.path.as_url_string().as_str())
                 .await
-                .unwrap();
-            Ok(Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>)
+                .map_or_else(
+                    |e| Err(convert_error(e)),
+                    |opendal_metadata| {
+                        Ok(Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>)
+                    },
+                )
         }
         .boxed()
     }

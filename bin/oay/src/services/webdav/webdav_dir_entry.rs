@@ -21,6 +21,7 @@ use futures::FutureExt;
 use opendal::Entry;
 use opendal::Operator;
 
+use super::webdav_file::convert_error;
 use super::webdav_metadata::WebdavMetaData;
 
 pub struct WebDAVDirEntry {
@@ -35,8 +36,10 @@ impl DavDirEntry for WebDAVDirEntry {
 
     fn metadata(&self) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavMetaData>> {
         async move {
-            let metedata = self.op.stat(self.dir_entry.path()).await.unwrap();
-            Ok(Box::new(WebdavMetaData::new(metedata)) as Box<dyn DavMetaData>)
+            self.op.stat(self.dir_entry.path()).await.map_or_else(
+                |e| Err(convert_error(e)),
+                |metadata| Ok(Box::new(WebdavMetaData::new(metadata)) as Box<dyn DavMetaData>),
+            )
         }
         .boxed()
     }

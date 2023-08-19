@@ -42,10 +42,8 @@ impl DavFile for WebdavFile {
             self.op
                 .range_read(&file_path, 0..count as u64)
                 .await
-                .map_or_else(
-                    |e| Err(convert_error(e)),
-                    |content| Ok(Bytes::from(content)),
-                )
+                .map(Bytes::from)
+                .map_err(convert_error)
         }
         .boxed()
     }

@@ -30,7 +30,6 @@ use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
-use super::appender::OssAppender;
 use super::core::*;
 use super::error::parse_error;
 use super::pager::OssPager;
@@ -386,9 +385,11 @@ pub struct OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::MultipartUploadWriter<OssWriter>;
+    type Writer = oio::TwoWaysWriter<
+        oio::MultipartUploadWriter<OssWriter>,
+        oio::AppendObjectWriter<OssWriter>,
+    >;
     type BlockingWriter = ();
-    type Appender = OssAppender;
     type Pager = OssPager;
     type BlockingPager = ();
 
@@ -417,11 +418,6 @@ impl Accessor for OssBackend {
                 delete: true,
                 create_dir: true,
                 copy: true,
-
-                append: true,
-                append_with_cache_control: true,
-                append_with_content_type: true,
-                append_with_content_disposition: true,
 
                 list: true,
                 list_with_delimiter_slash: true,
@@ -481,17 +477,21 @@ impl Accessor for OssBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            OssWriter::new(self.core.clone(), path, args),
-        ))
-    }
+        let writer = OssWriter::new(self.core.clone(), path, args.clone());
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        Ok((
-            RpAppend::default(),
-            OssAppender::new(self.core.clone(), path, args),
-        ))
+        let tw = if args.append() {
+            let w =
+                oio::AppendObjectWriter::new(writer).with_write_min_size(self.core.write_min_size);
+
+            oio::TwoWaysWriter::Right(w)
+        } else {
+            let w = oio::MultipartUploadWriter::new(writer, args.content_length())
+                .with_write_min_size(self.core.write_min_size);
+
+            oio::TwoWaysWriter::Left(w)
+        };
+
+        return Ok((RpWrite::default(), tw));
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

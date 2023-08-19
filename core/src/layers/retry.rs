@@ -35,7 +35,6 @@ use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
 
-use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -285,7 +284,6 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
     type BlockingReader = RetryWrapper<A::BlockingReader, I>;
     type Writer = RetryWrapper<A::Writer, I>;
     type BlockingWriter = RetryWrapper<A::BlockingWriter, I>;
-    type Appender = RetryWrapper<A::Appender, I>;
     type Pager = RetryWrapper<A::Pager, I>;
     type BlockingPager = RetryWrapper<A::BlockingPager, I>;
 
@@ -347,32 +345,6 @@ impl<A: Accessor, I: RetryInterceptor> LayeredAccessor for RetryAccessor<A, I> {
                     dur,
                     &[
                         ("operation", Operation::Write.into_static()),
-                        ("path", path),
-                    ],
-                )
-            })
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        RetryWrapper::new(r, self.notify.clone(), path, self.builder.clone()),
-                    )
-                })
-                .map_err(|e| e.set_persistent())
-            })
-            .await
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        { || self.inner.append(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(
-                    err,
-                    dur,
-                    &[
-                        ("operation", Operation::Append.into_static()),
                         ("path", path),
                     ],
                 )
@@ -1023,61 +995,6 @@ impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWra
 }
 
 #[async_trait]
-impl<A: oio::Append, I: RetryInterceptor> oio::Append for RetryWrapper<A, I> {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let mut backoff = self.builder.build();
-
-        loop {
-            match self.inner.append(bs.clone()).await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &e,
-                            dur,
-                            &[
-                                ("operation", AppendOperation::Append.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        tokio::time::sleep(dur).await;
-                        continue;
-                    }
-                },
-            }
-        }
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        let mut backoff = self.builder.build();
-
-        loop {
-            match self.inner.close().await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
-                    Some(dur) => {
-                        self.notify.intercept(
-                            &e,
-                            dur,
-                            &[
-                                ("operation", AppendOperation::Close.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        tokio::time::sleep(dur).await;
-                        continue;
-                    }
-                },
-            }
-        }
-    }
-}
-
-#[async_trait]
 impl<P: oio::Page, I: RetryInterceptor> oio::Page for RetryWrapper<P, I> {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let mut backoff = self.builder.build();
@@ -1173,7 +1090,6 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
-        type Appender = ();
         type Pager = MockPager;
         type BlockingPager = ();
 

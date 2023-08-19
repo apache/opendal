@@ -51,11 +51,13 @@ pub async fn test_append_create_append(op: Operator) -> Result<()> {
     let (content_one, size_one) = gen_bytes();
     let (content_two, size_two) = gen_bytes();
 
-    op.append(&path, content_one.clone())
+    op.write_with(&path, content_one.clone())
+        .append(true)
         .await
         .expect("append file first time must success");
 
-    op.append(&path, content_two.clone())
+    op.write_with(&path, content_two.clone())
+        .append(true)
         .await
         .expect("append to an existing file must success");
 
@@ -75,7 +77,7 @@ pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes();
 
-    let res = op.append(&path, content).await;
+    let res = op.write_with(&path, content).append(true).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::IsADirectory);
 

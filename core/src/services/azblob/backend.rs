@@ -32,7 +32,6 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::appender::AzblobAppender;
 use super::batch::parse_batch_delete_response;
 use super::error::parse_error;
 use super::pager::AzblobPager;
@@ -509,7 +508,6 @@ impl Accessor for AzblobBackend {
     type BlockingReader = ();
     type Writer = AzblobWriter;
     type BlockingWriter = ();
-    type Appender = AzblobAppender;
     type Pager = AzblobPager;
     type BlockingPager = ();
 
@@ -534,10 +532,6 @@ impl Accessor for AzblobBackend {
                 write_can_sink: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
-
-                append: true,
-                append_with_cache_control: true,
-                append_with_content_type: true,
 
                 delete: true,
                 create_dir: true,
@@ -617,13 +611,6 @@ impl Accessor for AzblobBackend {
         Ok((
             RpWrite::default(),
             AzblobWriter::new(self.core.clone(), args, path.to_string()),
-        ))
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        Ok((
-            RpAppend::default(),
-            AzblobAppender::new(self.core.clone(), path, args),
         ))
     }
 

@@ -893,7 +893,6 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = oio::MultipartUploadWriter<S3Writer>;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = S3Pager;
     type BlockingPager = ();
 

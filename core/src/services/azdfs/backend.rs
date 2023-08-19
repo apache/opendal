@@ -232,7 +232,6 @@ impl Accessor for AzdfsBackend {
     type BlockingReader = ();
     type Writer = AzdfsWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = AzdfsPager;
     type BlockingPager = ();
 

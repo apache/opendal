@@ -266,7 +266,6 @@ impl Accessor for FtpBackend {
     type BlockingReader = ();
     type Writer = FtpWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = FtpPager;
     type BlockingPager = ();
 

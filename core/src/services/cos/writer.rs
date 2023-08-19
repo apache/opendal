@@ -26,8 +26,6 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub const X_COS_NEXT_APPEND_POSITION: &str = "x-cos-next-append-position";
-
 pub struct CosWriter {
     core: Arc<CosCore>,
 
@@ -189,18 +187,13 @@ impl oio::AppendObjectWrite for CosWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let position = resp
-                    .headers()
-                    .get(X_COS_NEXT_APPEND_POSITION)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok())
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "missing x-cos-next-append-position, the object may not be appendable",
-                        )
-                    })?;
-                Ok(position)
+                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "Content-Length not present in returning response",
+                    )
+                })?;
+                Ok(content_length)
             }
             StatusCode::NOT_FOUND => Ok(0),
             _ => Err(parse_error(resp).await?),

@@ -27,8 +27,6 @@ use crate::raw::oio::MultipartUploadPart;
 use crate::raw::*;
 use crate::*;
 
-pub const X_OBS_NEXT_APPEND_POSITION: &str = "x-obs-next-append-position";
-
 pub struct ObsWriter {
     core: Arc<ObsCore>,
 
@@ -179,18 +177,13 @@ impl oio::AppendObjectWrite for ObsWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let position = resp
-                    .headers()
-                    .get(X_OBS_NEXT_APPEND_POSITION)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok())
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "missing x-obs-next-append-position, the object may not be appendable",
-                        )
-                    })?;
-                Ok(position)
+                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "Content-Length not present in returning response",
+                    )
+                })?;
+                Ok(content_length)
             }
             StatusCode::NOT_FOUND => Ok(0),
             _ => Err(parse_error(resp).await?),

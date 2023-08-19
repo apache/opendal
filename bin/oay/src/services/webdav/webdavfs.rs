@@ -68,10 +68,8 @@ impl DavFileSystem for WebdavFs {
             self.op
                 .lister(path.as_url_string().as_str())
                 .await
-                .map_or_else(
-                    |e| Err(convert_error(e)),
-                    |lister| Ok(DavStream::new(self.op.clone(), lister).boxed()),
-                )
+                .map(|lister| DavStream::new(self.op.clone(), lister).boxed())
+                .map_err(convert_error)
         }
         .boxed()
     }

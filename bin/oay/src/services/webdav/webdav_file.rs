@@ -53,12 +53,10 @@ impl DavFile for WebdavFile {
             self.op
                 .stat(self.path.as_url_string().as_str())
                 .await
-                .map_or_else(
-                    |e| Err(convert_error(e)),
-                    |opendal_metadata| {
-                        Ok(Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>)
-                    },
-                )
+                .map(|opendal_metadata| {
+                    Box::new(WebdavMetaData::new(opendal_metadata)) as Box<dyn DavMetaData>
+                })
+                .map_err(convert_error)
         }
         .boxed()
     }

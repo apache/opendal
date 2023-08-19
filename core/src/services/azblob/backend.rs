@@ -602,13 +602,6 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
             AzblobWriter::new(self.core.clone(), args, path.to_string()),

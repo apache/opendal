@@ -22,7 +22,7 @@ use sha2::Sha256;
 use crate::*;
 
 pub fn behavior_blocking_read_only_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && !cap.write && cap.blocking) {
         return vec![];

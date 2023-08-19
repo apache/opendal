@@ -131,9 +131,8 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
     type LayeredAccessor = CompleteReaderAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
-        let meta = inner.info();
         CompleteReaderAccessor {
-            meta,
+            meta: inner.info(),
             inner: Arc::new(inner),
         }
     }
@@ -157,7 +156,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.read {
             return new_capability_unsupported_error(Operation::Read);
         }
@@ -210,7 +209,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.read || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingRead);
         }
@@ -266,7 +265,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
-        let cap = self.meta.capability();
+        let cap = self.meta.full_capability();
         if !cap.list {
             return Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
@@ -315,7 +314,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
-        let cap = self.meta.capability();
+        let cap = self.meta.full_capability();
         if !cap.list {
             return Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
@@ -375,6 +374,16 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         &self.inner
     }
 
+    fn metadata(&self) -> AccessorInfo {
+        let mut meta = self.meta.clone();
+        let cap = meta.full_capability_mut();
+        if cap.read {
+            cap.read_can_next = true;
+            cap.read_can_seek = true;
+        }
+        meta
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.complete_reader(path, args).await
     }
@@ -384,7 +393,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.stat {
             return new_capability_unsupported_error(Operation::Stat);
         }
@@ -398,7 +407,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.stat || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingStat);
         }
@@ -412,7 +421,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.write {
             return new_capability_unsupported_error(Operation::Write);
         }
@@ -425,7 +434,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.write || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingWrite);
         }
@@ -437,7 +446,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.create_dir {
             return new_capability_unsupported_error(Operation::CreateDir);
         }
@@ -446,7 +455,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.create_dir || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingCreateDir);
         }
@@ -455,7 +464,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.delete {
             return new_capability_unsupported_error(Operation::Delete);
         }
@@ -464,7 +473,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.delete || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingDelete);
         }
@@ -473,7 +482,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.copy {
             return new_capability_unsupported_error(Operation::Copy);
         }
@@ -482,7 +491,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.copy || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingCopy);
         }
@@ -491,7 +500,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.rename {
             return new_capability_unsupported_error(Operation::Rename);
         }
@@ -500,7 +509,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.rename || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingRename);
         }
@@ -509,7 +518,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.list {
             return new_capability_unsupported_error(Operation::List);
         }
@@ -518,7 +527,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.list || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingList);
         }
@@ -527,7 +536,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.presign {
             return new_capability_unsupported_error(Operation::Presign);
         }
@@ -536,7 +545,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let capability = self.meta.capability();
+        let capability = self.meta.full_capability();
         if !capability.batch {
             return new_capability_unsupported_error(Operation::Batch);
         }
@@ -890,7 +899,7 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut info = AccessorInfo::default();
-            info.set_capability(self.capability);
+            info.set_full_capability(self.capability);
 
             info
         }

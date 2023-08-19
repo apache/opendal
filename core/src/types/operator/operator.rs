@@ -80,7 +80,7 @@ impl Operator {
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
         let limit = accessor
             .info()
-            .capability()
+            .full_capability()
             .batch_max_operations
             .unwrap_or(1000);
         Self { accessor, limit }
@@ -899,7 +899,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
-        if self.info().can_batch() {
+        if self.info().full_capability().batch {
             let mut input = input
                 .map(|v| (v, OpDelete::default().into()))
                 .chunks(self.limit());
@@ -967,7 +967,7 @@ impl Operator {
 
         let obs = self.lister_with(path).delimiter("").await?;
 
-        if self.info().can_batch() {
+        if self.info().full_capability().batch {
             let mut obs = obs.try_chunks(self.limit());
 
             while let Some(batches) = obs.next().await {

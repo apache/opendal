@@ -151,7 +151,7 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     fn metadata(&self) -> AccessorInfo {
         let mut meta = self.inner.info();
 
-        let cap = meta.capability_mut();
+        let cap = meta.full_capability_mut();
         cap.list = true;
         cap.list_with_delimiter_slash = true;
         cap.list_without_delimiter = true;

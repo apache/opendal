@@ -23,7 +23,7 @@ use futures::TryStreamExt;
 use crate::*;
 
 pub fn behavior_list_only_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !cap.list || cap.write {
         return vec![];

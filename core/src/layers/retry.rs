@@ -1095,7 +1095,7 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capability(Capability {
+            am.set_full_capability(Capability {
                 read: true,
                 list: true,
                 list_with_delimiter_slash: true,

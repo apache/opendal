@@ -27,7 +27,7 @@ use sha2::Sha256;
 use crate::*;
 
 pub fn behavior_append_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write && cap.append) {
         return vec![];
@@ -86,7 +86,7 @@ pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
 
 /// Test append with cache control must success.
 pub async fn test_append_with_cache_control(op: Operator) -> Result<()> {
-    if !op.info().capability().append_with_cache_control {
+    if !op.info().full_capability().append_with_cache_control {
         return Ok(());
     }
 
@@ -112,7 +112,7 @@ pub async fn test_append_with_cache_control(op: Operator) -> Result<()> {
 
 /// Test append with content type must success.
 pub async fn test_append_with_content_type(op: Operator) -> Result<()> {
-    if !op.info().capability().append_with_content_type {
+    if !op.info().full_capability().append_with_content_type {
         return Ok(());
     }
 
@@ -139,7 +139,7 @@ pub async fn test_append_with_content_type(op: Operator) -> Result<()> {
 
 /// Write a single file with content disposition should succeed.
 pub async fn test_append_with_content_disposition(op: Operator) -> Result<()> {
-    if !op.info().capability().append_with_content_disposition {
+    if !op.info().full_capability().append_with_content_disposition {
         return Ok(());
     }
 

@@ -68,7 +68,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         am.set_scheme(kv_info.scheme());
         am.set_name(kv_info.name());
         let kv_cap = kv_info.capabilities();
-        let cap = am.capability_mut();
+        let cap = am.full_capability_mut();
         if kv_cap.get {
             cap.read = true;
             cap.read_can_seek = true;

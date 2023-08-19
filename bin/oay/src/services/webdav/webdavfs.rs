@@ -65,8 +65,11 @@ impl DavFileSystem for WebdavFs {
     ) -> dav_server::fs::FsFuture<dav_server::fs::FsStream<Box<dyn dav_server::fs::DavDirEntry>>>
     {
         async move {
-            let lister = self.op.lister(path.as_url_string().as_str()).await.unwrap();
-            Ok(DavStream::new(self.op.clone(), lister).boxed())
+            self.op
+                .lister(path.as_url_string().as_str())
+                .await
+                .map(|lister| DavStream::new(self.op.clone(), lister).boxed())
+                .map_err(convert_error)
         }
         .boxed()
     }

@@ -152,11 +152,25 @@ where
         Ok(())
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<()> {
+        // Make sure internal buffer has been flushed.
+        if !self.buffer.is_empty() {
+            let bs = self.buffer.peak_exact(self.buffer.len());
+
+            let offset = self.offset().await?;
+            let size = bs.len() as u64;
+            self.inner
+                .append(offset, size, AsyncBody::Bytes(bs))
+                .await?;
+
+            self.buffer.clear();
+            self.offset = Some(offset + size);
+        }
+
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    async fn abort(&mut self) -> Result<()> {
         Ok(())
     }
 }

@@ -292,6 +292,7 @@ impl Accessor for CosBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_append: true,
                 write_can_sink: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,

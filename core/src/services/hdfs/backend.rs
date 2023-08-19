@@ -179,6 +179,8 @@ impl Accessor for HdfsBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_append: true,
+
                 create_dir: true,
                 delete: true,
 

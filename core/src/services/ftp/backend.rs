@@ -280,6 +280,8 @@ impl Accessor for FtpBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_append: true,
+
                 delete: true,
                 create_dir: true,
 

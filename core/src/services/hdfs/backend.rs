@@ -179,7 +179,8 @@ impl Accessor for HdfsBackend {
                 read_with_range: true,
 
                 write: true,
-                write_can_append: true,
+                // TODO: wait for https://github.com/apache/incubator-opendal/pull/2715
+                write_can_append: false,
 
                 create_dir: true,
                 delete: true,

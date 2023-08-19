@@ -12,12 +12,13 @@ This service can be used to:
 - [ ] ~~list~~
 - [ ] scan
 - [ ] ~~presign~~
-- [x] blocking
+- [ ] blocking
 
 
 ## Configuration
 
 - `root`: Set the working directory of `OpenDAL`
+- `endpoint`: Set the server address for `AtomicData`
 
 You can refer to [`AtomicdataBuilder`]'s docs for more information.
 
@@ -33,6 +34,9 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut builder = Atomicdata::default();
+
+    // Set the server address for AtomicData
+    builder.endpoint("https://atomicdata.dev");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

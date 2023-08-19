@@ -49,6 +49,6 @@ jobs:
           cargo test atomicdata --features services-atomicdata -j=1
         env:
           RUST_BACKTRACE: full
-          RUST_LOG: debug
           OPENDAL_ATOMICDATA_TEST: on
           OPENDAL_ATOMICDATA_ROOT: /tmp/opendal
+          OPENDAL_ATOMICDATA_ENDPOINT: https://atomicdata.dev

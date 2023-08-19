@@ -41,12 +41,19 @@ use crate::*;
 #[derive(Default)]
 pub struct AtomicdataBuilder {
     root: Option<String>,
+    endpoint: Option<String>,
 }
 
 impl AtomicdataBuilder {
     /// Set the root for Atomicdata.
     pub fn root(&mut self, path: &str) -> &mut Self {
         self.root = Some(path.into());
+        self
+    }
+
+    /// Set the server address for Atomicdata.
+    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+        self.endpoint = Some(endpoint.into());
         self
     }
 }
@@ -59,6 +66,7 @@ impl Builder for AtomicdataBuilder {
         let mut builder = AtomicdataBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
 
         builder
     }
@@ -78,19 +86,23 @@ impl Builder for AtomicdataBuilder {
                 .as_str(),
         );
 
-        Ok(AtomicdataBackend::new(Adapter { store }).with_root(&root))
+        let endpoint = self.endpoint.clone().unwrap();
+
+        Ok(AtomicdataBackend::new(Adapter { store, endpoint }).with_root(&root))
     }
 }
 
 /// Backend for Atomicdata services.
 pub type AtomicdataBackend = kv::Backend<Adapter>;
 
-const KEY_PROPERTY: &str = "https://atomicdata.dev/properties/name";
-const VALUE_PROPERTY: &str = "https://atomicdata.dev/properties/atom/value";
+const DOCUMENT_CLASS: &str = "classes/Document";
+const KEY_PROPERTY: &str = "properties/name";
+const VALUE_PROPERTY: &str = "properties/atom/value";
 
 #[derive(Clone)]
 pub struct Adapter {
     store: Arc<Store>,
+    endpoint: String,
 }
 
 impl Debug for Adapter {
@@ -111,14 +123,14 @@ impl kv::Adapter for Adapter {
                 write: true,
                 delete: true,
                 create_dir: true,
-                blocking: true,
                 ..Default::default()
             },
         )
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let query = Query::new_prop_val(KEY_PROPERTY, path);
+        let query =
+            Query::new_prop_val(format!("{}/{}", self.endpoint, KEY_PROPERTY).as_str(), path);
         let query_result = self.store.query(&query).map_err(format_atomic_error)?;
 
         if query_result.resources.is_empty() {
@@ -126,7 +138,7 @@ impl kv::Adapter for Adapter {
         }
 
         let result = query_result.resources[0]
-            .get(VALUE_PROPERTY)
+            .get(format!("{}/{}", self.endpoint, VALUE_PROPERTY).as_str())
             .map_err(format_atomic_error)?;
 
         let data = BASE64_STANDARD.decode(result.to_string()).unwrap();
@@ -137,26 +149,31 @@ impl kv::Adapter for Adapter {
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
         let mut subject;
 
-        let query = Query::new_prop_val(KEY_PROPERTY, path);
+        let query =
+            Query::new_prop_val(format!("{}/{}", self.endpoint, KEY_PROPERTY).as_str(), path);
         let query_result = self.store.query(&query).map_err(format_atomic_error)?;
 
         if !query_result.resources.is_empty() {
             subject = query_result.resources[0].clone();
         } else {
             subject = atomic_lib::Resource::new_instance(
-                "https://atomicdata.dev/classes/Document",
+                format!("{}/{}", self.endpoint, DOCUMENT_CLASS).as_str(),
                 &*self.store,
             )
             .map_err(format_atomic_error)?;
 
             subject
-                .set_propval_string(KEY_PROPERTY.to_string(), path, &*self.store)
+                .set_propval_string(
+                    format!("{}/{}", self.endpoint, KEY_PROPERTY).to_string(),
+                    path,
+                    &*self.store,
+                )
                 .map_err(format_atomic_error)?;
         }
 
         subject
             .set_propval_string(
-                VALUE_PROPERTY.to_string(),
+                format!("{}/{}", self.endpoint, VALUE_PROPERTY).to_string(),
                 &BASE64_STANDARD.encode(value),
                 &*self.store,
             )
@@ -170,7 +187,8 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let query = Query::new_prop_val(KEY_PROPERTY, path);
+        let query =
+            Query::new_prop_val(format!("{}/{}", self.endpoint, KEY_PROPERTY).as_str(), path);
         let query_result = self.store.query(&query).map_err(format_atomic_error)?;
 
         if !query_result.resources.is_empty() {

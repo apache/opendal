@@ -398,7 +398,8 @@ impl Accessor for () {
             scheme: Scheme::Custom("dummy"),
             root: "".to_string(),
             name: "dummy".to_string(),
-            capability: Capability::default(),
+            native_capability: Capability::default(),
+            full_capability: Capability::default(),
         }
     }
 }
@@ -509,7 +510,8 @@ pub struct AccessorInfo {
     root: String,
     name: String,
 
-    capability: Capability,
+    native_capability: Capability,
+    full_capability: Capability,
 }
 
 impl AccessorInfo {
@@ -553,19 +555,24 @@ impl AccessorInfo {
         self
     }
 
-    /// Get backend's capabilities.
-    pub fn capability(&self) -> Capability {
-        self.capability
+    /// Get backend's native capabilities.
+    pub fn native_capability(&self) -> Capability {
+        self.native_capability
     }
 
-    /// Get backend's capabilities.
-    pub fn capability_mut(&mut self) -> &mut Capability {
-        &mut self.capability
+    /// Get service's full capabilities.
+    pub fn full_capability(&self) -> Capability {
+        self.full_capability
     }
 
-    /// Set capabilities for backend.
-    pub fn set_capability(&mut self, capability: Capability) -> &mut Self {
-        self.capability = capability;
+    /// Get service's full capabilities.
+    pub fn full_capability_mut(&mut self) -> &mut Capability {
+        &mut self.full_capability
+    }
+
+    /// Set full capabilities for service.
+    pub fn set_full_capability(&mut self, capability: Capability) -> &mut Self {
+        self.full_capability = capability;
         self
     }
 }

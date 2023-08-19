@@ -404,7 +404,7 @@ impl Accessor for GcsBackend {
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 create_dir: true,
 
                 stat: true,

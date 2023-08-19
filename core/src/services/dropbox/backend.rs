@@ -59,7 +59,7 @@ impl Accessor for DropboxBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Dropbox)
             .set_root(&self.core.root)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,

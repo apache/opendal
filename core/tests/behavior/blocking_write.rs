@@ -27,7 +27,7 @@ use sha2::Sha256;
 use crate::*;
 
 pub fn behavior_blocking_write_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write && cap.blocking) {
         return vec![];
@@ -217,7 +217,7 @@ pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
 
 /// Read range content should match.
 pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -246,7 +246,7 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
 
 /// Read large range content should match.
 pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -286,7 +286,7 @@ pub fn test_blocking_read_not_exist(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -323,7 +323,7 @@ pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -360,7 +360,7 @@ pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 

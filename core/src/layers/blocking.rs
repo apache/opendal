@@ -80,10 +80,9 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     }
 
     fn metadata(&self) -> AccessorInfo {
-        let mut info = self.inner.info();
-        let cap = info.capability_mut();
-        cap.blocking = true;
-        info
+        let mut meta = self.inner.info();
+        meta.full_capability_mut().blocking = true;
+        meta
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {

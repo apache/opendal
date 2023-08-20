@@ -18,7 +18,6 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
-use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -187,40 +186,25 @@ impl<T: Read> ReadExt for T {}
 pub trait ReadExt: Read {
     /// Build a future for `poll_read`.
     fn read<'a>(&'a mut self, buf: &'a mut [u8]) -> ReadFuture<'a, Self> {
-        ReadFuture {
-            reader: self,
-            buf,
-            _pin: PhantomPinned,
-        }
+        ReadFuture { reader: self, buf }
     }
 
     /// Build a future for `poll_seek`.
     fn seek(&mut self, pos: io::SeekFrom) -> SeekFuture<'_, Self> {
-        SeekFuture {
-            reader: self,
-            pos,
-            _pin: PhantomPinned,
-        }
+        SeekFuture { reader: self, pos }
     }
 
     /// Build a future for `poll_next`
     fn next(&mut self) -> NextFuture<'_, Self> {
-        NextFuture {
-            reader: self,
-            _pin: PhantomPinned,
-        }
+        NextFuture { reader: self }
     }
 }
 
-#[pin_project]
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
 pub struct ReadFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
     buf: &'a mut [u8],
-    /// Make this future `!Unpin` for compatibility with async trait methods.
-    ///
-    /// Borrowed from tokio.
-    #[pin]
-    _pin: PhantomPinned,
 }
 
 impl<R> Future for ReadFuture<'_, R>
@@ -235,15 +219,11 @@ where
     }
 }
 
-#[pin_project]
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
 pub struct SeekFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
     pos: io::SeekFrom,
-    /// Make this future `!Unpin` for compatibility with async trait methods.
-    ///
-    /// Borrowed from tokio.
-    #[pin]
-    _pin: PhantomPinned,
 }
 
 impl<R> Future for SeekFuture<'_, R>
@@ -258,14 +238,10 @@ where
     }
 }
 
-#[pin_project]
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
 pub struct NextFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
-    /// Make this future `!Unpin` for compatibility with async trait methods.
-    ///
-    /// Borrowed from tokio.
-    #[pin]
-    _pin: PhantomPinned,
 }
 
 impl<R> Future for NextFuture<'_, R>

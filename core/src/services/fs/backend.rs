@@ -27,7 +27,6 @@ use chrono::DateTime;
 use log::debug;
 use uuid::Uuid;
 
-use super::appender::FsAppender;
 use super::error::parse_io_error;
 use super::pager::FsPager;
 use super::writer::FsWriter;
@@ -248,7 +247,6 @@ impl Accessor for FsBackend {
     type BlockingReader = oio::FromFileReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
-    type Appender = FsAppender<tokio::fs::File>;
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
     type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
 
@@ -264,12 +262,11 @@ impl Accessor for FsBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_append: true,
                 write_can_sink: true,
                 write_without_content_length: true,
                 create_dir: true,
                 delete: true,
-
-                append: true,
 
                 list: true,
                 list_with_delimiter_slash: true,
@@ -366,7 +363,7 @@ impl Accessor for FsBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
             let tmp_path =
@@ -378,29 +375,21 @@ impl Accessor for FsBackend {
             (p, None)
         };
 
-        let f = tokio::fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
+        let mut open_options = tokio::fs::OpenOptions::new();
+
+        open_options.create(true).write(true);
+        if op.append() {
+            open_options.append(true);
+        } else {
+            open_options.truncate(true);
+        }
+
+        let f = open_options
             .open(tmp_path.as_ref().unwrap_or(&target_path))
             .await
             .map_err(parse_io_error)?;
 
         Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
-    }
-
-    async fn append(&self, path: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        let path = Self::ensure_write_abs_path(&self.root, path).await?;
-
-        let f = tokio::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .append(true)
-            .open(&path)
-            .await
-            .map_err(parse_io_error)?;
-
-        Ok((RpAppend::new(), FsAppender::new(f)))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

@@ -15,34 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use futures::AsyncWriteExt;
+// For ocaml-rs, the build order in the same build group is the order of the file names.
+// In order to use the type in the function in the generated ocaml file, it must be defined on the first generated file.
+use super::*;
 
-use super::error::parse_io_error;
-use crate::raw::*;
-use crate::*;
+#[ocaml::sig]
+pub struct Operator(pub(crate) od::BlockingOperator);
+ocaml::custom!(Operator);
 
-pub struct HdfsAppender<F> {
-    f: F,
-}
+#[ocaml::sig]
+pub struct Reader(pub(crate) od::BlockingReader);
+ocaml::custom!(Reader);
 
-impl<F> HdfsAppender<F> {
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-}
-
-#[async_trait]
-impl oio::Append for HdfsAppender<hdrs::AsyncFile> {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.f.write_all(&bs).await.map_err(parse_io_error)?;
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.f.flush().await.map_err(parse_io_error)?;
-        self.f.close().await.map_err(parse_io_error)?;
-        Ok(())
-    }
-}
+#[ocaml::sig]
+pub struct Metadata(pub(crate) od::Metadata);
+ocaml::custom!(Metadata);

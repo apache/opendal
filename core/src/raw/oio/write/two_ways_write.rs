@@ -17,46 +17,48 @@
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use openssh_sftp_client::file::File;
 
-use crate::raw::oio;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::raw::oio::Streamer;
+use crate::raw::*;
+use crate::*;
 
-pub struct SftpWriter {
-    file: File,
-}
-
-impl SftpWriter {
-    pub fn new(file: File) -> Self {
-        SftpWriter { file }
-    }
+/// TwoWaysWrite is used to implement [`Write`] based on two ways.
+///
+/// Users can wrap two different writers together.
+pub enum TwoWaysWriter<L: oio::Write, R: oio::Write> {
+    /// The left side for the [`TwoWaysWriter`].
+    Left(L),
+    /// The right side for the [`TwoWaysWriter`].
+    Right(R),
 }
 
 #[async_trait]
-impl oio::Write for SftpWriter {
+impl<L: oio::Write, R: oio::Write> oio::Write for TwoWaysWriter<L, R> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.file.write_all(&bs).await?;
-
-        Ok(())
+        match self {
+            Self::Left(l) => l.write(bs).await,
+            Self::Right(r) => r.write(bs).await,
+        }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+        match self {
+            Self::Left(l) => l.sink(size, s).await,
+            Self::Right(r) => r.sink(size, s).await,
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "SFTP does not support aborting writes",
-        ))
+        match self {
+            Self::Left(l) => l.abort().await,
+            Self::Right(r) => r.abort().await,
+        }
     }
 
     async fn close(&mut self) -> Result<()> {
-        Ok(())
+        match self {
+            Self::Left(l) => l.close().await,
+            Self::Right(r) => r.close().await,
+        }
     }
 }

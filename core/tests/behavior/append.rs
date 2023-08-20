@@ -20,7 +20,6 @@ use std::vec;
 use anyhow::Result;
 use futures::io::BufReader;
 use futures::io::Cursor;
-use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -29,7 +28,7 @@ use crate::*;
 pub fn behavior_append_tests(op: &Operator) -> Vec<Trial> {
     let cap = op.info().full_capability();
 
-    if !(cap.read && cap.write && cap.append) {
+    if !(cap.read && cap.write && cap.write_can_append) {
         return vec![];
     }
 
@@ -51,11 +50,13 @@ pub async fn test_append_create_append(op: Operator) -> Result<()> {
     let (content_one, size_one) = gen_bytes();
     let (content_two, size_two) = gen_bytes();
 
-    op.append(&path, content_one.clone())
+    op.write_with(&path, content_one.clone())
+        .append(true)
         .await
         .expect("append file first time must success");
 
-    op.append(&path, content_two.clone())
+    op.write_with(&path, content_two.clone())
+        .append(true)
         .await
         .expect("append to an existing file must success");
 
@@ -75,7 +76,7 @@ pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes();
 
-    let res = op.append(&path, content).await;
+    let res = op.write_with(&path, content).append(true).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::IsADirectory);
 
@@ -84,7 +85,7 @@ pub async fn test_append_with_dir_path(op: Operator) -> Result<()> {
 
 /// Test append with cache control must success.
 pub async fn test_append_with_cache_control(op: Operator) -> Result<()> {
-    if !op.info().full_capability().append_with_cache_control {
+    if !op.info().full_capability().write_with_cache_control {
         return Ok(());
     }
 
@@ -92,7 +93,8 @@ pub async fn test_append_with_cache_control(op: Operator) -> Result<()> {
     let (content, _) = gen_bytes();
 
     let target_cache_control = "no-cache, no-store, max-age=300";
-    op.append_with(&path, content)
+    op.write_with(&path, content)
+        .append(true)
         .cache_control(target_cache_control)
         .await?;
 
@@ -110,7 +112,7 @@ pub async fn test_append_with_cache_control(op: Operator) -> Result<()> {
 
 /// Test append with content type must success.
 pub async fn test_append_with_content_type(op: Operator) -> Result<()> {
-    if !op.info().full_capability().append_with_content_type {
+    if !op.info().full_capability().write_with_content_type {
         return Ok(());
     }
 
@@ -118,7 +120,8 @@ pub async fn test_append_with_content_type(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     let target_content_type = "application/json";
-    op.append_with(&path, content)
+    op.write_with(&path, content)
+        .append(true)
         .content_type(target_content_type)
         .await?;
 
@@ -137,7 +140,7 @@ pub async fn test_append_with_content_type(op: Operator) -> Result<()> {
 
 /// Write a single file with content disposition should succeed.
 pub async fn test_append_with_content_disposition(op: Operator) -> Result<()> {
-    if !op.info().full_capability().append_with_content_disposition {
+    if !op.info().full_capability().write_with_content_disposition {
         return Ok(());
     }
 
@@ -145,7 +148,8 @@ pub async fn test_append_with_content_disposition(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     let target_content_disposition = "attachment; filename=\"filename.jpg\"";
-    op.append_with(&path, content)
+    op.write_with(&path, content)
+        .append(true)
         .content_disposition(target_content_disposition)
         .await?;
 
@@ -168,14 +172,7 @@ pub async fn test_appender_futures_copy(op: Operator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut a = match op.appender(&path).await {
-        Ok(a) => a,
-        Err(err) if err.kind() == ErrorKind::Unsupported => {
-            warn!("service doesn't support write with append");
-            return Ok(());
-        }
-        Err(err) => return Err(err.into()),
-    };
+    let mut a = op.writer_with(&path).append(true).await?;
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -203,12 +200,12 @@ pub async fn test_fuzz_appender(op: Operator) -> Result<()> {
 
     let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
 
-    let mut a = op.appender(&path).await?;
+    let mut a = op.writer_with(&path).append(true).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
             ObjectWriterAction::Write(bs) => {
-                a.append(bs).await?;
+                a.write(bs).await?;
             }
         }
     }

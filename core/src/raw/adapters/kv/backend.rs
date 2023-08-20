@@ -62,7 +62,6 @@ impl<S: Adapter> Accessor for Backend<S> {
     type BlockingReader = oio::Cursor;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
-    type Appender = ();
     type Pager = KvPager;
     type BlockingPager = KvPager;
 

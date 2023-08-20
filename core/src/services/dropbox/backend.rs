@@ -53,7 +53,6 @@ impl Accessor for DropboxBackend {
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
-    type Appender = ();
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();

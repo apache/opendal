@@ -401,7 +401,6 @@ impl Accessor for WebhdfsBackend {
     type BlockingReader = ();
     type Writer = WebhdfsWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = WebhdfsPager;
     type BlockingPager = ();
 

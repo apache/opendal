@@ -22,7 +22,14 @@ pub use api::Write;
 pub use api::WriteOperation;
 pub use api::Writer;
 
+mod two_ways_write;
+pub use two_ways_write::TwoWaysWriter;
+
 mod multipart_upload_write;
 pub use multipart_upload_write::MultipartUploadPart;
 pub use multipart_upload_write::MultipartUploadWrite;
 pub use multipart_upload_write::MultipartUploadWriter;
+
+mod append_object_write;
+pub use append_object_write::AppendObjectWrite;
+pub use append_object_write::AppendObjectWriter;

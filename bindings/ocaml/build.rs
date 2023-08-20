@@ -19,6 +19,10 @@ use std::path::PathBuf;
 
 pub fn main() -> std::io::Result<()> {
     let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+
+    ocaml_build::Sigs::new("src/seek_from.ml")
+        .with_source_dir(root.join("src/seek_from"))
+        .generate()?;
     ocaml_build::Sigs::new("src/operator.ml")
         .with_source_dir(root.join("src/operator"))
         .generate()

@@ -404,6 +404,8 @@ impl OpStat {
 /// Args for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
+    append: bool,
+
     content_length: Option<u64>,
     content_type: Option<String>,
     content_disposition: Option<String>,
@@ -416,6 +418,25 @@ impl OpWrite {
     /// If input path is not a file path, an error will be returned.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Get the append from op.
+    ///
+    /// The append is the flag to indicate that this write operation is an append operation.
+    pub fn append(&self) -> bool {
+        self.append
+    }
+
+    /// Set the append mode of op.
+    ///
+    /// If the append mode is set, the data will be appended to the end of the file.
+    ///
+    /// # Notes
+    ///
+    /// Service could return `Unsupported` if the underlying storage does not support append.
+    pub fn with_append(mut self, append: bool) -> Self {
+        self.append = append;
+        self
     }
 
     /// Get the content length from op.
@@ -462,54 +483,6 @@ impl OpWrite {
     }
 
     /// Set the content type of option
-    pub fn with_cache_control(mut self, cache_control: &str) -> Self {
-        self.cache_control = Some(cache_control.to_string());
-        self
-    }
-}
-
-/// Args for `append` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpAppend {
-    content_type: Option<String>,
-    content_disposition: Option<String>,
-    cache_control: Option<String>,
-}
-
-impl OpAppend {
-    /// Create a new `OpAppend`.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get the content type from option
-    pub fn content_type(&self) -> Option<&str> {
-        self.content_type.as_deref()
-    }
-
-    /// Set the content type of option
-    pub fn with_content_type(mut self, content_type: &str) -> Self {
-        self.content_type = Some(content_type.to_string());
-        self
-    }
-
-    /// Get the content disposition from option
-    pub fn content_disposition(&self) -> Option<&str> {
-        self.content_disposition.as_deref()
-    }
-
-    /// Set the content disposition of option
-    pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
-        self.content_disposition = Some(content_disposition.to_string());
-        self
-    }
-
-    /// Get the cache control from option
-    pub fn cache_control(&self) -> Option<&str> {
-        self.cache_control.as_deref()
-    }
-
-    /// Set the cache control of option
     pub fn with_cache_control(mut self, cache_control: &str) -> Self {
         self.cache_control = Some(cache_control.to_string());
         self

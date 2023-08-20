@@ -15,35 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use tokio::io::AsyncWriteExt;
+use std::io;
 
-use super::error::parse_io_error;
-use crate::raw::*;
-use crate::*;
+use super::*;
 
-pub struct FsAppender<F> {
-    f: F,
+use opendal::raw::oio::BlockingRead;
+
+#[ocaml::func]
+#[ocaml::sig("reader -> bytes -> (int, string) Result.t ")]
+pub fn reader_read(reader: &mut Reader, buf: &mut [u8]) -> Result<usize, String> {
+    map_res_error(reader.0.read(buf))
 }
 
-impl<F> FsAppender<F> {
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-}
-
-#[async_trait]
-impl oio::Append for FsAppender<tokio::fs::File> {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.f.write_all(&bs).await.map_err(parse_io_error)?;
-
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.f.sync_all().await.map_err(parse_io_error)?;
-
-        Ok(())
-    }
+#[ocaml::func]
+#[ocaml::sig("reader -> Seek_from.seek_from -> (int64, string) Result.t ")]
+pub fn reader_seek(reader: &mut Reader, pos: seek_from::SeekFrom) -> Result<u64, String> {
+    map_res_error(reader.0.seek(io::SeekFrom::from(pos)))
 }

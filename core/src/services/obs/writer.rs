@@ -19,11 +19,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use crate::raw::oio::MultipartUploadPart;
 use crate::raw::*;
 use crate::*;
 
@@ -32,29 +32,20 @@ pub struct ObsWriter {
 
     op: OpWrite,
     path: String,
-    upload_id: Option<String>,
-
-    parts: Vec<CompleteMultipartUploadRequestPart>,
-    buffer: oio::VectorCursor,
-    buffer_size: usize,
 }
 
 impl ObsWriter {
     pub fn new(core: Arc<ObsCore>, path: &str, op: OpWrite) -> Self {
-        let buffer_size = core.write_min_size;
         ObsWriter {
             core,
             path: path.to_string(),
             op,
-
-            upload_id: None,
-            parts: vec![],
-            buffer: oio::VectorCursor::new(),
-            buffer_size,
         }
     }
-
-    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
+}
+#[async_trait]
+impl oio::MultipartUploadWrite for ObsWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.obs_put_object_request(
             &self.path,
             Some(size),
@@ -78,7 +69,7 @@ impl ObsWriter {
         }
     }
 
-    async fn initiate_upload(&self) -> Result<String> {
+    async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
             .obs_initiate_multipart_upload(&self.path, self.op.content_type())
@@ -102,20 +93,16 @@ impl ObsWriter {
     async fn write_part(
         &self,
         upload_id: &str,
-        bs: Bytes,
-    ) -> Result<CompleteMultipartUploadRequestPart> {
+        part_number: usize,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<MultipartUploadPart> {
         // Obs service requires part number must between [1..=10000]
-        let part_number = self.parts.len() + 1;
+        let part_number = part_number + 1;
 
         let resp = self
             .core
-            .obs_upload_part_request(
-                &self.path,
-                upload_id,
-                part_number,
-                Some(bs.len() as u64),
-                AsyncBody::Bytes(bs),
-            )
+            .obs_upload_part_request(&self.path, upload_id, part_number, Some(size), body)
             .await?;
 
         let status = resp.status();
@@ -133,78 +120,39 @@ impl ObsWriter {
 
                 resp.into_body().consume().await?;
 
-                Ok(CompleteMultipartUploadRequestPart { part_number, etag })
+                Ok(MultipartUploadPart { part_number, etag })
             }
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::Write for ObsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let upload_id = match &self.upload_id {
-            Some(upload_id) => upload_id,
-            None => {
-                if self.op.content_length().unwrap_or_default() == bs.len() as u64 {
-                    return self
-                        .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-                        .await;
-                } else {
-                    let upload_id = self.initiate_upload().await?;
-                    self.upload_id = Some(upload_id);
-                    self.upload_id.as_deref().unwrap()
-                }
-            }
-        };
+    async fn complete_part(&self, upload_id: &str, parts: &[MultipartUploadPart]) -> Result<()> {
+        let parts = parts
+            .iter()
+            .map(|p| CompleteMultipartUploadRequestPart {
+                part_number: p.part_number,
+                etag: p.etag.clone(),
+            })
+            .collect();
 
-        // Ignore empty bytes
-        if bs.is_empty() {
-            return Ok(());
-        }
+        let resp = self
+            .core
+            .obs_complete_multipart_upload(&self.path, upload_id, parts)
+            .await?;
 
-        self.buffer.push(bs);
-        // Return directly if the buffer is not full
-        if self.buffer.len() <= self.buffer_size {
-            return Ok(());
-        }
+        let status = resp.status();
 
-        let bs = self.buffer.peak_at_least(self.buffer_size);
-        let size = bs.len();
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
 
-        match self.write_part(upload_id, bs).await {
-            Ok(part) => {
-                self.buffer.take(size);
-                self.parts.push(part);
                 Ok(())
             }
-            Err(e) => {
-                // If the upload fails, we should pop the given bs to make sure
-                // write is re-enter safe.
-                self.buffer.pop();
-                Err(e)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        if self.op.content_length().unwrap_or_default() == size {
-            return self.write_oneshot(size, AsyncBody::Stream(s)).await;
-        } else {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "Obs does not support streaming multipart upload",
-            ));
-        }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
-
+    async fn abort_part(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
             .obs_abort_multipart_upload(&self.path, upload_id)
@@ -219,42 +167,42 @@ impl oio::Write for ObsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
-    async fn close(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
+#[async_trait]
+impl oio::AppendObjectWrite for ObsWriter {
+    async fn offset(&self) -> Result<u64> {
+        let resp = self.core.obs_head_object(&self.path, None, None).await?;
 
-        // Make sure internal buffer has been flushed.
-        if !self.buffer.is_empty() {
-            let bs = self.buffer.peak_exact(self.buffer.len());
-
-            match self.write_part(upload_id, bs).await {
-                Ok(part) => {
-                    self.buffer.clear();
-                    self.parts.push(part);
-                }
-                Err(e) => {
-                    return Err(e);
-                }
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "Content-Length not present in returning response",
+                    )
+                })?;
+                Ok(content_length)
             }
+            StatusCode::NOT_FOUND => Ok(0),
+            _ => Err(parse_error(resp).await?),
         }
+    }
 
-        let resp = self
+    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
             .core
-            .obs_complete_multipart_upload(&self.path, upload_id, &self.parts)
-            .await?;
+            .obs_append_object_request(&self.path, offset, size, &self.op, body)?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

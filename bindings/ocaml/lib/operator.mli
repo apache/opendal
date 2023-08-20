@@ -28,6 +28,17 @@ val new_operator :
     @return The block operator
 *)
 
+val stat :
+  Opendal_core.Operator.operator ->
+  string ->
+  (Opendal_core.Operator.metadata, string) result
+(** [is_exist operator path] Get current path's metadata **without cache** directly.
+    
+    @param operator The operator
+    @param path want to stat
+    @return metadata
+*)
+
 val is_exist : Opendal_core.Operator.operator -> string -> (bool, string) result
 (** [is_exist operator path] Check if this path exists or not.
     
@@ -61,6 +72,17 @@ val read :
     @param operator The operator
     @param path want to read
     @return data of path
+*)
+
+val reader :
+  Opendal_core.Operator.operator ->
+  string ->
+  (Opendal_core.Operator.blocking_reader, string) result
+(** [read operator path] Create a new reader which can read the whole path.
+    
+    @param operator The operator
+    @param path want to read
+    @return reader
 *)
 
 val write :
@@ -117,3 +139,41 @@ val remove_all :
     @param operator The block operator
     @param path file path
 *)
+
+module Reader : sig
+  val read :
+    Opendal_core.Operator.blocking_reader -> bytes -> (int, string) result
+  (** [read reader buf] Read data to [buf] and return data size.*)
+
+  val seek :
+    Opendal_core.Operator.blocking_reader ->
+    Opendal_core.Seek_from.seek_from ->
+    (int64, string) result
+  (** [seek reader pos] is a function that seeks data to the given position [pos].*)
+end
+
+module Metadata : sig
+  val is_file : Opendal_core.Operator.metadata -> bool
+  (** [is_file metadata] Returns `true` if this metadata is for a file.*)
+
+  val is_dir : Opendal_core.Operator.metadata -> bool
+  (** [is_dir metadata] Returns `true` if this metadata is for a directory.*)
+
+  val content_length : Opendal_core.Operator.metadata -> int64
+  (** [content_length metadata] Content length of this entry.*)
+
+  val content_md5 : Opendal_core.Operator.metadata -> string option
+  (** [content_md5 metadata] Content MD5 of this entry.*)
+
+  val content_type : Opendal_core.Operator.metadata -> string option
+  (** [content_type metadata] Content Type of this entry.*)
+
+  val content_disposition : Opendal_core.Operator.metadata -> string option
+  (** [content_disposition metadata] Content-Disposition of this entry*)
+
+  val etag : Opendal_core.Operator.metadata -> string option
+  (** [etag metadata] ETag of this entry.*)
+
+  val last_modified : Opendal_core.Operator.metadata -> int64 option
+  (** [last_modified metadata] Last modified of this entry.*)
+end

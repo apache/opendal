@@ -15,14 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::PathBuf;
+// For ocaml-rs, the build order in the same build group is the order of the file names.
+// In order to use the type in the function in the generated ocaml file, it must be defined on the first generated file.
+use super::*;
 
-pub fn main() -> std::io::Result<()> {
-    let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    ocaml_build::Sigs::new("src/seek_from.ml")
-    .with_source_dir(root.join("src/seek_from"))
-    .generate()?;
-    ocaml_build::Sigs::new("src/operator.ml")
-        .with_source_dir(root.join("src/operator"))
-        .generate()
-}
+#[ocaml::sig]
+pub struct Operator(pub(crate) od::BlockingOperator);
+ocaml::custom!(Operator);
+
+#[ocaml::sig]
+pub struct BlockingReader(pub(crate) od::BlockingReader);
+ocaml::custom!(BlockingReader);
+
+#[ocaml::sig]
+pub struct Metadata(pub(crate) od::Metadata);
+ocaml::custom!(Metadata);

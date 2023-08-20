@@ -15,14 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::PathBuf;
+use std::io;
 
-pub fn main() -> std::io::Result<()> {
-    let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    ocaml_build::Sigs::new("src/seek_from.ml")
-    .with_source_dir(root.join("src/seek_from"))
-    .generate()?;
-    ocaml_build::Sigs::new("src/operator.ml")
-        .with_source_dir(root.join("src/operator"))
-        .generate()
+use super::*;
+use seek_from;
+
+use opendal::raw::oio::BlockingRead;
+
+#[ocaml::func]
+#[ocaml::sig("blocking_reader -> bytes -> (int, string) Result.t ")]
+pub fn reader_read(reader: &mut BlockingReader, buf: &mut [u8]) -> Result<usize, String> {
+    map_res_error(reader.0.read(buf))
+}
+
+#[ocaml::func]
+#[ocaml::sig("blocking_reader -> Seek_from.seek_from -> (int64, string) Result.t ")]
+pub fn reader_seek(reader: &mut BlockingReader, pos: seek_from::SeekFrom) -> Result<u64, String> {
+    map_res_error(reader.0.seek(io::SeekFrom::from(pos)))
 }

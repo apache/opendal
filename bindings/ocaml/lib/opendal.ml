@@ -18,5 +18,6 @@
 *)
 
 module Operator = Operator
+module Seek_from = Opendal_core.Seek_from
 
 type operator = Opendal_core.Operator.operator

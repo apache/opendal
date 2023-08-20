@@ -18,12 +18,30 @@
 *)
 
 let new_operator = Opendal_core.Operator.operator
+let stat = Opendal_core.Operator.stat
 let is_exist = Opendal_core.Operator.blocking_is_exist
 let create_dir = Opendal_core.Operator.blocking_create_dir
 let read = Opendal_core.Operator.blocking_read
+let reader = Opendal_core.Operator.blocking_reader
 let write = Opendal_core.Operator.blocking_write
 let copy = Opendal_core.Operator.blocking_copy
 let rename = Opendal_core.Operator.blocking_rename
 let delete = Opendal_core.Operator.blocking_delete
 let remove = Opendal_core.Operator.blocking_remove
 let remove_all = Opendal_core.Operator.blocking_remove_all
+
+module Reader = struct
+  let read = Opendal_core.Operator.reader_read
+  let seek = Opendal_core.Operator.reader_seek
+end
+
+module Metadata = struct
+  let is_file = Opendal_core.Operator.metadata_is_file
+  let is_dir = Opendal_core.Operator.metadata_is_dir
+  let content_length = Opendal_core.Operator.metadata_content_length
+  let content_md5 = Opendal_core.Operator.metadata_content_md5
+  let content_type = Opendal_core.Operator.metadata_content_type
+  let content_disposition = Opendal_core.Operator.metadata_content_disposition
+  let etag = Opendal_core.Operator.metadata_etag
+  let last_modified = Opendal_core.Operator.metadata_last_modified
+end

@@ -15,24 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::str::FromStr;
+// For ocaml-rs, the build order in the same build group is the order of the file names.
+// In order to use the type in the function in the generated ocaml file, it must be defined on the first generated file.
+use super::*;
 
-use ::opendal as od;
+#[ocaml::sig]
+pub struct Operator(pub(crate) od::BlockingOperator);
+ocaml::custom!(Operator);
 
-mod operator;
-mod seek_from;
+#[ocaml::sig]
+pub struct Reader(pub(crate) od::BlockingReader);
+ocaml::custom!(Reader);
 
-pub fn new_operator(
-    scheme_str: String,
-    map: BTreeMap<String, String>,
-) -> Result<od::Operator, od::Error> {
-    let hm: HashMap<String, String> = map.into_iter().collect();
-    let scheme: od::Scheme = od::Scheme::from_str(&scheme_str)?;
-    od::Operator::via_map(scheme, hm)
-}
-
-pub fn map_res_error<T>(res: Result<T, od::Error>) -> Result<T, String> {
-    res.map_err(|e| e.to_string())
-}
+#[ocaml::sig]
+pub struct Metadata(pub(crate) od::Metadata);
+ocaml::custom!(Metadata);

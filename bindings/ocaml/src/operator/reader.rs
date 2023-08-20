@@ -15,24 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::io;
 
-use ::opendal as od;
+use super::*;
 
-mod operator;
-mod seek_from;
+use opendal::raw::oio::BlockingRead;
 
-pub fn new_operator(
-    scheme_str: String,
-    map: BTreeMap<String, String>,
-) -> Result<od::Operator, od::Error> {
-    let hm: HashMap<String, String> = map.into_iter().collect();
-    let scheme: od::Scheme = od::Scheme::from_str(&scheme_str)?;
-    od::Operator::via_map(scheme, hm)
+#[ocaml::func]
+#[ocaml::sig("reader -> bytes -> (int, string) Result.t ")]
+pub fn reader_read(reader: &mut Reader, buf: &mut [u8]) -> Result<usize, String> {
+    map_res_error(reader.0.read(buf))
 }
 
-pub fn map_res_error<T>(res: Result<T, od::Error>) -> Result<T, String> {
-    res.map_err(|e| e.to_string())
+#[ocaml::func]
+#[ocaml::sig("reader -> Seek_from.seek_from -> (int64, string) Result.t ")]
+pub fn reader_seek(reader: &mut Reader, pos: seek_from::SeekFrom) -> Result<u64, String> {
+    map_res_error(reader.0.seek(io::SeekFrom::from(pos)))
 }

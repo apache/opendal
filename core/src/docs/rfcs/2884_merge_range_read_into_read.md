@@ -35,7 +35,7 @@ By adding this change, we can:
 
 # Guide-level explanation
 
-Ther is no new approch to read data from file. The `read` and `reader` API supported range read by default.
+Ther is no new approach to read data from file. The `read` and `reader` API supported range read by default.
 
 Calling `read_with("path/to/file").range(range)` will return a `reader` that supports range read.
 

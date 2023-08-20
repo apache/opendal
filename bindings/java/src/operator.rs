@@ -144,7 +144,7 @@ fn intern_append(
 }
 
 async fn do_append(op: &mut Operator, path: String, content: Vec<u8>) -> Result<()> {
-    Ok(op.append(&path, content).await?)
+    Ok(op.write_with(&path, content).append(true).await?)
 }
 
 /// # Safety

@@ -149,7 +149,6 @@ impl LayeredAccessor for MadsimAccessor {
     type BlockingReader = ();
     type Writer = MadsimWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = MadsimPager;
     type BlockingPager = ();
 
@@ -219,17 +218,6 @@ impl LayeredAccessor for MadsimAccessor {
         {
             unreachable!("madsim is not enabled")
         }
-    }
-
-    async fn append(
-        &self,
-        path: &str,
-        args: OpAppend,
-    ) -> crate::Result<(RpAppend, Self::Appender)> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "will not be supported in MadsimLayer",
-        ))
     }
 
     async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Pager)> {

@@ -1109,19 +1109,16 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
 
 /// Append data into writer
 pub async fn test_writer_write(op: Operator) -> Result<()> {
+    if !(op.info().full_capability().write_without_content_length) {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
 
-    let mut w = match op.writer(&path).await {
-        Ok(w) => w,
-        Err(err) if err.kind() == ErrorKind::Unsupported => {
-            warn!("service doesn't support write with append");
-            return Ok(());
-        }
-        Err(err) => return Err(err.into()),
-    };
+    let mut w = op.writer(&path).await?;
     w.write(content_a.clone()).await?;
     w.write(content_b.clone()).await?;
     w.close().await?;
@@ -1228,18 +1225,15 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
 
 /// Copy data from reader to writer
 pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
+    if !(op.info().full_capability().write_without_content_length) {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut w = match op.writer(&path).await {
-        Ok(w) => w,
-        Err(err) if err.kind() == ErrorKind::Unsupported => {
-            warn!("service doesn't support write with append");
-            return Ok(());
-        }
-        Err(err) => return Err(err.into()),
-    };
+    let mut w = op.writer(&path).await?;
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));

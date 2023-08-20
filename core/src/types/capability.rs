@@ -46,36 +46,38 @@ use std::fmt::Debug;
 /// - Operation with limitations should be named like `batch_max_operations`.
 #[derive(Copy, Clone, Default)]
 pub struct Capability {
-    /// If operator supports stat natively, it will be true.
+    /// If operator supports stat , it will be true.
     pub stat: bool,
-    /// If operator supports stat with if match natively, it will be true.
+    /// If operator supports stat with if match , it will be true.
     pub stat_with_if_match: bool,
-    /// If operator supports stat with if none match natively, it will be true.
+    /// If operator supports stat with if none match , it will be true.
     pub stat_with_if_none_match: bool,
 
-    /// If operator supports read natively, it will be true.
+    /// If operator supports read , it will be true.
     pub read: bool,
-    /// If operator supports seek on returning reader natively, it will
+    /// If operator supports seek on returning reader , it will
     /// be true.
     pub read_can_seek: bool,
-    /// If operator supports next on returning reader natively, it will
+    /// If operator supports next on returning reader , it will
     /// be true.
     pub read_can_next: bool,
-    /// If operator supports read with range natively, it will be true.
+    /// If operator supports read with range , it will be true.
     pub read_with_range: bool,
-    /// If operator supports read with if match natively, it will be true.
+    /// If operator supports read with if match , it will be true.
     pub read_with_if_match: bool,
-    /// If operator supports read with if none match natively, it will be true.
+    /// If operator supports read with if none match , it will be true.
     pub read_with_if_none_match: bool,
-    /// if operator supports read with override cache control natively, it will be true.
+    /// if operator supports read with override cache control , it will be true.
     pub read_with_override_cache_control: bool,
-    /// if operator supports read with override content disposition natively, it will be true.
+    /// if operator supports read with override content disposition , it will be true.
     pub read_with_override_content_disposition: bool,
-    /// if operator supports read with override content type natively, it will be true.
+    /// if operator supports read with override content type , it will be true.
     pub read_with_override_content_type: bool,
 
-    /// If operator supports write natively, it will be true.
+    /// If operator supports write , it will be true.
     pub write: bool,
+    /// If operator supports write by append, it will be true.
+    pub write_can_append: bool,
     /// If operator supports write by sink a stream into, it will be true.
     pub write_can_sink: bool,
     /// If operator supports write with without content length, it will
@@ -83,35 +85,26 @@ pub struct Capability {
     ///
     /// This feature also be called as `Unsized` write or streaming write.
     pub write_without_content_length: bool,
-    /// If operator supports write with content type natively, it will be true.
+    /// If operator supports write with content type , it will be true.
     pub write_with_content_type: bool,
-    /// If operator supports write with content disposition natively, it will be true.
+    /// If operator supports write with content disposition , it will be true.
     pub write_with_content_disposition: bool,
-    /// If operator supports write with cache control natively, it will be true.
+    /// If operator supports write with cache control , it will be true.
     pub write_with_cache_control: bool,
 
-    /// If operator supports append natively, it will be true.
-    pub append: bool,
-    /// If operator supports append with content type natively, it will be true.
-    pub append_with_content_type: bool,
-    /// If operator supports append with content disposition natively, it will be true.
-    pub append_with_content_disposition: bool,
-    /// If operator supports append with cache control natively, it will be true.
-    pub append_with_cache_control: bool,
-
-    /// If operator supports create dir natively, it will be true.
+    /// If operator supports create dir , it will be true.
     pub create_dir: bool,
 
-    /// If operator supports delete natively, it will be true.
+    /// If operator supports delete , it will be true.
     pub delete: bool,
 
-    /// If operator supports copy natively, it will be true.
+    /// If operator supports copy , it will be true.
     pub copy: bool,
 
-    /// If operator supports rename natively, it will be true.
+    /// If operator supports rename , it will be true.
     pub rename: bool,
 
-    /// If operator supports list natively, it will be true.
+    /// If operator supports list , it will be true.
     pub list: bool,
     /// If backend supports list with limit, it will be true.
     pub list_with_limit: bool,
@@ -122,23 +115,23 @@ pub struct Capability {
     /// If backend supports list without delimiter.
     pub list_without_delimiter: bool,
 
-    /// If operator supports presign natively, it will be true.
+    /// If operator supports presign , it will be true.
     pub presign: bool,
-    /// If operator supports presign read natively, it will be true.
+    /// If operator supports presign read , it will be true.
     pub presign_read: bool,
-    /// If operator supports presign stat natively, it will be true.
+    /// If operator supports presign stat , it will be true.
     pub presign_stat: bool,
-    /// If operator supports presign write natively, it will be true.
+    /// If operator supports presign write , it will be true.
     pub presign_write: bool,
 
-    /// If operator supports batch natively, it will be true.
+    /// If operator supports batch , it will be true.
     pub batch: bool,
-    /// If operator supports batch delete natively, it will be true.
+    /// If operator supports batch delete , it will be true.
     pub batch_delete: bool,
     /// The max operations that operator supports in batch.
     pub batch_max_operations: Option<usize>,
 
-    /// If operator supports blocking natively, it will be true.
+    /// If operator supports blocking , it will be true.
     pub blocking: bool,
 }
 
@@ -154,9 +147,6 @@ impl Debug for Capability {
         }
         if self.write {
             s.push("Write");
-        }
-        if self.append {
-            s.push("Append");
         }
         if self.create_dir {
             s.push("CreateDir");

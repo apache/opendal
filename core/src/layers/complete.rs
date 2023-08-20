@@ -367,7 +367,6 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
     type Writer = CompleteWriter<A::Writer>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
-    type Appender = CompleteAppender<A::Appender>;
     type Pager = CompletePager<A, A::Pager>;
     type BlockingPager = CompletePager<A, A::BlockingPager>;
 
@@ -444,18 +443,6 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         self.inner
             .blocking_write(path, args)
             .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        let capability = self.meta.full_capability();
-        if !capability.append {
-            return new_capability_unsupported_error(Operation::Append);
-        }
-
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, a)| (rp, CompleteAppender::new(a)))
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -854,54 +841,6 @@ where
     }
 }
 
-pub struct CompleteAppender<A> {
-    inner: Option<A>,
-}
-
-impl<A> CompleteAppender<A> {
-    pub fn new(inner: A) -> CompleteAppender<A> {
-        CompleteAppender { inner: Some(inner) }
-    }
-}
-
-/// Check if the appender has been closed while debug_assertions enabled.
-/// This code will never be executed in release mode.
-#[cfg(debug_assertions)]
-impl<A> Drop for CompleteAppender<A> {
-    fn drop(&mut self) {
-        if self.inner.is_some() {
-            // Do we need to panic here?
-            log::warn!("appender has not been closed, must be a bug")
-        }
-    }
-}
-
-#[async_trait]
-impl<A> oio::Append for CompleteAppender<A>
-where
-    A: oio::Append,
-{
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let a = self
-            .inner
-            .as_mut()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
-
-        a.append(bs).await
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        let a = self
-            .inner
-            .as_mut()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "appender has been closed"))?;
-
-        a.close().await?;
-        self.inner = None;
-        Ok(())
-    }
-}
-
 fn new_capability_unsupported_error<R>(operation: Operation) -> Result<R> {
     Err(Error::new(ErrorKind::Unsupported, "operation is not supported").with_operation(operation))
 }
@@ -955,7 +894,6 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
-        type Appender = ();
         type Pager = ();
         type BlockingPager = ();
 
@@ -976,10 +914,6 @@ mod tests {
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
             Ok((RpWrite::new(), ()))
-        }
-
-        async fn append(&self, _: &str, _: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-            Ok((RpAppend::new(), ()))
         }
 
         async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
@@ -1045,7 +979,6 @@ mod tests {
     capability_test!(stat, |op| { op.stat("/path/to/mock_file") });
     capability_test!(read, |op| { op.read("/path/to/mock_file") });
     capability_test!(write, |op| { op.writer("/path/to/mock_file") });
-    capability_test!(append, |op| { op.appender("/path/to/mock_file") });
     capability_test!(create_dir, |op| { op.create_dir("/path/to/mock_dir/") });
     capability_test!(delete, |op| { op.delete("/path/to/mock_file") });
     capability_test!(copy, |op| {

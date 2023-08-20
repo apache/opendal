@@ -86,7 +86,6 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     type BlockingReader = ConcurrentLimitWrapper<A::BlockingReader>;
     type Writer = ConcurrentLimitWrapper<A::Writer>;
     type BlockingWriter = ConcurrentLimitWrapper<A::BlockingWriter>;
-    type Appender = ConcurrentLimitWrapper<A::Appender>;
     type Pager = ConcurrentLimitWrapper<A::Pager>;
     type BlockingPager = ConcurrentLimitWrapper<A::BlockingPager>;
 
@@ -130,20 +129,6 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        let permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("semaphore must be valid");
-
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, a)| (rp, ConcurrentLimitWrapper::new(a, permit)))
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -324,17 +309,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
 
     fn close(&mut self) -> Result<()> {
         self.inner.close()
-    }
-}
-
-#[async_trait]
-impl<R: oio::Append> oio::Append for ConcurrentLimitWrapper<R> {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs).await
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
     }
 }
 

@@ -33,9 +33,6 @@ mod writer;
 pub use writer::BlockingWriter;
 pub use writer::Writer;
 
-mod appender;
-pub use appender::Appender;
-
 mod list;
 pub use list::BlockingLister;
 pub use list::Lister;

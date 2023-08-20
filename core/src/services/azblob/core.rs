@@ -365,7 +365,7 @@ impl AzblobCore {
     pub fn azblob_append_blob_request(
         &self,
         path: &str,
-        size: usize,
+        size: u64,
         position: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {

@@ -267,6 +267,8 @@ impl VectorCursor {
 
     /// peak all will read and copy all bytes from current cursor
     /// without change it's content.
+    ///
+    /// TODO: we need to find a way to avoid copy all content here.
     pub fn peak_all(&self) -> Bytes {
         // Avoid data copy if we only have one bytes.
         if self.inner.len() == 1 {

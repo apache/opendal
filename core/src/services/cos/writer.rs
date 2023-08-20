@@ -34,15 +34,12 @@ pub struct CosWriter {
 }
 
 impl CosWriter {
-    pub fn new(core: Arc<CosCore>, path: &str, op: OpWrite) -> oio::MultipartUploadWriter<Self> {
-        let write_min_size = core.write_min_size;
-        let total_size = op.content_length();
-        let cos_writer = CosWriter {
+    pub fn new(core: Arc<CosCore>, path: &str, op: OpWrite) -> Self {
+        CosWriter {
             core,
             path: path.to_string(),
             op,
-        };
-        oio::MultipartUploadWriter::new(cos_writer, total_size).with_write_min_size(write_min_size)
+        }
     }
 }
 
@@ -177,6 +174,45 @@ impl oio::MultipartUploadWrite for CosWriter {
                 resp.into_body().consume().await?;
                 Ok(())
             }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+}
+
+#[async_trait]
+impl oio::AppendObjectWrite for CosWriter {
+    async fn offset(&self) -> Result<u64> {
+        let resp = self.core.cos_head_object(&self.path, None, None).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "Content-Length not present in returning response",
+                    )
+                })?;
+                Ok(content_length)
+            }
+            StatusCode::NOT_FOUND => Ok(0),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
+            .core
+            .cos_append_object_request(&self.path, offset, size, &self.op, body)?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

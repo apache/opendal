@@ -18,7 +18,6 @@
 use std::io;
 
 #[derive(ocaml::FromValue, ocaml::ToValue, Clone, Copy)]
-
 #[ocaml::sig(
     "
 | Start of int64  (** 

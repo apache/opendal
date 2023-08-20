@@ -18,7 +18,6 @@
 use std::io;
 
 use super::*;
-use seek_from;
 
 use opendal::raw::oio::BlockingRead;
 

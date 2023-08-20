@@ -77,7 +77,7 @@ val read :
 val reader :
   Opendal_core.Operator.operator ->
   string ->
-  (Opendal_core.Operator.blocking_reader, string) result
+  (Opendal_core.Operator.reader, string) result
 (** [read operator path] Create a new reader which can read the whole path.
     
     @param operator The operator
@@ -141,15 +141,15 @@ val remove_all :
 *)
 
 module Reader : sig
-  val read :
-    Opendal_core.Operator.blocking_reader -> bytes -> (int, string) result
+  val read : Opendal_core.Operator.reader -> bytes -> (int, string) result
   (** [read reader buf] Read data to [buf] and return data size.*)
 
   val seek :
-    Opendal_core.Operator.blocking_reader ->
-    Opendal_core.Seek_from.seek_from ->
+    Opendal_core.Operator.reader ->
+    int64 ->
+    Unix.seek_command ->
     (int64, string) result
-  (** [seek reader pos] is a function that seeks data to the given position [pos].*)
+  (** [seek reader pos mode] is a function that seeks data to the given position [pos].*)
 end
 
 module Metadata : sig

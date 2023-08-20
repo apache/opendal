@@ -34,7 +34,10 @@ pub fn operator(
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (metadata, string) Result.t ")]
-pub fn stat(operator: &mut Operator, path: String) -> Result<ocaml::Pointer<Metadata>, String> {
+pub fn blocking_stat(
+    operator: &mut Operator,
+    path: String,
+) -> Result<ocaml::Pointer<Metadata>, String> {
     map_res_error(operator.0.stat(path.as_str()).map(|m| Metadata(m).into()))
 }
 
@@ -57,12 +60,12 @@ pub fn blocking_read(operator: &mut Operator, path: String) -> Result<Vec<u8>, S
 }
 
 #[ocaml::func]
-#[ocaml::sig("operator -> string -> (blocking_reader, string) Result.t ")]
+#[ocaml::sig("operator -> string -> (reader, string) Result.t ")]
 pub fn blocking_reader(
     operator: &mut Operator,
     path: String,
-) -> Result<ocaml::Pointer<BlockingReader>, String> {
-    map_res_error(operator.0.reader(path.as_str())).map(|op| BlockingReader(op).into())
+) -> Result<ocaml::Pointer<Reader>, String> {
+    map_res_error(operator.0.reader(path.as_str())).map(|op| Reader(op).into())
 }
 
 #[ocaml::func]

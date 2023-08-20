@@ -23,13 +23,13 @@ use seek_from;
 use opendal::raw::oio::BlockingRead;
 
 #[ocaml::func]
-#[ocaml::sig("blocking_reader -> bytes -> (int, string) Result.t ")]
-pub fn reader_read(reader: &mut BlockingReader, buf: &mut [u8]) -> Result<usize, String> {
+#[ocaml::sig("reader -> bytes -> (int, string) Result.t ")]
+pub fn reader_read(reader: &mut Reader, buf: &mut [u8]) -> Result<usize, String> {
     map_res_error(reader.0.read(buf))
 }
 
 #[ocaml::func]
-#[ocaml::sig("blocking_reader -> Seek_from.seek_from -> (int64, string) Result.t ")]
-pub fn reader_seek(reader: &mut BlockingReader, pos: seek_from::SeekFrom) -> Result<u64, String> {
+#[ocaml::sig("reader -> Seek_from.seek_from -> (int64, string) Result.t ")]
+pub fn reader_seek(reader: &mut Reader, pos: seek_from::SeekFrom) -> Result<u64, String> {
     map_res_error(reader.0.seek(io::SeekFrom::from(pos)))
 }

@@ -24,8 +24,8 @@ pub struct Operator(pub(crate) od::BlockingOperator);
 ocaml::custom!(Operator);
 
 #[ocaml::sig]
-pub struct BlockingReader(pub(crate) od::BlockingReader);
-ocaml::custom!(BlockingReader);
+pub struct Reader(pub(crate) od::BlockingReader);
+ocaml::custom!(Reader);
 
 #[ocaml::sig]
 pub struct Metadata(pub(crate) od::Metadata);

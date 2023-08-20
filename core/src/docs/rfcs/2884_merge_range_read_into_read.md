@@ -9,58 +9,59 @@ Merge the `range_read` API into `read` by deleting the `op.range_reader(path, ra
 
 # Motivation
 
-Currently OpenDAL has separate `appender` and `writer` APIs:
+Currently OpenDAL has separate `range_read` and `read` APIs:
 
 ```rust
-let mut appender = op.appender_with("file.txt").await?; 
+let bs = op.range_read("path/to/file", 1024..2048).await?;
 
-appender.append(bs).await?;
-appender.append(bs).await?;
+let bs = op.read("path/to/file").await?;
 ```
 
-This duplication forces users to learn two different APIs for writing data.
+As same as `range_reader` and `reader` APIs:
+```rust
+let reader = op.range_reader("path/to/file", 1024..2048).await?;
+
+let reader = op.reader("path/to/file").await?;
+```
+
+
+This duplication forces users to learn two different APIs for reading data.
 
 By adding this change, we can:
 
 - Simpler API surface - users only need to learn one writing API.
-- Reduce code duplication between append and write implementations.
-- Atomic append semantics are handled internally in `writer`.
-- Reuse the `sink` api for both `overwrite` and `append` mode.
+- Reduce code duplication between read and range_read implementations.
+- Atomic read semantics are handled internally in `reader`.
 
 # Guide-level explanation
 
-The new approach is to enable append mode on `writer`:
+Ther is no new approch to read data from file. The `read` and `reader` API supported range read by default.
 
-```rust 
-let mut writer = op.writer_with("file.txt").append(true).await?;
+Calling `read_with("path/to/file").range(range)` will return a `reader` that supports range read.
 
-writer.write(bs).await?; // appends to file
-writer.write(bs).await?; // appends again
+```rust
+let bs = op.read_with("path/to/file").range(1024..2048).await?;
 ```
 
-Calling `writer_with.append(true)` will start the writer in append mode. Subsequent `write()` calls will append rather than overwrite.
+Calling `reader_with("path/to/file").range(range)` will return a `reader` that supports range read.
 
-There is no longer a separate `appender` API.
+```rust
+let rs = op.reader_with("path/to/file").range(1024..2048).await?;
+```
+
+There is no longer a separate `range_read` and `range_reader` API.
 
 # Reference-level explanation
 
-We will add an `append` flag into `OpWrite`:
-
-```rust
-impl OpWrite {   
-    pub fn with_append(mut self, append: bool) -> Self {
-        self.append = append;
-        self
-    }
-}
-```
-
-All services need to check `append` flag and handle append mode accordingly. Services that not support append should return an `Unsupported` error instead.
+None
 
 # Drawbacks
 
-- `writer` API is more complex with the append mode flag.
-- Internal implementation must handle both overwrite and append logic.
+None
+
+## Breaking Changes
+
+This RFC  has removed the `range_read` and `range_reader` APIs. If you have been using these APIs, you will need to reimplement your code by `op.read("path/to/file").range(1024..2048)` or `op.reader("path/to/file").range(1024..2048)`.
 
 # Rationale and alternatives
 
@@ -68,7 +69,7 @@ None
 
 # Prior art
 
-Python's file open() supports an `"a"` mode flag to enable append-only writing.
+None
 
 # Unresolved questions
 

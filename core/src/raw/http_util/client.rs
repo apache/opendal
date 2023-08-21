@@ -24,7 +24,6 @@ use std::time::Duration;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use once_cell::sync::Lazy;
 
 use super::body::IncomingAsyncBody;
 use super::parse_content_length;
@@ -34,9 +33,7 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-static DEFAULT_CONNECT_TIMEOUT_IN_MS: Lazy<Duration> = Lazy::new(|| Duration::from_secs(60));
-
-static DEFAULT_REQUEST_TIMEOUT_IN_MS: Lazy<Duration> = Lazy::new(|| Duration::from_secs(60));
+const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -66,9 +63,7 @@ impl HttpClient {
         // Make sure we don't enable auto deflate decompress.
         builder = builder.no_deflate();
         // Make sure we don't wait a connection establishment forever.
-        builder = builder.connect_timeout(*DEFAULT_CONNECT_TIMEOUT_IN_MS);
-        // Make sure we don't wait a response forever.
-        builder = builder.timeout(*DEFAULT_REQUEST_TIMEOUT_IN_MS);
+        builder = builder.connect_timeout(DEFAULT_CONNECT_TIMEOUT);
 
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);

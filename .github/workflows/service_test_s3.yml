@@ -152,6 +152,11 @@ jobs:
           ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
           ./mc mb local/test
           ./mc anonymous set public local/test
+          while :; do
+            echo "waiting minio to be ready"
+            [[ ./mc ping ]] || break
+            sleep 1
+          done
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:

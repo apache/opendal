@@ -184,7 +184,6 @@ impl kv::Adapter for ZkAdapter {
             Capability {
                 read: true,
                 write: true,
-                blocking: false,
                 ..Default::default()
             },
         )

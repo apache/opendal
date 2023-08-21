@@ -41,22 +41,70 @@ jobs:
     runs-on: ubuntu-latest
     services:
       zookeeper:
-        image: zookeeper
+        image: zookeeper:3.8.2
+        restart: always
+        hostname: zookeeper
         ports:
-          - 2181: 2181
-      steps:
-        - uses: action/checkout@v3
-        - name: Setup Rust toolchain
-          uses: ./.github/actions/setup
-          with:
-            need-nextest: true
-        - name: Test
-          shell: bash
-          working-directory: core
-          run: cargo nextest run zookeeper --features services-zookeeper
-          env:
-            RUST_BACKTRACE: full
-            RUST_LOG: debug
-            OPENDAL_ZOOKEEPER_TEST: on
-            OPENDAL_ZOOKEEPER_ENDPOINT: "127.0.0.1:2181"
+          - 2181:2181
+    steps:
+      - uses: action/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run zookeeper --features services-zookeeper
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_ZOOKEEPER_TEST: on
+          OPENDAL_ZOOKEEPER_ENDPOINT: "127.0.0.1:2181"
 
+  zookeeper-cluster:
+    runs-on: ubuntu-latest
+    services:
+      zoo1:
+        image: zookeeper:3.8.2
+        restart: always
+        hostname: zoo1
+        ports:
+          - 2181:2181
+        environment:
+          ZOO_MY_ID: 1
+          ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+      zoo2:
+        image: zookeeper:3.8.2
+        restart: always
+        hostname: zoo2
+        ports:
+          - 2182:2181
+        environment:
+          ZOO_MY_ID: 2
+          ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+      zoo3:
+        image: zookeeper:3.8.2
+        restart: always
+        hostname: zoo3
+        ports:
+          - 2183:2181
+        environment:
+          ZOO_MY_ID: 3
+          ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+
+    steps:
+      - uses: action/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run zookeeper --features services-zookeeper
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_ZOOKEEPER_TEST: on
+          OPENDAL_ZOOKEEPER_ENDPOINT: "127.0.0.1:2181"

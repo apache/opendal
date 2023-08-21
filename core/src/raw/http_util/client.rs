@@ -34,11 +34,9 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-static DEFAULT_CONNECT_TIMEOUT_IN_MS: Lazy<Duration> =
-    Lazy::new(|| Duration::from_secs(60));
+static DEFAULT_CONNECT_TIMEOUT_IN_MS: Lazy<Duration> = Lazy::new(|| Duration::from_secs(60));
 
-static DEFAULT_REQUEST_TIMEOUT_IN_MS: Lazy<Duration> =
-    Lazy::new(|| Duration::from_secs(60));
+static DEFAULT_REQUEST_TIMEOUT_IN_MS: Lazy<Duration> = Lazy::new(|| Duration::from_secs(60));
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]

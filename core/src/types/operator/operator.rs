@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bytes::Bytes;

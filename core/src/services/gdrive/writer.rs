@@ -24,30 +24,24 @@ use http::StatusCode;
 use super::core::GdriveCore;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::services::gdrive::core::GdriveFile;
 use crate::*;
 
 pub struct GdriveWriter {
     core: Arc<GdriveCore>,
 
-    op: OpWrite,
     path: String,
 
-    target: Option<String>,
-    position: u64,
-    written: u64,
-    size: Option<u64>,
+    file_id: Option<String>,
 }
 
 impl GdriveWriter {
-    pub fn new(core: Arc<GdriveCore>, op: OpWrite, path: String, file_id: Option<String>) -> Self {
+    pub fn new(core: Arc<GdriveCore>, path: String, file_id: Option<String>) -> Self {
         GdriveWriter {
             core,
-            op,
             path,
-            position: 0,
-            written: 0,
-            size: None,
-            target: file_id,
+
+            file_id,
         }
     }
 
@@ -55,7 +49,7 @@ impl GdriveWriter {
     ///
     /// This is used for small objects.
     /// And should overwrite the object if it already exists.
-    pub async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
+    pub async fn write_create(&mut self, size: u64, body: Bytes) -> Result<()> {
         let resp = self
             .core
             .gdrive_upload_simple_request(&self.path, size, body)
@@ -65,160 +59,36 @@ impl GdriveWriter {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
+                let bs = resp.into_body().bytes().await?;
+
+                let file = serde_json::from_slice::<GdriveFile>(&bs)
+                    .map_err(new_json_deserialize_error)?;
+
+                self.file_id = Some(file.id);
+
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    pub async fn initial_upload(&mut self) -> Result<()> {
+    pub async fn write_overwrite(&self, size: u64, body: Bytes) -> Result<()> {
+        let file_id = self.file_id.as_ref().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "file_id is required for overwrite")
+        })?;
         let resp = self
             .core
-            .gdrive_upload_initial_request(&self.path, None)
+            .gdrive_upload_overwrite_simple_request(file_id, size, body)
             .await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => {
-                let headers = resp.headers();
-
-                match headers.get("location") {
-                    Some(location) => {
-                        self.target = Some(
-                            location
-                                .to_str()
-                                .map_err(|_| {
-                                    Error::new(
-                                        ErrorKind::Unexpected,
-                                        "initial upload failed: location header parse failed",
-                                    )
-                                })?
-                                .to_string(),
-                        );
-                        Ok(())
-                    }
-                    _ => Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "initial upload failed: location header not found",
-                    )),
-                }
+                resp.into_body().consume().await?;
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    pub async fn write_part(&mut self, size: u64, part: AsyncBody) -> Result<()> {
-        if let Some(target) = &self.target {
-            let resp = self
-                .core
-                .gdrive_upload_part_request(target, size, self.position, self.size, part)
-                .await?;
-
-            println!("size: {}", size);
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::PERMANENT_REDIRECT => {
-                    let headers = resp.headers();
-
-                    let range = headers.get("range").ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "write part failed: range header not found",
-                        )
-                    })?;
-                    self.position = range
-                        .to_str()
-                        .map_err(|_| {
-                            Error::new(
-                                ErrorKind::Unexpected,
-                                "write part failed: range header parse failed",
-                            )
-                        })?
-                        .split('-')
-                        .last()
-                        .ok_or_else(|| {
-                            Error::new(
-                                ErrorKind::Unexpected,
-                                "write part failed: range header parse failed",
-                            )
-                        })?
-                        .parse()
-                        .map_err(|_| {
-                            Error::new(
-                                ErrorKind::Unexpected,
-                                "write part failed: range header parse failed",
-                            )
-                        })?;
-
-                    resp.into_body().consume().await?;
-                    Ok(())
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        } else {
-            Err(Error::new(
-                ErrorKind::Unexpected,
-                "write part failed: upload location not found",
-            ))
-        }
-    }
-
-    pub async fn finish_upload(&self) -> Result<()> {
-        if let Some(target) = &self.target {
-            println!("final position: {}", self.position + 1);
-            println!("final size: {}", self.size.unwrap_or(self.position + 1));
-
-            let resp = self
-                .core
-                .gdrive_finish_upload_request(
-                    target,
-                    if let Some(size) = self.size {
-                        if (self.position + 1) < size {
-                            return Err(Error::new(
-                                ErrorKind::Unexpected,
-                                "finish upload failed: upload size mismatch",
-                            ));
-                        }
-                        size
-                    } else {
-                        self.position + 1
-                    },
-                )
-                .await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK | StatusCode::CREATED => {
-                    resp.into_body().consume().await?;
-                    Ok(())
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        } else {
-            Ok(())
-        }
-    }
-
-    pub async fn abort_upload(&self) -> Result<()> {
-        if let Some(target) = &self.target {
-            let resp = self.core.gdrive_cancel_upload_request(target).await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(())
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        } else {
-            Ok(())
         }
     }
 }
@@ -226,33 +96,22 @@ impl GdriveWriter {
 #[async_trait]
 impl oio::Write for GdriveWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        if bs.is_empty() {
-            return Ok(());
+        if self.file_id.is_none() {
+            self.write_create(bs.len() as u64, bs).await
+        } else {
+            self.write_overwrite(bs.len() as u64, bs).await
         }
-
-        if self.target.is_none() {
-            if self.op.content_length().unwrap_or_default() == bs.len() as u64 && self.written == 0
-            {
-                return self
-                    .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-                    .await;
-            } else {
-                self.initial_upload().await?;
-            }
-        }
-
-        self.write_part(bs.len() as u64, AsyncBody::Bytes(bs)).await
     }
 
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Ok(())
+        Err(Error::new(ErrorKind::Unsupported, "sink is not supported"))
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.abort_upload().await
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.finish_upload().await
+        Ok(())
     }
 }

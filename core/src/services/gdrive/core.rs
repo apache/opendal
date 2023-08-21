@@ -25,20 +25,12 @@ use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use reqwest::multipart::Form;
-use reqwest::multipart::Part;
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
-use crate::raw::build_rooted_abs_path;
-use crate::raw::new_json_deserialize_error;
-use crate::raw::new_request_build_error;
-use crate::raw::percent_encode_path;
-use crate::raw::AsyncBody;
-use crate::raw::HttpClient;
-use crate::raw::IncomingAsyncBody;
+use crate::raw::*;
 use crate::types::Result;
 use crate::Error;
 use crate::ErrorKind;
@@ -75,10 +67,8 @@ impl GdriveCore {
     /// - A path is a sequence of file names separated by slashes.
     /// - A file only knows its parent id, but not its name.
     /// - To find the file id of a file, we need to traverse the path from the root to the file.
-    async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
+    pub(crate) async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, file_path);
-
-        println!("file path: {}", path);
 
         let mut parent_id = "root".to_owned();
         let file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
@@ -92,8 +82,6 @@ impl GdriveCore {
                 query += " and mimeType = 'application/vnd.google-apps.folder'";
             }
 
-            println!("query: {}", query);
-
             let req = self.sign(
                 Request::get(format!(
                     "https://www.googleapis.com/drive/v3/files?q={}",
@@ -106,16 +94,12 @@ impl GdriveCore {
             let resp = self.client.send(req).await?;
             let status = resp.status();
 
-            println!("status in: {:?}", status);
-
             match status {
                 StatusCode::OK => {
                     let resp_body = &resp.into_body().bytes().await?;
 
                     let gdrive_file_list: GdriveFileList =
                         serde_json::from_slice(resp_body).map_err(new_json_deserialize_error)?;
-
-                    println!("gdrive_file_list: {:?}", gdrive_file_list.files.len());
 
                     if gdrive_file_list.files.is_empty() {
                         return Err(Error::new(
@@ -146,7 +130,7 @@ impl GdriveCore {
     ///
     /// - The path is rooted at the root of the Google Drive.
     /// - Will create the parent path recursively.
-    async fn ensure_parent_path(&self, path: &str) -> Result<String> {
+    pub(crate) async fn ensure_parent_path(&self, path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, path);
 
         let mut parent: String = "root".to_owned();
@@ -190,7 +174,6 @@ impl GdriveCore {
                             .map_err(new_json_deserialize_error)?;
 
                         parent = parent_meta.id;
-                        println!("parent: {}", &parent);
                     } else {
                         parent = gdrive_file_list.files[0].id.clone();
                     }
@@ -209,7 +192,6 @@ impl GdriveCore {
                             parent = String::from_utf8_lossy(&parent_id).to_string();
                         }
                         _ => {
-                            println!("404 了");
                             return Err(parse_error(res).await?);
                         }
                     }
@@ -223,13 +205,13 @@ impl GdriveCore {
         Ok(parent.to_owned())
     }
 
-    pub async fn gdrive_search(
+    pub async fn gdrive_search_folder(
         &self,
         target: &str,
         parent: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let query = format!(
-            "name = '{}' and '{}' in parents and trashed = false &fields=files(id,name,mimeType)",
+            "name = '{}' and '{}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
             target, parent
         );
         let url = format!(
@@ -254,11 +236,6 @@ impl GdriveCore {
         name: &str,
         parent: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        println!(
-            "create folder: {} at {}",
-            name,
-            parent.clone().unwrap_or("root".to_owned())
-        );
         let url = "https://www.googleapis.com/drive/v3/files";
 
         let req = Request::post(url)
@@ -282,16 +259,6 @@ impl GdriveCore {
         let req = self.sign(req);
 
         self.client.send(req).await
-    }
-
-    /// Create a folder.
-    /// Will create the path recursively.
-    pub async fn gdrive_create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let parent = self.ensure_parent_path(path).await?;
-
-        let path = path.split('/').filter(|&x| !x.is_empty()).last().unwrap();
-
-        self.gdrive_create_folder(path, Some(parent)).await
     }
 
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -372,7 +339,7 @@ impl GdriveCore {
         &self,
         path: &str,
         size: u64,
-        body: AsyncBody,
+        body: bytes::Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
         let parent = self.ensure_parent_path(path).await?;
 
@@ -385,31 +352,54 @@ impl GdriveCore {
             "parents": [parent],
         });
 
-        let mut fd = Form::new().text("metadata", metadata.to_string());
+        let req = Request::post(url).header("X-Upload-Content-Length", size);
 
-        match body {
-            AsyncBody::Bytes(bs) => {
-                fd = fd.part("file", Part::bytes(bs.to_vec()));
-            }
-            AsyncBody::Stream(bs) => {
-                fd = fd.part("file", Part::stream(reqwest::Body::wrap_stream(bs)));
-            }
-            AsyncBody::Empty => {
-                // We do nothing here.
-                fd = fd.part("file", Part::bytes(Vec::new()));
-            }
-        };
+        let multipart = Multipart::new()
+            .part(
+                FormDataPart::new("metadata")
+                    .header(
+                        header::CONTENT_TYPE,
+                        "application/json; charset=UTF-8".parse().unwrap(),
+                    )
+                    .content(metadata.to_string()),
+            )
+            .part(
+                FormDataPart::new("file")
+                    .header(
+                        header::CONTENT_TYPE,
+                        "application/octet-stream".parse().unwrap(),
+                    )
+                    .content(body),
+            );
 
-        let mut req = Request::post(url)
-            .header(header::CONTENT_TYPE, "application/json; charset=UTF-8")
+        let mut req = multipart.apply(req)?;
+
+        req = self.sign(req);
+
+        self.client.send(req).await
+    }
+
+    pub async fn gdrive_upload_overwrite_simple_request(
+        &self,
+        file_id: &str,
+        size: u64,
+        body: bytes::Bytes,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = format!(
+            "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",
+            file_id
+        );
+
+        let mut req = Request::patch(url)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
-            .body(fd)
+            .body(AsyncBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
         req = self.sign(req);
 
-        self.client.send_form_data(req).await
+        self.client.send(req).await
     }
 
     /// Start an upload session.
@@ -577,6 +567,6 @@ pub struct GdriveFile {
 // refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct GdriveFileList {
-    files: Vec<GdriveFile>,
+pub(crate) struct GdriveFileList {
+    pub(crate) files: Vec<GdriveFile>,
 }

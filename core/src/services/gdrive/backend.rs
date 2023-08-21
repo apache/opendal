@@ -27,6 +27,7 @@ use super::error::parse_error;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::services::gdrive::core::GdriveFile;
+use crate::services::gdrive::core::GdriveFileList;
 use crate::types::Result;
 use crate::*;
 
@@ -59,7 +60,7 @@ impl Accessor for GdriveBackend {
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
-        ma.set_scheme(crate::Scheme::Gdrive)
+        ma.set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
             .set_full_capability(Capability {
                 stat: true,
@@ -88,8 +89,6 @@ impl Accessor for GdriveBackend {
 
         let status = resp.status();
 
-        println!("status out: {:?}", status);
-
         match status {
             StatusCode::OK => {
                 let meta = self.parse_metadata(resp.into_body().bytes().await?)?;
@@ -100,7 +99,28 @@ impl Accessor for GdriveBackend {
     }
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
-        let resp = self.core.gdrive_create_dir(path).await?;
+        let parent = self.core.ensure_parent_path(path).await?;
+
+        let path = path.split('/').filter(|&x| !x.is_empty()).last().unwrap();
+
+        // As Google Drive allows files have the same name, we need to check if the folder exists.
+        let resp = self.core.gdrive_search_folder(path, &parent).await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let body = resp.into_body().bytes().await?;
+                let meta = serde_json::from_slice::<GdriveFileList>(&body)
+                    .map_err(new_json_deserialize_error)?;
+
+                if !meta.files.is_empty() {
+                    return Ok(RpCreateDir::default());
+                }
+            }
+            _ => return Err(parse_error(resp).await?),
+        }
+
+        let resp = self.core.gdrive_create_folder(path, Some(parent)).await?;
 
         let status = resp.status();
 
@@ -145,20 +165,51 @@ impl Accessor for GdriveBackend {
 
         // As Google Drive allows files have the same name, we need to check if the file exists.
         // If the file exists, we will keep its ID and update it.
+        let mut file_id: Option<String> = None;
+
+        let resp = self.core.gdrive_stat(path).await;
+        // We don't care about the error here.
+        // As long as the file doesn't exist, we will create a new one.
+        if resp.is_ok() {
+            let resp = resp.unwrap();
+            let status = resp.status();
+
+            if status == StatusCode::OK {
+                let body = resp.into_body().bytes().await?;
+                let meta = serde_json::from_slice::<GdriveFile>(&body)
+                    .map_err(new_json_deserialize_error)?;
+
+                file_id = if meta.id.is_empty() {
+                    None
+                } else {
+                    Some(meta.id)
+                };
+            }
+        }
+
         Ok((
             RpWrite::default(),
-            GdriveWriter::new(self.core.clone(), args, String::from(path), None),
+            GdriveWriter::new(self.core.clone(), String::from(path), file_id),
         ))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.core.gdrive_delete(path).await?;
+        let resp = self.core.gdrive_delete(path).await;
+        if resp.is_err() {
+            let e = resp.err().unwrap();
+            if e.kind() == ErrorKind::NotFound {
+                return Ok(RpDelete::default());
+            } else {
+                return Err(e);
+            }
+        } else {
+            let resp = resp.unwrap();
+            let status = resp.status();
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
+            match status {
+                StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+                _ => Err(parse_error(resp).await?),
+            }
         }
     }
 }
@@ -167,8 +218,6 @@ impl GdriveBackend {
     pub(crate) fn parse_metadata(&self, body: bytes::Bytes) -> Result<Metadata> {
         let metadata =
             serde_json::from_slice::<GdriveFile>(&body).map_err(new_json_deserialize_error)?;
-
-        println!("metadata: {:?}", metadata.size);
 
         let mut meta = Metadata::new(match metadata.mime_type.as_str() {
             "application/vnd.google-apps.folder" => EntryMode::DIR,

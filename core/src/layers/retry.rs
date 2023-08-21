@@ -34,6 +34,7 @@ use backon::Retryable;
 use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
+use tokio::sync::Mutex;
 
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
@@ -898,9 +899,64 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         }
     }
 
-    /// Sink will move the input stream, so we can't retry it.
+    /// > Ooooooooooops, are you crazy!? Why we need to do `Arc<Mutex<S>>` here? Adding a lock has
+    /// a lot overhead!
+    ///
+    /// Yes, you are right. But we have no choice. This is the only safe way for us to add retry
+    /// support for stream.
+    ///
+    /// And the overhead is acceptable. Based on our benchmark, adding a lock
+    /// that has no conflicts will only cost 5ns.
+    ///
+    /// ```shell
+    /// stream/without_arc_mutex
+    ///                         time:   [10.715 ns 10.729 ns 10.744 ns]
+    ///                         thrpt:  [ 90896 GiB/s  91019 GiB/s  91139 GiB/s]
+    /// stream/with_arc_mutex   time:   [14.891 ns 14.905 ns 14.928 ns]
+    ///                         thrpt:  [ 65418 GiB/s  65517 GiB/s  65581 GiB/s]
+    /// ```
+    ///
+    /// The overhead is constant, which means the overhead will not increase with the size of
+    /// stream. For example, if every `next` call cost 1ms, then the overhead will only take 0.005%
+    /// which is acceptable.
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.sink(size, s).await
+        let s = Arc::new(Mutex::new(s));
+
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.sink(size, Box::new(s.clone())).await {
+                Ok(_) => return Ok(()),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        {
+                            use oio::StreamExt;
+
+                            let mut stream = s.lock().await;
+                            // Try to reset this stream.
+                            //
+                            // If error happened, we will return the sink error directly and stop retry.
+                            if stream.reset().await.is_err() {
+                                return Err(e);
+                            }
+                        }
+
+                        self.notify.intercept(
+                            &e,
+                            dur,
+                            &[
+                                ("operation", WriteOperation::Sink.into_static()),
+                                ("path", &self.path),
+                            ],
+                        );
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

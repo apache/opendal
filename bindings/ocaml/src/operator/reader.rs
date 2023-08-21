@@ -17,9 +17,9 @@
 
 use std::io;
 
-use super::*;
-
 use opendal::raw::oio::BlockingRead;
+
+use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("reader -> bytes -> (int, string) Result.t ")]

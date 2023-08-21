@@ -109,17 +109,12 @@ jobs:
 
   minio_s3:
     runs-on: ubuntu-latest
-
-    # Setup minio server
     steps:
       - uses: actions/checkout@v3
       - name: Setup MinIO Server
         shell: bash
         working-directory: core/src/services/s3/fixtures
         run: docker-compose -f docker-compose-minio.yml up -d
-
-    steps:
-      - uses: actions/checkout@v3
       - name: Setup test bucket
         env:
           AWS_ACCESS_KEY_ID: "minioadmin"
@@ -144,17 +139,12 @@ jobs:
 
   anonymous_minio_s3:
     runs-on: ubuntu-latest
-
-    # Setup minio server
     steps:
       - uses: actions/checkout@v3
       - name: Setup MinIO Server
         shell: bash
         working-directory: core/src/services/s3/fixtures
         run: docker-compose -f docker-compose-minio.yml up -d
-
-    steps:
-      - uses: actions/checkout@v3
       - name: Setup test bucket
         run: |
           curl -O https://dl.min.io/client/mc/release/linux-amd64/mc

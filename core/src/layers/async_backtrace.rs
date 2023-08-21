@@ -65,7 +65,6 @@ impl<A: Accessor> LayeredAccessor for AsyncBacktraceAccessor<A> {
     type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
-    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -81,11 +80,6 @@ impl<A: Accessor> LayeredAccessor for AsyncBacktraceAccessor<A> {
     #[async_backtrace::framed]
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner.write(path, args).await
-    }
-
-    #[async_backtrace::framed]
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner.append(path, args).await
     }
 
     #[async_backtrace::framed]

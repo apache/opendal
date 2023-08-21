@@ -73,7 +73,6 @@ impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
     type BlockingReader = A::BlockingReader;
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
-    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -92,13 +91,6 @@ impl<A: Accessor> LayeredAccessor for AwaitTreeAccessor<A> {
         self.inner
             .write(path, args)
             .instrument_await(format!("opendal::{}", Operation::Write))
-            .await
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner
-            .append(path, args)
-            .instrument_await(format!("opendal::{}", Operation::Append))
             .await
     }
 

@@ -22,6 +22,7 @@ use std::str::FromStr;
 use ::opendal as od;
 
 mod operator;
+mod seek_from;
 
 pub fn new_operator(
     scheme_str: String,

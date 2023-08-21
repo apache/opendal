@@ -32,7 +32,6 @@ use super::error::parse_error;
 use super::pager::CosPager;
 use super::writer::CosWriter;
 use crate::raw::*;
-use crate::services::cos::appender::CosAppender;
 use crate::*;
 
 const DEFAULT_WRITE_MIN_SIZE: usize = 1024 * 1024;
@@ -268,9 +267,11 @@ pub struct CosBackend {
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::MultipartUploadWriter<CosWriter>;
+    type Writer = oio::TwoWaysWriter<
+        oio::MultipartUploadWriter<CosWriter>,
+        oio::AppendObjectWriter<CosWriter>,
+    >;
     type BlockingWriter = ();
-    type Appender = CosAppender;
     type Pager = CosPager;
     type BlockingPager = ();
 
@@ -279,7 +280,7 @@ impl Accessor for CosBackend {
         am.set_scheme(Scheme::Cos)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -291,16 +292,12 @@ impl Accessor for CosBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_append: true,
                 write_can_sink: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_with_content_disposition: true,
                 write_without_content_length: true,
-
-                append: true,
-                append_with_cache_control: true,
-                append_with_content_disposition: true,
-                append_with_content_type: true,
 
                 delete: true,
                 create_dir: true,
@@ -359,17 +356,21 @@ impl Accessor for CosBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            CosWriter::new(self.core.clone(), path, args),
-        ))
-    }
+        let writer = CosWriter::new(self.core.clone(), path, args.clone());
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        Ok((
-            RpAppend::default(),
-            CosAppender::new(self.core.clone(), path, args),
-        ))
+        let tw = if args.append() {
+            let w =
+                oio::AppendObjectWriter::new(writer).with_write_min_size(self.core.write_min_size);
+
+            oio::TwoWaysWriter::Right(w)
+        } else {
+            let w = oio::MultipartUploadWriter::new(writer, args.content_length())
+                .with_write_min_size(self.core.write_min_size);
+
+            oio::TwoWaysWriter::Left(w)
+        };
+
+        return Ok((RpWrite::default(), tw));
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

@@ -18,7 +18,6 @@
 mod backend;
 pub use backend::CosBuilder as Cos;
 
-mod appender;
 mod core;
 mod error;
 mod pager;

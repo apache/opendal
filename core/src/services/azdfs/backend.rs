@@ -232,7 +232,6 @@ impl Accessor for AzdfsBackend {
     type BlockingReader = ();
     type Writer = AzdfsWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = AzdfsPager;
     type BlockingPager = ();
 
@@ -241,7 +240,7 @@ impl Accessor for AzdfsBackend {
         am.set_scheme(Scheme::Azdfs)
             .set_root(&self.core.root)
             .set_name(&self.core.filesystem)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,

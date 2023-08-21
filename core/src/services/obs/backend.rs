@@ -27,7 +27,6 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::appender::ObsAppender;
 use super::core::ObsCore;
 use super::error::parse_error;
 use super::pager::ObsPager;
@@ -331,9 +330,11 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = ObsWriter;
+    type Writer = oio::TwoWaysWriter<
+        oio::MultipartUploadWriter<ObsWriter>,
+        oio::AppendObjectWriter<ObsWriter>,
+    >;
     type BlockingWriter = ();
-    type Appender = ObsAppender;
     type Pager = ObsPager;
     type BlockingPager = ();
 
@@ -342,7 +343,7 @@ impl Accessor for ObsBackend {
         am.set_scheme(Scheme::Obs)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -354,15 +355,11 @@ impl Accessor for ObsBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_append: true,
                 write_can_sink: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_without_content_length: true,
-
-                append: true,
-                append_with_cache_control: true,
-                append_with_content_type: true,
-                append_with_content_disposition: true,
 
                 delete: true,
                 create_dir: true,
@@ -453,17 +450,21 @@ impl Accessor for ObsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            ObsWriter::new(self.core.clone(), path, args),
-        ))
-    }
+        let writer = ObsWriter::new(self.core.clone(), path, args.clone());
 
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        Ok((
-            RpAppend::default(),
-            ObsAppender::new(self.core.clone(), path, args),
-        ))
+        let tw = if args.append() {
+            let w =
+                oio::AppendObjectWriter::new(writer).with_write_min_size(self.core.write_min_size);
+
+            oio::TwoWaysWriter::Right(w)
+        } else {
+            let w = oio::MultipartUploadWriter::new(writer, args.content_length())
+                .with_write_min_size(self.core.write_min_size);
+
+            oio::TwoWaysWriter::Left(w)
+        };
+
+        return Ok((RpWrite::default(), tw));
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

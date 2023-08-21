@@ -54,7 +54,6 @@ impl Accessor for GdriveBackend {
     type BlockingReader = ();
     type Writer = GdriveWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -62,7 +61,7 @@ impl Accessor for GdriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(crate::Scheme::Gdrive)
             .set_root(&self.core.root)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 read: true,
                 write: true,
                 delete: true,

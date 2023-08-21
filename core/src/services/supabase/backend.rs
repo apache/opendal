@@ -208,7 +208,6 @@ impl Accessor for SupabaseBackend {
     type BlockingReader = ();
     type Writer = SupabaseWriter;
     type BlockingWriter = ();
-    type Appender = ();
     // todo: implement Pager to support list and scan
     type Pager = ();
     type BlockingPager = ();
@@ -218,7 +217,7 @@ impl Accessor for SupabaseBackend {
         am.set_scheme(Scheme::Supabase)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,

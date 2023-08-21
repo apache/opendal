@@ -195,17 +195,6 @@ impl RpWrite {
     }
 }
 
-/// Reply for `append` operation.
-#[derive(Debug, Clone, Default)]
-pub struct RpAppend {}
-
-impl RpAppend {
-    /// Create a new reply for `append`.
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 /// Reply for `copy` operation.
 #[derive(Debug, Clone, Default)]
 pub struct RpCopy {}

@@ -88,7 +88,7 @@ async fn handle_list_objects(
 ) -> Result<OkResponse, ErrorResponse> {
     debug!("got params: {:?}", params);
 
-    if !state.op.info().capability().list_with_start_after {
+    if !state.op.info().full_capability().list_with_start_after {
         return Err(ErrorResponse {
             code: StatusCode::NOT_IMPLEMENTED,
             err: Error {

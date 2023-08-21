@@ -28,9 +28,6 @@ pub use read::*;
 mod write;
 pub use write::*;
 
-mod append;
-pub use append::*;
-
 mod stream;
 pub use stream::*;
 

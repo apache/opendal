@@ -23,10 +23,10 @@ default-members = ["core"]
 exclude = ["examples"]
 members = [
   "core",
+  "core/fuzz",
 
   "bindings/c",
   "bindings/nodejs",
-  "bindings/object_store",
   "bindings/python",
   "bindings/ruby",
   "bindings/java",
@@ -39,7 +39,7 @@ members = [
   "bin/oli",
   "bin/oay",
 
-  "core/fuzz",
+  "integrations/object_store",
 ]
 resolver = "2"
 

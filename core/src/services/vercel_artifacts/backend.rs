@@ -48,14 +48,13 @@ impl Accessor for VercelArtifactsBackend {
     type BlockingReader = ();
     type Writer = VercelArtifactsWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::VercelArtifacts)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,

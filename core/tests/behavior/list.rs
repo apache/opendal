@@ -27,7 +27,7 @@ use log::debug;
 use crate::*;
 
 pub fn behavior_list_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write && cap.list) {
         return vec![];
@@ -335,7 +335,7 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 
 /// List with start after should start listing after the specified key
 pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
-    if !op.info().capability().list_with_start_after {
+    if !op.info().full_capability().list_with_start_after {
         return Ok(());
     }
 

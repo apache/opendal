@@ -71,7 +71,7 @@ impl BlockingOperator {
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
         let limit = accessor
             .info()
-            .capability()
+            .full_capability()
             .batch_max_operations
             .unwrap_or(1000);
         Self { accessor, limit }

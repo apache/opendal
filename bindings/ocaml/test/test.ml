@@ -58,6 +58,30 @@ let test_copy_and_read test_ctxt =
   let got_res = test_check_result (Operator.read bo "bar") in
   assert_equal data (got_res |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string)
 
+let test_operator_reader test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let reader = Operator.reader bo "tempfile" |> test_check_result in
+  let s = Operator.Reader.seek reader 5L SEEK_CUR |> test_check_result in
+  assert_equal 5 (Int64.to_int s);
+  let data = Bytes.create 5 in
+  let i = Operator.Reader.read reader data |> test_check_result in
+  assert_equal 5 i;
+  assert_equal "world" (Bytes.to_string data)
+
+let test_operator_stat test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let metadata = Operator.stat bo "tempfile" |> test_check_result in
+  assert_equal false (Operator.Metadata.is_dir metadata);
+  assert_equal true (Operator.Metadata.is_file metadata);
+  assert_equal 10L (Operator.Metadata.content_length metadata);
+  ()
+
 let suite =
   "suite"
   >::: [
@@ -65,6 +89,8 @@ let suite =
          "test_create_dir_and_remove_all" >:: test_create_dir_and_remove_all;
          "test_block_write_and_read" >:: test_block_write_and_read;
          "test_copy_and_read" >:: test_copy_and_read;
+         "test_operator_reader" >:: test_operator_reader;
+         "test_operator_stat" >:: test_operator_stat;
        ]
 
 let () = run_test_tt_main suite

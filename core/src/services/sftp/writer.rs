@@ -60,16 +60,3 @@ impl oio::Write for SftpWriter {
         Ok(())
     }
 }
-
-#[async_trait]
-impl oio::Append for SftpWriter {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.file.write_all(&bs).await?;
-
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
-    }
-}

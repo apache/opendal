@@ -266,7 +266,6 @@ impl Accessor for FtpBackend {
     type BlockingReader = ();
     type Writer = FtpWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = FtpPager;
     type BlockingPager = ();
 
@@ -274,13 +273,14 @@ impl Accessor for FtpBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ftp)
             .set_root(&self.root)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,
                 read_with_range: true,
 
                 write: true,
+
                 delete: true,
                 create_dir: true,
 

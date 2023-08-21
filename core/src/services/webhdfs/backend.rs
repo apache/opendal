@@ -401,7 +401,6 @@ impl Accessor for WebhdfsBackend {
     type BlockingReader = ();
     type Writer = WebhdfsWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = WebhdfsPager;
     type BlockingPager = ();
 
@@ -409,7 +408,7 @@ impl Accessor for WebhdfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,

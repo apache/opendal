@@ -415,13 +415,12 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
-        type Appender = ();
         type Pager = ();
         type BlockingPager = ();
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_capability(Capability {
+            am.set_full_capability(Capability {
                 read: true,
                 ..Default::default()
             });

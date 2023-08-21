@@ -893,7 +893,6 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = oio::MultipartUploadWriter<S3Writer>;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = S3Pager;
     type BlockingPager = ();
 
@@ -902,7 +901,7 @@ impl Accessor for S3Backend {
         am.set_scheme(Scheme::S3)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,

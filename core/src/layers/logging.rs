@@ -217,7 +217,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type BlockingReader = LoggingReader<A::BlockingReader>;
     type Writer = LoggingWriter<A::Writer>;
     type BlockingWriter = LoggingWriter<A::BlockingWriter>;
-    type Appender = LoggingAppender<A::Appender>;
     type Pager = LoggingPager<A::Pager>;
     type BlockingPager = LoggingPager<A::BlockingPager>;
 
@@ -359,45 +358,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         "service={} operation={} path={} -> {}",
                         self.ctx.scheme,
                         Operation::Write,
-                        path,
-                        self.ctx.error_print(&err)
-                    )
-                };
-                err
-            })
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.ctx.scheme,
-            Operation::Append,
-            path
-        );
-
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, a)| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> start appending",
-                    self.ctx.scheme,
-                    Operation::Append,
-                    path,
-                );
-                let a = LoggingAppender::new(self.ctx.clone(), Operation::Append, path, a);
-                (rp, a)
-            })
-            .map_err(|err| {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}",
-                        self.ctx.scheme,
-                        Operation::Append,
                         path,
                         self.ctx.error_print(&err)
                     )
@@ -1481,90 +1441,6 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                         WriteOperation::BlockingClose,
                         self.path,
                         self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-}
-
-pub struct LoggingAppender<A> {
-    ctx: LoggingContext,
-    op: Operation,
-    path: String,
-
-    inner: A,
-}
-
-impl<A> LoggingAppender<A> {
-    fn new(ctx: LoggingContext, op: Operation, path: &str, appender: A) -> Self {
-        Self {
-            ctx,
-            op,
-            path: path.to_string(),
-
-            inner: appender,
-        }
-    }
-}
-
-#[async_trait]
-impl<A: oio::Append> oio::Append for LoggingAppender<A> {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let len = bs.len();
-
-        match self.inner.append(bs).await {
-            Ok(_) => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> data append {}B",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path,
-                    len
-                );
-                Ok(())
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> data append failed: {}",
-                        self.ctx.scheme,
-                        self.op,
-                        self.path,
-                        self.ctx.error_print(&err)
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        match self.inner.close().await {
-            Ok(_) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> data appended finished",
-                    self.ctx.scheme,
-                    self.op,
-                    self.path,
-                );
-                Ok(())
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> data appender close failed: {}",
-                        self.ctx.scheme,
-                        self.op,
-                        self.path,
                         self.ctx.error_print(&err),
                     )
                 }

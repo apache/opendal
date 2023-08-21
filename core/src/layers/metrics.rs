@@ -412,7 +412,6 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type BlockingReader = MetricWrapper<A::BlockingReader>;
     type Writer = MetricWrapper<A::Writer>;
     type BlockingWriter = MetricWrapper<A::BlockingWriter>;
-    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -508,10 +507,6 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
                     .increment_errors_total(Operation::Write, e.kind());
             })
             .await
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner.append(path, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

@@ -80,7 +80,7 @@ impl Operator {
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
         let limit = accessor
             .info()
-            .capability()
+            .full_capability()
             .batch_max_operations
             .unwrap_or(1000);
         Self { accessor, limit }
@@ -536,32 +536,6 @@ impl Operator {
         self.write_with(path, bs).await
     }
 
-    /// Append bytes into path.
-    ///
-    /// # Notes
-    ///
-    /// - Append will make sure all bytes has been written, or an error will be returned.
-    /// - Append will create the file if it does not exist.
-    /// - Append always write bytes to the end of the file.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// op.append("path/to/file", vec![0; 4096]).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn append(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        let bs = bs.into();
-        self.append_with(path, bs).await
-    }
-
     /// Copy a file from `from` to `to`.
     ///
     /// # Notes
@@ -813,140 +787,6 @@ impl Operator {
         fut
     }
 
-    /// Append multiple bytes into path.
-    ///
-    /// Refer to [`Appender`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut a = op.appender("path/to/file").await?;
-    /// a.append(vec![0; 4096]).await?;
-    /// a.append(vec![1; 4096]).await?;
-    /// a.close().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn appender(&self, path: &str) -> Result<Appender> {
-        self.appender_with(path).await
-    }
-
-    /// Append multiple bytes into path with extra options.
-    ///
-    /// Refer to [`Appender`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut a = op
-    ///     .appender_with("path/to/file")
-    ///     .content_type("application/octet-stream")
-    ///     .await?;
-    /// a.append(vec![0; 4096]).await?;
-    /// a.append(vec![1; 4096]).await?;
-    /// a.close().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn appender_with(&self, path: &str) -> FutureAppender {
-        let path = normalize_path(path);
-
-        let fut = FutureAppender(OperatorFuture::new(
-            self.inner().clone(),
-            path,
-            OpAppend::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "append path is a directory",
-                        )
-                        .with_operation("Operator::appender")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
-                    let ap = Appender::create(inner, &path, args).await?;
-                    Ok(ap)
-                };
-
-                Box::pin(fut)
-            },
-        ));
-
-        fut
-    }
-
-    /// Append bytes with extra options.
-    ///
-    /// # Notes
-    ///
-    /// - Append will make sure all bytes has been written, or an error will be returned.
-    /// - Append will create the file if it does not exist.
-    /// - Append always write bytes to the end of the file.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = b"hello, world!".to_vec();
-    /// let _ = op
-    ///     .append_with("path/to/file", bs)
-    ///     .content_type("text/plain")
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn append_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureAppend {
-        let path = normalize_path(path);
-        let bs = bs.into();
-
-        let fut = FutureAppend(OperatorFuture::new(
-            self.inner().clone(),
-            path,
-            (OpAppend::default(), bs),
-            |inner, path, (args, bs)| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "append path is a directory",
-                        )
-                        .with_operation("Operator::append_with")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
-                    let (_, mut a) = inner.append(&path, args).await?;
-                    a.append(bs).await?;
-                    a.close().await?;
-
-                    Ok(())
-                };
-
-                Box::pin(fut)
-            },
-        ));
-
-        fut
-    }
-
     /// Delete the given path.
     ///
     /// # Notes
@@ -1059,7 +899,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
-        if self.info().can_batch() {
+        if self.info().full_capability().batch {
             let mut input = input
                 .map(|v| (v, OpDelete::default().into()))
                 .chunks(self.limit());
@@ -1127,7 +967,7 @@ impl Operator {
 
         let obs = self.lister_with(path).delimiter("").await?;
 
-        if self.info().can_batch() {
+        if self.info().full_capability().batch {
             let mut obs = obs.try_chunks(self.limit());
 
             while let Some(batches) = obs.next().await {

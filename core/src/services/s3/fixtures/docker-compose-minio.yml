@@ -15,25 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-description = "OpenDAL's object_store binding"
-name = "object_store_opendal"
+version: '3.8'
 
-authors.workspace = true
-edition.workspace = true
-homepage.workspace = true
-license.workspace = true
-repository.workspace = true
-rust-version.workspace = true
-version.workspace = true
-
-[dependencies]
-async-trait = "0.1"
-bytes = "1"
-futures = "0.3"
-object_store = "0.6"
-opendal.workspace = true
-tokio = "1"
-
-[dev-dependencies]
-tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
+services:
+  minio:
+    image: wktk/minio-server
+    ports:
+      - 9000:9000
+    environment:
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"

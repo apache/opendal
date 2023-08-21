@@ -224,7 +224,11 @@ impl Operator {
             Either::B(s) => s.into_bytes(),
         };
 
-        self.0.append(&path, c).await.map_err(format_napi_error)
+        self.0
+            .write_with(&path, c)
+            .append(true)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Copy file according to given `from` and `to` path.

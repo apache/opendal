@@ -154,7 +154,7 @@ jobs:
           ./mc anonymous set public local/test
           while :; do
             echo "waiting minio to be ready"
-            [[ ./mc ping ]] || break
+            [[ "$(./mc ping --count 1 local | awk '{print $6}' | tr -d '\n')" == "errors=1" ]] || break
             sleep 1
           done
       - name: Setup Rust toolchain

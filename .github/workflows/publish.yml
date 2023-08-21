@@ -51,7 +51,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish object_store_opendal
-        working-directory: "bindings/object_store"
+        working-directory: "integrations/object_store"
         run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

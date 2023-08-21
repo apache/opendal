@@ -17,6 +17,7 @@
 
 mod api;
 pub use api::Stream;
+pub use api::StreamExt;
 pub use api::Streamer;
 
 mod into_stream_from_reader;

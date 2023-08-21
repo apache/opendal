@@ -23,7 +23,6 @@ use std::str::FromStr;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
-use reqwest::multipart::Form;
 
 use super::body::IncomingAsyncBody;
 use super::parse_content_length;
@@ -99,89 +98,6 @@ impl HttpClient {
             AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
             AsyncBody::Stream(s) => req_builder.body(reqwest::Body::wrap_stream(s)),
         };
-
-        let mut resp = req_builder.send().await.map_err(|err| {
-            let is_temporary = !(
-                // Builder related error should not be retried.
-                err.is_builder() ||
-                // Error returned by RedirectPolicy.
-                //
-                // We don't set this by hand, just don't allow retry.
-                err.is_redirect() ||
-                 // We never use `Response::error_for_status`, just don't allow retry.
-                //
-                // Status should be checked by our services.
-                err.is_status()
-            );
-
-            let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
-                .with_operation("http_util::Client::send_async")
-                .with_context("url", uri.to_string())
-                .set_source(err);
-            if is_temporary {
-                oerr = oerr.set_temporary();
-            }
-
-            oerr
-        })?;
-
-        // Get content length from header so that we can check it.
-        // If the request method is HEAD, we will ignore this.
-        let content_length = if is_head {
-            None
-        } else {
-            parse_content_length(resp.headers()).expect("response content length must be valid")
-        };
-
-        let mut hr = Response::builder()
-            .version(resp.version())
-            .status(resp.status())
-            // Insert uri into response extension so that we can fetch
-            // it later.
-            .extension(uri.clone());
-        // Swap headers directly instead of copy the entire map.
-        mem::swap(hr.headers_mut().unwrap(), resp.headers_mut());
-
-        let stream = resp.bytes_stream().map_err(move |err| {
-            // If stream returns a body related error, we can convert
-            // it to interrupt so we can retry it.
-            Error::new(ErrorKind::Unexpected, "read data from http stream")
-                .map(|v| if err.is_body() { v.set_temporary() } else { v })
-                .with_context("url", uri.to_string())
-                .set_source(err)
-        });
-
-        let body = IncomingAsyncBody::new(Box::new(oio::into_stream(stream)), content_length);
-
-        let resp = hr.body(body).expect("response must build succeed");
-
-        Ok(resp)
-    }
-
-    /// Send a request in async way.
-    ///
-    /// For a request with form data, there could be different types of data
-    /// in the form, so we need to use `Form` to represent it.
-    pub async fn send_form_data(&self, req: Request<Form>) -> Result<Response<IncomingAsyncBody>> {
-        // Uri stores all string alike data in `Bytes` which means
-        // the clone here is cheap.
-        let uri = req.uri().clone();
-        let is_head = req.method() == http::Method::HEAD;
-
-        let (parts, body) = req.into_parts();
-
-        let mut req_builder = self
-            .client
-            .request(
-                parts.method,
-                reqwest::Url::from_str(&uri.to_string()).expect("input request url must be valid"),
-            )
-            .version(parts.version)
-            .headers(parts.headers);
-
-        // Because the inner data's type will be set when we
-        // append it to the form, we just re-use the `body` here.
-        req_builder = req_builder.multipart(body);
 
         let mut resp = req_builder.send().await.map_err(|err| {
             let is_temporary = !(

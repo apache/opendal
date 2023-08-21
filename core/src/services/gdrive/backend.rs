@@ -170,8 +170,7 @@ impl Accessor for GdriveBackend {
         let resp = self.core.gdrive_stat(path).await;
         // We don't care about the error here.
         // As long as the file doesn't exist, we will create a new one.
-        if resp.is_ok() {
-            let resp = resp.unwrap();
+        if let Ok(resp) = resp {
             let status = resp.status();
 
             if status == StatusCode::OK {
@@ -195,21 +194,20 @@ impl Accessor for GdriveBackend {
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.gdrive_delete(path).await;
-        if resp.is_err() {
-            let e = resp.err().unwrap();
-            if e.kind() == ErrorKind::NotFound {
-                return Ok(RpDelete::default());
-            } else {
-                return Err(e);
-            }
-        } else {
-            let resp = resp.unwrap();
+        if let Ok(resp) = resp {
             let status = resp.status();
 
             match status {
-                StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-                _ => Err(parse_error(resp).await?),
+                StatusCode::NO_CONTENT => return Ok(RpDelete::default()),
+                _ => return Err(parse_error(resp).await?),
             }
+        };
+
+        let e = resp.err().unwrap();
+        if e.kind() == ErrorKind::NotFound {
+            Ok(RpDelete::default())
+        } else {
+            Err(e)
         }
     }
 }

@@ -111,7 +111,7 @@ impl ObjectStore for OpendalStore {
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {
         let bs = self
             .inner
-            .range_read(location.as_ref(), range.start as u64..range.end as u64)
+            .read_with(location.as_ref()).range(range.start as u64..range.end as u64)
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 

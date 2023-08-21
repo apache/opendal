@@ -327,7 +327,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn read(&self, path: &str) -> Result<Vec<u8>> {
-        self.range_read(path, ..).await
+        self.read_with(path).await
     }
 
     /// Read the whole path into a bytes with extra options.
@@ -361,7 +361,7 @@ impl Operator {
                             ErrorKind::IsADirectory,
                             "read path is a directory",
                         )
-                        .with_operation("range_read")
+                        .with_operation("read")
                         .with_context("service", inner.info().scheme())
                         .with_context("path", &path));
                     }
@@ -381,7 +381,7 @@ impl Operator {
                     // TODO: use native read api
                     s.read_exact(buf.initialized_mut()).await.map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "read from storage")
-                            .with_operation("range_read")
+                            .with_operation("read")
                             .with_context("service", inner.info().scheme().into_static())
                             .with_context("path", &path)
                             .with_context("range", br.to_string())
@@ -401,31 +401,6 @@ impl Operator {
         fut
     }
 
-    /// Read the specified range of path into a bytes.
-    ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Operator::range_reader`]
-    ///
-    /// # Notes
-    ///
-    /// - The returning content's length may be smaller than the range specified.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.range_read("path/to/file", 1024..2048).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        self.read_with(path).range(range).await
-    }
-
     /// Create a new reader which can read the whole path.
     ///
     /// # Examples
@@ -443,28 +418,6 @@ impl Operator {
     /// ```
     pub async fn reader(&self, path: &str) -> Result<Reader> {
         self.reader_with(path).await
-    }
-
-    /// Create a new reader which can read the specified range.
-    ///
-    /// # Notes
-    ///
-    /// - The returning content's length may be smaller than the range specified.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.range_reader("path/to/file", 1024..2048).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn range_reader(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Reader> {
-        self.reader_with(path).range(range).await
     }
 
     /// Create a new reader with extra options
@@ -496,7 +449,7 @@ impl Operator {
                             ErrorKind::IsADirectory,
                             "read path is a directory",
                         )
-                        .with_operation("Operator::range_reader")
+                        .with_operation("Operator::reader")
                         .with_context("service", inner.info().scheme())
                         .with_context("path", path));
                     }

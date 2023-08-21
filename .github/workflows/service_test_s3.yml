@@ -149,10 +149,7 @@ jobs:
           which curl
           while :; do
             echo "waiting minio docker to be ready"
-            res="$(curl -I http://127.0.0.1:9000/minio/health/live 2>/dev/null | head -n 1 | cut -d$' ' -f2)"
-            if [ "$res" == "200" ]; then
-              break
-            fi
+            [[ "$(curl -I http://127.0.0.1:9000/minio/health/live 2>/dev/null | head -n 1 | cut -d$' ' -f2)" == "200" ]] && break
             sleep 1
           done
       - name: Setup test bucket

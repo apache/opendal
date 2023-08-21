@@ -19,8 +19,9 @@ mod _type;
 mod metadata;
 mod reader;
 
-use super::*;
 use _type::*;
+
+use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("string -> (string * string) list -> (operator, string) Result.t ")]

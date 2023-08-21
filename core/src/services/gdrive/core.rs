@@ -82,14 +82,14 @@ impl GdriveCore {
                 query += " and mimeType = 'application/vnd.google-apps.folder'";
             }
 
-            let req = self.sign(
-                Request::get(format!(
-                    "https://www.googleapis.com/drive/v3/files?q={}",
-                    percent_encode_path(&query)
-                ))
-                .body(AsyncBody::default())
-                .map_err(new_request_build_error)?,
-            );
+            let mut req = Request::get(format!(
+                "https://www.googleapis.com/drive/v3/files?q={}",
+                percent_encode_path(&query)
+            ))
+            .body(AsyncBody::default())
+            .map_err(new_request_build_error)?;
+
+            let _ = self.sign(&mut req);
 
             let resp = self.client.send(req).await?;
             let status = resp.status();
@@ -143,14 +143,13 @@ impl GdriveCore {
                 item, parent
             );
 
-            let req = self.sign(
-                Request::get(format!(
-                    "https://www.googleapis.com/drive/v3/files?q={}",
-                    percent_encode_path(&query)
-                ))
-                .body(AsyncBody::Empty)
-                .map_err(new_request_build_error)?,
-            );
+            let mut req = Request::get(format!(
+                "https://www.googleapis.com/drive/v3/files?q={}",
+                percent_encode_path(&query)
+            ))
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+            let _ = self.sign(&mut req);
 
             let resp = self.client.send(req).await?;
             let status = resp.status();
@@ -219,11 +218,11 @@ impl GdriveCore {
             percent_encode_path(query.as_str())
         );
 
-        let req = self.sign(
-            Request::get(&url)
-                .body(AsyncBody::Empty)
-                .map_err(new_request_build_error)?,
-        );
+        let mut req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req)?;
 
         self.client.send(req).await
     }
@@ -238,7 +237,7 @@ impl GdriveCore {
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://www.googleapis.com/drive/v3/files";
 
-        let req = Request::post(url)
+        let mut req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
             .body(AsyncBody::Bytes(bytes::Bytes::from(
                 serde_json::to_vec(&json!({
@@ -256,7 +255,7 @@ impl GdriveCore {
             )))
             .map_err(new_request_build_error)?;
 
-        let req = self.sign(req);
+        let _ = self.sign(&mut req);
 
         self.client.send(req).await
     }
@@ -266,14 +265,13 @@ impl GdriveCore {
 
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
-        let req = self.sign(
-            Request::get(&format!(
-                "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
-                path_id.as_str()
-            ))
-                .body(AsyncBody::Empty)
-                .map_err(new_request_build_error)?,
-        );
+        let mut req = Request::get(&format!(
+            "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
+            path_id.as_str()
+        ))
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        let _ = self.sign(&mut req);
 
         self.client.send(req).await
     }
@@ -284,11 +282,10 @@ impl GdriveCore {
             self.get_file_id_by_path(path).await?
         );
 
-        let req = self.sign(
-            Request::get(&url)
-                .body(AsyncBody::Empty)
-                .map_err(new_request_build_error)?,
-        );
+        let mut req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        let _ = self.sign(&mut req);
 
         self.client.send(req).await
     }
@@ -315,7 +312,8 @@ impl GdriveCore {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 
-        let req = self.sign(req.body(body).map_err(new_request_build_error)?);
+        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let _ = self.sign(&mut req);
 
         self.client.send(req).await
     }
@@ -330,7 +328,7 @@ impl GdriveCore {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        req = self.sign(req);
+        let _ = self.sign(&mut req);
 
         self.client.send(req).await
     }
@@ -374,7 +372,7 @@ impl GdriveCore {
 
         let mut req = multipart.apply(req)?;
 
-        req = self.sign(req);
+        let _ = self.sign(&mut req);
 
         self.client.send(req).await
     }
@@ -397,20 +395,17 @@ impl GdriveCore {
             .body(AsyncBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        req = self.sign(req);
+        let _ = self.sign(&mut req);
 
         self.client.send(req).await
     }
 
-    fn sign<T>(&self, mut req: Request<T>) -> Request<T> {
+    fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let auth_header_content = format!("Bearer {}", self.access_token);
-        req.headers_mut().insert(
-            header::AUTHORIZATION,
-            auth_header_content
-                .parse()
-                .expect("failed to parse auth header"),
-        );
-        req
+        req.headers_mut()
+            .insert(header::AUTHORIZATION, auth_header_content.parse().unwrap());
+
+        Ok(())
     }
 }
 
@@ -423,10 +418,8 @@ pub struct GdriveFile {
     pub mime_type: String,
     pub id: String,
     pub name: String,
-    #[serde(default)]
-    pub size: String,
-    #[serde(default)]
-    pub modified_time: String,
+    pub size: Option<String>,
+    pub modified_time: Option<String>,
 }
 
 // refer to https://developers.google.com/drive/api/reference/rest/v3/files/list

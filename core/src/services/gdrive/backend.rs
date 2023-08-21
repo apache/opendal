@@ -221,12 +221,23 @@ impl GdriveBackend {
             "application/vnd.google-apps.folder" => EntryMode::DIR,
             _ => EntryMode::FILE,
         });
-        meta = meta.with_content_length(metadata.size.parse::<u64>().unwrap_or(0));
+        meta = meta.with_content_length(
+            metadata
+                .size
+                .unwrap_or(String::from("0"))
+                .parse::<u64>()
+                .map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+                })?,
+        );
         meta = meta.with_last_modified(
             metadata
                 .modified_time
+                .unwrap_or_default()
                 .parse::<chrono::DateTime<Utc>>()
-                .unwrap_or_default(),
+                .map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                })?,
         );
         Ok(meta)
     }

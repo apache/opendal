@@ -149,6 +149,7 @@ jobs:
           while :; do
             echo "waiting minio docker to be ready"
             res="$(curl -I http://127.0.0.1:9000/minio/health/live 2>/dev/null | head -n 1 | cut -d$' ' -f2)"
+            echo $res
             if [ "$res" -eq "200" ]; then
               break
             fi

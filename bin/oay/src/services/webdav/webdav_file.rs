@@ -40,7 +40,8 @@ impl DavFile for WebdavFile {
         async move {
             let file_path = self.path.as_url_string();
             self.op
-                .read_with(&file_path).range(0..count as u64)
+                .read_with(&file_path)
+                .range(0..count as u64)
                 .await
                 .map(Bytes::from)
                 .map_err(convert_error)

@@ -58,7 +58,8 @@ fn bench_read_full(c: &mut Criterion, name: &str, op: Operator) {
         group.bench_with_input(size.to_string(), &(op.clone(), &path), |b, (op, path)| {
             b.to_async(&*TOKIO).iter(|| async {
                 let r = op
-                    .reader_with(path).range(0..=size.bytes() as u64)
+                    .reader_with(path)
+                    .range(0..=size.bytes() as u64)
                     .await
                     .unwrap();
                 io::copy(r, &mut io::sink()).await.unwrap();
@@ -130,7 +131,8 @@ fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
                             .map(|_| async {
                                 let mut buf = buf.clone();
                                 let mut r = op
-                                    .reader_with(path).range(offset..=offset + size.bytes() as u64)
+                                    .reader_with(path)
+                                    .range(offset..=offset + size.bytes() as u64)
                                     .await
                                     .unwrap();
                                 r.read_exact(&mut buf).await.unwrap();

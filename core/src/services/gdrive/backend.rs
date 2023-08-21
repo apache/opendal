@@ -221,19 +221,24 @@ impl GdriveBackend {
             "application/vnd.google-apps.folder" => EntryMode::DIR,
             _ => EntryMode::FILE,
         });
-        meta = meta.with_content_length(
+
+        let size = if meta.mode() == EntryMode::DIR {
+            // Google Drive does not return the size for folders.
+            0
+        } else {
             metadata
                 .size
-                .unwrap_or(String::from("0"))
+                .expect("file size must exist")
                 .parse::<u64>()
                 .map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-                })?,
-        );
+                })?
+        };
+        meta = meta.with_content_length(size);
         meta = meta.with_last_modified(
             metadata
                 .modified_time
-                .unwrap_or_default()
+                .expect("modified time must exist. please check your query param - fields")
                 .parse::<chrono::DateTime<Utc>>()
                 .map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)

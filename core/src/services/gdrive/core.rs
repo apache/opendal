@@ -412,13 +412,18 @@ impl GdriveCore {
 // This is the file struct returned by the Google Drive API.
 // This is a complex struct, but we only add the fields we need.
 // refer to https://developers.google.com/drive/api/reference/rest/v3/files#File
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GdriveFile {
     pub mime_type: String,
     pub id: String,
     pub name: String,
     pub size: Option<String>,
+    // The modified time is not returned unless the `fields`
+    // query parameter contains `modifiedTime`.
+    // As we only need the modified time when we do `stat` operation,
+    // if other operations(such as search) do not specify the `fields` query parameter,
+    // try to access this field, it will be `None`.
     pub modified_time: Option<String>,
 }
 

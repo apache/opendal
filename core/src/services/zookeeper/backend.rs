@@ -213,7 +213,7 @@ impl kv::Adapter for ZkAdapter {
                     .get_connection()
                     .await?
                     .create(
-                        path,
+                        &path,
                         value,
                         &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl),
                     )

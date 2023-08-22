@@ -118,7 +118,7 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
+          export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
 
           cargo test services_hdfs --features services-hdfs
         env:

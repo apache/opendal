@@ -40,8 +40,8 @@ pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
         test_read_only_stat_root,
         test_read_only_read_full,
         test_read_only_read_full_with_special_chars,
-        test_read_only_read_range,
-        test_read_only_reader_range,
+        test_read_only_read_with_range,
+        test_read_only_reader_with_range,
         test_read_only_reader_from,
         test_read_only_reader_tail,
         test_read_only_read_not_exist,
@@ -184,8 +184,8 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result
 }
 
 /// Read full content should match.
-pub async fn test_read_only_read_range(op: Operator) -> Result<()> {
-    let bs = op.range_read("normal_file", 1024..2048).await?;
+pub async fn test_read_only_read_with_range(op: Operator) -> Result<()> {
+    let bs = op.read_with("normal_file").range(1024..2048).await?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -197,8 +197,8 @@ pub async fn test_read_only_read_range(op: Operator) -> Result<()> {
 }
 
 /// Read range should match.
-pub async fn test_read_only_reader_range(op: Operator) -> Result<()> {
-    let mut r = op.range_reader("normal_file", 1024..2048).await?;
+pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
+    let mut r = op.reader_with("normal_file").range(1024..2048).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -215,7 +215,7 @@ pub async fn test_read_only_reader_range(op: Operator) -> Result<()> {
 
 /// Read from should match.
 pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
-    let mut r = op.range_reader("normal_file", 261120..).await?;
+    let mut r = op.reader_with("normal_file").range(261120..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -232,7 +232,7 @@ pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
 
 /// Read tail should match.
 pub async fn test_read_only_reader_tail(op: Operator) -> Result<()> {
-    let mut r = op.range_reader("normal_file", ..1024).await?;
+    let mut r = op.reader_with("normal_file").range(..1024).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;

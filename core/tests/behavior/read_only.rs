@@ -40,6 +40,8 @@ pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
         test_read_only_stat_root,
         test_read_only_read_full,
         test_read_only_read_full_with_special_chars,
+        test_read_only_read_with_range,
+        test_read_only_reader_with_range,
         test_read_only_reader_from,
         test_read_only_reader_tail,
         test_read_only_read_not_exist,
@@ -175,6 +177,36 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read full content should match.
+pub async fn test_read_only_read_with_range(op: Operator) -> Result<()> {
+    let bs = op.read_with("normal_file").range(1024..2048).await?;
+    assert_eq!(bs.len(), 1024, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read range should match.
+pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
+    let mut r = op.reader_with("normal_file").range(1024..2048).await?;
+
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
+
+    assert_eq!(bs.len(), 1024, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
         "read content"
     );
 

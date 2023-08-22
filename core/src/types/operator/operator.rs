@@ -343,6 +343,7 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read_with("path/to/file").await?;
+    /// let bs = op.read_with("path/to/file").range(0..10).await?;
     /// # Ok(())
     /// # }
     /// ```

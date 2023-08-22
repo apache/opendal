@@ -174,35 +174,37 @@ jobs:
           OPENDAL_S3_ALLOW_ANONYMOUS: on
           OPENDAL_S3_REGION: us-east-1
 
-  r2:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
-
-      - name: Load secret
-        id: op-load-secret
-        uses: 1password/load-secrets-action@v1
-        with:
-          export-env: true
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_S3_TEST: op://services/r2/test
-          OPENDAL_S3_BUCKET: op://services/r2/bucket
-          OPENDAL_S3_ENDPOINT: op://services/r2/endpoint
-          OPENDAL_S3_ACCESS_KEY_ID: op://services/r2/access_key_id
-          OPENDAL_S3_SECRET_ACCESS_KEY: op://services/r2/secret_access_key
-
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo nextest run s3
-        env:
-          OPENDAL_S3_REGION: auto
-          # This is the R2's limitation
-          # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
-          OPENDAL_S3_BATCH_MAX_OPERATIONS: 700
+# Disable this test until we addressed https://github.com/apache/incubator-opendal/issues/2904
+#
+#  r2:
+#    runs-on: ubuntu-latest
+#    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+#    steps:
+#      - uses: actions/checkout@v3
+#      - name: Setup Rust toolchain
+#        uses: ./.github/actions/setup
+#        with:
+#          need-nextest: true
+#
+#      - name: Load secret
+#        id: op-load-secret
+#        uses: 1password/load-secrets-action@v1
+#        with:
+#          export-env: true
+#        env:
+#          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+#          OPENDAL_S3_TEST: op://services/r2/test
+#          OPENDAL_S3_BUCKET: op://services/r2/bucket
+#          OPENDAL_S3_ENDPOINT: op://services/r2/endpoint
+#          OPENDAL_S3_ACCESS_KEY_ID: op://services/r2/access_key_id
+#          OPENDAL_S3_SECRET_ACCESS_KEY: op://services/r2/secret_access_key
+#
+#      - name: Test
+#        shell: bash
+#        working-directory: core
+#        run: cargo nextest run s3
+#        env:
+#          OPENDAL_S3_REGION: auto
+#          # This is the R2's limitation
+#          # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
+#          OPENDAL_S3_BATCH_MAX_OPERATIONS: 700

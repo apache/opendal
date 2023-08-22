@@ -62,35 +62,16 @@ jobs:
 
   zookeeper-cluster:
     runs-on: ubuntu-latest
-    services:
-      zoo1:
-        image: zookeeper:3.8.2
-        ports:
-          - 2181:2181
-        environment:
-          ZOO_MY_ID: 1
-          ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
-      zoo2:
-        image: zookeeper:3.8.2
-        ports:
-          - 2182:2181
-        environment:
-          ZOO_MY_ID: 2
-          ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
-      zoo3:
-        image: zookeeper:3.8.2
-        ports:
-          - 2183:2181
-        environment:
-          ZOO_MY_ID: 3
-          ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
-
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           need-nextest: true
+      - name: Setup Zookeeper Cluster
+        shell: bash
+        working-directory: core
+        run: docker-compose -f `pwd`/src/services/zookeeper/fixtures/docker-compose-zookeeper-cluster.yml up -d
       - name: Test
         shell: bash
         working-directory: core

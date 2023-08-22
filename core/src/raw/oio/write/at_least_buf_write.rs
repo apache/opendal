@@ -67,7 +67,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
         }
 
         // Push the bytes into the buffer if the buffer is not full.
-        if self.buffer.len() + bs.len() <= self.buffer_size {
+        if self.buffer.len() + bs.len() < self.buffer_size {
             self.buffer.push(bs);
             return Ok(());
         }
@@ -91,7 +91,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
         }
 
         // Push the bytes into the buffer if the buffer is not full.
-        if self.buffer.len() as u64 + size <= self.buffer_size as u64 {
+        if self.buffer.len() as u64 + size < self.buffer_size as u64 {
             self.buffer.push(s.collect().await?);
             return Ok(());
         }

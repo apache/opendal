@@ -35,3 +35,8 @@ pub use append_object_write::AppendObjectWrite;
 pub use append_object_write::AppendObjectWriter;
 
 mod at_least_buf_write;
+pub use at_least_buf_write::AtLeastBufWriter;
+
+mod one_shot_write;
+pub use one_shot_write::OneShotWrite;
+pub use one_shot_write::OneShotWriter;

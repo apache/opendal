@@ -31,6 +31,17 @@ pub struct AtLeastBufWriter<W: oio::Write> {
     buf: oio::ChunkedCursor,
 }
 
+impl<W: oio::Write> AtLeastBufWriter<W> {
+    /// Create a new at least buf writer.
+    pub fn new(inner: W, size: usize) -> Self {
+        Self {
+            inner,
+            size,
+            buf: oio::ChunkedCursor::new(),
+        }
+    }
+}
+
 #[async_trait]
 impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {

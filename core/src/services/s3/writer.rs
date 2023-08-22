@@ -23,6 +23,7 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -35,29 +36,26 @@ pub struct S3Writer {
 
 impl S3Writer {
     pub fn new(core: Arc<S3Core>, path: &str, op: OpWrite) -> oio::MultipartUploadWriter<Self> {
-        let write_min_size = core.write_min_size;
-
-        let total_size = op.content_length();
         let s3_writer = S3Writer {
             core,
             path: path.to_string(),
             op,
         };
 
-        oio::MultipartUploadWriter::new(s3_writer, total_size).with_write_min_size(write_min_size)
+        oio::MultipartUploadWriter::new(s3_writer)
     }
 }
 
 #[async_trait]
-impl oio::MultipartUploadWrite for S3Writer {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+impl oio::OneShotWrite for S3Writer {
+    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
         let mut req = self.core.s3_put_object_request(
             &self.path,
             Some(size),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            body,
+            AsyncBody::Stream(stream),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -74,7 +72,10 @@ impl oio::MultipartUploadWrite for S3Writer {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::MultipartUploadWrite for S3Writer {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core

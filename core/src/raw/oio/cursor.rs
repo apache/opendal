@@ -45,6 +45,11 @@ impl Cursor {
         let len = self.pos.min(self.inner.len() as u64) as usize;
         &self.inner.as_ref()[len..]
     }
+
+    /// Return the length of remaining slice.
+    pub fn len(&self) -> usize {
+        self.inner.len() - self.pos as usize
+    }
 }
 
 impl From<Bytes> for Cursor {
@@ -145,6 +150,23 @@ impl oio::BlockingRead for Cursor {
             self.pos += bs.len() as u64;
             Some(Ok(bs))
         }
+    }
+}
+
+impl oio::Stream for Cursor {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        if self.is_empty() {
+            return Poll::Ready(None);
+        }
+
+        let bs = self.inner.clone();
+        self.pos += bs.len() as u64;
+        Poll::Ready(Some(Ok(bs)))
+    }
+
+    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        self.pos = 0;
+        Poll::Ready(Ok(()))
     }
 }
 

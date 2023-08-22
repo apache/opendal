@@ -27,6 +27,12 @@ use crate::raw::oio::{MultipartUploadPart, Streamer};
 use crate::raw::*;
 use crate::*;
 
+pub type ObsWriters = oio::ThreeWaysWriter<
+    oio::OneShotWriter<ObsWriter>,
+    oio::MultipartUploadWriter<ObsWriter>,
+    oio::AppendObjectWriter<ObsWriter>,
+>;
+
 pub struct ObsWriter {
     core: Arc<ObsCore>,
 

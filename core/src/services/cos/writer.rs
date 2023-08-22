@@ -27,6 +27,12 @@ use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
+pub type CosWriters = oio::ThreeWaysWriter<
+    oio::OneShotWriter<CosWriter>,
+    oio::MultipartUploadWriter<CosWriter>,
+    oio::AppendObjectWriter<CosWriter>,
+>;
+
 pub struct CosWriter {
     core: Arc<CosCore>,
 

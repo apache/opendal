@@ -27,6 +27,12 @@ use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
+pub type OssWriters = oio::ThreeWaysWriter<
+    oio::OneShotWriter<OssWriter>,
+    oio::MultipartUploadWriter<OssWriter>,
+    oio::AppendObjectWriter<OssWriter>,
+>;
+
 pub struct OssWriter {
     core: Arc<OssCore>,
 

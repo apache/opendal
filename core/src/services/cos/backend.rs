@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -32,9 +33,13 @@ use super::error::parse_error;
 use super::pager::CosPager;
 use super::writer::CosWriter;
 use crate::raw::*;
+use crate::services::cos::writer::CosWriters;
 use crate::*;
 
-const DEFAULT_WRITE_MIN_SIZE: usize = 1024 * 1024;
+/// The minimum multipart size of COS is 1 MiB.
+///
+/// ref: <https://www.tencentcloud.com/document/product/436/14112>
+const MINIMUM_MULTIPART_SIZE: usize = 1024 * 1024;
 
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
@@ -46,10 +51,6 @@ pub struct CosBuilder {
     secret_key: Option<String>,
     bucket: Option<String>,
     http_client: Option<HttpClient>,
-
-    /// the part size of cos multipart upload, which should be 1 MB to 5 GB.
-    /// There is no minimum size limit on the last part of your multipart upload
-    write_min_size: Option<usize>,
 
     disable_config_load: bool,
 }
@@ -125,14 +126,6 @@ impl CosBuilder {
         self
     }
 
-    /// set the minimum size of unsized write, it should be greater than 1 MB.
-    /// Reference: [Upload Part | Tencent Cloud](https://www.tencentcloud.com/document/product/436/7750)
-    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
-        self.write_min_size = Some(write_min_size);
-
-        self
-    }
-
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///
@@ -168,8 +161,6 @@ impl Builder for CosBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("secret_id").map(|v| builder.secret_id(v));
         map.get("secret_key").map(|v| builder.secret_key(v));
-        map.get("write_min_size")
-            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
 
         builder
     }
@@ -233,14 +224,6 @@ impl Builder for CosBuilder {
         let cred_loader = TencentCosCredentialLoader::new(client.client(), cfg);
 
         let signer = TencentCosSigner::new();
-        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
-        if write_min_size < 1024 * 1024 {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "The write minimum buffer size is misconfigured",
-            )
-            .with_context("service", Scheme::Cos));
-        }
 
         debug!("backend build finished");
         Ok(CosBackend {
@@ -251,7 +234,6 @@ impl Builder for CosBuilder {
                 signer,
                 loader: cred_loader,
                 client,
-                write_min_size,
             }),
         })
     }
@@ -267,10 +249,7 @@ pub struct CosBackend {
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<
-        oio::MultipartUploadWriter<CosWriter>,
-        oio::AppendObjectWriter<CosWriter>,
-    >;
+    type Writer = oio::TwoWaysWriter<CosWriters, oio::AtLeastBufWriter<CosWriters>>;
     type BlockingWriter = ();
     type Pager = CosPager;
     type BlockingPager = ();
@@ -358,18 +337,26 @@ impl Accessor for CosBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let writer = CosWriter::new(self.core.clone(), path, args.clone());
 
-        let tw = if args.append() {
+        let w = if args.append() {
+            CosWriters::Three(oio::AppendObjectWriter::new(writer))
+        } else if args.content_length().is_some() {
+            CosWriters::One(oio::OneShotWriter::new(writer))
+        } else {
+            CosWriters::Two(oio::MultipartUploadWriter::new(writer))
+        };
+
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
+
             let w =
-                oio::AppendObjectWriter::new(writer).with_write_min_size(self.core.write_min_size);
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
 
             oio::TwoWaysWriter::Two(w)
         } else {
-            let w = oio::MultipartUploadWriter::new(writer);
-
             oio::TwoWaysWriter::One(w)
         };
 
-        return Ok((RpWrite::default(), tw));
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

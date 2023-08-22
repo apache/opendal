@@ -18,7 +18,7 @@
 //! [`type_alias_impl_trait`](https://github.com/rust-lang/rust/issues/63063) is not stable yet.
 //! So we can't write the following code:
 //!
-//! ```rust,skip
+//! ```txt
 //! impl Accessor for S3Backend {
 //!     type Writer = impl oio::Write;
 //! }
@@ -26,7 +26,7 @@
 //!
 //! Which means we have to write the type directly like:
 //!
-//! ```rust,skip
+//! ```txt
 //! impl Accessor for OssBackend {
 //!     type Writer = oio::TwoWaysWriter<
 //!         oio::MultipartUploadWriter<OssWriter>,

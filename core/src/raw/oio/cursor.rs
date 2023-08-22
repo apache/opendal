@@ -202,7 +202,7 @@ impl ChunkedCursor {
 
     /// Return current bytes size of cursor.
     pub fn len(&self) -> usize {
-        self.inner.iter().take(self.idx).map(|v| v.len()).sum()
+        self.inner.iter().skip(self.idx).map(|v| v.len()).sum()
     }
 
     /// Reset current cursor to start.

@@ -190,19 +190,21 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        let path = "/".to_string() + path;
         self.get_connection()
             .await?
-            .get_data(path)
+            .get_data(&path)
             .await
             .map(|data| Some(data.0))
             .map_err(parse_zookeeper_error)
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+        let path = "/".to_string() + path;
         match self
             .get_connection()
             .await?
-            .set_data(path, value, None)
+            .set_data(&path, value, None)
             .await
         {
             Ok(_) => Ok(()),
@@ -224,7 +226,8 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        match self.get_connection().await?.delete(path, None).await {
+        let path = "/".to_string() + path;
+        match self.get_connection().await?.delete(&path, None).await {
             Ok(()) => Ok(()),
             Err(e) => match e {
                 zk::Error::NoNode => Ok(()),

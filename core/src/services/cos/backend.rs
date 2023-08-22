@@ -362,11 +362,11 @@ impl Accessor for CosBackend {
             let w =
                 oio::AppendObjectWriter::new(writer).with_write_min_size(self.core.write_min_size);
 
-            oio::TwoWaysWriter::Right(w)
+            oio::TwoWaysWriter::Two(w)
         } else {
             let w = oio::MultipartUploadWriter::new(writer);
 
-            oio::TwoWaysWriter::Left(w)
+            oio::TwoWaysWriter::One(w)
         };
 
         return Ok((RpWrite::default(), tw));

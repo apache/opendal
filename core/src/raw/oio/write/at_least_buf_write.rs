@@ -27,6 +27,7 @@ use bytes::Bytes;
 pub struct AtLeastBufWriter<W: oio::Write> {
     inner: W,
 
+    /// The size for buffer, we will flush the underlying storage if the buffer is full.
     size: usize,
     buf: oio::ChunkedCursor,
 }

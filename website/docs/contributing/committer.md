@@ -76,4 +76,10 @@ Here's an illustration for Gmail users:
 If you receive an email with the subject "WELCOME to dev@opendal.apache.org", you have successfully subscribed to the mailing list.
 
 ## Setup 1password
-@TODO
+OpenDAL offers a 1password open source team license for conducting local integration tests (Thanks to 1Password!). Once you have been added to OpenDAL's committer list, one of the PPMC members will invite you to join the team.
+
+Please download your preferred clients to begin using it. Here are some important notes regarding the use of 1Password: 
+
+- You can create your own vault that is accessible only by yourself. Neither the 1password team nor OpenDAL PPMC members can access it unless you choose to share it.
+- Please refrain from modifying secrets in the `Services` vault as this could disrupt our integration tests.
+- Ensure that you keep all secrets secure and avoid sharing them with others or making them public. Do not commit them anywhere else.

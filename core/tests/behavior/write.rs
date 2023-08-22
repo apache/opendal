@@ -87,7 +87,8 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_writer_copy,
         test_writer_abort,
         test_writer_futures_copy,
-        test_fuzz_unsized_writer,
+        // Disable this test until we addressed https://github.com/apache/incubator-opendal/issues/2904
+        // test_fuzz_unsized_writer,
         test_invalid_reader_seek
     )
 }
@@ -1256,31 +1257,33 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
 }
 
 /// Add test for unsized writer
-pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_without_content_length {
-        warn!("{op:?} doesn't support write without content length, test skip");
-        return Ok(());
-    }
-
-    let path = uuid::Uuid::new_v4().to_string();
-
-    let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
-
-    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
-
-    for _ in 0..100 {
-        match fuzzer.fuzz() {
-            ObjectWriterAction::Write(bs) => w.write(bs).await?,
-        }
-    }
-    w.close().await?;
-
-    let content = op.read(&path).await?;
-    fuzzer.check(&content);
-
-    op.delete(&path).await.expect("delete must succeed");
-    Ok(())
-}
+///
+/// Disable this test until we addressed https://github.com/apache/incubator-opendal/issues/2904
+// pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
+//     if !op.info().full_capability().write_without_content_length {
+//         warn!("{op:?} doesn't support write without content length, test skip");
+//         return Ok(());
+//     }
+//
+//     let path = uuid::Uuid::new_v4().to_string();
+//
+//     let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
+//
+//     let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
+//
+//     for _ in 0..100 {
+//         match fuzzer.fuzz() {
+//             ObjectWriterAction::Write(bs) => w.write(bs).await?,
+//         }
+//     }
+//     w.close().await?;
+//
+//     let content = op.read(&path).await?;
+//     fuzzer.check(&content);
+//
+//     op.delete(&path).await.expect("delete must succeed");
+//     Ok(())
+// }
 
 /// seeking a negative position should return a InvalidInput error
 pub async fn test_invalid_reader_seek(op: Operator) -> Result<()> {

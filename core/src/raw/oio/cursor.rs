@@ -148,7 +148,76 @@ impl oio::BlockingRead for Cursor {
     }
 }
 
-/// VectorCursor is the cursor for [`Vec<Bytes>`] that implements [`oio::Read`]
+/// # TODO
+///
+/// we can do some compaction during runtime. For example, merge 4K data
+/// into the same bytes instead.
+#[derive(Clone)]
+pub struct ChunkedCursor {
+    inner: VecDeque<Bytes>,
+    idx: usize,
+}
+
+impl Default for ChunkedCursor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ChunkedCursor {
+    /// Create a new chunked cursor.
+    pub fn new() -> Self {
+        Self {
+            inner: VecDeque::new(),
+            idx: 0,
+        }
+    }
+
+    /// Returns `true` if current cursor is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.len() > self.idx
+    }
+
+    /// Return current bytes size of cursor.
+    pub fn len(&self) -> usize {
+        self.inner.iter().take(self.idx).map(|v| v.len()).sum()
+    }
+
+    /// Reset current cursor to start.
+    pub fn reset(&mut self) {
+        self.idx = 0;
+    }
+
+    /// Clear the entire cursor.
+    pub fn clear(&mut self) {
+        self.idx = 0;
+        self.inner.clear();
+    }
+
+    /// Push a new bytes into vector cursor.
+    pub fn push(&mut self, bs: Bytes) {
+        self.inner.push_back(bs);
+    }
+}
+
+impl oio::Stream for ChunkedCursor {
+    fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        if self.is_empty() {
+            return Poll::Ready(None);
+        }
+
+        let bs = self.inner[self.idx].clone();
+        self.idx += 1;
+        Poll::Ready(Some(Ok(bs)))
+    }
+
+    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        self.reset();
+        Poll::Ready(Ok(()))
+    }
+}
+
+/// VectorCursor is the cursor for [`Vec<Bytes>`] that implements [`oio::Stream`]
 pub struct VectorCursor {
     inner: VecDeque<Bytes>,
     size: usize,

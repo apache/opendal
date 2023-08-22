@@ -197,7 +197,7 @@ impl ChunkedCursor {
 
     /// Returns `true` if current cursor is empty.
     pub fn is_empty(&self) -> bool {
-        self.inner.len() > self.idx
+        self.inner.len() <= self.idx
     }
 
     /// Return current bytes size of cursor.

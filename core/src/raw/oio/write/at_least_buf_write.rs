@@ -120,8 +120,6 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
             self.buffer.clear();
         }
 
-        self.inner.close().await?;
-
-        Ok(())
+        self.inner.close().await
     }
 }

@@ -147,17 +147,18 @@ jobs:
         run: |
           docker-compose -f docker-compose-minio.yml up -d
       - name: Setup test bucket
+        env:
+          AWS_ACCESS_KEY_ID: "minioadmin"
+          AWS_SECRET_ACCESS_KEY: "minioadmin"
+          AWS_EC2_METADATA_DISABLED: "true"
         run: |
+          aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
+
           curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
           chmod +x mc
           ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
-          ./mc mb local/test
           ./mc anonymous set public local/test
-          while :; do
-            echo "waiting minio to be ready"
-            [[ "$(./mc ping --count 1 local | awk '{print $6}' | tr -d '\n')" == "errors=1" ]] || break
-            sleep 1
-          done
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:

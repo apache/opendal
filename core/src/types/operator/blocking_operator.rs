@@ -238,7 +238,7 @@ impl BlockingOperator {
     /// reading data lazily, please use [`BlockingOperator::reader`]
     ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::BlockingOperator;
@@ -262,30 +262,29 @@ impl BlockingOperator {
                         Error::new(ErrorKind::IsADirectory, "read path is a directory")
                             .with_operation("BlockingOperator::read_with")
                             .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path)
+                            .with_context("path", &path),
                     );
                 }
 
                 let (rp, mut s) = inner.blocking_read(&path, args)?;
                 let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
-                
+
                 match s.read_to_end(&mut buffer) {
                     Ok(n) => {
                         buffer.truncate(n);
                         Ok(buffer)
-                    },
+                    }
                     Err(err) => Err(
                         Error::new(ErrorKind::Unexpected, "blocking read_with failed")
-                        .with_operation("BlockingOperator::read_with")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path)
-                        .set_source(err)
+                            .with_operation("BlockingOperator::read_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path)
+                            .set_source(err),
                     ),
                 }
             },
         ))
     }
-
 
     /// Create a new reader which can read the whole path.
     ///
@@ -307,7 +306,7 @@ impl BlockingOperator {
     /// Create a new reader with extra options
     ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// # use anyhow::Result;
     /// use opendal::BlockingOperator;
@@ -331,12 +330,12 @@ impl BlockingOperator {
                         Error::new(ErrorKind::IsADirectory, "reader path is a directory")
                             .with_operation("BlockingOperator::reader_with")
                             .with_context("service", inner.info().scheme().into_static())
-                            .with_context("path", &path)
+                            .with_context("path", &path),
                     );
                 }
 
                 BlockingReader::create(inner.clone(), &path, args)
-            }
+            },
         ))
     }
 

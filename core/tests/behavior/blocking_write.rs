@@ -298,7 +298,10 @@ pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
-    let mut o = op.reader_with(&path).range(0..content.len() as u64).call()?;
+    let mut o = op
+        .reader_with(&path)
+        .range(0..content.len() as u64)
+        .call()?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -373,7 +376,10 @@ pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content, offset as usize, length as usize);
-    let mut o = op.reader_with(&path).range(offset..offset + length).call()?;
+    let mut o = op
+        .reader_with(&path)
+        .range(offset..offset + length)
+        .call()?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {

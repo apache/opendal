@@ -20,6 +20,8 @@ version: '3.8'
 services:
   zookeeper-node-1:
     image: zookeeper:3.8.2
+    restart: always
+    hostname: zoo1
     ports:
       - '2181:2181'
     environment:
@@ -27,6 +29,8 @@ services:
       - 'ZOO_SERVERS=server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181'
   zookeeper-node-2:
     image: zookeeper:3.8.2
+    restart: always
+    hostname: zoo2
     ports:
       - '2182:2181'
     environment:
@@ -34,6 +38,8 @@ services:
       - 'ZOO_SERVERS=server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181'
   zookeeper-node-3:
     image: zookeeper:3.8.2
+    restart: always
+    hostname: zoo1
     ports:
       - '2183:2181'
     environment:

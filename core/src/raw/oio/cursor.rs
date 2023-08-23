@@ -309,6 +309,15 @@ impl ChunkedCursor {
             idx: 0,
         }
     }
+
+    #[cfg(test)]
+    fn concat(&self) -> Bytes {
+        let mut bs = BytesMut::new();
+        for v in &self.inner {
+            bs.extend_from_slice(&v);
+        }
+        bs.freeze()
+    }
 }
 
 impl oio::Stream for ChunkedCursor {
@@ -493,6 +502,8 @@ mod tests {
     use super::*;
     use crate::raw::oio::StreamExt;
     use pretty_assertions::assert_eq;
+    use rand::{thread_rng, Rng, RngCore};
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn test_vector_cursor() {
@@ -627,5 +638,87 @@ mod tests {
 
         assert_eq!(c2.len(), 2);
         assert_eq!(&c2.inner, &[Bytes::from("ld")]);
+    }
+
+    #[test]
+    fn test_fuzz_chunked_cursor_split_to() {
+        let mut rng = thread_rng();
+        let mut expected = vec![];
+        let mut total_size = 0;
+
+        let mut cursor = ChunkedCursor::new();
+
+        // Build Cursor
+        let count = rng.gen_range(1..1000);
+        for _ in 0..count {
+            let size = rng.gen_range(1..100);
+            let mut content = vec![0; size];
+            rng.fill_bytes(&mut content);
+            total_size += size;
+
+            expected.extend_from_slice(&content);
+            cursor.push(Bytes::from(content));
+        }
+
+        // Test Cursor
+        for _ in 0..count {
+            let mut cursor = cursor.clone();
+
+            let at = rng.gen_range(0..total_size);
+            let to = cursor.split_to(at);
+
+            assert_eq!(cursor.len(), total_size - at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&cursor.concat())),
+                format!("{:x}", Sha256::digest(&expected[at..])),
+            );
+
+            assert_eq!(to.len(), at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&to.concat())),
+                format!("{:x}", Sha256::digest(&expected[0..at])),
+            );
+        }
+    }
+
+    #[test]
+    fn test_fuzz_chunked_cursor_split_off() {
+        let mut rng = thread_rng();
+        let mut expected = vec![];
+        let mut total_size = 0;
+
+        let mut cursor = ChunkedCursor::new();
+
+        // Build Cursor
+        let count = rng.gen_range(1..1000);
+        for _ in 0..count {
+            let size = rng.gen_range(1..100);
+            let mut content = vec![0; size];
+            rng.fill_bytes(&mut content);
+            total_size += size;
+
+            expected.extend_from_slice(&content);
+            cursor.push(Bytes::from(content));
+        }
+
+        // Test Cursor
+        for _ in 0..count {
+            let mut cursor = cursor.clone();
+
+            let at = rng.gen_range(0..total_size);
+            let off = cursor.split_off(at);
+
+            assert_eq!(cursor.len(), at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&cursor.concat())),
+                format!("{:x}", Sha256::digest(&expected[..at])),
+            );
+
+            assert_eq!(off.len(), total_size - at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&off.concat())),
+                format!("{:x}", Sha256::digest(&expected[at..])),
+            );
+        }
     }
 }

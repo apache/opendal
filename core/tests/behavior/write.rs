@@ -1233,7 +1233,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut w = op.writer(&path).await?;
+    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -1266,7 +1266,7 @@ pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
 
     let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
 
-    let mut w = op.writer(&path).await?;
+    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {

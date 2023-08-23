@@ -45,7 +45,6 @@ pub struct CosCore {
     pub signer: TencentCosSigner,
     pub loader: TencentCosCredentialLoader,
     pub client: HttpClient,
-    pub write_min_size: usize,
 }
 
 impl Debug for CosCore {

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::io::Read;
 use std::io::SeekFrom;
@@ -230,7 +231,7 @@ impl ChunkedCursor {
     ///
     /// - Panics if `at > len`
     /// - Panics if `idx != 0`, the cursor must be reset before split.
-    pub fn split_off(&mut self, mut at: usize) -> Self {
+    pub fn split_off(&mut self, at: usize) -> Self {
         assert!(
             at <= self.len(),
             "split_off at must smaller than current size"
@@ -241,17 +242,21 @@ impl ChunkedCursor {
         let mut size = self.len() - at;
 
         while let Some(mut bs) = self.inner.pop_back() {
-            if size > bs.len() {
-                size -= bs.len();
-                chunks.push_front(bs);
-            } else if size == bs.len() {
-                chunks.push_front(bs);
-                break;
-            } else {
-                let remaining = bs.split_off(bs.len() - size);
-                chunks.push_front(remaining);
-                self.inner.push_back(bs);
-                break;
+            match size.cmp(&bs.len()) {
+                Ordering::Less => {
+                    let remaining = bs.split_off(bs.len() - size);
+                    chunks.push_front(remaining);
+                    self.inner.push_back(bs);
+                    break;
+                }
+                Ordering::Equal => {
+                    chunks.push_front(bs);
+                    break;
+                }
+                Ordering::Greater => {
+                    size -= bs.len();
+                    chunks.push_front(bs);
+                }
             }
         }
 
@@ -281,17 +286,21 @@ impl ChunkedCursor {
         let mut size = at;
 
         while let Some(mut bs) = self.inner.pop_front() {
-            if size > bs.len() {
-                size -= bs.len();
-                chunks.push_back(bs);
-            } else if size == bs.len() {
-                chunks.push_back(bs);
-                break;
-            } else {
-                let remaining = bs.split_off(size);
-                chunks.push_back(bs);
-                self.inner.push_front(remaining);
-                break;
+            match size.cmp(&bs.len()) {
+                Ordering::Less => {
+                    let remaining = bs.split_off(size);
+                    chunks.push_back(bs);
+                    self.inner.push_front(remaining);
+                    break;
+                }
+                Ordering::Equal => {
+                    chunks.push_back(bs);
+                    break;
+                }
+                Ordering::Greater => {
+                    size -= bs.len();
+                    chunks.push_back(bs);
+                }
             }
         }
 

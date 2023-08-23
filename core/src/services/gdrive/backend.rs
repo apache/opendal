@@ -33,20 +33,7 @@ use crate::*;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {
-    core: Arc<GdriveCore>,
-}
-
-impl GdriveBackend {
-    pub(crate) fn new(root: String, access_token: String, http_client: HttpClient) -> Self {
-        GdriveBackend {
-            core: Arc::new(GdriveCore {
-                root,
-                access_token,
-                client: http_client,
-                path_cache: Arc::default(),
-            }),
-        }
-    }
+    pub core: Arc<GdriveCore>,
 }
 
 #[async_trait]

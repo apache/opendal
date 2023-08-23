@@ -40,19 +40,17 @@ cargo test services_fs
 
 As `cargo test` only run tests containing the following string in their names, we use `services_fs` to run all tests under `services::fs`.
 
-To run all tests under `tests/behavior/write.rs` for `fs`, we use `services_fs_write`.
+To run certain types of tests(such as `write`) for `fs`, we use `services_fs::test_write`.
 
 ```shell
-cargo test services_fs_write
+cargo test services_fs::test_write
 ```
 
-You can also run specific test(such as `test_stat`) for specific backend.
+You can also run specific test(such as `test_stat_dir`) for specific backend.
 
 ```shell
-cargo test services_fs_write::test_stat
+cargo test services_fs::test_stat_dir
 ```
-
-To get the full name of a behavior module, please check the `mod` declaration in `tests/behavior/*.rs`.(It is always the same as the file name.)
 
 ## Debug
 

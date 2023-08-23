@@ -34,7 +34,7 @@ pub fn behavior_blocking_read_only_tests(op: &Operator) -> Vec<Trial> {
         test_blocking_read_only_stat_special_chars,
         test_blocking_read_only_stat_not_exist,
         test_blocking_read_only_read_full,
-        test_blocking_read_only_read_range,
+        test_blocking_read_only_read_with_range,
         test_blocking_read_only_read_not_exist
     )
 }
@@ -88,8 +88,8 @@ pub fn test_blocking_read_only_read_full(op: BlockingOperator) -> Result<()> {
 }
 
 /// Read full content should match.
-pub fn test_blocking_read_only_read_range(op: BlockingOperator) -> Result<()> {
-    let bs = op.range_read("normal_file", 1024..2048)?;
+pub fn test_blocking_read_only_read_with_range(op: BlockingOperator) -> Result<()> {
+    let bs = op.read_with("normal_file").range(1024..2048).call()?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

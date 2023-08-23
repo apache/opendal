@@ -30,9 +30,27 @@ Then add the dependency to `opendal-java` as following:
   <groupId>org.apache.opendal</groupId>
   <artifactId>opendal-java</artifactId>
   <version>${opendal.version}</version>
+</dependency>
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal-java</artifactId>
+  <version>${opendal.version}</version>
   <classifier>${os.detected.classifier}</classifier>
 </dependency>
 ```
+
+Note that the dependency without classifier ships all classes and resources except the "opendal_java" shared library. And those with classifier bundle only the shared library.
+
+For downstream usage, it's recommended:
+
+* Depend on the one without classifier to write code; 
+* Depend on the classified ones with "test" for testing.
+
+To load the shared library correctly, you can choose one of the following approaches:
+
+* Append the classified JARs to the classpath at the runtime;
+* Depend on the classified JARs and build a fat JAR (You may need to depend on all the provided classified JARs for running on multiple platforms);
+* Build your own "opendal_java" shared library and specify "-Djava.library.path" to the folder containing that shared library.
 
 ## Build
 

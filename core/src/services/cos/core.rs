@@ -45,7 +45,6 @@ pub struct CosCore {
     pub signer: TencentCosSigner,
     pub loader: TencentCosCredentialLoader,
     pub client: HttpClient,
-    pub write_min_size: usize,
 }
 
 impl Debug for CosCore {
@@ -241,8 +240,8 @@ impl CosCore {
         &self,
         path: &str,
         position: u64,
-        size: usize,
-        args: &OpAppend,
+        size: u64,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);

@@ -71,7 +71,6 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     type BlockingReader = BlockingWrapper<A::Reader>;
     type Writer = A::Writer;
     type BlockingWriter = BlockingWrapper<A::Writer>;
-    type Appender = A::Appender;
     type Pager = A::Pager;
     type BlockingPager = BlockingWrapper<A::Pager>;
 
@@ -80,10 +79,9 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
     }
 
     fn metadata(&self) -> AccessorInfo {
-        let mut info = self.inner.info();
-        let cap = info.capability_mut();
-        cap.blocking = true;
-        info
+        let mut meta = self.inner.info();
+        meta.full_capability_mut().blocking = true;
+        meta
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -96,10 +94,6 @@ impl<A: Accessor> LayeredAccessor for BlockingAccessor<A> {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner.write(path, args).await
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner.append(path, args).await
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {

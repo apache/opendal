@@ -20,7 +20,7 @@ use anyhow::Result;
 use crate::*;
 
 pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write && cap.copy) {
         return vec![];

@@ -23,8 +23,15 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
+
+pub type OssWriters = oio::ThreeWaysWriter<
+    oio::OneShotWriter<OssWriter>,
+    oio::MultipartUploadWriter<OssWriter>,
+    oio::AppendObjectWriter<OssWriter>,
+>;
 
 pub struct OssWriter {
     core: Arc<OssCore>,
@@ -34,32 +41,25 @@ pub struct OssWriter {
 }
 
 impl OssWriter {
-    pub fn new(
-        core: Arc<OssCore>,
-        path: &str,
-        op: OpWrite,
-    ) -> oio::MultipartUploadWriter<OssWriter> {
-        let write_min_size = core.write_min_size;
-        let total_size = op.content_length();
-        let oss_writer = OssWriter {
+    pub fn new(core: Arc<OssCore>, path: &str, op: OpWrite) -> Self {
+        OssWriter {
             core,
             path: path.to_string(),
             op,
-        };
-        oio::MultipartUploadWriter::new(oss_writer, total_size).with_write_min_size(write_min_size)
+        }
     }
 }
 
 #[async_trait]
-impl oio::MultipartUploadWrite for OssWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+impl oio::OneShotWrite for OssWriter {
+    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
         let mut req = self.core.oss_put_object_request(
             &self.path,
             Some(size),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            body,
+            AsyncBody::Stream(stream),
             false,
         )?;
 
@@ -77,7 +77,10 @@ impl oio::MultipartUploadWrite for OssWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::MultipartUploadWrite for OssWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
@@ -182,6 +185,45 @@ impl oio::MultipartUploadWrite for OssWriter {
                 resp.into_body().consume().await?;
                 Ok(())
             }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+}
+
+#[async_trait]
+impl oio::AppendObjectWrite for OssWriter {
+    async fn offset(&self) -> Result<u64> {
+        let resp = self.core.oss_head_object(&self.path, None, None).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let content_length = parse_content_length(resp.headers())?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "Content-Length not present in returning response",
+                    )
+                })?;
+                Ok(content_length)
+            }
+            StatusCode::NOT_FOUND => Ok(0),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
+            .core
+            .oss_append_object_request(&self.path, offset, size, &self.op, body)?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }

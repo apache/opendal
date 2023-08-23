@@ -121,7 +121,6 @@ impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
     type BlockingReader = ThrottleWrapper<A::BlockingReader>;
     type Writer = ThrottleWrapper<A::Writer>;
     type BlockingWriter = ThrottleWrapper<A::BlockingWriter>;
-    type Appender = ThrottleWrapper<A::Appender>;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -145,15 +144,6 @@ impl<A: Accessor> LayeredAccessor for ThrottleAccessor<A> {
             .write(path, args)
             .await
             .map(|(rp, w)| (rp, ThrottleWrapper::new(w, limiter)))
-    }
-
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        let limiter = self.rate_limiter.clone();
-
-        self.inner
-            .append(path, args)
-            .await
-            .map(|(rp, a)| (rp, ThrottleWrapper::new(a, limiter)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
@@ -292,36 +282,5 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
 
     fn close(&mut self) -> Result<()> {
         self.inner.close()
-    }
-}
-
-#[async_trait]
-impl<R: oio::Append> oio::Append for ThrottleWrapper<R> {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
-
-        loop {
-            match self.limiter.check_n(buf_length) {
-                Ok(_) => return self.inner.append(bs).await,
-                Err(negative) => match negative {
-                    // the query is valid but the Decider can not accommodate them.
-                    NegativeMultiDecision::BatchNonConforming(_, not_until) => {
-                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
-                        tokio::time::sleep(wait_time).await;
-                    }
-                    // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => {
-                        return Err(Error::new(
-                            ErrorKind::RateLimited,
-                            "InsufficientCapacity due to burst size being smaller than the request size",
-                        ))
-                    }
-                },
-            }
-        }
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
     }
 }

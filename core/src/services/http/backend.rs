@@ -255,7 +255,6 @@ impl Accessor for HttpBackend {
     type BlockingReader = ();
     type Writer = ();
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -263,7 +262,7 @@ impl Accessor for HttpBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,

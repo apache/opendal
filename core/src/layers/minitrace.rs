@@ -25,7 +25,6 @@ use bytes::Bytes;
 use futures::FutureExt;
 use minitrace::prelude::*;
 
-use crate::raw::oio::AppendOperation;
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
 use crate::raw::oio::WriteOperation;
@@ -137,7 +136,6 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
     type BlockingReader = MinitraceWrapper<A::BlockingReader>;
     type Writer = MinitraceWrapper<A::Writer>;
     type BlockingWriter = MinitraceWrapper<A::BlockingWriter>;
-    type Appender = MinitraceWrapper<A::Appender>;
     type Pager = MinitraceWrapper<A::Pager>;
     type BlockingPager = MinitraceWrapper<A::BlockingPager>;
 
@@ -179,21 +177,6 @@ impl<A: Accessor> LayeredAccessor for MinitraceAccessor<A> {
                     (
                         rp,
                         MinitraceWrapper::new(Span::enter_with_local_parent("WriteOperation"), r),
-                    )
-                })
-            })
-            .await
-    }
-
-    #[trace(enter_on_poll = true)]
-    async fn append(&self, path: &str, args: OpAppend) -> Result<(RpAppend, Self::Appender)> {
-        self.inner
-            .append(path, args)
-            .map(|v| {
-                v.map(|(rp, r)| {
-                    (
-                        rp,
-                        MinitraceWrapper::new(Span::enter_with_local_parent("AppendOperation"), r),
                     )
                 })
             })
@@ -406,29 +389,6 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingClose.into_static());
         self.inner.close()
-    }
-}
-
-#[async_trait]
-impl<R: oio::Append> oio::Append for MinitraceWrapper<R> {
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner
-            .append(bs)
-            .in_span(Span::enter_with_parent(
-                AppendOperation::Append.into_static(),
-                &self.span,
-            ))
-            .await
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.inner
-            .close()
-            .in_span(Span::enter_with_parent(
-                AppendOperation::Close.into_static(),
-                &self.span,
-            ))
-            .await
     }
 }
 

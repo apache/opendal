@@ -66,7 +66,6 @@ impl Accessor for OnedriveBackend {
     type BlockingReader = ();
     type Writer = OneDriveWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = OnedrivePager;
     type BlockingPager = ();
 
@@ -74,7 +73,7 @@ impl Accessor for OnedriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Onedrive)
             .set_root(&self.root)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 read: true,
                 write: true,
                 stat: true,

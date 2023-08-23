@@ -29,7 +29,7 @@ pub fn into_flat_page<A: Accessor, P>(acc: A, path: &str, size: usize) -> FlatPa
     {
         let meta = acc.info();
         debug_assert!(
-            meta.capability().list_with_delimiter_slash,
+            meta.full_capability().list_with_delimiter_slash,
             "service doesn't support list hierarchy, it must be a bug"
         );
     }
@@ -248,14 +248,13 @@ mod tests {
         type BlockingReader = ();
         type Writer = ();
         type BlockingWriter = ();
-        type Appender = ();
         type Pager = ();
         type BlockingPager = MockPager;
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.capability_mut().list = true;
-            am.capability_mut().list_with_delimiter_slash = true;
+            am.full_capability_mut().list = true;
+            am.full_capability_mut().list_with_delimiter_slash = true;
 
             am
         }

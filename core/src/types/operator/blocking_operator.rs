@@ -16,7 +16,6 @@
 // under the License.
 
 use std::io::Read;
-use std::ops::RangeBounds;
 
 use bytes::Bytes;
 
@@ -71,7 +70,7 @@ impl BlockingOperator {
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
         let limit = accessor
             .info()
-            .capability()
+            .full_capability()
             .batch_max_operations
             .unwrap_or(1000);
         Self { accessor, limit }
@@ -230,54 +229,61 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn read(&self, path: &str) -> Result<Vec<u8>> {
-        self.range_read(path, ..)
+        self.read_with(path).call()
     }
 
-    /// Read the specified range of path into a bytes.
+    /// Read the whole path into a bytes with extra options.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`BlockingOperator::range_reader`]
+    /// reading data lazily, please use [`BlockingOperator::reader`]
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::BlockingOperator;
-    /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let bs = op.range_read("path/to/file", 1024..2048)?;
+    /// let bs = op.read_with("path/to/file").range(0..10).call()?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
+    pub fn read_with(&self, path: &str) -> FunctionRead {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("BlockingOperator::range_read")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
+        FunctionRead(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                            .with_operation("BlockingOperator::read_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
 
-        let br = BytesRange::from(range);
-        let (rp, mut s) = self
-            .inner()
-            .blocking_read(&path, OpRead::new().with_range(br))?;
+                let (rp, mut s) = inner.blocking_read(&path, args)?;
+                let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
 
-        let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
-        s.read_to_end(&mut buffer).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "blocking range read failed")
-                .with_operation("BlockingOperator::range_read")
-                .with_context("service", self.info().scheme().into_static())
-                .with_context("path", path)
-                .with_context("range", br.to_string())
-                .set_source(err)
-        })?;
-
-        Ok(buffer)
+                match s.read_to_end(&mut buffer) {
+                    Ok(n) => {
+                        buffer.truncate(n);
+                        Ok(buffer)
+                    }
+                    Err(err) => Err(
+                        Error::new(ErrorKind::Unexpected, "blocking read_with failed")
+                            .with_operation("BlockingOperator::read_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path)
+                            .set_source(err),
+                    ),
+                }
+            },
+        ))
     }
 
     /// Create a new reader which can read the whole path.
@@ -294,37 +300,43 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn reader(&self, path: &str) -> Result<BlockingReader> {
-        self.range_reader(path, ..)
+        self.reader_with(path).call()
     }
 
-    /// Create a new reader which can read the specified range.
+    /// Create a new reader with extra options
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::BlockingOperator;
-    /// # use futures::TryStreamExt;
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
     /// # fn test(op: BlockingOperator) -> Result<()> {
-    /// let r = op.range_reader("path/to/file", 1024..2048)?;
+    /// let r = op.reader_with("path/to/file").range(0..10).call()?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn range_reader(&self, path: &str, range: impl RangeBounds<u64>) -> Result<BlockingReader> {
+    pub fn reader_with(&self, path: &str) -> FunctionReader {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                    .with_operation("BlockingOperator::range_reader")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
+        FunctionReader(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "reader path is a directory")
+                            .with_operation("BlockingOperator::reader_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
 
-        let op = OpRead::new().with_range(range.into());
-
-        BlockingReader::create(self.inner().clone(), &path, op)
+                BlockingReader::create(inner.clone(), &path, args)
+            },
+        ))
     }
 
     /// Write bytes into given path.

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::RangeBounds;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -80,7 +79,7 @@ impl Operator {
     pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
         let limit = accessor
             .info()
-            .capability()
+            .full_capability()
             .batch_max_operations
             .unwrap_or(1000);
         Self { accessor, limit }
@@ -327,7 +326,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn read(&self, path: &str) -> Result<Vec<u8>> {
-        self.range_read(path, ..).await
+        self.read_with(path).await
     }
 
     /// Read the whole path into a bytes with extra options.
@@ -344,6 +343,7 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read_with("path/to/file").await?;
+    /// let bs = op.read_with("path/to/file").range(0..10).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -361,7 +361,7 @@ impl Operator {
                             ErrorKind::IsADirectory,
                             "read path is a directory",
                         )
-                        .with_operation("range_read")
+                        .with_operation("read")
                         .with_context("service", inner.info().scheme())
                         .with_context("path", &path));
                     }
@@ -381,7 +381,7 @@ impl Operator {
                     // TODO: use native read api
                     s.read_exact(buf.initialized_mut()).await.map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "read from storage")
-                            .with_operation("range_read")
+                            .with_operation("read")
                             .with_context("service", inner.info().scheme().into_static())
                             .with_context("path", &path)
                             .with_context("range", br.to_string())
@@ -401,31 +401,6 @@ impl Operator {
         fut
     }
 
-    /// Read the specified range of path into a bytes.
-    ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Operator::range_reader`]
-    ///
-    /// # Notes
-    ///
-    /// - The returning content's length may be smaller than the range specified.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.range_read("path/to/file", 1024..2048).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        self.read_with(path).range(range).await
-    }
-
     /// Create a new reader which can read the whole path.
     ///
     /// # Examples
@@ -443,28 +418,6 @@ impl Operator {
     /// ```
     pub async fn reader(&self, path: &str) -> Result<Reader> {
         self.reader_with(path).await
-    }
-
-    /// Create a new reader which can read the specified range.
-    ///
-    /// # Notes
-    ///
-    /// - The returning content's length may be smaller than the range specified.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let r = op.range_reader("path/to/file", 1024..2048).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn range_reader(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Reader> {
-        self.reader_with(path).range(range).await
     }
 
     /// Create a new reader with extra options
@@ -496,7 +449,7 @@ impl Operator {
                             ErrorKind::IsADirectory,
                             "read path is a directory",
                         )
-                        .with_operation("Operator::range_reader")
+                        .with_operation("Operator::reader")
                         .with_context("service", inner.info().scheme())
                         .with_context("path", path));
                     }
@@ -534,32 +487,6 @@ impl Operator {
     pub async fn write(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
         let bs = bs.into();
         self.write_with(path, bs).await
-    }
-
-    /// Append bytes into path.
-    ///
-    /// # Notes
-    ///
-    /// - Append will make sure all bytes has been written, or an error will be returned.
-    /// - Append will create the file if it does not exist.
-    /// - Append always write bytes to the end of the file.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// op.append("path/to/file", vec![0; 4096]).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn append(&self, path: &str, bs: impl Into<Bytes>) -> Result<()> {
-        let bs = bs.into();
-        self.append_with(path, bs).await
     }
 
     /// Copy a file from `from` to `to`.
@@ -813,140 +740,6 @@ impl Operator {
         fut
     }
 
-    /// Append multiple bytes into path.
-    ///
-    /// Refer to [`Appender`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut a = op.appender("path/to/file").await?;
-    /// a.append(vec![0; 4096]).await?;
-    /// a.append(vec![1; 4096]).await?;
-    /// a.close().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn appender(&self, path: &str) -> Result<Appender> {
-        self.appender_with(path).await
-    }
-
-    /// Append multiple bytes into path with extra options.
-    ///
-    /// Refer to [`Appender`] for more details.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut a = op
-    ///     .appender_with("path/to/file")
-    ///     .content_type("application/octet-stream")
-    ///     .await?;
-    /// a.append(vec![0; 4096]).await?;
-    /// a.append(vec![1; 4096]).await?;
-    /// a.close().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn appender_with(&self, path: &str) -> FutureAppender {
-        let path = normalize_path(path);
-
-        let fut = FutureAppender(OperatorFuture::new(
-            self.inner().clone(),
-            path,
-            OpAppend::default(),
-            |inner, path, args| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "append path is a directory",
-                        )
-                        .with_operation("Operator::appender")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
-                    let ap = Appender::create(inner, &path, args).await?;
-                    Ok(ap)
-                };
-
-                Box::pin(fut)
-            },
-        ));
-
-        fut
-    }
-
-    /// Append bytes with extra options.
-    ///
-    /// # Notes
-    ///
-    /// - Append will make sure all bytes has been written, or an error will be returned.
-    /// - Append will create the file if it does not exist.
-    /// - Append always write bytes to the end of the file.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = b"hello, world!".to_vec();
-    /// let _ = op
-    ///     .append_with("path/to/file", bs)
-    ///     .content_type("text/plain")
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn append_with(&self, path: &str, bs: impl Into<Bytes>) -> FutureAppend {
-        let path = normalize_path(path);
-        let bs = bs.into();
-
-        let fut = FutureAppend(OperatorFuture::new(
-            self.inner().clone(),
-            path,
-            (OpAppend::default(), bs),
-            |inner, path, (args, bs)| {
-                let fut = async move {
-                    if !validate_path(&path, EntryMode::FILE) {
-                        return Err(Error::new(
-                            ErrorKind::IsADirectory,
-                            "append path is a directory",
-                        )
-                        .with_operation("Operator::append_with")
-                        .with_context("service", inner.info().scheme().into_static())
-                        .with_context("path", &path));
-                    }
-                    let (_, mut a) = inner.append(&path, args).await?;
-                    a.append(bs).await?;
-                    a.close().await?;
-
-                    Ok(())
-                };
-
-                Box::pin(fut)
-            },
-        ));
-
-        fut
-    }
-
     /// Delete the given path.
     ///
     /// # Notes
@@ -1059,7 +852,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn remove_via(&self, input: impl Stream<Item = String> + Unpin) -> Result<()> {
-        if self.info().can_batch() {
+        if self.info().full_capability().batch {
             let mut input = input
                 .map(|v| (v, OpDelete::default().into()))
                 .chunks(self.limit());
@@ -1127,7 +920,7 @@ impl Operator {
 
         let obs = self.lister_with(path).delimiter("").await?;
 
-        if self.info().can_batch() {
+        if self.info().full_capability().batch {
             let mut obs = obs.try_chunks(self.limit());
 
             while let Some(batches) = obs.next().await {

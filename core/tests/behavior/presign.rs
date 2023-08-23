@@ -29,7 +29,7 @@ use sha2::Sha256;
 use crate::*;
 
 pub fn behavior_presign_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.list && cap.write && cap.presign) {
         return vec![];

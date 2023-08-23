@@ -64,7 +64,6 @@ pub struct OssCore {
     pub client: HttpClient,
     pub loader: AliyunLoader,
     pub signer: AliyunOssSigner,
-    pub write_min_size: usize,
     pub batch_max_operations: usize,
 }
 
@@ -190,8 +189,8 @@ impl OssCore {
         &self,
         path: &str,
         position: u64,
-        size: usize,
-        args: &OpAppend,
+        size: u64,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);

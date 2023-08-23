@@ -27,7 +27,7 @@ use sha2::Sha256;
 use crate::*;
 
 pub fn behavior_blocking_write_tests(op: &Operator) -> Vec<Trial> {
-    let cap = op.info().capability();
+    let cap = op.info().full_capability();
 
     if !(cap.read && cap.write && cap.blocking) {
         return vec![];
@@ -217,7 +217,7 @@ pub fn test_blocking_read_full(op: BlockingOperator) -> Result<()> {
 
 /// Read range content should match.
 pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -229,7 +229,7 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
     op.write(&path, content.clone())
         .expect("write must succeed");
 
-    let bs = op.range_read(&path, offset..offset + length)?;
+    let bs = op.read_with(&path).range(offset..offset + length).call()?;
     assert_eq!(bs.len() as u64, length, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -246,7 +246,7 @@ pub fn test_blocking_read_range(op: BlockingOperator) -> Result<()> {
 
 /// Read large range content should match.
 pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -258,7 +258,7 @@ pub fn test_blocking_read_large_range(op: BlockingOperator) -> Result<()> {
     op.write(&path, content.clone())
         .expect("write must succeed");
 
-    let bs = op.range_read(&path, offset..u32::MAX as u64)?;
+    let bs = op.read_with(&path).range(offset..u32::MAX as u64).call()?;
     assert_eq!(
         bs.len() as u64,
         size as u64 - offset,
@@ -286,7 +286,7 @@ pub fn test_blocking_read_not_exist(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -298,7 +298,10 @@ pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
-    let mut o = op.range_reader(&path, 0..content.len() as u64)?;
+    let mut o = op
+        .reader_with(&path)
+        .range(0..content.len() as u64)
+        .call()?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -323,7 +326,7 @@ pub fn test_blocking_fuzz_range_reader(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -335,7 +338,7 @@ pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
-    let mut o = op.range_reader(&path, 0..)?;
+    let mut o = op.reader_with(&path).range(0..).call()?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -360,7 +363,7 @@ pub fn test_blocking_fuzz_offset_reader(op: BlockingOperator) -> Result<()> {
 }
 
 pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
-    if !op.info().capability().read_with_range {
+    if !op.info().full_capability().read_with_range {
         return Ok(());
     }
 
@@ -373,7 +376,10 @@ pub fn test_blocking_fuzz_part_reader(op: BlockingOperator) -> Result<()> {
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content, offset as usize, length as usize);
-    let mut o = op.range_reader(&path, offset..offset + length)?;
+    let mut o = op
+        .reader_with(&path)
+        .range(offset..offset + length)
+        .call()?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {

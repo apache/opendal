@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-description = "OpenDAL's object_store binding"
+description = "OpenDAL's object_store Integration"
 name = "object_store_opendal"
 
 authors.workspace = true

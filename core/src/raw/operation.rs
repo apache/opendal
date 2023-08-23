@@ -31,8 +31,6 @@ pub enum Operation {
     Read,
     /// Operation for [`crate::raw::Accessor::write`]
     Write,
-    /// Operation for [`crate::raw::Accessor::append`]
-    Append,
     /// Operation for [`crate::raw::Accessor::copy`]
     Copy,
     /// Operation for [`crate::raw::Accessor::rename`]
@@ -85,7 +83,6 @@ impl From<Operation> for &'static str {
             Operation::CreateDir => "create_dir",
             Operation::Read => "read",
             Operation::Write => "write",
-            Operation::Append => "append",
             Operation::Copy => "copy",
             Operation::Rename => "rename",
             Operation::Stat => "stat",

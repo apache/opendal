@@ -45,7 +45,6 @@ pub struct ObsCore {
     pub signer: HuaweicloudObsSigner,
     pub loader: HuaweicloudObsCredentialLoader,
     pub client: HttpClient,
-    pub write_min_size: usize,
 }
 
 impl Debug for ObsCore {
@@ -241,8 +240,8 @@ impl ObsCore {
         &self,
         path: &str,
         position: u64,
-        size: usize,
-        args: &OpAppend,
+        size: u64,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -388,7 +387,7 @@ impl ObsCore {
         &self,
         path: &str,
         upload_id: &str,
-        parts: &[CompleteMultipartUploadRequestPart],
+        parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(

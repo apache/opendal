@@ -295,7 +295,6 @@ impl Accessor for GhacBackend {
     type BlockingReader = ();
     type Writer = GhacWriter;
     type BlockingWriter = ();
-    type Appender = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -304,7 +303,7 @@ impl Accessor for GhacBackend {
         am.set_scheme(Scheme::Ghac)
             .set_root(&self.root)
             .set_name(&self.version)
-            .set_capability(Capability {
+            .set_full_capability(Capability {
                 stat: true,
 
                 read: true,

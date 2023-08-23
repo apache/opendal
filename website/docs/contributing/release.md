@@ -362,6 +362,11 @@ Example: <https://lists.apache.org/thread/h3x9pq1djpg76q3ojpqmdr3d0o03fld1>
 ```shell
 svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version} https://dist.apache.org/repos/dist/release/incubator/opendal/${opendal_version} -m "Release ${opendal_version}"
 ```
+### Change OpenDAL Website download link
+Change the [download](https://github.com/apache/incubator-opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
+
+Take [Add 0.39.0 release link to download.md](https://github.com/apache/incubator-opendal/pull/2882) as an example.
+
 
 ### Push the release Git tag
 

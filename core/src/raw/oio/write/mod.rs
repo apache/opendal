@@ -22,7 +22,22 @@ pub use api::Write;
 pub use api::WriteOperation;
 pub use api::Writer;
 
+mod compose_write;
+pub use compose_write::ThreeWaysWriter;
+pub use compose_write::TwoWaysWriter;
+
 mod multipart_upload_write;
 pub use multipart_upload_write::MultipartUploadPart;
 pub use multipart_upload_write::MultipartUploadWrite;
 pub use multipart_upload_write::MultipartUploadWriter;
+
+mod append_object_write;
+pub use append_object_write::AppendObjectWrite;
+pub use append_object_write::AppendObjectWriter;
+
+mod at_least_buf_write;
+pub use at_least_buf_write::AtLeastBufWriter;
+
+mod one_shot_write;
+pub use one_shot_write::OneShotWrite;
+pub use one_shot_write::OneShotWriter;

@@ -39,9 +39,10 @@ use crate::ErrorKind;
 
 pub struct GdriveCore {
     pub root: String,
-    pub access_token: String,
 
     pub client: HttpClient,
+
+    pub signer: Arc<Mutex<GdriveSigner>>,
 
     /// Cache the mapping from path to file id
     ///
@@ -91,7 +92,7 @@ impl GdriveCore {
             .body(AsyncBody::default())
             .map_err(new_request_build_error)?;
 
-            let _ = self.sign(&mut req);
+            self.sign(&mut req).await?;
 
             let resp = self.client.send(req).await?;
             let status = resp.status();
@@ -151,7 +152,7 @@ impl GdriveCore {
             ))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
-            let _ = self.sign(&mut req);
+            self.sign(&mut req).await?;
 
             let resp = self.client.send(req).await?;
             let status = resp.status();
@@ -224,7 +225,7 @@ impl GdriveCore {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req)?;
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
@@ -257,7 +258,7 @@ impl GdriveCore {
             )))
             .map_err(new_request_build_error)?;
 
-        let _ = self.sign(&mut req);
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
@@ -273,7 +274,7 @@ impl GdriveCore {
         ))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
-        let _ = self.sign(&mut req);
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
@@ -287,7 +288,7 @@ impl GdriveCore {
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
-        let _ = self.sign(&mut req);
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
@@ -315,7 +316,7 @@ impl GdriveCore {
         }
 
         let mut req = req.body(body).map_err(new_request_build_error)?;
-        let _ = self.sign(&mut req);
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
@@ -330,7 +331,7 @@ impl GdriveCore {
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
-        let _ = self.sign(&mut req);
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
@@ -374,7 +375,7 @@ impl GdriveCore {
 
         let mut req = multipart.apply(req)?;
 
-        let _ = self.sign(&mut req);
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
@@ -397,13 +398,52 @@ impl GdriveCore {
             .body(AsyncBody::Bytes(body))
             .map_err(new_request_build_error)?;
 
-        let _ = self.sign(&mut req);
+        self.sign(&mut req).await?;
 
         self.client.send(req).await
     }
 
-    fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let auth_header_content = format!("Bearer {}", self.access_token);
+    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
+        let mut signer = self.signer.lock().await;
+
+        if !signer.access_token.is_empty() && signer.expires_in > Utc::now() {
+            let value = format!("Bearer {}", signer.access_token)
+                .parse()
+                .expect("access token must be valid header value");
+
+            req.headers_mut().insert(header::AUTHORIZATION, value);
+            return Ok(());
+        }
+
+        let url = format!(
+            "https://oauth2.googleapis.com/token?refresh_token={}&client_id={}&client_secret={}&grant_type=refresh_token",
+            signer.refresh_token, signer.client_id, signer.client_secret
+        );
+
+        {
+            let req = Request::post(url)
+                .body(AsyncBody::Empty)
+                .map_err(new_request_build_error)?;
+
+            let resp = self.client.send(req).await?;
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK => {
+                    let resp_body = &resp.into_body().bytes().await?;
+                    let token = serde_json::from_slice::<GdriveTokenResponse>(resp_body)
+                        .map_err(new_json_deserialize_error)?;
+                    signer.access_token = token.access_token.clone();
+                    signer.expires_in = Utc::now() + chrono::Duration::seconds(token.expires_in)
+                        - chrono::Duration::seconds(120);
+                }
+                _ => {
+                    return Err(parse_error(resp).await?);
+                }
+            }
+        }
+
+        let auth_header_content = format!("Bearer {}", signer.access_token);
         req.headers_mut()
             .insert(header::AUTHORIZATION, auth_header_content.parse().unwrap());
 
@@ -419,6 +459,25 @@ pub struct GdriveSigner {
 
     pub access_token: String,
     pub expires_in: DateTime<Utc>,
+}
+
+impl Default for GdriveSigner {
+    fn default() -> Self {
+        GdriveSigner {
+            access_token: String::new(),
+            expires_in: DateTime::<Utc>::MIN_UTC,
+
+            refresh_token: String::new(),
+            client_id: String::new(),
+            client_secret: String::new(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct GdriveTokenResponse {
+    access_token: String,
+    expires_in: i64,
 }
 
 // This is the file struct returned by the Google Drive API.

@@ -170,6 +170,11 @@ impl oio::Stream for Cursor {
     }
 }
 
+/// ChunkedCursor is used represents a non-contiguous bytes in memory.
+///
+/// This is useful when we buffer users' random writes without copy. ChunkedCursor implements
+/// [`oio::Stream`] so it can be used in [`oio::Write::sink`] directly.
+///
 /// # TODO
 ///
 /// we can do some compaction during runtime. For example, merge 4K data

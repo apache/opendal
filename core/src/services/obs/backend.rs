@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -32,7 +33,13 @@ use super::error::parse_error;
 use super::pager::ObsPager;
 use super::writer::ObsWriter;
 use crate::raw::*;
+use crate::services::obs::writer::ObsWriters;
 use crate::*;
+
+/// The minimum multipart size of OBS is 5 MiB.
+///
+/// ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+const MINIMUM_MULTIPART_SIZE: usize = 5 * 1024 * 1024;
 
 /// Huawei Cloud OBS services support.
 ///
@@ -91,9 +98,6 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
-
-const DEFAULT_WRITE_MIN_SIZE: usize = 100 * 1024;
-
 /// Huawei-Cloud Object Storage Service (OBS) support
 #[derive(Default, Clone)]
 pub struct ObsBuilder {
@@ -103,9 +107,6 @@ pub struct ObsBuilder {
     secret_access_key: Option<String>,
     bucket: Option<String>,
     http_client: Option<HttpClient>,
-    /// the part size of obs multipart upload, which should be 100 KiB to 5 GiB.
-    /// There is no minimum size limit on the last part of your multipart upload
-    write_min_size: Option<usize>,
 }
 
 impl Debug for ObsBuilder {
@@ -190,14 +191,6 @@ impl ObsBuilder {
         self.http_client = Some(client);
         self
     }
-
-    /// set the minimum size of unsized write, it should be greater than 100 KB.
-    /// Reference: [Huawei Obs multipart upload limits](https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0099.html)
-    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
-        self.write_min_size = Some(write_min_size);
-
-        self
-    }
 }
 
 impl Builder for ObsBuilder {
@@ -213,8 +206,6 @@ impl Builder for ObsBuilder {
         map.get("access_key_id").map(|v| builder.access_key_id(v));
         map.get("secret_access_key")
             .map(|v| builder.secret_access_key(v));
-        map.get("write_min_size")
-            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
 
         builder
     }
@@ -296,14 +287,6 @@ impl Builder for ObsBuilder {
                 &endpoint
             }
         });
-        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
-        if write_min_size < 100 * 1024 {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "The write minimum buffer size is misconfigured",
-            )
-            .with_context("service", Scheme::Obs));
-        }
 
         debug!("backend build finished");
         Ok(ObsBackend {
@@ -314,7 +297,6 @@ impl Builder for ObsBuilder {
                 signer,
                 loader,
                 client,
-                write_min_size,
             }),
         })
     }
@@ -330,10 +312,7 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<
-        oio::MultipartUploadWriter<ObsWriter>,
-        oio::AppendObjectWriter<ObsWriter>,
-    >;
+    type Writer = oio::TwoWaysWriter<ObsWriters, oio::AtLeastBufWriter<ObsWriters>>;
     type BlockingWriter = ();
     type Pager = ObsPager;
     type BlockingPager = ();
@@ -452,19 +431,26 @@ impl Accessor for ObsBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let writer = ObsWriter::new(self.core.clone(), path, args.clone());
 
-        let tw = if args.append() {
-            let w =
-                oio::AppendObjectWriter::new(writer).with_write_min_size(self.core.write_min_size);
-
-            oio::TwoWaysWriter::Right(w)
+        let w = if args.append() {
+            ObsWriters::Three(oio::AppendObjectWriter::new(writer))
+        } else if args.content_length().is_some() {
+            ObsWriters::One(oio::OneShotWriter::new(writer))
         } else {
-            let w = oio::MultipartUploadWriter::new(writer, args.content_length())
-                .with_write_min_size(self.core.write_min_size);
-
-            oio::TwoWaysWriter::Left(w)
+            ObsWriters::Two(oio::MultipartUploadWriter::new(writer))
         };
 
-        return Ok((RpWrite::default(), tw));
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
+
+            let w =
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
+
+            oio::TwoWaysWriter::Two(w)
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

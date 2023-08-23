@@ -22,8 +22,6 @@ use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
-const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
-
 /// AppendObjectWrite is used to implement [`Write`] based on append
 /// object. By implementing AppendObjectWrite, services don't need to
 /// care about the details of buffering and uploading parts.
@@ -53,8 +51,6 @@ pub struct AppendObjectWriter<W: AppendObjectWrite> {
     inner: W,
 
     offset: Option<u64>,
-    buffer: oio::VectorCursor,
-    buffer_size: usize,
 }
 
 impl<W: AppendObjectWrite> AppendObjectWriter<W> {
@@ -63,22 +59,7 @@ impl<W: AppendObjectWrite> AppendObjectWriter<W> {
         Self {
             inner,
             offset: None,
-            buffer: oio::VectorCursor::new(),
-            buffer_size: DEFAULT_WRITE_MIN_SIZE,
         }
-    }
-
-    /// Configure the write_min_size.
-    ///
-    /// write_min_size is used to control the size of internal buffer.
-    ///
-    /// AppendObjectWriter will flush the buffer to storage when
-    /// the size of buffer is larger than write_min_size.
-    ///
-    /// This value is default to 8 MiB.
-    pub fn with_write_min_size(mut self, v: usize) -> Self {
-        self.buffer_size = v;
-        self
     }
 
     async fn offset(&mut self) -> Result<u64> {
@@ -101,72 +82,24 @@ where
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let offset = self.offset().await?;
 
-        // Ignore empty bytes
-        if bs.is_empty() {
-            return Ok(());
-        }
+        let size = bs.len() as u64;
 
-        self.buffer.push(bs);
-        // Return directly if the buffer is not full
-        if self.buffer.len() <= self.buffer_size {
-            return Ok(());
-        }
-
-        let bs = self.buffer.peak_all();
-        let size = bs.len();
-
-        match self
-            .inner
-            .append(offset, size as u64, AsyncBody::Bytes(bs))
+        self.inner
+            .append(offset, size, AsyncBody::Bytes(bs))
             .await
-        {
-            Ok(_) => {
-                self.buffer.take(size);
-                self.offset = Some(offset + size as u64);
-                Ok(())
-            }
-            Err(e) => {
-                // If the upload fails, we should pop the given bs to make sure
-                // write is re-enter safe.
-                self.buffer.pop();
-                Err(e)
-            }
-        }
+            .map(|_| self.offset = Some(offset + size))
     }
 
     async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
-        if !self.buffer.is_empty() {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Writer::sink should not be used mixed with existing buffer",
-            ));
-        }
-
         let offset = self.offset().await?;
 
         self.inner
             .append(offset, size, AsyncBody::Stream(s))
-            .await?;
-        self.offset = Some(offset + size);
-
-        Ok(())
+            .await
+            .map(|_| self.offset = Some(offset + size))
     }
 
     async fn close(&mut self) -> Result<()> {
-        // Make sure internal buffer has been flushed.
-        if !self.buffer.is_empty() {
-            let bs = self.buffer.peak_exact(self.buffer.len());
-
-            let offset = self.offset().await?;
-            let size = bs.len() as u64;
-            self.inner
-                .append(offset, size, AsyncBody::Bytes(bs))
-                .await?;
-
-            self.buffer.clear();
-            self.offset = Some(offset + size);
-        }
-
         Ok(())
     }
 

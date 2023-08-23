@@ -107,7 +107,7 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 
     let checker = WriteChecker::new(total_size);
 
-    let mut writer = op.writer(&path).await?;
+    let mut writer = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
 
     for chunk in &checker.chunks {
         writer.write(chunk.clone()).await?;
@@ -132,7 +132,7 @@ fuzz_target!(|input: FuzzInput| {
         runtime.block_on(async {
             fuzz_writer(op, input.clone())
                 .await
-                .unwrap_or_else(|_| panic!("fuzz reader must succeed"));
+                .unwrap_or_else(|_| panic!("fuzz writer must succeed"));
         })
     }
 });

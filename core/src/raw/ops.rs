@@ -406,6 +406,7 @@ impl OpStat {
 pub struct OpWrite {
     append: bool,
 
+    buffer_size: Option<usize>,
     content_length: Option<u64>,
     content_type: Option<String>,
     content_disposition: Option<String>,
@@ -436,6 +437,26 @@ impl OpWrite {
     /// Service could return `Unsupported` if the underlying storage does not support append.
     pub fn with_append(mut self, append: bool) -> Self {
         self.append = append;
+        self
+    }
+
+    /// Get the buffer size from op.
+    ///
+    /// The buffer size is used by service to decide the buffer size of the underlying writer.
+    pub fn buffer_size(&self) -> Option<usize> {
+        self.buffer_size
+    }
+
+    /// Set the buffer size of op.
+    ///
+    /// If buffer size is set, the data will be buffered by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum buffer size while perform write operations like
+    /// multipart uploads. So the buffer size may be larger than the given buffer size.
+    pub fn with_buffer_size(mut self, buffer_size: usize) -> Self {
+        self.buffer_size = Some(buffer_size);
         self
     }
 

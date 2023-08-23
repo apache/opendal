@@ -1,6 +1,6 @@
 # OpenDAL Integrations
 
-This folder contains the integrations for OpenDAL. Integrations are used to ingrate OpenDAL with other systems.
+This folder contains the integrations for OpenDAL. Integrations are used to integrate OpenDAL with other systems.
 
 ## Available Integrations
 

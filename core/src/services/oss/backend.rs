@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::max;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -35,9 +36,13 @@ use super::error::parse_error;
 use super::pager::OssPager;
 use super::writer::OssWriter;
 use crate::raw::*;
+use crate::services::oss::writer::OssWriters;
 use crate::*;
 
-const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
+/// The minimum multipart size of OSS is 100 KiB.
+///
+/// ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+const MINIMUM_MULTIPART_SIZE: usize = 100 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aliyun Object Storage Service (OSS) support
@@ -343,14 +348,6 @@ impl Builder for OssBuilder {
 
         let signer = AliyunOssSigner::new(bucket);
 
-        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
-        if write_min_size < 5 * 1024 * 1024 {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "The write minimum buffer size is misconfigured",
-            )
-            .with_context("service", Scheme::Oss));
-        }
         let batch_max_operations = self
             .batch_max_operations
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
@@ -368,7 +365,6 @@ impl Builder for OssBuilder {
                 client,
                 server_side_encryption,
                 server_side_encryption_key_id,
-                write_min_size,
                 batch_max_operations,
             }),
         })
@@ -385,10 +381,7 @@ pub struct OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<
-        oio::MultipartUploadWriter<OssWriter>,
-        oio::AppendObjectWriter<OssWriter>,
-    >;
+    type Writer = oio::TwoWaysWriter<OssWriters, oio::AtLeastBufWriter<OssWriters>>;
     type BlockingWriter = ();
     type Pager = OssPager;
     type BlockingPager = ();
@@ -480,19 +473,26 @@ impl Accessor for OssBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let writer = OssWriter::new(self.core.clone(), path, args.clone());
 
-        let tw = if args.append() {
-            let w =
-                oio::AppendObjectWriter::new(writer).with_write_min_size(self.core.write_min_size);
-
-            oio::TwoWaysWriter::Right(w)
+        let w = if args.append() {
+            OssWriters::Three(oio::AppendObjectWriter::new(writer))
+        } else if args.content_length().is_some() {
+            OssWriters::One(oio::OneShotWriter::new(writer))
         } else {
-            let w = oio::MultipartUploadWriter::new(writer, args.content_length())
-                .with_write_min_size(self.core.write_min_size);
-
-            oio::TwoWaysWriter::Left(w)
+            OssWriters::Two(oio::MultipartUploadWriter::new(writer))
         };
 
-        return Ok((RpWrite::default(), tw));
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
+
+            let w =
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
+
+            oio::TwoWaysWriter::Two(w)
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

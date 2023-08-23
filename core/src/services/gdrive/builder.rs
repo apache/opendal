@@ -28,7 +28,8 @@ use tokio::sync::Mutex;
 use super::backend::GdriveBackend;
 use crate::raw::normalize_root;
 use crate::raw::HttpClient;
-use crate::services::gdrive::core::{GdriveCore, GdriveSigner};
+use crate::services::gdrive::core::GdriveCore;
+use crate::services::gdrive::core::GdriveSigner;
 use crate::Scheme;
 use crate::*;
 

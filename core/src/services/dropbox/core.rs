@@ -42,9 +42,11 @@ use crate::types::ErrorKind;
 use crate::types::Result;
 
 pub struct DropboxCore {
-    pub signer: Arc<Mutex<DropboxSigner>>,
-    pub client: HttpClient,
     pub root: String,
+
+    pub client: HttpClient,
+
+    pub signer: Arc<Mutex<DropboxSigner>>,
 }
 
 impl Debug for DropboxCore {
@@ -360,11 +362,11 @@ pub struct DropboxSigner {
 impl Default for DropboxSigner {
     fn default() -> Self {
         DropboxSigner {
-            refresh_token: "".to_string(),
+            refresh_token: String::new(),
             client_id: String::new(),
             client_secret: String::new(),
 
-            access_token: "".to_string(),
+            access_token: String::new(),
             expires_in: DateTime::<Utc>::MIN_UTC,
         }
     }

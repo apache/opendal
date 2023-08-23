@@ -21,9 +21,13 @@ use crate::*;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-/// AtLeastBufWrite is used to implement [`Write`] based on at least buffer.
+/// AtLeastBufWriter is used to implement [`oio::Write`] based on at least buffer strategy: flush
+/// the underlying storage when the buffered size is larger.
 ///
-/// Users can wrap a writer and a buffer together.
+/// AtLeastBufWriter makes sure that the size of the data written to the underlying storage is at
+/// least `buffer_size` bytes. It's useful when the underlying storage has a minimum size limit.
+///
+/// For example, S3 requires at least 5MiB for multipart uploads.
 pub struct AtLeastBufWriter<W: oio::Write> {
     inner: W,
 

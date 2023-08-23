@@ -39,11 +39,28 @@ public enum Environment {
         try (InputStream is = classLoader.getResourceAsStream("bindings.properties")) {
             final Properties properties = new Properties();
             properties.load(is);
-            INSTANCE.classifier = properties.getProperty("jni.classifier", UNKNOWN);
             INSTANCE.projectVersion = properties.getProperty("project.version", UNKNOWN);
         } catch (IOException e) {
             throw new UncheckedIOException("cannot load environment properties file", e);
         }
+
+        final StringBuilder classifier = new StringBuilder();
+        final String os = System.getProperty("os.name").toLowerCase();
+        if (os.startsWith("windows")) {
+            classifier.append("windows");
+        } else if (os.startsWith("mac")) {
+            classifier.append("osx");
+        } else {
+            classifier.append("linux");
+        }
+        classifier.append("-");
+        final String arch = System.getProperty("os.arch").toLowerCase();
+        if (arch.equals("aarch64")) {
+            classifier.append("aarch_64");
+        } else {
+            classifier.append("x86_64");
+        }
+        INSTANCE.classifier = classifier.toString();
     }
 
     /**

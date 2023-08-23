@@ -186,7 +186,6 @@
                         <id>default-jar</id>
                         <configuration>
                             <excludes>
-                                <exclude>bindings.properties</exclude>
                                 <exclude>native/**</exclude>
                             </excludes>
                         </configuration>
@@ -199,6 +198,9 @@
                         </goals>
                         <configuration>
                             <classifier>${jni.classifier}</classifier>
+                            <includes>
+                                <include>native/**</include>
+                            </includes>
                         </configuration>
                     </execution>
                 </executions>

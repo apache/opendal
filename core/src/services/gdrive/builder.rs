@@ -79,8 +79,14 @@ use crate::*;
 /// ```
 #[derive(Default)]
 pub struct GdriveBuilder {
-    access_token: Option<String>,
     root: Option<String>,
+
+    access_token: Option<String>,
+
+    refresh_token: Option<String>,
+    client_id: Option<String>,
+    client_secret: Option<String>,
+
     http_client: Option<HttpClient>,
 }
 
@@ -91,17 +97,20 @@ impl Debug for GdriveBuilder {
 }
 
 impl GdriveBuilder {
-    /// default: no access token, which leads to failure
-    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
-        self.access_token = Some(access_token.to_string());
-        self
-    }
-
     /// Set root path of GoogleDrive folder.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = Some(root.to_string());
         self
     }
+
+    /// Access token is used for temporary access to the GoogleDrive API.
+    ///
+    /// You can get the access token from [GoogleDrive App Console](https://console.cloud.google.com/apis/credentials)
+    pub fn access_token(&mut self, access_token: &str) -> &mut Self {
+        self.access_token = Some(access_token.to_string());
+        self
+    }
+
 
     /// Specify the http client that used by this service.
     ///

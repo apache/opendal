@@ -21,6 +21,8 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes;
+use chrono::DateTime;
+use chrono::Utc;
 use http::header;
 use http::Request;
 use http::Response;
@@ -407,6 +409,16 @@ impl GdriveCore {
 
         Ok(())
     }
+}
+
+#[derive(Clone)]
+pub struct GdriveSigner {
+    pub client_id: String,
+    pub client_secret: String,
+    pub refresh_token: String,
+
+    pub access_token: String,
+    pub expires_in: DateTime<Utc>,
 }
 
 // This is the file struct returned by the Google Drive API.

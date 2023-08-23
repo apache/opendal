@@ -280,6 +280,61 @@ impl BlockingOperator {
         Ok(buffer)
     }
 
+    /// Read the whole path into a bytes with extra options.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`BlockingOperator::reader`]
+    ///
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let bs = op.read_with("path/to/file").range(0..10).call()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn read_with(&self, path: &str) -> FunctionRead {
+        let path = normalize_path(path);
+
+        FunctionRead(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                            .with_operation("BlockingOperator::read_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path)
+                    );
+                }
+
+                let (rp, mut s) = inner.blocking_read(&path, args)?;
+                let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
+                
+                match s.read_to_end(&mut buffer) {
+                    Ok(n) => {
+                        buffer.truncate(n);
+                        Ok(buffer)
+                    },
+                    Err(err) => Err(
+                        Error::new(ErrorKind::Unexpected, "blocking read_with failed")
+                        .with_operation("BlockingOperator::read_with")
+                        .with_context("service", inner.info().scheme().into_static())
+                        .with_context("path", &path)
+                        .set_source(err)
+                    ),
+                }
+            },
+        ))
+    }
+
+
     /// Create a new reader which can read the whole path.
     ///
     /// # Examples
@@ -325,6 +380,42 @@ impl BlockingOperator {
         let op = OpRead::new().with_range(range.into());
 
         BlockingReader::create(self.inner().clone(), &path, op)
+    }
+
+    /// Create a new reader with extra options
+    ///
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let r = op.reader_with("path/to/file").range(0..10).call()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn reader_with(&self, path: &str) -> FunctionReader {
+        let path = normalize_path(path);
+
+        FunctionReader(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpRead::default(),
+            |inner, path, args| {
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "reader path is a directory")
+                            .with_operation("BlockingOperator::reader_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path)
+                    );
+                }
+
+                BlockingReader::create(inner.clone(), &path, args)
+            }
+        ))
     }
 
     /// Write bytes into given path.

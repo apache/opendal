@@ -180,7 +180,7 @@ impl BlockingOperator {
             |inner, path, args| {
                 let rp = inner.blocking_stat(&path, args)?;
                 let meta = rp.into_metadata();
-        
+
                 Ok(meta)
             },
         ))

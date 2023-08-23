@@ -170,6 +170,11 @@ impl oio::Stream for Cursor {
     }
 }
 
+/// ChunkedCursor is used represents a non-contiguous bytes in memory.
+///
+/// This is useful when we buffer users' random writes without copy. ChunkedCursor implements
+/// [`oio::Stream`] so it can be used in [`oio::Write::sink`] directly.
+///
 /// # TODO
 ///
 /// we can do some compaction during runtime. For example, merge 4K data
@@ -205,11 +210,6 @@ impl ChunkedCursor {
         self.inner.iter().skip(self.idx).map(|v| v.len()).sum()
     }
 
-    /// Reset current cursor to start.
-    pub fn reset(&mut self) {
-        self.idx = 0;
-    }
-
     /// Clear the entire cursor.
     pub fn clear(&mut self) {
         self.idx = 0;
@@ -234,7 +234,7 @@ impl oio::Stream for ChunkedCursor {
     }
 
     fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        self.reset();
+        self.idx = 0;
         Poll::Ready(Ok(()))
     }
 }
@@ -402,6 +402,8 @@ impl VectorCursor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::raw::oio::StreamExt;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_vector_cursor() {
@@ -421,5 +423,38 @@ mod tests {
         assert_eq!(vc.peak_exact(1), Bytes::from("l"));
         vc.take(5);
         assert_eq!(vc.peak_exact(1), Bytes::from("r"));
+    }
+
+    #[tokio::test]
+    async fn test_chunked_cursor() -> Result<()> {
+        let mut c = ChunkedCursor::new();
+
+        c.push(Bytes::from("hello"));
+        assert_eq!(c.len(), 5);
+        assert!(!c.is_empty());
+
+        c.push(Bytes::from("world"));
+        assert_eq!(c.len(), 10);
+        assert!(!c.is_empty());
+
+        let bs = c.next().await.unwrap().unwrap();
+        assert_eq!(bs, Bytes::from("hello"));
+        assert_eq!(c.len(), 5);
+        assert!(!c.is_empty());
+
+        let bs = c.next().await.unwrap().unwrap();
+        assert_eq!(bs, Bytes::from("world"));
+        assert_eq!(c.len(), 0);
+        assert!(c.is_empty());
+
+        c.reset().await?;
+        assert_eq!(c.len(), 10);
+        assert!(!c.is_empty());
+
+        c.clear();
+        assert_eq!(c.len(), 0);
+        assert!(c.is_empty());
+
+        Ok(())
     }
 }

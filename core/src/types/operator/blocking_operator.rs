@@ -137,12 +137,53 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn stat(&self, path: &str) -> Result<Metadata> {
+        self.stat_with(path).call()
+    }
+
+    /// Get current path's metadata **without cache** directly with extra options.
+    ///
+    /// # Notes
+    ///
+    /// Use `stat` if you:
+    ///
+    /// - Want to detect the outside changes of path.
+    /// - Don't want to read from cached metadata.
+    ///
+    /// You may want to use `metadata` if you are working with entries
+    /// returned by [`Lister`]. It's highly possible that metadata
+    /// you want has already been cached.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::BlockingOperator;
+    /// use opendal::ErrorKind;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// if let Err(e) = op.stat_with("test").if_match("<etag>").call() {
+    ///     if e.kind() == ErrorKind::NotFound {
+    ///         println!("file not exist")
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn stat_with(&self, path: &str) -> FunctionStat {
         let path = normalize_path(path);
 
-        let rp = self.inner().blocking_stat(&path, OpStat::new())?;
-        let meta = rp.into_metadata();
-
-        Ok(meta)
+        FunctionStat(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpStat::default(),
+            |inner, path, args| {
+                let rp = inner.blocking_stat(&path, args)?;
+                let meta = rp.into_metadata();
+        
+                Ok(meta)
+            },
+        ))
     }
 
     /// Check if this path exists or not.

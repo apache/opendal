@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::io::Read;
 use std::io::SeekFrom;
@@ -220,6 +221,103 @@ impl ChunkedCursor {
     pub fn push(&mut self, bs: Bytes) {
         self.inner.push_back(bs);
     }
+
+    /// split_off will split the cursor into two cursors at given size.
+    ///
+    /// After split, `self` will contains the `0..at` part and the returned cursor contains
+    /// `at..` parts.
+    ///
+    /// # Panics
+    ///
+    /// - Panics if `at > len`
+    /// - Panics if `idx != 0`, the cursor must be reset before split.
+    pub fn split_off(&mut self, at: usize) -> Self {
+        assert!(
+            at <= self.len(),
+            "split_off at must smaller than current size"
+        );
+        assert_eq!(self.idx, 0, "split_off must reset cursor first");
+
+        let mut chunks = VecDeque::new();
+        let mut size = self.len() - at;
+
+        while let Some(mut bs) = self.inner.pop_back() {
+            match size.cmp(&bs.len()) {
+                Ordering::Less => {
+                    let remaining = bs.split_off(bs.len() - size);
+                    chunks.push_front(remaining);
+                    self.inner.push_back(bs);
+                    break;
+                }
+                Ordering::Equal => {
+                    chunks.push_front(bs);
+                    break;
+                }
+                Ordering::Greater => {
+                    size -= bs.len();
+                    chunks.push_front(bs);
+                }
+            }
+        }
+
+        Self {
+            inner: chunks,
+            idx: 0,
+        }
+    }
+
+    /// split_to will split the cursor into two cursors at given size.
+    ///
+    /// After split, `self` will contains the `at..` part and the returned cursor contains
+    /// `0..at` parts.
+    ///
+    /// # Panics
+    ///
+    /// - Panics if `at > len`
+    /// - Panics if `idx != 0`, the cursor must be reset before split.
+    pub fn split_to(&mut self, at: usize) -> Self {
+        assert!(
+            at <= self.len(),
+            "split_to at must smaller than current size"
+        );
+        assert_eq!(self.idx, 0, "split_to must reset cursor first");
+
+        let mut chunks = VecDeque::new();
+        let mut size = at;
+
+        while let Some(mut bs) = self.inner.pop_front() {
+            match size.cmp(&bs.len()) {
+                Ordering::Less => {
+                    let remaining = bs.split_off(size);
+                    chunks.push_back(bs);
+                    self.inner.push_front(remaining);
+                    break;
+                }
+                Ordering::Equal => {
+                    chunks.push_back(bs);
+                    break;
+                }
+                Ordering::Greater => {
+                    size -= bs.len();
+                    chunks.push_back(bs);
+                }
+            }
+        }
+
+        Self {
+            inner: chunks,
+            idx: 0,
+        }
+    }
+
+    #[cfg(test)]
+    fn concat(&self) -> Bytes {
+        let mut bs = BytesMut::new();
+        for v in &self.inner {
+            bs.extend_from_slice(v);
+        }
+        bs.freeze()
+    }
 }
 
 impl oio::Stream for ChunkedCursor {
@@ -401,9 +499,15 @@ impl VectorCursor {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+    use rand::thread_rng;
+    use rand::Rng;
+    use rand::RngCore;
+    use sha2::Digest;
+    use sha2::Sha256;
+
     use super::*;
     use crate::raw::oio::StreamExt;
-    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_vector_cursor() {
@@ -456,5 +560,169 @@ mod tests {
         assert!(c.is_empty());
 
         Ok(())
+    }
+
+    #[test]
+    fn test_chunked_cursor_split_to() {
+        let mut base = ChunkedCursor::new();
+        base.push(Bytes::from("Hello"));
+        base.push(Bytes::from("Wor"));
+        base.push(Bytes::from("ld"));
+
+        // Case 1: split less than first chunk
+        let mut c1 = base.clone();
+        let c2 = c1.split_to(3);
+
+        assert_eq!(c1.len(), 7);
+        assert_eq!(
+            &c1.inner,
+            &[Bytes::from("lo"), Bytes::from("Wor"), Bytes::from("ld")]
+        );
+
+        assert_eq!(c2.len(), 3);
+        assert_eq!(&c2.inner, &[Bytes::from("Hel")]);
+
+        // Case 2: split larger than first chunk
+        let mut c1 = base.clone();
+        let c2 = c1.split_to(6);
+
+        assert_eq!(c1.len(), 4);
+        assert_eq!(&c1.inner, &[Bytes::from("or"), Bytes::from("ld")]);
+
+        assert_eq!(c2.len(), 6);
+        assert_eq!(&c2.inner, &[Bytes::from("Hello"), Bytes::from("W")]);
+
+        // Case 3: split at chunk edge
+        let mut c1 = base.clone();
+        let c2 = c1.split_to(8);
+
+        assert_eq!(c1.len(), 2);
+        assert_eq!(&c1.inner, &[Bytes::from("ld")]);
+
+        assert_eq!(c2.len(), 8);
+        assert_eq!(&c2.inner, &[Bytes::from("Hello"), Bytes::from("Wor")]);
+    }
+
+    #[test]
+    fn test_chunked_cursor_split_off() {
+        let mut base = ChunkedCursor::new();
+        base.push(Bytes::from("Hello"));
+        base.push(Bytes::from("Wor"));
+        base.push(Bytes::from("ld"));
+
+        // Case 1: split less than first chunk
+        let mut c1 = base.clone();
+        let c2 = c1.split_off(3);
+
+        assert_eq!(c1.len(), 3);
+        assert_eq!(&c1.inner, &[Bytes::from("Hel")]);
+
+        assert_eq!(c2.len(), 7);
+        assert_eq!(
+            &c2.inner,
+            &[Bytes::from("lo"), Bytes::from("Wor"), Bytes::from("ld")]
+        );
+
+        // Case 2: split larger than first chunk
+        let mut c1 = base.clone();
+        let c2 = c1.split_off(6);
+
+        assert_eq!(c1.len(), 6);
+        assert_eq!(&c1.inner, &[Bytes::from("Hello"), Bytes::from("W")]);
+
+        assert_eq!(c2.len(), 4);
+        assert_eq!(&c2.inner, &[Bytes::from("or"), Bytes::from("ld")]);
+
+        // Case 3: split at chunk edge
+        let mut c1 = base.clone();
+        let c2 = c1.split_off(8);
+
+        assert_eq!(c1.len(), 8);
+        assert_eq!(&c1.inner, &[Bytes::from("Hello"), Bytes::from("Wor")]);
+
+        assert_eq!(c2.len(), 2);
+        assert_eq!(&c2.inner, &[Bytes::from("ld")]);
+    }
+
+    #[test]
+    fn test_fuzz_chunked_cursor_split_to() {
+        let mut rng = thread_rng();
+        let mut expected = vec![];
+        let mut total_size = 0;
+
+        let mut cursor = ChunkedCursor::new();
+
+        // Build Cursor
+        let count = rng.gen_range(1..1000);
+        for _ in 0..count {
+            let size = rng.gen_range(1..100);
+            let mut content = vec![0; size];
+            rng.fill_bytes(&mut content);
+            total_size += size;
+
+            expected.extend_from_slice(&content);
+            cursor.push(Bytes::from(content));
+        }
+
+        // Test Cursor
+        for _ in 0..count {
+            let mut cursor = cursor.clone();
+
+            let at = rng.gen_range(0..total_size);
+            let to = cursor.split_to(at);
+
+            assert_eq!(cursor.len(), total_size - at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&cursor.concat())),
+                format!("{:x}", Sha256::digest(&expected[at..])),
+            );
+
+            assert_eq!(to.len(), at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&to.concat())),
+                format!("{:x}", Sha256::digest(&expected[0..at])),
+            );
+        }
+    }
+
+    #[test]
+    fn test_fuzz_chunked_cursor_split_off() {
+        let mut rng = thread_rng();
+        let mut expected = vec![];
+        let mut total_size = 0;
+
+        let mut cursor = ChunkedCursor::new();
+
+        // Build Cursor
+        let count = rng.gen_range(1..1000);
+        for _ in 0..count {
+            let size = rng.gen_range(1..100);
+            let mut content = vec![0; size];
+            rng.fill_bytes(&mut content);
+            total_size += size;
+
+            expected.extend_from_slice(&content);
+            cursor.push(Bytes::from(content));
+        }
+
+        // Test Cursor
+        for _ in 0..count {
+            let mut cursor = cursor.clone();
+
+            let at = rng.gen_range(0..total_size);
+            let off = cursor.split_off(at);
+
+            assert_eq!(cursor.len(), at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&cursor.concat())),
+                format!("{:x}", Sha256::digest(&expected[..at])),
+            );
+
+            assert_eq!(off.len(), total_size - at);
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&off.concat())),
+                format!("{:x}", Sha256::digest(&expected[at..])),
+            );
+        }
     }
 }

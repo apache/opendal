@@ -125,10 +125,8 @@ impl<T: Part> Multipart<T> {
         let mut parts = VecDeque::new();
         // Write headers.
         for v in self.parts.into_iter() {
-            total_size += pre_part.len() as u64;
-
             let (size, stream) = v.format();
-            total_size += size;
+            total_size += pre_part.len() as u64 + size;
             parts.push_back(stream);
         }
 
@@ -269,12 +267,16 @@ impl FormDataPart {
 
     /// Set the content for this part.
     pub fn content(mut self, content: impl Into<Bytes>) -> Self {
-        self.content = Box::new(oio::Cursor::from(content.into()));
+        let content = content.into();
+
+        self.content_length = content.len() as u64;
+        self.content = Box::new(oio::Cursor::from(content));
         self
     }
 
     /// Set the stream content for this part.
-    pub fn stream(mut self, content: Streamer) -> Self {
+    pub fn stream(mut self, size: u64, content: Streamer) -> Self {
+        self.content_length = size;
         self.content = content;
         self
     }
@@ -479,12 +481,16 @@ impl MixedPart {
 
     /// Set the content for this part.
     pub fn content(mut self, content: impl Into<Bytes>) -> Self {
-        self.content = Some(Box::new(oio::Cursor::from(content.into())));
+        let content = content.into();
+
+        self.content_length = content.len() as u64;
+        self.content = Some(Box::new(oio::Cursor::from(content)));
         self
     }
 
     /// Set the stream content for this part.
-    pub fn stream(mut self, content: Streamer) -> Self {
+    pub fn stream(mut self, size: u64, content: Streamer) -> Self {
+        self.content_length = size;
         self.content = Some(content);
         self
     }
@@ -708,8 +714,9 @@ mod tests {
             .part(FormDataPart::new("foo").content(Bytes::from("bar")))
             .part(FormDataPart::new("hello").content(Bytes::from("world")));
 
-        let (_, body) = multipart.build();
+        let (size, body) = multipart.build();
         let bs = body.collect().await.unwrap();
+        assert_eq!(size, bs.len() as u64);
 
         let expected = "--lalala\r\n\
              content-disposition: form-data; name=\"foo\"\r\n\
@@ -722,7 +729,6 @@ mod tests {
              --lalala--\r\n";
 
         assert_eq!(Bytes::from(expected), bs);
-
         Ok(())
     }
 
@@ -744,8 +750,9 @@ mod tests {
             .part(FormDataPart::new("Signature").content("0RavWzkygo6QX9caELEqKi9kDbU="))
             .part(FormDataPart::new("file").header(CONTENT_TYPE, "image/jpeg".parse().unwrap()).content("...file content...")).part(FormDataPart::new("submit").content("Upload to Amazon S3"));
 
-        let (_, body) = multipart.build();
+        let (size, body) = multipart.build();
         let bs = body.collect().await?;
+        assert_eq!(size, bs.len() as u64);
 
         let expected = r#"--9431149156168
 content-disposition: form-data; name="key"
@@ -867,8 +874,9 @@ Upload to Amazon S3
                     .content(r#"{"metadata": {"type": "calico"}}"#),
             );
 
-        let (_, body) = multipart.build();
+        let (size, body) = multipart.build();
         let bs = body.collect().await?;
+        assert_eq!(size, bs.len() as u64);
 
         let expected = r#"--===============7330845974216740156==
 Content-Type: application/http
@@ -972,8 +980,9 @@ content-length: 32
                     .header("content-length".parse().unwrap(), "0".parse().unwrap()),
             );
 
-        let (_, body) = multipart.build();
+        let (size, body) = multipart.build();
         let bs = body.collect().await?;
+        assert_eq!(size, bs.len() as u64);
 
         let expected = r#"--batch_357de4f7-6d0b-4e02-8cd2-6361411a9525
 Content-Type: application/http

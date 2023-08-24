@@ -593,19 +593,48 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn writer(&self, path: &str) -> Result<BlockingWriter> {
+        self.writer_with(path).call()
+    }
+
+    /// Create a new reader with extra options
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// use opendal::BlockingOperator;
+    /// use opendal::EntryMode;
+    /// use opendal::Metakey;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut w = op.writer_with("path/to/file").call()?;
+    /// w.write(vec![0; 4096])?;
+    /// w.write(vec![1; 4096])?;
+    /// w.close()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn writer_with(&self, path: &str) -> FunctionWriter {
         let path = normalize_path(path);
 
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("BlockingOperator::writer")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
+        FunctionWriter(OperatorFunction::new(
+            self.inner().clone(),
+            path,
+            OpWrite::default(),
+            |inner, path, args| {
+                let path = normalize_path(&path);
 
-        let op = OpWrite::default();
-        BlockingWriter::create(self.inner().clone(), &path, op)
+                if !validate_path(&path, EntryMode::FILE) {
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "write path is a directory")
+                            .with_operation("BlockingOperator::writer_with")
+                            .with_context("service", inner.info().scheme().into_static())
+                            .with_context("path", &path),
+                    );
+                }
+
+                BlockingWriter::create(inner.clone(), &path, args)
+            },
+        ))
     }
 
     /// Delete given path.

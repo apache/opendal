@@ -30,12 +30,18 @@ use crate::raw::*;
 use crate::*;
 
 /// Cursor is the cursor for [`Bytes`] that implements [`oio::Read`]
+#[derive(Default)]
 pub struct Cursor {
     inner: Bytes,
     pos: u64,
 }
 
 impl Cursor {
+    /// Create a new empty cursor.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Returns `true` if the remaining slice is empty.
     pub fn is_empty(&self) -> bool {
         self.pos as usize >= self.inner.len()

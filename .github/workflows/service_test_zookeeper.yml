@@ -45,7 +45,7 @@ jobs:
         ports:
           - 2181:2181
         env:
-          JVMFLAGS: $JVMFLAGS -Djute.maxbuffer=50000000
+          JVMFLAGS: $JVMFLAGS -Djute.maxbuffer=50000000 -Xmx4096m
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain

@@ -546,6 +546,12 @@ impl Future for FutureDelete {
 pub struct FutureList(pub(crate) OperatorFuture<OpList, Vec<Entry>>);
 
 impl FutureList {
+    /// Change the limit of this list operation.
+    pub fn limit(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|args| args.with_limit(v));
+        self
+    }
+
     /// Change the start_after of this list operation.
     pub fn start_after(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_start_after(v));

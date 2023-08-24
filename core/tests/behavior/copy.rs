@@ -40,12 +40,12 @@ pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
 
 /// Copy a file and test with stat.
 pub async fn test_copy_file(op: Operator) -> Result<()> {
-    let source_path = uuid::Uuid::new_v4().to_string();
+    let source_path = format!("{}🐂🍺中文.docx", uuid::Uuid::new_v4());
     let (source_content, _) = gen_bytes();
 
     op.write(&source_path, source_content.clone()).await?;
 
-    let target_path = uuid::Uuid::new_v4().to_string();
+    let target_path = format!("{}😈🐅日本語.docx", uuid::Uuid::new_v4());
 
     op.copy(&source_path, &target_path).await?;
 

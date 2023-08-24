@@ -631,7 +631,7 @@ impl BlockingOperator {
                             .with_context("path", &path),
                     );
                 }
-        
+
                 BlockingWriter::create(inner.clone(), &path, args)
             },
         ))

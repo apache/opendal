@@ -1588,7 +1588,7 @@ dependencies = [
  "pin-project",
  "pin-utils",
  "regex",
- "time 0.3.25",
+ "time 0.3.22",
  "tokio",
  "url",
  "uuid",
@@ -6228,7 +6228,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "thiserror",
- "time 0.3.25",
+ "time 0.3.22",
 ]
 
 [[package]]
@@ -6674,7 +6674,7 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.25"
+version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fdd63d58b18d663fbdf70e049f00a22c8e42be082203be7f26589213cd75ea"
 dependencies = [
@@ -7837,7 +7837,7 @@ dependencies = [
  "hmac",
  "pbkdf2",
  "sha1",
- "time 0.3.25",
+ "time 0.3.22",
  "zstd",
 ]
 

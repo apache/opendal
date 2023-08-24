@@ -593,19 +593,7 @@ impl BlockingOperator {
     /// # }
     /// ```
     pub fn writer(&self, path: &str) -> Result<BlockingWriter> {
-        let path = normalize_path(path);
-
-        if !validate_path(&path, EntryMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::IsADirectory, "write path is a directory")
-                    .with_operation("BlockingOperator::writer")
-                    .with_context("service", self.info().scheme().into_static())
-                    .with_context("path", &path),
-            );
-        }
-
-        let op = OpWrite::default();
-        BlockingWriter::create(self.inner().clone(), &path, op)
+        self.writer_with(path).call()
     }
 
     /// Create a new reader with extra options

@@ -32,8 +32,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 
-use substring::Substring;
 use futures::future::{BoxFuture, FutureExt};
+use substring::Substring;
 
 use log::warn;
 
@@ -177,11 +177,24 @@ impl ZkAdapter {
         }
     }
 
-    fn create_nested_node<'a>(&'a self, path: &'a str, value: &'a [u8]) -> BoxFuture<'a, Result<()>> {
+    fn create_nested_node<'a>(
+        &'a self,
+        path: &'a str,
+        value: &'a [u8],
+    ) -> BoxFuture<'a, Result<()>> {
         eprintln!("{path}");
         let mut path = path.to_string();
         async move {
-            return match self.get_connection().await?.create(&path, value, &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl)).await {
+            return match self
+                .get_connection()
+                .await?
+                .create(
+                    &path,
+                    value,
+                    &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl),
+                )
+                .await
+            {
                 Ok(_) => Ok(()),
                 Err(e) => match e {
                     zk::Error::NoNode => {
@@ -192,28 +205,39 @@ impl ZkAdapter {
                             path = "/".to_string() + path.strip_suffix('/').unwrap_or(&path);
                         }
                         match self.create_nested_node(&path, value).await {
-                            Ok(()) => {},
-                            Err(e) => return Err(Error::new(
-                                ErrorKind::Unexpected,
-                                "error from zookeeper",
-                            ).set_source(e))
+                            Ok(()) => {}
+                            Err(e) => {
+                                return Err(Error::new(
+                                    ErrorKind::Unexpected,
+                                    "error from zookeeper",
+                                )
+                                .set_source(e))
+                            }
                         };
-                        match self.get_connection().await?.create(&tmpath, value, &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl)).await {
+                        match self
+                            .get_connection()
+                            .await?
+                            .create(
+                                &tmpath,
+                                value,
+                                &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl),
+                            )
+                            .await
+                        {
                             Ok(_) => Ok(()),
-                            Err(e) => Err(Error::new(
-                                ErrorKind::Unexpected,
-                                "error from zookeeper",
-                            ).set_source(e)),
+                            Err(e) => {
+                                Err(Error::new(ErrorKind::Unexpected, "error from zookeeper")
+                                    .set_source(e))
+                            }
                         }
                     }
-                    _ => Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "error from zookeeper",
-                    )
-                        .set_source(e)),
-                }
-            }
-        }.boxed()
+                    _ => {
+                        Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e))
+                    }
+                },
+            };
+        }
+        .boxed()
     }
 }
 
@@ -254,7 +278,7 @@ impl kv::Adapter for ZkAdapter {
             Err(e) => match e {
                 zk::Error::NoNode => {
                     return self.create_nested_node(&path, value).await;
-                },
+                }
                 _ => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
             },
         }

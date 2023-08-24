@@ -92,7 +92,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     /// # TODO
     ///
     /// We know every stream size, we can collect them into a buffer without chain them every time.
-    async fn sink(&mut self, size: u64, mut s: Streamer) -> Result<()> {
+    async fn sink(&mut self, _: u64, mut s: Streamer) -> Result<()> {
         if self.buffer.len() >= self.buffer_size {
             let mut buf = self.buffer.clone();
             let to_write = buf.split_to(self.buffer_size);

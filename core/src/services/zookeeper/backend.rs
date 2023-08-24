@@ -37,8 +37,6 @@ use substring::Substring;
 
 use log::warn;
 
-use log::warn;
-
 const DEFAULT_ZOOKEEPER_ENDPOINT: &str = "127.0.0.1:2181";
 /// The scheme for zookeeper authentication
 /// currently we do not support sasl authentication

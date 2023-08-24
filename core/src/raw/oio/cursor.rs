@@ -313,7 +313,7 @@ impl ChunkedCursor {
     #[cfg(test)]
     fn concat(&self) -> Bytes {
         let mut bs = BytesMut::new();
-        for v in &self.inner {
+        for v in self.inner.iter().skip(self.idx) {
             bs.extend_from_slice(v);
         }
         bs.freeze()

@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::{StreamExt, Streamer};
-use crate::raw::*;
-use crate::*;
 use async_trait::async_trait;
 use bytes::Bytes;
+
+use crate::raw::oio::StreamExt;
+use crate::raw::oio::Streamer;
+use crate::raw::*;
+use crate::*;
 
 /// AtLeastBufWriter is used to implement [`oio::Write`] based on at least buffer strategy: flush
 /// the underlying storage when the buffered size is larger.

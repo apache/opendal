@@ -23,7 +23,8 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::{MultipartUploadPart, Streamer};
+use crate::raw::oio::MultipartUploadPart;
+use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 

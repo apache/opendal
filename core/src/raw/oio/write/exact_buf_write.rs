@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::{StreamExt, Streamer};
-use crate::raw::*;
-use crate::*;
+use std::cmp::min;
+
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::cmp::min;
+
+use crate::raw::oio::StreamExt;
+use crate::raw::oio::Streamer;
+use crate::raw::*;
+use crate::*;
 
 /// ExactBufWriter is used to implement [`oio::Write`] based on exact buffer strategy: flush the
 /// underlying storage when the buffered size is exactly the same as the buffer size.
@@ -91,11 +94,11 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     /// We know every stream size, we can collect them into a buffer without chain them every time.
     async fn sink(&mut self, size: u64, mut s: Streamer) -> Result<()> {
         // Collect the stream into buffer directly if the buffet is not full.
-        if self.buffer_stream.is_none() {
-            if self.buffer.len() as u64 + size <= self.buffer_size as u64 {
-                self.buffer.push(s.collect().await?);
-                return Ok(());
-            }
+        if self.buffer_stream.is_none()
+            && self.buffer.len() as u64 + size <= self.buffer_size as u64
+        {
+            self.buffer.push(s.collect().await?);
+            return Ok(());
         }
 
         if self.buffer.len() >= self.buffer_size {
@@ -192,13 +195,17 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
 #[cfg(test)]
 mod tests {
+    use log::debug;
+    use pretty_assertions::assert_eq;
+    use rand::thread_rng;
+    use rand::Rng;
+    use rand::RngCore;
+    use sha2::Digest;
+    use sha2::Sha256;
+
     use super::*;
     use crate::raw::oio::StreamExt;
     use crate::raw::oio::Write;
-    use log::debug;
-    use pretty_assertions::assert_eq;
-    use rand::{thread_rng, Rng, RngCore};
-    use sha2::{Digest, Sha256};
 
     struct MockWriter {
         buf: Vec<u8>,

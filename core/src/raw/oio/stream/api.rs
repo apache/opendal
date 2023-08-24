@@ -18,10 +18,12 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::ready;
+use std::task::Context;
 use std::task::Poll;
-use std::task::{ready, Context};
 
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
+use bytes::BytesMut;
 use pin_project::pin_project;
 
 use crate::*;

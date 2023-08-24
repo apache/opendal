@@ -314,7 +314,7 @@ impl ChunkedCursor {
     fn concat(&self) -> Bytes {
         let mut bs = BytesMut::new();
         for v in &self.inner {
-            bs.extend_from_slice(&v);
+            bs.extend_from_slice(v);
         }
         bs.freeze()
     }
@@ -499,11 +499,15 @@ impl VectorCursor {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+    use rand::thread_rng;
+    use rand::Rng;
+    use rand::RngCore;
+    use sha2::Digest;
+    use sha2::Sha256;
+
     use super::*;
     use crate::raw::oio::StreamExt;
-    use pretty_assertions::assert_eq;
-    use rand::{thread_rng, Rng, RngCore};
-    use sha2::{Digest, Sha256};
 
     #[test]
     fn test_vector_cursor() {

@@ -151,17 +151,14 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        loop {
-            if let Some(stream) = self.buffer_stream.as_mut() {
-                let bs = stream.next().await.transpose()?;
-                match bs {
-                    None => {
-                        self.buffer_stream = None;
-                        break;
-                    }
-                    Some(bs) => {
-                        self.buffer.push(bs);
-                    }
+        while let Some(stream) = self.buffer_stream.as_mut() {
+            let bs = stream.next().await.transpose()?;
+            match bs {
+                None => {
+                    self.buffer_stream = None;
+                }
+                Some(bs) => {
+                    self.buffer.push(bs);
                 }
             }
 
@@ -233,6 +230,31 @@ mod tests {
         async fn close(&mut self) -> Result<()> {
             Ok(())
         }
+    }
+
+    #[tokio::test]
+    async fn test_exact_buf_writer_short_write() -> Result<()> {
+        let _ = tracing_subscriber::fmt()
+            .pretty()
+            .with_test_writer()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .try_init();
+
+        let mut rng = thread_rng();
+        let mut expected = vec![0; 5];
+        rng.fill_bytes(&mut expected);
+
+        let mut w = ExactBufWriter::new(MockWriter { buf: vec![] }, 10);
+
+        w.write(Bytes::from(expected.clone())).await?;
+        w.close().await?;
+
+        assert_eq!(w.inner.buf.len(), expected.len());
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&w.inner.buf)),
+            format!("{:x}", Sha256::digest(&expected))
+        );
+        Ok(())
     }
 
     #[tokio::test]

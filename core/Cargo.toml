@@ -181,6 +181,10 @@ bench = false
 harness = false
 name = "ops"
 
+[[bench]]
+harness = false
+name = "oio"
+
 [[test]]
 harness = false
 name = "behavior"

@@ -257,11 +257,8 @@ impl GcsCore {
                 AsyncBody::Bytes(bytes) => {
                     media_part = media_part.content(bytes);
                 }
-                AsyncBody::Stream(_) => {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "stream body is not supported",
-                    ));
+                AsyncBody::Stream(stream) => {
+                    media_part = media_part.stream(size.unwrap(), stream);
                 }
             }
 

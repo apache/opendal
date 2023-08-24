@@ -39,15 +39,12 @@ concurrency:
 jobs:
   zookeeper:
     runs-on: ubuntu-latest
-    services:
-      zookeeper:
-        image: zookeeper:3.8.2
-        ports:
-          - 2181:2181
-        env:
-          JVMFLAGS: $JVMFLAGS -Djute.maxbuffer=50000000 -Xmx4096m
     steps:
       - uses: actions/checkout@v3
+      - name: Setup Zookeeper Server
+        shell: bash
+        working-directory: core
+        run: docker-compose -f `pwd`/src/services/zookeeper/fixtures/docker-compose-zookeeper.yml up -d
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:

@@ -44,6 +44,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 const DEFAULT_WRITE_FIXED_SIZE: usize = 8 * 1024 * 1024;
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GcsBuilder {
     /// root URI, all operations happens under `root`

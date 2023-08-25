@@ -111,3 +111,4 @@ To connect to r2, we need to set:
 - `bucket`: The bucket name of r2.
 - `region`: When you create a new bucket, the data location is set to Automatic by default. So please use `auto` for region.
 - `batch_max_operations`: R2's delete objects will return `Internal Error` if the batch is larger than `700`. Please set this value `<= 700` to make sure batch delete work as expected.
+- `enable_exact_buf_write`: R2 requires the non-tailing parts size to be exactly the same. Please enable this option to avoid the error `All non-trailing parts must have the same length`.

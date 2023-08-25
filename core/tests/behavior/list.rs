@@ -342,7 +342,7 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
     let dir = &format!("{}/", uuid::Uuid::new_v4());
     op.create_dir(dir).await?;
 
-    let given: Vec<String> = vec!["file-0", "file-1", "file-2", "file-3", "file-4", "file-5"]
+    let given: Vec<String> = ["file-0", "file-1", "file-2", "file-3", "file-4", "file-5"]
         .iter()
         .map(|name| format!("{dir}{name}-{}", uuid::Uuid::new_v4()))
         .collect();
@@ -392,7 +392,7 @@ pub async fn test_scan_root(op: Operator) -> Result<()> {
 pub async fn test_scan(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
-    let expected = vec![
+    let expected = [
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
@@ -431,7 +431,7 @@ pub async fn test_scan(op: Operator) -> Result<()> {
 pub async fn test_remove_all(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
-    let expected = vec![
+    let expected = [
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {

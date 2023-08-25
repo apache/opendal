@@ -18,11 +18,10 @@ import TabItem from '@theme/TabItem';
   <TabItem value="rust" label="Rust" default>
 
 ```rust
-use std::sync::Arc;
-
 use anyhow::Result;
-use opendal::Scheme;
 use opendal::Operator;
+use opendal::Scheme;
+use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -1194,7 +1194,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
-    let reader = Cursor::new(vec![content_a.clone(), content_b.clone()].concat());
+    let reader = Cursor::new([content_a.clone(), content_b.clone()].concat());
 
     let mut w = op
         .writer_with(&path)

@@ -36,6 +36,7 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
+use serde_json::json;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
@@ -241,7 +242,7 @@ impl GcsCore {
                         CONTENT_TYPE,
                         "application/json; charset=UTF-8".parse().unwrap(),
                     )
-                    .content(format!("{{\"storageClass\": \"{}\"}}", storage_class)),
+                    .content(json!({"storageClass": storage_class}).to_string()),
             );
 
             let mut media_part = FormDataPart::new("media").header(

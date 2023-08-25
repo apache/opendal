@@ -40,6 +40,7 @@ async fn main() -> Result<()> {
 
     // set the storage bucket for OpenDAL
     builder.bucket("test");
+    builder.endpoint("obs.cn-north-1.myhuaweicloud.com");
     // Set the access_key_id and secret_access_key.
     //
     // OpenDAL will try load credential from the env.

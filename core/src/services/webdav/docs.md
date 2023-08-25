@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     let mut builder = Webdav::default();
 
     builder.endpoint("127.0.0.1");
-    builder.username("xxx")
+    builder.username("xxx");
     builder.password("xxx");
 
     let op: Operator = Operator::new(builder)?.finish();

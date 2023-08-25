@@ -66,6 +66,8 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
+      - name: Set up protoc
+        run: sudo apt install -y protobuf-compiler
       - name: Build and test
         working-directory: bindings/java
         # `install` is required to verify reproducible builds:

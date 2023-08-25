@@ -32,56 +32,8 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// HTTP Read-only service support like Nginx and Caddy.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [ ] ~~write~~
-/// - [ ] ~~create_dir~~
-/// - [ ] ~~delete~~
-/// - [ ] ~~copy~~
-/// - [ ] ~~rename~~
-/// - [ ] ~~list~~
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [ ] blocking
-///
-/// # Notes
-///
-/// Only `read` ans `stat` are supported. We can use this service to visit any
-/// HTTP Server like nginx, caddy.
-///
-/// # Configuration
-///
-/// - `endpoint`: set the endpoint for http
-/// - `root`: Set the work directory for backend
-///
-/// You can refer to [`HttpBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Http;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Http::default();
-///
-///     builder.endpoint("127.0.0.1");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///     Ok(())
-/// }
-/// ```
+/// HTTP Read-only service support like [Nginx](https://www.nginx.com/) and [Caddy](https://caddyserver.com/).
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HttpBuilder {
     endpoint: Option<String>,

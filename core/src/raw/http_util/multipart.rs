@@ -410,7 +410,15 @@ impl MixedPart {
                 bs.len() as u64,
                 Some(Box::new(oio::Cursor::from(bs)) as Streamer),
             ),
-            AsyncBody::Stream(_) => panic!("multipart request can't contain stream body"),
+            AsyncBody::Stream(stream) => {
+                let len = parts
+                    .headers
+                    .get(CONTENT_LENGTH)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .expect("the content length of a mixed part must be valid");
+                (len, Some(stream))
+            }
         };
 
         Self {

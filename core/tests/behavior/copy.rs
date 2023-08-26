@@ -40,20 +40,24 @@ pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
 
 /// Copy a file and test with stat.
 pub async fn test_copy_file(op: Operator) -> Result<()> {
-    let source_path = format!("{}🐂🍺中文.docx", uuid::Uuid::new_v4());
-    let (source_content, _) = gen_bytes();
+    let ascii_path_pair = (
+        uuid::Uuid::new_v4().to_string(),
+        uuid::Uuid::new_v4().to_string(),
+    );
+    let non_ascii_path_pair = ("🐂🍺中文.docx".to_string(), "😈🐅Français.docx".to_string());
+    for (source_path, target_path) in [ascii_path_pair, non_ascii_path_pair] {
+        let (source_content, _) = gen_bytes();
 
-    op.write(&source_path, source_content.clone()).await?;
+        op.write(&source_path, source_content.clone()).await?;
 
-    let target_path = format!("{}😈🐅日本語.docx", uuid::Uuid::new_v4());
+        op.copy(&source_path, &target_path).await?;
 
-    op.copy(&source_path, &target_path).await?;
+        let target_content = op.read(&target_path).await.expect("read must succeed");
+        assert_eq!(target_content, source_content);
 
-    let target_content = op.read(&target_path).await.expect("read must succeed");
-    assert_eq!(target_content, source_content);
-
-    op.delete(&source_path).await.expect("delete must succeed");
-    op.delete(&target_path).await.expect("delete must succeed");
+        op.delete(&source_path).await.expect("delete must succeed");
+        op.delete(&target_path).await.expect("delete must succeed");
+    }
     Ok(())
 }
 

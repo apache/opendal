@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
     builder.root("/path/to/dir");
     // Set the bucket name. This is required.
     builder.bucket("test");
-    // Set the region. This is only required for aws s3.
+    // Set the region. This is required for some services, if you don't care about it, for example Minio service, just set it to "auto", it will be ignored.
     builder.region("us-east-1");
     // Set the endpoint.
     //

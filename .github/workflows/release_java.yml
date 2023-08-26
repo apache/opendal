@@ -62,6 +62,7 @@ jobs:
         uses: arduino/setup-protoc@v2
         with:
           version: "23.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify reproducibility before staging
         working-directory: bindings/java
         run: |

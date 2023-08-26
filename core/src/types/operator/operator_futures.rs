@@ -395,6 +395,19 @@ impl FutureWrite {
         self
     }
 
+    /// Set the buffer size of op.
+    ///
+    /// If buffer size is set, the data will be buffered by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum buffer size while perform write operations like
+    /// multipart uploads. So the buffer size may be larger than the given buffer size.
+    pub fn buffer_size(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|(args, bs)| (args.with_buffer_size(v), bs));
+        self
+    }
+
     /// Set the content length of op.
     ///
     /// If the content length is not set, the content length will be
@@ -454,6 +467,19 @@ impl FutureWriter {
     /// Service could return `Unsupported` if the underlying storage does not support append.
     pub fn append(mut self, v: bool) -> Self {
         self.0 = self.0.map_args(|args| args.with_append(v));
+        self
+    }
+
+    /// Set the buffer size of op.
+    ///
+    /// If buffer size is set, the data will be buffered by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// Service could have their own minimum buffer size while perform write operations like
+    /// multipart uploads. So the buffer size may be larger than the given buffer size.
+    pub fn buffer_size(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|args| args.with_buffer_size(v));
         self
     }
 
@@ -520,6 +546,12 @@ impl Future for FutureDelete {
 pub struct FutureList(pub(crate) OperatorFuture<OpList, Vec<Entry>>);
 
 impl FutureList {
+    /// Change the limit of this list operation.
+    pub fn limit(mut self, v: usize) -> Self {
+        self.0 = self.0.map_args(|args| args.with_limit(v));
+        self
+    }
+
     /// Change the start_after of this list operation.
     pub fn start_after(mut self, v: &str) -> Self {
         self.0 = self.0.map_args(|args| args.with_start_after(v));

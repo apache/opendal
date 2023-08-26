@@ -23,7 +23,6 @@ use std::time::Duration;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use bytes::Bytes;
-use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -37,6 +36,7 @@ use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleToken;
 use reqsign::GoogleTokenLoader;
+use serde_json::json;
 
 use super::uri::percent_encode_path;
 use crate::raw::*;
@@ -234,28 +234,38 @@ impl GcsCore {
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(storage_class) = &self.default_storage_class {
-            req = req.header(CONTENT_TYPE, "multipart/related; boundary=my-boundary");
+            let mut multipart = Multipart::new();
 
-            let mut req_body = BytesMut::with_capacity(100);
-            write!(
-                &mut req_body,
-                "--my-boundary\nContent-Type: application/json; charset=UTF-8\n\n{{\"storageClass\": \"{}\"}}\n\n--my-boundary\n",
-                storage_class
-            ).unwrap();
+            multipart = multipart.part(
+                FormDataPart::new("metadata")
+                    .header(
+                        CONTENT_TYPE,
+                        "application/json; charset=UTF-8".parse().unwrap(),
+                    )
+                    .content(json!({"storageClass": storage_class}).to_string()),
+            );
 
-            if let Some(mime) = content_type {
-                write!(&mut req_body, "Content-Type: {}\n\n", mime).unwrap();
-            } else {
-                write!(&mut req_body, "Content-Type: application/octet-stream\n\n").unwrap();
+            let mut media_part = FormDataPart::new("media").header(
+                CONTENT_TYPE,
+                content_type
+                    .unwrap_or("application/octet-stream")
+                    .parse()
+                    .unwrap(),
+            );
+
+            match body {
+                AsyncBody::Empty => {}
+                AsyncBody::Bytes(bytes) => {
+                    media_part = media_part.content(bytes);
+                }
+                AsyncBody::Stream(stream) => {
+                    media_part = media_part.stream(size.unwrap(), stream);
+                }
             }
 
-            if let AsyncBody::Bytes(bytes) = body {
-                req_body.extend_from_slice(&bytes);
-            }
-            write!(&mut req_body, "\n--my-boundary").unwrap();
+            multipart = multipart.part(media_part);
 
-            let req_body = AsyncBody::Bytes(req_body.freeze());
-            let req = req.body(req_body).map_err(new_request_build_error)?;
+            let req = multipart.apply(Request::post(url))?;
             Ok(req)
         } else {
             if let Some(content_type) = content_type {

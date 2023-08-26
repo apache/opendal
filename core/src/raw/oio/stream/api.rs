@@ -18,10 +18,12 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
+use bytes::BytesMut;
 use pin_project::pin_project;
 
 use crate::*;
@@ -135,6 +137,29 @@ pub trait StreamExt: Stream {
     fn reset(&mut self) -> ResetFuture<'_, Self> {
         ResetFuture { inner: self }
     }
+
+    /// Chain this stream with another stream.
+    fn chain<S>(self, other: S) -> Chain<Self, S>
+    where
+        Self: Sized,
+        S: Stream,
+    {
+        Chain {
+            first: Some(self),
+            second: other,
+        }
+    }
+
+    /// Collect all items from this stream into a single bytes.
+    fn collect(self) -> Collect<Self>
+    where
+        Self: Sized,
+    {
+        Collect {
+            stream: self,
+            buf: BytesMut::new(),
+        }
+    }
 }
 
 /// Make this future `!Unpin` for compatibility with async trait methods.
@@ -170,5 +195,57 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.project();
         Pin::new(this.inner).poll_reset(cx)
+    }
+}
+
+/// Stream for the [`chain`](StreamExt::chain) method.
+#[must_use = "streams do nothing unless polled"]
+pub struct Chain<S1: Stream, S2: Stream> {
+    first: Option<S1>,
+    second: S2,
+}
+
+impl<S1: Stream, S2: Stream> Stream for Chain<S1, S2> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        if let Some(first) = self.first.as_mut() {
+            if let Some(item) = ready!(first.poll_next(cx)) {
+                return Poll::Ready(Some(item));
+            }
+
+            self.first = None;
+        }
+        self.second.poll_next(cx)
+    }
+
+    fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "chained stream doesn't support reset",
+        )))
+    }
+}
+
+/// Stream for the [`collect`](StreamExt::collect) method.
+#[must_use = "streams do nothing unless polled"]
+pub struct Collect<S> {
+    stream: S,
+    buf: BytesMut,
+}
+
+impl<S> Future for Collect<S>
+where
+    S: Stream,
+{
+    type Output = Result<Bytes>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.as_mut();
+        loop {
+            match ready!(this.stream.poll_next(cx)) {
+                Some(Ok(bs)) => this.buf.extend(bs),
+                Some(Err(err)) => return Poll::Ready(Err(err)),
+                None => return Poll::Ready(Ok(self.buf.split().freeze())),
+            }
+        }
     }
 }

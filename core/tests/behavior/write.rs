@@ -68,7 +68,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_read_not_exist,
         test_read_with_if_match,
         test_read_with_if_none_match,
-        test_fuzz_range_reader,
+        test_fuzz_reader_with_range,
         test_fuzz_offset_reader,
         test_fuzz_part_reader,
         test_read_with_dir_path,
@@ -438,7 +438,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let bs = op.range_read(&path, offset..offset + length).await?;
+    let bs = op.read_with(&path).range(offset..offset + length).await?;
     assert_eq!(bs.len() as u64, length, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -468,7 +468,7 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let bs = op.range_read(&path, offset..u32::MAX as u64).await?;
+    let bs = op.read_with(&path).range(offset..u32::MAX as u64).await?;
     assert_eq!(
         bs.len() as u64,
         size as u64 - offset,
@@ -499,7 +499,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = op.range_reader(&path, offset..offset + length).await?;
+    let mut r = op.reader_with(&path).range(offset..offset + length).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -532,7 +532,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = op.range_reader(&path, offset..).await?;
+    let mut r = op.reader_with(&path).range(offset..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -563,7 +563,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = match op.range_reader(&path, ..length).await {
+    let mut r = match op.reader_with(&path).range(..length).await {
         Ok(r) => r,
         // Not all services support range with tail range, let's tolerate this.
         Err(err) if err.kind() == ErrorKind::Unsupported => {
@@ -663,7 +663,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> Result<()> {
     Ok(())
 }
 
-pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
+pub async fn test_fuzz_reader_with_range(op: Operator) -> Result<()> {
     if !op.info().full_capability().read_with_range {
         return Ok(());
     }
@@ -677,7 +677,7 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
-    let mut o = op.range_reader(&path, 0..content.len() as u64).await?;
+    let mut o = op.reader_with(&path).range(0..content.len() as u64).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -718,7 +718,7 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
-    let mut o = op.range_reader(&path, 0..).await?;
+    let mut o = op.reader_with(&path).range(0..).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -761,7 +761,7 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
 
     let mut fuzzer =
         ObjectReaderFuzzer::new(&path, content.clone(), offset as usize, length as usize);
-    let mut o = op.range_reader(&path, offset..offset + length).await?;
+    let mut o = op.reader_with(&path).range(offset..offset + length).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {
@@ -1194,7 +1194,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
-    let reader = Cursor::new(vec![content_a.clone(), content_b.clone()].concat());
+    let reader = Cursor::new([content_a.clone(), content_b.clone()].concat());
 
     let mut w = op
         .writer_with(&path)
@@ -1233,7 +1233,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut w = op.writer(&path).await?;
+    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -1266,7 +1266,7 @@ pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
 
     let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
 
-    let mut w = op.writer(&path).await?;
+    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {

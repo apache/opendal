@@ -401,7 +401,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         from,
                         to,
                         self.ctx.error_print(&err),
-
                     )
                 };
                 err
@@ -1512,7 +1511,10 @@ impl<P: oio::Page> oio::Page for LoggingPager<P> {
             Ok(None) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished", self.ctx.scheme, self.op, self.path
+                    "service={} operation={} path={} -> finished",
+                    self.ctx.scheme,
+                    self.op,
+                    self.path
                 );
                 self.finished = true;
             }
@@ -1553,7 +1555,10 @@ impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
             Ok(None) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished", self.ctx.scheme, self.op, self.path
+                    "service={} operation={} path={} -> finished",
+                    self.ctx.scheme,
+                    self.op,
+                    self.path
                 );
                 self.finished = true;
             }

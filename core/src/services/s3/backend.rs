@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -43,6 +44,7 @@ use super::error::parse_s3_error_code;
 use super::pager::S3Pager;
 use super::writer::S3Writer;
 use crate::raw::*;
+use crate::services::s3::writer::S3Writers;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -56,7 +58,10 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
-const DEFAULT_WRITE_MIN_SIZE: usize = 8 * 1024 * 1024;
+/// The minimum multipart size of S3 is 5 MiB.
+///
+/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+const MINIMUM_MULTIPART_SIZE: usize = 5 * 1024 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
@@ -82,7 +87,7 @@ pub struct S3Builder {
     allow_anonymous: bool,
     customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
 
-    // S3 features flags
+    // S3 feature
     server_side_encryption: Option<String>,
     server_side_encryption_aws_kms_key_id: Option<String>,
     server_side_encryption_customer_algorithm: Option<String>,
@@ -90,12 +95,8 @@ pub struct S3Builder {
     server_side_encryption_customer_key_md5: Option<String>,
     default_storage_class: Option<String>,
     enable_virtual_host_style: bool,
-
-    /// the part size of s3 multipart upload, which should be 5 MiB to 5 GiB.
-    /// There is no minimum size limit on the last part of your multipart upload
-    write_min_size: Option<usize>,
-    /// batch_max_operations
     batch_max_operations: Option<usize>,
+    enable_exact_buf_write: bool,
 
     http_client: Option<HttpClient>,
 }
@@ -514,16 +515,19 @@ impl S3Builder {
         endpoint
     }
 
-    /// set the minimum size of unsized write, it should be greater than 5 MB.
-    /// Reference: [Amazon S3 multipart upload limits](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html)
-    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
-        self.write_min_size = Some(write_min_size);
-
-        self
-    }
     /// Set maximum batch operations of this backend.
     pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
         self.batch_max_operations = Some(batch_max_operations);
+
+        self
+    }
+
+    /// Enable exact buf write so that opendal will write data with exact size.
+    ///
+    /// This option is used for services like R2 which requires all parts must be the same size
+    /// except the last part.
+    pub fn enable_exact_buf_write(&mut self) -> &mut Self {
+        self.enable_exact_buf_write = true;
 
         self
     }
@@ -680,10 +684,11 @@ impl Builder for S3Builder {
             .map(|_| builder.allow_anonymous());
         map.get("default_storage_class")
             .map(|v: &String| builder.default_storage_class(v));
-        map.get("write_min_size")
-            .map(|v| builder.write_min_size(v.parse().expect("input must be a number")));
         map.get("batch_max_operations")
             .map(|v| builder.batch_max_operations(v.parse().expect("input must be a number")));
+        map.get("enable_exact_buf_write")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.enable_exact_buf_write());
 
         builder
     }
@@ -847,14 +852,6 @@ impl Builder for S3Builder {
 
         let signer = AwsV4Signer::new("s3", &region);
 
-        let write_min_size = self.write_min_size.unwrap_or(DEFAULT_WRITE_MIN_SIZE);
-        if write_min_size < 5 * 1024 * 1024 {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "The write minimum buffer size is misconfigured",
-            )
-            .with_context("service", Scheme::S3));
-        }
         let batch_max_operations = self
             .batch_max_operations
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
@@ -871,10 +868,10 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.allow_anonymous,
+                enable_exact_buf_write: self.enable_exact_buf_write,
                 signer,
                 loader,
                 client,
-                write_min_size,
                 batch_max_operations,
             }),
         })
@@ -891,7 +888,11 @@ pub struct S3Backend {
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::MultipartUploadWriter<S3Writer>;
+    type Writer = oio::ThreeWaysWriter<
+        S3Writers,
+        oio::AtLeastBufWriter<S3Writers>,
+        oio::ExactBufWriter<S3Writers>,
+    >;
     type BlockingWriter = ();
     type Pager = S3Pager;
     type BlockingPager = ();
@@ -979,10 +980,30 @@ impl Accessor for S3Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            S3Writer::new(self.core.clone(), path, args),
-        ))
+        let writer = S3Writer::new(self.core.clone(), path, args.clone());
+
+        let w = if args.content_length().is_some() {
+            S3Writers::One(oio::OneShotWriter::new(writer))
+        } else {
+            S3Writers::Two(oio::MultipartUploadWriter::new(writer))
+        };
+
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
+
+            if self.core.enable_exact_buf_write {
+                oio::ThreeWaysWriter::Three(oio::ExactBufWriter::new(w, buffer_size))
+            } else {
+                oio::ThreeWaysWriter::Two(
+                    oio::AtLeastBufWriter::new(w, buffer_size)
+                        .with_total_size(args.content_length()),
+                )
+            }
+        } else {
+            oio::ThreeWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

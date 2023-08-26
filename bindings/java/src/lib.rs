@@ -57,6 +57,7 @@ pub unsafe extern "system" fn JNI_OnLoad(vm: JavaVM, _: *mut c_void) -> jint {
                         *cell.borrow_mut() = Some(env.get_raw());
                     })
                 })
+                .enable_all()
                 .build()
                 .unwrap(),
         )

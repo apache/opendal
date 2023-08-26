@@ -23,8 +23,15 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
+
+pub type CosWriters = oio::ThreeWaysWriter<
+    oio::OneShotWriter<CosWriter>,
+    oio::MultipartUploadWriter<CosWriter>,
+    oio::AppendObjectWriter<CosWriter>,
+>;
 
 pub struct CosWriter {
     core: Arc<CosCore>,
@@ -44,15 +51,15 @@ impl CosWriter {
 }
 
 #[async_trait]
-impl oio::MultipartUploadWrite for CosWriter {
-    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+impl oio::OneShotWrite for CosWriter {
+    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
         let mut req = self.core.cos_put_object_request(
             &self.path,
             Some(size),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            body,
+            AsyncBody::Stream(stream),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -69,7 +76,10 @@ impl oio::MultipartUploadWrite for CosWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::MultipartUploadWrite for CosWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core

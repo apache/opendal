@@ -81,7 +81,7 @@ pub async fn test_fuzz_issue_2717(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut r = op.range_reader(&path, 1..2).await?;
+    let mut r = op.reader_with(&path).range(1..2).await?;
 
     // Perform a seek
     let result = r.seek(SeekFrom::End(-2)).await;

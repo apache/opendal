@@ -226,7 +226,7 @@ async fn fuzz_reader(op: Operator, input: FuzzInput) -> Result<()> {
     let mut checker = ReadChecker::new(input.size, input.range);
     op.write(&path, checker.raw_data.clone()).await?;
 
-    let mut o = op.range_reader(&path, input.range.to_range()).await?;
+    let mut o = op.reader_with(&path).range(input.range.to_range()).await?;
 
     for action in input.actions {
         match action {

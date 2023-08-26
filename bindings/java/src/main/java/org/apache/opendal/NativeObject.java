@@ -81,7 +81,7 @@ public abstract class NativeObject implements AutoCloseable {
                 doLoadLibrary();
             } catch (IOException e) {
                 libraryLoaded.set(LibraryState.NOT_LOADED);
-                throw new UncheckedIOException("Unable to load the RocksDB shared library", e);
+                throw new UncheckedIOException("Unable to load the OpenDAL shared library", e);
             }
             libraryLoaded.set(LibraryState.LOADED);
             return;
@@ -97,7 +97,7 @@ public abstract class NativeObject implements AutoCloseable {
 
     private static void doLoadLibrary() throws IOException {
         try {
-            // try dynamic library
+            // try dynamic library - the search path can be configured via "-Djava.library.path"
             System.loadLibrary("opendal_java");
             return;
         } catch (UnsatisfiedLinkError ignore) {
@@ -111,7 +111,7 @@ public abstract class NativeObject implements AutoCloseable {
         final String libraryPath = bundledLibraryPath();
         try (final InputStream is = NativeObject.class.getResourceAsStream(libraryPath)) {
             if (is == null) {
-                throw new IOException("cannot find " + libraryPath + ", broken package?");
+                throw new IOException("cannot find " + libraryPath);
             }
             final int dot = libraryPath.indexOf('.');
             final File tmpFile = File.createTempFile(libraryPath.substring(0, dot), libraryPath.substring(dot));

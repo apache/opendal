@@ -78,11 +78,11 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
+    pub enable_exact_buf_write: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
     pub client: HttpClient,
-    pub write_min_size: usize,
     pub batch_max_operations: usize,
 }
 

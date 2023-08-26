@@ -300,7 +300,7 @@ impl opendal_operator_options {
     pub unsafe extern "C" fn opendal_operator_options_free(
         options: *const opendal_operator_options,
     ) {
-        let _ = unsafe { Box::from_raw((*options).inner as *mut HashMap<String, String>) };
+        let _ = unsafe { Box::from_raw((*options).inner) };
         let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
     }
 }
@@ -348,7 +348,7 @@ impl opendal_blocking_lister {
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_free(p: *const opendal_blocking_lister) {
         unsafe {
-            let _ = Box::from_raw((*p).inner as *mut od::BlockingLister);
+            let _ = Box::from_raw((*p).inner);
             let _ = Box::from_raw(p as *mut opendal_blocking_lister);
         }
     }

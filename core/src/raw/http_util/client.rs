@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::mem;
 use std::str::FromStr;
+use std::time::Duration;
 
 use futures::TryStreamExt;
 use http::Request;
@@ -31,6 +32,8 @@ use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
+
+const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -59,6 +62,8 @@ impl HttpClient {
         builder = builder.no_brotli();
         // Make sure we don't enable auto deflate decompress.
         builder = builder.no_deflate();
+        // Make sure we don't wait a connection establishment forever.
+        builder = builder.connect_timeout(DEFAULT_CONNECT_TIMEOUT);
 
         #[cfg(feature = "trust-dns")]
         let builder = builder.trust_dns(true);

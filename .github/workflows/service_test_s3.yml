@@ -144,14 +144,21 @@ jobs:
       - name: Setup MinIO Server
         shell: bash
         working-directory: core/src/services/s3/fixtures
-        run: docker-compose -f docker-compose-minio.yml up -d
-      - name: Setup test bucket
         run: |
+          docker-compose -f docker-compose-minio.yml up -d
+      - name: Setup test bucket
+        env:
+          AWS_ACCESS_KEY_ID: "minioadmin"
+          AWS_SECRET_ACCESS_KEY: "minioadmin"
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: |
+          aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
+
           curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
           chmod +x mc
           ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
-          ./mc mb local/test
           ./mc anonymous set public local/test
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -199,3 +206,6 @@ jobs:
           # This is the R2's limitation
           # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
           OPENDAL_S3_BATCH_MAX_OPERATIONS: 700
+          # This is the R2's limitation
+          # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
+          OPENDAL_S3_ENABLE_EXACT_BUF_WRITE: true

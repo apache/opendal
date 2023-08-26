@@ -103,6 +103,10 @@ async fn main() -> Result<()> {
     // - "http://127.0.0.1:9000"
     // - "https://oss-ap-northeast-1.aliyuncs.com"
     // - "https://cos.ap-seoul.myqcloud.com"
+    // - "https://storage.googleapis.com/" 
+    //    [Note]: To access GCS via S3 API, 
+    //    please use GCS XML API which is compatible to S3 SigV4
+    //    ref: <https://cloud.google.com/storage/docs/xml-api/overview> 
     //
     // Default to "https://s3.amazonaws.com"
     builder.endpoint("https://s3.amazonaws.com");
@@ -120,6 +124,8 @@ async fn main() -> Result<()> {
 }
 
 ```
+Known issue: 
+- To access GCS via S3 API, please enable `features = ["native-tls"]` in your `Cargo.toml` to avoid connection being reset when using `rustls`. Tracking in https://github.com/seanmonstar/reqwest/issues/1809
 
 ### S3 with SSE-C
 

@@ -87,7 +87,7 @@ pub fn test_blocking_list_non_exist_dir(op: BlockingOperator) -> Result<()> {
 pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
-    let expected = vec![
+    let expected = [
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
@@ -126,7 +126,7 @@ pub fn test_blocking_scan(op: BlockingOperator) -> Result<()> {
 pub fn test_blocking_remove_all(op: BlockingOperator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
-    let expected = vec![
+    let expected = [
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
 

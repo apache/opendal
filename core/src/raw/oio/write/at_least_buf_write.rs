@@ -15,15 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio::{StreamExt, Streamer};
-use crate::raw::*;
-use crate::*;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-/// AtLeastBufWrite is used to implement [`Write`] based on at least buffer.
+use crate::raw::oio::StreamExt;
+use crate::raw::oio::Streamer;
+use crate::raw::*;
+use crate::*;
+
+/// AtLeastBufWriter is used to implement [`oio::Write`] based on at least buffer strategy: flush
+/// the underlying storage when the buffered size is larger.
 ///
-/// Users can wrap a writer and a buffer together.
+/// AtLeastBufWriter makes sure that the size of the data written to the underlying storage is at
+/// least `buffer_size` bytes. It's useful when the underlying storage has a minimum size limit.
+///
+/// For example, S3 requires at least 5MiB for multipart uploads.
 pub struct AtLeastBufWriter<W: oio::Write> {
     inner: W,
 

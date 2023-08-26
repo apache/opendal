@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
 use async_trait::async_trait;
 use bytes::Bytes;
+
+use crate::raw::*;
+use crate::*;
 
 /// OneShotWrite is used to implement [`Write`] based on one shot operation.
 /// By implementing OneShotWrite, services don't need to care about the details.

@@ -18,8 +18,8 @@ This service can be used to:
 ## Configuration
 
 - `root`: Set the work dir for backend.
-
-Refer to public API docs for more information.
+- 
+You can refer to [`FsBuilder`]'s docs for more information
 
 ## Example
 

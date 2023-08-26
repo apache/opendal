@@ -112,7 +112,7 @@ pub struct DropboxBuilder {
 
 impl Debug for DropboxBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Builder").finish()
+        f.debug_struct("Builder").field("root", &self.root).finish()
     }
 }
 

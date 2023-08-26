@@ -55,3 +55,23 @@ jobs:
           OPENDAL_GCS_ROOT: ${{ secrets.OPENDAL_GCS_ROOT }}
           OPENDAL_GCS_BUCKET: ${{ secrets.OPENDAL_GCS_BUCKET }}
           OPENDAL_GCS_CREDENTIAL: ${{ secrets.OPENDAL_GCS_CREDENTIAL }}
+
+  gcs-with-default-storage-class:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run gcs
+        env:
+          OPENDAL_GCS_TEST: ${{ secrets.OPENDAL_GCS_TEST }}
+          OPENDAL_GCS_ROOT: ${{ secrets.OPENDAL_GCS_ROOT }}
+          OPENDAL_GCS_BUCKET: ${{ secrets.OPENDAL_GCS_BUCKET }}
+          OPENDAL_GCS_CREDENTIAL: ${{ secrets.OPENDAL_GCS_CREDENTIAL }}
+          OPENDAL_GCS_DEFAULT_STORAGE_CLASS: STANDARD

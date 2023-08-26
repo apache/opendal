@@ -29,6 +29,7 @@ pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
     async_trials!(
         op,
         test_copy_file,
+        test_copy_file_with_non_ascii_name,
         test_copy_non_existing_source,
         test_copy_source_dir,
         test_copy_target_dir,
@@ -40,24 +41,37 @@ pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
 
 /// Copy a file and test with stat.
 pub async fn test_copy_file(op: Operator) -> Result<()> {
-    let ascii_path_pair = (
-        uuid::Uuid::new_v4().to_string(),
-        uuid::Uuid::new_v4().to_string(),
-    );
-    let non_ascii_path_pair = ("🐂🍺中文.docx".to_string(), "😈🐅Français.docx".to_string());
-    for (source_path, target_path) in [ascii_path_pair, non_ascii_path_pair] {
-        let (source_content, _) = gen_bytes();
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes();
 
-        op.write(&source_path, source_content.clone()).await?;
+    op.write(&source_path, source_content.clone()).await?;
 
-        op.copy(&source_path, &target_path).await?;
+    let target_path = uuid::Uuid::new_v4().to_string();
 
-        let target_content = op.read(&target_path).await.expect("read must succeed");
-        assert_eq!(target_content, source_content);
+    op.copy(&source_path, &target_path).await?;
 
-        op.delete(&source_path).await.expect("delete must succeed");
-        op.delete(&target_path).await.expect("delete must succeed");
-    }
+    let target_content = op.read(&target_path).await.expect("read must succeed");
+    assert_eq!(target_content, source_content);
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy a file and test with stat.
+pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
+    let source_path = "🐂🍺中文.docx";
+    let target_path = "😈🐅Français.docx";
+    let (source_content, _) = gen_bytes();
+
+    op.write(source_path, source_content.clone()).await?;
+    op.copy(source_path, target_path).await?;
+
+    let target_content = op.read(target_path).await.expect("read must succeed");
+    assert_eq!(target_content, source_content);
+
+    op.delete(source_path).await.expect("delete must succeed");
+    op.delete(target_path).await.expect("delete must succeed");
     Ok(())
 }
 

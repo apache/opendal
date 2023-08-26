@@ -57,6 +57,15 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.4"
+      - name: Verify reproducibility before staging
+        working-directory: bindings/java
+        run: |
+          ./mvnw clean install
+          ./mvnw verify artifact:compare
       - name: Local staging
         working-directory: bindings/java
         run: |

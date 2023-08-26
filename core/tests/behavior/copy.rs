@@ -28,7 +28,7 @@ pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
 
     async_trials!(
         op,
-        test_copy_file,
+        test_copy_file_with_ascii_name,
         test_copy_file_with_non_ascii_name,
         test_copy_non_existing_source,
         test_copy_source_dir,
@@ -39,8 +39,8 @@ pub fn behavior_copy_tests(op: &Operator) -> Vec<Trial> {
     )
 }
 
-/// Copy a file and test with stat.
-pub async fn test_copy_file(op: Operator) -> Result<()> {
+/// Copy a file with ascii name and test contents.
+pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes();
 
@@ -58,7 +58,7 @@ pub async fn test_copy_file(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Copy a file and test with stat.
+/// Copy a file with non ascii name and test contents.
 pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
     let source_path = "🐂🍺中文.docx";
     let target_path = "😈🐅Français.docx";

@@ -147,7 +147,10 @@ impl DavFileSystem for WebdavFs {
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
         async move {
             self.op
-                .copy(&from.as_url_string(), &to.as_url_string())
+                .copy(
+                    from.as_rel_ospath().to_str().unwrap(),
+                    to.as_rel_ospath().to_str().unwrap(),
+                )
                 .await
                 .map_err(convert_error)
         }
@@ -156,10 +159,24 @@ impl DavFileSystem for WebdavFs {
 
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
         async move {
-            self.op
-                .rename(from.as_url_string().as_str(), to.as_url_string().as_str())
-                .await
-                .map_err(convert_error)
+            let res = self
+                .op
+                .rename(
+                    from.as_rel_ospath().to_str().unwrap(),
+                    to.as_rel_ospath().to_str().unwrap(),
+                )
+                .await;
+            match res {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    if e.kind() == opendal::ErrorKind::Unexpected && from.is_collection() {
+                        let _ = self.remove_file(to).await;
+                        self.rename(from, to).await
+                    } else {
+                        Err(convert_error(e))
+                    }
+                }
+            }
         }
         .boxed()
     }

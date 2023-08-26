@@ -57,7 +57,13 @@ jobs:
         run: ./mvnw spotless:check
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: windows-latest
+          - os: macos-latest
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 8

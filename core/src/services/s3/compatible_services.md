@@ -48,7 +48,7 @@ builder.enable_virtual_host_style();
 To connect to minio, we need to set:
 
 - `endpoint`: The endpoint of minio, for example: `http://127.0.0.1:9000`
-- `region`: The region of minio. If not specified, it could be ignored.
+- `region`: The region of minio. If you don't care about it, just set it to "auto", it will be ignored.
 - `bucket`: The bucket name of minio.
 
 ```rust,ignore

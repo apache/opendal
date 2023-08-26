@@ -156,7 +156,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
-        let capability = self.meta.full_capability();
+        let capability = self.meta.native_capability();
         if !capability.read {
             return new_capability_unsupported_error(Operation::Read);
         }
@@ -899,7 +899,7 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut info = AccessorInfo::default();
-            info.set_full_capability(self.capability);
+            info.set_native_capability(self.capability);
 
             info
         }

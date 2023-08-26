@@ -534,6 +534,18 @@ impl AccessorInfo {
         self.native_capability
     }
 
+    /// Set native capabilities for service.
+    ///
+    /// # NOTES
+    ///
+    /// Set native capability will also flush the full capability. The only way to change
+    /// full_capability is via `full_capability_mut`.
+    pub fn set_native_capability(&mut self, capability: Capability) -> &mut Self {
+        self.native_capability = capability;
+        self.full_capability = capability;
+        self
+    }
+
     /// Get service's full capabilities.
     pub fn full_capability(&self) -> Capability {
         self.full_capability
@@ -542,11 +554,5 @@ impl AccessorInfo {
     /// Get service's full capabilities.
     pub fn full_capability_mut(&mut self) -> &mut Capability {
         &mut self.full_capability
-    }
-
-    /// Set full capabilities for service.
-    pub fn set_full_capability(&mut self, capability: Capability) -> &mut Self {
-        self.full_capability = capability;
-        self
     }
 }

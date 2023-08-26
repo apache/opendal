@@ -49,7 +49,7 @@ impl Accessor for GdriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Gdrive)
             .set_root(&self.core.root)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,

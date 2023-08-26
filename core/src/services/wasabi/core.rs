@@ -418,7 +418,7 @@ impl WasabiCore {
         }
 
         let mut req = req
-            .header(constants::X_AMZ_COPY_SOURCE, percent_encode_path(&source))
+            .header(constants::X_AMZ_COPY_SOURCE, &source)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

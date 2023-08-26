@@ -284,7 +284,7 @@ impl ObsCore {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::put(&url)
-            .header("x-obs-copy-source", percent_encode_path(&source))
+            .header("x-obs-copy-source", &source)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

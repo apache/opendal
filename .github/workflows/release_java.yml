@@ -66,12 +66,12 @@ jobs:
       - name: Verify reproducibility before staging
         working-directory: bindings/java
         run: |
-          ./mvnw clean install
-          ./mvnw verify artifact:compare
+          ./mvnw clean install "-Djni.classifier=${{ matrix.classifier }}"
+          ./mvnw verify artifact:compare "-Djni.classifier=${{ matrix.classifier }}"
       - name: Local staging
         working-directory: bindings/java
         run: |
-          mvn -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy "-Djni.classifier=${{ matrix.classifier }}" -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true "-DserverId=apache.releases.https" "-DnexusUrl=https://repository.apache.org"
+          ./mvnw -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy "-Djni.classifier=${{ matrix.classifier }}" -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true "-DserverId=apache.releases.https" "-DnexusUrl=https://repository.apache.org"
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
@@ -138,7 +138,7 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java
         run: |
-          mvn org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR -DskipStagingRepositoryClose=true -DserverId=apache.releases.https -DnexusUrl=https://repository.apache.org
+          ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR -DskipStagingRepositoryClose=true -DserverId=apache.releases.https -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}

@@ -1356,7 +1356,7 @@ impl Operator {
         Ok(rp.into_presigned_request())
     }
 
-    /// Presign an operation for read option described in OpenDAL [rfc-1735](crate::docs::rfcs::1735_operation_extension.md).
+    /// Presign an operation for read option described in OpenDAL [rfc-1735][crate::docs::rfcs::1735_operation_extension.md].
     ///
     /// You can pass `OpRead` to this method to specify the content disposition.
     ///
@@ -1426,7 +1426,7 @@ impl Operator {
         self.presign_write_with(path, expire).await
     }
 
-    /// Presign an operation for write with option described in OpenDAL [rfc-0661](crate::docs::rfcs::0661-path-in-accessor.md)
+    /// Presign an operation for write with option described in OpenDAL [rfc-0661][crate::docs::rfcs::0661-path-in-accessor.md]
     ///
     /// You can pass `OpWrite` to this method to specify the content length and content type.
     ///

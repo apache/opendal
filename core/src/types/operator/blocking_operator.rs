@@ -519,7 +519,7 @@ impl BlockingOperator {
         Ok(())
     }
 
-    /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
+    /// Write data with option described in OpenDAL [RFC-0661][`crate::docs::rfcs::rfc_0661_path_in_accessor`]
     ///
     /// # Notes
     ///

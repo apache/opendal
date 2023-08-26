@@ -1031,6 +1031,7 @@ impl Accessor for S3Backend {
 
         match status {
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+            StatusCode::NOT_FOUND => Ok(RpDelete::default()), // allow 404 when deleting a non-existing object
             _ => Err(parse_error(resp).await?),
         }
     }

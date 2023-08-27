@@ -112,3 +112,9 @@ To connect to r2, we need to set:
 - `region`: When you create a new bucket, the data location is set to Automatic by default. So please use `auto` for region.
 - `batch_max_operations`: R2's delete objects will return `Internal Error` if the batch is larger than `700`. Please set this value `<= 700` to make sure batch delete work as expected.
 - `enable_exact_buf_write`: R2 requires the non-tailing parts size to be exactly the same. Please enable this option to avoid the error `All non-trailing parts must have the same length`.
+
+### Google Cloud Storage XML API
+[Google Cloud Storage XML API](https://cloud.google.com/storage/docs/xml-api/overview) provides s3 compatible API.
+- `endpoint`: The endpoint of Google Cloud Storage XML API, for example: `https://storage.googleapis.com`
+- `bucket`: The bucket name.
+- To access GCS via S3 API, please enable `features = ["native-tls"]` in your `Cargo.toml` to avoid connection being reset when using `rustls`. Tracking in https://github.com/seanmonstar/reqwest/issues/1809

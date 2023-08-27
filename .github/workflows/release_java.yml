@@ -19,9 +19,6 @@ name: Bindings Java Release
 
 on:
   push:
-    branches:
-      # FIXME test-only; remove before merge
-      - auto-release-java
     tags:
       # Staging JARs on Apache Nexus repository for RCs. Read more on
       # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts

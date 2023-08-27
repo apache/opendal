@@ -167,18 +167,13 @@ impl DavFileSystem for WebdavFs {
                 .to_str()
                 .ok_or(FsError::GeneralFailure)?;
             let to_path = to.as_rel_ospath().to_str().ok_or(FsError::GeneralFailure)?;
-            let res = self.op.rename(from_path, to_path).await;
-            match res {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    if from.is_collection() {
-                        let _ = self.remove_file(to).await;
-                        self.rename(from, to).await
-                    } else {
-                        Err(convert_error(e))
-                    }
-                }
+            if from.is_collection() {
+                let _ = self.remove_file(to).await;
             }
+            self.op
+                .rename(from_path, to_path)
+                .await
+                .map_err(convert_error)
         }
         .boxed()
     }

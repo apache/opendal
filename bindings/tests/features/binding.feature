@@ -33,6 +33,6 @@ Feature: OpenDAL Binding
         Then The async file "test" content length must be 13
         Then The async file "test" must have content "Hello, World!"
 
-    Scenario: OpenDAL Operations with Presign
-        Given A new OpenDAL Async Operator (s3 presign only)
+    Scenario: OpenDAL Async Operations with Presign
+        Given A new OpenDAL Async Operator (presign available)
         Then The operator is available for presign

@@ -50,8 +50,8 @@ pub struct ZookeeperBuilder {
     endpoint: Option<String>,
     /// the user to connect to zookeeper service, default None
     user: Option<String>,
-    /// the path to the password file of the user to connect to zookeeper service, default None
-    digest_path: Option<String>,
+    /// the password file of the user to connect to zookeeper service, default None
+    password: Option<String>,
 }
 
 impl ZookeeperBuilder {
@@ -71,10 +71,10 @@ impl ZookeeperBuilder {
         self
     }
 
-    /// Specify the auth digest path of zookeeper service
-    pub fn digest_path(&mut self, digest_path: &str) -> &mut Self {
-        if !digest_path.is_empty() {
-            self.digest_path = Some(digest_path.to_string());
+    /// Specify the password of zookeeper service
+    pub fn password(&mut self, password: &str) -> &mut Self {
+        if !password.is_empty() {
+            self.password = Some(password.to_string());
         }
         self
     }
@@ -89,9 +89,6 @@ impl Debug for ZookeeperBuilder {
         if let Some(user) = self.user.clone() {
             ds.field("user", &user);
         }
-        if let Some(digest_path) = self.digest_path.clone() {
-            ds.field("digest_path", &digest_path);
-        }
         ds.finish()
     }
 }
@@ -105,7 +102,7 @@ impl Builder for ZookeeperBuilder {
 
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("user").map(|v| builder.user(v));
-        map.get("digest_path").map(|v| builder.digest_path(v));
+        map.get("password").map(|v| builder.password(v));
 
         builder
     }
@@ -115,14 +112,12 @@ impl Builder for ZookeeperBuilder {
             None => DEFAULT_ZOOKEEPER_ENDPOINT.to_string(),
             Some(endpoint) => endpoint,
         };
-        let (auth, acl) = match (self.user.clone(), self.digest_path.clone()) {
-            (Some(user), Some(digest_path)) => {
-                let password = std::fs::read(digest_path).map_err(parse_file_error)?;
-                let auth = [format!("{user}:").as_bytes().to_vec(), password].concat();
+        let (auth, acl) = match (self.user.clone(), self.password.clone()) {
+            (Some(user), Some(password)) => {
+                let auth = format!("{user}:{password}").as_bytes().to_vec();
                 (auth, zk::Acl::creator_all())
             }
             _ => {
-                // TODO: change to warn
                 warn!("username and password isn't set, default use `anyone` acl");
                 (Vec::<u8>::new(), zk::Acl::anyone_all())
             }

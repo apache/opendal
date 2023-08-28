@@ -31,7 +31,6 @@ use crate::*;
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io;
 
 use futures::future::{BoxFuture, FutureExt};
 use substring::Substring;
@@ -198,7 +197,7 @@ impl ZkAdapter {
                         path = path.to_string().substring(0, idx).to_string();
                         if path.as_bytes()[0] != b'/' {
                             path =
-                                build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(path));
+                                build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(&path));
                         }
                         match self.create_nested_node(&path, value).await {
                             Ok(()) => {}
@@ -296,6 +295,3 @@ fn parse_zookeeper_error(e: zk::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)
 }
 
-fn parse_file_error(e: io::Error) -> Error {
-    Error::new(ErrorKind::ConfigInvalid, "file error").set_source(e)
-}

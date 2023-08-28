@@ -61,8 +61,8 @@ jobs:
 
       - name: Check litmus test results
         run: |
+          cat litmus-0.13/litmus.log
           if grep -q "FATAL" litmus-0.13/litmus.log; then
-            cat litmus-0.13/litmus.log
             echo "Tests failed"
             exit 1
           else

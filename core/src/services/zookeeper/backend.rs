@@ -23,6 +23,7 @@ use crate::Scheme;
 use async_trait::async_trait;
 use tokio::sync::OnceCell;
 
+use crate::raw::build_rooted_abs_path;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
@@ -196,7 +197,8 @@ impl ZkAdapter {
                         let tmpath = path.clone();
                         path = path.to_string().substring(0, idx).to_string();
                         if path.as_bytes()[0] != b'/' {
-                            path = "/".to_string() + path.strip_suffix('/').unwrap_or(&path);
+                            path =
+                                build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(path));
                         }
                         match self.create_nested_node(&path, value).await {
                             Ok(()) => {}
@@ -250,7 +252,7 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let path = "/".to_string() + path.strip_suffix('/').unwrap_or(path);
+        let path = build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(path));
         match self.get_connection().await?.get_data(&path).await {
             Ok(data) => Ok(Some(data.0)),
             Err(e) => match e {
@@ -261,7 +263,7 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let path = "/".to_string() + path.strip_suffix('/').unwrap_or(path);
+        let path = build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(path));
         match self
             .get_connection()
             .await?
@@ -279,7 +281,7 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let path = "/".to_string() + path.strip_suffix('/').unwrap_or(path);
+        let path = build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(path));
         match self.get_connection().await?.delete(&path, None).await {
             Ok(()) => Ok(()),
             Err(e) => match e {

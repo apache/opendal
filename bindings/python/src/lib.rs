@@ -368,6 +368,34 @@ impl EntryMode {
     }
 }
 
+#[pyclass(module = "opendal")]
+struct PresignedRequest(od::raw::PresignedRequest);
+
+#[pymethods]
+impl PresignedRequest {
+    /// Return the URL of this request.
+    #[getter]
+    pub fn url(&self) -> String {
+        self.0.uri().to_string()
+    }
+
+    /// Return the HTTP method of this request.
+    #[getter]
+    pub fn method(&self) -> &str {
+        self.0.method().as_str()
+    }
+
+    /// Return the HTTP headers of this request.
+    #[getter]
+    pub fn headers<'p>(&'p self, py: Python<'p>) -> HashMap<&'p str, &'p PyBytes> {
+        self.0
+            .header()
+            .iter()
+            .map(|(k, v)| (k.as_str(), PyBytes::new(py, v.as_bytes())))
+            .collect()
+    }
+}
+
 fn format_pyerr(err: od::Error) -> PyErr {
     use od::ErrorKind::*;
     match err.kind() {
@@ -416,6 +444,7 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Entry>()?;
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;
+    m.add_class::<PresignedRequest>()?;
     m.add("Error", py.get_type::<Error>())?;
 
     let layers = layers::create_submodule(py)?;

@@ -88,3 +88,14 @@ async def step_impl(context, filename, size):
 async def step_impl(context, filename, content):
     bs = await context.op.read(filename)
     assert bs == content.encode()
+
+@given("A new OpenDAL Async Operator (s3 presign only)")
+def step_impl(context):
+    context.op = opendal.AsyncOperator("s3", bucket="test", region="us-east-1", access_key_id="test", secret_access_key="test")
+
+@then("The operator is available for presign")
+@async_run_until_complete
+async def step_impl(context):
+    await context.op.presign_stat("test.txt", 10)
+    await context.op.presign_read("test.txt", 10)
+    await context.op.presign_write("test.txt", 10)

@@ -162,7 +162,7 @@ impl AsyncOperator {
     }
 
     /// Presign an operation for stat(head).
-    /// 
+    ///
     /// The returned `PresignedRequest` will be expired after `expire` seconds.
     pub fn presign_stat<'p>(
         &'p self,
@@ -183,7 +183,7 @@ impl AsyncOperator {
     }
 
     /// Presign an operation for read.
-    /// 
+    ///
     /// The returned `PresignedRequest` will be expired after `expire` seconds.
     pub fn presign_read<'p>(
         &'p self,
@@ -204,7 +204,7 @@ impl AsyncOperator {
     }
 
     /// Presign an operation for write.
-    /// 
+    ///
     /// The returned `PresignedRequest` will be expired after `expire` seconds.
     pub fn presign_write<'p>(
         &'p self,

@@ -177,7 +177,6 @@ impl ZkAdapter {
         path: &'a str,
         value: &'a [u8],
     ) -> BoxFuture<'a, Result<()>> {
-        eprintln!("{path}");
         let mut path = path.to_string();
         async move {
             return match self

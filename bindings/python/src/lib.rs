@@ -27,9 +27,11 @@ use std::str::FromStr;
 use ::opendal as od;
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
+use pyo3::exceptions::PyFileExistsError;
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
+use pyo3::exceptions::PyPermissionError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -391,11 +393,9 @@ impl PresignedRequest {
         let mut headers = HashMap::new();
         for (k, v) in self.0.header().iter() {
             let k = k.as_str();
-            let v = v
-                .to_str()
-                .map_err(|err| PyValueError::new_err(err.to_string()))?;
+            let v = v.to_str().map_err(|err| Error::new_err(err.to_string()))?;
             if headers.insert(k, v).is_some() {
-                return Err(PyValueError::new_err("duplicate header"));
+                return Err(Error::new_err("duplicate header"));
             }
         }
         Ok(headers)
@@ -406,6 +406,9 @@ fn format_pyerr(err: od::Error) -> PyErr {
     use od::ErrorKind::*;
     match err.kind() {
         NotFound => PyFileNotFoundError::new_err(err.to_string()),
+        AlreadyExists => PyFileExistsError::new_err(err.to_string()),
+        PermissionDenied => PyPermissionError::new_err(err.to_string()),
+        Unsupported => PyNotImplementedError::new_err(err.to_string()),
         _ => Error::new_err(err.to_string()),
     }
 }

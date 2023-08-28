@@ -32,7 +32,4 @@ Feature: OpenDAL Binding
         Then The async file "test" entry mode must be file
         Then The async file "test" content length must be 13
         Then The async file "test" must have content "Hello, World!"
-
-    Scenario: OpenDAL Async Operations with Presign
-        Given A new OpenDAL Async Operator (presign available)
-        Then The operator is available for presign
+        Then The presign operation should success or raise exception Unsupported

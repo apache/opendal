@@ -26,6 +26,7 @@ use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
+use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 use http::Request;
@@ -107,7 +108,19 @@ impl GcsCore {
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
         let cred = self.load_token().await?;
 
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
+        self.signer
+            .sign(req, &cred)
+            .map_err(new_request_sign_error)?;
+
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        req.headers_mut().remove(HOST);
+
+        Ok(())
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
@@ -115,7 +128,17 @@ impl GcsCore {
 
         self.signer
             .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)
+            .map_err(new_request_sign_error)?;
+
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        req.headers_mut().remove(HOST);
+
+        Ok(())
     }
 
     #[inline]

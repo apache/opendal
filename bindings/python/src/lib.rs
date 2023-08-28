@@ -387,12 +387,18 @@ impl PresignedRequest {
 
     /// Return the HTTP headers of this request.
     #[getter]
-    pub fn headers<'p>(&'p self, py: Python<'p>) -> HashMap<&'p str, &'p PyBytes> {
-        self.0
-            .header()
-            .iter()
-            .map(|(k, v)| (k.as_str(), PyBytes::new(py, v.as_bytes())))
-            .collect()
+    pub fn headers(&self) -> PyResult<HashMap<&str, &str>> {
+        let mut headers = HashMap::new();
+        for (k, v) in self.0.header().iter() {
+            let k = k.as_str();
+            let v = v
+                .to_str()
+                .map_err(|err| PyValueError::new_err(err.to_string()))?;
+            if headers.insert(k, v).is_some() {
+                return Err(PyValueError::new_err("duplicate header"));
+            }
+        }
+        Ok(headers)
     }
 }
 

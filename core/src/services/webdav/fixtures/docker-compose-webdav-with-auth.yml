@@ -15,27 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-headerPath = "Apache-2.0-ASF.txt"
+version: '3.8'
 
-excludes = [
-  # Examples are served as public domain content.
-  "examples",
+services:
+  webdav:
+    image: dgraziotin/nginx-webdav-nononsense
+    ports:
+      - "8080:80"
+    volumes:
+      - webdav-data:/data
+    environment:
+      - WEBDAV_USERNAME=bar
+      - WEBDAV_PASSWORD=bar
 
-  # Well known generated files
-  "**/Cargo.lock",
-  "**/yarn.lock",
-
-  # Python binding related files
-  "**/venv/**",
-
-  # Website generated files
-  "website/build",
-  "website/.docusaurus",
-
-  # Documents
-  "**/*.md",
-  "**/*.mdx",
-
-  # Third-party source files
-  "scripts/merge_local_staging.sh",
-]
+volumes:
+  webdav-data:

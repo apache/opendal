@@ -38,13 +38,16 @@ indent_size = 2
 [*.yml]
 indent_size = 2
 
+[*.toml]
+indent_size = 2
+
 [*.json]
 indent_size = 2
 
-[*.{ts, tsx}]
+[*.{ts,tsx}]
 indent_size = 2
 
-[*.{js, jsx}]
+[*.{js,jsx}]
 indent_size = 2
 
 [*.css]

@@ -15,27 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-headerPath = "Apache-2.0-ASF.txt"
+version: '3.8'
 
-excludes = [
-  # Examples are served as public domain content.
-  "examples",
+services:
+  webdav:
+    image: dgraziotin/nginx-webdav-nononsense
+    ports:
+      - "8080:80"
+      # the following port is used by the test redirect
+      - "8081:81"
+    volumes:
+      - webdav-data:/data
+      # the following volume is used to redirect 81 port to 80 port
+      # ./config/nginx/http.conf will be appended to the default nginx.conf
+      - ./config:/config
 
-  # Well known generated files
-  "**/Cargo.lock",
-  "**/yarn.lock",
-
-  # Python binding related files
-  "**/venv/**",
-
-  # Website generated files
-  "website/build",
-  "website/.docusaurus",
-
-  # Documents
-  "**/*.md",
-  "**/*.mdx",
-
-  # Third-party source files
-  "scripts/merge_local_staging.sh",
-]
+volumes:
+  webdav-data:

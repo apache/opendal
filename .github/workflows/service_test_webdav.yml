@@ -46,15 +46,10 @@ jobs:
         with:
           need-nextest: true
 
-      - name: Install nginx full for dav_ext modules
-        run: sudo apt install nginx-full
-
       - name: Start nginx
         shell: bash
-        working-directory: core
-        run: |
-          mkdir -p /tmp/static
-          nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
+        working-directory: core/src/services/webdav/fixtures
+        run: docker compose -f docker-compose-webdav.yml up -d
 
       - name: Test
         shell: bash
@@ -73,16 +68,10 @@ jobs:
         with:
           need-nextest: true
 
-      - name: Install nginx full for dav_ext modules
-        run: sudo apt install nginx-full
-
       - name: Start nginx
         shell: bash
-        working-directory: core
-        run: |
-          mkdir -p /tmp/static
-          cp `pwd`/src/services/webdav/fixtures/htpasswd /tmp/htpasswd
-          nginx -c `pwd`/src/services/webdav/fixtures/nginx-with-basic-auth.conf
+        working-directory: core/src/services/webdav/fixtures
+        run: docker compose -f docker-compose-webdav-with-auth.yml up -d
 
       - name: Test with password
         shell: bash
@@ -103,16 +92,10 @@ jobs:
         with:
           need-nextest: true
 
-      - name: Install nginx full for dav_ext modules
-        run: sudo apt install nginx-full
-
       - name: Start nginx
         shell: bash
-        working-directory: core
-        run: |
-          mkdir -p /tmp/static
-          cp `pwd`/src/services/webdav/fixtures/htpasswd /tmp/htpasswd
-          nginx -c `pwd`/src/services/webdav/fixtures/nginx-with-basic-auth.conf
+        working-directory: core/src/services/webdav/fixtures
+        run: docker compose -f docker-compose-webdav-with-empty-passwd.yml up -d
 
       - name: Test empty password
         shell: bash
@@ -132,20 +115,10 @@ jobs:
         with:
           need-nextest: true
 
-      - name: Install nginx full for dav_ext modules
-        run: sudo apt install nginx-full
-
       - name: Start nginx
         shell: bash
-        working-directory: core
-        run: |
-          mkdir -p /tmp/static
-          mkdir -p /var/lib/nginx
-          # make nginx worker has permission to operate it
-          chmod a+rw /tmp/static/
-          # make nginx worker has permission to operate it
-          sudo chmod 777 /var/lib/nginx/body
-          nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
+        working-directory: core/src/services/webdav/fixtures
+        run: docker compose -f docker-compose-webdav.yml up -d
 
       - name: Test with redirect
         shell: bash

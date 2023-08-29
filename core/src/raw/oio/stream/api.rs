@@ -36,7 +36,15 @@ pub type Streamer = Box<dyn Stream>;
 /// It's nearly the same with [`futures::Stream`], but it satisfied
 /// `Unpin` + `Send` + `Sync`. And the item is `Result<Bytes>`.
 pub trait Stream: Unpin + Send + Sync {
-    /// Poll next item `Result<Bytes>` from the stream.
+    /// Fetch remaining size of this stream.
+    ///
+    /// # NOTES
+    ///
+    /// It's by design that we take `&mut self` here to make sure we don't have other
+    /// threads reading the same stream at the same time.
+    fn size(&mut self) -> u64;
+
+    /// Fetch next item `Result<Bytes>` from the stream.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>>;
 
     /// Reset this stream to the beginning.
@@ -44,6 +52,10 @@ pub trait Stream: Unpin + Send + Sync {
 }
 
 impl Stream for () {
+    fn size(&mut self) -> u64 {
+        unimplemented!("size is required to be implemented for oio::Stream")
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         let _ = cx;
 
@@ -60,6 +72,10 @@ impl Stream for () {
 /// `Box<dyn Stream>` won't implement `Stream` automatically.
 /// To make Streamer work as expected, we must add this impl.
 impl<T: Stream + ?Sized> Stream for Box<T> {
+    fn size(&mut self) -> u64 {
+        (**self).size()
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         (**self).poll_next(cx)
     }
@@ -70,6 +86,13 @@ impl<T: Stream + ?Sized> Stream for Box<T> {
 }
 
 impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
+    fn size(&mut self) -> u64 {
+        match self.try_lock() {
+            Ok(mut this) => this.size(),
+            Err(_) => panic!("the stream is expected to have only one consumer, but it's not"),
+        }
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         match self.try_lock() {
             Ok(mut this) => this.poll_next(cx),
@@ -92,6 +115,13 @@ impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
 }
 
 impl<T: Stream + ?Sized> Stream for Arc<tokio::sync::Mutex<T>> {
+    fn size(&mut self) -> u64 {
+        match self.try_lock() {
+            Ok(mut this) => this.size(),
+            Err(_) => panic!("the stream is expected to have only one consumer, but it's not"),
+        }
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         match self.try_lock() {
             Ok(mut this) => this.poll_next(cx),
@@ -113,6 +143,8 @@ impl<T: Stream + ?Sized> Stream for Arc<tokio::sync::Mutex<T>> {
     }
 }
 
+/// TODO: implement `FusedStream` for `Stream`
+/// TODO: implement `fn size_hint(&self) -> (usize, Option<usize>)` for `Stream`
 impl futures::Stream for dyn Stream {
     type Item = Result<Bytes>;
 
@@ -206,6 +238,10 @@ pub struct Chain<S1: Stream, S2: Stream> {
 }
 
 impl<S1: Stream, S2: Stream> Stream for Chain<S1, S2> {
+    fn size(&mut self) -> u64 {
+        self.first.as_mut().map(|v| v.size()).unwrap_or_default() + self.second.size()
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(first) = self.first.as_mut() {
             if let Some(item) = ready!(first.poll_next(cx)) {

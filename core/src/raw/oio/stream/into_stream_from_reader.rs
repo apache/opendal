@@ -33,18 +33,20 @@ use crate::*;
 const DEFAULT_CAPACITY: usize = 64 * 1024;
 
 /// Convert given futures reader into [`oio::Stream`].
-pub fn into_stream_from_reader<R>(r: R) -> FromReaderStream<R>
+pub fn into_stream_from_reader<R>(size: u64, r: R) -> FromReaderStream<R>
 where
     R: AsyncRead + Send + Sync + Unpin,
 {
     FromReaderStream {
         inner: Some(r),
+        size,
         buf: BytesMut::new(),
     }
 }
 
 pub struct FromReaderStream<R> {
     inner: Option<R>,
+    size: u64,
     buf: BytesMut,
 }
 
@@ -52,6 +54,10 @@ impl<S> oio::Stream for FromReaderStream<S>
 where
     S: AsyncRead + Send + Sync + Unpin,
 {
+    fn size(&mut self) -> u64 {
+        self.size
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         let reader = match self.inner.as_mut() {
             Some(r) => r,
@@ -77,6 +83,7 @@ where
             Ok(n) => {
                 // Safety: read_exact makes sure this buffer has been filled.
                 unsafe { self.buf.advance_mut(n) }
+                self.size -= n as u64;
 
                 let chunk = self.buf.split();
                 Poll::Ready(Some(Ok(chunk.freeze())))

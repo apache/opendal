@@ -155,7 +155,10 @@ impl HttpClient {
                 .set_source(err)
         });
 
-        let body = IncomingAsyncBody::new(Box::new(oio::into_stream(stream)), content_length);
+        let body = IncomingAsyncBody::new(
+            Box::new(oio::into_stream(content_length.unwrap_or_default(), stream)),
+            content_length,
+        );
 
         let resp = hr.body(body).expect("response must build succeed");
 

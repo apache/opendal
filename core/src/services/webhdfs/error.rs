@@ -100,7 +100,10 @@ mod tests {
     "#,
         );
         let body = IncomingAsyncBody::new(
-            Box::new(oio::into_stream(stream::iter(vec![Ok(ill_args.clone())]))),
+            Box::new(oio::into_stream(
+                ill_args.len() as u64,
+                stream::iter(vec![Ok(ill_args.clone())]),
+            )),
             None,
         );
         let resp = Response::builder()

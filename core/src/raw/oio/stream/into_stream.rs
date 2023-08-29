@@ -25,14 +25,18 @@ use crate::raw::*;
 use crate::*;
 
 /// Convert given futures stream into [`oio::Stream`].
-pub fn into_stream<S>(stream: S) -> IntoStream<S>
+pub fn into_stream<S>(size: u64, stream: S) -> IntoStream<S>
 where
     S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
 {
-    IntoStream { inner: stream }
+    IntoStream {
+        size,
+        inner: stream,
+    }
 }
 
 pub struct IntoStream<S> {
+    size: u64,
     inner: S,
 }
 
@@ -40,8 +44,15 @@ impl<S> oio::Stream for IntoStream<S>
 where
     S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
 {
+    fn size(&mut self) -> u64 {
+        self.size
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        self.inner.try_poll_next_unpin(cx)
+        self.inner.try_poll_next_unpin(cx).map_ok(|v| {
+            self.size -= v.len() as u64;
+            v
+        })
     }
 
     fn poll_reset(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {

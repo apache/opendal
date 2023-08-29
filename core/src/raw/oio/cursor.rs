@@ -161,6 +161,10 @@ impl oio::BlockingRead for Cursor {
 }
 
 impl oio::Stream for Cursor {
+    fn size(&mut self) -> u64 {
+        self.inner.len() as u64 - self.pos
+    }
+
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if self.is_empty() {
             return Poll::Ready(None);
@@ -327,6 +331,10 @@ impl ChunkedCursor {
 }
 
 impl oio::Stream for ChunkedCursor {
+    fn size(&mut self) -> u64 {
+        self.len() as u64
+    }
+
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if self.is_empty() {
             return Poll::Ready(None);

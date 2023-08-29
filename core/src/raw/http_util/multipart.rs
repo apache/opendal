@@ -112,7 +112,7 @@ impl<T: Part> Multipart<T> {
         Ok(self)
     }
 
-    pub(crate) fn build(self) -> (u64, MultipartStream<T>) {
+    pub(crate) fn build(self) -> MultipartStream<T> {
         let mut total_size = 0;
 
         let mut bs = BytesMut::new();
@@ -125,8 +125,8 @@ impl<T: Part> Multipart<T> {
         let mut parts = VecDeque::new();
         // Write headers.
         for v in self.parts.into_iter() {
-            let (size, stream) = v.format();
-            total_size += pre_part.len() as u64 + size;
+            let mut stream = v.format();
+            total_size += stream.size();
             parts.push_back(stream);
         }
 
@@ -140,15 +140,13 @@ impl<T: Part> Multipart<T> {
 
         total_size += final_part.len() as u64;
 
-        (
-            total_size,
-            MultipartStream {
-                pre_part,
-                pre_part_consumed: false,
-                parts,
-                final_part: Some(final_part),
-            },
-        )
+        MultipartStream {
+            size: total_size,
+            pre_part,
+            pre_part_consumed: false,
+            parts,
+            final_part: Some(final_part),
+        }
     }
 
     /// Consume the input and generate a request with multipart body.
@@ -156,7 +154,7 @@ impl<T: Part> Multipart<T> {
     /// This function will make sure content_type and content_length set correctly.
     pub fn apply(self, mut builder: http::request::Builder) -> Result<Request<AsyncBody>> {
         let boundary = self.boundary.clone();
-        let (content_length, stream) = self.build();
+        let mut stream = self.build();
 
         // Insert content type with correct boundary.
         builder = builder.header(
@@ -164,7 +162,7 @@ impl<T: Part> Multipart<T> {
             format!("multipart/{}; boundary={}", T::TYPE, boundary).as_str(),
         );
         // Insert content length with calculated size.
-        builder = builder.header(CONTENT_LENGTH, content_length);
+        builder = builder.header(CONTENT_LENGTH, stream.size());
 
         builder
             .body(AsyncBody::Stream(Box::new(stream)))
@@ -173,6 +171,8 @@ impl<T: Part> Multipart<T> {
 }
 
 pub struct MultipartStream<T: Part> {
+    size: u64,
+
     pre_part: Bytes,
     pre_part_consumed: bool,
 
@@ -182,10 +182,15 @@ pub struct MultipartStream<T: Part> {
 }
 
 impl<T: Part> Stream for MultipartStream<T> {
+    fn size(&mut self) -> u64 {
+        self.size
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(stream) = self.parts.front_mut() {
             if !self.pre_part_consumed {
                 self.pre_part_consumed = true;
+                self.size -= self.pre_part.len() as u64;
                 return Poll::Ready(Some(Ok(self.pre_part.clone())));
             }
             return match ready!(stream.poll_next(cx)) {
@@ -194,11 +199,18 @@ impl<T: Part> Stream for MultipartStream<T> {
                     self.parts.pop_front();
                     return self.poll_next(cx);
                 }
-                Some(v) => Poll::Ready(Some(v)),
+                Some(v) => {
+                    let v = v.map(|bs| {
+                        self.size -= bs.len() as u64;
+                        bs
+                    });
+                    Poll::Ready(Some(v))
+                }
             };
         }
 
         if let Some(final_part) = self.final_part.take() {
+            self.size -= final_part.len() as u64;
             return Poll::Ready(Some(Ok(final_part)));
         }
 
@@ -224,7 +236,7 @@ pub trait Part: Sized + 'static {
     type STREAM: Stream;
 
     /// format will generates the bytes.
-    fn format(self) -> (u64, Self::STREAM);
+    fn format(self) -> Self::STREAM;
 
     /// parse will parse the bytes into a part.
     fn parse(s: &str) -> Result<Self>;
@@ -286,7 +298,7 @@ impl Part for FormDataPart {
     const TYPE: &'static str = "form-data";
     type STREAM = FormDataPartStream;
 
-    fn format(self) -> (u64, FormDataPartStream) {
+    fn format(self) -> FormDataPartStream {
         let mut bs = BytesMut::new();
 
         // Building pre-content.
@@ -302,13 +314,11 @@ impl Part for FormDataPart {
         // pre-content + content + post-content (b`\r\n`)
         let total_size = bs.len() as u64 + self.content_length + 2;
 
-        (
-            total_size,
-            FormDataPartStream {
-                pre_content: Some(bs),
-                content: Some(self.content),
-            },
-        )
+        FormDataPartStream {
+            size: total_size,
+            pre_content: Some(bs),
+            content: Some(self.content),
+        }
     }
 
     fn parse(_: &str) -> Result<Self> {
@@ -320,6 +330,7 @@ impl Part for FormDataPart {
 }
 
 pub struct FormDataPartStream {
+    size: u64,
     /// Including headers and the first `b\r\n`
     pre_content: Option<Bytes>,
     content: Option<Streamer>,
@@ -327,8 +338,13 @@ pub struct FormDataPartStream {
 
 #[async_trait]
 impl Stream for FormDataPartStream {
+    fn size(&mut self) -> u64 {
+        self.size
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(pre_content) = self.pre_content.take() {
+            self.size -= pre_content.len() as u64;
             return Poll::Ready(Some(Ok(pre_content)));
         }
 
@@ -338,7 +354,13 @@ impl Stream for FormDataPartStream {
                     self.content = None;
                     Poll::Ready(Some(Ok(Bytes::from_static(b"\r\n"))))
                 }
-                Some(v) => Poll::Ready(Some(v)),
+                Some(v) => {
+                    let v = v.map(|bs| {
+                        self.size -= bs.len() as u64;
+                        bs
+                    });
+                    Poll::Ready(Some(v))
+                }
             };
         }
 
@@ -455,7 +477,7 @@ impl MixedPart {
         let body = if let Some(stream) = self.content {
             IncomingAsyncBody::new(stream, Some(self.content_length))
         } else {
-            IncomingAsyncBody::new(Box::new(oio::into_stream(stream::empty())), Some(0))
+            IncomingAsyncBody::new(Box::new(oio::into_stream(0, stream::empty())), Some(0))
         };
 
         builder
@@ -508,7 +530,7 @@ impl Part for MixedPart {
     const TYPE: &'static str = "mixed";
     type STREAM = MixedPartStream;
 
-    fn format(self) -> (u64, Self::STREAM) {
+    fn format(self) -> Self::STREAM {
         let mut bs = BytesMut::new();
 
         // Write parts headers.
@@ -576,13 +598,11 @@ impl Part for MixedPart {
             total_size += self.content_length + 2;
         }
 
-        (
-            total_size,
-            MixedPartStream {
-                pre_content: Some(bs),
-                content: self.content,
-            },
-        )
+        MixedPartStream {
+            size: total_size,
+            pre_content: Some(bs),
+            content: self.content,
+        }
     }
 
     /// TODO
@@ -674,14 +694,20 @@ impl Part for MixedPart {
 }
 
 pub struct MixedPartStream {
+    size: u64,
     /// Including headers and the first `b\r\n`
     pre_content: Option<Bytes>,
     content: Option<Streamer>,
 }
 
 impl Stream for MixedPartStream {
+    fn size(&mut self) -> u64 {
+        self.size
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(pre_content) = self.pre_content.take() {
+            self.size -= pre_content.len() as u64;
             return Poll::Ready(Some(Ok(pre_content)));
         }
 
@@ -689,9 +715,16 @@ impl Stream for MixedPartStream {
             return match ready!(stream.poll_next(cx)) {
                 None => {
                     self.content = None;
+                    self.size -= 2;
                     Poll::Ready(Some(Ok(Bytes::from_static(b"\r\n"))))
                 }
-                Some(v) => Poll::Ready(Some(v)),
+                Some(v) => {
+                    let v = v.map(|bs| {
+                        self.size -= bs.len() as u64;
+                        bs
+                    });
+                    Poll::Ready(Some(v))
+                }
             };
         }
 
@@ -722,7 +755,8 @@ mod tests {
             .part(FormDataPart::new("foo").content(Bytes::from("bar")))
             .part(FormDataPart::new("hello").content(Bytes::from("world")));
 
-        let (size, body) = multipart.build();
+        let mut body = multipart.build();
+        let size = body.size();
         let bs = body.collect().await.unwrap();
         assert_eq!(size, bs.len() as u64);
 
@@ -758,7 +792,8 @@ mod tests {
             .part(FormDataPart::new("Signature").content("0RavWzkygo6QX9caELEqKi9kDbU="))
             .part(FormDataPart::new("file").header(CONTENT_TYPE, "image/jpeg".parse().unwrap()).content("...file content...")).part(FormDataPart::new("submit").content("Upload to Amazon S3"));
 
-        let (size, body) = multipart.build();
+        let mut body = multipart.build();
+        let size = body.size();
         let bs = body.collect().await?;
         assert_eq!(size, bs.len() as u64);
 
@@ -882,7 +917,8 @@ Upload to Amazon S3
                     .content(r#"{"metadata": {"type": "calico"}}"#),
             );
 
-        let (size, body) = multipart.build();
+        let mut body = multipart.build();
+        let size = body.size();
         let bs = body.collect().await?;
         assert_eq!(size, bs.len() as u64);
 
@@ -988,7 +1024,8 @@ content-length: 32
                     .header("content-length".parse().unwrap(), "0".parse().unwrap()),
             );
 
-        let (size, body) = multipart.build();
+        let mut body = multipart.build();
+        let size = body.size();
         let bs = body.collect().await?;
         assert_eq!(size, bs.len() as u64);
 

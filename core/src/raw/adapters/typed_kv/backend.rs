@@ -67,8 +67,9 @@ impl<S: Adapter> Accessor for Backend<S> {
         am.set_root(&self.root);
         am.set_scheme(kv_info.scheme());
         am.set_name(kv_info.name());
+
         let kv_cap = kv_info.capabilities();
-        let cap = am.full_capability_mut();
+        let mut cap = Capability::default();
         if kv_cap.get {
             cap.read = true;
             cap.read_can_seek = true;
@@ -98,8 +99,9 @@ impl<S: Adapter> Accessor for Backend<S> {
         if cap.read && cap.write && cap.delete {
             cap.rename = true;
         }
-
         cap.blocking = true;
+
+        am.set_native_capability(cap);
 
         am
     }

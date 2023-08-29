@@ -75,6 +75,12 @@ Then('The async file {string} must have content {string}', async function (path,
   assert(bs.toString() == content)
 })
 
-Then('The presign operation should success or raise exception Unsupported', function () {
-  // TODO: please implement me.
+Then('The presign operation should success or raise exception Unsupported', async function () {
+  try {
+    await this.op.presignStat('path', 1000)
+    await this.op.presignRead('path', 1000)
+    await this.op.presignWrite('path', 1000)
+  } catch (e) {
+    assert.ok(e.message.includes('Unsupported'))
+  }
 })

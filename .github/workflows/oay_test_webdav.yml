@@ -57,12 +57,4 @@ jobs:
       - name: Run litmus tests
         run: |
           cd litmus-0.13
-          TESTS="http basic copymove" HTDOCS=htdocs TESTROOT=. ./litmus http://localhost:3000 | while IFS= read -r line;
-          do
-            echo "$line"
-            if echo "$line" | grep -q "FATAL"; then
-              echo "Tests failed"
-              exit 1
-            fi
-          done
-          echo "All tests passed"
+          TESTS="http basic copymove" HTDOCS=htdocs TESTROOT=. ./litmus http://localhost:3000

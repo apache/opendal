@@ -161,19 +161,17 @@ impl AsyncOperator {
         })
     }
 
-    /// Presign an operation for stat(head).
-    ///
-    /// The returned `PresignedRequest` will be expired after `expire` seconds.
+    /// Presign an operation for stat(head) which expires after `expire_second` seconds.
     pub fn presign_stat<'p>(
         &'p self,
         py: Python<'p>,
         path: String,
-        expire: u64,
+        expire_second: u64,
     ) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
-                .presign_stat(&path, Duration::from_secs(expire))
+                .presign_stat(&path, Duration::from_secs(expire_second))
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;
@@ -182,19 +180,17 @@ impl AsyncOperator {
         })
     }
 
-    /// Presign an operation for read.
-    ///
-    /// The returned `PresignedRequest` will be expired after `expire` seconds.
+    /// Presign an operation for read which expires after `expire_second` seconds.
     pub fn presign_read<'p>(
         &'p self,
         py: Python<'p>,
         path: String,
-        expire: u64,
+        expire_second: u64,
     ) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
-                .presign_read(&path, Duration::from_secs(expire))
+                .presign_read(&path, Duration::from_secs(expire_second))
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;
@@ -203,19 +199,17 @@ impl AsyncOperator {
         })
     }
 
-    /// Presign an operation for write.
-    ///
-    /// The returned `PresignedRequest` will be expired after `expire` seconds.
+    /// Presign an operation for write which expires after `expire_second` seconds.
     pub fn presign_write<'p>(
         &'p self,
         py: Python<'p>,
         path: String,
-        expire: u64,
+        expire_second: u64,
     ) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res = this
-                .presign_write(&path, Duration::from_secs(expire))
+                .presign_write(&path, Duration::from_secs(expire_second))
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;

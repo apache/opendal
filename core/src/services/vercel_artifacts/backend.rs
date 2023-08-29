@@ -54,7 +54,7 @@ impl Accessor for VercelArtifactsBackend {
     fn info(&self) -> AccessorInfo {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::VercelArtifacts)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,

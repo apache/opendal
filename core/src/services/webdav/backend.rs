@@ -230,7 +230,7 @@ impl Accessor for WebdavBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,

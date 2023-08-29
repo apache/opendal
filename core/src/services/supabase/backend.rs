@@ -169,7 +169,7 @@ impl Accessor for SupabaseBackend {
         am.set_scheme(Scheme::Supabase)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,

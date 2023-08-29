@@ -254,7 +254,7 @@ impl Accessor for FsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root.to_string_lossy())
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,

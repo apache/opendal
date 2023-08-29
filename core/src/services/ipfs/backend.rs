@@ -172,7 +172,7 @@ impl Accessor for IpfsBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,

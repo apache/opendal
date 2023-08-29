@@ -169,7 +169,7 @@ impl From<Metadata> for AccessorInfo {
         let mut am = AccessorInfo::default();
         am.set_name(m.name());
         am.set_scheme(m.scheme());
-        am.set_full_capability(m.capabilities());
+        am.set_native_capability(m.capabilities());
 
         am
     }

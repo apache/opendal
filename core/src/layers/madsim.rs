@@ -160,7 +160,7 @@ impl LayeredAccessor for MadsimAccessor {
         let mut info = AccessorInfo::default();
         info.set_name("madsim");
 
-        info.set_full_capability(Capability {
+        info.set_native_capability(Capability {
             read: true,
             write: true,
             ..Default::default()

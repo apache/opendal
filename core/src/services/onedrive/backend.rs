@@ -73,7 +73,7 @@ impl Accessor for OnedriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Onedrive)
             .set_root(&self.root)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 read: true,
                 write: true,
                 stat: true,

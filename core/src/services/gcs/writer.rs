@@ -56,7 +56,7 @@ impl GcsWriter {
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
             Some(size),
-            self.op.content_type(),
+            &self.op,
             body,
         )?;
 

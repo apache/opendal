@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -208,7 +209,7 @@ impl GcsCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
+        op: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -233,7 +234,16 @@ impl GcsCore {
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if let Some(storage_class) = &self.default_storage_class {
+        let mut meta_data = HashMap::new();
+        if let Some(content_type) = op.content_type() {
+            meta_data.insert("storageClass".to_string(), content_type.to_string());
+        }
+
+        if let Some(cache_control) = op.cache_control() {
+            meta_data.insert("cacheControl".to_string(), cache_control.to_string());
+        }
+
+        if !meta_data.is_empty() {
             let mut multipart = Multipart::new();
 
             multipart = multipart.part(
@@ -242,12 +252,12 @@ impl GcsCore {
                         CONTENT_TYPE,
                         "application/json; charset=UTF-8".parse().unwrap(),
                     )
-                    .content(json!({"storageClass": storage_class}).to_string()),
+                    .content(json!(meta_data).to_string()),
             );
 
             let mut media_part = FormDataPart::new("media").header(
                 CONTENT_TYPE,
-                content_type
+                op.content_type()
                     .unwrap_or("application/octet-stream")
                     .parse()
                     .unwrap(),
@@ -268,7 +278,7 @@ impl GcsCore {
             let req = multipart.apply(Request::post(url))?;
             Ok(req)
         } else {
-            if let Some(content_type) = content_type {
+            if let Some(content_type) = op.content_type() {
                 req = req.header(CONTENT_TYPE, content_type);
             }
 

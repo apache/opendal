@@ -26,7 +26,7 @@ This service can be used to:
 
 It doesn't support password login, you can use public key instead.
 
-If you are interested in password login, please refer to [this](https://github.com/openssh-rust/openssh/issues/119) issue.
+If you are interested in password login, please refer to [this](https://github.com/apache/incubator-opendal/issues/2966) issue.
 Welcome to leave your comments or make contributions.
 
 You can refer to [`SftpBuilder`]'s docs for more information

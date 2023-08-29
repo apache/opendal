@@ -74,3 +74,7 @@ Then('The async file {string} must have content {string}', async function (path,
   let bs = await this.op.read(path)
   assert(bs.toString() == content)
 })
+
+Then('The presign operation should success or raise exception Unsupported', function () {
+  // TODO: please implement me.
+})

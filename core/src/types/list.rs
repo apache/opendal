@@ -185,10 +185,11 @@ impl Iterator for BlockingLister {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::services::Azblob;
     use futures::future;
     use futures::StreamExt;
+
+    use super::*;
+    use crate::services::Azblob;
 
     /// Inspired by <https://gist.github.com/kyle-mccarthy/1e6ae89cc34495d731b91ebf5eb5a3d9>
     ///

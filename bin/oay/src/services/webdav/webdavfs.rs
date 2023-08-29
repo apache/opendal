@@ -25,6 +25,7 @@ use dav_server::fs::DavDirEntry;
 use dav_server::fs::DavFile;
 use dav_server::fs::DavFileSystem;
 use dav_server::fs::DavMetaData;
+use dav_server::fs::FsError;
 use futures::FutureExt;
 use futures_util::Stream;
 use futures_util::StreamExt;
@@ -146,8 +147,13 @@ impl DavFileSystem for WebdavFs {
 
     fn copy<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
         async move {
+            let from_path = from
+                .as_rel_ospath()
+                .to_str()
+                .ok_or(FsError::GeneralFailure)?;
+            let to_path = to.as_rel_ospath().to_str().ok_or(FsError::GeneralFailure)?;
             self.op
-                .copy(&from.as_url_string(), &to.as_url_string())
+                .copy(from_path, to_path)
                 .await
                 .map_err(convert_error)
         }
@@ -156,8 +162,16 @@ impl DavFileSystem for WebdavFs {
 
     fn rename<'a>(&'a self, from: &'a DavPath, to: &'a DavPath) -> dav_server::fs::FsFuture<()> {
         async move {
+            let from_path = from
+                .as_rel_ospath()
+                .to_str()
+                .ok_or(FsError::GeneralFailure)?;
+            let to_path = to.as_rel_ospath().to_str().ok_or(FsError::GeneralFailure)?;
+            if from.is_collection() {
+                let _ = self.remove_file(to).await;
+            }
             self.op
-                .rename(from.as_url_string().as_str(), to.as_url_string().as_str())
+                .rename(from_path, to_path)
                 .await
                 .map_err(convert_error)
         }

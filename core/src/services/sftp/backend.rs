@@ -40,6 +40,9 @@ use crate::*;
 
 /// SFTP services support. (only works on unix)
 ///
+/// If you are interested in working on windows, please refer to [this](https://github.com/apache/incubator-opendal/issues/2963) issue.
+/// Welcome to leave your comments or make contributions.
+///
 /// Warning: Maximum number of file holdings is depending on the remote system configuration.
 ///
 /// For example, the default value is 255 in macOS, and 1024 in linux. If you want to open

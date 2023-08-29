@@ -73,10 +73,22 @@ impl GdriveCore {
     pub(crate) async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
         let path = build_rooted_abs_path(&self.root, file_path);
 
+        let mut cache = self.path_cache.lock().await;
+
+        if let Some(id) = cache.get(&path) {
+            return Ok(id.to_owned());
+        }
+
         let mut parent_id = "root".to_owned();
         let file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
 
         for (i, item) in file_path_items.iter().enumerate() {
+            let path_part = file_path_items[0..=i].join("/");
+            if let Some(id) = cache.get(&path_part) {
+                parent_id = id.to_owned();
+                continue;
+            }
+
             let mut query = format!(
                 "name = \"{}\" and \"{}\" in parents and trashed = false",
                 item, parent_id
@@ -116,6 +128,8 @@ impl GdriveCore {
                     }
 
                     parent_id = gdrive_file_list.files[0].id.clone();
+
+                    cache.insert(path_part, parent_id.clone());
                 }
                 _ => {
                     return Err(parse_error(resp).await?);
@@ -140,7 +154,15 @@ impl GdriveCore {
         let mut file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
         file_path_items.pop();
 
+        let mut cache = self.path_cache.lock().await;
+
         for (i, item) in file_path_items.iter().enumerate() {
+            let path_part = file_path_items[0..=i].join("/");
+            if let Some(id) = cache.get(&path_part) {
+                parent = id.to_owned();
+                continue;
+            }
+
             let query = format!(
                 "name = \"{}\" and \"{}\" in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
                 item, parent
@@ -179,6 +201,8 @@ impl GdriveCore {
                     } else {
                         parent = gdrive_file_list.files[0].id.clone();
                     }
+
+                    cache.insert(path_part, parent.clone());
                 }
                 StatusCode::NOT_FOUND => {
                     let parent_name = file_path_items[i];
@@ -192,6 +216,8 @@ impl GdriveCore {
                         StatusCode::OK => {
                             let parent_id = res.into_body().bytes().await?;
                             parent = String::from_utf8_lossy(&parent_id).to_string();
+
+                            cache.insert(path_part, parent.clone());
                         }
                         _ => {
                             return Err(parse_error(res).await?);

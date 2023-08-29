@@ -1,12 +1,13 @@
 # Contributing
 
-- [Setup](#setup)
-  - [Using a dev container environment](#using-a-devcontainer-environment)
-  - [Bring your own toolbox](#bring-your-own-toolbox)
-- [Prepare](#prepare)
-- [Build](#build)
-- [Test](#test)
-- [Docs](#docs)
+- [Contributing](#contributing)
+  - [Setup](#setup)
+    - [Using a dev container environment](#using-a-dev-container-environment)
+    - [Bring your own toolbox](#bring-your-own-toolbox)
+  - [Prepare](#prepare)
+  - [Build](#build)
+  - [Test](#test)
+  - [Docs](#docs)
 
 ## Setup
 
@@ -50,11 +51,19 @@ pip install maturin[patchelf]
 
 ## Build
 
-To build python binding:
+To build python binding only:
+
+```shell
+maturin build
+```
+
+To build and install python binding directly in the current virtualenv:
 
 ```shell
 maturin develop
 ```
+
+Note: `maturin develop` will be faster, but doesn't support all the features. In most development cases, we recommend using `maturin develop`.
 
 ## Test
 

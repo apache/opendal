@@ -1052,6 +1052,10 @@ impl Accessor for S3Backend {
 
         match status {
             StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+            // Allow 404 when deleting a non-existing object
+            // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
+            // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
+            StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => Err(parse_error(resp).await?),
         }
     }

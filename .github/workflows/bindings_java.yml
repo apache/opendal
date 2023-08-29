@@ -57,7 +57,13 @@ jobs:
         run: ./mvnw spotless:check
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: windows-latest
+          - os: macos-latest
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 8
@@ -66,6 +72,11 @@ jobs:
           distribution: 'temurin'
           java-version: '8'
           cache: 'maven'
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and test
         working-directory: bindings/java
         # `install` is required to verify reproducible builds:

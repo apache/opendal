@@ -101,6 +101,10 @@ impl Accessor for GdriveBackend {
                     .map_err(new_json_deserialize_error)?;
 
                 if !meta.files.is_empty() {
+                    let mut cache = self.core.path_cache.lock().await;
+
+                    cache.insert(path.to_string(), meta.files[0].id.clone());
+
                     return Ok(RpCreateDir::default());
                 }
             }
@@ -112,7 +116,17 @@ impl Accessor for GdriveBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCreateDir::default()),
+            StatusCode::OK => {
+                let body = resp.into_body().bytes().await?;
+                let meta = serde_json::from_slice::<GdriveFile>(&body)
+                    .map_err(new_json_deserialize_error)?;
+
+                let mut cache = self.core.path_cache.lock().await;
+
+                cache.insert(path.to_string(), meta.id.clone());
+
+                Ok(RpCreateDir::default())
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -185,7 +199,13 @@ impl Accessor for GdriveBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::NO_CONTENT => return Ok(RpDelete::default()),
+                StatusCode::NO_CONTENT => {
+                    let mut cache = self.core.path_cache.lock().await;
+
+                    cache.remove(path);
+
+                    return Ok(RpDelete::default());
+                }
                 _ => return Err(parse_error(resp).await?),
             }
         };

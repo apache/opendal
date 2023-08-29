@@ -369,7 +369,7 @@ impl Operator {
                     let br = args.range();
                     let (rp, mut s) = inner.read(&path, args).await?;
 
-                    let length = rp.into_metadata().contentngth() as usize;
+                    let length = rp.into_metadata().content_length() as usize;
                     let mut buffer = Vec::with_capacity(length);
 
                     let dst = buffer.spare_capacity_mut();

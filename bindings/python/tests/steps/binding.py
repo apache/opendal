@@ -88,3 +88,13 @@ async def step_impl(context, filename, size):
 async def step_impl(context, filename, content):
     bs = await context.op.read(filename)
     assert bs == content.encode()
+
+@then("The presign operation should success or raise exception Unsupported")
+@async_run_until_complete
+async def step_impl(context):
+    try:
+        await context.op.presign_stat("test.txt", 10)
+        await context.op.presign_read("test.txt", 10)
+        await context.op.presign_write("test.txt", 10)
+    except NotImplementedError:
+        pass

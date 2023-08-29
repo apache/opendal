@@ -32,7 +32,6 @@ pub fn bench(c: &mut Criterion) {
         let op = case.1.unwrap();
 
         bench_write_once(c, case.0, op.clone());
-        bench_read_lazy(c, case.0, op.clone());
     }
 }
 
@@ -64,42 +63,6 @@ fn bench_write_once(c: &mut Criterion, name: &str, op: Operator) {
 
         std::mem::drop(temp_data);
     }
-
-    group.finish()
-}
-
-fn bench_read_lazy(c: &mut Criterion, name: &str, op: Operator) {
-    let mut group = c.benchmark_group(format!("service_{name}_read_lazy"));
-
-    let mut rng = thread_rng();
-
-    let size = Size::from_mebibytes(16);
-    let content = gen_bytes(&mut rng, size.bytes() as usize);
-    let path = uuid::Uuid::new_v4().to_string();
-    let temp_data = TempData::generate(op.clone(), &path, content.clone());
-
-    group.bench_with_input("read", &(op.clone(), &path), |b, (op, path)| {
-        b.to_async(&*TOKIO).iter(|| async {
-            op.reader(path).await.unwrap();
-        })
-    });
-    group.bench_with_input("reader_zero", &(op.clone(), &path), |b, (op, path)| {
-        b.to_async(&*TOKIO).iter(|| async {
-            op.reader_with(path).range(0..1).await.unwrap();
-        })
-    });
-    group.bench_with_input("read_zero", &(op.clone(), &path), |b, (op, path)| {
-        b.to_async(&*TOKIO).iter(|| async {
-            op.read_with(path).range(0..1).await.unwrap();
-        })
-    });
-    group.bench_with_input("stat", &(op.clone(), &path), |b, (op, path)| {
-        b.to_async(&*TOKIO).iter(|| async {
-            op.stat(path).await.unwrap();
-        })
-    });
-
-    std::mem::drop(temp_data);
 
     group.finish()
 }

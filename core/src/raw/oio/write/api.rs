@@ -30,7 +30,7 @@ use crate::*;
 pub enum WriteOperation {
     /// Operation for [`Write::write`]
     Write,
-    /// Operation for [`Write::sink`]
+    /// Operation for [`Write::write`]
     Sink,
     /// Operation for [`Write::abort`]
     Abort,
@@ -95,7 +95,7 @@ pub trait Write: Unpin + Send + Sync {
     /// content length. And users will call write multiple times.
     ///
     /// Please make sure `write` is safe to re-enter.
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
+    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
@@ -106,7 +106,7 @@ pub trait Write: Unpin + Send + Sync {
 
 #[async_trait]
 impl Write for () {
-    async fn sink(&mut self, _: u64, _: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, _: u64, _: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support sink",
@@ -133,8 +133,8 @@ impl Write for () {
 /// To make Writer work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
-    async fn sink(&mut self, n: u64, s: oio::Streamer) -> Result<()> {
-        (**self).sink(n, s).await
+    async fn write(&mut self, n: u64, s: oio::Streamer) -> Result<()> {
+        (**self).write(n, s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

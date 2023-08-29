@@ -83,7 +83,7 @@ impl Writer {
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
             let bs = bs.into();
-            w.sink(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
+            w.write(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
                 .await
         } else {
             unreachable!(
@@ -132,7 +132,7 @@ impl Writer {
     {
         if let State::Idle(Some(w)) = &mut self.state {
             let s = Box::new(oio::into_stream(sink_from.map_ok(|v| v.into())));
-            w.sink(size, s).await
+            w.write(size, s).await
         } else {
             unreachable!(
                 "writer state invalid while sink, expect Idle, actual {}",
@@ -177,7 +177,7 @@ impl Writer {
     {
         if let State::Idle(Some(w)) = &mut self.state {
             let s = Box::new(oio::into_stream_from_reader(read_from));
-            w.sink(size, s).await
+            w.write(size, s).await
         } else {
             unreachable!(
                 "writer state invalid while copy, expect Idle, actual {}",
@@ -253,7 +253,8 @@ impl AsyncWrite for Writer {
                     let size = bs.len();
                     let fut = async move {
                         // FIXME: we should bench here to measure the perf.
-                        w.sink(size as u64, Box::new(oio::Cursor::from(bs))).await?;
+                        w.write(size as u64, Box::new(oio::Cursor::from(bs)))
+                            .await?;
                         Ok((size, w))
                     };
                     self.state = State::Write(Box::pin(fut));
@@ -321,7 +322,8 @@ impl tokio::io::AsyncWrite for Writer {
                     let size = bs.len();
                     let fut = async move {
                         // FIXME: we should bench here to measure the perf.
-                        w.sink(size as u64, Box::new(oio::Cursor::from(bs))).await?;
+                        w.write(size as u64, Box::new(oio::Cursor::from(bs)))
+                            .await?;
                         Ok((size, w))
                     };
                     self.state = State::Write(Box::pin(fut));

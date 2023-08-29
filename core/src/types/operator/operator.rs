@@ -730,7 +730,7 @@ impl Operator {
 
                     let (_, mut w) = inner.write(&path, args).await?;
                     // FIXME: we should bench here to measure the perf.
-                    w.sink(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
+                    w.write(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
                         .await?;
                     w.close().await?;
 

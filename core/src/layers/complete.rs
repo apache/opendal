@@ -711,7 +711,7 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         if let Some(total_size) = self.size {
             if self.written + size > total_size {
                 return Err(Error::new(
@@ -727,7 +727,7 @@ where
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        w.sink(size, s).await?;
+        w.write(size, s).await?;
         self.written += size;
         Ok(())
     }

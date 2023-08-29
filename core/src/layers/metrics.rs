@@ -847,9 +847,9 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         self.inner
-            .sink(size, s)
+            .write(size, s)
             .await
             .map(|_| self.bytes += size)
             .map_err(|err| {

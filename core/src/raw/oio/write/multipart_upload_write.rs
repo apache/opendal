@@ -119,7 +119,7 @@ impl<W> oio::Write for MultipartUploadWriter<W>
 where
     W: MultipartUploadWrite,
 {
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         let upload_id = self.upload_id().await?;
 
         self.inner

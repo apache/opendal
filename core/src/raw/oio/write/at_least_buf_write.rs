@@ -63,11 +63,11 @@ impl<W: oio::Write> AtLeastBufWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn write(&mut self, size: u64, s: Streamer) -> Result<()> {
         // If total size is known and equals to given stream, we can write it directly.
         if let Some(total_size) = self.total_size {
             if total_size == size {
-                return self.inner.sink(size, s).await;
+                return self.inner.write(size, s).await;
             }
         }
 
@@ -82,7 +82,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
         let stream = buf.chain(s);
 
         self.inner
-            .sink(buffer_size + size, Box::new(stream))
+            .write(buffer_size + size, Box::new(stream))
             .await
             // Clear buffer if the write is successful.
             .map(|_| self.buffer.clear())
@@ -96,7 +96,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
     async fn close(&mut self) -> Result<()> {
         if !self.buffer.is_empty() {
             self.inner
-                .sink(self.buffer.len() as u64, Box::new(self.buffer.clone()))
+                .write(self.buffer.len() as u64, Box::new(self.buffer.clone()))
                 .await?;
             self.buffer.clear();
         }

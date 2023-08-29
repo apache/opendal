@@ -47,7 +47,7 @@ pub fn bench_at_least_buf_write(c: &mut Criterion) {
             b.to_async(&*TOKIO).iter(|| async {
                 let mut w = AtLeastBufWriter::new(BlackHoleWriter, 256 * 1024);
 
-                w.sink(
+                w.write(
                     content.len() as u64,
                     Box::new(oio::Cursor::from(content.clone())),
                 )
@@ -78,7 +78,7 @@ pub fn bench_exact_buf_write(c: &mut Criterion) {
         group.bench_with_input(size.to_string(), &content, |b, content| {
             b.to_async(&*TOKIO).iter(|| async {
                 let mut w = ExactBufWriter::new(BlackHoleWriter, 256 * 1024);
-                w.sink(
+                w.write(
                     content.len() as u64,
                     Box::new(oio::Cursor::from(content.clone())),
                 )

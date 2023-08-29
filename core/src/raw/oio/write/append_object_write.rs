@@ -78,7 +78,7 @@ impl<W> oio::Write for AppendObjectWriter<W>
 where
     W: AppendObjectWrite,
 {
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn write(&mut self, size: u64, s: Streamer) -> Result<()> {
         let offset = self.offset().await?;
 
         self.inner

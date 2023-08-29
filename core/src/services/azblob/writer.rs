@@ -160,7 +160,7 @@ impl AzblobWriter {
 
 #[async_trait]
 impl oio::Write for AzblobWriter {
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         if self.op.append() {
             self.append_oneshot(size, AsyncBody::Stream(s)).await
         } else {

@@ -199,7 +199,7 @@ impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.handle.block_on(
             self.inner
-                .sink(bs.len() as u64, Box::new(oio::Cursor::from(bs))),
+                .write(bs.len() as u64, Box::new(oio::Cursor::from(bs))),
         )
     }
 

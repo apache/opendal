@@ -411,8 +411,8 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         })
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.sink(size, s).await.map_err(|err| {
+    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        self.inner.write(size, s).await.map_err(|err| {
             err.with_operation(WriteOperation::Sink)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)

@@ -103,7 +103,7 @@ impl GdriveWriter {
 
 #[async_trait]
 impl oio::Write for GdriveWriter {
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(ErrorKind::Unsupported, "sink is not supported"))
     }
 

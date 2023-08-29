@@ -50,7 +50,7 @@ impl<F> FsWriter<F> {
 
 #[async_trait]
 impl oio::Write for FsWriter<tokio::fs::File> {
-    async fn sink(&mut self, _size: u64, mut s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, _size: u64, mut s: oio::Streamer) -> Result<()> {
         while let Some(bs) = s.next().await {
             let bs = bs?;
             self.f

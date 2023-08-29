@@ -39,10 +39,11 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] delete
-/// - [ ] copy
-/// - [ ] create
+/// - [x] create_dir
 /// - [ ] list
+/// - [ ] copy
 /// - [ ] rename
+/// - [x] batch
 ///
 /// # Notes
 ///

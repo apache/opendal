@@ -67,4 +67,9 @@ public class AsyncStepsTest {
         String readContent = op.read(path).join();
         assertEquals(content, readContent);
     }
+
+    @Then("The presign operation should success or raise exception Unsupported")
+    public void the_presign_operation_should_success_or_raise_exception_unsupported() {
+        // TODO: please implement me
+    }
 }

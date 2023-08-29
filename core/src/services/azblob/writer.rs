@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzblobCore;
@@ -161,23 +160,6 @@ impl AzblobWriter {
 
 #[async_trait]
 impl oio::Write for AzblobWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        if self.op.append() {
-            self.append_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-                .await
-        } else {
-            if self.op.content_length().is_none() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "write without content length is not supported",
-                ));
-            }
-
-            self.write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-                .await
-        }
-    }
-
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         if self.op.append() {
             self.append_oneshot(size, AsyncBody::Stream(s)).await

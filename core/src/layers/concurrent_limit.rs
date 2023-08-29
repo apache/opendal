@@ -285,16 +285,12 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.write(bs).await
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        self.inner.sink(size, s).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await
-    }
-
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.sink(size, s).await
     }
 
     async fn close(&mut self) -> Result<()> {

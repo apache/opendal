@@ -37,10 +37,7 @@ impl FtpWriter {
     pub fn new(backend: FtpBackend, path: String) -> Self {
         FtpWriter { backend, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for FtpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
         let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
@@ -52,7 +49,10 @@ impl oio::Write for FtpWriter {
 
         Ok(())
     }
+}
 
+#[async_trait]
+impl oio::Write for FtpWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

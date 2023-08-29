@@ -32,16 +32,16 @@ impl SftpWriter {
     pub fn new(file: File) -> Self {
         SftpWriter { file }
     }
-}
 
-#[async_trait]
-impl oio::Write for SftpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.file.write_all(&bs).await?;
 
         Ok(())
     }
+}
 
+#[async_trait]
+impl oio::Write for SftpWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

@@ -37,10 +37,7 @@ impl AzdfsWriter {
     pub fn new(core: Arc<AzdfsCore>, op: OpWrite, path: String) -> Self {
         AzdfsWriter { core, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for AzdfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.core.azdfs_create_request(
             &self.path,
@@ -85,7 +82,10 @@ impl oio::Write for AzdfsWriter {
                 .with_operation("Backend::azdfs_update_request")),
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for AzdfsWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

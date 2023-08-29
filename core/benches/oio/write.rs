@@ -17,6 +17,7 @@
 
 use criterion::Criterion;
 use once_cell::sync::Lazy;
+use opendal::raw::oio;
 use opendal::raw::oio::AtLeastBufWriter;
 use opendal::raw::oio::ExactBufWriter;
 use opendal::raw::oio::Write;
@@ -45,7 +46,13 @@ pub fn bench_at_least_buf_write(c: &mut Criterion) {
         group.bench_with_input(size.to_string(), &content, |b, content| {
             b.to_async(&*TOKIO).iter(|| async {
                 let mut w = AtLeastBufWriter::new(BlackHoleWriter, 256 * 1024);
-                w.write(content.clone()).await.unwrap();
+
+                w.sink(
+                    content.len() as u64,
+                    Box::new(oio::Cursor::from(content.clone())),
+                )
+                .await
+                .unwrap();
                 w.close().await.unwrap();
             })
         });
@@ -71,7 +78,12 @@ pub fn bench_exact_buf_write(c: &mut Criterion) {
         group.bench_with_input(size.to_string(), &content, |b, content| {
             b.to_async(&*TOKIO).iter(|| async {
                 let mut w = ExactBufWriter::new(BlackHoleWriter, 256 * 1024);
-                w.write(content.clone()).await.unwrap();
+                w.sink(
+                    content.len() as u64,
+                    Box::new(oio::Cursor::from(content.clone())),
+                )
+                .await
+                .unwrap();
                 w.close().await.unwrap();
             })
         });

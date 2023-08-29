@@ -84,11 +84,6 @@ impl<W: oio::Write> ExactBufWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.sink(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
-            .await
-    }
-
     /// # TODO
     ///
     /// We know every stream size, we can collect them into a buffer without chain them every time.
@@ -202,17 +197,12 @@ mod tests {
 
     #[async_trait]
     impl Write for MockWriter {
-        async fn write(&mut self, bs: Bytes) -> Result<()> {
-            debug!("test_fuzz_exact_buf_writer: flush size: {}", bs.len());
-
-            self.buf.extend_from_slice(&bs);
-            Ok(())
-        }
-
         async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
             let bs = s.collect().await?;
             assert_eq!(bs.len() as u64, size);
-            self.write(bs).await
+            self.buf.extend_from_slice(&bs);
+
+            Ok(())
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -238,7 +228,11 @@ mod tests {
 
         let mut w = ExactBufWriter::new(MockWriter { buf: vec![] }, 10);
 
-        w.write(Bytes::from(expected.clone())).await?;
+        w.sink(
+            expected.len() as u64,
+            Box::new(oio::Cursor::from(Bytes::from(expected.clone()))),
+        )
+        .await?;
         w.close().await?;
 
         assert_eq!(w.inner.buf.len(), expected.len());
@@ -271,7 +265,12 @@ mod tests {
             rng.fill_bytes(&mut content);
 
             expected.extend_from_slice(&content);
-            writer.write(Bytes::from(content)).await?;
+            writer
+                .sink(
+                    expected.len() as u64,
+                    Box::new(oio::Cursor::from(Bytes::from(expected.clone()))),
+                )
+                .await?;
         }
         writer.close().await?;
 

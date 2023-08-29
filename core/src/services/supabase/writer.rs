@@ -63,10 +63,7 @@ impl SupabaseWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::Write for SupabaseWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         if bs.is_empty() {
             return Ok(());
@@ -74,7 +71,10 @@ impl oio::Write for SupabaseWriter {
 
         self.upload(bs).await
     }
+}
 
+#[async_trait]
+impl oio::Write for SupabaseWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

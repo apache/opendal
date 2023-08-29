@@ -82,7 +82,9 @@ impl Writer {
     /// Write into inner writer.
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
-            w.write(bs.into()).await
+            let bs = bs.into();
+            w.sink(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
+                .await
         } else {
             unreachable!(
                 "writer state invalid while write, expect Idle, actual {}",
@@ -250,7 +252,8 @@ impl AsyncWrite for Writer {
                     let bs = Bytes::from(buf.to_vec());
                     let size = bs.len();
                     let fut = async move {
-                        w.write(bs).await?;
+                        // FIXME: we should bench here to measure the perf.
+                        w.sink(size as u64, Box::new(oio::Cursor::from(bs))).await?;
                         Ok((size, w))
                     };
                     self.state = State::Write(Box::pin(fut));
@@ -317,7 +320,8 @@ impl tokio::io::AsyncWrite for Writer {
                     let bs = Bytes::from(buf.to_vec());
                     let size = bs.len();
                     let fut = async move {
-                        w.write(bs).await?;
+                        // FIXME: we should bench here to measure the perf.
+                        w.sink(size as u64, Box::new(oio::Cursor::from(bs))).await?;
                         Ok((size, w))
                     };
                     self.state = State::Write(Box::pin(fut));

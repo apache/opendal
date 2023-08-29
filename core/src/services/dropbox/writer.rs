@@ -36,10 +36,7 @@ impl DropboxWriter {
     pub fn new(core: Arc<DropboxCore>, op: OpWrite, path: String) -> Self {
         DropboxWriter { core, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for DropboxWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .core
@@ -59,7 +56,10 @@ impl oio::Write for DropboxWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for DropboxWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

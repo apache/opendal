@@ -37,10 +37,7 @@ impl WasabiWriter {
     pub fn new(core: Arc<WasabiCore>, op: OpWrite, path: String) -> Self {
         WasabiWriter { core, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for WasabiWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .core
@@ -62,7 +59,10 @@ impl oio::Write for WasabiWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for WasabiWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

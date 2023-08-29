@@ -322,19 +322,6 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let timeout = self.io_timeout(bs.len() as u64);
-
-        tokio::time::timeout(timeout, self.inner.write(bs))
-            .await
-            .map_err(|_| {
-                Error::new(ErrorKind::Unexpected, "operation timeout")
-                    .with_operation(WriteOperation::Write)
-                    .with_context("timeout", timeout.as_secs_f64().to_string())
-                    .set_temporary()
-            })?
-    }
-
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         let timeout = self.io_timeout(size);
 

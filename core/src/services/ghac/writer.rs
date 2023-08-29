@@ -38,10 +38,7 @@ impl GhacWriter {
             size: 0,
         }
     }
-}
 
-#[async_trait]
-impl oio::Write for GhacWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let size = bs.len() as u64;
         let req = self
@@ -61,7 +58,10 @@ impl oio::Write for GhacWriter {
                 .map(|err| err.with_operation("Backend::ghac_upload"))?)
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for GhacWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

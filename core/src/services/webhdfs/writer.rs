@@ -35,10 +35,7 @@ impl WebhdfsWriter {
     pub fn new(backend: WebhdfsBackend, op: OpWrite, path: String) -> Self {
         WebhdfsWriter { backend, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for WebhdfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let req = self
             .backend
@@ -61,7 +58,10 @@ impl oio::Write for WebhdfsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for WebhdfsWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

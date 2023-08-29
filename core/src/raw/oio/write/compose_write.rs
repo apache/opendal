@@ -39,7 +39,6 @@
 //! type_alias_impl_trait has been stabilized.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::oio::Streamer;
 use crate::raw::*;
@@ -57,13 +56,6 @@ pub enum TwoWaysWriter<ONE: oio::Write, TWO: oio::Write> {
 
 #[async_trait]
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWaysWriter<ONE, TWO> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        match self {
-            Self::One(one) => one.write(bs).await,
-            Self::Two(two) => two.write(bs).await,
-        }
-    }
-
     async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
         match self {
             Self::One(one) => one.sink(size, s).await,
@@ -102,14 +94,6 @@ pub enum ThreeWaysWriter<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> {
 impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     for ThreeWaysWriter<ONE, TWO, THREE>
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        match self {
-            Self::One(one) => one.write(bs).await,
-            Self::Two(two) => two.write(bs).await,
-            Self::Three(three) => three.write(bs).await,
-        }
-    }
-
     async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
         match self {
             Self::One(one) => one.sink(size, s).await,

@@ -1252,40 +1252,6 @@ impl<W> LoggingWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        match self.inner.write(bs).await {
-            Ok(_) => {
-                self.written += size as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
-                    self.ctx.scheme,
-                    WriteOperation::Write,
-                    self.path,
-                    self.written,
-                    size
-                );
-                Ok(())
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::Write,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         match self.inner.sink(size, s).await {
             Ok(_) => {

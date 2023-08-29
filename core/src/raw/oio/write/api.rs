@@ -87,7 +87,7 @@ pub type Writer = Box<dyn Write>;
 /// the whole data.
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
-    /// Write given bytes into writer.
+    /// Sink given stream into writer.
     ///
     /// # Notes
     ///
@@ -95,9 +95,6 @@ pub trait Write: Unpin + Send + Sync {
     /// content length. And users will call write multiple times.
     ///
     /// Please make sure `write` is safe to re-enter.
-    async fn write(&mut self, bs: Bytes) -> Result<()>;
-
-    /// Sink given stream into writer.
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
 
     /// Abort the pending writer.
@@ -109,12 +106,6 @@ pub trait Write: Unpin + Send + Sync {
 
 #[async_trait]
 impl Write for () {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let _ = bs;
-
-        unimplemented!("write is required to be implemented for oio::Write")
-    }
-
     async fn sink(&mut self, _: u64, _: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -142,10 +133,6 @@ impl Write for () {
 /// To make Writer work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        (**self).write(bs).await
-    }
-
     async fn sink(&mut self, n: u64, s: oio::Streamer) -> Result<()> {
         (**self).sink(n, s).await
     }

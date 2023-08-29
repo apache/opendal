@@ -302,22 +302,6 @@ pub struct MadsimWriter {
 
 #[async_trait]
 impl oio::Write for MadsimWriter {
-    async fn write(&mut self, bs: Bytes) -> crate::Result<()> {
-        #[cfg(madsim)]
-        {
-            let req = Request::Write(self.path.to_string(), bs);
-            let ep = Endpoint::bind(self.addr).await?;
-            let (tx, mut rx) = ep.connect1(self.addr).await?;
-            tx.send(Box::new(req)).await?;
-            rx.recv().await?;
-            Ok(())
-        }
-        #[cfg(not(madsim))]
-        {
-            unreachable!("madsim is not enabled")
-        }
-    }
-
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> crate::Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

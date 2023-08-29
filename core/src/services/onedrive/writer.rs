@@ -42,10 +42,7 @@ impl OneDriveWriter {
     pub fn new(backend: OnedriveBackend, op: OpWrite, path: String) -> Self {
         OneDriveWriter { backend, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for OneDriveWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let size = bs.len();
 
@@ -55,7 +52,10 @@ impl oio::Write for OneDriveWriter {
             self.write_chunked(bs).await
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for OneDriveWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

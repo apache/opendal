@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
@@ -49,13 +48,6 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 
 #[async_trait]
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let cursor = oio::Cursor::from(bs);
-        self.inner
-            .write_once(cursor.len() as u64, Box::new(cursor))
-            .await
-    }
-
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         self.inner.write_once(size, s).await
     }

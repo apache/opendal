@@ -34,10 +34,7 @@ impl IpmfsWriter {
     pub fn new(backend: IpmfsBackend, path: String) -> Self {
         IpmfsWriter { backend, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for IpmfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
@@ -51,7 +48,10 @@ impl oio::Write for IpmfsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for IpmfsWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

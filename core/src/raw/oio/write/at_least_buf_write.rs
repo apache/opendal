@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::oio::StreamExt;
 use crate::raw::oio::Streamer;
@@ -64,30 +63,6 @@ impl<W: oio::Write> AtLeastBufWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        // If total size is known and equals to given bytes, we can write it directly.
-        if let Some(total_size) = self.total_size {
-            if total_size == bs.len() as u64 {
-                return self.inner.write(bs).await;
-            }
-        }
-
-        // Push the bytes into the buffer if the buffer is not full.
-        if self.buffer.len() + bs.len() < self.buffer_size {
-            self.buffer.push(bs);
-            return Ok(());
-        }
-
-        let mut buf = self.buffer.clone();
-        buf.push(bs);
-
-        self.inner
-            .sink(buf.len() as u64, Box::new(buf))
-            .await
-            // Clear buffer if the write is successful.
-            .map(|_| self.buffer.clear())
-    }
-
     async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
         // If total size is known and equals to given stream, we can write it directly.
         if let Some(total_size) = self.total_size {

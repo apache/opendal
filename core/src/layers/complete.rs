@@ -711,29 +711,6 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let n = bs.len();
-
-        if let Some(size) = self.size {
-            if self.written + n as u64 > size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + n as u64
-                    ),
-                ));
-            }
-        }
-
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-        w.write(bs).await?;
-        self.written += n as u64;
-        Ok(())
-    }
-
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         if let Some(total_size) = self.size {
             if self.written + size > total_size {

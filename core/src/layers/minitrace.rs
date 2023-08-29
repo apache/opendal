@@ -337,16 +337,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.inner
-            .write(bs)
-            .in_span(Span::enter_with_parent(
-                WriteOperation::Write.into_static(),
-                &self.span,
-            ))
-            .await
-    }
-
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         self.inner
             .sink(size, s)

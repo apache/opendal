@@ -39,8 +39,7 @@ impl<F> HdfsWriter<F> {
     }
 }
 
-#[async_trait]
-impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
+impl HdfsWriter<hdrs::AsyncFile> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         while self.pos < bs.len() {
             let n = self
@@ -55,7 +54,10 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 
         Ok(())
     }
+}
 
+#[async_trait]
+impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

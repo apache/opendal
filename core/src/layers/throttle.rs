@@ -217,31 +217,6 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
-
-        loop {
-            match self.limiter.check_n(buf_length) {
-                Ok(_) => return self.inner.write(bs).await,
-                Err(negative) => match negative {
-                    // the query is valid but the Decider can not accommodate them.
-                    NegativeMultiDecision::BatchNonConforming(_, not_until) => {
-                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
-                        // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
-                        tokio::time::sleep(wait_time).await;
-                    }
-                    // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                    NegativeMultiDecision::InsufficientCapacity(_) => {
-                        return Err(Error::new(
-                            ErrorKind::RateLimited,
-                            "InsufficientCapacity due to burst size being smaller than the request size",
-                        ))
-                    }
-                },
-            }
-        }
-    }
-
     async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
         self.inner.sink(size, s).await
     }

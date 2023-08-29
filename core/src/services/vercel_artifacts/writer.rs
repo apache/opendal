@@ -35,10 +35,7 @@ impl VercelArtifactsWriter {
     pub fn new(backend: VercelArtifactsBackend, op: OpWrite, path: String) -> Self {
         VercelArtifactsWriter { backend, op, path }
     }
-}
 
-#[async_trait]
-impl oio::Write for VercelArtifactsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend
@@ -59,7 +56,10 @@ impl oio::Write for VercelArtifactsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for VercelArtifactsWriter {
     async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

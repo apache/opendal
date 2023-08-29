@@ -114,10 +114,7 @@ impl GcsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::Write for GcsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let location = match &self.location {
             Some(location) => location,
@@ -163,7 +160,10 @@ impl oio::Write for GcsWriter {
             }
         }
     }
+}
 
+#[async_trait]
+impl oio::Write for GcsWriter {
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
         self.write_oneshot(size, AsyncBody::Stream(s)).await
     }

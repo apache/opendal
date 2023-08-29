@@ -217,8 +217,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async fn write(&mut self, size: u64, s: Streamer) -> Result<()> {
-        self.inner.write(size, s).await
+    async fn write(&mut self, s: Streamer) -> Result<()> {
+        self.inner.write(s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

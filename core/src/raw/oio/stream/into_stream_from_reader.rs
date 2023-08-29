@@ -54,7 +54,7 @@ impl<S> oio::Stream for FromReaderStream<S>
 where
     S: AsyncRead + Send + Sync + Unpin,
 {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         self.size
     }
 

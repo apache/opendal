@@ -161,7 +161,7 @@ impl oio::BlockingRead for Cursor {
 }
 
 impl oio::Stream for Cursor {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         self.inner.len() as u64 - self.pos
     }
 
@@ -331,7 +331,7 @@ impl ChunkedCursor {
 }
 
 impl oio::Stream for ChunkedCursor {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         self.len() as u64
     }
 

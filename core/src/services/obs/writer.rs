@@ -23,8 +23,8 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::MultipartUploadPart;
 use crate::raw::oio::Streamer;
+use crate::raw::oio::{MultipartUploadPart, Stream};
 use crate::raw::*;
 use crate::*;
 
@@ -53,10 +53,10 @@ impl ObsWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for ObsWriter {
-    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
+    async fn write_once(&self, stream: Streamer) -> Result<()> {
         let mut req = self.core.obs_put_object_request(
             &self.path,
-            Some(size),
+            Some(stream.size()),
             self.op.content_type(),
             self.op.cache_control(),
             AsyncBody::Stream(stream),
@@ -105,15 +105,20 @@ impl oio::MultipartUploadWrite for ObsWriter {
         &self,
         upload_id: &str,
         part_number: usize,
-        size: u64,
-        body: AsyncBody,
+        stream: Streamer,
     ) -> Result<MultipartUploadPart> {
         // Obs service requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
         let resp = self
             .core
-            .obs_upload_part_request(&self.path, upload_id, part_number, Some(size), body)
+            .obs_upload_part_request(
+                &self.path,
+                upload_id,
+                part_number,
+                Some(stream.size()),
+                AsyncBody::Stream(stream),
+            )
             .await?;
 
         let status = resp.status();

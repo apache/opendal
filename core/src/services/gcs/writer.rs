@@ -23,6 +23,7 @@ use http::StatusCode;
 
 use super::core::GcsCore;
 use super::error::parse_error;
+use crate::raw::oio::Stream;
 use crate::raw::*;
 use crate::*;
 
@@ -164,8 +165,8 @@ impl GcsWriter {
 
 #[async_trait]
 impl oio::Write for GcsWriter {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.write_oneshot(size, AsyncBody::Stream(s)).await
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
+        self.write_oneshot(s.size(), AsyncBody::Stream(s)).await
     }
 
     async fn abort(&mut self) -> Result<()> {

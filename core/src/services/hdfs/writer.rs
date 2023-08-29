@@ -58,7 +58,7 @@ impl HdfsWriter<hdrs::AsyncFile> {
 
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

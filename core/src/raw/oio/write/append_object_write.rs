@@ -17,7 +17,7 @@
 
 use async_trait::async_trait;
 
-use crate::raw::oio::Streamer;
+use crate::raw::oio::{Stream, Streamer};
 use crate::raw::*;
 use crate::*;
 
@@ -78,11 +78,12 @@ impl<W> oio::Write for AppendObjectWriter<W>
 where
     W: AppendObjectWrite,
 {
-    async fn write(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn write(&mut self, s: Streamer) -> Result<()> {
         let offset = self.offset().await?;
 
+        let size = s.size();
         self.inner
-            .append(offset, size, AsyncBody::Stream(s))
+            .append(offset, s.size(), AsyncBody::Stream(s))
             .await
             .map(|_| self.offset = Some(offset + size))
     }

@@ -197,10 +197,8 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.handle.block_on(
-            self.inner
-                .write(bs.len() as u64, Box::new(oio::Cursor::from(bs))),
-        )
+        self.handle
+            .block_on(self.inner.write(Box::new(oio::Cursor::from(bs))))
     }
 
     fn close(&mut self) -> Result<()> {

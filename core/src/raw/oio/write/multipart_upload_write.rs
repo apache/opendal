@@ -51,8 +51,7 @@ pub trait MultipartUploadWrite: Send + Sync + Unpin {
         &self,
         upload_id: &str,
         part_number: usize,
-        size: u64,
-        body: AsyncBody,
+        content: oio::Streamer,
     ) -> Result<MultipartUploadPart>;
 
     /// complete_part will complete the multipart upload to build the final
@@ -119,11 +118,11 @@ impl<W> oio::Write for MultipartUploadWriter<W>
 where
     W: MultipartUploadWrite,
 {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         let upload_id = self.upload_id().await?;
 
         self.inner
-            .write_part(&upload_id, self.parts.len(), size, AsyncBody::Stream(s))
+            .write_part(&upload_id, self.parts.len(), s)
             .await
             .map(|v| self.parts.push(v))
     }

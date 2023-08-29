@@ -17,8 +17,8 @@
 
 use async_trait::async_trait;
 
-use crate::raw::oio::StreamExt;
 use crate::raw::oio::Streamer;
+use crate::raw::oio::{Stream, StreamExt};
 use crate::raw::*;
 use crate::*;
 
@@ -63,16 +63,16 @@ impl<W: oio::Write> AtLeastBufWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
-    async fn write(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn write(&mut self, s: Streamer) -> Result<()> {
         // If total size is known and equals to given stream, we can write it directly.
         if let Some(total_size) = self.total_size {
-            if total_size == size {
-                return self.inner.write(size, s).await;
+            if total_size == s.size() {
+                return self.inner.write(s).await;
             }
         }
 
         // Push the bytes into the buffer if the buffer is not full.
-        if self.buffer.len() as u64 + size < self.buffer_size as u64 {
+        if self.buffer.len() as u64 + s.size() < self.buffer_size as u64 {
             self.buffer.push(s.collect().await?);
             return Ok(());
         }
@@ -82,7 +82,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
         let stream = buf.chain(s);
 
         self.inner
-            .write(buffer_size + size, Box::new(stream))
+            .write(Box::new(stream))
             .await
             // Clear buffer if the write is successful.
             .map(|_| self.buffer.clear())
@@ -95,9 +95,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
 
     async fn close(&mut self) -> Result<()> {
         if !self.buffer.is_empty() {
-            self.inner
-                .write(self.buffer.len() as u64, Box::new(self.buffer.clone()))
-                .await?;
+            self.inner.write(Box::new(self.buffer.clone())).await?;
             self.buffer.clear();
         }
 

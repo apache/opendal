@@ -182,7 +182,7 @@ pub struct MultipartStream<T: Part> {
 }
 
 impl<T: Part> Stream for MultipartStream<T> {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         self.size
     }
 
@@ -338,7 +338,7 @@ pub struct FormDataPartStream {
 
 #[async_trait]
 impl Stream for FormDataPartStream {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         self.size
     }
 
@@ -701,7 +701,7 @@ pub struct MixedPartStream {
 }
 
 impl Stream for MixedPartStream {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         self.size
     }
 

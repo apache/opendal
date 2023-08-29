@@ -44,7 +44,7 @@ impl<S> oio::Stream for IntoStream<S>
 where
     S: futures::Stream<Item = Result<Bytes>> + Send + Sync + Unpin,
 {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         self.size
     }
 

@@ -23,7 +23,7 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::Streamer;
+use crate::raw::oio::{Stream, Streamer};
 use crate::raw::*;
 use crate::*;
 
@@ -49,10 +49,10 @@ impl S3Writer {
 
 #[async_trait]
 impl oio::OneShotWrite for S3Writer {
-    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
+    async fn write_once(&self, stream: Streamer) -> Result<()> {
         let mut req = self.core.s3_put_object_request(
             &self.path,
-            Some(size),
+            Some(stream.size()),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
@@ -107,15 +107,18 @@ impl oio::MultipartUploadWrite for S3Writer {
         &self,
         upload_id: &str,
         part_number: usize,
-        size: u64,
-        body: AsyncBody,
+        stream: Streamer,
     ) -> Result<oio::MultipartUploadPart> {
         // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
-        let mut req =
-            self.core
-                .s3_upload_part_request(&self.path, upload_id, part_number, size, body)?;
+        let mut req = self.core.s3_upload_part_request(
+            &self.path,
+            upload_id,
+            part_number,
+            stream.size(),
+            AsyncBody::Stream(stream),
+        )?;
 
         self.core.sign(&mut req).await?;
 

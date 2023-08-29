@@ -22,6 +22,7 @@ use http::StatusCode;
 
 use super::core::AzblobCore;
 use super::error::parse_error;
+use crate::raw::oio::Stream;
 use crate::raw::*;
 use crate::*;
 
@@ -160,9 +161,9 @@ impl AzblobWriter {
 
 #[async_trait]
 impl oio::Write for AzblobWriter {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         if self.op.append() {
-            self.append_oneshot(size, AsyncBody::Stream(s)).await
+            self.append_oneshot(s.size(), AsyncBody::Stream(s)).await
         } else {
             if self.op.content_length().is_none() {
                 return Err(Error::new(
@@ -171,7 +172,7 @@ impl oio::Write for AzblobWriter {
                 ));
             }
 
-            self.write_oneshot(size, AsyncBody::Stream(s)).await
+            self.write_oneshot(s.size(), AsyncBody::Stream(s)).await
         }
     }
 

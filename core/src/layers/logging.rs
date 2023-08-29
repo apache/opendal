@@ -1252,8 +1252,9 @@ impl<W> LoggingWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        match self.inner.write(size, s).await {
+    async fn write(&mut self, mut s: oio::Streamer) -> Result<()> {
+        let size = s.size();
+        match self.inner.write(s).await {
             Ok(_) => {
                 self.written += size;
                 trace!(

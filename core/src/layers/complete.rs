@@ -25,13 +25,13 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::into_flat_page;
 use crate::raw::oio::into_hierarchy_page;
 use crate::raw::oio::ByRangeSeekableReader;
 use crate::raw::oio::Entry;
 use crate::raw::oio::FlatPager;
 use crate::raw::oio::HierarchyPager;
 use crate::raw::oio::StreamableReader;
+use crate::raw::oio::{into_flat_page, Stream};
 use crate::raw::*;
 use crate::*;
 
@@ -711,14 +711,14 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         if let Some(total_size) = self.size {
-            if self.written + size > total_size {
+            if self.written + s.size() > total_size {
                 return Err(Error::new(
                     ErrorKind::ContentTruncated,
                     &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + size
+                        "writer got too much data, expect: {total_size}, actual: {}",
+                        self.written + s.size()
                     ),
                 ));
             }
@@ -727,7 +727,8 @@ where
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        w.write(size, s).await?;
+        let size = s.size();
+        w.write(s).await?;
         self.written += size;
         Ok(())
     }

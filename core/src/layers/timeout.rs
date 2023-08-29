@@ -322,10 +322,10 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        let timeout = self.io_timeout(size);
+    async fn write(&mut self, mut s: oio::Streamer) -> Result<()> {
+        let timeout = self.io_timeout(s.size());
 
-        tokio::time::timeout(timeout, self.inner.write(size, s))
+        tokio::time::timeout(timeout, self.inner.write(s))
             .await
             .map_err(|_| {
                 Error::new(ErrorKind::Unexpected, "operation timeout")

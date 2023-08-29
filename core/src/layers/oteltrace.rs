@@ -313,8 +313,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.write(size, s).await
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
+        self.inner.write(s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

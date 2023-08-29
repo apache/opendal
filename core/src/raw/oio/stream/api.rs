@@ -37,12 +37,7 @@ pub type Streamer = Box<dyn Stream>;
 /// `Unpin` + `Send` + `Sync`. And the item is `Result<Bytes>`.
 pub trait Stream: Unpin + Send + Sync {
     /// Fetch remaining size of this stream.
-    ///
-    /// # NOTES
-    ///
-    /// It's by design that we take `&mut self` here to make sure we don't have other
-    /// threads reading the same stream at the same time.
-    fn size(&mut self) -> u64;
+    fn size(&self) -> u64;
 
     /// Fetch next item `Result<Bytes>` from the stream.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>>;
@@ -52,7 +47,7 @@ pub trait Stream: Unpin + Send + Sync {
 }
 
 impl Stream for () {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         unimplemented!("size is required to be implemented for oio::Stream")
     }
 
@@ -72,7 +67,7 @@ impl Stream for () {
 /// `Box<dyn Stream>` won't implement `Stream` automatically.
 /// To make Streamer work as expected, we must add this impl.
 impl<T: Stream + ?Sized> Stream for Box<T> {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         (**self).size()
     }
 
@@ -86,7 +81,7 @@ impl<T: Stream + ?Sized> Stream for Box<T> {
 }
 
 impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         match self.try_lock() {
             Ok(mut this) => this.size(),
             Err(_) => panic!("the stream is expected to have only one consumer, but it's not"),
@@ -115,7 +110,7 @@ impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
 }
 
 impl<T: Stream + ?Sized> Stream for Arc<tokio::sync::Mutex<T>> {
-    fn size(&mut self) -> u64 {
+    fn size(&self) -> u64 {
         match self.try_lock() {
             Ok(mut this) => this.size(),
             Err(_) => panic!("the stream is expected to have only one consumer, but it's not"),
@@ -238,8 +233,8 @@ pub struct Chain<S1: Stream, S2: Stream> {
 }
 
 impl<S1: Stream, S2: Stream> Stream for Chain<S1, S2> {
-    fn size(&mut self) -> u64 {
-        self.first.as_mut().map(|v| v.size()).unwrap_or_default() + self.second.size()
+    fn size(&self) -> u64 {
+        self.first.as_ref().map(|v| v.size()).unwrap_or_default() + self.second.size()
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {

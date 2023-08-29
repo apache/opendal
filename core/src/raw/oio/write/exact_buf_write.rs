@@ -87,13 +87,13 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     /// # TODO
     ///
     /// We know every stream size, we can collect them into a buffer without chain them every time.
-    async fn write(&mut self, _: u64, mut s: Streamer) -> Result<()> {
+    async fn write(&mut self, mut s: Streamer) -> Result<()> {
         if self.buffer.len() >= self.buffer_size {
             let mut buf = self.buffer.clone();
             let to_write = buf.split_to(self.buffer_size);
             return self
                 .inner
-                .write(to_write.len() as u64, Box::new(to_write))
+                .write(Box::new(to_write))
                 .await
                 // Replace buffer with remaining if the write is successful.
                 .map(|_| {
@@ -121,7 +121,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
         let to_write = buf.split_to(self.buffer_size);
         self.inner
-            .write(to_write.len() as u64, Box::new(to_write))
+            .write(Box::new(to_write))
             .await
             // Replace buffer with remaining if the write is successful.
             .map(|_| {
@@ -153,7 +153,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 let mut buf = self.buffer.clone();
                 let to_write = buf.split_to(self.buffer_size);
                 self.inner
-                    .write(to_write.len() as u64, Box::new(to_write))
+                    .write(Box::new(to_write))
                     .await
                     // Replace buffer with remaining if the write is successful.
                     .map(|_| {
@@ -167,7 +167,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
             let to_write = buf.split_to(min(self.buffer_size, buf.len()));
 
             self.inner
-                .write(to_write.len() as u64, Box::new(to_write))
+                .write(Box::new(to_write))
                 .await
                 // Replace buffer with remaining if the write is successful.
                 .map(|_| self.buffer = buf)?;
@@ -197,9 +197,8 @@ mod tests {
 
     #[async_trait]
     impl Write for MockWriter {
-        async fn write(&mut self, size: u64, s: Streamer) -> Result<()> {
+        async fn write(&mut self, s: Streamer) -> Result<()> {
             let bs = s.collect().await?;
-            assert_eq!(bs.len() as u64, size);
             self.buf.extend_from_slice(&bs);
 
             Ok(())
@@ -228,11 +227,8 @@ mod tests {
 
         let mut w = ExactBufWriter::new(MockWriter { buf: vec![] }, 10);
 
-        w.write(
-            expected.len() as u64,
-            Box::new(oio::Cursor::from(Bytes::from(expected.clone()))),
-        )
-        .await?;
+        w.write(Box::new(oio::Cursor::from(Bytes::from(expected.clone()))))
+            .await?;
         w.close().await?;
 
         assert_eq!(w.inner.buf.len(), expected.len());
@@ -266,10 +262,7 @@ mod tests {
 
             expected.extend_from_slice(&content);
             writer
-                .write(
-                    expected.len() as u64,
-                    Box::new(oio::Cursor::from(Bytes::from(expected.clone()))),
-                )
+                .write(Box::new(oio::Cursor::from(Bytes::from(expected.clone()))))
                 .await?;
         }
         writer.close().await?;

@@ -302,7 +302,7 @@ pub struct MadsimWriter {
 
 #[async_trait]
 impl oio::Write for MadsimWriter {
-    async fn write(&mut self, size: u64, s: oio::Streamer) -> crate::Result<()> {
+    async fn write(&mut self, s: oio::Streamer) -> crate::Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",

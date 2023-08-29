@@ -28,6 +28,34 @@ This section is the requirements for the release manager who is the first time t
 
 Refer to [Setup GPG Key](reference/setup_gpg.md) to make sure the GPG key has been set up.
 
+## Start discussion about the next release
+
+Start a discussion about the next release via sending email to: <dev@opendal.apache.org>:
+
+Title:
+
+```
+[DISCUSS] Release Apache OpenDAL(incubating) ${release_version}
+```
+
+Content:
+
+```
+Hello, Apache OpenDAL(incubating) Community,
+
+This is a call for a discussion to release Apache OpenDAL(incubating) version ${opendal_version}.
+
+The change lists about this release:
+
+https://github.com/apache/incubator-opendal/compare/v0.39.0...main
+
+Please leave your comments here about this release plan. We will bump the version in repo and start the release process after the discussion.
+
+Thanks
+
+${name}
+```
+
 ## GitHub Release
 
 ### Bump Version
@@ -213,7 +241,7 @@ After at least 3 +1 binding vote (from OpenDAL Podling PMC member and committers
 Title:
 
 ```
-[Result][VOTE] Release Apache OpenDAL(incubating) ${release_version} - OpenDAL Vote Round 1
+[RESULT][VOTE] Release Apache OpenDAL(incubating) ${release_version} - OpenDAL Vote Round 1
 ```
 
 Content:
@@ -354,6 +382,20 @@ Example: <https://lists.apache.org/thread/h3x9pq1djpg76q3ojpqmdr3d0o03fld1>
 
 ## Official Release
 
+### Push the release git tag
+
+- `opendal_version`: the version for opendal, like `0.36.0`.
+- `release_version`: the version for the passed candidate, like `0.36.0-rc1`.
+
+```shell
+# Checkout the tags that passed VOTE
+git checkout ${release_version}
+# Tag with the opendal version
+git tag -s ${opendal_version}
+# Push tags to github to trigger releases
+git push origin ${opendal_version}
+```
+
 ### Publish artifacts to SVN RELEASE branch
 
 - `opendal_version`: the version for opendal, like `0.36.0`.
@@ -362,24 +404,12 @@ Example: <https://lists.apache.org/thread/h3x9pq1djpg76q3ojpqmdr3d0o03fld1>
 ```shell
 svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version} https://dist.apache.org/repos/dist/release/incubator/opendal/${opendal_version} -m "Release ${opendal_version}"
 ```
+
 ### Change OpenDAL Website download link
+
 Change the [download](https://github.com/apache/incubator-opendal/blob/main/website/src/pages/download.md) link in the website to the new release version.
 
 Take [Add 0.39.0 release link to download.md](https://github.com/apache/incubator-opendal/pull/2882) as an example.
-
-
-### Push the release Git tag
-
-- `opendal_version`: the version for opendal, like `0.36.0`.
-- `release_version`: the version for the passed candidate, like `0.36.0-rc1`.
-
-Check out the passed release candidate, tag an alias and push.
-
-```shell
-git checkout ${release_version}
-git tag -s ${opendal_version}
-git push origin ${opendal_version}
-```
 
 ### Release Maven artifacts
 

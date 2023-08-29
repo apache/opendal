@@ -1,5 +1,5 @@
 ---
-title: New Committer Landing Guide
+title: Committer Onboarding
 sidebar_position: 3
 ---
 
@@ -76,6 +76,7 @@ Here's an illustration for Gmail users:
 If you receive an email with the subject "WELCOME to dev@opendal.apache.org", you have successfully subscribed to the mailing list.
 
 ## Setup 1password
+
 OpenDAL offers a 1password open source team license for conducting local integration tests (Thanks to 1Password!). Once you have been added to OpenDAL's committer list, one of the PPMC members will invite you to join the team.
 
 Please download your preferred clients to begin using it. Here are some important notes regarding the use of 1Password: 

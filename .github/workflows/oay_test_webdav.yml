@@ -61,4 +61,4 @@ jobs:
 
       - name: Check litmus test results
         run: |
-          grep -q "FATAL" litmus.log && exit 1
+          grep -q "FATAL" litmus-0.13/litmus.log && exit 1

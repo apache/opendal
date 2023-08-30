@@ -103,7 +103,7 @@ runs:
         cd rocksdb-8.1.1
 
         mkdir /tmp/rocksdb
-        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb
+        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb -DPORTABLE=1
         make -j$(nproc)
         make install
 

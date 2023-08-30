@@ -75,13 +75,6 @@ runs:
         # Set rocksdb lib path
         echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
         echo "ROCKSDB_STATIC=true" >> $GITHUB_ENV
-    
-    - name: Print out cpu info
-      if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
-      shell: bash
-      run: |
-        sudo apt install -y cpuidtool libcpuid-dev
-        cpuid_tool --all
 
     - name: Cache rocksdb
       id: cache-rocksdb
@@ -89,7 +82,7 @@ runs:
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       with:
         path: /tmp/rocksdb
-        key: r1-rocksdb-8.1.1
+        key: r2-rocksdb-8.1.1
 
     - name: Build rocksdb if not cached
       if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'

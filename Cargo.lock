@@ -3575,6 +3575,7 @@ dependencies = [
 name = "opendal-cpp"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "cxx",
  "cxx-build",
  "opendal",

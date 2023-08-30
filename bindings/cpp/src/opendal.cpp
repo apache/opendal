@@ -18,7 +18,6 @@
  */
 
 #include "opendal.hpp"
-#include "lib.rs.h"
 
 using namespace opendal;
 

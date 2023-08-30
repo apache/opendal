@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use anyhow::Result;
 use opendal as od;
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
+use std::str::FromStr;
 
 #[cxx::bridge(namespace = "opendal::ffi")]
 mod ffi {
@@ -28,33 +30,33 @@ mod ffi {
     extern "Rust" {
         type Operator;
 
-        fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Box<Operator>;
-        fn read(&self, path: &str) -> Vec<u8>;
-        fn write(&self, path: &str, bs: &[u8]);
+        fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
+        fn read(&self, path: &str) -> Result<Vec<u8>>;
+        fn write(&self, path: &str, bs: &[u8]) -> Result<()>;
     }
 }
 
 struct Operator(od::BlockingOperator);
 
-fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Box<Operator> {
-    let scheme = od::Scheme::from_str(scheme).unwrap();
+fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
+    let scheme = od::Scheme::from_str(scheme)?;
 
     let map = configs
         .into_iter()
         .map(|value| (value.key, value.value))
         .collect::<HashMap<_, _>>();
 
-    Box::new(Operator(
-        od::Operator::via_map(scheme, map).unwrap().blocking(),
-    ))
+    let op = Box::new(Operator(od::Operator::via_map(scheme, map)?.blocking()));
+
+    Ok(op)
 }
 
 impl Operator {
-    fn read(&self, path: &str) -> Vec<u8> {
-        self.0.read(path).unwrap()
+    fn read(&self, path: &str) -> Result<Vec<u8>> {
+        Ok(self.0.read(path)?)
     }
 
-    fn write(&self, path: &str, bs: &[u8]) {
-        self.0.write(path, bs.to_owned()).unwrap()
+    fn write(&self, path: &str, bs: &[u8]) -> Result<()> {
+        Ok(self.0.write(path, bs.to_owned())?)
     }
 }

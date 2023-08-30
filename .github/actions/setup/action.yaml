@@ -75,6 +75,13 @@ runs:
         # Set rocksdb lib path
         echo "ROCKSDB_LIB_DIR=/tmp/rocksdb/lib" >> $GITHUB_ENV
         echo "ROCKSDB_STATIC=true" >> $GITHUB_ENV
+    
+    - name: Print out cpu info
+      if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
+      shell: bash
+      run: |
+        apt install -y cpuidtool libcpuid-dev
+        cpuid_tool --all
 
     - name: Cache rocksdb
       id: cache-rocksdb
@@ -89,9 +96,6 @@ runs:
       shell: bash
       run: |
         set -e
-
-        apt install -y cpuidtool libcpuid-dev
-        cpuid_tool --all
 
         cd /tmp
         curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz

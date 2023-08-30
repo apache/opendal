@@ -78,7 +78,6 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
         }
 
         let buf = self.buffer.clone();
-        let buffer_size = buf.len() as u64;
         let stream = buf.chain(s);
 
         self.inner

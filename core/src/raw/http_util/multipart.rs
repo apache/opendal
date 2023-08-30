@@ -125,7 +125,7 @@ impl<T: Part> Multipart<T> {
         let mut parts = VecDeque::new();
         // Write headers.
         for v in self.parts.into_iter() {
-            let mut stream = v.format();
+            let stream = v.format();
             total_size += stream.size();
             parts.push_back(stream);
         }
@@ -154,7 +154,7 @@ impl<T: Part> Multipart<T> {
     /// This function will make sure content_type and content_length set correctly.
     pub fn apply(self, mut builder: http::request::Builder) -> Result<Request<AsyncBody>> {
         let boundary = self.boundary.clone();
-        let mut stream = self.build();
+        let stream = self.build();
 
         // Insert content type with correct boundary.
         builder = builder.header(
@@ -755,7 +755,7 @@ mod tests {
             .part(FormDataPart::new("foo").content(Bytes::from("bar")))
             .part(FormDataPart::new("hello").content(Bytes::from("world")));
 
-        let mut body = multipart.build();
+        let body = multipart.build();
         let size = body.size();
         let bs = body.collect().await.unwrap();
         assert_eq!(size, bs.len() as u64);
@@ -917,7 +917,7 @@ Upload to Amazon S3
                     .content(r#"{"metadata": {"type": "calico"}}"#),
             );
 
-        let mut body = multipart.build();
+        let body = multipart.build();
         let size = body.size();
         let bs = body.collect().await?;
         assert_eq!(size, bs.len() as u64);
@@ -1024,7 +1024,7 @@ content-length: 32
                     .header("content-length".parse().unwrap(), "0".parse().unwrap()),
             );
 
-        let mut body = multipart.build();
+        let body = multipart.build();
         let size = body.size();
         let bs = body.collect().await?;
         assert_eq!(size, bs.len() as u64);

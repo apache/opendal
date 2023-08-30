@@ -83,7 +83,7 @@ impl<T: Stream + ?Sized> Stream for Box<T> {
 impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
     fn size(&self) -> u64 {
         match self.try_lock() {
-            Ok(mut this) => this.size(),
+            Ok(this) => this.size(),
             Err(_) => panic!("the stream is expected to have only one consumer, but it's not"),
         }
     }
@@ -112,7 +112,7 @@ impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
 impl<T: Stream + ?Sized> Stream for Arc<tokio::sync::Mutex<T>> {
     fn size(&self) -> u64 {
         match self.try_lock() {
-            Ok(mut this) => this.size(),
+            Ok(this) => this.size(),
             Err(_) => panic!("the stream is expected to have only one consumer, but it's not"),
         }
     }

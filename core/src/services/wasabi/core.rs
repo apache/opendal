@@ -301,7 +301,7 @@ impl WasabiCore {
     pub fn put_object_request(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,
@@ -637,7 +637,7 @@ impl WasabiCore {
     pub async fn put_object(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         cache_control: Option<&str>,

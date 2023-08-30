@@ -37,17 +37,20 @@ impl WasabiWriter {
     pub fn new(core: Arc<WasabiCore>, op: OpWrite, path: String) -> Self {
         WasabiWriter { core, op, path }
     }
+}
 
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+#[async_trait]
+impl oio::Write for WasabiWriter {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         let resp = self
             .core
             .put_object(
                 &self.path,
-                Some(bs.len()),
+                Some(s.size()),
                 self.op.content_type(),
                 self.op.content_disposition(),
                 self.op.cache_control(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::Stream(s),
             )
             .await?;
 
@@ -58,16 +61,6 @@ impl WasabiWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for WasabiWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
     }
 
     async fn abort(&mut self) -> Result<()> {

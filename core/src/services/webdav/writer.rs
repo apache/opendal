@@ -36,16 +36,19 @@ impl WebdavWriter {
     pub fn new(backend: WebdavBackend, op: OpWrite, path: String) -> Self {
         WebdavWriter { backend, op, path }
     }
+}
 
-    async fn write_oneshot(&mut self, size: u64, body: AsyncBody) -> Result<()> {
+#[async_trait]
+impl oio::Write for WebdavWriter {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         let resp = self
             .backend
             .webdav_put(
                 &self.path,
-                Some(size),
+                Some(s.size()),
                 self.op.content_type(),
                 self.op.content_disposition(),
-                body,
+                AsyncBody::Stream(s),
             )
             .await?;
 
@@ -58,18 +61,6 @@ impl WebdavWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-            .await
-    }
-}
-
-#[async_trait]
-impl oio::Write for WebdavWriter {
-    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
-        self.write_oneshot(s.size(), AsyncBody::Stream(s)).await
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  oay-webdav-backend-fs:
+  backend-fs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

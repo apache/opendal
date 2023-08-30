@@ -245,7 +245,10 @@ impl FsBackend {
 impl Accessor for FsBackend {
     type Reader = oio::FromFileReader<Compat<tokio::fs::File>>;
     type BlockingReader = oio::FromFileReader<std::fs::File>;
-    type Writer = FsWriter<tokio::fs::File>;
+    type Writer = oio::TwoWaysWriter<
+        FsWriter<tokio::fs::File>,
+        oio::AtLeastBufWriter<FsWriter<tokio::fs::File>>,
+    >;
     type BlockingWriter = FsWriter<std::fs::File>;
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
     type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
@@ -389,7 +392,17 @@ impl Accessor for FsBackend {
             .await
             .map_err(parse_io_error)?;
 
-        Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
+        let w = FsWriter::new(target_path, tmp_path, f);
+
+        let w = if let Some(buffer_size) = op.buffer_size() {
+            oio::TwoWaysWriter::Two(
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(op.content_length()),
+            )
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::new(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

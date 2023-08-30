@@ -23,6 +23,7 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
+use crate::raw::oio::Stream;
 use crate::raw::*;
 use crate::services::gdrive::core::GdriveFile;
 use crate::*;
@@ -49,7 +50,7 @@ impl GdriveWriter {
     ///
     /// This is used for small objects.
     /// And should overwrite the object if it already exists.
-    pub async fn write_create(&mut self, size: u64, body: Bytes) -> Result<()> {
+    pub async fn write_create(&mut self, size: u64, body: oio::Streamer) -> Result<()> {
         let resp = self
             .core
             .gdrive_upload_simple_request(&self.path, size, body)
@@ -72,13 +73,13 @@ impl GdriveWriter {
         }
     }
 
-    pub async fn write_overwrite(&self, size: u64, body: Bytes) -> Result<()> {
+    pub async fn write_overwrite(&self, size: u64, stream: oio::Streamer) -> Result<()> {
         let file_id = self.file_id.as_ref().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "file_id is required for overwrite")
         })?;
         let resp = self
             .core
-            .gdrive_upload_overwrite_simple_request(file_id, size, body)
+            .gdrive_upload_overwrite_simple_request(file_id, size, stream)
             .await?;
 
         let status = resp.status();
@@ -91,20 +92,16 @@ impl GdriveWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        if self.file_id.is_none() {
-            self.write_create(bs.len() as u64, bs).await
-        } else {
-            self.write_overwrite(bs.len() as u64, bs).await
-        }
-    }
 }
 
 #[async_trait]
 impl oio::Write for GdriveWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(ErrorKind::Unsupported, "sink is not supported"))
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
+        if self.file_id.is_none() {
+            self.write_create(s.size(), s).await
+        } else {
+            self.write_overwrite(s.size(), s).await
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

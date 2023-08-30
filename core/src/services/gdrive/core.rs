@@ -366,7 +366,7 @@ impl GdriveCore {
         &self,
         path: &str,
         size: u64,
-        body: bytes::Bytes,
+        stream: oio::Streamer,
     ) -> Result<Response<IncomingAsyncBody>> {
         let parent = self.ensure_parent_path(path).await?;
 
@@ -396,7 +396,7 @@ impl GdriveCore {
                         header::CONTENT_TYPE,
                         "application/octet-stream".parse().unwrap(),
                     )
-                    .content(body),
+                    .stream(stream),
             );
 
         let mut req = multipart.apply(req)?;
@@ -410,7 +410,7 @@ impl GdriveCore {
         &self,
         file_id: &str,
         size: u64,
-        body: bytes::Bytes,
+        stream: oio::Streamer,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
             "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",
@@ -421,7 +421,7 @@ impl GdriveCore {
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(header::CONTENT_LENGTH, size)
             .header("X-Upload-Content-Length", size)
-            .body(AsyncBody::Bytes(body))
+            .body(AsyncBody::Stream(stream))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

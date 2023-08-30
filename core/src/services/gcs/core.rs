@@ -282,7 +282,7 @@ impl GcsCore {
                     media_part = media_part.content(bytes);
                 }
                 AsyncBody::Stream(stream) => {
-                    media_part = media_part.stream(size.unwrap(), stream);
+                    media_part = media_part.stream(stream);
                 }
             }
 

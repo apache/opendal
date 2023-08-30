@@ -246,7 +246,6 @@ pub trait Part: Sized + 'static {
 pub struct FormDataPart {
     headers: HeaderMap,
 
-    content_length: u64,
     content: Streamer,
 }
 
@@ -266,7 +265,6 @@ impl FormDataPart {
 
         Self {
             headers,
-            content_length: 0,
             content: Box::new(oio::Cursor::new()),
         }
     }
@@ -281,14 +279,12 @@ impl FormDataPart {
     pub fn content(mut self, content: impl Into<Bytes>) -> Self {
         let content = content.into();
 
-        self.content_length = content.len() as u64;
         self.content = Box::new(oio::Cursor::from(content));
         self
     }
 
     /// Set the stream content for this part.
-    pub fn stream(mut self, size: u64, content: Streamer) -> Self {
-        self.content_length = size;
+    pub fn stream(mut self, content: Streamer) -> Self {
         self.content = content;
         self
     }
@@ -312,7 +308,7 @@ impl Part for FormDataPart {
         let bs = bs.freeze();
 
         // pre-content + content + post-content (b`\r\n`)
-        let total_size = bs.len() as u64 + self.content_length + 2;
+        let total_size = bs.len() as u64 + self.content.size() + 2;
 
         FormDataPartStream {
             size: total_size,
@@ -383,7 +379,6 @@ pub struct MixedPart {
     /// Common
     version: Version,
     headers: HeaderMap,
-    content_length: u64,
     content: Option<Streamer>,
 
     /// Request only
@@ -408,7 +403,6 @@ impl MixedPart {
 
             version: Version::HTTP_11,
             headers: HeaderMap::new(),
-            content_length: 0,
             content: None,
 
             uri: Some(uri),
@@ -426,21 +420,10 @@ impl MixedPart {
 
         let (parts, body) = req.into_parts();
 
-        let (content_length, content) = match body {
-            AsyncBody::Empty => (0, None),
-            AsyncBody::Bytes(bs) => (
-                bs.len() as u64,
-                Some(Box::new(oio::Cursor::from(bs)) as Streamer),
-            ),
-            AsyncBody::Stream(stream) => {
-                let len = parts
-                    .headers
-                    .get(CONTENT_LENGTH)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok())
-                    .expect("the content length of a mixed part must be valid");
-                (len, Some(stream))
-            }
+        let content = match body {
+            AsyncBody::Empty => None,
+            AsyncBody::Bytes(bs) => Some(Box::new(oio::Cursor::from(bs)) as Streamer),
+            AsyncBody::Stream(stream) => Some(stream),
         };
 
         Self {
@@ -457,7 +440,6 @@ impl MixedPart {
             ),
             version: parts.version,
             headers: parts.headers,
-            content_length,
             content,
 
             method: Some(parts.method),
@@ -475,7 +457,8 @@ impl MixedPart {
         mem::swap(builder.headers_mut().unwrap(), &mut self.headers);
 
         let body = if let Some(stream) = self.content {
-            IncomingAsyncBody::new(stream, Some(self.content_length))
+            let size = stream.size();
+            IncomingAsyncBody::new(stream, Some(size))
         } else {
             IncomingAsyncBody::new(Box::new(oio::into_stream(0, stream::empty())), Some(0))
         };
@@ -513,14 +496,12 @@ impl MixedPart {
     pub fn content(mut self, content: impl Into<Bytes>) -> Self {
         let content = content.into();
 
-        self.content_length = content.len() as u64;
         self.content = Some(Box::new(oio::Cursor::from(content)));
         self
     }
 
     /// Set the stream content for this part.
-    pub fn stream(mut self, size: u64, content: Streamer) -> Self {
-        self.content_length = size;
+    pub fn stream(mut self, content: Streamer) -> Self {
         self.content = Some(content);
         self
     }
@@ -594,8 +575,8 @@ impl Part for MixedPart {
         // pre-content + content + post-content;
         let mut total_size = bs.len() as u64;
 
-        if self.content.is_some() {
-            total_size += self.content_length + 2;
+        if let Some(stream) = &self.content {
+            total_size += stream.size() + 2;
         }
 
         MixedPartStream {
@@ -676,7 +657,6 @@ impl Part for MixedPart {
             part_headers,
             version: Version::HTTP_11,
             headers,
-            content_length: body_bytes.len() as u64,
             content: Some(Box::new(oio::Cursor::from(body_bytes))),
 
             method: None,
@@ -1171,7 +1151,6 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[0].content_length, part0_bs.len() as u64);
         assert_eq!(multipart.parts[0].uri, None);
         assert_eq!(multipart.parts[0].method, None);
         assert_eq!(
@@ -1211,7 +1190,6 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[1].content_length, part1_bs.len() as u64);
         assert_eq!(multipart.parts[1].uri, None);
         assert_eq!(multipart.parts[1].method, None);
         assert_eq!(
@@ -1251,7 +1229,6 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[2].content_length, part2_bs.len() as u64);
         assert_eq!(multipart.parts[2].uri, None);
         assert_eq!(multipart.parts[2].method, None);
         assert_eq!(

@@ -80,7 +80,7 @@ runs:
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       shell: bash
       run: |
-        apt install -y cpuidtool libcpuid-dev
+        sudo apt install -y cpuidtool libcpuid-dev
         cpuid_tool --all
 
     - name: Cache rocksdb

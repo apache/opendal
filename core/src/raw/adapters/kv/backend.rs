@@ -21,6 +21,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use super::Adapter;
+use crate::raw::oio::StreamExt;
 use crate::raw::*;
 use crate::*;
 
@@ -389,18 +390,23 @@ impl<S> KvWriter<S> {
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
+        let bs = s.collect().await?;
+        self.buf = match self.buf.take() {
+            Some(mut v) => {
+                v.extend_from_slice(&bs);
+                Some(v)
+            }
+            None => Some(bs.into()),
+        };
+
+        Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support abort",
-        ))
+        self.buf = None;
+
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

@@ -90,6 +90,9 @@ runs:
       run: |
         set -e
 
+        apt install -y cpuidtool libcpuid-dev
+        cpuid_tool --all
+
         cd /tmp
         curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
         tar -xzf rocksdb.tar.gz

@@ -38,7 +38,7 @@ pub trait AppendObjectWrite: Send + Sync + Unpin {
     async fn offset(&self) -> Result<u64>;
 
     /// Append the data to the end of this object.
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()>;
+    async fn append(&self, offset: u64, stream: Streamer) -> Result<()>;
 }
 
 /// AppendObjectWriter will implements [`Write`] based on append object.
@@ -83,7 +83,7 @@ where
 
         let size = s.size();
         self.inner
-            .append(offset, s.size(), AsyncBody::Stream(s))
+            .append(offset, s)
             .await
             .map(|_| self.offset = Some(offset + size))
     }

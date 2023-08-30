@@ -215,10 +215,14 @@ impl oio::AppendObjectWrite for CosWriter {
         }
     }
 
-    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
-        let mut req = self
-            .core
-            .cos_append_object_request(&self.path, offset, size, &self.op, body)?;
+    async fn append(&self, offset: u64, stream: Streamer) -> Result<()> {
+        let mut req = self.core.cos_append_object_request(
+            &self.path,
+            offset,
+            stream.size(),
+            &self.op,
+            AsyncBody::Stream(stream),
+        )?;
 
         self.core.sign(&mut req).await?;
 

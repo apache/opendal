@@ -57,4 +57,8 @@ jobs:
       - name: Run litmus tests
         run: |
           cd litmus-0.13
-          TESTS="http basic copymove" HTDOCS=htdocs TESTROOT=. ./litmus http://localhost:3000
+          TESTS="http basic copymove" HTDOCS=htdocs TESTROOT=. ./litmus http://localhost:3000 | tee litmus.log
+
+      - name: Check litmus test results
+        run: |
+          grep -q "FATAL" litmus.log && exit 1

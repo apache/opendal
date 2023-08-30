@@ -38,6 +38,7 @@ use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
+use crate::services::azblob::writer::AzblobWriters;
 use crate::types::Metadata;
 use crate::*;
 
@@ -52,6 +53,7 @@ const KNOWN_AZBLOB_ENDPOINT_SUFFIX: &[&str] = &[
 ];
 
 const AZBLOB_BATCH_LIMIT: usize = 256;
+
 /// Azure Storage Blob services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
@@ -506,7 +508,7 @@ pub struct AzblobBackend {
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = AzblobWriter;
+    type Writer = oio::TwoWaysWriter<AzblobWriters, oio::AtLeastBufWriter<AzblobWriters>>;
     type BlockingWriter = ();
     type Pager = AzblobPager;
     type BlockingPager = ();
@@ -602,10 +604,28 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            AzblobWriter::new(self.core.clone(), args, path.to_string()),
-        ))
+        let writer = AzblobWriter::new(self.core.clone(), path, args.clone());
+
+        let w = if args.content_length().is_some() {
+            AzblobWriters::One(oio::OneShotWriter::new(writer))
+        } else if args.append() {
+            AzblobWriters::Two(oio::AppendObjectWriter::new(writer))
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "azblob write without neither content-length nor append is not supported yet",
+            ));
+        };
+
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            oio::TwoWaysWriter::Two(
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length()),
+            )
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

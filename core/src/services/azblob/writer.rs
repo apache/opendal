@@ -22,39 +22,42 @@ use http::StatusCode;
 
 use super::core::AzblobCore;
 use super::error::parse_error;
-use crate::raw::oio::Stream;
+use crate::raw::oio::{Stream, Streamer};
 use crate::raw::*;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 const X_MS_BLOB_APPEND_OFFSET: &str = "x-ms-blob-append-offset";
 
+pub type AzblobWriters =
+    oio::TwoWaysWriter<oio::OneShotWriter<AzblobWriter>, oio::AppendObjectWriter<AzblobWriter>>;
+
 pub struct AzblobWriter {
     core: Arc<AzblobCore>,
 
-    op: OpWrite,
     path: String,
-
-    position: Option<u64>,
+    op: OpWrite,
 }
 
 impl AzblobWriter {
-    pub fn new(core: Arc<AzblobCore>, op: OpWrite, path: String) -> Self {
+    pub fn new(core: Arc<AzblobCore>, path: &str, op: OpWrite) -> Self {
         AzblobWriter {
             core,
+            path: path.to_string(),
             op,
-            path,
-            position: None,
         }
     }
+}
 
-    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
+#[async_trait]
+impl oio::OneShotWrite for AzblobWriter {
+    async fn write_once(&self, stream: Streamer) -> Result<()> {
         let mut req = self.core.azblob_put_blob_request(
             &self.path,
-            Some(size),
+            Some(stream.size()),
             self.op.content_type(),
             self.op.cache_control(),
-            body,
+            AsyncBody::Stream(stream),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -71,13 +74,11 @@ impl AzblobWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
-    async fn current_position(&mut self) -> Result<Option<u64>> {
-        if let Some(v) = self.position {
-            return Ok(Some(v));
-        }
-
-        // TODO: we should check with current etag to make sure file not changed.
+#[async_trait]
+impl oio::AppendObjectWrite for AzblobWriter {
+    async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
             .azblob_get_blob_properties(&self.path, None, None)
@@ -86,9 +87,6 @@ impl AzblobWriter {
         let status = resp.status();
 
         match status {
-            // Just check the blob type.
-            // If it is not an appendable blob, return an error.
-            // We can not get the append position of the blob here.
             StatusCode::OK => {
                 let headers = resp.headers();
                 let blob_type = headers.get(X_MS_BLOB_TYPE).and_then(|v| v.to_str().ok());
@@ -98,43 +96,44 @@ impl AzblobWriter {
                         "the blob is not an appendable blob.",
                     ));
                 }
-                Ok(None)
+
+                parse_content_length(headers).map(|v| v.unwrap_or_default())
             }
-            // If the blob is not existing, we need to create one.
-            StatusCode::NOT_FOUND => {
-                let mut req = self.core.azblob_init_appendable_blob_request(
-                    &self.path,
-                    self.op.content_type(),
-                    self.op.cache_control(),
-                )?;
-
-                self.core.sign(&mut req).await?;
-
-                let resp = self.core.client.send(req).await?;
-
-                let status = resp.status();
-                match status {
-                    StatusCode::CREATED => {
-                        // do nothing
-                    }
-                    _ => {
-                        return Err(parse_error(resp).await?);
-                    }
-                }
-
-                self.position = Some(0);
-                Ok(Some(0))
-            }
+            // Return 0 if the blob is not existing.
+            StatusCode::NOT_FOUND => Ok(0),
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn append_oneshot(&mut self, size: u64, body: AsyncBody) -> Result<()> {
-        let _ = self.current_position().await?;
+    async fn append(&self, offset: u64, stream: Streamer) -> Result<()> {
+        // Init appendable blob if we are writing to a file with offset 0.
+        if offset == 0 {
+            let mut req = self.core.azblob_init_appendable_blob_request(
+                &self.path,
+                self.op.content_type(),
+                self.op.cache_control(),
+            )?;
 
-        let mut req =
-            self.core
-                .azblob_append_blob_request(&self.path, size, self.position, body)?;
+            self.core.sign(&mut req).await?;
+
+            let resp = self.core.client.send(req).await?;
+            let status = resp.status();
+            match status {
+                StatusCode::CREATED => {
+                    // do nothing
+                }
+                _ => {
+                    return Err(parse_error(resp).await?);
+                }
+            }
+        }
+
+        let mut req = self.core.azblob_append_blob_request(
+            &self.path,
+            stream.size(),
+            Some(offset),
+            AsyncBody::Stream(stream),
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -142,45 +141,8 @@ impl AzblobWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::CREATED => {
-                let headers = resp.headers();
-                let position = headers
-                    .get(X_MS_BLOB_APPEND_OFFSET)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok());
-                self.position = position.map(|v| v + size);
-            }
-            _ => {
-                return Err(parse_error(resp).await?);
-            }
+            StatusCode::CREATED => Ok(()),
+            _ => Err(parse_error(resp).await?),
         }
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl oio::Write for AzblobWriter {
-    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
-        if self.op.append() {
-            self.append_oneshot(s.size(), AsyncBody::Stream(s)).await
-        } else {
-            if self.op.content_length().is_none() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "write without content length is not supported",
-                ));
-            }
-
-            self.write_oneshot(s.size(), AsyncBody::Stream(s)).await
-        }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

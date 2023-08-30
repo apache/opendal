@@ -532,7 +532,6 @@ impl Accessor for AzblobBackend {
 
                 write: true,
                 write_can_append: true,
-                write_can_sink: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
 

@@ -266,7 +266,6 @@ impl Accessor for FsBackend {
 
                 write: true,
                 write_can_append: true,
-                write_can_sink: true,
                 write_without_content_length: true,
                 create_dir: true,
                 delete: true,

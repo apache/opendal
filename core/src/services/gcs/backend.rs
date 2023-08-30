@@ -360,7 +360,6 @@ impl Accessor for GcsBackend {
                 read_with_if_none_match: true,
 
                 write: true,
-                write_can_sink: true,
                 write_with_content_type: true,
                 // TODO: we are working on refactor this.
                 // write_without_content_length: true,

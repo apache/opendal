@@ -35,14 +35,17 @@ impl VercelArtifactsWriter {
     pub fn new(backend: VercelArtifactsBackend, op: OpWrite, path: String) -> Self {
         VercelArtifactsWriter { backend, op, path }
     }
+}
 
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+#[async_trait]
+impl oio::Write for VercelArtifactsWriter {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         let resp = self
             .backend
             .vercel_artifacts_put(
                 self.path.as_str(),
                 self.op.content_length().unwrap(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::Stream(s),
             )
             .await?;
 
@@ -55,16 +58,6 @@ impl VercelArtifactsWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for VercelArtifactsWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
     }
 
     async fn abort(&mut self) -> Result<()> {

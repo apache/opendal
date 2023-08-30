@@ -18,27 +18,36 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzdfsCore;
 use super::error::parse_error;
+use crate::raw::oio::{Stream, Streamer};
 use crate::raw::*;
 use crate::*;
+
+pub type AzdfsWriters = oio::OneShotWriter<AzdfsWriter>;
 
 pub struct AzdfsWriter {
     core: Arc<AzdfsCore>,
 
-    op: OpWrite,
     path: String,
+    op: OpWrite,
 }
 
 impl AzdfsWriter {
-    pub fn new(core: Arc<AzdfsCore>, op: OpWrite, path: String) -> Self {
-        AzdfsWriter { core, op, path }
+    pub fn new(core: Arc<AzdfsCore>, path: &str, op: OpWrite) -> Self {
+        AzdfsWriter {
+            core,
+            path: path.to_string(),
+            op,
+        }
     }
+}
 
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+#[async_trait]
+impl oio::OneShotWrite for AzdfsWriter {
+    async fn write_once(&self, stream: Streamer) -> Result<()> {
         let mut req = self.core.azdfs_create_request(
             &self.path,
             "file",
@@ -63,9 +72,11 @@ impl AzdfsWriter {
             }
         }
 
-        let mut req =
-            self.core
-                .azdfs_update_request(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))?;
+        let mut req = self.core.azdfs_update_request(
+            &self.path,
+            Some(stream.size()),
+            AsyncBody::Stream(stream),
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -81,23 +92,5 @@ impl AzdfsWriter {
                 .await?
                 .with_operation("Backend::azdfs_update_request")),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for AzdfsWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

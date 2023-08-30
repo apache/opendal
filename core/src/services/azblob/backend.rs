@@ -613,7 +613,7 @@ impl Accessor for AzblobBackend {
         } else {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "azblob write without neither content-length nor append is not supported yet",
+                "azblob write with block blobs is not supported yet, refer to https://github.com/apache/incubator-opendal/issues/2113 for more details",
             ));
         };
 

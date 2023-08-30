@@ -32,6 +32,7 @@ use super::error::parse_error;
 use super::pager::AzdfsPager;
 use super::writer::AzdfsWriter;
 use crate::raw::*;
+use crate::services::azdfs::writer::AzdfsWriters;
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
@@ -230,7 +231,7 @@ pub struct AzdfsBackend {
 impl Accessor for AzdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = AzdfsWriter;
+    type Writer = oio::TwoWaysWriter<AzdfsWriters, oio::AtLeastBufWriter<AzdfsWriters>>;
     type BlockingWriter = ();
     type Pager = AzdfsPager;
     type BlockingPager = ();
@@ -296,17 +297,31 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
+        let writer = AzdfsWriter::new(self.core.clone(), path, args.clone());
+
+        let w = if args.content_length().is_some() {
+            oio::OneShotWriter::new(writer)
+        } else if args.append() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "write without content length is not supported",
+                "azdfs write with append is not supported yet, refer to https://github.com/apache/incubator-opendal/issues/2977 for more details",
             ));
-        }
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "azdfs write without content-length is not supported yet, refer to https://github.com/apache/incubator-opendal/issues/2978 for more details",
+            ));
+        };
 
-        Ok((
-            RpWrite::default(),
-            AzdfsWriter::new(self.core.clone(), args, path.to_string()),
-        ))
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            oio::TwoWaysWriter::Two(
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length()),
+            )
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

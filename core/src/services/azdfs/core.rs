@@ -204,7 +204,7 @@ impl AzdfsCore {
     pub fn azdfs_update_request(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);

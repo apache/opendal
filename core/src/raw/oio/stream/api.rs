@@ -23,9 +23,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use bytes::BytesMut;
 use pin_project::pin_project;
 
+use crate::raw::oio::VectorCursor;
 use crate::*;
 
 /// Streamer is a type erased [`Stream`].
@@ -184,7 +184,7 @@ pub trait StreamExt: Stream {
     {
         Collect {
             stream: self,
-            buf: BytesMut::new(),
+            buf: VectorCursor::new(),
         }
     }
 }
@@ -260,7 +260,7 @@ impl<S1: Stream, S2: Stream> Stream for Chain<S1, S2> {
 #[must_use = "streams do nothing unless polled"]
 pub struct Collect<S> {
     stream: S,
-    buf: BytesMut,
+    buf: VectorCursor,
 }
 
 impl<S> Future for Collect<S>
@@ -273,9 +273,13 @@ where
         let mut this = self.as_mut();
         loop {
             match ready!(this.stream.poll_next(cx)) {
-                Some(Ok(bs)) => this.buf.extend(bs),
+                Some(Ok(bs)) => this.buf.push(bs),
                 Some(Err(err)) => return Poll::Ready(Err(err)),
-                None => return Poll::Ready(Ok(self.buf.split().freeze())),
+                None => {
+                    let bs = self.buf.peak_all();
+                    self.buf.clear();
+                    return Poll::Ready(Ok(bs));
+                }
             }
         }
     }

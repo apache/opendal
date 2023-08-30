@@ -262,7 +262,7 @@ mod tests {
 
             expected.extend_from_slice(&content);
             writer
-                .write(Box::new(oio::Cursor::from(Bytes::from(expected.clone()))))
+                .write(Box::new(oio::Cursor::from(Bytes::from(content.clone()))))
                 .await?;
         }
         writer.close().await?;

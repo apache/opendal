@@ -22,6 +22,7 @@ use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::error::parse_io_error;
+use crate::raw::oio::StreamExt;
 use crate::raw::*;
 use crate::*;
 
@@ -39,30 +40,19 @@ impl<F> HdfsWriter<F> {
     }
 }
 
-impl HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        while self.pos < bs.len() {
-            let n = self
-                .f
-                .write(&bs[self.pos..])
-                .await
-                .map_err(parse_io_error)?;
+#[async_trait]
+impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
+    async fn write(&mut self, mut s: oio::Streamer) -> Result<()> {
+        while let Some(bs) = s.next().await.transpose()? {
+            let n = bs.len();
+
+            self.f.write_all(&bs).await.map_err(parse_io_error)?;
             self.pos += n;
         }
         // Reset pos to 0 for next write.
         self.pos = 0;
 
         Ok(())
-    }
-}
-
-#[async_trait]
-impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
     }
 
     async fn abort(&mut self) -> Result<()> {

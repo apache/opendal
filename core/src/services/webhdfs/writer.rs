@@ -21,6 +21,7 @@ use http::StatusCode;
 
 use super::backend::WebhdfsBackend;
 use super::error::parse_error;
+use crate::raw::oio::Stream;
 use crate::raw::*;
 use crate::*;
 
@@ -35,15 +36,18 @@ impl WebhdfsWriter {
     pub fn new(backend: WebhdfsBackend, op: OpWrite, path: String) -> Self {
         WebhdfsWriter { backend, op, path }
     }
+}
 
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+#[async_trait]
+impl oio::Write for WebhdfsWriter {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         let req = self
             .backend
             .webhdfs_create_object_request(
                 &self.path,
-                Some(bs.len()),
+                Some(s.size()),
                 self.op.content_type(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::Stream(s),
             )
             .await?;
 
@@ -57,16 +61,6 @@ impl WebhdfsWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for WebhdfsWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
     }
 
     async fn abort(&mut self) -> Result<()> {

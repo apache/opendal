@@ -263,7 +263,7 @@ impl OnedriveBackend {
     pub async fn onedrive_upload_simple(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {

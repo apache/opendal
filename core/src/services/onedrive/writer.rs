@@ -32,10 +32,10 @@ pub struct OneDriveWriter {
 }
 
 impl OneDriveWriter {
-    const MAX_SIMPLE_SIZE: usize = 4 * 1024 * 1024;
+    // const MAX_SIMPLE_SIZE: usize = 4 * 1024 * 1024;
     // If your app splits a file into multiple byte ranges, the size of each byte range MUST be a multiple of 320 KiB (327,680 bytes). Using a fragment size that does not divide evenly by 320 KiB will result in errors committing some files.
     // https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_createuploadsession?view=odsp-graph-online#upload-bytes-to-the-upload-session
-    const CHUNK_SIZE_FACTOR: usize = 327_680;
+    // const CHUNK_SIZE_FACTOR: usize = 327_680;
 
     pub fn new(backend: OnedriveBackend, op: OpWrite, path: String) -> Self {
         OneDriveWriter { backend, op, path }

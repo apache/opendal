@@ -772,7 +772,7 @@ mod tests {
             .part(FormDataPart::new("Signature").content("0RavWzkygo6QX9caELEqKi9kDbU="))
             .part(FormDataPart::new("file").header(CONTENT_TYPE, "image/jpeg".parse().unwrap()).content("...file content...")).part(FormDataPart::new("submit").content("Upload to Amazon S3"));
 
-        let mut body = multipart.build();
+        let body = multipart.build();
         let size = body.size();
         let bs = body.collect().await?;
         assert_eq!(size, bs.len() as u64);
@@ -1055,8 +1055,8 @@ content-length: 0
     }
 
     /// This test is inspired by <https://cloud.google.com/storage/docs/batch>
-    #[test]
-    fn test_multipart_mixed_gcs_batch_metadata_response() {
+    #[tokio::test]
+    async fn test_multipart_mixed_gcs_batch_metadata_response() {
         let response = r#"--batch_pK7JBAk73-E=_AA5eFwv4m2Q=
 Content-Type: application/http
 Content-ID: <response-b29c5de2-0db4-490b-b421-6a51b598bd22+1>
@@ -1101,21 +1101,10 @@ Content-Length: 846
 
 --batch_pK7JBAk73-E=_AA5eFwv4m2Q=--"#.replace('\n', "\r\n");
 
-        let multipart: Multipart<MixedPart> = Multipart::new()
+        let mut multipart: Multipart<MixedPart> = Multipart::new()
             .with_boundary("batch_pK7JBAk73-E=_AA5eFwv4m2Q=")
             .parse(Bytes::from(response))
             .unwrap();
-
-        let part0_bs = Bytes::from_static(
-            r#"{"kind": "storage#object","id": "example-bucket/obj1/1495822576643790","metadata": {"type": "tabby"}}"#.as_bytes());
-        let part1_bs = Bytes::from_static(
-            r#"{"kind": "storage#object","id": "example-bucket/obj2/1495822576643790","metadata": {"type": "tuxedo"}}"#
-                .as_bytes()
-        );
-        let part2_bs = Bytes::from_static(
-            r#"{"kind": "storage#object","id": "example-bucket/obj3/1495822576643790","metadata": {"type": "calico"}}"#
-                .as_bytes()
-        );
 
         assert_eq!(multipart.parts.len(), 3);
 
@@ -1157,6 +1146,8 @@ Content-Length: 846
             multipart.parts[0].status_code,
             Some(StatusCode::from_u16(200).unwrap())
         );
+        assert_eq!(multipart.parts[0].content.take().unwrap().collect().await.unwrap(), Bytes::from_static(
+            r#"{"kind": "storage#object","id": "example-bucket/obj1/1495822576643790","metadata": {"type": "tabby"}}"#.as_bytes()));
 
         assert_eq!(multipart.parts[1].part_headers, {
             let mut h = HeaderMap::new();
@@ -1196,6 +1187,10 @@ Content-Length: 846
             multipart.parts[1].status_code,
             Some(StatusCode::from_u16(200).unwrap())
         );
+        assert_eq!(multipart.parts[1].content.take().unwrap().collect().await.unwrap(), Bytes::from_static(
+            r#"{"kind": "storage#object","id": "example-bucket/obj2/1495822576643790","metadata": {"type": "tuxedo"}}"#
+                .as_bytes()
+        ));
 
         assert_eq!(multipart.parts[2].part_headers, {
             let mut h = HeaderMap::new();
@@ -1235,5 +1230,9 @@ Content-Length: 846
             multipart.parts[2].status_code,
             Some(StatusCode::from_u16(200).unwrap())
         );
+        assert_eq!(multipart.parts[2].content.take().unwrap().collect().await.unwrap(), Bytes::from_static(
+            r#"{"kind": "storage#object","id": "example-bucket/obj3/1495822576643790","metadata": {"type": "calico"}}"#
+                .as_bytes()
+        ));
     }
 }

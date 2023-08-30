@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::header;
 use http::Request;
 use http::Response;
@@ -27,7 +26,6 @@ use http::StatusCode;
 use super::error::parse_error;
 use super::graph_model::CreateDirPayload;
 use super::graph_model::ItemType;
-use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OnedriveGetItemBody;
 use super::pager::OnedrivePager;
 use super::writer::OneDriveWriter;
@@ -202,7 +200,7 @@ impl Accessor for OnedriveBackend {
 }
 
 impl OnedriveBackend {
-    pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
+    // pub(crate) const BASE_URL: &'static str = "https://graph.microsoft.com/v1.0/me";
 
     async fn onedrive_get_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let path = build_rooted_abs_path(&self.root, path);
@@ -290,53 +288,53 @@ impl OnedriveBackend {
         self.client.send(req).await
     }
 
-    pub(crate) async fn onedrive_chunked_upload(
-        &self,
-        url: &str,
-        content_type: Option<&str>,
-        offset: usize,
-        chunk_end: usize,
-        total_len: usize,
-        body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::put(url);
+    // pub(crate) async fn onedrive_chunked_upload(
+    //     &self,
+    //     url: &str,
+    //     content_type: Option<&str>,
+    //     offset: usize,
+    //     chunk_end: usize,
+    //     total_len: usize,
+    //     body: AsyncBody,
+    // ) -> Result<Response<IncomingAsyncBody>> {
+    //     let mut req = Request::put(url);
+    //
+    //     let auth_header_content = format!("Bearer {}", self.access_token);
+    //     req = req.header(header::AUTHORIZATION, auth_header_content);
+    //
+    //     let range = format!("bytes {}-{}/{}", offset, chunk_end, total_len);
+    //     req = req.header("Content-Range".to_string(), range);
+    //
+    //     let size = chunk_end - offset + 1;
+    //     req = req.header(header::CONTENT_LENGTH, size.to_string());
+    //
+    //     if let Some(mime) = content_type {
+    //         req = req.header(header::CONTENT_TYPE, mime)
+    //     }
+    //
+    //     let req = req.body(body).map_err(new_request_build_error)?;
+    //
+    //     self.client.send(req).await
+    // }
 
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let range = format!("bytes {}-{}/{}", offset, chunk_end, total_len);
-        req = req.header("Content-Range".to_string(), range);
-
-        let size = chunk_end - offset + 1;
-        req = req.header(header::CONTENT_LENGTH, size.to_string());
-
-        if let Some(mime) = content_type {
-            req = req.header(header::CONTENT_TYPE, mime)
-        }
-
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub(crate) async fn onedrive_create_upload_session(
-        &self,
-        url: &str,
-        body: OneDriveUploadSessionCreationRequestBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = Request::post(url);
-
-        let auth_header_content = format!("Bearer {}", self.access_token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        req = req.header(header::CONTENT_TYPE, "application/json");
-
-        let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let asyn_body = AsyncBody::Bytes(Bytes::from(body_bytes));
-        let req = req.body(asyn_body).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
+    // pub(crate) async fn onedrive_create_upload_session(
+    //     &self,
+    //     url: &str,
+    //     body: OneDriveUploadSessionCreationRequestBody,
+    // ) -> Result<Response<IncomingAsyncBody>> {
+    //     let mut req = Request::post(url);
+    //
+    //     let auth_header_content = format!("Bearer {}", self.access_token);
+    //     req = req.header(header::AUTHORIZATION, auth_header_content);
+    //
+    //     req = req.header(header::CONTENT_TYPE, "application/json");
+    //
+    //     let body_bytes = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+    //     let asyn_body = AsyncBody::Bytes(Bytes::from(body_bytes));
+    //     let req = req.body(asyn_body).map_err(new_request_build_error)?;
+    //
+    //     self.client.send(req).await
+    // }
 
     async fn onedrive_create_dir(
         &self,

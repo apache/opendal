@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::GcsCore;
@@ -35,13 +34,11 @@ pub struct GcsWriter {
     location: Option<String>,
     written: u64,
     buffer: oio::VectorCursor,
-    write_fixed_size: usize,
 }
 
 /// TODO we need to add buffer support for gcs.
 impl GcsWriter {
     pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
-        let write_fixed_size = core.write_fixed_size;
         GcsWriter {
             core,
             path: path.to_string(),
@@ -50,7 +47,6 @@ impl GcsWriter {
             location: None,
             written: 0,
             buffer: oio::VectorCursor::new(),
-            write_fixed_size,
         }
     }
 
@@ -77,91 +73,91 @@ impl GcsWriter {
         }
     }
 
-    async fn initiate_upload(&self) -> Result<String> {
-        let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
-        let status = resp.status();
+    // async fn initiate_upload(&self) -> Result<String> {
+    //     let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
+    //     let status = resp.status();
+    //
+    //     match status {
+    //         StatusCode::OK => {
+    //             let bs = parse_location(resp.headers())?;
+    //             if let Some(location) = bs {
+    //                 Ok(location.to_string())
+    //             } else {
+    //                 Err(Error::new(
+    //                     ErrorKind::Unexpected,
+    //                     "location is not in the response header",
+    //                 ))
+    //             }
+    //         }
+    //         _ => Err(parse_error(resp).await?),
+    //     }
+    // }
 
-        match status {
-            StatusCode::OK => {
-                let bs = parse_location(resp.headers())?;
-                if let Some(location) = bs {
-                    Ok(location.to_string())
-                } else {
-                    Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "location is not in the response header",
-                    ))
-                }
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
+    // async fn write_part(&self, location: &str, bs: Bytes) -> Result<()> {
+    //     let mut req = self.core.gcs_upload_in_resumable_upload(
+    //         location,
+    //         bs.len() as u64,
+    //         self.written,
+    //         false,
+    //         AsyncBody::Bytes(bs),
+    //     )?;
+    //
+    //     self.core.sign(&mut req).await?;
+    //
+    //     let resp = self.core.send(req).await?;
+    //
+    //     let status = resp.status();
+    //     match status {
+    //         StatusCode::OK | StatusCode::PERMANENT_REDIRECT => Ok(()),
+    //         _ => Err(parse_error(resp).await?),
+    //     }
+    // }
 
-    async fn write_part(&self, location: &str, bs: Bytes) -> Result<()> {
-        let mut req = self.core.gcs_upload_in_resumable_upload(
-            location,
-            bs.len() as u64,
-            self.written,
-            false,
-            AsyncBody::Bytes(bs),
-        )?;
-
-        self.core.sign(&mut req).await?;
-
-        let resp = self.core.send(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PERMANENT_REDIRECT => Ok(()),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let location = match &self.location {
-            Some(location) => location,
-            None => {
-                if self.op.content_length().unwrap_or_default() == bs.len() as u64
-                    && self.written == 0
-                {
-                    return self
-                        .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-                        .await;
-                } else {
-                    let location = self.initiate_upload().await?;
-                    self.location = Some(location);
-                    self.location.as_deref().unwrap()
-                }
-            }
-        };
-
-        // Ignore empty bytes
-        if bs.is_empty() {
-            return Ok(());
-        }
-
-        self.buffer.push(bs);
-        // Return directly if the buffer is not full
-        if self.buffer.len() <= self.write_fixed_size {
-            return Ok(());
-        }
-
-        let bs = self.buffer.peak_exact(self.write_fixed_size);
-
-        match self.write_part(location, bs).await {
-            Ok(_) => {
-                self.buffer.take(self.write_fixed_size);
-                self.written += self.write_fixed_size as u64;
-                Ok(())
-            }
-            Err(e) => {
-                // If the upload fails, we should pop the given bs to make sure
-                // write is re-enter safe.
-                self.buffer.pop();
-                Err(e)
-            }
-        }
-    }
+    // async fn write(&mut self, bs: Bytes) -> Result<()> {
+    //     let location = match &self.location {
+    //         Some(location) => location,
+    //         None => {
+    //             if self.op.content_length().unwrap_or_default() == bs.len() as u64
+    //                 && self.written == 0
+    //             {
+    //                 return self
+    //                     .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
+    //                     .await;
+    //             } else {
+    //                 let location = self.initiate_upload().await?;
+    //                 self.location = Some(location);
+    //                 self.location.as_deref().unwrap()
+    //             }
+    //         }
+    //     };
+    //
+    //     // Ignore empty bytes
+    //     if bs.is_empty() {
+    //         return Ok(());
+    //     }
+    //
+    //     self.buffer.push(bs);
+    //     // Return directly if the buffer is not full
+    //     if self.buffer.len() <= self.write_fixed_size {
+    //         return Ok(());
+    //     }
+    //
+    //     let bs = self.buffer.peak_exact(self.write_fixed_size);
+    //
+    //     match self.write_part(location, bs).await {
+    //         Ok(_) => {
+    //             self.buffer.take(self.write_fixed_size);
+    //             self.written += self.write_fixed_size as u64;
+    //             Ok(())
+    //         }
+    //         Err(e) => {
+    //             // If the upload fails, we should pop the given bs to make sure
+    //             // write is re-enter safe.
+    //             self.buffer.pop();
+    //             Err(e)
+    //         }
+    //     }
+    // }
 }
 
 #[async_trait]

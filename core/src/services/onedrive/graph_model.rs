@@ -132,17 +132,17 @@ pub struct OneDriveUploadSessionCreationRequestBody {
     item: FileUploadItem,
 }
 
-impl OneDriveUploadSessionCreationRequestBody {
-    pub fn new(path: String) -> Self {
-        OneDriveUploadSessionCreationRequestBody {
-            item: FileUploadItem {
-                odata_type: "microsoft.graph.driveItemUploadableProperties".to_string(),
-                microsoft_graph_conflict_behavior: "replace".to_string(),
-                name: path,
-            },
-        }
-    }
-}
+// impl OneDriveUploadSessionCreationRequestBody {
+//     pub fn new(path: String) -> Self {
+//         OneDriveUploadSessionCreationRequestBody {
+//             item: FileUploadItem {
+//                 odata_type: "microsoft.graph.driveItemUploadableProperties".to_string(),
+//                 microsoft_graph_conflict_behavior: "replace".to_string(),
+//                 name: path,
+//             },
+//         }
+//     }
+// }
 
 #[test]
 fn test_parse_one_drive_json() {

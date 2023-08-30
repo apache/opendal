@@ -27,7 +27,6 @@ use crate::raw::*;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
-const X_MS_BLOB_APPEND_OFFSET: &str = "x-ms-blob-append-offset";
 
 pub type AzblobWriters =
     oio::TwoWaysWriter<oio::OneShotWriter<AzblobWriter>, oio::AppendObjectWriter<AzblobWriter>>;

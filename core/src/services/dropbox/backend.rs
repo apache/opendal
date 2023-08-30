@@ -31,6 +31,7 @@ use super::error::parse_error;
 use super::writer::DropboxWriter;
 use crate::raw::*;
 use crate::services::dropbox::error::DropboxErrorResponse;
+use crate::services::dropbox::writer::DropboxWriters;
 use crate::*;
 
 static BACKOFF: Lazy<ExponentialBuilder> = Lazy::new(|| {
@@ -49,7 +50,7 @@ pub struct DropboxBackend {
 impl Accessor for DropboxBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = DropboxWriter;
+    type Writer = oio::TwoWaysWriter<DropboxWriters, oio::AtLeastBufWriter<DropboxWriters>>;
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
@@ -106,16 +107,31 @@ impl Accessor for DropboxBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
+        let writer = DropboxWriter::new(self.core.clone(), path, args.clone());
+
+        let w = if args.content_length().is_some() {
+            oio::OneShotWriter::new(writer)
+        } else if args.append() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "write without content length is not supported",
+                "dropbox write with append is not supported yet.",
             ));
-        }
-        Ok((
-            RpWrite::default(),
-            DropboxWriter::new(self.core.clone(), args, String::from(path)),
-        ))
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "dropbox write without content-length is not supported yet",
+            ));
+        };
+
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            oio::TwoWaysWriter::Two(
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length()),
+            )
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

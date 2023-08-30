@@ -97,7 +97,7 @@ impl DropboxCore {
     pub async fn dropbox_update(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {

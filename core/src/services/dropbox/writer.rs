@@ -23,31 +23,42 @@ use http::StatusCode;
 
 use super::core::DropboxCore;
 use super::error::parse_error;
+use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
+pub type DropboxWriters = oio::OneShotWriter<DropboxWriter>;
+
 pub struct DropboxWriter {
     core: Arc<DropboxCore>,
-    op: OpWrite,
     path: String,
+    op: OpWrite,
 }
 
 impl DropboxWriter {
-    pub fn new(core: Arc<DropboxCore>, op: OpWrite, path: String) -> Self {
-        DropboxWriter { core, op, path }
+    pub fn new(core: Arc<DropboxCore>, path: &str, op: OpWrite) -> Self {
+        DropboxWriter {
+            core,
+            path: path.to_string(),
+            op,
+        }
     }
+}
 
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+#[async_trait]
+impl oio::OneShotWrite for DropboxWriter {
+    async fn write_once(&self, stream: Streamer) -> Result<()> {
         let resp = self
             .core
             .dropbox_update(
                 &self.path,
-                Some(bs.len()),
+                Some(stream.size()),
                 self.op.content_type(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::Stream(stream),
             )
             .await?;
         let status = resp.status();
+
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
@@ -55,23 +66,5 @@ impl DropboxWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for DropboxWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

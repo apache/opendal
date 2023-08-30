@@ -38,6 +38,7 @@ pub struct GcsWriter {
     write_fixed_size: usize,
 }
 
+/// TODO we need to add buffer support for gcs.
 impl GcsWriter {
     pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
         let write_fixed_size = core.write_fixed_size;

@@ -264,7 +264,7 @@ impl Debug for FtpBackend {
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
     type BlockingReader = ();
-    type Writer = FtpWriter;
+    type Writer = oio::TwoWaysWriter<FtpWriter, oio::AtLeastBufWriter<FtpWriter>>;
     type BlockingWriter = ();
     type Pager = FtpPager;
     type BlockingPager = ();
@@ -352,13 +352,6 @@ impl Accessor for FtpBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         // Ensure the parent dir exists.
         let parent = get_parent(path);
         let paths: Vec<&str> = parent.split('/').collect();
@@ -381,10 +374,29 @@ impl Accessor for FtpBackend {
             }
         }
 
-        Ok((
-            RpWrite::new(),
-            FtpWriter::new(self.clone(), path.to_string()),
-        ))
+        let w = if args.content_length().is_some() {
+            FtpWriter::new(self.clone(), path.to_string())
+        } else if args.append() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "ftp write with append is not supported yet, refer to https://github.com/apache/incubator-opendal/issues/2977 for more details",
+            ));
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "ftp write without content-length is not supported yet, refer to https://github.com/apache/incubator-opendal/issues/2978 for more details",
+            ));
+        };
+
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            oio::TwoWaysWriter::Two(
+                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length()),
+            )
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

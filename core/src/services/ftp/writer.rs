@@ -20,6 +20,7 @@ use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::backend::FtpBackend;
+use crate::raw::oio::StreamExt;
 use crate::raw::*;
 use crate::*;
 
@@ -37,27 +38,27 @@ impl FtpWriter {
     pub fn new(backend: FtpBackend, path: String) -> Self {
         FtpWriter { backend, path }
     }
-
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
-        let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
-        data_stream.write_all(&bs).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-        })?;
-
-        ftp_stream.finalize_put_stream(data_stream).await?;
-
-        Ok(())
-    }
 }
 
 #[async_trait]
 impl oio::Write for FtpWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    /// TODO
+    ///
+    /// This implement is not reentrant which doesn't fulfill the contract of `Write`.
+    /// We should polish it after we can use datastream.
+    async fn write(&mut self, mut s: oio::Streamer) -> Result<()> {
+        let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
+        let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
+
+        while let Some(bs) = s.next().await.transpose()? {
+            data_stream.write_all(&bs).await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
+            })?;
+        }
+
+        ftp_stream.finalize_put_stream(data_stream).await?;
+
+        Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {

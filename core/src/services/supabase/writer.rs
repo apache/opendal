@@ -23,6 +23,7 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use crate::raw::oio::Stream;
 use crate::raw::*;
 use crate::*;
 
@@ -41,14 +42,16 @@ impl SupabaseWriter {
             path: path.to_string(),
         }
     }
+}
 
-    pub async fn upload(&self, bytes: Bytes) -> Result<()> {
-        let size = bytes.len();
+#[async_trait]
+impl oio::Write for SupabaseWriter {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
-            Some(size),
+            Some(s.size()),
             self.op.content_type(),
-            AsyncBody::Bytes(bytes),
+            AsyncBody::Stream(s),
         )?;
 
         self.core.sign(&mut req)?;
@@ -62,24 +65,6 @@ impl SupabaseWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        if bs.is_empty() {
-            return Ok(());
-        }
-
-        self.upload(bs).await
-    }
-}
-
-#[async_trait]
-impl oio::Write for SupabaseWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
     }
 
     async fn abort(&mut self) -> Result<()> {

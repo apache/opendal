@@ -38,12 +38,15 @@ impl GhacWriter {
             size: 0,
         }
     }
+}
 
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len() as u64;
+#[async_trait]
+impl oio::Write for GhacWriter {
+    async fn write(&mut self, s: oio::Streamer) -> Result<()> {
+        let size = s.size();
         let req = self
             .backend
-            .ghac_upload(self.cache_id, size, AsyncBody::Bytes(bs))
+            .ghac_upload(self.cache_id, size, AsyncBody::Stream(s))
             .await?;
 
         let resp = self.backend.client.send(req).await?;
@@ -57,16 +60,6 @@ impl GhacWriter {
                 .await
                 .map(|err| err.with_operation("Backend::ghac_upload"))?)
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for GhacWriter {
-    async fn write(&mut self, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
     }
 
     async fn abort(&mut self) -> Result<()> {

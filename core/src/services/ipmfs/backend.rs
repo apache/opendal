@@ -290,7 +290,7 @@ impl IpmfsBackend {
     pub async fn ipmfs_write(
         &self,
         path: &str,
-        body: Bytes,
+        stream: oio::Streamer,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -300,7 +300,7 @@ impl IpmfsBackend {
             percent_encode_path(&p)
         );
 
-        let multipart = Multipart::new().part(FormDataPart::new("data").content(body));
+        let multipart = Multipart::new().part(FormDataPart::new("data").stream(stream));
 
         let req: http::request::Builder = Request::post(url);
         let req = multipart.apply(req)?;

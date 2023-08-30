@@ -126,7 +126,7 @@ impl<T: Part> Multipart<T> {
         // Write headers.
         for v in self.parts.into_iter() {
             let stream = v.format();
-            total_size += stream.size();
+            total_size += pre_part.len() as u64 + stream.size();
             parts.push_back(stream);
         }
 

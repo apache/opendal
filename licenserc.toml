@@ -38,4 +38,5 @@ excludes = [
 
   # Third-party source files
   "scripts/merge_local_staging.sh",
+  "bindings/cpp/docs/doxygen-awesome.css",
 ]

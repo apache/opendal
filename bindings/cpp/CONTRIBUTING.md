@@ -6,7 +6,7 @@
     - [Bring your own toolbox](#bring-your-own-toolbox)
   - [Build](#build)
   - [Test](#test)
-  - [Documetation](#documetation)
+  - [Documentation](#documentation)
 
 ## Setup
 
@@ -113,7 +113,7 @@ You should build the project first. Then run:
 ninja test
 ```
 
-## Documetation
+## Documentation
 
 To build the documentation. (Note that you need to install doxygen, graphviz)
 

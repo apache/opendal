@@ -20,6 +20,7 @@
 #pragma once
 #include "lib.rs.h"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>

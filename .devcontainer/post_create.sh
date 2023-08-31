@@ -65,3 +65,6 @@ sudo apt install -y php8.2 php8.2-dev
 sudo apt install -y opam
 opam init --auto-setup --yes
 opam install -y dune ounit2 ocamlformat
+
+# Setup for Cpp binding
+sudo apt install -y ninja-build

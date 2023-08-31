@@ -64,7 +64,7 @@ sudo apt install -y php8.2 php8.2-dev
 
 # Setup for OCaml binding
 sudo apt install -y opam
-opam init --auto-setup --yes
+opam init --auto-setup --yes --disable-sandboxing # container can't use sandboxing
 opam install -y dune ounit2 ocamlformat
 
 # Setup for Cpp binding

@@ -385,9 +385,12 @@ impl Accessor for GcsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req = self
-            .core
-            .gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req = self.core.gcs_insert_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 

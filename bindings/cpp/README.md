@@ -20,6 +20,7 @@ int main() {
 
 ```bash
 mkdir build
+cd build
 
 # Add -DCMAKE_EXPORT_COMPILE_COMMANDS=1 to generate compile_commands.json for clangd
 cmake -DCMAKE_BUILD_TYPE=Debug -GNinja .. 

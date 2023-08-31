@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.10)
 project(opendal-cpp CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -39,7 +39,7 @@ add_custom_command(
 
 add_library(opendal_cpp STATIC ${CPP_SOURCE_FILE} ${RUST_BRIDGE_CPP})
 target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR})
-target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
+target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB} ${CMAKE_DL_LIBS})
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )

@@ -365,10 +365,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Writer = oio::TwoWaysWriter<
-        CompleteWriter<A::Writer>,
-        oio::BoundedBufWriter<CompleteWriter<A::Writer>>,
-    >;
+    type Writer = CompleteWriter<oio::TwoWaysWriter<A::Writer, oio::BoundedBufWriter<A::Writer>>>;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Pager = CompletePager<A, A::Pager>;
     type BlockingPager = CompletePager<A, A::BlockingPager>;
@@ -433,7 +430,6 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         let buffer_size = args.buffer_size();
 
         let (rp, w) = self.inner.write(path, args).await?;
-        let w = CompleteWriter::new(w, size);
 
         // FIXME
         //
@@ -445,7 +441,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
             oio::TwoWaysWriter::One(w)
         };
 
-        Ok((rp, w))
+        Ok((rp, CompleteWriter::new(w, size)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -735,7 +731,9 @@ where
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "writer can't be used for mixed write and sink",
-            ));
+            )
+            .with_context("expect", WriteOperation::Write.into_static())
+            .with_context("actual", WriteOperation::Sink.into_static()));
         }
 
         let n = bs.len();
@@ -767,7 +765,9 @@ where
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "writer can't be used for mixed write and sink",
-            ));
+            )
+            .with_context("expect", WriteOperation::Sink.into_static())
+            .with_context("actual", WriteOperation::Write.into_static()));
         }
 
         if let Some(total_size) = self.size {

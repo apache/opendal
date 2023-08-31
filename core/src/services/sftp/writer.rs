@@ -21,8 +21,6 @@ use openssh_sftp_client::file::File;
 
 use crate::raw::oio;
 use crate::raw::oio::StreamExt;
-use crate::Error;
-use crate::ErrorKind;
 use crate::Result;
 
 pub struct SftpWriter {

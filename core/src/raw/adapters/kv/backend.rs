@@ -69,7 +69,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         let mut am: AccessorInfo = self.kv.metadata().into();
         am.set_root(&self.root);
 
-        let mut cap = Capability::default();
+        let mut cap = am.native_capability();
         if cap.read {
             cap.read_can_seek = true;
             cap.read_can_next = true;

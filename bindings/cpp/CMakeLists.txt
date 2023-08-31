@@ -65,6 +65,12 @@ target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_IN
 target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main opendal_cpp)
 target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
 
+# enable address sanitizers
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined -fno-omit-frame-pointer -fno-common -O1)
+    target_link_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined)
+endif()
+
 # Platform-specific test configuration
 if(WIN32)
     target_link_libraries(opendal_cpp_test userenv ws2_32 bcrypt)

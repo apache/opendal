@@ -21,7 +21,7 @@ use openssh_sftp_client::file::File;
 
 use crate::raw::oio;
 use crate::raw::oio::StreamExt;
-use crate::Result;
+use crate::*;
 
 pub struct SftpWriter {
     file: File,
@@ -50,7 +50,10 @@ impl oio::Write for SftpWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        Ok(())
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
+        ))
     }
 
     async fn close(&mut self) -> Result<()> {

@@ -217,6 +217,15 @@ impl ChunkedCursor {
         self.inner.iter().skip(self.idx).map(|v| v.len()).sum()
     }
 
+    /// Return Some(Bytes) if this cursor only has one bytes, otherwise return None.
+    pub fn try_single(&self) -> Option<Bytes> {
+        if self.inner.len() == 1 {
+            Some(self.inner[0].clone())
+        } else {
+            None
+        }
+    }
+
     /// Clear the entire cursor.
     pub fn clear(&mut self) {
         self.idx = 0;

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -36,6 +35,9 @@ use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
 use crate::*;
 
+#[allow(dead_code)]
+/// FIXME: we should use this const when capability has been added.
+///
 /// The minimum multipart size of OBS is 5 MiB.
 ///
 /// ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
@@ -256,7 +258,7 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<ObsWriters, oio::AtLeastBufWriter<ObsWriters>>;
+    type Writer = ObsWriters;
     type BlockingWriter = ();
     type Pager = ObsPager;
     type BlockingPager = ();
@@ -381,17 +383,6 @@ impl Accessor for ObsBackend {
             ObsWriters::One(oio::OneShotWriter::new(writer))
         } else {
             ObsWriters::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
         };
 
         Ok((RpWrite::default(), w))

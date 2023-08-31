@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -58,6 +57,9 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
+#[allow(dead_code)]
+/// FIXME: we should use this const when capability has been added.
+///
 /// The minimum multipart size of S3 is 5 MiB.
 ///
 /// ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -888,11 +890,7 @@ pub struct S3Backend {
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::ThreeWaysWriter<
-        S3Writers,
-        oio::AtLeastBufWriter<S3Writers>,
-        oio::ExactBufWriter<S3Writers>,
-    >;
+    type Writer = S3Writers;
     type BlockingWriter = ();
     type Pager = S3Pager;
     type BlockingPager = ();
@@ -986,21 +984,6 @@ impl Accessor for S3Backend {
             S3Writers::One(oio::OneShotWriter::new(writer))
         } else {
             S3Writers::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            if self.core.enable_exact_buf_write {
-                oio::ThreeWaysWriter::Three(oio::ExactBufWriter::new(w, buffer_size))
-            } else {
-                oio::ThreeWaysWriter::Two(
-                    oio::AtLeastBufWriter::new(w, buffer_size)
-                        .with_total_size(args.content_length()),
-                )
-            }
-        } else {
-            oio::ThreeWaysWriter::One(w)
         };
 
         Ok((RpWrite::default(), w))

@@ -365,7 +365,10 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Writer = CompleteWriter<A::Writer>;
+    type Writer = oio::TwoWaysWriter<
+        CompleteWriter<A::Writer>,
+        oio::BoundedBufWriter<CompleteWriter<A::Writer>>,
+    >;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Pager = CompletePager<A, A::Pager>;
     type BlockingPager = CompletePager<A, A::BlockingPager>;
@@ -427,10 +430,22 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         }
 
         let size = args.content_length();
-        self.inner
-            .write(path, args)
-            .await
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
+        let buffer_size = args.buffer_size();
+
+        let (rp, w) = self.inner.write(path, args).await?;
+        let w = CompleteWriter::new(w, size);
+
+        // FIXME
+        //
+        // we enforce to use exact buffer here, we should check the capability in the
+        // future.
+        let w = if let Some(buffer) = buffer_size {
+            oio::TwoWaysWriter::Two(oio::BoundedBufWriter::new(w, buffer).with_max_buffer(buffer))
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
+
+        Ok((rp, w))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

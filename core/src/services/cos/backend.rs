@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -36,6 +35,9 @@ use crate::raw::*;
 use crate::services::cos::writer::CosWriters;
 use crate::*;
 
+#[allow(dead_code)]
+/// FIXME: we should use this const when capability has been added.
+///
 /// The minimum multipart size of COS is 1 MiB.
 ///
 /// ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -249,7 +251,7 @@ pub struct CosBackend {
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<CosWriters, oio::AtLeastBufWriter<CosWriters>>;
+    type Writer = CosWriters;
     type BlockingWriter = ();
     type Pager = CosPager;
     type BlockingPager = ();
@@ -343,17 +345,6 @@ impl Accessor for CosBackend {
             CosWriters::One(oio::OneShotWriter::new(writer))
         } else {
             CosWriters::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
         };
 
         Ok((RpWrite::default(), w))

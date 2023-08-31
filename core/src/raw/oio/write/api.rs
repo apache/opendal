@@ -98,6 +98,13 @@ pub trait Write: Unpin + Send + Sync {
     async fn write(&mut self, bs: Bytes) -> Result<()>;
 
     /// Sink given stream into writer.
+    ///
+    /// # Limitations
+    ///
+    /// - Sink can't be used with `write` at the same time. Users should always
+    /// stick to the same write method.
+    /// - Sink can't be buffered. Underlying storage will always consume the
+    /// given stream as a whole.
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
 
     /// Abort the pending writer.

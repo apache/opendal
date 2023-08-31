@@ -45,8 +45,9 @@ sudo apt install -y libgtest-dev cmake
 
 # Setup for Zig binding
 sudo apt install -y wget
-wget -q https://github.com/marler8997/zigup/releases/download/v2023_07_27/zigup.ubuntu-latest-x86_64.zip
-sudo unzip -o zigup.ubuntu-latest-x86_64.zip -d /usr/bin
+tmp = $(mktemp -d)
+wget -q https://github.com/marler8997/zigup/releases/download/v2023_07_27/zigup.ubuntu-latest-x86_64.zip -O $tmp/zigup.ubuntu-latest-x86_64.zip
+sudo unzip -o $tmp/zigup.ubuntu-latest-x86_64.zip -d /usr/bin
 sudo chmod +x /usr/bin/zigup
 sudo zigup 0.11.0
 

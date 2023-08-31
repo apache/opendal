@@ -15,43 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[profile.bench]
-debug = true
+[package]
+name = "opendal-cpp"
+publish = false
+version = "0.1.0"
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
-  "core/fuzz",
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/ocaml",
-  "bindings/php",
-  "bindings/cpp",
+[lib]
+crate-type = ["staticlib"]
 
-  "bin/oli",
-  "bin/oay",
+[dependencies]
+opendal.workspace = true
+cxx = "1.0"
+anyhow = "1.0"
 
-  "integrations/object_store",
-]
-resolver = "2"
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.39.0"
-
-[workspace.dependencies]
-opendal = { version = "0.39", path = "core" }
+[build-dependencies]
+cxx-build = "1.0"

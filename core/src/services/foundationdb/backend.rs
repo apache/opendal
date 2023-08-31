@@ -32,7 +32,7 @@ use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
 
-/// Foundationdb service support.
+/// [foundationdb](https://www.foundationdb.org/) service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FoundationdbBuilder {

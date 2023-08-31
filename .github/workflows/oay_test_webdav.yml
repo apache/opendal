@@ -58,7 +58,7 @@ jobs:
         run: |
           cd litmus-0.13
           TESTS="http basic copymove" HTDOCS=htdocs TESTROOT=. ./litmus http://localhost:3000 | tee litmus.log
-
-      - name: Check litmus test results
-        run: |
-          grep -q "FATAL" litmus-0.13/litmus.log && exit 1
+          if grep -E "FATAL|FAIL" litmus.log; then
+            echo "Tests failed"
+            exit 1
+          fi

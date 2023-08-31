@@ -982,11 +982,7 @@ impl Accessor for S3Backend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let writer = S3Writer::new(self.core.clone(), path, args.clone());
 
-        let w = if args.content_length().is_some() {
-            S3Writers::One(oio::OneShotWriter::new(writer))
-        } else {
-            S3Writers::Two(oio::MultipartUploadWriter::new(writer))
-        };
+        let w = oio::MultipartUploadWriter::new(writer);
 
         let w = if let Some(buffer_size) = args.buffer_size() {
             let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);

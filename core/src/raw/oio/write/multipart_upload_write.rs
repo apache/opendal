@@ -32,6 +32,11 @@ use crate::*;
 /// - Expose `MultipartUploadWriter` as `Accessor::Writer`
 #[async_trait]
 pub trait MultipartUploadWrite: Send + Sync + Unpin {
+    /// write_once write all data at once.
+    ///
+    /// Implementations should make sure that the data is written correctly at once.
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()>;
+
     /// initiate_part will call start a multipart upload and return the upload id.
     ///
     /// MultipartUploadWriter will call this when:
@@ -89,6 +94,8 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
 
     upload_id: Option<String>,
     parts: Vec<MultipartUploadPart>,
+
+    cache: Option<(u64, AsyncBody)>,
 }
 
 impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
@@ -99,6 +106,7 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
 
             upload_id: None,
             parts: Vec::new(),
+            cache: None,
         }
     }
 
@@ -121,47 +129,74 @@ where
     W: MultipartUploadWrite,
 {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
+        let (size, body) = match self.cache.take() {
+            Some(cache) => {
+                self.cache = Some((bs.len() as u64, AsyncBody::Bytes(bs)));
+                cache
+            }
+            None => {
+                self.cache = Some((bs.len() as u64, AsyncBody::Bytes(bs)));
+                return Ok(());
+            }
+        };
+
         let upload_id = self.upload_id().await?;
 
-        let size = bs.len();
-
         self.inner
-            .write_part(
-                &upload_id,
-                self.parts.len(),
-                size as u64,
-                AsyncBody::Bytes(bs),
-            )
+            .write_part(&upload_id, self.parts.len(), size, body)
             .await
             .map(|v| self.parts.push(v))
     }
 
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        let (size, body) = match self.cache.take() {
+            Some(cache) => {
+                self.cache = Some((size, AsyncBody::Stream(s)));
+                cache
+            }
+            None => {
+                self.cache = Some((size, AsyncBody::Stream(s)));
+                return Ok(());
+            }
+        };
+
         let upload_id = self.upload_id().await?;
 
         self.inner
-            .write_part(&upload_id, self.parts.len(), size, AsyncBody::Stream(s))
+            .write_part(&upload_id, self.parts.len(), size, body)
             .await
             .map(|v| self.parts.push(v))
     }
 
     async fn close(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
+        match self.upload_id.take() {
+            Some(upload_id) => {
+                if let Some((size, body)) = self.cache.take() {
+                    self.inner
+                        .write_part(&upload_id, self.parts.len(), size, body)
+                        .await
+                        .map(|v| self.parts.push(v))?;
+                }
 
-        self.inner.complete_part(upload_id, &self.parts).await
+                self.inner.complete_part(&upload_id, &self.parts).await
+            }
+            None => {
+                if let Some((size, body)) = self.cache.take() {
+                    self.inner.write_once(size, body).await?;
+                }
+
+                Ok(())
+            }
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {
-        let upload_id = if let Some(upload_id) = &self.upload_id {
-            upload_id
-        } else {
-            return Ok(());
-        };
+        // Cleanup existing cache.
+        self.cache = None;
 
-        self.inner.abort_part(upload_id).await
+        match self.upload_id.take() {
+            Some(upload_id) => self.inner.abort_part(&upload_id).await,
+            None => Ok(()),
+        }
     }
 }

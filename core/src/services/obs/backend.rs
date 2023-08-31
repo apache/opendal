@@ -376,11 +376,9 @@ impl Accessor for ObsBackend {
         let writer = ObsWriter::new(self.core.clone(), path, args.clone());
 
         let w = if args.append() {
-            ObsWriters::Three(oio::AppendObjectWriter::new(writer))
-        } else if args.content_length().is_some() {
-            ObsWriters::One(oio::OneShotWriter::new(writer))
+            ObsWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            ObsWriters::Two(oio::MultipartUploadWriter::new(writer))
+            ObsWriters::One(oio::MultipartUploadWriter::new(writer))
         };
 
         let w = if let Some(buffer_size) = args.buffer_size() {

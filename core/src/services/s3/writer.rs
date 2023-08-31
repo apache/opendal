@@ -27,8 +27,7 @@ use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
-pub type S3Writers =
-    oio::TwoWaysWriter<oio::OneShotWriter<S3Writer>, oio::MultipartUploadWriter<S3Writer>>;
+pub type S3Writers = oio::MultipartUploadWriter<S3Writer>;
 
 pub struct S3Writer {
     core: Arc<S3Core>,
@@ -77,6 +76,31 @@ impl oio::OneShotWrite for S3Writer {
 
 #[async_trait]
 impl oio::MultipartUploadWrite for S3Writer {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self.core.s3_put_object_request(
+            &self.path,
+            Some(size),
+            self.op.content_type(),
+            self.op.content_disposition(),
+            self.op.cache_control(),
+            body,
+        )?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core

@@ -27,11 +27,8 @@ use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
-pub type OssWriters = oio::ThreeWaysWriter<
-    oio::OneShotWriter<OssWriter>,
-    oio::MultipartUploadWriter<OssWriter>,
-    oio::AppendObjectWriter<OssWriter>,
->;
+pub type OssWriters =
+    oio::TwoWaysWriter<oio::MultipartUploadWriter<OssWriter>, oio::AppendObjectWriter<OssWriter>>;
 
 pub struct OssWriter {
     core: Arc<OssCore>,
@@ -81,6 +78,32 @@ impl oio::OneShotWrite for OssWriter {
 
 #[async_trait]
 impl oio::MultipartUploadWrite for OssWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self.core.oss_put_object_request(
+            &self.path,
+            Some(size),
+            self.op.content_type(),
+            self.op.content_disposition(),
+            self.op.cache_control(),
+            body,
+            false,
+        )?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core

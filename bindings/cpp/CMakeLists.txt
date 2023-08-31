@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.10)
 project(opendal-cpp CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -39,7 +39,7 @@ add_custom_command(
 
 add_library(opendal_cpp STATIC ${CPP_SOURCE_FILE} ${RUST_BRIDGE_CPP})
 target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR})
-target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
+target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB} ${CMAKE_DL_LIBS})
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )
@@ -64,6 +64,12 @@ add_executable(opendal_cpp_test ${TEST_SOURCE_FILE})
 target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS})
 target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main opendal_cpp)
 target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
+
+# enable address sanitizers
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined -fno-omit-frame-pointer -fno-common -O1)
+    target_link_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined)
+endif()
 
 # Platform-specific test configuration
 if(WIN32)

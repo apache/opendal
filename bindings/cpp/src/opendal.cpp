@@ -38,8 +38,16 @@ Operator::Operator(std::string_view scheme,
 bool Operator::available() const { return operator_.has_value(); }
 
 std::vector<uint8_t> Operator::read(std::string_view path) {
-  auto res = operator_.value()->read(rust::Str(path.data()));
-  return std::vector<uint8_t>(res.data(), res.data() + res.size());
+  auto rust_vec = operator_.value()->read(rust::Str(path.data()));
+
+  // Convert rust::Vec<uint8_t> to std::vector<uint8_t>
+  // This cannot use rust vector pointer to init std::vector because
+  // rust::Vec owns the memory and will free it when it goes out of scope.
+  std::vector<uint8_t> res;
+  res.reserve(rust_vec.size());
+  std::copy(rust_vec.cbegin(), rust_vec.cend(), std::back_inserter(res));
+
+  return res;
 }
 
 void Operator::write(std::string_view path, const std::vector<uint8_t> &data) {

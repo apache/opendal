@@ -52,10 +52,7 @@ impl oio::Write for SftpWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "SFTP does not support aborting writes",
-        ))
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {

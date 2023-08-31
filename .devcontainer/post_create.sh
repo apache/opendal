@@ -55,7 +55,7 @@ sudo apt install -y ghc cabal-install
 cabal update
 
 # Setup for PHP binding
-sudo apt install software-properties-common
+sudo apt install -y software-properties-common
 echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/sury-php.list
 wget -qO - https://packages.sury.org/php/apt.gpg | sudo apt-key add -
 sudo apt update -y

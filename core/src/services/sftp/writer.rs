@@ -20,6 +20,7 @@ use bytes::Bytes;
 use openssh_sftp_client::file::File;
 
 use crate::raw::oio;
+use crate::raw::oio::StreamExt;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -42,11 +43,12 @@ impl oio::Write for SftpWriter {
         Ok(())
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    async fn sink(&mut self, _size: u64, mut s: oio::Streamer) -> Result<()> {
+        while let Some(bs) = s.next().await.transpose()? {
+            self.file.write_all(&bs).await?;
+        }
+
+        Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {

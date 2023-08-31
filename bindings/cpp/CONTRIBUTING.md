@@ -6,6 +6,7 @@
     - [Bring your own toolbox](#bring-your-own-toolbox)
   - [Build](#build)
   - [Test](#test)
+  - [Documetation](#documetation)
 
 ## Setup
 
@@ -31,6 +32,10 @@ To build OpenDAL C++ binding, the following is all you need:
 
 - **GTest(Google Test)**. It is used to run the tests. To see how to build, check [here](https://github.com/google/googletest).
 
+- **Doxygen**. It is used to generate the documentation. To see how to build, check [here](https://www.doxygen.nl/manual/install.html).
+
+- **Graphviz**. It is used to generate the documentation with graphs. To see how to build, check [here](https://graphviz.org/download/).
+
 For Ubuntu and Debian:
 
 ```shell
@@ -51,6 +56,9 @@ sudo make
 sudo cp lib/*.a /usr/lib
 sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
 sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
+
+# install Doxygen and Graphviz
+sudo apt install doxygen graphviz
 ```
 
 For MacOS:
@@ -67,6 +75,9 @@ brew install clang-format
 
 # install GTest library
 brew install googletest
+
+# install Doxygen and Graphviz
+brew install doxygen graphviz
 ```
 
 ## Build
@@ -100,4 +111,12 @@ You should build the project first. Then run:
 
 ```shell
 ninja test
+```
+
+## Documetation
+
+To build the documentation. (Note that you need to install doxygen, graphviz)
+
+```shell
+ninja docs
 ```

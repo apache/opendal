@@ -25,13 +25,13 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::into_flat_page;
 use crate::raw::oio::into_hierarchy_page;
 use crate::raw::oio::ByRangeSeekableReader;
 use crate::raw::oio::Entry;
 use crate::raw::oio::FlatPager;
 use crate::raw::oio::HierarchyPager;
 use crate::raw::oio::StreamableReader;
+use crate::raw::oio::{into_flat_page, WriteOperation};
 use crate::raw::*;
 use crate::*;
 
@@ -697,6 +697,7 @@ pub struct CompleteWriter<W> {
     inner: Option<W>,
     size: Option<u64>,
     written: u64,
+    method: Option<WriteOperation>,
 }
 
 impl<W> CompleteWriter<W> {
@@ -705,6 +706,7 @@ impl<W> CompleteWriter<W> {
             inner: Some(inner),
             size,
             written: 0,
+            method: None,
         }
     }
 }
@@ -727,6 +729,15 @@ where
     W: oio::Write,
 {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
+        if self.method.is_none() {
+            self.method = Some(WriteOperation::Write);
+        } else if self.method != Some(WriteOperation::Write) {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer can't be used for mixed write and sink",
+            ));
+        }
+
         let n = bs.len();
 
         if let Some(size) = self.size {
@@ -750,6 +761,15 @@ where
     }
 
     async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+        if self.method.is_none() {
+            self.method = Some(WriteOperation::Sink);
+        } else if self.method != Some(WriteOperation::Sink) {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer can't be used for mixed write and sink",
+            ));
+        }
+
         if let Some(total_size) = self.size {
             if self.written + size > total_size {
                 return Err(Error::new(

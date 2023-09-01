@@ -32,7 +32,7 @@ crate-type = ["cdylib", "staticlib"]
 doc = false
 
 [build-dependencies]
-cbindgen = "0.24.5"
+cbindgen = "0.25.0"
 
 [dependencies]
 bytes = "1.4.0"

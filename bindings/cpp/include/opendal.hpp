@@ -28,9 +28,20 @@
 
 namespace opendal {
 
+/**
+ * @class Operator
+ * @brief Operator is the entry for all public APIs.
+ */
 class Operator : std::enable_shared_from_this<Operator> {
 public:
   Operator() = default;
+
+  /**
+   * @brief Construct a new Operator object
+   *
+   * @param scheme The scheme of the operator, same as the name of rust doc
+   * @param config The configuration of the operator, same as the service doc
+   */
   Operator(std::string_view scheme,
            const std::unordered_map<std::string, std::string> &config = {});
 
@@ -43,8 +54,27 @@ public:
   Operator &operator=(Operator &&) = default;
   ~Operator() = default;
 
+  /**
+   * @brief Check if the operator is available
+   *
+   * @return true if the operator is available, false otherwise
+   */
   bool available() const;
+
+  /**
+   * @brief Read data from the operator
+   *
+   * @param path The path of the data
+   * @return The data read from the operator
+   */
   std::vector<uint8_t> read(std::string_view path);
+
+  /**
+   * @brief Write data to the operator
+   *
+   * @param path The path of the data
+   * @param data The data to write
+   */
   void write(std::string_view path, const std::vector<uint8_t> &data);
 
 private:

@@ -136,6 +136,10 @@ const config = {
               {
                 label: 'Haskell Binding',
                 to: 'pathname:///docs/haskell/'
+              },
+              {
+                label: 'C++ Binding',
+                to: 'pathname:///docs/cpp/'
               }
             ]
           },

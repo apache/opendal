@@ -232,20 +232,14 @@ jobs:
 
       - name: Install dependencies
         run: | 
-          sudo apt-get install doxygen graphviz ninja-build libgtest-dev
-          cd /usr/src/gtest
-          sudo cmake CMakeLists.txt
-          sudo make
-          sudo cp lib/*.a /usr/lib
-          sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
-          sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
+          sudo apt-get install doxygen graphviz ninja-build
 
       - name: Build Cpp docs
         working-directory: "bindings/cpp"
         run: |
           mkdir build
           cd build
-          cmake -GNinja ..
+          cmake -GNinja -DDOCS_ONLY=ON ..
           ninja docs
 
       - name: Upload docs

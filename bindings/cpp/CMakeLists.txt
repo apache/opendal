@@ -26,6 +26,25 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer" ON)
+option(DOCS_ONLY "Only build documentation" OFF)
+
+# Documentation
+set(PROJECT_DOCUMENT_SOURCE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/README.md)
+string(REPLACE ";" " " PROJECT_DOCUMENT_SOURCE "${PROJECT_DOCUMENT_SOURCE}")
+file(DOWNLOAD https://cdn.jsdelivr.net/gh/jothepro/doxygen-awesome-css@2.2.1/doxygen-awesome.min.css ${CMAKE_BINARY_DIR}/doxygen-awesome.css)
+find_package(Doxygen REQUIRED)
+set(DOXYGEN_IN ${CMAKE_SOURCE_DIR}/Doxyfile)
+set(DOXYGEN_OUT ${CMAKE_BINARY_DIR}/Doxyfile.out)
+configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+add_custom_target(docs
+    COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Generating API documentation with Doxygen"
+    VERBATIM)
+
+if (DOCS_ONLY)
+    return()
+endif()
 
 # cargo target dir must be absolute, otherwise some build target cannot find it
 get_filename_component(CARGO_TARGET_DIR ${CMAKE_SOURCE_DIR}/../../target ABSOLUTE)
@@ -93,24 +112,3 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(opendal_cpp_test)
-
-# Documentation
-set(PROJECT_DOCUMENT_SOURCE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/README.md)
-string(REPLACE ";" " " PROJECT_DOCUMENT_SOURCE "${PROJECT_DOCUMENT_SOURCE}")
-file(DOWNLOAD https://cdn.jsdelivr.net/gh/jothepro/doxygen-awesome-css@2.2.1/doxygen-awesome.min.css ${CMAKE_BINARY_DIR}/doxygen-awesome.css)
-find_package(Doxygen)
-if (DOXYGEN_FOUND)
-    set(DOXYGEN_IN ${CMAKE_SOURCE_DIR}/Doxyfile)
-    set(DOXYGEN_OUT ${CMAKE_BINARY_DIR}/Doxyfile.out)
-
-    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-    message("Doxygen build started")
-
-    add_custom_target(docs
-        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen"
-        VERBATIM )
-else (DOXYGEN_FOUND)
-    message("Doxygen need to be installed to generate the doxygen documentation")
-endif (DOXYGEN_FOUND)

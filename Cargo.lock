@@ -774,9 +774,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cbindgen"
-version = "0.24.5"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b922faaf31122819ec80c4047cc684c6979a087366c069611e33649bf98e18d"
+checksum = "faeaa693e5a727975a79211b8f35c0cb09b031fdb6eaa4a788bc6713d01488ca"
 dependencies = [
  "clap 3.2.25",
  "heck",

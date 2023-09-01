@@ -39,7 +39,7 @@ frontends-webdav = ["dep:dav-server", "dep:bytes", "dep:futures-util"]
 anyhow = "1"
 axum = "0.6"
 bytes = { version = "1.4.0", optional = true }
-chrono = "0.4.26"
+chrono = "0.4.28"
 clap = { version = "4", features = ["cargo", "string"] }
 dav-server = { version = "0.5.5", optional = true }
 dirs = "5.0.0"

@@ -40,7 +40,7 @@ Each Podling Status Report must be signed off by a mentor. **Without a mentor's 
 After submitting the report, you can send a email to  `dev@opendal.apache.org` to remind our mentors and the community to review the report and provide feedback.
 
 ```
-OpenDAL's Podling Report of <Month><Year>
+[ANNOUNCE] OpenDAL's Podling Report of <Month><Year>
 
 Hello, everyone!
 

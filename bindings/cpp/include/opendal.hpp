@@ -101,7 +101,7 @@ public:
 
   /**
    * @brief Read data from the operator
-   * @note The operation will make unneccessary copy. So we recommend to use the
+   * @note The operation will make unnecessary copy. So we recommend to use the
    * `reader` method.
    *
    * @param path The path of the data

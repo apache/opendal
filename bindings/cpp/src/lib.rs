@@ -85,8 +85,8 @@ impl Operator {
 
     // To avoid copying the bytes, we use &'static [u8] here.
     //
-    // Safety: The bytes created from bs will be droped after the function call.
-    // So it's safe to decalre its lifetime as 'static.
+    // Safety: The bytes created from bs will be dropped after the function call.
+    // So it's safe to declare its lifetime as 'static.
     fn write(&self, path: &str, bs: &'static [u8]) -> Result<()> {
         Ok(self.0.write(path, bs)?)
     }
@@ -197,8 +197,6 @@ impl From<od::Metadata> for ffi::Metadata {
 impl From<od::Entry> for ffi::Entry {
     fn from(entry: od::Entry) -> Self {
         let (path, _) = entry.into_parts();
-        Self {
-            path,
-        }
+        Self { path }
     }
 }

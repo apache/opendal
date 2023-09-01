@@ -225,6 +225,32 @@ jobs:
           name: haskell-docs
           path: ./bindings/haskell/doc/
 
+  build-cpp-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Install dependencies
+        run: sudo apt-get install doxygen graphviz ninja-build
+
+      - name: Build Cpp docs
+        working-directory: "bindings/cpp"
+        run: |
+          mkdir build
+          cd build
+          cmake -GNinja ..
+          ninja docs
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: cpp-docs
+          path: ./bindings/cpp/build/docs_doxygen/html
+
   build-website:
     runs-on: ubuntu-latest
     needs:
@@ -235,6 +261,7 @@ jobs:
       - build-c-doc
       - build-lua-doc
       - build-haskell-doc
+      - build-cpp-doc
 
     steps:
       - uses: actions/checkout@v3
@@ -290,6 +317,12 @@ jobs:
         with:
           name: haskell-docs
           path: ./website/static/docs/haskell
+
+      - name: Download cpp docs
+        uses: actions/download-artifact@v3
+        with:
+          name: cpp-docs
+          path: ./website/static/docs/cpp
 
       - name: Install Dependencies
         working-directory: website

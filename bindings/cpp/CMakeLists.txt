@@ -21,8 +21,13 @@ project(opendal-cpp CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+
+# cargo target dir must be absolute, otherwise some build target cannot find it
+get_filename_component(CARGO_TARGET_DIR ${CMAKE_SOURCE_DIR}/../../target ABSOLUTE)
 set(CARGO_MANIFEST ${CMAKE_SOURCE_DIR}/Cargo.toml)
-set(CARGO_TARGET_DIR ${CMAKE_SOURCE_DIR}/../../target)
 set(RUST_SOURCE_FILE ${CMAKE_SOURCE_DIR}/src/lib.rs)
 set(RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.cc)
 set(RUST_LIB ${CARGO_TARGET_DIR}/debug/${CMAKE_STATIC_LIBRARY_PREFIX}opendal_cpp${CMAKE_STATIC_LIBRARY_SUFFIX})

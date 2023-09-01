@@ -50,6 +50,8 @@ test:
 .PHONY: doc
 doc:
 	mkdir -p $(DOC_DIR)
+	curl --proto '=https' --tlsv1.2 -sSf https://cdn.jsdelivr.net/gh/jothepro/doxygen-awesome-css@2.2.1/doxygen-awesome.min.css \
+		-o $(DOC_DIR)/doxygen-awesome.css
 	doxygen Doxyfile
 
 # build examples begin

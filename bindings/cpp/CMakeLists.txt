@@ -85,7 +85,7 @@ gtest_discover_tests(opendal_cpp_test)
 # Documentation
 set(PROJECT_DOCUMENT_SOURCE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/README.md)
 string(REPLACE ";" " " PROJECT_DOCUMENT_SOURCE "${PROJECT_DOCUMENT_SOURCE}")
-file(DOWNLOAD https://raw.githubusercontent.com/jothepro/doxygen-awesome-css/main/doxygen-awesome.css ${CMAKE_BINARY_DIR}/doxygen-awesome.css)
+file(DOWNLOAD https://cdn.jsdelivr.net/gh/jothepro/doxygen-awesome-css@2.2.1/doxygen-awesome.min.css ${CMAKE_BINARY_DIR}/doxygen-awesome.css)
 find_package(Doxygen)
 if (DOXYGEN_FOUND)
     set(DOXYGEN_IN ${CMAKE_SOURCE_DIR}/Doxyfile)

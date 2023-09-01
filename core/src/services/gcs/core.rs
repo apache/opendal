@@ -237,14 +237,22 @@ impl GcsCore {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
+        let mut metadata = HashMap::new();
+        if let Some(storage_class) = &self.default_storage_class {
+            metadata.insert("storageClass", storage_class.as_str());
+        }
+        if let Some(cache_control) = op.cache_control() {
+            metadata.insert("cacheControl", cache_control);
+        }
+
         let mut url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType={}&name={}",
             self.endpoint,
             self.bucket,
-            if self.default_storage_class.is_some() {
-                "multipart"
-            } else {
+            if metadata.is_empty() {
                 "media"
+            } else {
+                "multipart"
             },
             percent_encode_path(&p)
         );
@@ -257,16 +265,14 @@ impl GcsCore {
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        let mut meta_data = HashMap::new();
-        if let Some(content_type) = op.content_type() {
-            meta_data.insert("storageClass".to_string(), content_type.to_string());
-        }
+        if metadata.is_empty() {
+            if let Some(content_type) = op.content_type() {
+                req = req.header(CONTENT_TYPE, content_type);
+            }
 
-        if let Some(cache_control) = op.cache_control() {
-            meta_data.insert("cacheControl".to_string(), cache_control.to_string());
-        }
-
-        if !meta_data.is_empty() {
+            let req = req.body(body).map_err(new_request_build_error)?;
+            Ok(req)
+        } else {
             let mut multipart = Multipart::new();
 
             multipart = multipart.part(
@@ -275,16 +281,19 @@ impl GcsCore {
                         CONTENT_TYPE,
                         "application/json; charset=UTF-8".parse().unwrap(),
                     )
-                    .content(json!(meta_data).to_string()),
+                    .content(json!(metadata).to_string()),
             );
 
-            let mut media_part = FormDataPart::new("media").header(
-                CONTENT_TYPE,
-                op.content_type()
-                    .unwrap_or("application/octet-stream")
-                    .parse()
-                    .unwrap(),
-            );
+            let mut media_part = FormDataPart::new("media");
+
+            if let Some(content_type) = op.content_type() {
+                media_part = media_part.header(
+                    CONTENT_TYPE,
+                    content_type
+                        .parse()
+                        .map_err(|_| Error::new(ErrorKind::Unexpected, "invalid header value"))?,
+                );
+            }
 
             match body {
                 AsyncBody::Empty => {}
@@ -299,13 +308,6 @@ impl GcsCore {
             multipart = multipart.part(media_part);
 
             let req = multipart.apply(Request::post(url))?;
-            Ok(req)
-        } else {
-            if let Some(content_type) = op.content_type() {
-                req = req.header(CONTENT_TYPE, content_type);
-            }
-
-            let req = req.body(body).map_err(new_request_build_error)?;
             Ok(req)
         }
     }

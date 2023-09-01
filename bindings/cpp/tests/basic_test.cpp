@@ -19,6 +19,7 @@
 
 #include "opendal.hpp"
 #include "gtest/gtest.h"
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -30,22 +31,59 @@ protected:
   std::unordered_map<std::string, std::string> config;
 
   void SetUp() override {
-    this->scheme = "memory";
-    op = opendal::Operator(this->scheme, this->config);
+    scheme = "memory";
+    op = opendal::Operator(scheme, config);
 
-    EXPECT_TRUE(this->op.available());
+    EXPECT_TRUE(op.available());
   }
 };
 
 // Scenario: OpenDAL Blocking Operations
 TEST_F(OpendalTest, BasicTest) {
-  std::string path = "test";
+  std::string file_path = "test";
+  std::string file_path_copied = "test_copied";
+  std::string file_path_renamed = "test_renamed";
+  std::string dir_path = "test_dir/";
   std::vector<uint8_t> data = {1, 2, 3, 4, 5};
 
-  op.write("test", data);
+  // write
+  op.write(file_path, data);
 
-  auto res = op.read("test");
+  // read
+  auto res = op.read(file_path);
   EXPECT_EQ(res, data);
+
+  // is_exist
+  EXPECT_TRUE(op.is_exist(file_path));
+
+  // create_dir
+  op.create_dir(dir_path);
+  EXPECT_TRUE(op.is_exist(dir_path));
+
+  // copy
+  op.copy(file_path, file_path_copied);
+  EXPECT_TRUE(op.is_exist(file_path_copied));
+
+  // rename
+  op.rename(file_path_copied, file_path_renamed);
+  EXPECT_TRUE(op.is_exist(file_path_renamed));
+
+  // stat
+  auto metadata = op.stat(file_path);
+  EXPECT_EQ(metadata.type, opendal::EntryMode::FILE);
+  EXPECT_EQ(metadata.content_length, data.size());
+
+  // list
+  auto list_file_path = dir_path + file_path;
+  op.write(list_file_path, data);
+  auto entries = op.list(dir_path);
+  EXPECT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries[0].path, list_file_path);
+
+  // remove
+  op.remove(file_path_renamed);
+  op.remove(dir_path);
+  EXPECT_FALSE(op.is_exist(file_path_renamed));
 }
 
 int main(int argc, char **argv) {

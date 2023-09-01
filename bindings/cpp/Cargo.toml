@@ -34,6 +34,7 @@ crate-type = ["staticlib"]
 opendal.workspace = true
 cxx = "1.0"
 anyhow = "1.0"
+chrono = "0.4"
 
 [build-dependencies]
 cxx-build = "1.0"

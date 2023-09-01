@@ -20,6 +20,7 @@
 #pragma once
 #include "lib.rs.h"
 
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,10 +30,47 @@
 namespace opendal {
 
 /**
+ * @enum EntryMode
+ * @brief The mode of the entry
+ */
+enum EntryMode {
+  FILE,
+  DIR,
+  UNKNOWN,
+};
+
+/**
+ * @struct Metadata
+ * @brief The metadata of a file or directory
+ */
+struct Metadata {
+  EntryMode type;
+  std::uint64_t content_length;
+  std::optional<std::string> cache_control;
+  std::optional<std::string> content_disposition;
+  std::optional<std::string> content_md5;
+  std::optional<std::string> content_type;
+  std::optional<std::string> etag;
+  std::optional<boost::posix_time::ptime> last_modified;
+
+  Metadata(ffi::Metadata &&);
+};
+
+/**
+ * @struct Entry
+ * @brief The entry of a file or directory
+ */
+struct Entry {
+  std::string path;
+
+  Entry(ffi::Entry &&);
+};
+
+/**
  * @class Operator
  * @brief Operator is the entry for all public APIs.
  */
-class Operator : std::enable_shared_from_this<Operator> {
+class Operator {
 public:
   Operator() = default;
 
@@ -63,6 +101,8 @@ public:
 
   /**
    * @brief Read data from the operator
+   * @note The operation will make unneccessary copy. So we recommend to use the
+   * `reader` method.
    *
    * @param path The path of the data
    * @return The data read from the operator
@@ -76,6 +116,61 @@ public:
    * @param data The data to write
    */
   void write(std::string_view path, const std::vector<uint8_t> &data);
+
+  /**
+   * @brief Check if the path exists
+   *
+   * @param path The path to check
+   * @return true if the path exists, false otherwise
+   */
+  bool is_exist(std::string_view path);
+
+  /**
+   * @brief Create a directory
+   *
+   * @param path The path of the directory
+   */
+  void create_dir(std::string_view path);
+
+  /**
+   * @brief Copy a file from src to dst.
+   *
+   * @param src The source path
+   * @param dst The destination path
+   */
+  void copy(std::string_view src, std::string_view dst);
+
+  /**
+   * @brief Rename a file from src to dst.
+   *
+   * @param src The source path
+   * @param dst The destination path
+   */
+  void rename(std::string_view src, std::string_view dst);
+
+  /**
+   * @brief Remove a file or directory
+   *
+   * @param path The path of the file or directory
+   */
+  void remove(std::string_view path);
+
+  /**
+   * @brief Get the metadata of a file or directory
+   *
+   * @param path The path of the file or directory
+   * @return The metadata of the file or directory
+   */
+  Metadata stat(std::string_view path);
+
+  /**
+   * @brief List the entries of a directory
+   * @note The returned entries are sorted by name.
+   *
+   * @param path The path of the directory
+   * @return The entries of the directory
+   */
+  std::vector<Entry> list(std::string_view path);
 
 private:
   std::optional<rust::Box<opendal::ffi::Operator>> operator_;

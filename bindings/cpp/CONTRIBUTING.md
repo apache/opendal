@@ -32,6 +32,8 @@ To build OpenDAL C++ binding, the following is all you need:
 
 - **GTest(Google Test)**. It is used to run the tests. To see how to build, check [here](https://github.com/google/googletest).
 
+- **Boost**. It is one dependency of this library. To see how to build, check [here](https://www.boost.org/doc/libs/1_76_0/more/getting_started/unix-variants.html).
+
 - **Doxygen**. It is used to generate the documentation. To see how to build, check [here](https://www.doxygen.nl/manual/install.html).
 
 - **Graphviz**. It is used to generate the documentation with graphs. To see how to build, check [here](https://graphviz.org/download/).
@@ -48,14 +50,11 @@ sudo apt install cmake ninja-build
 # install clang-format
 sudo apt install clang-format
 
-# install and build GTest library under /usr/lib and softlink to /usr/local/lib
+# install GTest library
 sudo apt-get install libgtest-dev
-cd /usr/src/gtest
-sudo cmake CMakeLists.txt
-sudo make
-sudo cp lib/*.a /usr/lib
-sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
-sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
+
+# install Boost library
+sudo apt install libboost-all-dev
 
 # install Doxygen and Graphviz
 sudo apt install doxygen graphviz
@@ -76,6 +75,9 @@ brew install clang-format
 # install GTest library
 brew install googletest
 
+# install Boost library
+brew install boost
+
 # install Doxygen and Graphviz
 brew install doxygen graphviz
 ```
@@ -89,7 +91,7 @@ mkdir build
 cd build
 
 # Add -DCMAKE_EXPORT_COMPILE_COMMANDS=1 to generate compile_commands.json for clangd
-cmake -DCMAKE_BUILD_TYPE=Debug -GNinja .. 
+cmake -GNinja .. 
 
 ninja
 ```

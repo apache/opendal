@@ -25,6 +25,8 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+option(ENABLE_ADDRESS_SANITIZER "Enable address sanitizer" ON)
+
 # cargo target dir must be absolute, otherwise some build target cannot find it
 get_filename_component(CARGO_TARGET_DIR ${CMAKE_SOURCE_DIR}/../../target ABSOLUTE)
 set(CARGO_MANIFEST ${CMAKE_SOURCE_DIR}/Cargo.toml)
@@ -42,9 +44,12 @@ add_custom_command(
         COMMENT "Running cargo..."
 )
 
+find_package(Boost REQUIRED COMPONENTS date_time)
+
 add_library(opendal_cpp STATIC ${CPP_SOURCE_FILE} ${RUST_BRIDGE_CPP})
-target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR})
-target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB} ${CMAKE_DL_LIBS})
+target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR} Boost::date_time)
+target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
+target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS} Boost::date_time)
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )
@@ -71,7 +76,9 @@ target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main openda
 target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
 
 # enable address sanitizers
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+if (ENABLE_ADDRESS_SANITIZER)
+    target_compile_options(opendal_cpp PRIVATE -fsanitize=leak,address,undefined -fno-omit-frame-pointer -fno-common -O1)
+    target_link_options(opendal_cpp PRIVATE -fsanitize=leak,address,undefined)
     target_compile_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined -fno-omit-frame-pointer -fno-common -O1)
     target_link_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined)
 endif()

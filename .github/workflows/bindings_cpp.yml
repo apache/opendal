@@ -45,25 +45,23 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
-          sudo apt-get install libgtest-dev ninja-build
-          cd /usr/src/gtest
-          sudo cmake CMakeLists.txt
-          sudo make
-          sudo cp lib/*.a /usr/lib
-          sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a
-          sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
+          sudo apt-get install libgtest-dev ninja-build libboost-all-dev valgrind
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Build Cpp binding
+      - name: Build Cpp binding && Run tests
         working-directory: "bindings/cpp"
         run: |
           mkdir build
           cd build
           cmake -GNinja ..
           ninja
+          ./opendal_cpp_test
 
-      - name: Run tests
+      - name: Run tests with valgrind
         working-directory: "bindings/cpp/build"
-        run: ./opendal_cpp_test
+        run: |
+          cmake -GNinja -DENABLE_ADDRESS_SANITIZER=OFF ..
+          ninja
+          valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./opendal_cpp_test

@@ -66,4 +66,4 @@ jobs:
 
       - name: Run tests
         working-directory: "bindings/cpp/build"
-        run: ninja test
+        run: ./opendal_cpp_test

@@ -133,7 +133,9 @@ runs:
       run: |
         set -e
 
-        cd ./tests/data
+        pwd
+        ls -l
+        cd ./core/tests/data
 
         for i in {1..1024}; do
             echo "OpenDAL: access data freely.\n" >> "normal_file"

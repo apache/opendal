@@ -34,9 +34,9 @@ namespace opendal {
  * @brief The mode of the entry
  */
 enum EntryMode {
-  FILE,
-  DIR,
-  UNKNOWN,
+  FILE = 1,
+  DIR = 2,
+  UNKNOWN = 0,
 };
 
 /**

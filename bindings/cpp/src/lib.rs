@@ -26,21 +26,26 @@ mod ffi {
         value: String,
     }
 
+    enum EntryMode {
+        File = 1,
+        Dir = 2,
+        Unknown = 0,
+    }
+
+    struct OptionalString {
+        has_value: bool,
+        value: String,
+    }
+
     struct Metadata {
-        // tag layout: (8 bits flagset)
-        // 0-1: mode, 2: has_cache_control, 3: has_content_disposition, 4: has_content_md5,
-        // 5: has_content_type, 6: has_etag, 7: has_last_modified
-        //
-        // mode enum: (2 bits)
-        // 1: file, 2: dir, 0,3: unknown
-        tag: u8,
+        mode: EntryMode,
         content_length: u64,
-        cache_control: String,
-        content_disposition: String,
-        content_md5: String,
-        content_type: String,
-        etag: String,
-        last_modified: String,
+        cache_control: OptionalString,
+        content_disposition: OptionalString,
+        content_md5: OptionalString,
+        content_type: OptionalString,
+        etag: OptionalString,
+        last_modified: OptionalString,
     }
 
     struct Entry {
@@ -123,66 +128,20 @@ impl Operator {
 
 impl From<od::Metadata> for ffi::Metadata {
     fn from(meta: od::Metadata) -> Self {
-        let mut tag = 0u8;
-
-        match meta.mode() {
-            od::EntryMode::FILE => tag |= 0b0000_0001,
-            od::EntryMode::DIR => tag |= 0b0000_0010,
-            _ => {}
-        }
-
+        let mode = meta.mode().into();
         let content_length = meta.content_length();
-
-        let cache_control = match meta.cache_control() {
-            Some(v) => {
-                tag |= 0b0000_0100;
-                v.to_owned()
-            }
-            None => String::new(),
-        };
-
-        let content_disposition = match meta.content_disposition() {
-            Some(v) => {
-                tag |= 0b0000_1000;
-                v.to_owned()
-            }
-            None => String::new(),
-        };
-
-        let content_md5 = match meta.content_md5() {
-            Some(v) => {
-                tag |= 0b0001_0000;
-                v.to_owned()
-            }
-            None => String::new(),
-        };
-
-        let content_type = match meta.content_type() {
-            Some(v) => {
-                tag |= 0b0010_0000;
-                v.to_owned()
-            }
-            None => String::new(),
-        };
-
-        let etag = match meta.etag() {
-            Some(v) => {
-                tag |= 0b0100_0000;
-                v.to_owned()
-            }
-            None => String::new(),
-        };
-
-        let last_modified = match meta.last_modified() {
-            Some(v) => {
-                tag |= 0b1000_0000;
-                v.to_rfc3339_opts(chrono::SecondsFormat::Nanos, false)
-            }
-            None => String::new(),
-        };
+        let cache_control = meta.cache_control().map(ToOwned::to_owned).into();
+        let content_disposition = meta.content_disposition().map(ToOwned::to_owned).into();
+        let content_md5 = meta.content_md5().map(ToOwned::to_owned).into();
+        let content_type = meta.content_type().map(ToOwned::to_owned).into();
+        let etag = meta.etag().map(ToOwned::to_owned).into();
+        let last_modified = meta
+            .last_modified()
+            .map(|time| time.to_rfc3339_opts(chrono::SecondsFormat::Nanos, false))
+            .into();
 
         Self {
-            tag,
+            mode,
             content_length,
             cache_control,
             content_disposition,
@@ -198,5 +157,30 @@ impl From<od::Entry> for ffi::Entry {
     fn from(entry: od::Entry) -> Self {
         let (path, _) = entry.into_parts();
         Self { path }
+    }
+}
+
+impl From<od::EntryMode> for ffi::EntryMode {
+    fn from(mode: od::EntryMode) -> Self {
+        match mode {
+            od::EntryMode::FILE => Self::File,
+            od::EntryMode::DIR => Self::Dir,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl From<Option<String>> for ffi::OptionalString {
+    fn from(s: Option<String>) -> Self {
+        match s {
+            Some(s) => Self {
+                has_value: true,
+                value: s,
+            },
+            None => Self {
+                has_value: false,
+                value: String::default(),
+            },
+        }
     }
 }

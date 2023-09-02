@@ -85,41 +85,33 @@ std::vector<Entry> Operator::list(std::string_view path) {
   return entries;
 }
 
+std::optional<std::string> parse_optional_string(ffi::OptionalString &&s);
+
 Metadata::Metadata(ffi::Metadata &&other) {
-  if (other.tag & 1) {
-    type = EntryMode::FILE;
-  } else if (other.tag & 0b10) {
-    type = EntryMode::DIR;
-  } else {
-    type = EntryMode::UNKNOWN;
-  }
-
+  type = static_cast<EntryMode>(other.mode);
   content_length = other.content_length;
-
-  if (other.tag & 0b100) {
-    cache_control = std::string(std::move(other.cache_control));
-  }
-
-  if (other.tag & 0b1000) {
-    content_disposition = std::string(std::move(other.content_disposition));
-  }
-
-  if (other.tag & 0b10000) {
-    content_md5 = std::string(std::move(other.content_md5));
-  }
-
-  if (other.tag & 0b100000) {
-    content_type = std::string(std::move(other.content_type));
-  }
-
-  if (other.tag & 0b1000000) {
-    etag = std::string(std::move(other.etag));
-  }
-
-  if (other.tag & 0b10000000) {
-    last_modified = boost::posix_time::from_iso_string(
-        std::string(std::move(other.last_modified)));
+  cache_control = parse_optional_string(std::move(other.cache_control));
+  content_disposition =
+      parse_optional_string(std::move(other.content_disposition));
+  content_type = parse_optional_string(std::move(other.content_type));
+  content_md5 = parse_optional_string(std::move(other.content_md5));
+  etag = parse_optional_string(std::move(other.etag));
+  auto last_modified_str =
+      parse_optional_string(std::move(other.last_modified));
+  if (last_modified_str.has_value()) {
+    last_modified =
+        boost::posix_time::from_iso_string(last_modified_str.value());
   }
 }
 
 Entry::Entry(ffi::Entry &&other) : path(std::move(other.path)) {}
+
+// helper functions
+
+std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
+  if (s.has_value) {
+    return std::string(std::move(s.value));
+  } else {
+    return std::nullopt;
+  }
+}

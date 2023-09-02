@@ -163,7 +163,7 @@ pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
         "read content"
     );
 
@@ -176,7 +176,7 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
         "read content"
     );
 
@@ -291,7 +291,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
         "read content"
     );
 
@@ -323,7 +323,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> Result<()> 
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
         "read content"
     );
 

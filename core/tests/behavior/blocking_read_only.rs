@@ -43,7 +43,7 @@ pub fn behavior_blocking_read_only_tests(op: &Operator) -> Vec<Trial> {
 pub fn test_blocking_read_only_stat_file_and_dir(op: BlockingOperator) -> Result<()> {
     let meta = op.stat("normal_file.txt")?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 29696);
+    assert_eq!(meta.content_length(), 30482);
 
     let meta = op.stat("normal_dir/")?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -55,7 +55,7 @@ pub fn test_blocking_read_only_stat_file_and_dir(op: BlockingOperator) -> Result
 pub fn test_blocking_read_only_stat_special_chars(op: BlockingOperator) -> Result<()> {
     let meta = op.stat("special_file  !@#$%^&()_+-=;',.txt")?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 29696);
+    assert_eq!(meta.content_length(), 30482);
 
     let meta = op.stat("special_dir  !@#$%^&()_+-=;',/")?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -77,7 +77,7 @@ pub fn test_blocking_read_only_stat_not_exist(op: BlockingOperator) -> Result<()
 /// Read full content should match.
 pub fn test_blocking_read_only_read_full(op: BlockingOperator) -> Result<()> {
     let bs = op.read("normal_file.txt")?;
-    assert_eq!(bs.len(), 29696, "read size");
+    assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
@@ -93,7 +93,7 @@ pub fn test_blocking_read_only_read_with_range(op: BlockingOperator) -> Result<(
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "af05b6a497e30df12b9b46ca9305234def16a204517a7b499927ff3a4bf408a2",
+        "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
         "read content"
     );
 

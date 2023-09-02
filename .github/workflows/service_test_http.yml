@@ -42,6 +42,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      
       - name: Start nginx
         shell: bash
         working-directory: core
@@ -49,11 +54,6 @@ jobs:
           mkdir /tmp/static
           cp -r tests/data/* /tmp/static
           nginx -c `pwd`/src/services/http/fixtures/nginx.conf
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
 
       - name: Test
         shell: bash

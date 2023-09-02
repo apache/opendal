@@ -128,7 +128,7 @@ runs:
         rm foundationdb-server_7.1.17-1_amd64.deb
 
     - name: Generate test file
-      if: runner.os == 'Linux' && inputs.need-test-file == 'true'
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         set -e

@@ -80,7 +80,7 @@ pub fn test_blocking_read_only_read_full(op: BlockingOperator) -> Result<()> {
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
 

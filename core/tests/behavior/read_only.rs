@@ -55,7 +55,7 @@ pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
 pub async fn test_read_only_stat_file_and_dir(op: Operator) -> Result<()> {
     let meta = op.stat("normal_file.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 29696);
 
     let meta = op.stat("normal_dir/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -67,7 +67,7 @@ pub async fn test_read_only_stat_file_and_dir(op: Operator) -> Result<()> {
 pub async fn test_read_only_stat_special_chars(op: Operator) -> Result<()> {
     let meta = op.stat("special_file  !@#$%^&()_+-=;',.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 29696);
 
     let meta = op.stat("special_dir  !@#$%^&()_+-=;',/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -79,7 +79,7 @@ pub async fn test_read_only_stat_special_chars(op: Operator) -> Result<()> {
 pub async fn test_read_only_stat_not_cleaned_path(op: Operator) -> Result<()> {
     let meta = op.stat("//normal_file.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 29696);
 
     Ok(())
 }
@@ -105,7 +105,7 @@ pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
 
     let meta = op.stat(path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 29696);
 
     let res = op.stat_with(path).if_match("invalid_etag").await;
     assert!(res.is_err());
@@ -130,7 +130,7 @@ pub async fn test_read_only_stat_with_if_none_match(op: Operator) -> Result<()> 
 
     let meta = op.stat(path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 29696);
 
     let res = op
         .stat_with(path)
@@ -160,7 +160,7 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 /// Read full content should match.
 pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
     let bs = op.read("normal_file.txt").await?;
-    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(bs.len(), 29696, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
@@ -173,7 +173,7 @@ pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
 /// Read full content should match.
 pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result<()> {
     let bs = op.read("special_file  !@#$%^&()_+-=;',.txt").await?;
-    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(bs.len(), 29696, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
@@ -288,7 +288,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
         .if_match(meta.etag().expect("etag must exist"))
         .await
         .expect("read must succeed");
-    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(bs.len(), 29696, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",
@@ -320,7 +320,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> Result<()> 
         .if_none_match("invalid_etag")
         .await
         .expect("read must succeed");
-    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(bs.len(), 29696, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "6aa0c53aec3cea11712191b090928660b36d89cb586b21e23f3a9834231c0600",

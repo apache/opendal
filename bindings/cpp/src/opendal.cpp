@@ -21,37 +21,97 @@
 
 using namespace opendal;
 
+#define RUST_STR(s) rust::Str(s.data(), s.size())
+#define RUST_STRING(s) rust::String(s.data(), s.size())
+
 Operator::Operator(std::string_view scheme,
                    const std::unordered_map<std::string, std::string> &config) {
   auto rust_map = rust::Vec<ffi::HashMapValue>();
   rust_map.reserve(config.size());
-  for (const auto &[k, v] : config) {
-    rust_map.push_back(ffi::HashMapValue{
-        rust::String(k.data()),
-        rust::String(v.data()),
-    });
+  for (auto &[k, v] : config) {
+    rust_map.push_back({RUST_STRING(k), RUST_STRING(v)});
   }
 
-  operator_ = opendal::ffi::new_operator(rust::Str(scheme.data()), rust_map);
+  operator_ = opendal::ffi::new_operator(RUST_STR(scheme), rust_map);
 }
 
 bool Operator::available() const { return operator_.has_value(); }
 
+// We can't avoid copy, because std::vector hides the internal structure.
+// std::vector doesn't support init from a pointer without copy.
 std::vector<uint8_t> Operator::read(std::string_view path) {
-  auto rust_vec = operator_.value()->read(rust::Str(path.data()));
+  auto rust_vec = operator_.value()->read(RUST_STR(path));
 
-  // Convert rust::Vec<uint8_t> to std::vector<uint8_t>
-  // This cannot use rust vector pointer to init std::vector because
-  // rust::Vec owns the memory and will free it when it goes out of scope.
-  std::vector<uint8_t> res;
-  res.reserve(rust_vec.size());
-  std::copy(rust_vec.cbegin(), rust_vec.cend(), std::back_inserter(res));
-
-  return res;
+  return {rust_vec.data(), rust_vec.data() + rust_vec.size()};
 }
 
 void Operator::write(std::string_view path, const std::vector<uint8_t> &data) {
   operator_.value()->write(
-      rust::Str(path.data()),
-      rust::Slice<const uint8_t>(data.data(), data.size()));
+      RUST_STR(path), rust::Slice<const uint8_t>(data.data(), data.size()));
+}
+
+bool Operator::is_exist(std::string_view path) {
+  return operator_.value()->is_exist(RUST_STR(path));
+}
+
+void Operator::create_dir(std::string_view path) {
+  operator_.value()->create_dir(RUST_STR(path));
+}
+
+void Operator::copy(std::string_view src, std::string_view dst) {
+  operator_.value()->copy(RUST_STR(src), RUST_STR(dst));
+}
+
+void Operator::rename(std::string_view src, std::string_view dst) {
+  operator_.value()->rename(RUST_STR(src), RUST_STR(dst));
+}
+
+void Operator::remove(std::string_view path) {
+  operator_.value()->remove(RUST_STR(path));
+}
+
+Metadata Operator::stat(std::string_view path) {
+  return {operator_.value()->stat(RUST_STR(path))};
+}
+
+std::vector<Entry> Operator::list(std::string_view path) {
+  auto rust_vec = operator_.value()->list(RUST_STR(path));
+
+  std::vector<Entry> entries;
+  entries.reserve(rust_vec.size());
+  for (auto &&entry : rust_vec) {
+    entries.push_back(std::move(entry));
+  }
+  return entries;
+}
+
+std::optional<std::string> parse_optional_string(ffi::OptionalString &&s);
+
+Metadata::Metadata(ffi::Metadata &&other) {
+  type = static_cast<EntryMode>(other.mode);
+  content_length = other.content_length;
+  cache_control = parse_optional_string(std::move(other.cache_control));
+  content_disposition =
+      parse_optional_string(std::move(other.content_disposition));
+  content_type = parse_optional_string(std::move(other.content_type));
+  content_md5 = parse_optional_string(std::move(other.content_md5));
+  etag = parse_optional_string(std::move(other.etag));
+  auto last_modified_str =
+      parse_optional_string(std::move(other.last_modified));
+  if (last_modified_str.has_value()) {
+    last_modified =
+        boost::posix_time::from_iso_string(last_modified_str.value());
+  }
+}
+
+Entry::Entry(ffi::Entry &&other) : path(std::move(other.path)) {}
+
+// helper functions
+
+std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
+  if (s.has_value) {
+    return std::string(std::move(s.value));
+  } else {
+    return std::nullopt;
+  }
 }

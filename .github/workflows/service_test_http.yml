@@ -72,7 +72,11 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      
       # caddy 2.5.2 can't pass our test cases for https://github.com/caddyserver/caddy/issues/4923
       # Use the latest beta version instead
       - name: Start caddy
@@ -88,10 +92,6 @@ jobs:
           cp -r tests/data/* /tmp/static
           ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 --access-log &
 
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
       - name: Test
         shell: bash
         working-directory: core

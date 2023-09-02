@@ -36,6 +36,9 @@ excludes = [
   "**/*.md",
   "**/*.mdx",
 
+  # Test files
+  "**/tests/data/**",
+
   # Third-party source files
   "scripts/merge_local_staging.sh",
 ]

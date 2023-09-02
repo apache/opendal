@@ -39,10 +39,18 @@ pub async fn test_list_only(op: Operator) -> Result<()> {
     let mut ds = op.lister("/").await?;
     while let Some(de) = ds.try_next().await? {
         entries.insert(de.path().to_string(), op.stat(de.path()).await?.mode());
+        println!(
+            "{}: {:?}",
+            de.path().to_string(),
+            op.stat(de.path()).await?.mode()
+        );
     }
 
     assert_eq!(entries["normal_file.txt"], EntryMode::FILE);
-    assert_eq!(entries["special_file  !@#$%^&()_+-=;',.txt"], EntryMode::FILE);
+    assert_eq!(
+        entries["special_file  !@#$%^&()_+-=;',.txt"],
+        EntryMode::FILE
+    );
 
     assert_eq!(entries["normal_dir/"], EntryMode::DIR);
     assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], EntryMode::DIR);

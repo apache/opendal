@@ -41,9 +41,9 @@ pub fn behavior_blocking_read_only_tests(op: &Operator) -> Vec<Trial> {
 
 /// Stat normal file and dir should return metadata
 pub fn test_blocking_read_only_stat_file_and_dir(op: BlockingOperator) -> Result<()> {
-    let meta = op.stat("normal_file")?;
+    let meta = op.stat("normal_file.txt")?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 30482);
 
     let meta = op.stat("normal_dir/")?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -53,9 +53,9 @@ pub fn test_blocking_read_only_stat_file_and_dir(op: BlockingOperator) -> Result
 
 /// Stat special file and dir should return metadata
 pub fn test_blocking_read_only_stat_special_chars(op: BlockingOperator) -> Result<()> {
-    let meta = op.stat("special_file  !@#$%^&()_+-=;',")?;
+    let meta = op.stat("special_file  !@#$%^&()_+-=;',.txt")?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 30482);
 
     let meta = op.stat("special_dir  !@#$%^&()_+-=;',/")?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -76,11 +76,11 @@ pub fn test_blocking_read_only_stat_not_exist(op: BlockingOperator) -> Result<()
 
 /// Read full content should match.
 pub fn test_blocking_read_only_read_full(op: BlockingOperator) -> Result<()> {
-    let bs = op.read("normal_file")?;
-    assert_eq!(bs.len(), 262144, "read size");
+    let bs = op.read("normal_file.txt")?;
+    assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
 
@@ -89,11 +89,11 @@ pub fn test_blocking_read_only_read_full(op: BlockingOperator) -> Result<()> {
 
 /// Read full content should match.
 pub fn test_blocking_read_only_read_with_range(op: BlockingOperator) -> Result<()> {
-    let bs = op.read_with("normal_file").range(1024..2048).call()?;
+    let bs = op.read_with("normal_file.txt").range(1024..2048).call()?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
         "read content"
     );
 

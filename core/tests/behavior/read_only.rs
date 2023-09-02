@@ -53,7 +53,7 @@ pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
 
 /// Stat normal file and dir should return metadata
 pub async fn test_read_only_stat_file_and_dir(op: Operator) -> Result<()> {
-    let meta = op.stat("normal_file").await?;
+    let meta = op.stat("normal_file.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
@@ -65,7 +65,7 @@ pub async fn test_read_only_stat_file_and_dir(op: Operator) -> Result<()> {
 
 /// Stat special file and dir should return metadata
 pub async fn test_read_only_stat_special_chars(op: Operator) -> Result<()> {
-    let meta = op.stat("special_file  !@#$%^&()_+-=;',").await?;
+    let meta = op.stat("special_file  !@#$%^&()_+-=;',.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
@@ -77,7 +77,7 @@ pub async fn test_read_only_stat_special_chars(op: Operator) -> Result<()> {
 
 /// Stat not cleaned path should also succeed.
 pub async fn test_read_only_stat_not_cleaned_path(op: Operator) -> Result<()> {
-    let meta = op.stat("//normal_file").await?;
+    let meta = op.stat("//normal_file.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
@@ -101,7 +101,7 @@ pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -126,7 +126,7 @@ pub async fn test_read_only_stat_with_if_none_match(op: Operator) -> Result<()> 
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
@@ -159,7 +159,7 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
-    let bs = op.read("normal_file").await?;
+    let bs = op.read("normal_file.txt").await?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -172,7 +172,7 @@ pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result<()> {
-    let bs = op.read("special_file  !@#$%^&()_+-=;',").await?;
+    let bs = op.read("special_file  !@#$%^&()_+-=;',.txt").await?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -185,7 +185,7 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result
 
 /// Read full content should match.
 pub async fn test_read_only_read_with_range(op: Operator) -> Result<()> {
-    let bs = op.read_with("normal_file").range(1024..2048).await?;
+    let bs = op.read_with("normal_file.txt").range(1024..2048).await?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -198,7 +198,7 @@ pub async fn test_read_only_read_with_range(op: Operator) -> Result<()> {
 
 /// Read range should match.
 pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file").range(1024..2048).await?;
+    let mut r = op.reader_with("normal_file.txt").range(1024..2048).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -215,7 +215,7 @@ pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
 
 /// Read from should match.
 pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file").range(261120..).await?;
+    let mut r = op.reader_with("normal_file.txt").range(261120..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -232,7 +232,7 @@ pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
 
 /// Read tail should match.
 pub async fn test_read_only_reader_tail(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file").range(..1024).await?;
+    let mut r = op.reader_with("normal_file.txt").range(..1024).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -275,7 +275,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
 
@@ -304,7 +304,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> Result<()> 
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
 

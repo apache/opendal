@@ -9,11 +9,11 @@ Podling Status Report provides key updates on your podling's status and helps th
 
 New podlings are required to submit reports monthly for the first three months. After this period, the reporting frequency changes to quarterly. 
 
-**The current reporting frequency for OpenDAL is once per quarter.** Stay attentive to the general email list for the Incubator, where due dates for these reports are announced.
+**The current reporting frequency for OpenDAL is once per quarter.** Stay attentive to general@incubator.apache.org ([subscribe](mailto:general-subscribe@incubator.apache.org)), where due dates for these reports are announced.
 
 ### Report Preparation
 
-It's recommended to discuss the report on the dev list, inviting all members to contribute. Here are the critical points your report should address:
+It's recommended to discuss the report on dev@opendal.apache.org ([subscribe](mailto:dev-subscribe@opendal.apache.org)), inviting all members to contribute. Here are the critical points your report should address:
 
 - Any concerns that require the attention of the Incubator PMC or ASF Board.
 - Legal, infrastructure, cross-project, or personal issues that need addressing.
@@ -37,7 +37,7 @@ Note that IPMC update the template from time to time, so be sure to use the one 
 
 Each Podling Status Report must be signed off by a mentor. **Without a mentor's sign-off, the IPMC will not accept the report**, and the podling will need to submit a new report the following month.
 
-After submitting the report, you can send a email to  `dev@opendal.apache.org` to remind our mentors and the community to review the report and provide feedback.
+After submitting the report, you can send a email to dev@opendal.apache.org to remind our mentors and the community to review the report and provide feedback.
 
 ```
 [ANNOUNCE] OpenDAL's Podling Report of <Month><Year>

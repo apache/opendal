@@ -189,7 +189,7 @@ pub async fn test_read_only_read_with_range(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "af05b6a497e30df12b9b46ca9305234def16a204517a7b499927ff3a4bf408a2",
         "read content"
     );
 
@@ -206,7 +206,7 @@ pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "af05b6a497e30df12b9b46ca9305234def16a204517a7b499927ff3a4bf408a2",
         "read content"
     );
 

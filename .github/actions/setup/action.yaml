@@ -133,8 +133,6 @@ runs:
       run: |
         set -e
 
-        pwd
-        ls -l
         cd ./core/tests/data
 
         for i in {1..1024}; do

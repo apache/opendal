@@ -215,12 +215,12 @@ pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
 
 /// Read from should match.
 pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(28672..).await?;
+    let mut r = op.reader_with("normal_file.txt").range(29458..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
 
-    assert_eq!(bs.len(), 1810, "read size");
+    assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "cc9312c869238ea9410b6716e0fc3f48056f2bfb2fe06ccf5f96f2c3bf39e71b",

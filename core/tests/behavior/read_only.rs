@@ -215,7 +215,7 @@ pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
 
 /// Read from should match.
 pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file.txt").range(261120..).await?;
+    let mut r = op.reader_with("normal_file.txt").range(28672..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;

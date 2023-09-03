@@ -93,6 +93,12 @@ ReaderStream Operator::reader(std::string_view path) {
 
 // Reader
 
+// Development Note:
+// Because rust side can't get current pointer info of c++, sowe delay the
+// `consume` operation to the next `fill_buf`. Please pay attention to call
+// `consume` and update c++ pointers before each `seek` and `fill_buf`
+// operation.
+
 ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir);
 
 ReaderStreamBuf::pos_type
@@ -101,6 +107,11 @@ ReaderStreamBuf::seekoff(ReaderStreamBuf::off_type off,
                          std::ios_base::openmode which) {
   if (!(which & std::ios_base::in)) {
     return -1;
+  }
+
+  if (gptr() != nullptr) {
+    reader_->consume(gptr() - eback());
+    setg(gptr(), gptr(), egptr());
   }
 
   if (dir == std::ios_base::cur) {
@@ -127,6 +138,7 @@ ReaderStreamBuf::seekpos(ReaderStreamBuf::pos_type pos,
 ReaderStreamBuf::int_type ReaderStreamBuf::underflow() {
   if (gptr() != nullptr) {
     reader_->consume(gptr() - eback());
+    setg(gptr(), gptr(), egptr());
   }
   auto buffer = reader_->fill_buf();
   auto gbeg = (char *)(buffer.data());

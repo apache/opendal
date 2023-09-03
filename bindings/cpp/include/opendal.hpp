@@ -29,6 +29,8 @@
 
 namespace opendal {
 
+constexpr int BUFFER_SIZE = 1024 * 1024;
+
 /**
  * @enum EntryMode
  * @brief The mode of the entry
@@ -65,6 +67,8 @@ struct Entry {
 
   Entry(ffi::Entry &&);
 };
+
+class ReaderStream;
 
 /**
  * @class Operator
@@ -116,6 +120,14 @@ public:
    * @param data The data to write
    */
   void write(std::string_view path, const std::vector<uint8_t> &data);
+
+  /**
+   * @brief Read data from the operator
+   *
+   * @param path The path of the data
+   * @return The reader of the data
+   */
+  ReaderStream reader(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -174,6 +186,31 @@ public:
 
 private:
   std::optional<rust::Box<opendal::ffi::Operator>> operator_;
+};
+
+using Reader = rust::Box<opendal::ffi::Reader>;
+
+class ReaderStreamBuf : public std::streambuf {
+public:
+  ReaderStreamBuf(Reader &&reader) : reader_(std::move(reader)) {}
+
+protected:
+  int_type underflow() override;
+  pos_type seekoff(off_type off, std::ios_base::seekdir dir,
+                   std::ios_base::openmode which) override;
+  pos_type seekpos(pos_type pos, std::ios_base::openmode which) override;
+
+private:
+  Reader reader_;
+};
+
+class ReaderStream : public std::istream {
+public:
+  ReaderStream(Reader &&reader)
+      : std::istream(&buf_), buf_(std::move(reader)) {}
+
+private:
+  ReaderStreamBuf buf_;
 };
 
 } // namespace opendal

@@ -24,6 +24,8 @@ using namespace opendal;
 #define RUST_STR(s) rust::Str(s.data(), s.size())
 #define RUST_STRING(s) rust::String(s.data(), s.size())
 
+// Operator
+
 Operator::Operator(std::string_view scheme,
                    const std::unordered_map<std::string, std::string> &config) {
   auto rust_map = rust::Vec<ffi::HashMapValue>();
@@ -85,6 +87,58 @@ std::vector<Entry> Operator::list(std::string_view path) {
   return entries;
 }
 
+ReaderStream Operator::reader(std::string_view path) {
+  return {operator_.value()->reader(RUST_STR(path))};
+}
+
+// Reader
+
+ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir);
+
+ReaderStreamBuf::pos_type
+ReaderStreamBuf::seekoff(ReaderStreamBuf::off_type off,
+                         std::ios_base::seekdir dir,
+                         std::ios_base::openmode which) {
+  if (!(which & std::ios_base::in)) {
+    return -1;
+  }
+
+  if (dir == std::ios_base::cur) {
+    off += gptr() - eback();
+  }
+
+  auto res = reader_->seek(off, to_rust_seek_dir(dir));
+
+  auto buffer = reader_->buffer();
+  auto gbeg = (char *)(buffer.data());
+  auto gcurr = gbeg;
+  auto gend = gbeg + buffer.size();
+  setg(gbeg, gcurr, gend);
+
+  return res;
+}
+
+ReaderStreamBuf::pos_type
+ReaderStreamBuf::seekpos(ReaderStreamBuf::pos_type pos,
+                         std::ios_base::openmode which) {
+  return seekoff(pos, std::ios_base::beg, which);
+}
+
+ReaderStreamBuf::int_type ReaderStreamBuf::underflow() {
+  if (gptr() != nullptr) {
+    reader_->consume(gptr() - eback());
+  }
+  auto buffer = reader_->fill_buf();
+  auto gbeg = (char *)(buffer.data());
+  auto gcurr = gbeg;
+  auto gend = gbeg + buffer.size();
+  setg(gbeg, gcurr, gend);
+
+  return gcurr == gend ? traits_type::eof() : traits_type::to_int_type(*gcurr);
+}
+
+// Metadata
+
 std::optional<std::string> parse_optional_string(ffi::OptionalString &&s);
 
 Metadata::Metadata(ffi::Metadata &&other) {
@@ -104,6 +158,8 @@ Metadata::Metadata(ffi::Metadata &&other) {
   }
 }
 
+// Entry
+
 Entry::Entry(ffi::Entry &&other) : path(std::move(other.path)) {}
 
 // helper functions
@@ -113,5 +169,18 @@ std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
     return std::string(std::move(s.value));
   } else {
     return std::nullopt;
+  }
+}
+
+ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
+  switch (dir) {
+  case std::ios_base::beg:
+    return ffi::SeekDir::Start;
+  case std::ios_base::cur:
+    return ffi::SeekDir::Current;
+  case std::ios_base::end:
+    return ffi::SeekDir::End;
+  default:
+    throw std::runtime_error("invalid seekdir");
   }
 }

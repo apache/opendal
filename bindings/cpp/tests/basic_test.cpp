@@ -19,9 +19,12 @@
 
 #include "opendal.hpp"
 #include "gtest/gtest.h"
+#include <ctime>
 #include <optional>
+#include <random>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class OpendalTest : public ::testing::Test {
 protected:
@@ -30,10 +33,14 @@ protected:
   std::string scheme;
   std::unordered_map<std::string, std::string> config;
 
+  // random number generator
+  std::mt19937 rng;
+
   void SetUp() override {
     scheme = "memory";
-    op = opendal::Operator(scheme, config);
+    rng.seed(time(nullptr));
 
+    op = opendal::Operator(scheme, config);
     EXPECT_TRUE(op.available());
   }
 };
@@ -84,6 +91,41 @@ TEST_F(OpendalTest, BasicTest) {
   op.remove(file_path_renamed);
   op.remove(dir_path);
   EXPECT_FALSE(op.is_exist(file_path_renamed));
+}
+
+TEST_F(OpendalTest, ReaderTest) {
+  std::string file_path = "test";
+  constexpr int size = 2000;
+  std::vector<uint8_t> data(size);
+
+  for (auto &d : data) {
+    d = rng() % 256;
+  }
+
+  // write
+  op.write(file_path, data);
+
+  // read
+  auto reader = op.reader(file_path);
+
+  auto read = [&](std::size_t to_read, std::streampos expected_tellg) {
+    std::vector<char> v(to_read);
+    reader.read(v.data(), v.size());
+    EXPECT_TRUE(!!reader);
+    EXPECT_EQ(reader.tellg(), expected_tellg);
+  };
+
+  EXPECT_EQ(reader.tellg(), 0);
+  read(10, 10);
+  read(15, 25);
+  read(15, 40);
+  reader.get();
+  EXPECT_EQ(reader.tellg(), 41);
+  read(1000, 1041);
+
+  reader.seekg(0, std::ios::beg);
+  std::vector<uint8_t> reader_data(std::istreambuf_iterator<char>{reader}, {});
+  EXPECT_EQ(reader_data, data);
 }
 
 int main(int argc, char **argv) {

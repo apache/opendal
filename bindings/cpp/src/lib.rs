@@ -17,6 +17,7 @@
 
 use anyhow::Result;
 use opendal as od;
+use std::io::{BufRead, BufReader, Seek};
 use std::str::FromStr;
 
 #[cxx::bridge(namespace = "opendal::ffi")]
@@ -24,6 +25,12 @@ mod ffi {
     struct HashMapValue {
         key: String,
         value: String,
+    }
+
+    enum SeekDir {
+        Start = 0,
+        Current = 1,
+        End = 2,
     }
 
     enum EntryMode {
@@ -54,6 +61,7 @@ mod ffi {
 
     extern "Rust" {
         type Operator;
+        type Reader;
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
@@ -65,10 +73,17 @@ mod ffi {
         fn remove(self: &Operator, path: &str) -> Result<()>;
         fn stat(self: &Operator, path: &str) -> Result<Metadata>;
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
+        fn reader(self: &Operator, path: &str) -> Result<Box<Reader>>;
+
+        fn fill_buf(self: &mut Reader) -> Result<&[u8]>;
+        fn buffer(self: &Reader) -> &[u8];
+        fn consume(self: &mut Reader, amt: usize);
+        fn seek(self: &mut Reader, offset: u64, dir: SeekDir) -> Result<u64>;
     }
 }
 
 struct Operator(od::BlockingOperator);
+struct Reader(BufReader<od::BlockingReader>);
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
     let scheme = od::Scheme::from_str(scheme)?;
@@ -123,6 +138,35 @@ impl Operator {
 
     fn list(&self, path: &str) -> Result<Vec<ffi::Entry>> {
         Ok(self.0.list(path)?.into_iter().map(Into::into).collect())
+    }
+
+    fn reader(&self, path: &str) -> Result<Box<Reader>> {
+        Ok(Box::new(Reader(BufReader::new(self.0.reader(path)?))))
+    }
+}
+
+impl Reader {
+    fn fill_buf(&mut self) -> Result<&[u8]> {
+        Ok(self.0.fill_buf()?)
+    }
+
+    fn buffer(&self) -> &[u8] {
+        self.0.buffer()
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.0.consume(amt)
+    }
+
+    fn seek(&mut self, offset: u64, dir: ffi::SeekDir) -> Result<u64> {
+        let pos = match dir {
+            ffi::SeekDir::Start => std::io::SeekFrom::Start(offset),
+            ffi::SeekDir::Current => std::io::SeekFrom::Current(offset as i64),
+            ffi::SeekDir::End => std::io::SeekFrom::End(offset as i64),
+            _ => return Err(anyhow::anyhow!("invalid seek dir")),
+        };
+
+        Ok(self.0.seek(pos)?)
     }
 }
 

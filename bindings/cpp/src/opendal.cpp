@@ -94,7 +94,7 @@ ReaderStream Operator::reader(std::string_view path) {
 // Reader
 
 // Development Note:
-// Because rust side can't get current pointer info of c++, sowe delay the
+// Because rust side can't get current pointer info of c++, so we delay the
 // `consume` operation to the next `fill_buf`. Please pay attention to call
 // `consume` and update c++ pointers before each `seek` and `fill_buf`
 // operation.

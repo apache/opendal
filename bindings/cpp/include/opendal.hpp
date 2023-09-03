@@ -29,8 +29,6 @@
 
 namespace opendal {
 
-constexpr int BUFFER_SIZE = 1024 * 1024;
-
 /**
  * @enum EntryMode
  * @brief The mode of the entry
@@ -190,6 +188,10 @@ private:
 
 using Reader = rust::Box<opendal::ffi::Reader>;
 
+/**
+ * @class ReaderStreamBuf
+ * @brief The stream buffer for ReaderStream
+ */
 class ReaderStreamBuf : public std::streambuf {
 public:
   ReaderStreamBuf(Reader &&reader) : reader_(std::move(reader)) {}
@@ -204,6 +206,10 @@ private:
   Reader reader_;
 };
 
+/**
+ * @class ReaderStream
+ * @brief The stream for Reader
+ */
 class ReaderStream : public std::istream {
 public:
   ReaderStream(Reader &&reader)

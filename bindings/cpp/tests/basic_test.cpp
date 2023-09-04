@@ -105,26 +105,37 @@ TEST_F(OpendalTest, ReaderTest) {
   // write
   op.write(file_path, data);
 
-  // read
+  // reader
   auto reader = op.reader(file_path);
+  uint8_t part_data[100];
+  reader.seek(200, std::ios::cur);
+  reader.read(part_data, 100);
+  EXPECT_EQ(reader.seek(0, std::ios::cur), 300);
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_EQ(part_data[i], data[200 + i]);
+  }
+  reader.seek(0, std::ios::beg);
 
-  auto read = [&](std::size_t to_read, std::streampos expected_tellg) {
+  // stream
+  opendal::ReaderStream stream(reader);
+
+  auto read_fn = [&](std::size_t to_read, std::streampos expected_tellg) {
     std::vector<char> v(to_read);
-    reader.read(v.data(), v.size());
-    EXPECT_TRUE(!!reader);
-    EXPECT_EQ(reader.tellg(), expected_tellg);
+    stream.read(v.data(), v.size());
+    EXPECT_TRUE(!!stream);
+    EXPECT_EQ(stream.tellg(), expected_tellg);
   };
 
-  EXPECT_EQ(reader.tellg(), 0);
-  read(10, 10);
-  read(15, 25);
-  read(15, 40);
-  reader.get();
-  EXPECT_EQ(reader.tellg(), 41);
-  read(1000, 1041);
+  EXPECT_EQ(stream.tellg(), 0);
+  read_fn(10, 10);
+  read_fn(15, 25);
+  read_fn(15, 40);
+  stream.get();
+  EXPECT_EQ(stream.tellg(), 41);
+  read_fn(1000, 1041);
 
-  reader.seekg(0, std::ios::beg);
-  std::vector<uint8_t> reader_data(std::istreambuf_iterator<char>{reader}, {});
+  stream.seekg(0, std::ios::beg);
+  std::vector<uint8_t> reader_data(std::istreambuf_iterator<char>{stream}, {});
   EXPECT_EQ(reader_data, data);
 }
 

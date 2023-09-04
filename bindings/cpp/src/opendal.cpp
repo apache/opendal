@@ -87,66 +87,22 @@ std::vector<Entry> Operator::list(std::string_view path) {
   return entries;
 }
 
-ReaderStream Operator::reader(std::string_view path) {
-  return {operator_.value()->reader(RUST_STR(path))};
+Reader Operator::reader(std::string_view path) {
+  return operator_.value()->reader(RUST_STR(path));
 }
 
 // Reader
 
-// Development Note:
-// Because rust side can't get current pointer info of c++, so we delay the
-// `consume` operation to the next `fill_buf`. Please pay attention to call
-// `consume` and update c++ pointers before each `seek` and `fill_buf`
-// operation.
+std::streamsize Reader::read(void *s, std::streamsize n) {
+  auto rust_slice = rust::Slice<uint8_t>(reinterpret_cast<uint8_t *>(s), n);
+  auto read_size = reader_->read(rust_slice);
+  return read_size;
+}
 
 ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir);
 
-ReaderStreamBuf::pos_type
-ReaderStreamBuf::seekoff(ReaderStreamBuf::off_type off,
-                         std::ios_base::seekdir dir,
-                         std::ios_base::openmode which) {
-  if (!(which & std::ios_base::in)) {
-    return -1;
-  }
-
-  if (gptr() != nullptr) {
-    reader_->consume(gptr() - eback());
-    setg(gptr(), gptr(), egptr());
-  }
-
-  if (dir == std::ios_base::cur) {
-    off += gptr() - eback();
-  }
-
-  auto res = reader_->seek(off, to_rust_seek_dir(dir));
-
-  auto buffer = reader_->buffer();
-  auto gbeg = (char *)(buffer.data());
-  auto gcurr = gbeg;
-  auto gend = gbeg + buffer.size();
-  setg(gbeg, gcurr, gend);
-
-  return res;
-}
-
-ReaderStreamBuf::pos_type
-ReaderStreamBuf::seekpos(ReaderStreamBuf::pos_type pos,
-                         std::ios_base::openmode which) {
-  return seekoff(pos, std::ios_base::beg, which);
-}
-
-ReaderStreamBuf::int_type ReaderStreamBuf::underflow() {
-  if (gptr() != nullptr) {
-    reader_->consume(gptr() - eback());
-    setg(gptr(), gptr(), egptr());
-  }
-  auto buffer = reader_->fill_buf();
-  auto gbeg = (char *)(buffer.data());
-  auto gcurr = gbeg;
-  auto gend = gbeg + buffer.size();
-  setg(gbeg, gcurr, gend);
-
-  return gcurr == gend ? traits_type::eof() : traits_type::to_int_type(*gcurr);
+std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
+  return reader_->seek(off, to_rust_seek_dir(dir));
 }
 
 // Metadata

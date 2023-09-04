@@ -21,6 +21,8 @@
 #include "lib.rs.h"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/iostreams/concepts.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <memory>
 #include <optional>
 #include <string>
@@ -66,7 +68,7 @@ struct Entry {
   Entry(ffi::Entry &&);
 };
 
-class ReaderStream;
+class Reader;
 
 /**
  * @class Operator
@@ -125,7 +127,7 @@ public:
    * @param path The path of the data
    * @return The reader of the data
    */
-  ReaderStream reader(std::string_view path);
+  Reader reader(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -186,37 +188,45 @@ private:
   std::optional<rust::Box<opendal::ffi::Operator>> operator_;
 };
 
-using Reader = rust::Box<opendal::ffi::Reader>;
-
 /**
- * @class ReaderStreamBuf
- * @brief The stream buffer for ReaderStream
+ * @class Reader
+ * @brief Reader is designed to read data from the operator.
+ * @details It provides basic read and seek operations. If you want to use it
+ * like a stream, you can use `ReaderStream` instead.
+ * @code{.cpp}
+ * auto reader = operator.reader("path");
+ * opendal::ReaderStream stream(reader);
+ * @endcode
  */
-class ReaderStreamBuf : public std::streambuf {
+class Reader
+    : public boost::iostreams::device<boost::iostreams::input_seekable> {
 public:
-  ReaderStreamBuf(Reader &&reader) : reader_(std::move(reader)) {}
+  // Users should not use this type directly.
+  using InternalReader = rust::Box<opendal::ffi::Reader>;
 
-protected:
-  int_type underflow() override;
-  pos_type seekoff(off_type off, std::ios_base::seekdir dir,
-                   std::ios_base::openmode which) override;
-  pos_type seekpos(pos_type pos, std::ios_base::openmode which) override;
+  Reader(InternalReader &&reader) : reader_(std::move(reader)) {}
+
+  std::streamsize read(void *s, std::streamsize n);
+  std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
 
 private:
-  Reader reader_;
+  InternalReader reader_;
 };
+
+// Boost IOStreams requires it to be copyable. So we need to use
+// `reference_wrapper` in ReaderStream. More details can be seen at
+// https://lists.boost.org/Archives/boost/2005/10/95939.php
 
 /**
  * @class ReaderStream
- * @brief The stream for Reader
+ * @brief ReaderStream is a stream wrapper of Reader which can provide
+ * `iostream` interface.
  */
-class ReaderStream : public std::istream {
+class ReaderStream
+    : public boost::iostreams::stream<boost::reference_wrapper<Reader>> {
 public:
-  ReaderStream(Reader &&reader)
-      : std::istream(&buf_), buf_(std::move(reader)) {}
-
-private:
-  ReaderStreamBuf buf_;
+  ReaderStream(Reader &reader)
+      : boost::iostreams::stream<boost::reference_wrapper<Reader>>(
+            boost::ref(reader)) {}
 };
-
 } // namespace opendal

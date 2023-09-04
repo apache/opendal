@@ -16,8 +16,8 @@
 // under the License.
 
 use anyhow::Result;
+use od::raw::oio::BlockingRead;
 use opendal as od;
-use std::io::{BufRead, BufReader, Seek};
 use std::str::FromStr;
 
 #[cxx::bridge(namespace = "opendal::ffi")]
@@ -75,15 +75,14 @@ mod ffi {
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
         fn reader(self: &Operator, path: &str) -> Result<Box<Reader>>;
 
-        fn fill_buf(self: &mut Reader) -> Result<&[u8]>;
-        fn buffer(self: &Reader) -> &[u8];
-        fn consume(self: &mut Reader, amt: usize);
+        #[cxx_name = "read"]
+        fn reader_read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
         fn seek(self: &mut Reader, offset: u64, dir: SeekDir) -> Result<u64>;
     }
 }
 
 struct Operator(od::BlockingOperator);
-struct Reader(BufReader<od::BlockingReader>);
+struct Reader(od::BlockingReader);
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
     let scheme = od::Scheme::from_str(scheme)?;
@@ -141,21 +140,13 @@ impl Operator {
     }
 
     fn reader(&self, path: &str) -> Result<Box<Reader>> {
-        Ok(Box::new(Reader(BufReader::new(self.0.reader(path)?))))
+        Ok(Box::new(Reader(self.0.reader(path)?)))
     }
 }
 
 impl Reader {
-    fn fill_buf(&mut self) -> Result<&[u8]> {
-        Ok(self.0.fill_buf()?)
-    }
-
-    fn buffer(&self) -> &[u8] {
-        self.0.buffer()
-    }
-
-    fn consume(&mut self, amt: usize) {
-        self.0.consume(amt)
+    fn reader_read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        Ok(self.0.read(buf)?)
     }
 
     fn seek(&mut self, offset: u64, dir: ffi::SeekDir) -> Result<u64> {

@@ -328,16 +328,16 @@ impl GdriveCore {
     // Update with content and metadata
     pub async fn gdrive_patch_metadata_request(
         &self,
-        source_path: &str,
-        target_path: &str,
+        source: &str,
+        target: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let file_id = self.get_file_id_by_path(source_path).await?;
+        let file_id = self.get_file_id_by_path(source).await?;
 
-        let parent = self.ensure_parent_path(target_path).await?;
+        let parent = self.ensure_parent_path(target).await?;
 
         let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
 
-        let source_abs_path = build_abs_path(&self.root, source_path);
+        let source_abs_path = build_abs_path(&self.root, source);
         let mut source_parent: Vec<&str> = source_abs_path
             .split('/')
             .filter(|&x| !x.is_empty())
@@ -346,7 +346,7 @@ impl GdriveCore {
 
         let cache = self.path_cache.lock().await;
 
-        let file_name = build_abs_path(&self.root, target_path)
+        let file_name = build_abs_path(&self.root, target)
             .split('/')
             .filter(|&x| !x.is_empty())
             .last()

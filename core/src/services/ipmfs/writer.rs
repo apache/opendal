@@ -38,7 +38,8 @@ impl IpmfsWriter {
 
 #[async_trait]
 impl oio::Write for IpmfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len() as u64;
         let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();
@@ -46,13 +47,13 @@ impl oio::Write for IpmfsWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(())
+                Ok(size)
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

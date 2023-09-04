@@ -118,16 +118,18 @@ impl GcsWriter {
 
 #[async_trait]
 impl oio::Write for GcsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len() as u64;
+
         let location = match &self.location {
             Some(location) => location,
             None => {
                 if self.op.content_length().unwrap_or_default() == bs.len() as u64
                     && self.written == 0
                 {
-                    return self
-                        .write_oneshot(bs.len() as u64, AsyncBody::Bytes(bs))
-                        .await;
+                    self.write_oneshot(size, AsyncBody::Bytes(bs)).await?;
+
+                    return Ok(size);
                 } else {
                     let location = self.initiate_upload().await?;
                     self.location = Some(location);
@@ -138,22 +140,23 @@ impl oio::Write for GcsWriter {
 
         // Ignore empty bytes
         if bs.is_empty() {
-            return Ok(());
+            return Ok(0);
         }
 
         self.buffer.push(bs);
         // Return directly if the buffer is not full
         if self.buffer.len() <= self.write_fixed_size {
-            return Ok(());
+            return Ok(size);
         }
 
         let bs = self.buffer.peak_exact(self.write_fixed_size);
+        let size = bs.len() as u64;
 
         match self.write_part(location, bs).await {
             Ok(_) => {
                 self.buffer.take(self.write_fixed_size);
                 self.written += self.write_fixed_size as u64;
-                Ok(())
+                Ok(size)
             }
             Err(e) => {
                 // If the upload fails, we should pop the given bs to make sure
@@ -164,8 +167,9 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.write_oneshot(size, AsyncBody::Stream(s)).await
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+        self.write_oneshot(size, AsyncBody::Stream(s)).await?;
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {

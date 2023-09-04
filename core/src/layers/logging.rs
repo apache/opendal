@@ -1252,11 +1252,10 @@ impl<W> LoggingWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         match self.inner.write(bs).await {
-            Ok(_) => {
-                self.written += size as u64;
+            Ok(n) => {
+                self.written += n;
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data write {}B",
@@ -1264,9 +1263,9 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     WriteOperation::Write,
                     self.path,
                     self.written,
-                    size
+                    n
                 );
-                Ok(())
+                Ok(n)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1286,10 +1285,10 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         match self.inner.sink(size, s).await {
-            Ok(_) => {
-                self.written += size;
+            Ok(n) => {
+                self.written += n;
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data sink {}B",
@@ -1297,9 +1296,9 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     WriteOperation::Sink,
                     self.path,
                     self.written,
-                    size
+                    n
                 );
-                Ok(())
+                Ok(n)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1383,11 +1382,11 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         let size = bs.len();
         match self.inner.write(bs) {
-            Ok(_) => {
-                self.written += size as u64;
+            Ok(n) => {
+                self.written += n;
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data write {}B",
@@ -1397,7 +1396,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     self.written,
                     size
                 );
-                Ok(())
+                Ok(n)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {

@@ -873,7 +873,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 
 #[async_trait]
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let mut backoff = self.builder.build();
 
         loop {
@@ -919,14 +919,14 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
     /// The overhead is constant, which means the overhead will not increase with the size of
     /// stream. For example, if every `next` call cost 1ms, then the overhead will only take 0.005%
     /// which is acceptable.
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         let s = Arc::new(Mutex::new(s));
 
         let mut backoff = self.builder.build();
 
         loop {
             match self.inner.sink(size, Box::new(s.clone())).await {
-                Ok(_) => return Ok(()),
+                Ok(n) => return Ok(n),
                 Err(e) if !e.is_temporary() => return Err(e),
                 Err(e) => match backoff.next() {
                     None => return Err(e),
@@ -1013,7 +1013,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
 }
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         { || self.inner.write(bs.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())

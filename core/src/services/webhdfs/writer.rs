@@ -39,12 +39,14 @@ impl WebhdfsWriter {
 
 #[async_trait]
 impl oio::Write for WebhdfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len();
+
         let req = self
             .backend
             .webhdfs_create_object_request(
                 &self.path,
-                Some(bs.len()),
+                Some(size),
                 self.op.content_type(),
                 AsyncBody::Bytes(bs),
             )
@@ -56,13 +58,13 @@ impl oio::Write for WebhdfsWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(())
+                Ok(size as u64)
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

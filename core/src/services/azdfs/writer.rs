@@ -41,7 +41,9 @@ impl AzdfsWriter {
 
 #[async_trait]
 impl oio::Write for AzdfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len() as u64;
+
         let mut req = self.core.azdfs_create_request(
             &self.path,
             "file",
@@ -78,7 +80,7 @@ impl oio::Write for AzdfsWriter {
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
-                Ok(())
+                Ok(size)
             }
             _ => Err(parse_error(resp)
                 .await?
@@ -86,7 +88,7 @@ impl oio::Write for AzdfsWriter {
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

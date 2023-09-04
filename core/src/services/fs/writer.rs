@@ -54,18 +54,20 @@ impl oio::Write for FsWriter<tokio::fs::File> {
     ///
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len() as u64;
+
         self.f
             .seek(SeekFrom::Start(self.pos))
             .await
             .map_err(parse_io_error)?;
         self.f.write_all(&bs).await.map_err(parse_io_error)?;
-        self.pos += bs.len() as u64;
+        self.pos += size;
 
-        Ok(())
+        Ok(size)
     }
 
-    async fn sink(&mut self, _size: u64, mut s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, mut s: oio::Streamer) -> Result<u64> {
         while let Some(bs) = s.next().await {
             let bs = bs?;
             self.f
@@ -76,7 +78,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
             self.pos += bs.len() as u64;
         }
 
-        Ok(())
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -104,14 +106,14 @@ impl oio::BlockingWrite for FsWriter<std::fs::File> {
     ///
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         self.f
             .seek(SeekFrom::Start(self.pos))
             .map_err(parse_io_error)?;
         self.f.write_all(&bs).map_err(parse_io_error)?;
         self.pos += bs.len() as u64;
 
-        Ok(())
+        Ok(bs.len() as u64)
     }
 
     fn close(&mut self) -> Result<()> {

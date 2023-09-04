@@ -40,12 +40,14 @@ impl DropboxWriter {
 
 #[async_trait]
 impl oio::Write for DropboxWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len();
+
         let resp = self
             .core
             .dropbox_update(
                 &self.path,
-                Some(bs.len()),
+                Some(size),
                 self.op.content_type(),
                 AsyncBody::Bytes(bs),
             )
@@ -54,13 +56,13 @@ impl oio::Write for DropboxWriter {
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(())
+                Ok(size as u64)
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

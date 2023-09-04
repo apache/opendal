@@ -41,12 +41,14 @@ impl WasabiWriter {
 
 #[async_trait]
 impl oio::Write for WasabiWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len();
+
         let resp = self
             .core
             .put_object(
                 &self.path,
-                Some(bs.len()),
+                Some(size),
                 self.op.content_type(),
                 self.op.content_disposition(),
                 self.op.cache_control(),
@@ -57,13 +59,13 @@ impl oio::Write for WasabiWriter {
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(())
+                Ok(size as u64)
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

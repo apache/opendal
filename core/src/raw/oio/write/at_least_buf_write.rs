@@ -64,7 +64,7 @@ impl<W: oio::Write> AtLeastBufWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         // If total size is known and equals to given bytes, we can write it directly.
         if let Some(total_size) = self.total_size {
             if total_size == bs.len() as u64 {
@@ -74,8 +74,9 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
 
         // Push the bytes into the buffer if the buffer is not full.
         if self.buffer.len() + bs.len() < self.buffer_size {
+            let size = bs.len();
             self.buffer.push(bs);
-            return Ok(());
+            return Ok(size as u64);
         }
 
         let mut buf = self.buffer.clone();
@@ -85,10 +86,13 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
             .sink(buf.len() as u64, Box::new(buf))
             .await
             // Clear buffer if the write is successful.
-            .map(|_| self.buffer.clear())
+            .map(|v| {
+                self.buffer.clear();
+                v
+            })
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
         // If total size is known and equals to given stream, we can write it directly.
         if let Some(total_size) = self.total_size {
             if total_size == size {
@@ -98,8 +102,10 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
 
         // Push the bytes into the buffer if the buffer is not full.
         if self.buffer.len() as u64 + size < self.buffer_size as u64 {
-            self.buffer.push(s.collect().await?);
-            return Ok(());
+            let bs = s.collect().await?;
+            let size = bs.len() as u64;
+            self.buffer.push(bs);
+            return Ok(size);
         }
 
         let buf = self.buffer.clone();
@@ -110,7 +116,10 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
             .sink(buffer_size + size, Box::new(stream))
             .await
             // Clear buffer if the write is successful.
-            .map(|_| self.buffer.clear())
+            .map(|v| {
+                self.buffer.clear();
+                v
+            })
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -74,31 +74,29 @@ impl From<WriteOperation> for &'static str {
 pub type Writer = Box<dyn Write>;
 
 /// Write is the trait that OpenDAL returns to callers.
-///
-/// # Notes
-///
-/// There are two possible two cases:
-///
-/// - Sized: The total size of the object is known in advance.
-/// - Unsized: The total size of the object is unknown in advance.
-///
-/// And it's possible that the given bs length is less than the total
-/// content length. Users will call write multiple times to write
-/// the whole data.
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
     /// Write given bytes into writer.
     ///
-    /// # Notes
+    /// # Behavior
     ///
-    /// It's possible that the given bs length is less than the total
-    /// content length. And users will call write multiple times.
+    /// - `Ok(n)` means `n` bytes has been written successfully.
+    /// - `Err(err)` means error happens and no bytes has been written.
     ///
-    /// Please make sure `write` is safe to re-enter.
-    async fn write(&mut self, bs: Bytes) -> Result<()>;
+    /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
+    /// repeatedly until all bytes has been written.
+    async fn write(&mut self, bs: Bytes) -> Result<u64>;
 
     /// Sink given stream into writer.
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()>;
+    ///
+    /// # Behavior
+    ///
+    /// - `Ok(n)` means `n` bytes has been written successfully.
+    /// - `Err(err)` means error happens and no bytes has been written.
+    ///
+    /// It's possible that `n < size`, caller should pass the remaining bytes
+    /// repeatedly until all bytes has been written.
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
@@ -109,13 +107,13 @@ pub trait Write: Unpin + Send + Sync {
 
 #[async_trait]
 impl Write for () {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
-    async fn sink(&mut self, _: u64, _: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _: u64, _: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support sink",
@@ -142,11 +140,11 @@ impl Write for () {
 /// To make Writer work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         (**self).write(bs).await
     }
 
-    async fn sink(&mut self, n: u64, s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, n: u64, s: oio::Streamer) -> Result<u64> {
         (**self).sink(n, s).await
     }
 
@@ -165,14 +163,14 @@ pub type BlockingWriter = Box<dyn BlockingWrite>;
 /// BlockingWrite is the trait that OpenDAL returns to callers.
 pub trait BlockingWrite: Send + Sync + 'static {
     /// Write whole content at once.
-    fn write(&mut self, bs: Bytes) -> Result<()>;
+    fn write(&mut self, bs: Bytes) -> Result<u64>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::BlockingWrite")
@@ -190,7 +188,7 @@ impl BlockingWrite for () {
 ///
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         (**self).write(bs)
     }
 

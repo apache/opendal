@@ -90,7 +90,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
             })
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
+    async fn pipe(&mut self, _: u64, s: oio::Reader) -> Result<u64> {
         todo!()
     }
 

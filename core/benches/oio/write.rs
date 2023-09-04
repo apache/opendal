@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::{Buf, Bytes};
 use criterion::Criterion;
 use once_cell::sync::Lazy;
 use opendal::raw::oio::AtLeastBufWriter;
@@ -71,7 +72,12 @@ pub fn bench_exact_buf_write(c: &mut Criterion) {
         group.bench_with_input(size.to_string(), &content, |b, content| {
             b.to_async(&*TOKIO).iter(|| async {
                 let mut w = ExactBufWriter::new(BlackHoleWriter, 256 * 1024);
-                w.write(content.clone()).await.unwrap();
+
+                let mut bs = Bytes::from(content.clone());
+                while !bs.is_empty() {
+                    let n = w.write(bs.clone()).await.unwrap();
+                    bs.advance(n as usize);
+                }
                 w.close().await.unwrap();
             })
         });

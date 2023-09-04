@@ -343,20 +343,6 @@ impl oio::Stream for ChunkedCursor {
     }
 }
 
-impl oio::Read for ChunkedCursor {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        todo!()
-    }
-
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        todo!()
-    }
-
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        todo!()
-    }
-}
-
 /// VectorCursor is the cursor for [`Vec<Bytes>`] that implements [`oio::Stream`]
 pub struct VectorCursor {
     inner: VecDeque<Bytes>,

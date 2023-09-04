@@ -85,20 +85,20 @@ impl<W: oio::Write> ExactBufWriter<W> {
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        self.sink(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
+        self.pipe(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
             .await
     }
 
     /// # TODO
     ///
     /// We know every stream size, we can collect them into a buffer without chain them every time.
-    async fn sink(&mut self, _: u64, mut s: Streamer) -> Result<u64> {
+    async fn pipe(&mut self, _: u64, mut s: Streamer) -> Result<u64> {
         if self.buffer.len() >= self.buffer_size {
             let mut buf = self.buffer.clone();
             let to_write = buf.split_to(self.buffer_size);
             return self
                 .inner
-                .sink(to_write.len() as u64, Box::new(to_write))
+                .pipe(to_write.len() as u64, Box::new(to_write))
                 .await
                 // Replace buffer with remaining if the write is successful.
                 .map(|v| {
@@ -128,7 +128,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
         let to_write = buf.split_to(self.buffer_size);
         self.inner
-            .sink(to_write.len() as u64, Box::new(to_write))
+            .pipe(to_write.len() as u64, Box::new(to_write))
             .await
             // Replace buffer with remaining if the write is successful.
             .map(|v| {
@@ -161,7 +161,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 let mut buf = self.buffer.clone();
                 let to_write = buf.split_to(self.buffer_size);
                 self.inner
-                    .sink(to_write.len() as u64, Box::new(to_write))
+                    .pipe(to_write.len() as u64, Box::new(to_write))
                     .await
                     // Replace buffer with remaining if the write is successful.
                     .map(|_| {
@@ -175,7 +175,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
             let to_write = buf.split_to(min(self.buffer_size, buf.len()));
 
             self.inner
-                .sink(to_write.len() as u64, Box::new(to_write))
+                .pipe(to_write.len() as u64, Box::new(to_write))
                 .await
                 // Replace buffer with remaining if the write is successful.
                 .map(|_| self.buffer = buf)?;
@@ -212,7 +212,7 @@ mod tests {
             Ok(bs.len() as u64)
         }
 
-        async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
+        async fn pipe(&mut self, size: u64, s: Streamer) -> Result<u64> {
             let bs = s.collect().await?;
             assert_eq!(bs.len() as u64, size);
             self.write(bs).await

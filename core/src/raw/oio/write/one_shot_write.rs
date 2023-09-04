@@ -58,7 +58,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
         Ok(size)
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         self.inner.write_once(size, s).await?;
         Ok(size)
     }

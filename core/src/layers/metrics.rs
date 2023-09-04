@@ -861,9 +861,9 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
             })
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         self.inner
-            .sink(size, s)
+            .pipe(size, s)
             .await
             .map(|n| {
                 self.bytes += n;

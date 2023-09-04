@@ -92,7 +92,7 @@ where
         Ok(size)
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: Streamer) -> Result<u64> {
         let offset = self.offset().await?;
 
         self.inner

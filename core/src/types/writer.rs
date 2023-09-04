@@ -139,7 +139,7 @@ impl Writer {
     {
         if let State::Idle(Some(w)) = &mut self.state {
             let s = Box::new(oio::into_stream(sink_from.map_ok(|v| v.into())));
-            w.sink(size, s).await
+            w.pipe(size, s).await
         } else {
             unreachable!(
                 "writer state invalid while sink, expect Idle, actual {}",
@@ -184,7 +184,7 @@ impl Writer {
     {
         if let State::Idle(Some(w)) = &mut self.state {
             let s = Box::new(oio::into_stream_from_reader(read_from));
-            w.sink(size, s).await
+            w.pipe(size, s).await
         } else {
             unreachable!(
                 "writer state invalid while copy, expect Idle, actual {}",

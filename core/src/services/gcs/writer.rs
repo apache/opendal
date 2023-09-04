@@ -167,7 +167,7 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         self.write_oneshot(size, AsyncBody::Stream(s)).await?;
         Ok(size)
     }

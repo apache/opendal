@@ -332,8 +332,8 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
-        self.inner.sink(size, s).await
+    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+        self.inner.pipe(size, s).await
     }
 
     #[tracing::instrument(

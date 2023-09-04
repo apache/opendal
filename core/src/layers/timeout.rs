@@ -335,14 +335,14 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
             })?
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         let timeout = self.io_timeout(size);
 
-        tokio::time::timeout(timeout, self.inner.sink(size, s))
+        tokio::time::timeout(timeout, self.inner.pipe(size, s))
             .await
             .map_err(|_| {
                 Error::new(ErrorKind::Unexpected, "operation timeout")
-                    .with_operation(WriteOperation::Sink)
+                    .with_operation(WriteOperation::Pipe)
                     .with_context("timeout", timeout.as_secs_f64().to_string())
                     .set_temporary()
             })?

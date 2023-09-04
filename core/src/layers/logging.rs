@@ -1285,15 +1285,15 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
-        match self.inner.sink(size, s).await {
+    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+        match self.inner.pipe(size, s).await {
             Ok(n) => {
                 self.written += n;
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data sink {}B",
                     self.ctx.scheme,
-                    WriteOperation::Sink,
+                    WriteOperation::Pipe,
                     self.path,
                     self.written,
                     n
@@ -1307,7 +1307,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         lvl,
                         "service={} operation={} path={} written={} -> data sink failed: {}",
                         self.ctx.scheme,
-                        WriteOperation::Sink,
+                        WriteOperation::Pipe,
                         self.path,
                         self.written,
                         self.ctx.error_print(&err),

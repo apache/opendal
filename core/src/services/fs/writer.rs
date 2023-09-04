@@ -67,7 +67,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
         Ok(size)
     }
 
-    async fn sink(&mut self, size: u64, mut s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, mut s: oio::Streamer) -> Result<u64> {
         while let Some(bs) = s.next().await {
             let bs = bs?;
             self.f

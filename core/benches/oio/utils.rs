@@ -31,7 +31,7 @@ impl oio::Write for BlackHoleWriter {
         Ok(bs.len() as u64)
     }
 
-    async fn sink(&mut self, size: u64, _: Streamer) -> opendal::Result<u64> {
+    async fn pipe(&mut self, size: u64, _: Streamer) -> opendal::Result<u64> {
         Ok(size)
     }
 

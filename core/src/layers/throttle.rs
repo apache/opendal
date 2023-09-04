@@ -242,8 +242,8 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
-        self.inner.sink(size, s).await
+    async fn pipe(&mut self, size: u64, s: Streamer) -> Result<u64> {
+        self.inner.pipe(size, s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

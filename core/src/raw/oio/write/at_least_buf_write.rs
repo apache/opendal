@@ -83,7 +83,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
         buf.push(bs);
 
         self.inner
-            .sink(buf.len() as u64, Box::new(buf))
+            .pipe(buf.len() as u64, Box::new(buf))
             .await
             // Clear buffer if the write is successful.
             .map(|v| {
@@ -92,11 +92,11 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
             })
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: Streamer) -> Result<u64> {
         // If total size is known and equals to given stream, we can write it directly.
         if let Some(total_size) = self.total_size {
             if total_size == size {
-                return self.inner.sink(size, s).await;
+                return self.inner.pipe(size, s).await;
             }
         }
 
@@ -113,7 +113,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
         let stream = buf.chain(s);
 
         self.inner
-            .sink(buffer_size + size, Box::new(stream))
+            .pipe(buffer_size + size, Box::new(stream))
             .await
             // Clear buffer if the write is successful.
             .map(|v| {
@@ -130,7 +130,7 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
     async fn close(&mut self) -> Result<()> {
         if !self.buffer.is_empty() {
             self.inner
-                .sink(self.buffer.len() as u64, Box::new(self.buffer.clone()))
+                .pipe(self.buffer.len() as u64, Box::new(self.buffer.clone()))
                 .await?;
             self.buffer.clear();
         }

@@ -317,7 +317,7 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
         self.inner.write(bs).await
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         self.inner.pipe(size, s).await
     }
 

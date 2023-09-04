@@ -92,50 +92,8 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     /// # TODO
     ///
     /// We know every stream size, we can collect them into a buffer without chain them every time.
-    async fn pipe(&mut self, _: u64, mut s: Streamer) -> Result<u64> {
-        if self.buffer.len() >= self.buffer_size {
-            let mut buf = self.buffer.clone();
-            let to_write = buf.split_to(self.buffer_size);
-            return self
-                .inner
-                .pipe(to_write.len() as u64, Box::new(to_write))
-                .await
-                // Replace buffer with remaining if the write is successful.
-                .map(|v| {
-                    self.buffer = buf;
-                    self.chain_stream(s);
-                    v
-                });
-        }
-
-        let mut buf = self.buffer.clone();
-        while buf.len() < self.buffer_size {
-            let bs = self.next_bytes(&mut s).await.transpose()?;
-            match bs {
-                None => break,
-                Some(bs) => buf.push(bs),
-            }
-        }
-
-        // Return directly if the buffer is not full.
-        //
-        // We don't need to chain stream here because it must be consumed.
-        if buf.len() < self.buffer_size {
-            let size = buf.len() as u64;
-            self.buffer = buf;
-            return Ok(size);
-        }
-
-        let to_write = buf.split_to(self.buffer_size);
-        self.inner
-            .pipe(to_write.len() as u64, Box::new(to_write))
-            .await
-            // Replace buffer with remaining if the write is successful.
-            .map(|v| {
-                self.buffer = buf;
-                self.chain_stream(s);
-                v
-            })
+    async fn pipe(&mut self, _: u64, mut s: oio::Reader) -> Result<u64> {
+        todo!()
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -187,6 +145,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
 #[cfg(test)]
 mod tests {
+    use futures::AsyncReadExt;
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
@@ -196,7 +155,6 @@ mod tests {
     use sha2::Sha256;
 
     use super::*;
-    use crate::raw::oio::StreamExt;
     use crate::raw::oio::Write;
 
     struct MockWriter {
@@ -212,10 +170,11 @@ mod tests {
             Ok(bs.len() as u64)
         }
 
-        async fn pipe(&mut self, size: u64, s: Streamer) -> Result<u64> {
-            let bs = s.collect().await?;
+        async fn pipe(&mut self, size: u64, mut s: oio::Reader) -> Result<u64> {
+            let mut bs = vec![];
+            s.read_to_end(&mut bs).await?;
             assert_eq!(bs.len() as u64, size);
-            self.write(bs).await
+            self.write(bs.into()).await
         }
 
         async fn abort(&mut self) -> Result<()> {

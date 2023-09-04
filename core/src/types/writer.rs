@@ -138,8 +138,8 @@ impl Writer {
         T: Into<Bytes>,
     {
         if let State::Idle(Some(w)) = &mut self.state {
-            let s = Box::new(oio::into_stream(sink_from.map_ok(|v| v.into())));
-            w.pipe(size, s).await
+            let r = Box::new(oio::into_read_from_stream(sink_from.map_ok(|v| v.into())));
+            w.pipe(size, r).await
         } else {
             unreachable!(
                 "writer state invalid while sink, expect Idle, actual {}",
@@ -180,11 +180,11 @@ impl Writer {
     /// ```
     pub async fn copy<R>(&mut self, size: u64, read_from: R) -> Result<u64>
     where
-        R: futures::AsyncRead + Send + Sync + Unpin + 'static,
+        R: futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin + 'static,
     {
         if let State::Idle(Some(w)) = &mut self.state {
-            let s = Box::new(oio::into_stream_from_reader(read_from));
-            w.pipe(size, s).await
+            let r = Box::new(oio::into_read_from_file(read_from, 0, size));
+            w.pipe(size, r).await
         } else {
             unreachable!(
                 "writer state invalid while copy, expect Idle, actual {}",

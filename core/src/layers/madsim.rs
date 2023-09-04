@@ -318,7 +318,7 @@ impl oio::Write for MadsimWriter {
         }
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> crate::Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> crate::Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",

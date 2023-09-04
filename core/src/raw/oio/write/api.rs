@@ -96,7 +96,7 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// It's possible that `n < size`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64>;
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
@@ -113,7 +113,7 @@ impl Write for () {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
-    async fn pipe(&mut self, _: u64, _: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, _: u64, _: oio::Reader) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support sink",
@@ -144,7 +144,7 @@ impl<T: Write + ?Sized> Write for Box<T> {
         (**self).write(bs).await
     }
 
-    async fn pipe(&mut self, n: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, n: u64, s: oio::Reader) -> Result<u64> {
         (**self).pipe(n, s).await
     }
 

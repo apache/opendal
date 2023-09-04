@@ -18,8 +18,6 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::StreamExt;
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -92,34 +90,8 @@ impl<W: oio::Write> oio::Write for AtLeastBufWriter<W> {
             })
     }
 
-    async fn pipe(&mut self, size: u64, s: Streamer) -> Result<u64> {
-        // If total size is known and equals to given stream, we can write it directly.
-        if let Some(total_size) = self.total_size {
-            if total_size == size {
-                return self.inner.pipe(size, s).await;
-            }
-        }
-
-        // Push the bytes into the buffer if the buffer is not full.
-        if self.buffer.len() as u64 + size < self.buffer_size as u64 {
-            let bs = s.collect().await?;
-            let size = bs.len() as u64;
-            self.buffer.push(bs);
-            return Ok(size);
-        }
-
-        let buf = self.buffer.clone();
-        let buffer_size = buf.len() as u64;
-        let stream = buf.chain(s);
-
-        self.inner
-            .pipe(buffer_size + size, Box::new(stream))
-            .await
-            // Clear buffer if the write is successful.
-            .map(|v| {
-                self.buffer.clear();
-                v
-            })
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
+        todo!()
     }
 
     async fn abort(&mut self) -> Result<()> {

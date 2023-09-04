@@ -33,7 +33,6 @@ use governor::NegativeMultiDecision;
 use governor::Quota;
 use governor::RateLimiter;
 
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -242,7 +241,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         }
     }
 
-    async fn pipe(&mut self, size: u64, s: Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         self.inner.pipe(size, s).await
     }
 

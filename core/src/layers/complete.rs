@@ -734,7 +734,7 @@ where
         Ok(n as u64)
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         if let Some(total_size) = self.size {
             if self.written + size > total_size {
                 return Err(Error::new(

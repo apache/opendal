@@ -293,7 +293,7 @@ impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
         self.inner.abort().await
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         self.inner.pipe(size, s).await
     }
 

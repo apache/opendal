@@ -138,11 +138,16 @@ where
         Ok(size as u64)
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         let upload_id = self.upload_id().await?;
 
         self.inner
-            .write_part(&upload_id, self.parts.len(), size, AsyncBody::Stream(s))
+            .write_part(
+                &upload_id,
+                self.parts.len(),
+                size,
+                AsyncBody::Stream(Box::new(s)),
+            )
             .await
             .map(|v| self.parts.push(v))?;
 

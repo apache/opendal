@@ -69,6 +69,18 @@ impl<T: Stream + ?Sized> Stream for Box<T> {
     }
 }
 
+impl Stream for dyn raw::oio::Read {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        raw::oio::Read::poll_next(self, cx)
+    }
+
+    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let _ = raw::oio::Read::poll_seek(self, cx, std::io::SeekFrom::Start(0))?;
+
+        Poll::Ready(Ok(()))
+    }
+}
+
 impl<T: Stream + ?Sized> Stream for Arc<std::sync::Mutex<T>> {
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         match self.try_lock() {

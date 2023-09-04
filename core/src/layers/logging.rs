@@ -1285,7 +1285,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         match self.inner.pipe(size, s).await {
             Ok(n) => {
                 self.written += n;

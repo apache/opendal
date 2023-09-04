@@ -34,7 +34,6 @@ use backon::Retryable;
 use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
-use tokio::sync::Mutex;
 
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
@@ -919,8 +918,8 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
     /// The overhead is constant, which means the overhead will not increase with the size of
     /// stream. For example, if every `next` call cost 1ms, then the overhead will only take 0.005%
     /// which is acceptable.
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
-        let s = Arc::new(Mutex::new(s));
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
+        let s = oio::into_cloneable_reader_within_tokio(s);
 
         let mut backoff = self.builder.build();
 
@@ -932,13 +931,14 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
                     None => return Err(e),
                     Some(dur) => {
                         {
-                            use oio::StreamExt;
+                            use oio::ReadExt;
 
+                            let s = s.clone().into_inner();
                             let mut stream = s.lock().await;
-                            // Try to reset this stream.
+                            // Try to reset this reader.
                             //
-                            // If error happened, we will return the sink error directly and stop retry.
-                            if stream.reset().await.is_err() {
+                            // If error happened, we will return the pipe error directly and stop retry.
+                            if stream.seek(io::SeekFrom::Start(0)).await.is_err() {
                                 return Err(e);
                             }
                         }

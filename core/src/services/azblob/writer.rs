@@ -180,9 +180,10 @@ impl oio::Write for AzblobWriter {
         Ok(size)
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         if self.op.append() {
-            self.append_oneshot(size, AsyncBody::Stream(s)).await?;
+            self.append_oneshot(size, AsyncBody::Stream(Box::new(s)))
+                .await?;
         } else {
             if self.op.content_length().is_none() {
                 return Err(Error::new(
@@ -191,7 +192,8 @@ impl oio::Write for AzblobWriter {
                 ));
             }
 
-            self.write_oneshot(size, AsyncBody::Stream(s)).await?;
+            self.write_oneshot(size, AsyncBody::Stream(Box::new(s)))
+                .await?;
         }
 
         Ok(size)

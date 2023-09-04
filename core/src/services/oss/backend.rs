@@ -381,7 +381,7 @@ pub struct OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<OssWriters, oio::AtLeastBufWriter<OssWriters>>;
+    type Writer = oio::TwoWaysWriter<OssWriters, oio::ExactBufWriter<OssWriters>>;
     type BlockingWriter = ();
     type Pager = OssPager;
     type BlockingPager = ();
@@ -484,8 +484,7 @@ impl Accessor for OssBackend {
         let w = if let Some(buffer_size) = args.buffer_size() {
             let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
 
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
+            let w = oio::ExactBufWriter::new(w, buffer_size);
 
             oio::TwoWaysWriter::Two(w)
         } else {

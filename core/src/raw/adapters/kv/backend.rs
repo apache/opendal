@@ -390,13 +390,14 @@ impl<S> KvWriter<S> {
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len();
         self.buf = Some(bs.into());
 
-        Ok(())
+        Ok(size as u64)
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",
@@ -420,10 +421,11 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len();
         self.buf = Some(bs.into());
 
-        Ok(())
+        Ok(size as u64)
     }
 
     fn close(&mut self) -> Result<()> {

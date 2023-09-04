@@ -217,7 +217,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {
@@ -242,7 +242,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
         self.inner.sink(size, s).await
     }
 
@@ -256,7 +256,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
 
         loop {

@@ -711,7 +711,7 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let n = bs.len();
 
         if let Some(size) = self.size {
@@ -731,10 +731,10 @@ where
         })?;
         w.write(bs).await?;
         self.written += n as u64;
-        Ok(())
+        Ok(n as u64)
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         if let Some(total_size) = self.size {
             if self.written + size > total_size {
                 return Err(Error::new(
@@ -750,9 +750,9 @@ where
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        w.sink(size, s).await?;
-        self.written += size;
-        Ok(())
+        let n = w.sink(size, s).await?;
+        self.written += n;
+        Ok(n)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -794,7 +794,7 @@ impl<W> oio::BlockingWrite for CompleteWriter<W>
 where
     W: oio::BlockingWrite,
 {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         let n = bs.len();
 
         if let Some(size) = self.size {
@@ -815,7 +815,7 @@ where
 
         w.write(bs)?;
         self.written += n as u64;
-        Ok(())
+        Ok(n as u64)
     }
 
     fn close(&mut self) -> Result<()> {

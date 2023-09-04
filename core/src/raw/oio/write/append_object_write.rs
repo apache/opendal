@@ -79,7 +79,7 @@ impl<W> oio::Write for AppendObjectWriter<W>
 where
     W: AppendObjectWrite,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let offset = self.offset().await?;
 
         let size = bs.len() as u64;
@@ -87,16 +87,20 @@ where
         self.inner
             .append(offset, size, AsyncBody::Bytes(bs))
             .await
-            .map(|_| self.offset = Some(offset + size))
+            .map(|_| self.offset = Some(offset + size))?;
+
+        Ok(size)
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
         let offset = self.offset().await?;
 
         self.inner
             .append(offset, size, AsyncBody::Stream(s))
             .await
-            .map(|_| self.offset = Some(offset + size))
+            .map(|_| self.offset = Some(offset + size))?;
+
+        Ok(size)
     }
 
     async fn close(&mut self) -> Result<()> {

@@ -67,15 +67,17 @@ impl SupabaseWriter {
 
 #[async_trait]
 impl oio::Write for SupabaseWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         if bs.is_empty() {
-            return Ok(());
+            return Ok(9);
         }
 
-        self.upload(bs).await
+        let size = bs.len();
+        self.upload(bs).await?;
+        Ok(size as u64)
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

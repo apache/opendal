@@ -120,7 +120,7 @@ impl<W> oio::Write for MultipartUploadWriter<W>
 where
     W: MultipartUploadWrite,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let upload_id = self.upload_id().await?;
 
         let size = bs.len();
@@ -133,16 +133,20 @@ where
                 AsyncBody::Bytes(bs),
             )
             .await
-            .map(|v| self.parts.push(v))
+            .map(|v| self.parts.push(v))?;
+
+        Ok(size as u64)
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         let upload_id = self.upload_id().await?;
 
         self.inner
             .write_part(&upload_id, self.parts.len(), size, AsyncBody::Stream(s))
             .await
-            .map(|v| self.parts.push(v))
+            .map(|v| self.parts.push(v))?;
+
+        Ok(size)
     }
 
     async fn close(&mut self) -> Result<()> {

@@ -847,23 +847,28 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         self.inner
             .write(bs)
             .await
-            .map(|_| self.bytes += size as u64)
+            .map(|n| {
+                self.bytes += n;
+                n
+            })
             .map_err(|err| {
                 self.handle.increment_errors_total(self.op, err.kind());
                 err
             })
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         self.inner
             .sink(size, s)
             .await
-            .map(|_| self.bytes += size)
+            .map(|n| {
+                self.bytes += n;
+                n
+            })
             .map_err(|err| {
                 self.handle.increment_errors_total(self.op, err.kind());
                 err
@@ -886,11 +891,13 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+    fn write(&mut self, bs: Bytes) -> Result<u64> {
         self.inner
             .write(bs)
-            .map(|_| self.bytes += size as u64)
+            .map(|n| {
+                self.bytes += n;
+                n
+            })
             .map_err(|err| {
                 self.handle.increment_errors_total(self.op, err.kind());
                 err

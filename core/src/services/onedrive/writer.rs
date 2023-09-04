@@ -46,17 +46,19 @@ impl OneDriveWriter {
 
 #[async_trait]
 impl oio::Write for OneDriveWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let size = bs.len();
 
         if size <= Self::MAX_SIMPLE_SIZE {
-            self.write_simple(bs).await
+            self.write_simple(bs).await?;
         } else {
-            self.write_chunked(bs).await
+            self.write_chunked(bs).await?;
         }
+
+        Ok(size as u64)
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

@@ -22,7 +22,7 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::future::BoxFuture;
 use futures::AsyncWrite;
 use futures::FutureExt;
@@ -81,14 +81,23 @@ impl Writer {
 
     /// Write into inner writer.
     pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
-        if let State::Idle(Some(w)) = &mut self.state {
-            w.write(bs.into()).await
+        let w = if let State::Idle(Some(w)) = &mut self.state {
+            w
         } else {
             unreachable!(
                 "writer state invalid while write, expect Idle, actual {}",
                 self.state
             );
+        };
+
+        let mut bs = bs.into();
+
+        while !bs.is_empty() {
+            let n = w.write(bs.clone()).await?;
+            bs.advance(n as usize);
         }
+
+        Ok(())
     }
 
     /// Sink into writer.
@@ -123,7 +132,7 @@ impl Writer {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn sink<S, T>(&mut self, size: u64, sink_from: S) -> Result<()>
+    pub async fn sink<S, T>(&mut self, size: u64, sink_from: S) -> Result<u64>
     where
         S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
         T: Into<Bytes>,
@@ -169,7 +178,7 @@ impl Writer {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn copy<R>(&mut self, size: u64, read_from: R) -> Result<()>
+    pub async fn copy<R>(&mut self, size: u64, read_from: R) -> Result<u64>
     where
         R: futures::AsyncRead + Send + Sync + Unpin + 'static,
     {
@@ -390,7 +399,14 @@ impl BlockingWriter {
 
     /// Write into inner writer.
     pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
-        self.inner.write(bs.into())
+        let mut bs = bs.into();
+
+        while !bs.is_empty() {
+            let n = self.inner.write(bs.clone())?;
+            bs.advance(n as usize);
+        }
+
+        Ok(())
     }
 
     /// Close the writer and make sure all data have been stored.

@@ -84,7 +84,7 @@ impl<W: oio::Write> ExactBufWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         self.sink(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
             .await
     }
@@ -92,7 +92,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     /// # TODO
     ///
     /// We know every stream size, we can collect them into a buffer without chain them every time.
-    async fn sink(&mut self, _: u64, mut s: Streamer) -> Result<()> {
+    async fn sink(&mut self, _: u64, mut s: Streamer) -> Result<u64> {
         if self.buffer.len() >= self.buffer_size {
             let mut buf = self.buffer.clone();
             let to_write = buf.split_to(self.buffer_size);
@@ -101,9 +101,10 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                 .sink(to_write.len() as u64, Box::new(to_write))
                 .await
                 // Replace buffer with remaining if the write is successful.
-                .map(|_| {
+                .map(|v| {
                     self.buffer = buf;
                     self.chain_stream(s);
+                    v
                 });
         }
 
@@ -120,8 +121,9 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         //
         // We don't need to chain stream here because it must be consumed.
         if buf.len() < self.buffer_size {
+            let size = buf.len() as u64;
             self.buffer = buf;
-            return Ok(());
+            return Ok(size);
         }
 
         let to_write = buf.split_to(self.buffer_size);
@@ -129,9 +131,10 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
             .sink(to_write.len() as u64, Box::new(to_write))
             .await
             // Replace buffer with remaining if the write is successful.
-            .map(|_| {
+            .map(|v| {
                 self.buffer = buf;
                 self.chain_stream(s);
+                v
             })
     }
 
@@ -202,14 +205,14 @@ mod tests {
 
     #[async_trait]
     impl Write for MockWriter {
-        async fn write(&mut self, bs: Bytes) -> Result<()> {
+        async fn write(&mut self, bs: Bytes) -> Result<u64> {
             debug!("test_fuzz_exact_buf_writer: flush size: {}", bs.len());
 
             self.buf.extend_from_slice(&bs);
-            Ok(())
+            Ok(bs.len() as u64)
         }
 
-        async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+        async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
             let bs = s.collect().await?;
             assert_eq!(bs.len() as u64, size);
             self.write(bs).await

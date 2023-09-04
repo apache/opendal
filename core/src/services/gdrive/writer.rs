@@ -95,15 +95,18 @@ impl GdriveWriter {
 
 #[async_trait]
 impl oio::Write for GdriveWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+        let size = bs.len() as u64;
         if self.file_id.is_none() {
-            self.write_create(bs.len() as u64, bs).await
+            self.write_create(size, bs).await?;
         } else {
-            self.write_overwrite(bs.len() as u64, bs).await
+            self.write_overwrite(size, bs).await?;
         }
+
+        Ok(size)
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<u64> {
         Err(Error::new(ErrorKind::Unsupported, "sink is not supported"))
     }
 

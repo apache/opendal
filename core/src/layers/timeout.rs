@@ -322,7 +322,7 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let timeout = self.io_timeout(bs.len() as u64);
 
         tokio::time::timeout(timeout, self.inner.write(bs))
@@ -335,7 +335,7 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
             })?
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
         let timeout = self.io_timeout(size);
 
         tokio::time::timeout(timeout, self.inner.sink(size, s))

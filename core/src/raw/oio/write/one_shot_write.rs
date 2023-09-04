@@ -49,15 +49,18 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 
 #[async_trait]
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         let cursor = oio::Cursor::from(bs);
-        self.inner
-            .write_once(cursor.len() as u64, Box::new(cursor))
-            .await
+
+        let size = cursor.len() as u64;
+        self.inner.write_once(size, Box::new(cursor)).await?;
+
+        Ok(size)
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.write_once(size, s).await
+    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<u64> {
+        self.inner.write_once(size, s).await?;
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {

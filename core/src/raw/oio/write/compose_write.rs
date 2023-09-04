@@ -57,14 +57,14 @@ pub enum TwoWaysWriter<ONE: oio::Write, TWO: oio::Write> {
 
 #[async_trait]
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWaysWriter<ONE, TWO> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         match self {
             Self::One(one) => one.write(bs).await,
             Self::Two(two) => two.write(bs).await,
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
         match self {
             Self::One(one) => one.sink(size, s).await,
             Self::Two(two) => two.sink(size, s).await,
@@ -102,7 +102,7 @@ pub enum ThreeWaysWriter<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> {
 impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     for ThreeWaysWriter<ONE, TWO, THREE>
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<u64> {
         match self {
             Self::One(one) => one.write(bs).await,
             Self::Two(two) => two.write(bs).await,
@@ -110,7 +110,7 @@ impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
         match self {
             Self::One(one) => one.sink(size, s).await,
             Self::Two(two) => two.sink(size, s).await,

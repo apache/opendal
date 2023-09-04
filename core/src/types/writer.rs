@@ -183,7 +183,10 @@ impl Writer {
         R: futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin + 'static,
     {
         if let State::Idle(Some(w)) = &mut self.state {
-            let r = Box::new(oio::into_read_from_file(read_from, 0, size));
+            let r = Box::new(oio::into_streamable_read(
+                oio::into_read_from_file(read_from, 0, size),
+                64 * 1024,
+            ));
             w.pipe(size, r).await
         } else {
             unreachable!(
@@ -257,10 +260,9 @@ impl AsyncWrite for Writer {
                         .take()
                         .expect("invalid state of writer: Idle state with empty write");
                     let bs = Bytes::from(buf.to_vec());
-                    let size = bs.len();
                     let fut = async move {
-                        w.write(bs).await?;
-                        Ok((size, w))
+                        let n = w.write(bs).await?;
+                        Ok((n as usize, w))
                     };
                     self.state = State::Write(Box::pin(fut));
                 }
@@ -324,10 +326,9 @@ impl tokio::io::AsyncWrite for Writer {
                         .take()
                         .expect("invalid state of writer: Idle state with empty write");
                     let bs = Bytes::from(buf.to_vec());
-                    let size = bs.len();
                     let fut = async move {
-                        w.write(bs).await?;
-                        Ok((size, w))
+                        let n = w.write(bs).await?;
+                        Ok((n as usize, w))
                     };
                     self.state = State::Write(Box::pin(fut));
                 }
@@ -417,10 +418,9 @@ impl BlockingWriter {
 
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let size = buf.len();
         self.inner
             .write(Bytes::from(buf.to_vec()))
-            .map(|_| size)
+            .map(|n| n as usize)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 

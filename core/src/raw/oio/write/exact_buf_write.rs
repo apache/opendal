@@ -66,7 +66,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         loop {
             match &mut self.buffer {
                 Buffer::Filling(fill) => {
-                    if fill.len() == self.buffer_size {
+                    if fill.len() >= self.buffer_size {
                         self.buffer = Buffer::Consuming(fill.split().freeze());
                         continue;
                     }
@@ -94,7 +94,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         loop {
             match &mut self.buffer {
                 Buffer::Filling(fill) => {
-                    if fill.len() == self.buffer_size {
+                    if fill.len() >= self.buffer_size {
                         self.buffer = Buffer::Consuming(fill.split().freeze());
                         continue;
                     }
@@ -108,7 +108,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                     // Safety: the input buffer is created with_capacity(length).
                     unsafe { buf.assume_init(dst_len) };
 
-                    let n = s.read(buf.filled_mut()).await?;
+                    let n = s.read(buf.initialize_unfilled()).await?;
 
                     // Safety: read makes sure this buffer has been filled.
                     unsafe { fill.advance_mut(n) };

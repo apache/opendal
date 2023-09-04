@@ -126,7 +126,7 @@ where
 
         Poll::Ready(Some(Err(Error::new(
             ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
+            "output reader doesn't support next",
         ))))
     }
 }

@@ -729,9 +729,9 @@ where
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        w.write(bs).await?;
-        self.written += n as u64;
-        Ok(n as u64)
+        let n = w.write(bs).await?;
+        self.written += n;
+        Ok(n)
     }
 
     async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {

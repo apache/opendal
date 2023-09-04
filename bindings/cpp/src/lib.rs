@@ -27,7 +27,8 @@ mod ffi {
         value: String,
     }
 
-    enum SeekDir {
+    #[cxx_name = "SeekDir"]
+    enum SeekFrom {
         Start = 0,
         Current = 1,
         End = 2,
@@ -77,7 +78,7 @@ mod ffi {
 
         #[cxx_name = "read"]
         fn reader_read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
-        fn seek(self: &mut Reader, offset: u64, dir: SeekDir) -> Result<u64>;
+        fn seek(self: &mut Reader, offset: u64, dir: SeekFrom) -> Result<u64>;
     }
 }
 
@@ -149,11 +150,11 @@ impl Reader {
         Ok(self.0.read(buf)?)
     }
 
-    fn seek(&mut self, offset: u64, dir: ffi::SeekDir) -> Result<u64> {
+    fn seek(&mut self, offset: u64, dir: ffi::SeekFrom) -> Result<u64> {
         let pos = match dir {
-            ffi::SeekDir::Start => std::io::SeekFrom::Start(offset),
-            ffi::SeekDir::Current => std::io::SeekFrom::Current(offset as i64),
-            ffi::SeekDir::End => std::io::SeekFrom::End(offset as i64),
+            ffi::SeekFrom::Start => std::io::SeekFrom::Start(offset),
+            ffi::SeekFrom::Current => std::io::SeekFrom::Current(offset as i64),
+            ffi::SeekFrom::End => std::io::SeekFrom::End(offset as i64),
             _ => return Err(anyhow::anyhow!("invalid seek dir")),
         };
 

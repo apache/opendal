@@ -21,6 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes;
+use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
 use http::header;
@@ -48,6 +49,11 @@ pub struct GdriveCore {
     ///
     /// Google Drive uses file id to identify a file.
     /// As the path is immutable, we can cache the mapping from path to file id.
+    ///
+    /// # Notes
+    ///
+    /// - The path is rooted at the root of the Google Drive.
+    /// - The path is absolute path, like `foo/bar`.
     pub path_cache: Arc<Mutex<HashMap<String, String>>>,
 }
 
@@ -71,7 +77,7 @@ impl GdriveCore {
     /// - A file only knows its parent id, but not its name.
     /// - To find the file id of a file, we need to traverse the path from the root to the file.
     pub(crate) async fn get_file_id_by_path(&self, file_path: &str) -> Result<String> {
-        let path = build_rooted_abs_path(&self.root, file_path);
+        let path = build_abs_path(&self.root, file_path);
 
         let mut cache = self.path_cache.lock().await;
 
@@ -148,7 +154,7 @@ impl GdriveCore {
     /// - The path is rooted at the root of the Google Drive.
     /// - Will create the parent path recursively.
     pub(crate) async fn ensure_parent_path(&self, path: &str) -> Result<String> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_abs_path(&self.root, path);
 
         let mut parent: String = "root".to_owned();
         let mut file_path_items: Vec<&str> = path.split('/').filter(|&x| !x.is_empty()).collect();
@@ -319,29 +325,44 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
-    pub async fn gdrive_update(
+    // Update with content and metadata
+    pub async fn gdrive_patch_metadata_request(
         &self,
-        path: &str,
-        size: Option<usize>,
-        content_type: Option<&str>,
-        body: AsyncBody,
+        source: &str,
+        target: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!(
-            "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",
-            self.get_file_id_by_path(path).await?
-        );
+        let file_id = self.get_file_id_by_path(source).await?;
 
-        let mut req = Request::put(&url);
+        let parent = self.ensure_parent_path(target).await?;
 
-        if let Some(size) = size {
-            req = req.header(header::CONTENT_LENGTH, size)
-        }
+        let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
 
-        if let Some(mime) = content_type {
-            req = req.header(header::CONTENT_TYPE, mime)
-        }
+        let source_abs_path = build_abs_path(&self.root, source);
+        let mut source_parent: Vec<&str> = source_abs_path
+            .split('/')
+            .filter(|&x| !x.is_empty())
+            .collect();
+        source_parent.pop();
 
-        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let cache = self.path_cache.lock().await;
+
+        let file_name = build_abs_path(&self.root, target)
+            .split('/')
+            .filter(|&x| !x.is_empty())
+            .last()
+            .unwrap()
+            .to_string();
+
+        let metadata = &json!({
+            "name": file_name,
+            "removeParents": [cache.get(&source_parent.join("/")).unwrap().to_string()],
+            "addParents": [parent],
+        });
+
+        let mut req = Request::patch(url)
+            .body(AsyncBody::Bytes(Bytes::from(metadata.to_string())))
+            .map_err(new_request_build_error)?;
+
         self.sign(&mut req).await?;
 
         self.client.send(req).await
@@ -362,11 +383,12 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
+    /// Create a file with the content.
     pub async fn gdrive_upload_simple_request(
         &self,
         path: &str,
         size: u64,
-        body: bytes::Bytes,
+        body: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
         let parent = self.ensure_parent_path(path).await?;
 
@@ -406,11 +428,16 @@ impl GdriveCore {
         self.client.send(req).await
     }
 
+    /// Overwrite the file with the content.
+    ///
+    /// # Notes
+    ///
+    /// - The file id is required. Do not use this method to create a file.
     pub async fn gdrive_upload_overwrite_simple_request(
         &self,
         file_id: &str,
         size: u64,
-        body: bytes::Bytes,
+        body: Bytes,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
             "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",

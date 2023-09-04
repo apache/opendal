@@ -58,6 +58,8 @@ impl Accessor for GdriveBackend {
 
                 create_dir: true,
 
+                rename: true,
+
                 delete: true,
 
                 ..Default::default()
@@ -103,7 +105,10 @@ impl Accessor for GdriveBackend {
                 if !meta.files.is_empty() {
                     let mut cache = self.core.path_cache.lock().await;
 
-                    cache.insert(path.to_string(), meta.files[0].id.clone());
+                    cache.insert(
+                        build_abs_path(&self.core.root, path),
+                        meta.files[0].id.clone(),
+                    );
 
                     return Ok(RpCreateDir::default());
                 }
@@ -123,7 +128,7 @@ impl Accessor for GdriveBackend {
 
                 let mut cache = self.core.path_cache.lock().await;
 
-                cache.insert(path.to_string(), meta.id.clone());
+                cache.insert(build_abs_path(&self.core.root, path), meta.id.clone());
 
                 Ok(RpCreateDir::default())
             }
@@ -193,6 +198,28 @@ impl Accessor for GdriveBackend {
         ))
     }
 
+    async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
+        let resp = self.core.gdrive_patch_metadata_request(from, to).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let body = resp.into_body().bytes().await?;
+                let meta = serde_json::from_slice::<GdriveFile>(&body)
+                    .map_err(new_json_deserialize_error)?;
+
+                let mut cache = self.core.path_cache.lock().await;
+
+                cache.remove(&build_abs_path(&self.core.root, from));
+                cache.insert(build_abs_path(&self.core.root, to), meta.id.clone());
+
+                Ok(RpRename::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.core.gdrive_delete(path).await;
         if let Ok(resp) = resp {
@@ -202,7 +229,7 @@ impl Accessor for GdriveBackend {
                 StatusCode::NO_CONTENT => {
                     let mut cache = self.core.path_cache.lock().await;
 
-                    cache.remove(path);
+                    cache.remove(&build_abs_path(&self.core.root, path));
 
                     return Ok(RpDelete::default());
                 }

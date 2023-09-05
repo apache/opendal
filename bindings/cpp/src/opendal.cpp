@@ -91,6 +91,10 @@ Reader Operator::reader(std::string_view path) {
   return operator_.value()->reader(RUST_STR(path));
 }
 
+Writer Operator::writer(std::string_view path) {
+  return operator_.value()->writer(RUST_STR(path));
+}
+
 // Reader
 
 std::streamsize Reader::read(void *s, std::streamsize n) {
@@ -104,6 +108,17 @@ ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir);
 std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
   return raw_reader_->seek(off, to_rust_seek_dir(dir));
 }
+
+// Writer
+
+std::streamsize Writer::write(const void *s, std::streamsize n) {
+  auto rust_slice =
+      rust::Slice<const uint8_t>(reinterpret_cast<const uint8_t *>(s), n);
+  raw_writer_->write(rust_slice);
+  return n;
+}
+
+void Writer::close() { raw_writer_->close(); }
 
 // Metadata
 

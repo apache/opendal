@@ -69,6 +69,7 @@ struct Entry {
 };
 
 class Reader;
+class Writer;
 
 /**
  * @class Operator
@@ -128,6 +129,14 @@ public:
    * @return The reader of the data
    */
   Reader reader(std::string_view path);
+
+  /**
+   * @brief Write data to the operator
+   *
+   * @param path The path of the data
+   * @return The writer of the data
+   */
+  Writer writer(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -204,7 +213,22 @@ public:
   Reader(rust::Box<opendal::ffi::Reader> &&reader)
       : raw_reader_(std::move(reader)) {}
 
-  std::streamsize read(void *s, std::streamsize n);
+  /**
+   * @brief Read data from the reader
+   *
+   * @param buf The buffer to store the data
+   * @param n The size of the buffer
+   * @return The size of the data read
+   */
+  std::streamsize read(void *buf, std::streamsize n);
+
+  /**
+   * @brief Seek the reader
+   *
+   * @param off The offset to seek
+   * @param way The way to seek
+   * @return The position after seek
+   */
   std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
 
 private:
@@ -226,5 +250,60 @@ public:
   ReaderStream(Reader &reader)
       : boost::iostreams::stream<boost::reference_wrapper<Reader>>(
             boost::ref(reader)) {}
+};
+
+/**
+ * @class Writer
+ * @brief Writer is designed to write data to the operator.
+ * @details It provides basic write operations. If you want to use it like a
+ * stream, you can use `WriterStream` instead.
+ * @code{.cpp}
+ * auto writer = operator.writer("path");
+ * opendal::WriterStream stream(writer);
+ * @endcode
+ */
+class Writer : public boost::iostreams::device<boost::iostreams::output> {
+public:
+  Writer(rust::Box<opendal::ffi::Writer> &&writer)
+      : raw_writer_(std::move(writer)) {}
+
+  /**
+   * @brief Write data to the writer
+   * @note
+   * - OpenDAL can only ensure that the data will be stored to the operator when
+   * the writer is destroyed or closed. For most cloud services, the data can
+   * be stored immediately.
+   * - You should keep the data available until the write operation is
+   * completed.
+   * - The operation in opendal isn't a short write. So the size of the data
+   * written will be always equal to the size of the data provided.
+   *
+   * @param buf The buffer to store the data
+   * @param n The size of the buffer
+   * @return The size of the data written
+   */
+  std::streamsize write(const void *buf, std::streamsize n);
+
+  /**
+   * @brief Close the writer
+   * @details Close the writer and make sure all data have been stored.
+   */
+  void close();
+
+private:
+  rust::Box<opendal::ffi::Writer> raw_writer_;
+};
+
+/**
+ * @class WriterStream
+ * @brief WriterStream is a stream wrapper of Writer which can provide
+ * `iostream` interface.
+ */
+class WriterStream
+    : public boost::iostreams::stream<boost::reference_wrapper<Writer>> {
+public:
+  WriterStream(Writer &writer)
+      : boost::iostreams::stream<boost::reference_wrapper<Writer>>(
+            boost::ref(writer)) {}
 };
 } // namespace opendal

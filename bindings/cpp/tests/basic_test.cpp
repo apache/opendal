@@ -139,6 +139,35 @@ TEST_F(OpendalTest, ReaderTest) {
   EXPECT_EQ(reader_data, data);
 }
 
+TEST_F(OpendalTest, WriterTest) {
+  std::string file_path = "test";
+  constexpr int size = 2000;
+  std::vector<uint8_t> data(size);
+
+  for (auto &d : data) {
+    d = rng() % 256;
+  }
+
+  // writer
+  auto writer = op.writer(file_path);
+  writer.write(data.data(), size);
+  writer.close();
+
+  auto read_data = op.read(file_path);
+  EXPECT_EQ(read_data, data);
+  op.remove(file_path);
+
+  // stream
+  writer = op.writer(file_path);
+  opendal::WriterStream stream(writer);
+
+  stream << std::string(data.begin(), data.end());
+  stream.close();
+
+  read_data = op.read(file_path);
+  EXPECT_EQ(read_data, data);
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

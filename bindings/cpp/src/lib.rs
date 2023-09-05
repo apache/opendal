@@ -17,11 +17,13 @@
 
 mod reader;
 mod types;
+mod writer;
 
 use anyhow::Result;
 use opendal as od;
 use reader::Reader;
 use std::str::FromStr;
+use writer::Writer;
 
 #[cxx::bridge(namespace = "opendal::ffi")]
 mod ffi {
@@ -66,7 +68,9 @@ mod ffi {
     extern "Rust" {
         type Operator;
         type Reader;
+        type Writer;
 
+        // Operator
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
         fn write(self: &Operator, path: &str, bs: &'static [u8]) -> Result<()>;
@@ -78,9 +82,15 @@ mod ffi {
         fn stat(self: &Operator, path: &str) -> Result<Metadata>;
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
         fn reader(self: &Operator, path: &str) -> Result<Box<Reader>>;
+        fn writer(self: &Operator, path: &str) -> Result<Box<Writer>>;
 
+        // Reader
         fn read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
         fn seek(self: &mut Reader, offset: u64, dir: SeekFrom) -> Result<u64>;
+
+        // Writer
+        fn write(self: &mut Writer, buf: &'static [u8]) -> Result<()>;
+        fn close(self: &mut Writer) -> Result<()>;
     }
 }
 
@@ -143,5 +153,9 @@ impl Operator {
 
     fn reader(&self, path: &str) -> Result<Box<Reader>> {
         Ok(Box::new(Reader(self.0.reader(path)?)))
+    }
+
+    fn writer(&self, path: &str) -> Result<Box<Writer>> {
+        Ok(Box::new(Writer(self.0.writer(path)?)))
     }
 }

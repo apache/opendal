@@ -75,7 +75,7 @@ The fastest way is:
 
 OpenDAL is primarily a Rust project. To build OpenDAL, you will need to set up Rust development first. We highly recommend using [rustup](https://rustup.rs/) for the setup process.
 
-For Linux or MacOS, use the following command:
+For Linux or macOS, use the following command:
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh

@@ -69,6 +69,7 @@ struct Entry {
 };
 
 class Reader;
+class Lister;
 
 /**
  * @class Operator
@@ -184,6 +185,8 @@ public:
    */
   std::vector<Entry> list(std::string_view path);
 
+  Lister lister(std::string_view path);
+
 private:
   std::optional<rust::Box<opendal::ffi::Operator>> operator_;
 };
@@ -219,6 +222,7 @@ private:
  * @class ReaderStream
  * @brief ReaderStream is a stream wrapper of Reader which can provide
  * `iostream` interface.
+ * @note It's an undefined behavior to make multiple streams from one reader.
  */
 class ReaderStream
     : public boost::iostreams::stream<boost::reference_wrapper<Reader>> {
@@ -226,5 +230,79 @@ public:
   ReaderStream(Reader &reader)
       : boost::iostreams::stream<boost::reference_wrapper<Reader>>(
             boost::ref(reader)) {}
+};
+
+/**
+ * @class Lister
+ * @brief Lister is designed to list the entries of a directory.
+ * @details It provides next operation to get the next entry. You can also use
+ * it like an iterator.
+ * @code{.cpp}
+ * auto lister = operator.lister("dir/");
+ * for (const auto &entry : lister) {
+ *   // Do something with entry
+ * }
+ * @endcode
+ */
+class Lister {
+public:
+  Lister(rust::Box<opendal::ffi::Lister> &&lister)
+      : raw_lister_(std::move(lister)) {}
+
+  /**
+   * @class ListerIterator
+   * @brief ListerIterator is an iterator of Lister.
+   * @note It's an undefined behavior to make multiple iterators from one
+   * Lister.
+   */
+  class ListerIterator {
+  public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = Entry;
+    using difference_type = std::ptrdiff_t;
+    using pointer = Entry *;
+    using reference = Entry &;
+
+    ListerIterator(Lister &lister) : lister_(lister) {
+      current_entry_ = lister_.next();
+    }
+
+    Entry operator*() { return current_entry_.value(); }
+
+    ListerIterator &operator++() {
+      if (current_entry_) {
+        current_entry_ = lister_.next();
+      }
+      return *this;
+    }
+
+    bool operator!=(const ListerIterator &other) const {
+      return current_entry_ != std::nullopt ||
+             other.current_entry_ != std::nullopt;
+    }
+
+  protected:
+    // Only used for end iterator
+    ListerIterator(Lister &lister, bool /*end*/) : lister_(lister) {}
+
+  private:
+    Lister &lister_;
+    std::optional<Entry> current_entry_;
+
+    friend class Lister;
+  };
+
+  /**
+   * @brief Get the next entry of the lister
+   *
+   * @return The next entry of the lister
+   */
+  std::optional<Entry> next();
+
+  ListerIterator begin() { return ListerIterator(*this); }
+  ListerIterator end() { return ListerIterator(*this, true); }
+
+private:
+  rust::Box<opendal::ffi::Lister> raw_lister_;
 };
 } // namespace opendal

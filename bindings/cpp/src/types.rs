@@ -76,3 +76,20 @@ impl From<Option<String>> for ffi::OptionalString {
         }
     }
 }
+
+impl From<Option<od::Entry>> for ffi::OptionalEntry {
+    fn from(entry: Option<od::Entry>) -> Self {
+        match entry {
+            Some(entry) => Self {
+                has_value: true,
+                value: entry.into(),
+            },
+            None => Self {
+                has_value: false,
+                value: ffi::Entry {
+                    path: String::default(),
+                },
+            },
+        }
+    }
+}

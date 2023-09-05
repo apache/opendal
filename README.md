@@ -88,7 +88,7 @@ Major components of the project include:
 <details>
 <summary>Cache Storage Service (like memcached, moka)</summary>
 
-- ghac: [Github Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service
+- ghac: [GitHub Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service
 - memcached: [Memcached](https://memcached.org/) service
 - mini_moka: [Mini Moka](https://github.com/moka-rs/mini-moka) backend
 - moka: [Moka](https://github.com/moka-rs/moka) backend

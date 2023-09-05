@@ -138,11 +138,6 @@ impl oio::Write for GcsWriter {
             }
         };
 
-        // Ignore empty bytes
-        if bs.is_empty() {
-            return Ok(0);
-        }
-
         self.buffer.push(bs);
         // Return directly if the buffer is not full
         if self.buffer.len() <= self.write_fixed_size {
@@ -150,7 +145,6 @@ impl oio::Write for GcsWriter {
         }
 
         let bs = self.buffer.peak_exact(self.write_fixed_size);
-        let size = bs.len() as u64;
 
         match self.write_part(location, bs).await {
             Ok(_) => {

@@ -60,7 +60,7 @@ sudo apt install libboost-all-dev
 sudo apt install doxygen graphviz
 ```
 
-For MacOS:
+For macOS:
 
 ```shell
 # install C/C++ toolchain (can be replaced by other toolchains)

@@ -63,7 +63,7 @@ add_custom_command(
         COMMENT "Running cargo..."
 )
 
-find_package(Boost REQUIRED COMPONENTS date_time)
+find_package(Boost REQUIRED COMPONENTS date_time iostreams)
 
 add_library(opendal_cpp STATIC ${CPP_SOURCE_FILE} ${RUST_BRIDGE_CPP})
 target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR} Boost::date_time)

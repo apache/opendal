@@ -21,6 +21,8 @@
 #include "lib.rs.h"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/iostreams/concepts.hpp>
+#include <boost/iostreams/stream.hpp>
 #include <memory>
 #include <optional>
 #include <string>
@@ -65,6 +67,8 @@ struct Entry {
 
   Entry(ffi::Entry &&);
 };
+
+class Reader;
 
 /**
  * @class Operator
@@ -116,6 +120,14 @@ public:
    * @param data The data to write
    */
   void write(std::string_view path, const std::vector<uint8_t> &data);
+
+  /**
+   * @brief Read data from the operator
+   *
+   * @param path The path of the data
+   * @return The reader of the data
+   */
+  Reader reader(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -176,4 +188,43 @@ private:
   std::optional<rust::Box<opendal::ffi::Operator>> operator_;
 };
 
+/**
+ * @class Reader
+ * @brief Reader is designed to read data from the operator.
+ * @details It provides basic read and seek operations. If you want to use it
+ * like a stream, you can use `ReaderStream` instead.
+ * @code{.cpp}
+ * auto reader = operator.reader("path");
+ * opendal::ReaderStream stream(reader);
+ * @endcode
+ */
+class Reader
+    : public boost::iostreams::device<boost::iostreams::input_seekable> {
+public:
+  Reader(rust::Box<opendal::ffi::Reader> &&reader)
+      : raw_reader_(std::move(reader)) {}
+
+  std::streamsize read(void *s, std::streamsize n);
+  std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
+
+private:
+  rust::Box<opendal::ffi::Reader> raw_reader_;
+};
+
+// Boost IOStreams requires it to be copyable. So we need to use
+// `reference_wrapper` in ReaderStream. More details can be seen at
+// https://lists.boost.org/Archives/boost/2005/10/95939.php
+
+/**
+ * @class ReaderStream
+ * @brief ReaderStream is a stream wrapper of Reader which can provide
+ * `iostream` interface.
+ */
+class ReaderStream
+    : public boost::iostreams::stream<boost::reference_wrapper<Reader>> {
+public:
+  ReaderStream(Reader &reader)
+      : boost::iostreams::stream<boost::reference_wrapper<Reader>>(
+            boost::ref(reader)) {}
+};
 } // namespace opendal

@@ -24,6 +24,8 @@ using namespace opendal;
 #define RUST_STR(s) rust::Str(s.data(), s.size())
 #define RUST_STRING(s) rust::String(s.data(), s.size())
 
+// Operator
+
 Operator::Operator(std::string_view scheme,
                    const std::unordered_map<std::string, std::string> &config) {
   auto rust_map = rust::Vec<ffi::HashMapValue>();
@@ -85,6 +87,26 @@ std::vector<Entry> Operator::list(std::string_view path) {
   return entries;
 }
 
+Reader Operator::reader(std::string_view path) {
+  return operator_.value()->reader(RUST_STR(path));
+}
+
+// Reader
+
+std::streamsize Reader::read(void *s, std::streamsize n) {
+  auto rust_slice = rust::Slice<uint8_t>(reinterpret_cast<uint8_t *>(s), n);
+  auto read_size = raw_reader_->read(rust_slice);
+  return read_size;
+}
+
+ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir);
+
+std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
+  return raw_reader_->seek(off, to_rust_seek_dir(dir));
+}
+
+// Metadata
+
 std::optional<std::string> parse_optional_string(ffi::OptionalString &&s);
 
 Metadata::Metadata(ffi::Metadata &&other) {
@@ -104,6 +126,8 @@ Metadata::Metadata(ffi::Metadata &&other) {
   }
 }
 
+// Entry
+
 Entry::Entry(ffi::Entry &&other) : path(std::move(other.path)) {}
 
 // helper functions
@@ -113,5 +137,18 @@ std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
     return std::string(std::move(s.value));
   } else {
     return std::nullopt;
+  }
+}
+
+ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir) {
+  switch (dir) {
+  case std::ios_base::beg:
+    return ffi::SeekDir::Start;
+  case std::ios_base::cur:
+    return ffi::SeekDir::Current;
+  case std::ios_base::end:
+    return ffi::SeekDir::End;
+  default:
+    throw std::runtime_error("invalid seekdir");
   }
 }

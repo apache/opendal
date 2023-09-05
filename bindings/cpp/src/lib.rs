@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod reader;
+mod types;
+
 use anyhow::Result;
-use od::raw::oio::BlockingRead;
 use opendal as od;
+use reader::Reader;
 use std::str::FromStr;
 
 #[cxx::bridge(namespace = "opendal::ffi")]
@@ -76,14 +79,12 @@ mod ffi {
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
         fn reader(self: &Operator, path: &str) -> Result<Box<Reader>>;
 
-        #[cxx_name = "read"]
-        fn reader_read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
+        fn read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
         fn seek(self: &mut Reader, offset: u64, dir: SeekFrom) -> Result<u64>;
     }
 }
 
-struct Operator(od::BlockingOperator);
-struct Reader(od::BlockingReader);
+pub struct Operator(od::BlockingOperator);
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
     let scheme = od::Scheme::from_str(scheme)?;
@@ -142,81 +143,5 @@ impl Operator {
 
     fn reader(&self, path: &str) -> Result<Box<Reader>> {
         Ok(Box::new(Reader(self.0.reader(path)?)))
-    }
-}
-
-impl Reader {
-    fn reader_read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        Ok(self.0.read(buf)?)
-    }
-
-    fn seek(&mut self, offset: u64, dir: ffi::SeekFrom) -> Result<u64> {
-        let pos = match dir {
-            ffi::SeekFrom::Start => std::io::SeekFrom::Start(offset),
-            ffi::SeekFrom::Current => std::io::SeekFrom::Current(offset as i64),
-            ffi::SeekFrom::End => std::io::SeekFrom::End(offset as i64),
-            _ => return Err(anyhow::anyhow!("invalid seek dir")),
-        };
-
-        Ok(self.0.seek(pos)?)
-    }
-}
-
-impl From<od::Metadata> for ffi::Metadata {
-    fn from(meta: od::Metadata) -> Self {
-        let mode = meta.mode().into();
-        let content_length = meta.content_length();
-        let cache_control = meta.cache_control().map(ToOwned::to_owned).into();
-        let content_disposition = meta.content_disposition().map(ToOwned::to_owned).into();
-        let content_md5 = meta.content_md5().map(ToOwned::to_owned).into();
-        let content_type = meta.content_type().map(ToOwned::to_owned).into();
-        let etag = meta.etag().map(ToOwned::to_owned).into();
-        let last_modified = meta
-            .last_modified()
-            .map(|time| time.to_rfc3339_opts(chrono::SecondsFormat::Nanos, false))
-            .into();
-
-        Self {
-            mode,
-            content_length,
-            cache_control,
-            content_disposition,
-            content_md5,
-            content_type,
-            etag,
-            last_modified,
-        }
-    }
-}
-
-impl From<od::Entry> for ffi::Entry {
-    fn from(entry: od::Entry) -> Self {
-        let (path, _) = entry.into_parts();
-        Self { path }
-    }
-}
-
-impl From<od::EntryMode> for ffi::EntryMode {
-    fn from(mode: od::EntryMode) -> Self {
-        match mode {
-            od::EntryMode::FILE => Self::File,
-            od::EntryMode::DIR => Self::Dir,
-            _ => Self::Unknown,
-        }
-    }
-}
-
-impl From<Option<String>> for ffi::OptionalString {
-    fn from(s: Option<String>) -> Self {
-        match s {
-            Some(s) => Self {
-                has_value: true,
-                value: s,
-            },
-            None => Self {
-                has_value: false,
-                value: String::default(),
-            },
-        }
     }
 }

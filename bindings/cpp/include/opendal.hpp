@@ -201,16 +201,14 @@ private:
 class Reader
     : public boost::iostreams::device<boost::iostreams::input_seekable> {
 public:
-  // Users should not use this type directly.
-  using InternalReader = rust::Box<opendal::ffi::Reader>;
-
-  Reader(InternalReader &&reader) : reader_(std::move(reader)) {}
+  Reader(rust::Box<opendal::ffi::Reader> &&reader)
+      : raw_reader_(std::move(reader)) {}
 
   std::streamsize read(void *s, std::streamsize n);
   std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
 
 private:
-  InternalReader reader_;
+  rust::Box<opendal::ffi::Reader> raw_reader_;
 };
 
 // Boost IOStreams requires it to be copyable. So we need to use

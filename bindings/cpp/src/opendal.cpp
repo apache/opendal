@@ -95,14 +95,14 @@ Reader Operator::reader(std::string_view path) {
 
 std::streamsize Reader::read(void *s, std::streamsize n) {
   auto rust_slice = rust::Slice<uint8_t>(reinterpret_cast<uint8_t *>(s), n);
-  auto read_size = reader_->read(rust_slice);
+  auto read_size = raw_reader_->read(rust_slice);
   return read_size;
 }
 
 ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir);
 
 std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
-  return reader_->seek(off, to_rust_seek_dir(dir));
+  return raw_reader_->seek(off, to_rust_seek_dir(dir));
 }
 
 // Metadata

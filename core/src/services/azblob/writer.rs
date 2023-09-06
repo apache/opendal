@@ -180,7 +180,7 @@ impl oio::Write for AzblobWriter {
         Ok(size)
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
+    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         if self.op.append() {
             self.append_oneshot(size, AsyncBody::Stream(Box::new(s)))
                 .await?;

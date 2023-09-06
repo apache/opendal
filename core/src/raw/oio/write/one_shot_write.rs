@@ -58,7 +58,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
         Ok(size)
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
+    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         self.inner.write_once(size, Box::new(s)).await?;
         Ok(size)
     }

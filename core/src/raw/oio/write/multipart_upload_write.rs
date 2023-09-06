@@ -138,7 +138,7 @@ where
         Ok(size as u64)
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
+    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         let upload_id = self.upload_id().await?;
 
         self.inner

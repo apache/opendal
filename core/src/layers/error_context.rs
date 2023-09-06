@@ -419,9 +419,9 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         })
     }
 
-    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        self.inner.pipe(size, s).await.map_err(|err| {
-            err.with_operation(WriteOperation::Pipe)
+    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
+        self.inner.copy_from(size, s).await.map_err(|err| {
+            err.with_operation(WriteOperation::CopyFrom)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

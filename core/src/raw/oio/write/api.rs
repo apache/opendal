@@ -96,7 +96,7 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// It's possible that `n < size`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64>;
+    async fn copy_from(&mut self, size: u64, src: oio::Reader) -> Result<u64>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;

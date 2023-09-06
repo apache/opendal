@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod lister;
 mod reader;
 mod types;
 
 use anyhow::Result;
+use lister::Lister;
 use opendal as od;
 use reader::Reader;
 use std::str::FromStr;
@@ -48,6 +50,11 @@ mod ffi {
         value: String,
     }
 
+    struct OptionalEntry {
+        has_value: bool,
+        value: Entry,
+    }
+
     struct Metadata {
         mode: EntryMode,
         content_length: u64,
@@ -66,6 +73,7 @@ mod ffi {
     extern "Rust" {
         type Operator;
         type Reader;
+        type Lister;
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
@@ -78,9 +86,12 @@ mod ffi {
         fn stat(self: &Operator, path: &str) -> Result<Metadata>;
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
         fn reader(self: &Operator, path: &str) -> Result<Box<Reader>>;
+        fn lister(self: &Operator, path: &str) -> Result<Box<Lister>>;
 
         fn read(self: &mut Reader, buf: &mut [u8]) -> Result<usize>;
         fn seek(self: &mut Reader, offset: u64, dir: SeekFrom) -> Result<u64>;
+
+        fn next(self: &mut Lister) -> Result<OptionalEntry>;
     }
 }
 
@@ -143,5 +154,9 @@ impl Operator {
 
     fn reader(&self, path: &str) -> Result<Box<Reader>> {
         Ok(Box::new(Reader(self.0.reader(path)?)))
+    }
+
+    fn lister(&self, path: &str) -> Result<Box<Lister>> {
+        Ok(Box::new(Lister(self.0.lister(path)?)))
     }
 }

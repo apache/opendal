@@ -87,6 +87,10 @@ std::vector<Entry> Operator::list(std::string_view path) {
   return entries;
 }
 
+Lister Operator::lister(std::string_view path) {
+  return operator_.value()->lister(RUST_STR(path));
+}
+
 Reader Operator::reader(std::string_view path) {
   return operator_.value()->reader(RUST_STR(path));
 }
@@ -103,6 +107,17 @@ ffi::SeekDir to_rust_seek_dir(std::ios_base::seekdir dir);
 
 std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
   return raw_reader_->seek(off, to_rust_seek_dir(dir));
+}
+
+// Lister
+
+std::optional<Entry> Lister::next() {
+  auto entry = raw_lister_->next();
+  if (entry.has_value) {
+    return std::move(entry.value);
+  } else {
+    return std::nullopt;
+  }
 }
 
 // Metadata

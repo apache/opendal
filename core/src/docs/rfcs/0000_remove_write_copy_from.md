@@ -1,4 +1,4 @@
-- Proposal Name: `remove_writer_copy_from`
+- Proposal Name: `remove_write_copy_from`
 - Start Date: 2023-09-06
 - RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)

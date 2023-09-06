@@ -90,7 +90,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         }
     }
 
-    async fn pipe(&mut self, _: u64, mut s: oio::Reader) -> Result<u64> {
+    async fn copy_from(&mut self, _: u64, mut s: oio::Reader) -> Result<u64> {
         loop {
             match &mut self.buffer {
                 Buffer::Filling(fill) => {
@@ -185,7 +185,7 @@ mod tests {
             Ok(bs.len() as u64)
         }
 
-        async fn pipe(&mut self, size: u64, mut s: oio::Reader) -> Result<u64> {
+        async fn copy_from(&mut self, size: u64, mut s: oio::Reader) -> Result<u64> {
             let mut bs = vec![];
             s.read_to_end(&mut bs).await.unwrap();
             assert_eq!(bs.len() as u64, size);

@@ -30,8 +30,8 @@ use crate::*;
 pub enum WriteOperation {
     /// Operation for [`Write::write`]
     Write,
-    /// Operation for [`Write::pipe`]
-    Pipe,
+    /// Operation for [`Write::copy_from`]
+    CopyFrom,
     /// Operation for [`Write::abort`]
     Abort,
     /// Operation for [`Write::close`]
@@ -61,7 +61,7 @@ impl From<WriteOperation> for &'static str {
 
         match v {
             Write => "Writer::write",
-            Pipe => "Writer::pipe",
+            CopyFrom => "Writer::copy_from",
             Abort => "Writer::abort",
             Close => "Writer::close",
             BlockingWrite => "BlockingWriter::write",
@@ -87,7 +87,7 @@ pub trait Write: Unpin + Send + Sync {
     /// repeatedly until all bytes has been written.
     async fn write(&mut self, bs: Bytes) -> Result<u64>;
 
-    /// Sink given stream into writer.
+    /// Copy from given reader into the writer.
     ///
     /// # Behavior
     ///
@@ -96,7 +96,7 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// It's possible that `n < size`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64>;
+    async fn copy_from(&mut self, size: u64, src: oio::Reader) -> Result<u64>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
@@ -113,7 +113,7 @@ impl Write for () {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
-    async fn pipe(&mut self, _: u64, _: oio::Reader) -> Result<u64> {
+    async fn copy_from(&mut self, _: u64, _: oio::Reader) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support sink",
@@ -144,8 +144,8 @@ impl<T: Write + ?Sized> Write for Box<T> {
         (**self).write(bs).await
     }
 
-    async fn pipe(&mut self, n: u64, s: oio::Reader) -> Result<u64> {
-        (**self).pipe(n, s).await
+    async fn copy_from(&mut self, n: u64, s: oio::Reader) -> Result<u64> {
+        (**self).copy_from(n, s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -58,7 +58,7 @@ impl oio::Write for OneDriveWriter {
         Ok(size as u64)
     }
 
-    async fn pipe(&mut self, _size: u64, _s: oio::Reader) -> Result<u64> {
+    async fn copy_from(&mut self, _size: u64, _s: oio::Reader) -> Result<u64> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "Write::sink is not supported",

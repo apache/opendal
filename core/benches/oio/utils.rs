@@ -18,7 +18,6 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use opendal::raw::oio;
-use opendal::raw::oio::Streamer;
 use rand::prelude::ThreadRng;
 use rand::RngCore;
 
@@ -31,7 +30,7 @@ impl oio::Write for BlackHoleWriter {
         Ok(bs.len() as u64)
     }
 
-    async fn sink(&mut self, size: u64, _: Streamer) -> opendal::Result<u64> {
+    async fn pipe(&mut self, size: u64, _: oio::Reader) -> opendal::Result<u64> {
         Ok(size)
     }
 

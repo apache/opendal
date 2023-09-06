@@ -18,7 +18,6 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -92,11 +91,11 @@ where
         Ok(size)
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         let offset = self.offset().await?;
 
         self.inner
-            .append(offset, size, AsyncBody::Stream(s))
+            .append(offset, size, AsyncBody::Stream(Box::new(s)))
             .await
             .map(|_| self.offset = Some(offset + size))?;
 

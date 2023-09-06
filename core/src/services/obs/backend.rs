@@ -256,7 +256,7 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<ObsWriters, oio::AtLeastBufWriter<ObsWriters>>;
+    type Writer = oio::TwoWaysWriter<ObsWriters, oio::ExactBufWriter<ObsWriters>>;
     type BlockingWriter = ();
     type Pager = ObsPager;
     type BlockingPager = ();
@@ -386,8 +386,7 @@ impl Accessor for ObsBackend {
         let w = if let Some(buffer_size) = args.buffer_size() {
             let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
 
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
+            let w = oio::ExactBufWriter::new(w, buffer_size);
 
             oio::TwoWaysWriter::Two(w)
         } else {

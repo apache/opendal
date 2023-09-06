@@ -18,10 +18,10 @@
 use std::cmp::min;
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
+use tokio::io::ReadBuf;
 
-use crate::raw::oio::StreamExt;
-use crate::raw::oio::Streamer;
+use crate::raw::oio::ReadExt;
 use crate::raw::*;
 use crate::*;
 
@@ -41,9 +41,7 @@ pub struct ExactBufWriter<W: oio::Write> {
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     buffer_size: usize,
-    buffer: oio::ChunkedCursor,
-
-    buffer_stream: Option<Streamer>,
+    buffer: Buffer,
 }
 
 impl<W: oio::Write> ExactBufWriter<W> {
@@ -52,133 +50,108 @@ impl<W: oio::Write> ExactBufWriter<W> {
         Self {
             inner,
             buffer_size,
-            buffer: oio::ChunkedCursor::new(),
-            buffer_stream: None,
-        }
-    }
-
-    /// Next bytes is used to fetch bytes from buffer or input streamer.
-    ///
-    /// We need this function because we need to make sure our write is reentrant.
-    /// We can't mutate state unless we are sure that the write is successful.
-    async fn next_bytes(&mut self, s: &mut Streamer) -> Option<Result<Bytes>> {
-        match self.buffer_stream.as_mut() {
-            None => s.next().await,
-            Some(bs) => match bs.next().await {
-                None => {
-                    self.buffer_stream = None;
-                    s.next().await
-                }
-                Some(v) => Some(v),
-            },
-        }
-    }
-
-    fn chain_stream(&mut self, s: Streamer) {
-        self.buffer_stream = match self.buffer_stream.take() {
-            Some(stream) => Some(Box::new(stream.chain(s))),
-            None => Some(s),
+            buffer: Buffer::Filling(BytesMut::new()),
         }
     }
 }
 
+enum Buffer {
+    Filling(BytesMut),
+    Consuming(Bytes),
+}
+
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        self.sink(bs.len() as u64, Box::new(oio::Cursor::from(bs)))
-            .await
-    }
+    async fn write(&mut self, mut bs: Bytes) -> Result<u64> {
+        loop {
+            match &mut self.buffer {
+                Buffer::Filling(fill) => {
+                    if fill.len() >= self.buffer_size {
+                        self.buffer = Buffer::Consuming(fill.split().freeze());
+                        continue;
+                    }
 
-    /// # TODO
-    ///
-    /// We know every stream size, we can collect them into a buffer without chain them every time.
-    async fn sink(&mut self, _: u64, mut s: Streamer) -> Result<u64> {
-        if self.buffer.len() >= self.buffer_size {
-            let mut buf = self.buffer.clone();
-            let to_write = buf.split_to(self.buffer_size);
-            return self
-                .inner
-                .sink(to_write.len() as u64, Box::new(to_write))
-                .await
-                // Replace buffer with remaining if the write is successful.
-                .map(|v| {
-                    self.buffer = buf;
-                    self.chain_stream(s);
-                    v
-                });
-        }
-
-        let mut buf = self.buffer.clone();
-        while buf.len() < self.buffer_size {
-            let bs = self.next_bytes(&mut s).await.transpose()?;
-            match bs {
-                None => break,
-                Some(bs) => buf.push(bs),
+                    let size = min(self.buffer_size - fill.len(), bs.len());
+                    fill.extend_from_slice(&bs[..size]);
+                    bs.advance(size);
+                    return Ok(size as u64);
+                }
+                Buffer::Consuming(consume) => {
+                    // Make sure filled buffer has been flushed.
+                    //
+                    // TODO: maybe we can re-fill it after a successful write.
+                    while !consume.is_empty() {
+                        let n = self.inner.write(consume.clone()).await?;
+                        consume.advance(n as usize);
+                    }
+                    self.buffer = Buffer::Filling(BytesMut::new());
+                }
             }
         }
+    }
 
-        // Return directly if the buffer is not full.
-        //
-        // We don't need to chain stream here because it must be consumed.
-        if buf.len() < self.buffer_size {
-            let size = buf.len() as u64;
-            self.buffer = buf;
-            return Ok(size);
+    async fn pipe(&mut self, _: u64, mut s: oio::Reader) -> Result<u64> {
+        loop {
+            match &mut self.buffer {
+                Buffer::Filling(fill) => {
+                    if fill.len() >= self.buffer_size {
+                        self.buffer = Buffer::Consuming(fill.split().freeze());
+                        continue;
+                    }
+
+                    // Reserve to buffer size.
+                    fill.reserve(self.buffer_size - fill.len());
+                    let dst = fill.spare_capacity_mut();
+                    let dst_len = dst.len();
+                    let mut buf = ReadBuf::uninit(dst);
+
+                    // Safety: the input buffer is created with_capacity(length).
+                    unsafe { buf.assume_init(dst_len) };
+
+                    let n = s.read(buf.initialize_unfilled()).await?;
+
+                    // Safety: read makes sure this buffer has been filled.
+                    unsafe { fill.advance_mut(n) };
+
+                    return Ok(n as u64);
+                }
+                Buffer::Consuming(consume) => {
+                    // Make sure filled buffer has been flushed.
+                    //
+                    // TODO: maybe we can re-fill it after a successful write.
+                    while !consume.is_empty() {
+                        let n = self.inner.write(consume.clone()).await?;
+                        consume.advance(n as usize);
+                    }
+                    self.buffer = Buffer::Filling(BytesMut::new());
+                }
+            }
         }
-
-        let to_write = buf.split_to(self.buffer_size);
-        self.inner
-            .sink(to_write.len() as u64, Box::new(to_write))
-            .await
-            // Replace buffer with remaining if the write is successful.
-            .map(|v| {
-                self.buffer = buf;
-                self.chain_stream(s);
-                v
-            })
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.buffer.clear();
-        self.buffer_stream = None;
-
+        self.buffer = Buffer::Filling(BytesMut::new());
         self.inner.abort().await
     }
 
     async fn close(&mut self) -> Result<()> {
-        while let Some(stream) = self.buffer_stream.as_mut() {
-            let bs = stream.next().await.transpose()?;
-            match bs {
-                None => {
-                    self.buffer_stream = None;
+        loop {
+            match &mut self.buffer {
+                Buffer::Filling(fill) => {
+                    self.buffer = Buffer::Consuming(fill.split().freeze());
+                    continue;
                 }
-                Some(bs) => {
-                    self.buffer.push(bs);
+                Buffer::Consuming(consume) => {
+                    // Make sure filled buffer has been flushed.
+                    //
+                    // TODO: maybe we can re-fill it after a successful write.
+                    while !consume.is_empty() {
+                        let n = self.inner.write(consume.clone()).await?;
+                        consume.advance(n as usize);
+                    }
+                    break;
                 }
             }
-
-            if self.buffer.len() >= self.buffer_size {
-                let mut buf = self.buffer.clone();
-                let to_write = buf.split_to(self.buffer_size);
-                self.inner
-                    .sink(to_write.len() as u64, Box::new(to_write))
-                    .await
-                    // Replace buffer with remaining if the write is successful.
-                    .map(|_| {
-                        self.buffer = buf;
-                    })?;
-            }
-        }
-
-        while !self.buffer.is_empty() {
-            let mut buf = self.buffer.clone();
-            let to_write = buf.split_to(min(self.buffer_size, buf.len()));
-
-            self.inner
-                .sink(to_write.len() as u64, Box::new(to_write))
-                .await
-                // Replace buffer with remaining if the write is successful.
-                .map(|_| self.buffer = buf)?;
         }
 
         self.inner.close().await
@@ -187,6 +160,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
 #[cfg(test)]
 mod tests {
+    use futures::AsyncReadExt;
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
@@ -196,7 +170,6 @@ mod tests {
     use sha2::Sha256;
 
     use super::*;
-    use crate::raw::oio::StreamExt;
     use crate::raw::oio::Write;
 
     struct MockWriter {
@@ -212,10 +185,11 @@ mod tests {
             Ok(bs.len() as u64)
         }
 
-        async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
-            let bs = s.collect().await?;
+        async fn pipe(&mut self, size: u64, mut s: oio::Reader) -> Result<u64> {
+            let mut bs = vec![];
+            s.read_to_end(&mut bs).await.unwrap();
             assert_eq!(bs.len() as u64, size);
-            self.write(bs).await
+            self.write(bs.into()).await
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -241,7 +215,12 @@ mod tests {
 
         let mut w = ExactBufWriter::new(MockWriter { buf: vec![] }, 10);
 
-        w.write(Bytes::from(expected.clone())).await?;
+        let mut bs = Bytes::from(expected.clone());
+        while !bs.is_empty() {
+            let n = w.write(bs.clone()).await?;
+            bs.advance(n as usize);
+        }
+
         w.close().await?;
 
         assert_eq!(w.inner.buf.len(), expected.len());
@@ -274,7 +253,12 @@ mod tests {
             rng.fill_bytes(&mut content);
 
             expected.extend_from_slice(&content);
-            writer.write(Bytes::from(content)).await?;
+
+            let mut bs = Bytes::from(content.clone());
+            while !bs.is_empty() {
+                let n = writer.write(bs.clone()).await?;
+                bs.advance(n as usize);
+            }
         }
         writer.close().await?;
 

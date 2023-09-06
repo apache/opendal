@@ -41,7 +41,7 @@ pub fn into_read_from_file<R>(fd: R, start: u64, end: u64) -> FromFileReader<R> 
     }
 }
 
-/// FdReader is a wrapper of input fd to implement [`oio::Read`].
+/// FromFileReader is a wrapper of input fd to implement [`oio::Read`].
 pub struct FromFileReader<R> {
     inner: R,
 
@@ -126,7 +126,7 @@ where
 
         Poll::Ready(Some(Err(Error::new(
             ErrorKind::Unsupported,
-            "output reader doesn't support seeking",
+            "output reader doesn't support next",
         ))))
     }
 }

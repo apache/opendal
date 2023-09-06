@@ -19,6 +19,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Result;
+use bytes::{Buf, Bytes};
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
@@ -1194,13 +1195,19 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
-    let reader = Cursor::new([content_a.clone(), content_b.clone()].concat());
 
     let mut w = op
         .writer_with(&path)
         .content_length(2 * size as u64)
         .await?;
-    w.copy(2 * size as u64, reader).await?;
+
+    let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
+    while !content.is_empty() {
+        let reader = Cursor::new(content.clone());
+        let n = w.copy(2 * size as u64, reader).await?;
+        content.advance(n as usize);
+    }
+
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

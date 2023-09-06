@@ -249,7 +249,7 @@ pub struct CosBackend {
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<CosWriters, oio::AtLeastBufWriter<CosWriters>>;
+    type Writer = oio::TwoWaysWriter<CosWriters, oio::ExactBufWriter<CosWriters>>;
     type BlockingWriter = ();
     type Pager = CosPager;
     type BlockingPager = ();
@@ -348,8 +348,7 @@ impl Accessor for CosBackend {
         let w = if let Some(buffer_size) = args.buffer_size() {
             let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
 
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
+            let w = oio::ExactBufWriter::new(w, buffer_size);
 
             oio::TwoWaysWriter::Two(w)
         } else {

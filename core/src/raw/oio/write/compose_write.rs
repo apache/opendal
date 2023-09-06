@@ -41,7 +41,6 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -64,10 +63,10 @@ impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWaysWriter<ONE, TWO> {
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         match self {
-            Self::One(one) => one.sink(size, s).await,
-            Self::Two(two) => two.sink(size, s).await,
+            Self::One(one) => one.pipe(size, s).await,
+            Self::Two(two) => two.pipe(size, s).await,
         }
     }
 
@@ -110,11 +109,11 @@ impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<u64> {
+    async fn pipe(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
         match self {
-            Self::One(one) => one.sink(size, s).await,
-            Self::Two(two) => two.sink(size, s).await,
-            Self::Three(three) => three.sink(size, s).await,
+            Self::One(one) => one.pipe(size, s).await,
+            Self::Two(two) => two.pipe(size, s).await,
+            Self::Three(three) => three.pipe(size, s).await,
         }
     }
 

@@ -47,11 +47,32 @@ Given these constraints, the proposal is to remove `oio::Write::copy_from` until
 
 # Guide-level explanation
 
-The `Writer::sink()` and `Writer::copy()` methods will be deprecated. As a substitute, users can utilize `AsyncWrite` to copy a file or stream. Additional helper functions like `Writer::copy_from(r: &dyn AsyncRead)` may be provided if necessary.
+The `Writer::sink()` and `Writer::copy()` methods will be kept, but it's internal implementation will be changed to use `AsyncWrite` instead. For example:
+
+```diff
+pub async fn copy<R>(&mut self, size: u64, read_from: R) -> Result<u64>
+where
+    R: futures::AsyncRead + Send + Sync + Unpin + 'static,
+{
+    if let State::Idle(Some(w)) = &mut self.state {
+        let r = Box::new(oio::into_streamable_read(
+            oio::into_read_from_file(read_from, 0, size),
+            64 * 1024,
+        ));
+-       w.copy_from(size, r).await
++       futures::io::copy(&mut r, w).await
+    } else {
+        unreachable!(
+            "writer state invalid while copy, expect Idle, actual {}",
+            self.state
+        );
+    }
+}
+```
 
 # Reference-level explanation
 
-The method `oio::Write::copy_from` will be deprecated.
+The method `oio::Write::copy_from` will be removed.
 
 # Drawbacks
 

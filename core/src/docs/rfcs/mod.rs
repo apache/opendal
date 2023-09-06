@@ -157,3 +157,6 @@ pub mod rfc_2779_list_with_metakey {}
 
 #[doc = include_str!("2852_native_capability.md")]
 pub mod rfc_2852_native_capability {}
+
+#[doc = include_str!("3017_remove_write_copy_from.md")]
+pub mod rfc_3017_remove_write_copy_from {}

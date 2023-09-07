@@ -1146,16 +1146,18 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
 
 /// Streaming data into writer
 pub async fn test_writer_sink(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    if !(cap.write && cap.write_without_content_length) {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
     let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
 
-    let mut w = op
-        .writer_with(&path)
-        .content_length(2 * size as u64)
-        .await?;
+    let mut w = op.writer_with(&path).await?;
     w.sink(stream).await?;
     w.close().await?;
 
@@ -1181,15 +1183,17 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
 
 /// Reading data into writer
 pub async fn test_writer_copy(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    if !(cap.write && cap.write_without_content_length) {
+        return Ok(());
+    }
+
     let path = uuid::Uuid::new_v4().to_string();
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
 
-    let mut w = op
-        .writer_with(&path)
-        .content_length(2 * size as u64)
-        .await?;
+    let mut w = op.writer_with(&path).await?;
 
     let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
     while !content.is_empty() {

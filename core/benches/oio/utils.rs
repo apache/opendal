@@ -30,10 +30,6 @@ impl oio::Write for BlackHoleWriter {
         Ok(bs.len() as u64)
     }
 
-    async fn copy_from(&mut self, size: u64, _: oio::Reader) -> opendal::Result<u64> {
-        Ok(size)
-    }
-
     async fn abort(&mut self) -> opendal::Result<()> {
         Ok(())
     }

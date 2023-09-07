@@ -43,13 +43,6 @@ impl oio::Write for SftpWriter {
         Ok(size)
     }
 
-    async fn copy_from(&mut self, _size: u64, _s: oio::Reader) -> Result<u64> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
     async fn abort(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,

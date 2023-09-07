@@ -679,23 +679,6 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             })
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        self.inner
-            .copy_from(size, s)
-            .await
-            .map(|n| {
-                self.stats
-                    .bytes_total
-                    .with_label_values(&[&self.scheme, Operation::Write.into_static()])
-                    .observe(n as f64);
-                n
-            })
-            .map_err(|err| {
-                self.stats.increment_errors_total(self.op, err.kind());
-                err
-            })
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await.map_err(|err| {
             self.stats.increment_errors_total(self.op, err.kind());

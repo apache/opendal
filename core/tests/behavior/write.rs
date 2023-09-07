@@ -1161,7 +1161,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
         .writer_with(&path)
         .content_length(2 * size as u64)
         .await?;
-    w.sink(2 * size as u64, stream).await?;
+    w.sink(stream).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
@@ -1204,7 +1204,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
     while !content.is_empty() {
         let reader = Cursor::new(content.clone());
-        let n = w.copy(2 * size as u64, reader).await?;
+        let n = w.copy(reader).await?;
         content.advance(n as usize);
     }
 

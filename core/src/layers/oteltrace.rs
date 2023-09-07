@@ -317,10 +317,6 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
         self.inner.write(bs).await
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        self.inner.copy_from(size, s).await
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await
     }

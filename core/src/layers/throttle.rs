@@ -241,10 +241,6 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         }
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        self.inner.copy_from(size, s).await
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await
     }

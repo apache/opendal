@@ -161,12 +161,6 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        self.write_oneshot(size, AsyncBody::Stream(Box::new(s)))
-            .await?;
-        Ok(size)
-    }
-
     async fn abort(&mut self) -> Result<()> {
         let location = if let Some(location) = &self.location {
             location

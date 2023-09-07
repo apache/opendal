@@ -347,16 +347,6 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
             .await
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        self.inner
-            .copy_from(size, s)
-            .in_span(Span::enter_with_parent(
-                WriteOperation::CopyFrom.into_static(),
-                &self.span,
-            ))
-            .await
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.inner
             .abort()

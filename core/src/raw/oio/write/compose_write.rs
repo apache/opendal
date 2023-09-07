@@ -63,13 +63,6 @@ impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWaysWriter<ONE, TWO> {
         }
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        match self {
-            Self::One(one) => one.copy_from(size, s).await,
-            Self::Two(two) => two.copy_from(size, s).await,
-        }
-    }
-
     async fn abort(&mut self) -> Result<()> {
         match self {
             Self::One(one) => one.abort().await,
@@ -106,14 +99,6 @@ impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
             Self::One(one) => one.write(bs).await,
             Self::Two(two) => two.write(bs).await,
             Self::Three(three) => three.write(bs).await,
-        }
-    }
-
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        match self {
-            Self::One(one) => one.copy_from(size, s).await,
-            Self::Two(two) => two.copy_from(size, s).await,
-            Self::Three(three) => three.copy_from(size, s).await,
         }
     }
 

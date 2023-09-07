@@ -22,7 +22,6 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::StreamExt;
 use tokio::io::AsyncSeekExt;
 use tokio::io::AsyncWriteExt;
 
@@ -63,20 +62,6 @@ impl oio::Write for FsWriter<tokio::fs::File> {
             .map_err(parse_io_error)?;
         self.f.write_all(&bs).await.map_err(parse_io_error)?;
         self.pos += size;
-
-        Ok(size)
-    }
-
-    async fn copy_from(&mut self, size: u64, mut s: oio::Reader) -> Result<u64> {
-        while let Some(bs) = s.next().await {
-            let bs = bs?;
-            self.f
-                .seek(SeekFrom::Start(self.pos))
-                .await
-                .map_err(parse_io_error)?;
-            self.f.write_all(&bs).await.map_err(parse_io_error)?;
-            self.pos += bs.len() as u64;
-        }
 
         Ok(size)
     }

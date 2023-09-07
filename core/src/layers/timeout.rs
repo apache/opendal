@@ -335,19 +335,6 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
             })?
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        let timeout = self.io_timeout(size);
-
-        tokio::time::timeout(timeout, self.inner.copy_from(size, s))
-            .await
-            .map_err(|_| {
-                Error::new(ErrorKind::Unexpected, "operation timeout")
-                    .with_operation(WriteOperation::CopyFrom)
-                    .with_context("timeout", timeout.as_secs_f64().to_string())
-                    .set_temporary()
-            })?
-    }
-
     async fn abort(&mut self) -> Result<()> {
         tokio::time::timeout(self.timeout, self.inner.abort())
             .await

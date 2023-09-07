@@ -21,7 +21,6 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 use bytes::Bytes;
 
-use crate::raw::*;
 use crate::*;
 
 /// WriteOperation is the name for APIs of Writer.
@@ -30,8 +29,6 @@ use crate::*;
 pub enum WriteOperation {
     /// Operation for [`Write::write`]
     Write,
-    /// Operation for [`Write::copy_from`]
-    CopyFrom,
     /// Operation for [`Write::abort`]
     Abort,
     /// Operation for [`Write::close`]
@@ -61,7 +58,6 @@ impl From<WriteOperation> for &'static str {
 
         match v {
             Write => "Writer::write",
-            CopyFrom => "Writer::copy_from",
             Abort => "Writer::abort",
             Close => "Writer::close",
             BlockingWrite => "BlockingWriter::write",
@@ -87,17 +83,6 @@ pub trait Write: Unpin + Send + Sync {
     /// repeatedly until all bytes has been written.
     async fn write(&mut self, bs: Bytes) -> Result<u64>;
 
-    /// Copy from given reader into the writer.
-    ///
-    /// # Behavior
-    ///
-    /// - `Ok(n)` means `n` bytes has been written successfully.
-    /// - `Err(err)` means error happens and no bytes has been written.
-    ///
-    /// It's possible that `n < size`, caller should pass the remaining bytes
-    /// repeatedly until all bytes has been written.
-    async fn copy_from(&mut self, size: u64, src: oio::Reader) -> Result<u64>;
-
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
 
@@ -111,13 +96,6 @@ impl Write for () {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::Write")
-    }
-
-    async fn copy_from(&mut self, _: u64, _: oio::Reader) -> Result<u64> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support sink",
-        ))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -142,10 +120,6 @@ impl Write for () {
 impl<T: Write + ?Sized> Write for Box<T> {
     async fn write(&mut self, bs: Bytes) -> Result<u64> {
         (**self).write(bs).await
-    }
-
-    async fn copy_from(&mut self, n: u64, s: oio::Reader) -> Result<u64> {
-        (**self).copy_from(n, s).await
     }
 
     async fn abort(&mut self) -> Result<()> {

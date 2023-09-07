@@ -1285,39 +1285,6 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
         }
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        match self.inner.copy_from(size, s).await {
-            Ok(n) => {
-                self.written += n;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data sink {}B",
-                    self.ctx.scheme,
-                    WriteOperation::CopyFrom,
-                    self.path,
-                    self.written,
-                    n
-                );
-                Ok(n)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={} -> data sink failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::CopyFrom,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
     async fn abort(&mut self) -> Result<()> {
         match self.inner.abort().await {
             Ok(_) => {

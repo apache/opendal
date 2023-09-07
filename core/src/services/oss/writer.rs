@@ -50,7 +50,7 @@ impl OssWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for OssWriter {
-    async fn write_once(&self, bs: &dyn Buf) -> Result<()> {
+    async fn write_once(&self, bs: &dyn oio::Buf) -> Result<()> {
         let size = bs.remaining();
         let mut req = self.core.oss_put_object_request(
             &self.path,

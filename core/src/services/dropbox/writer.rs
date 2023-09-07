@@ -39,7 +39,7 @@ impl DropboxWriter {
 
 #[async_trait]
 impl oio::Write for DropboxWriter {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         let size = bs.remaining();
 
         let resp = self

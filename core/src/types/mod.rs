@@ -58,6 +58,3 @@ pub use scheme::Scheme;
 
 mod capability;
 pub use capability::Capability;
-
-mod buf;
-pub use buf::Buf;

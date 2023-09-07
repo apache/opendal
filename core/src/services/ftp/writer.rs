@@ -40,7 +40,7 @@ impl FtpWriter {
 
 #[async_trait]
 impl oio::Write for FtpWriter {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         let size = bs.remaining();
         let bs = bs.copy_to_bytes(size);
 

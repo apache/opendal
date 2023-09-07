@@ -20,6 +20,7 @@ use std::io::Read;
 use bytes::Bytes;
 
 use super::operator_functions::*;
+use crate::raw::oio::Buf;
 use crate::raw::*;
 use crate::*;
 

@@ -1252,7 +1252,7 @@ impl<W> LoggingWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         match self.inner.write(bs).await {
             Ok(n) => {
                 self.written += n as u64;
@@ -1349,7 +1349,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         match self.inner.write(bs) {
             Ok(n) => {
                 self.written += n as u64;

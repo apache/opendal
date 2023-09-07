@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use async_trait::async_trait;
 
+use crate::raw::*;
 use crate::*;
 
 /// WriteOperation is the name for APIs of Writer.
@@ -80,7 +81,7 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize>;
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize>;
 
     /// Abort the pending writer.
     async fn abort(&mut self) -> Result<()>;
@@ -91,7 +92,7 @@ pub trait Write: Unpin + Send + Sync {
 
 #[async_trait]
 impl Write for () {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::Write")
@@ -117,7 +118,7 @@ impl Write for () {
 /// To make Writer work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         (**self).write(bs).await
     }
 
@@ -136,14 +137,14 @@ pub type BlockingWriter = Box<dyn BlockingWrite>;
 /// BlockingWrite is the trait that OpenDAL returns to callers.
 pub trait BlockingWrite: Send + Sync + 'static {
     /// Write whole content at once.
-    fn write(&mut self, bs: &dyn Buf) -> Result<usize>;
+    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
-    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for oio::BlockingWrite")
@@ -161,7 +162,7 @@ impl BlockingWrite for () {
 ///
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
-    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         (**self).write(bs)
     }
 

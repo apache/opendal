@@ -95,7 +95,7 @@ impl GdriveWriter {
 
 #[async_trait]
 impl oio::Write for GdriveWriter {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         let size = bs.remaining();
         if self.file_id.is_none() {
             self.write_create(size as u64, bs.copy_to_bytes(size))

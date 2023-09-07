@@ -43,7 +43,7 @@ impl<F> FsWriter<F> {
 
 #[async_trait]
 impl oio::Write for FsWriter<tokio::fs::File> {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         self.f.write(bs.chunk()).await.map_err(parse_io_error)
     }
 
@@ -68,7 +68,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         self.f.write(bs.chunk()).map_err(parse_io_error)
     }
 

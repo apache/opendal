@@ -20,6 +20,7 @@ use std::cmp::min;
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 
+use crate::raw::oio::Buf;
 use crate::raw::*;
 use crate::*;
 

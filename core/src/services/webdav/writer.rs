@@ -61,7 +61,7 @@ impl WebdavWriter {
 
 #[async_trait]
 impl oio::Write for WebdavWriter {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         let size = bs.remaining();
 
         self.write_oneshot(size as u64, AsyncBody::Bytes(bs.copy_to_bytes(size)))

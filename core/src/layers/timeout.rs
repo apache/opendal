@@ -322,7 +322,7 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
         let timeout = self.io_timeout(bs.remaining() as u64);
 
         tokio::time::timeout(timeout, self.inner.write(bs))

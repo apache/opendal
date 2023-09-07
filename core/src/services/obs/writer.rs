@@ -51,7 +51,7 @@ impl ObsWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for ObsWriter {
-    async fn write_once(&self, bs: &dyn Buf) -> Result<()> {
+    async fn write_once(&self, bs: &dyn oio::Buf) -> Result<()> {
         let size = bs.remaining();
         let mut req = self.core.obs_put_object_request(
             &self.path,

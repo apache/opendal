@@ -274,7 +274,10 @@ impl AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(size));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
                 State::Close(_) => {
                     unreachable!("invalid state of writer: poll_write with State::Close")
@@ -309,7 +312,10 @@ impl AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(()));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
             }
         }
@@ -340,7 +346,10 @@ impl tokio::io::AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(size));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
                 State::Close(_) => {
                     unreachable!("invalid state of writer: poll_write with State::Close")
@@ -374,7 +383,10 @@ impl tokio::io::AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(()));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
             }
         }

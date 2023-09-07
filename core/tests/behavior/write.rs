@@ -1157,7 +1157,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let content_b = gen_fixed_bytes(size);
     let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
 
-    let mut w = op.writer_with(&path).await?;
+    let mut w = op.writer_with(&path).buffer_size(5 * 1024 * 1024).await?;
     w.sink(stream).await?;
     w.close().await?;
 
@@ -1193,7 +1193,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
 
-    let mut w = op.writer_with(&path).await?;
+    let mut w = op.writer_with(&path).buffer_size(5 * 1024 * 1024).await?;
 
     let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
     while !content.is_empty() {
@@ -1201,7 +1201,6 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
         let n = w.copy(reader).await?;
         content.advance(n as usize);
     }
-
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

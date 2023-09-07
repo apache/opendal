@@ -180,25 +180,6 @@ impl oio::Write for AzblobWriter {
         Ok(size)
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        if self.op.append() {
-            self.append_oneshot(size, AsyncBody::Stream(Box::new(s)))
-                .await?;
-        } else {
-            if self.op.content_length().is_none() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "write without content length is not supported",
-                ));
-            }
-
-            self.write_oneshot(size, AsyncBody::Stream(Box::new(s)))
-                .await?;
-        }
-
-        Ok(size)
-    }
-
     async fn abort(&mut self) -> Result<()> {
         Ok(())
     }

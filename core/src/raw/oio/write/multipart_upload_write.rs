@@ -138,22 +138,6 @@ where
         Ok(size as u64)
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        let upload_id = self.upload_id().await?;
-
-        self.inner
-            .write_part(
-                &upload_id,
-                self.parts.len(),
-                size,
-                AsyncBody::Stream(Box::new(s)),
-            )
-            .await
-            .map(|v| self.parts.push(v))?;
-
-        Ok(size)
-    }
-
     async fn close(&mut self) -> Result<()> {
         let upload_id = if let Some(upload_id) = &self.upload_id {
             upload_id

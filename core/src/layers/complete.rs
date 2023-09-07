@@ -734,27 +734,6 @@ where
         Ok(n)
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        if let Some(total_size) = self.size {
-            if self.written + size > total_size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + size
-                    ),
-                ));
-            }
-        }
-
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-        let n = w.copy_from(size, s).await?;
-        self.written += n;
-        Ok(n)
-    }
-
     async fn abort(&mut self) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")

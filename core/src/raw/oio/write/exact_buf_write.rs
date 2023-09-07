@@ -18,10 +18,8 @@
 use std::cmp::min;
 
 use async_trait::async_trait;
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use tokio::io::ReadBuf;
+use bytes::{Buf, Bytes, BytesMut};
 
-use crate::raw::oio::ReadExt;
 use crate::raw::*;
 use crate::*;
 
@@ -104,50 +102,6 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         }
     }
 
-    async fn copy_from(&mut self, size: u64, mut s: oio::Reader) -> Result<u64> {
-        loop {
-            match &mut self.buffer {
-                Buffer::Empty => {
-                    self.buffer = Buffer::Filling(BytesMut::new());
-                }
-                Buffer::Filling(fill) => {
-                    if fill.len() >= self.buffer_size {
-                        self.buffer = Buffer::Consuming(fill.split().freeze());
-                        continue;
-                    }
-
-                    // Reserve to enough size.
-                    if size > fill.remaining_mut() as u64 {
-                        fill.reserve(self.buffer_size - fill.len());
-                    }
-                    let dst = fill.spare_capacity_mut();
-                    let dst_len = dst.len();
-                    let mut buf = ReadBuf::uninit(dst);
-
-                    // Safety: the input buffer is created with_capacity(length).
-                    unsafe { buf.assume_init(dst_len) };
-
-                    let n = s.read(buf.initialize_unfilled()).await?;
-
-                    // Safety: read makes sure this buffer has been filled.
-                    unsafe { fill.advance_mut(n) };
-
-                    return Ok(n as u64);
-                }
-                Buffer::Consuming(consume) => {
-                    // Make sure filled buffer has been flushed.
-                    //
-                    // TODO: maybe we can re-fill it after a successful write.
-                    while !consume.is_empty() {
-                        let n = self.inner.write(consume.clone()).await?;
-                        consume.advance(n as usize);
-                    }
-                    self.buffer = Buffer::Filling(BytesMut::new());
-                }
-            }
-        }
-    }
-
     async fn abort(&mut self) -> Result<()> {
         self.buffer = Buffer::Empty;
         self.inner.abort().await
@@ -181,7 +135,6 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use futures::AsyncReadExt;
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
@@ -204,13 +157,6 @@ mod tests {
 
             self.buf.extend_from_slice(&bs);
             Ok(bs.len() as u64)
-        }
-
-        async fn copy_from(&mut self, size: u64, mut s: oio::Reader) -> Result<u64> {
-            let mut bs = vec![];
-            s.read_to_end(&mut bs).await.unwrap();
-            assert_eq!(bs.len() as u64, size);
-            self.write(bs.into()).await
         }
 
         async fn abort(&mut self) -> Result<()> {

@@ -127,25 +127,35 @@ impl Writer {
     ///         .content_length(2 * 4096)
     ///         .await?;
     ///     let stream = stream::iter(vec![vec![0; 4096], vec![1; 4096]]).map(Ok);
-    ///     w.sink(2 * 4096, stream).await?;
+    ///     w.sink(stream).await?;
     ///     w.close().await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn sink<S, T>(&mut self, size: u64, sink_from: S) -> Result<u64>
+    pub async fn sink<S, T>(&mut self, mut sink_from: S) -> Result<u64>
     where
         S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
         T: Into<Bytes>,
     {
-        if let State::Idle(Some(w)) = &mut self.state {
-            let r = Box::new(oio::into_read_from_stream(sink_from.map_ok(|v| v.into())));
-            w.copy_from(size, r).await
+        let w = if let State::Idle(Some(w)) = &mut self.state {
+            w
         } else {
             unreachable!(
                 "writer state invalid while sink, expect Idle, actual {}",
                 self.state
             );
+        };
+
+        let mut written = 0;
+        while let Some(bs) = sink_from.try_next().await? {
+            let mut bs = bs.into();
+            while bs.has_remaining() {
+                let n = w.write(bs.clone()).await?;
+                bs.advance(n as usize);
+                written += n;
+            }
         }
+        Ok(written)
     }
 
     /// Copy into writer.
@@ -173,27 +183,20 @@ impl Writer {
     /// async fn copy_example(op: Operator) -> Result<()> {
     ///     let mut w = op.writer_with("path/to/file").content_length(4096).await?;
     ///     let reader = Cursor::new(vec![0; 4096]);
-    ///     w.copy(4096, reader).await?;
+    ///     w.copy(reader).await?;
     ///     w.close().await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn copy<R>(&mut self, size: u64, read_from: R) -> Result<u64>
+    pub async fn copy<R>(&mut self, read_from: R) -> Result<u64>
     where
-        R: futures::AsyncRead + futures::AsyncSeek + Send + Sync + Unpin + 'static,
+        R: futures::AsyncRead + Send + Sync + Unpin + 'static,
     {
-        if let State::Idle(Some(w)) = &mut self.state {
-            let r = Box::new(oio::into_streamable_read(
-                oio::into_read_from_file(read_from, 0, size),
-                64 * 1024,
-            ));
-            w.copy_from(size, r).await
-        } else {
-            unreachable!(
-                "writer state invalid while copy, expect Idle, actual {}",
-                self.state
-            );
-        }
+        futures::io::copy(read_from, self).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "copy into writer failed")
+                .with_operation("copy")
+                .set_source(err)
+        })
     }
 
     /// Abort the writer and clean up all written data.
@@ -271,7 +274,10 @@ impl AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(size));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
                 State::Close(_) => {
                     unreachable!("invalid state of writer: poll_write with State::Close")
@@ -306,7 +312,10 @@ impl AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(()));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
             }
         }
@@ -337,7 +346,10 @@ impl tokio::io::AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(size));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
                 State::Close(_) => {
                     unreachable!("invalid state of writer: poll_write with State::Close")
@@ -371,7 +383,10 @@ impl tokio::io::AsyncWrite for Writer {
                         self.state = State::Idle(Some(w));
                         return Poll::Ready(Ok(()));
                     }
-                    Err(err) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err))),
+                    Err(err) => {
+                        self.state = State::Idle(None);
+                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err)));
+                    }
                 },
             }
         }

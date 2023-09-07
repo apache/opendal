@@ -91,17 +91,6 @@ where
         Ok(size)
     }
 
-    async fn copy_from(&mut self, size: u64, s: oio::Reader) -> Result<u64> {
-        let offset = self.offset().await?;
-
-        self.inner
-            .append(offset, size, AsyncBody::Stream(Box::new(s)))
-            .await
-            .map(|_| self.offset = Some(offset + size))?;
-
-        Ok(size)
-    }
-
     async fn close(&mut self) -> Result<()> {
         Ok(())
     }

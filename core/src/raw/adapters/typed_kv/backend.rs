@@ -376,8 +376,8 @@ impl<S> KvWriter<S> {
         }
     }
 
-    fn build(&self) -> Value {
-        let value = self.buf.map(Bytes::from).unwrap_or_default();
+    fn build(&mut self) -> Value {
+        let value = self.buf.take().map(Bytes::from).unwrap_or_default();
 
         let mut metadata = Metadata::new(EntryMode::FILE);
         if let Some(v) = self.op.cache_control() {
@@ -405,7 +405,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         let size = bs.chunk().len();
 
-        let mut buf = self.buf.unwrap_or_else(|| Vec::with_capacity(size));
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
         buf.extend_from_slice(bs.chunk());
 
         self.buf = Some(buf);
@@ -419,7 +419,10 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.kv.set(&self.path, self.build()).await?;
+        let kv = self.kv.clone();
+        let value = self.build();
+
+        kv.set(&self.path, value).await?;
         Ok(())
     }
 }
@@ -428,7 +431,7 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         let size = bs.chunk().len();
 
-        let mut buf = self.buf.unwrap_or_else(|| Vec::with_capacity(size));
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
         buf.extend_from_slice(bs.chunk());
 
         self.buf = Some(buf);
@@ -437,8 +440,10 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     }
 
     fn close(&mut self) -> Result<()> {
-        self.kv.blocking_set(&self.path, self.build())?;
+        let kv = self.kv.clone();
+        let value = self.build();
 
+        kv.blocking_set(&self.path, value)?;
         Ok(())
     }
 }

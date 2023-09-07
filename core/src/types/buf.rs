@@ -215,6 +215,6 @@ impl Buf for BytesMut {
     #[inline]
     fn copy_to_bytes(&self, len: usize) -> Bytes {
         let size = cmp::min(self.len(), len);
-        Bytes::from(&self[..size])
+        Bytes::copy_from_slice(&self[..size])
     }
 }

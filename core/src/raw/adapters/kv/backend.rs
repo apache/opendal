@@ -393,9 +393,8 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
     async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         let size = bs.chunk().len();
 
-        let mut buf = self.buf.unwrap_or_else(|| Vec::with_capacity(size));
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
         buf.extend_from_slice(bs.chunk());
-
         self.buf = Some(buf);
 
         Ok(size)
@@ -421,7 +420,7 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         let size = bs.chunk().len();
 
-        let mut buf = self.buf.unwrap_or_else(|| Vec::with_capacity(size));
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
         buf.extend_from_slice(bs.chunk());
 
         self.buf = Some(buf);

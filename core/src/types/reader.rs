@@ -266,7 +266,9 @@ mod tests {
         let path = "test_file";
 
         let content = gen_random_bytes();
-        op.write(path, content).await.expect("write must succeed");
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
 
         let mut reader = op.reader(path).await.unwrap();
         let mut buf = Vec::new();

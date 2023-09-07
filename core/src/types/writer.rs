@@ -28,8 +28,8 @@ use futures::AsyncWrite;
 use futures::FutureExt;
 use futures::TryStreamExt;
 
-use crate::raw::oio::Buf;
 use crate::raw::oio::Write;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 

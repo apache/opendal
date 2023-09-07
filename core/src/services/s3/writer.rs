@@ -47,7 +47,7 @@ impl S3Writer {
 
 #[async_trait]
 impl oio::OneShotWrite for S3Writer {
-    async fn write_once(&self, bs: &dyn oio::Buf) -> Result<()> {
+    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
         let size = bs.remaining();
 
         let mut req = self.core.s3_put_object_request(

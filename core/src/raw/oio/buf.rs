@@ -18,11 +18,11 @@
 use bytes::{Bytes, BytesMut};
 use std::{cmp, ptr};
 
-/// Buf is used to provide a trait similar to [`bytes::Buf`].
+/// WriteBuf is used in [`oio::Write`] to provide a trait similar to [`bytes::Buf`].
 ///
 /// The biggest difference is that `Buf`'s `copy_to_slice` and `copy_to_bytes` only needs `&self`
 /// instead of `&mut self`.
-pub trait Buf: Send + Sync {
+pub trait WriteBuf: Send + Sync {
     /// Returns the number of bytes between the current position and the end of the buffer.
     ///
     /// This value is greater than or equal to the length of the slice returned by chunk().
@@ -115,15 +115,15 @@ macro_rules! deref_forward_buf {
     };
 }
 
-impl<T: Buf + ?Sized> Buf for &mut T {
+impl<T: WriteBuf + ?Sized> WriteBuf for &mut T {
     deref_forward_buf!();
 }
 
-impl<T: Buf + ?Sized> Buf for Box<T> {
+impl<T: WriteBuf + ?Sized> WriteBuf for Box<T> {
     deref_forward_buf!();
 }
 
-impl Buf for &[u8] {
+impl WriteBuf for &[u8] {
     #[inline]
     fn remaining(&self) -> usize {
         self.len()
@@ -140,7 +140,7 @@ impl Buf for &[u8] {
     }
 }
 
-impl<T: AsRef<[u8]> + Send + Sync> Buf for std::io::Cursor<T> {
+impl<T: AsRef<[u8]> + Send + Sync> WriteBuf for std::io::Cursor<T> {
     fn remaining(&self) -> usize {
         let len = self.get_ref().as_ref().len();
         let pos = self.position();
@@ -173,7 +173,7 @@ impl<T: AsRef<[u8]> + Send + Sync> Buf for std::io::Cursor<T> {
     }
 }
 
-impl Buf for Bytes {
+impl WriteBuf for Bytes {
     #[inline]
     fn remaining(&self) -> usize {
         self.len()
@@ -196,7 +196,7 @@ impl Buf for Bytes {
     }
 }
 
-impl Buf for BytesMut {
+impl WriteBuf for BytesMut {
     #[inline]
     fn remaining(&self) -> usize {
         self.len()

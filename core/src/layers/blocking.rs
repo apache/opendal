@@ -196,7 +196,7 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 }
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
-    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.handle.block_on(self.inner.write(bs))
     }
 

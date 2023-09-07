@@ -38,7 +38,7 @@ impl WebhdfsWriter {
 
 #[async_trait]
 impl oio::Write for WebhdfsWriter {
-    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.remaining();
 
         let req = self

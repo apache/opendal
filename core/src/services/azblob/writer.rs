@@ -160,7 +160,7 @@ impl AzblobWriter {
 
 #[async_trait]
 impl oio::Write for AzblobWriter {
-    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.remaining();
 
         if self.op.append() {

@@ -337,7 +337,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
-    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner
             .write(bs)
             .in_span(Span::enter_with_parent(
@@ -369,7 +369,7 @@ impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MinitraceWrapper<R> {
-    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let _g = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(WriteOperation::BlockingWrite.into_static());
         self.inner.write(bs)

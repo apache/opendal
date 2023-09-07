@@ -31,7 +31,7 @@ pub trait OneShotWrite: Send + Sync + Unpin {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    async fn write_once(&self, body: &dyn oio::Buf) -> Result<()>;
+    async fn write_once(&self, body: &dyn oio::WriteBuf) -> Result<()>;
 }
 
 /// OneShotWrite is used to implement [`Write`] based on one shot.
@@ -48,7 +48,7 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 
 #[async_trait]
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.remaining();
         self.inner.write_once(bs).await?;
         Ok(size)

@@ -403,7 +403,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
 
 #[async_trait::async_trait]
 impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
-    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner.write(bs).await.map_err(|err| {
             err.with_operation(WriteOperation::Write)
                 .with_context("service", self.scheme)
@@ -429,7 +429,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
-    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner.write(bs).map_err(|err| {
             err.with_operation(WriteOperation::BlockingWrite)
                 .with_context("service", self.scheme)

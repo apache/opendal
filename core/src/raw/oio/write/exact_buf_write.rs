@@ -20,7 +20,7 @@ use std::cmp::min;
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 
-use crate::raw::oio::Buf;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -62,7 +62,7 @@ enum Buffer {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn WriteBuf) -> Result<usize> {
         loop {
             match &mut self.buffer {
                 Buffer::Empty => {
@@ -151,7 +151,7 @@ mod tests {
 
     #[async_trait]
     impl Write for MockWriter {
-        async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        async fn write(&mut self, bs: &dyn WriteBuf) -> Result<usize> {
             debug!(
                 "test_fuzz_exact_buf_writer: flush size: {}",
                 bs.chunk().len()

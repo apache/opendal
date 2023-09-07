@@ -401,7 +401,7 @@ impl<S> KvWriter<S> {
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.chunk().len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
@@ -427,7 +427,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: &dyn oio::Buf) -> Result<usize> {
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.chunk().len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));

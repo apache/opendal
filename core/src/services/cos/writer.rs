@@ -50,7 +50,7 @@ impl CosWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for CosWriter {
-    async fn write_once(&self, buf: &dyn oio::Buf) -> Result<()> {
+    async fn write_once(&self, buf: &dyn oio::WriteBuf) -> Result<()> {
         let size = buf.remaining();
         let mut req = self.core.cos_put_object_request(
             &self.path,

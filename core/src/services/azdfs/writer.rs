@@ -41,9 +41,7 @@ impl AzdfsWriter {
 
 #[async_trait]
 impl oio::Write for AzdfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len() as u64;
-
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         let mut req = self.core.azdfs_create_request(
             &self.path,
             "file",
@@ -68,9 +66,13 @@ impl oio::Write for AzdfsWriter {
             }
         }
 
-        let mut req =
-            self.core
-                .azdfs_update_request(&self.path, Some(bs.len()), AsyncBody::Bytes(bs))?;
+        let size = bs.remaining();
+
+        let mut req = self.core.azdfs_update_request(
+            &self.path,
+            Some(size),
+            AsyncBody::Bytes(bs.copy_to_bytes(size)),
+        )?;
 
         self.core.sign(&mut req).await?;
 

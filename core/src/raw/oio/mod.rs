@@ -41,6 +41,3 @@ pub use cursor::VectorCursor;
 
 mod entry;
 pub use entry::Entry;
-
-mod buf;
-pub use buf::Buf;

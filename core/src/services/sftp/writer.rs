@@ -20,9 +20,7 @@ use bytes::Bytes;
 use openssh_sftp_client::file::File;
 
 use crate::raw::oio;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::*;
 
 pub struct SftpWriter {
     file: File,
@@ -36,9 +34,8 @@ impl SftpWriter {
 
 #[async_trait]
 impl oio::Write for SftpWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len() as u64;
-        self.file.write_all(&bs).await?;
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        let size = self.file.write(bs.chunk()).await?;
 
         Ok(size)
     }

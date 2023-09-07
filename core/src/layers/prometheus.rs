@@ -662,7 +662,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         self.inner
             .write(bs)
             .await
@@ -695,7 +695,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
+    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         self.inner
             .write(bs)
             .map(|n| {

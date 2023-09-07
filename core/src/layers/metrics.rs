@@ -847,12 +847,12 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         self.inner
             .write(bs)
             .await
             .map(|n| {
-                self.bytes += n;
+                self.bytes += n as u64;
                 n
             })
             .map_err(|err| {
@@ -877,11 +877,11 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for MetricWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
+    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
         self.inner
             .write(bs)
             .map(|n| {
-                self.bytes += n;
+                self.bytes += n as u64;
                 n
             })
             .map_err(|err| {

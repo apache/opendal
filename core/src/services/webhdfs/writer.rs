@@ -39,8 +39,8 @@ impl WebhdfsWriter {
 
 #[async_trait]
 impl oio::Write for WebhdfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        let size = bs.remaining();
 
         let req = self
             .backend
@@ -48,7 +48,7 @@ impl oio::Write for WebhdfsWriter {
                 &self.path,
                 Some(size),
                 self.op.content_type(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::Bytes(bs.copy_to_bytes(size)),
             )
             .await?;
 
@@ -58,7 +58,7 @@ impl oio::Write for WebhdfsWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(size as u64)
+                Ok(size)
             }
             _ => Err(parse_error(resp).await?),
         }

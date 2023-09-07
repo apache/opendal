@@ -302,7 +302,7 @@ pub struct MadsimWriter {
 
 #[async_trait]
 impl oio::Write for MadsimWriter {
-    async fn write(&mut self, bs: Bytes) -> crate::Result<u64> {
+    async fn write(&mut self, bs: &dyn Buf) -> crate::Result<usize> {
         #[cfg(madsim)]
         {
             let req = Request::Write(self.path.to_string(), bs);

@@ -41,21 +41,8 @@ impl<F> HdfsWriter<F> {
 
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-
-        while self.pos < bs.len() {
-            let n = self
-                .f
-                .write(&bs[self.pos..])
-                .await
-                .map_err(parse_io_error)?;
-            self.pos += n;
-        }
-        // Reset pos to 0 for next write.
-        self.pos = 0;
-
-        Ok(size as u64)
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        self.f.write(bs.chunk()).await.map_err(parse_io_error)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -73,17 +60,8 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-
-        while self.pos < bs.len() {
-            let n = self.f.write(&bs[self.pos..]).map_err(parse_io_error)?;
-            self.pos += n;
-        }
-        // Reset pos to 0 for next write.
-        self.pos = 0;
-
-        Ok(size as u64)
+    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        self.f.write(bs.chunk()).map_err(parse_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

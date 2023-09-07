@@ -118,16 +118,16 @@ impl GcsWriter {
 
 #[async_trait]
 impl oio::Write for GcsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len() as u64;
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        let size = bs.remaining();
 
         let location = match &self.location {
             Some(location) => location,
             None => {
-                if self.op.content_length().unwrap_or_default() == bs.len() as u64
-                    && self.written == 0
+                if self.op.content_length().unwrap_or_default() == size as u64 && self.written == 0
                 {
-                    self.write_oneshot(size, AsyncBody::Bytes(bs)).await?;
+                    self.write_oneshot(size as u64, AsyncBody::Bytes(bs.copy_to_bytes(size)))
+                        .await?;
 
                     return Ok(size);
                 } else {
@@ -138,7 +138,7 @@ impl oio::Write for GcsWriter {
             }
         };
 
-        self.buffer.push(bs);
+        self.buffer.push(bs.copy_to_bytes(size));
         // Return directly if the buffer is not full
         if self.buffer.len() <= self.write_fixed_size {
             return Ok(size);

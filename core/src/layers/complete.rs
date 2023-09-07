@@ -711,11 +711,15 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let n = bs.len();
+    async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        let n = w.write(bs).await?;
+        self.written += n as u64;
 
         if let Some(size) = self.size {
-            if self.written + n as u64 > size {
+            if self.written > size {
                 return Err(Error::new(
                     ErrorKind::ContentTruncated,
                     &format!(
@@ -726,11 +730,6 @@ where
             }
         }
 
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-        let n = w.write(bs).await?;
-        self.written += n;
         Ok(n)
     }
 
@@ -773,11 +772,15 @@ impl<W> oio::BlockingWrite for CompleteWriter<W>
 where
     W: oio::BlockingWrite,
 {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let n = bs.len();
+    fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        let n = w.write(bs)?;
+        self.written += n as u64;
 
         if let Some(size) = self.size {
-            if self.written + n as u64 > size {
+            if self.written > size {
                 return Err(Error::new(
                     ErrorKind::ContentTruncated,
                     &format!(
@@ -788,13 +791,7 @@ where
             }
         }
 
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-
-        w.write(bs)?;
-        self.written += n as u64;
-        Ok(n as u64)
+        Ok(n)
     }
 
     fn close(&mut self) -> Result<()> {

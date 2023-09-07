@@ -22,7 +22,7 @@ use std::{cmp, ptr};
 ///
 /// The biggest difference is that `Buf`'s `copy_to_slice` and `copy_to_bytes` only needs `&self`
 /// instead of `&mut self`.
-pub trait Buf {
+pub trait Buf: Send + Sync {
     /// Returns the number of bytes between the current position and the end of the buffer.
     ///
     /// This value is greater than or equal to the length of the slice returned by chunk().
@@ -81,11 +81,12 @@ pub trait Buf {
     /// # Notes
     ///
     /// Users should not assume the returned bytes is the same as the Buf::remaining().
-    fn copy_to_bytes(&self) -> Bytes {
+    fn copy_to_bytes(&self, len: usize) -> Bytes {
         let src = self.chunk();
+        let size = cmp::min(src.len(), len);
 
-        let mut ret = BytesMut::with_capacity(src.len());
-        ret.extend_from_slice(src);
+        let mut ret = BytesMut::with_capacity(size);
+        ret.extend_from_slice(&src[..size]);
         ret.freeze()
     }
 }
@@ -108,8 +109,8 @@ macro_rules! deref_forward_buf {
             (**self).copy_to_slice(dst)
         }
 
-        fn copy_to_bytes(&self) -> Bytes {
-            (**self).copy_to_bytes()
+        fn copy_to_bytes(&self, len: usize) -> Bytes {
+            (**self).copy_to_bytes(len)
         }
     };
 }
@@ -139,7 +140,7 @@ impl Buf for &[u8] {
     }
 }
 
-impl<T: AsRef<[u8]>> Buf for std::io::Cursor<T> {
+impl<T: AsRef<[u8]> + Send + Sync> Buf for std::io::Cursor<T> {
     fn remaining(&self) -> usize {
         let len = self.get_ref().as_ref().len();
         let pos = self.position();
@@ -189,8 +190,9 @@ impl Buf for Bytes {
     }
 
     #[inline]
-    fn copy_to_bytes(&self) -> Bytes {
-        self.clone()
+    fn copy_to_bytes(&self, len: usize) -> Bytes {
+        let size = cmp::min(self.len(), len);
+        self.slice(..size)
     }
 }
 
@@ -211,7 +213,8 @@ impl Buf for BytesMut {
     }
 
     #[inline]
-    fn copy_to_bytes(&self) -> Bytes {
-        self.clone().freeze()
+    fn copy_to_bytes(&self, len: usize) -> Bytes {
+        let size = cmp::min(self.len(), len);
+        Bytes::from(&self[..size])
     }
 }

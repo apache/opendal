@@ -18,8 +18,9 @@
 use std::cmp::min;
 
 use async_trait::async_trait;
-use bytes::{Buf, Bytes, BytesMut};
+use bytes::{Bytes, BytesMut};
 
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -61,21 +62,20 @@ enum Buffer {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, mut bs: Bytes) -> Result<u64> {
+    async fn write(&mut self, bs: &dyn WriteBuf) -> Result<usize> {
         loop {
             match &mut self.buffer {
                 Buffer::Empty => {
-                    if bs.len() >= self.buffer_size {
-                        bs.truncate(self.buffer_size);
-                        self.buffer = Buffer::Consuming(bs);
-                        return Ok(self.buffer_size as u64);
+                    if bs.remaining() >= self.buffer_size {
+                        self.buffer = Buffer::Consuming(bs.copy_to_bytes(self.buffer_size));
+                        return Ok(self.buffer_size);
                     }
 
-                    let size = bs.len() as u64;
-                    let mut fill = BytesMut::with_capacity(bs.len());
-                    fill.extend_from_slice(&bs);
+                    let chunk = bs.chunk();
+                    let mut fill = BytesMut::with_capacity(chunk.len());
+                    fill.extend_from_slice(chunk);
                     self.buffer = Buffer::Filling(fill);
-                    return Ok(size);
+                    return Ok(chunk.len());
                 }
                 Buffer::Filling(fill) => {
                     if fill.len() >= self.buffer_size {
@@ -83,18 +83,17 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                         continue;
                     }
 
-                    let size = min(self.buffer_size - fill.len(), bs.len());
-                    fill.extend_from_slice(&bs[..size]);
-                    bs.advance(size);
-                    return Ok(size as u64);
+                    let size = min(self.buffer_size - fill.len(), bs.chunk().len());
+                    fill.extend_from_slice(&bs.chunk()[..size]);
+                    return Ok(size);
                 }
                 Buffer::Consuming(consume) => {
                     // Make sure filled buffer has been flushed.
                     //
                     // TODO: maybe we can re-fill it after a successful write.
                     while !consume.is_empty() {
-                        let n = self.inner.write(consume.clone()).await?;
-                        consume.advance(n as usize);
+                        let n = self.inner.write(consume).await?;
+                        consume.advance(n);
                     }
                     self.buffer = Buffer::Empty;
                 }
@@ -120,8 +119,8 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                     //
                     // TODO: maybe we can re-fill it after a successful write.
                     while !consume.is_empty() {
-                        let n = self.inner.write(consume.clone()).await?;
-                        consume.advance(n as usize);
+                        let n = self.inner.write(&consume).await?;
+                        consume.advance(n);
                     }
                     self.buffer = Buffer::Empty;
                     break;
@@ -152,11 +151,14 @@ mod tests {
 
     #[async_trait]
     impl Write for MockWriter {
-        async fn write(&mut self, bs: Bytes) -> Result<u64> {
-            debug!("test_fuzz_exact_buf_writer: flush size: {}", bs.len());
+        async fn write(&mut self, bs: &dyn WriteBuf) -> Result<usize> {
+            debug!(
+                "test_fuzz_exact_buf_writer: flush size: {}",
+                bs.chunk().len()
+            );
 
-            self.buf.extend_from_slice(&bs);
-            Ok(bs.len() as u64)
+            self.buf.extend_from_slice(bs.chunk());
+            Ok(bs.chunk().len())
         }
 
         async fn abort(&mut self) -> Result<()> {
@@ -184,8 +186,8 @@ mod tests {
 
         let mut bs = Bytes::from(expected.clone());
         while !bs.is_empty() {
-            let n = w.write(bs.clone()).await?;
-            bs.advance(n as usize);
+            let n = w.write(&bs).await?;
+            bs.advance(n);
         }
 
         w.close().await?;
@@ -223,7 +225,7 @@ mod tests {
 
             let mut bs = Bytes::from(content.clone());
             while !bs.is_empty() {
-                let n = writer.write(bs.clone()).await?;
+                let n = writer.write(&bs).await?;
                 bs.advance(n as usize);
             }
         }

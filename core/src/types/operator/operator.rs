@@ -17,7 +17,7 @@
 
 use std::time::Duration;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::stream;
 use futures::AsyncReadExt;
 use futures::Stream;
@@ -716,7 +716,7 @@ impl Operator {
             self.inner().clone(),
             path,
             (OpWrite::default().with_content_length(bs.len() as u64), bs),
-            |inner, path, (args, bs)| {
+            |inner, path, (args, mut bs)| {
                 let fut = async move {
                     if !validate_path(&path, EntryMode::FILE) {
                         return Err(Error::new(
@@ -729,7 +729,11 @@ impl Operator {
                     }
 
                     let (_, mut w) = inner.write(&path, args).await?;
-                    w.write(bs).await?;
+                    while bs.remaining() > 0 {
+                        let n = w.write(&bs).await?;
+                        bs.advance(n);
+                    }
+
                     w.close().await?;
 
                     Ok(())

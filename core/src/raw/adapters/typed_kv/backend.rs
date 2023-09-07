@@ -22,7 +22,6 @@ use bytes::Bytes;
 
 use super::Adapter;
 use super::Value;
-use crate::raw::oio::VectorCursor;
 use crate::raw::*;
 use crate::*;
 
@@ -363,7 +362,7 @@ pub struct KvWriter<S> {
     path: String,
 
     op: OpWrite,
-    buf: VectorCursor,
+    buf: Option<Vec<u8>>,
 }
 
 impl<S> KvWriter<S> {
@@ -372,11 +371,13 @@ impl<S> KvWriter<S> {
             kv,
             path,
             op,
-            buf: VectorCursor::new(),
+            buf: None,
         }
     }
 
-    fn build(&self) -> Value {
+    fn build(&mut self) -> Value {
+        let value = self.buf.take().map(Bytes::from).unwrap_or_default();
+
         let mut metadata = Metadata::new(EntryMode::FILE);
         if let Some(v) = self.op.cache_control() {
             metadata.set_cache_control(v);
@@ -390,49 +391,58 @@ impl<S> KvWriter<S> {
         if let Some(v) = self.op.content_length() {
             metadata.set_content_length(v);
         } else {
-            metadata.set_content_length(self.buf.len() as u64);
+            metadata.set_content_length(value.len() as u64);
         }
 
-        Value {
-            metadata,
-            value: self.buf.peak_all(),
-        }
+        Value { metadata, value }
     }
 }
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-        self.buf.push(bs);
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.chunk().len();
 
-        Ok(size as u64)
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
+        buf.extend_from_slice(bs.chunk());
+
+        self.buf = Some(buf);
+
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.buf.clear();
-
+        self.buf = None;
         Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.kv.set(&self.path, self.build()).await?;
+        let kv = self.kv.clone();
+        let value = self.build();
+
+        kv.set(&self.path, value).await?;
         Ok(())
     }
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-        self.buf.push(bs);
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.chunk().len();
 
-        Ok(size as u64)
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
+        buf.extend_from_slice(bs.chunk());
+
+        self.buf = Some(buf);
+
+        Ok(size)
     }
 
     fn close(&mut self) -> Result<()> {
-        self.kv.blocking_set(&self.path, self.build())?;
+        let kv = self.kv.clone();
+        let value = self.build();
 
+        kv.blocking_set(&self.path, value)?;
         Ok(())
     }
 }

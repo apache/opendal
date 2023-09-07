@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::VercelArtifactsBackend;
@@ -39,15 +38,15 @@ impl VercelArtifactsWriter {
 
 #[async_trait]
 impl oio::Write for VercelArtifactsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
 
         let resp = self
             .backend
             .vercel_artifacts_put(
                 self.path.as_str(),
                 self.op.content_length().unwrap(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::Bytes(bs.copy_to_bytes(size)),
             )
             .await?;
 
@@ -56,7 +55,7 @@ impl oio::Write for VercelArtifactsWriter {
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
-                Ok(size as u64)
+                Ok(size)
             }
             _ => Err(parse_error(resp).await?),
         }

@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::IpmfsBackend;
@@ -38,9 +37,12 @@ impl IpmfsWriter {
 
 #[async_trait]
 impl oio::Write for IpmfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len() as u64;
-        let resp = self.backend.ipmfs_write(&self.path, bs).await?;
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
+        let resp = self
+            .backend
+            .ipmfs_write(&self.path, bs.copy_to_bytes(size))
+            .await?;
 
         let status = resp.status();
 

@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
@@ -78,15 +77,19 @@ impl<W> oio::Write for AppendObjectWriter<W>
 where
     W: AppendObjectWrite,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let offset = self.offset().await?;
 
-        let size = bs.len() as u64;
+        let size = bs.remaining();
 
         self.inner
-            .append(offset, size, AsyncBody::Bytes(bs))
+            .append(
+                offset,
+                size as u64,
+                AsyncBody::Bytes(bs.copy_to_bytes(size)),
+            )
             .await
-            .map(|_| self.offset = Some(offset + size))?;
+            .map(|_| self.offset = Some(offset + size as u64))?;
 
         Ok(size)
     }

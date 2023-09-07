@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -41,8 +40,8 @@ impl WasabiWriter {
 
 #[async_trait]
 impl oio::Write for WasabiWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
 
         let resp = self
             .core
@@ -52,14 +51,14 @@ impl oio::Write for WasabiWriter {
                 self.op.content_type(),
                 self.op.content_disposition(),
                 self.op.cache_control(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::Bytes(bs.copy_to_bytes(size)),
             )
             .await?;
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(size as u64)
+                Ok(size)
             }
             _ => Err(parse_error(resp).await?),
         }

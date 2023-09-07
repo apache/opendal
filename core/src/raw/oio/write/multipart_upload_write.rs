@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
@@ -120,22 +119,22 @@ impl<W> oio::Write for MultipartUploadWriter<W>
 where
     W: MultipartUploadWrite,
 {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let upload_id = self.upload_id().await?;
 
-        let size = bs.len();
+        let size = bs.remaining();
 
         self.inner
             .write_part(
                 &upload_id,
                 self.parts.len(),
                 size as u64,
-                AsyncBody::Bytes(bs),
+                AsyncBody::Bytes(bs.copy_to_bytes(size)),
             )
             .await
             .map(|v| self.parts.push(v))?;
 
-        Ok(size as u64)
+        Ok(size)
     }
 
     async fn close(&mut self) -> Result<()> {

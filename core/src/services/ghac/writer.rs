@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use super::backend::GhacBackend;
 use super::error::parse_error;
@@ -42,18 +41,23 @@ impl GhacWriter {
 
 #[async_trait]
 impl oio::Write for GhacWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len() as u64;
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
+
         let req = self
             .backend
-            .ghac_upload(self.cache_id, size, AsyncBody::Bytes(bs))
+            .ghac_upload(
+                self.cache_id,
+                size as u64,
+                AsyncBody::Bytes(bs.copy_to_bytes(size)),
+            )
             .await?;
 
         let resp = self.backend.client.send(req).await?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
-            self.size += size;
+            self.size += size as u64;
             Ok(size)
         } else {
             Err(parse_error(resp)

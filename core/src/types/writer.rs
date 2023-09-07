@@ -22,13 +22,14 @@ use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::AsyncWrite;
 use futures::FutureExt;
 use futures::TryStreamExt;
 
 use crate::raw::oio::Write;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -91,10 +92,9 @@ impl Writer {
         };
 
         let mut bs = bs.into();
-
-        while !bs.is_empty() {
-            let n = w.write(bs.clone()).await?;
-            bs.advance(n as usize);
+        while bs.remaining() > 0 {
+            let n = w.write(&bs).await?;
+            bs.advance(n);
         }
 
         Ok(())
@@ -149,10 +149,10 @@ impl Writer {
         let mut written = 0;
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
-            while bs.has_remaining() {
-                let n = w.write(bs.clone()).await?;
-                bs.advance(n as usize);
-                written += n;
+            while bs.remaining() > 0 {
+                let n = w.write(&bs).await?;
+                bs.advance(n);
+                written += n as u64;
             }
         }
         Ok(written)
@@ -262,10 +262,11 @@ impl AsyncWrite for Writer {
                     let mut w = w
                         .take()
                         .expect("invalid state of writer: Idle state with empty write");
-                    let bs = Bytes::from(buf.to_vec());
+                    // FIXME: This will the buf everytime, we should avoid this.
+                    let bs = Bytes::copy_from_slice(buf);
                     let fut = async move {
-                        let n = w.write(bs).await?;
-                        Ok((n as usize, w))
+                        let n = w.write(&bs).await?;
+                        Ok((n, w))
                     };
                     self.state = State::Write(Box::pin(fut));
                 }
@@ -334,10 +335,11 @@ impl tokio::io::AsyncWrite for Writer {
                     let mut w = w
                         .take()
                         .expect("invalid state of writer: Idle state with empty write");
-                    let bs = Bytes::from(buf.to_vec());
+                    // FIXME: This will the buf everytime, we should avoid this.
+                    let bs = Bytes::copy_from_slice(buf);
                     let fut = async move {
-                        let n = w.write(bs).await?;
-                        Ok((n as usize, w))
+                        let n = w.write(&bs).await?;
+                        Ok((n, w))
                     };
                     self.state = State::Write(Box::pin(fut));
                 }
@@ -416,10 +418,9 @@ impl BlockingWriter {
     /// Write into inner writer.
     pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let mut bs = bs.into();
-
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone())?;
-            bs.advance(n as usize);
+        while bs.remaining() > 0 {
+            let n = self.inner.write(&bs)?;
+            bs.advance(n);
         }
 
         Ok(())
@@ -434,8 +435,7 @@ impl BlockingWriter {
 impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.inner
-            .write(Bytes::from(buf.to_vec()))
-            .map(|n| n as usize)
+            .write(&buf)
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 

@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use super::Adapter;
 use crate::raw::*;
@@ -390,11 +389,14 @@ impl<S> KvWriter<S> {
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-        self.buf = Some(bs.into());
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.chunk().len();
 
-        Ok(size as u64)
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
+        buf.extend_from_slice(bs.chunk());
+        self.buf = Some(buf);
+
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -414,11 +416,15 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-        self.buf = Some(bs.into());
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.chunk().len();
 
-        Ok(size as u64)
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
+        buf.extend_from_slice(bs.chunk());
+
+        self.buf = Some(buf);
+
+        Ok(size)
     }
 
     fn close(&mut self) -> Result<()> {

@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::backend::FtpBackend;
@@ -41,8 +40,9 @@ impl FtpWriter {
 
 #[async_trait]
 impl oio::Write for FtpWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
+        let bs = bs.copy_to_bytes(size);
 
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
         let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
@@ -52,7 +52,7 @@ impl oio::Write for FtpWriter {
 
         ftp_stream.finalize_put_stream(data_stream).await?;
 
-        Ok(size as u64)
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {

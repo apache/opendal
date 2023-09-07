@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;
@@ -32,7 +31,7 @@ pub trait OneShotWrite: Send + Sync + Unpin {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    async fn write_once(&self, size: u64, stream: oio::Streamer) -> Result<()>;
+    async fn write_once(&self, body: &dyn oio::WriteBuf) -> Result<()>;
 }
 
 /// OneShotWrite is used to implement [`Write`] based on one shot.
@@ -49,12 +48,9 @@ impl<W: OneShotWrite> OneShotWriter<W> {
 
 #[async_trait]
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let cursor = oio::Cursor::from(bs);
-
-        let size = cursor.len() as u64;
-        self.inner.write_once(size, Box::new(cursor)).await?;
-
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
+        self.inner.write_once(bs).await?;
         Ok(size)
     }
 

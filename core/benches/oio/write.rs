@@ -48,8 +48,8 @@ pub fn bench_exact_buf_write(c: &mut Criterion) {
 
                 let mut bs = content.clone();
                 while !bs.is_empty() {
-                    let n = w.write(bs.clone()).await.unwrap();
-                    bs.advance(n as usize);
+                    let n = w.write(&bs).await.unwrap();
+                    bs.advance(n);
                 }
                 w.close().await.unwrap();
             })

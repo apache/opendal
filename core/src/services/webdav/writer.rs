@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::WebdavBackend;
@@ -62,10 +61,11 @@ impl WebdavWriter {
 
 #[async_trait]
 impl oio::Write for WebdavWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len() as u64;
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
 
-        self.write_oneshot(size, AsyncBody::Bytes(bs)).await?;
+        self.write_oneshot(size as u64, AsyncBody::Bytes(bs.copy_to_bytes(size)))
+            .await?;
 
         Ok(size)
     }

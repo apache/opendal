@@ -18,12 +18,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -49,14 +47,16 @@ impl S3Writer {
 
 #[async_trait]
 impl oio::OneShotWrite for S3Writer {
-    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
+    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
+        let size = bs.remaining();
+
         let mut req = self.core.s3_put_object_request(
             &self.path,
-            Some(size),
+            Some(size as u64),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            AsyncBody::Stream(stream),
+            AsyncBody::Bytes(bs.copy_to_bytes(size)),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -95,7 +95,8 @@ impl oio::MultipartUploadWrite for S3Writer {
                 let bs = resp.into_body().bytes().await?;
 
                 let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
+                        .map_err(new_xml_deserialize_error)?;
 
                 Ok(result.upload_id)
             }

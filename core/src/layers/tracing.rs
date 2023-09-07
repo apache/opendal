@@ -324,7 +324,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner.write(bs).await
     }
 
@@ -350,7 +350,7 @@ impl<R: oio::BlockingWrite> oio::BlockingWrite for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner.write(bs)
     }
 

@@ -67,14 +67,10 @@ impl SupabaseWriter {
 
 #[async_trait]
 impl oio::Write for SupabaseWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        if bs.is_empty() {
-            return Ok(9);
-        }
-
-        let size = bs.len();
-        self.upload(bs).await?;
-        Ok(size as u64)
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
+        self.upload(bs.copy_to_bytes(size)).await?;
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {

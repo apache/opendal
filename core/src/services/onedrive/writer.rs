@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Buf;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -46,8 +45,9 @@ impl OneDriveWriter {
 
 #[async_trait]
 impl oio::Write for OneDriveWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.remaining();
+        let bs = bs.copy_to_bytes(size);
 
         if size <= Self::MAX_SIMPLE_SIZE {
             self.write_simple(bs).await?;
@@ -55,7 +55,7 @@ impl oio::Write for OneDriveWriter {
             self.write_chunked(bs).await?;
         }
 
-        Ok(size as u64)
+        Ok(size)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -167,7 +167,7 @@ impl OneDriveWriter {
             StatusCode::OK => {
                 let bs = resp.into_body().bytes().await?;
                 let result: OneDriveUploadSessionCreationResponseBody =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
             _ => Err(parse_error(resp).await?),

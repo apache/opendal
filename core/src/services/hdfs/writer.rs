@@ -18,7 +18,6 @@
 use std::io::Write;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::error::parse_io_error;
@@ -27,35 +26,18 @@ use crate::*;
 
 pub struct HdfsWriter<F> {
     f: F,
-    /// The position of current written bytes in the buffer.
-    ///
-    /// We will maintain the posstion in pos to make sure the buffer is written correctly.
-    pos: usize,
 }
 
 impl<F> HdfsWriter<F> {
     pub fn new(f: F) -> Self {
-        Self { f, pos: 0 }
+        Self { f }
     }
 }
 
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-
-        while self.pos < bs.len() {
-            let n = self
-                .f
-                .write(&bs[self.pos..])
-                .await
-                .map_err(parse_io_error)?;
-            self.pos += n;
-        }
-        // Reset pos to 0 for next write.
-        self.pos = 0;
-
-        Ok(size as u64)
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        self.f.write(bs.chunk()).await.map_err(parse_io_error)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -73,17 +55,8 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
 }
 
 impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
-
-        while self.pos < bs.len() {
-            let n = self.f.write(&bs[self.pos..]).map_err(parse_io_error)?;
-            self.pos += n;
-        }
-        // Reset pos to 0 for next write.
-        self.pos = 0;
-
-        Ok(size as u64)
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        self.f.write(bs.chunk()).map_err(parse_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

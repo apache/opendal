@@ -18,12 +18,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -52,14 +50,15 @@ impl OssWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for OssWriter {
-    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
+    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
+        let size = bs.remaining();
         let mut req = self.core.oss_put_object_request(
             &self.path,
-            Some(size),
+            Some(size as u64),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            AsyncBody::Stream(stream),
+            AsyncBody::Bytes(bs.copy_to_bytes(size)),
             false,
         )?;
 
@@ -100,7 +99,8 @@ impl oio::MultipartUploadWrite for OssWriter {
                 let bs = resp.into_body().bytes().await?;
 
                 let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
+                        .map_err(new_xml_deserialize_error)?;
 
                 Ok(result.upload_id)
             }

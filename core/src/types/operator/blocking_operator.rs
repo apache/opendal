@@ -20,6 +20,7 @@ use std::io::Read;
 use bytes::Bytes;
 
 use super::operator_functions::*;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -550,7 +551,7 @@ impl BlockingOperator {
             self.inner().clone(),
             path,
             (OpWrite::default().with_content_length(bs.len() as u64), bs),
-            |inner, path, (args, bs)| {
+            |inner, path, (args, mut bs)| {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -561,7 +562,10 @@ impl BlockingOperator {
                 }
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
-                w.write(bs)?;
+                while bs.remaining() > 0 {
+                    let n = w.write(&bs)?;
+                    bs.advance(n);
+                }
                 w.close()?;
 
                 Ok(())

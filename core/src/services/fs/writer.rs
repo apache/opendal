@@ -15,14 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Seek;
-use std::io::SeekFrom;
 use std::io::Write;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use tokio::io::AsyncSeekExt;
 use tokio::io::AsyncWriteExt;
 
 use super::error::parse_io_error;
@@ -33,7 +29,6 @@ pub struct FsWriter<F> {
     target_path: PathBuf,
     tmp_path: Option<PathBuf>,
     f: F,
-    pos: u64,
 }
 
 impl<F> FsWriter<F> {
@@ -42,28 +37,14 @@ impl<F> FsWriter<F> {
             target_path,
             tmp_path,
             f,
-            pos: 0,
         }
     }
 }
 
 #[async_trait]
 impl oio::Write for FsWriter<tokio::fs::File> {
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len() as u64;
-
-        self.f
-            .seek(SeekFrom::Start(self.pos))
-            .await
-            .map_err(parse_io_error)?;
-        self.f.write_all(&bs).await.map_err(parse_io_error)?;
-        self.pos += size;
-
-        Ok(size)
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        self.f.write(bs.chunk()).await.map_err(parse_io_error)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -87,18 +68,8 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
-        self.f
-            .seek(SeekFrom::Start(self.pos))
-            .map_err(parse_io_error)?;
-        self.f.write_all(&bs).map_err(parse_io_error)?;
-        self.pos += bs.len() as u64;
-
-        Ok(bs.len() as u64)
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        self.f.write(bs.chunk()).map_err(parse_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

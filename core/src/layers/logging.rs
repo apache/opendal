@@ -1252,10 +1252,10 @@ impl<W> LoggingWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<u64> {
+    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         match self.inner.write(bs).await {
             Ok(n) => {
-                self.written += n;
+                self.written += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data write {}B",
@@ -1349,11 +1349,10 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: Bytes) -> Result<u64> {
-        let size = bs.len();
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         match self.inner.write(bs) {
             Ok(n) => {
-                self.written += n;
+                self.written += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} written={} -> data write {}B",
@@ -1361,7 +1360,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     WriteOperation::BlockingWrite,
                     self.path,
                     self.written,
-                    size
+                    n
                 );
                 Ok(n)
             }

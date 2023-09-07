@@ -337,7 +337,7 @@ impl tokio::io::AsyncWrite for Writer {
                     let bs = Bytes::copy_from_slice(buf);
                     let fut = async move {
                         let n = w.write(&bs).await?;
-                        Ok((n as usize, w))
+                        Ok((n, w))
                     };
                     self.state = State::Write(Box::pin(fut));
                 }

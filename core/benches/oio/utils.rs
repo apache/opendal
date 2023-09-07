@@ -26,8 +26,8 @@ pub struct BlackHoleWriter;
 
 #[async_trait]
 impl oio::Write for BlackHoleWriter {
-    async fn write(&mut self, bs: Bytes) -> opendal::Result<u64> {
-        Ok(bs.len() as u64)
+    async fn write(&mut self, bs: &dyn opendal::Buf) -> opendal::Result<usize> {
+        Ok(bs.remaining())
     }
 
     async fn abort(&mut self) -> opendal::Result<()> {

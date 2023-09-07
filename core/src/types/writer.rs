@@ -260,8 +260,10 @@ impl AsyncWrite for Writer {
                     let mut w = w
                         .take()
                         .expect("invalid state of writer: Idle state with empty write");
+                    // FIXME: This will the buf everytime, we should avoid this.
+                    let bs = Bytes::copy_from_slice(buf);
                     let fut = async move {
-                        let n = w.write(&buf).await?;
+                        let n = w.write(&bs).await?;
                         Ok((n, w))
                     };
                     self.state = State::Write(Box::pin(fut));
@@ -331,8 +333,10 @@ impl tokio::io::AsyncWrite for Writer {
                     let mut w = w
                         .take()
                         .expect("invalid state of writer: Idle state with empty write");
+                    // FIXME: This will the buf everytime, we should avoid this.
+                    let bs = Bytes::copy_from_slice(buf);
                     let fut = async move {
-                        let n = w.write(&buf).await?;
+                        let n = w.write(&bs).await?;
                         Ok((n as usize, w))
                     };
                     self.state = State::Write(Box::pin(fut));

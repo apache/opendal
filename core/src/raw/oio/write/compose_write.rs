@@ -39,7 +39,6 @@
 //! type_alias_impl_trait has been stabilized.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 use crate::raw::*;
 use crate::*;

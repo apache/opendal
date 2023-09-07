@@ -18,7 +18,6 @@
 use std::io::Write;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::error::parse_io_error;
@@ -27,15 +26,11 @@ use crate::*;
 
 pub struct HdfsWriter<F> {
     f: F,
-    /// The position of current written bytes in the buffer.
-    ///
-    /// We will maintain the posstion in pos to make sure the buffer is written correctly.
-    pos: usize,
 }
 
 impl<F> HdfsWriter<F> {
     pub fn new(f: F) -> Self {
-        Self { f, pos: 0 }
+        Self { f }
     }
 }
 

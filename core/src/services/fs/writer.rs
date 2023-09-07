@@ -15,14 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Seek;
-use std::io::SeekFrom;
 use std::io::Write;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use tokio::io::AsyncSeekExt;
 use tokio::io::AsyncWriteExt;
 
 use super::error::parse_io_error;
@@ -33,7 +29,6 @@ pub struct FsWriter<F> {
     target_path: PathBuf,
     tmp_path: Option<PathBuf>,
     f: F,
-    pos: u64,
 }
 
 impl<F> FsWriter<F> {
@@ -42,7 +37,6 @@ impl<F> FsWriter<F> {
             target_path,
             tmp_path,
             f,
-            pos: 0,
         }
     }
 }
@@ -50,7 +44,7 @@ impl<F> FsWriter<F> {
 #[async_trait]
 impl oio::Write for FsWriter<tokio::fs::File> {
     async fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
-        self.f.write(&bs.chunk()).await.map_err(parse_io_error)
+        self.f.write(bs.chunk()).await.map_err(parse_io_error)
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -75,7 +69,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
     fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
-        self.f.write(&bs.chunk()).map_err(parse_io_error)
+        self.f.write(bs.chunk()).map_err(parse_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

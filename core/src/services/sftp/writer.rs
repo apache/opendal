@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use openssh_sftp_client::file::File;
 
 use crate::raw::oio;

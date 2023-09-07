@@ -22,7 +22,6 @@ use bytes::Bytes;
 
 use super::Adapter;
 use super::Value;
-use crate::raw::oio::VectorCursor;
 use crate::raw::*;
 use crate::*;
 

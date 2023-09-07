@@ -994,7 +994,7 @@ pub async fn test_writer_abort(op: Operator) -> Result<()> {
         }
     };
 
-    if let Err(e) = writer.write(content.as_slice()).await {
+    if let Err(e) = writer.write(content).await {
         assert_eq!(e.kind(), ErrorKind::Unsupported);
         return Ok(());
     }
@@ -1120,8 +1120,8 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
     let content_b = gen_fixed_bytes(size);
 
     let mut w = op.writer(&path).await?;
-    w.write(content_a.as_slice()).await?;
-    w.write(content_b.as_slice()).await?;
+    w.write(content_a.clone()).await?;
+    w.write(content_b.clone()).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");

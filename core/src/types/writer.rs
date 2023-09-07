@@ -80,7 +80,7 @@ impl Writer {
     }
 
     /// Write into inner writer.
-    pub async fn write(&mut self, mut bs: impl Buf) -> Result<()> {
+    pub async fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         let w = if let State::Idle(Some(w)) = &mut self.state {
             w
         } else {
@@ -90,6 +90,7 @@ impl Writer {
             );
         };
 
+        let mut bs = bs.into();
         while bs.remaining() > 0 {
             let n = w.write(&bs).await?;
             bs.advance(n);

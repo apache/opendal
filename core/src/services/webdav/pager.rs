@@ -62,13 +62,15 @@ impl oio::Page for WebdavPager {
             }
 
             let normalized_path = build_rel_path(&self.root, path);
-            if normalized_path == self.path {
+            let decoded_path = percent_decode_path(normalized_path.as_str());
+
+            if normalized_path == self.path || decoded_path == self.path {
                 // WebDav server may return the current path as an entry.
                 continue;
             }
 
             let meta = res.parse_into_metadata()?;
-            entries.push(oio::Entry::new(&normalized_path, meta))
+            entries.push(oio::Entry::new(&decoded_path, meta))
         }
 
         Ok(Some(entries))

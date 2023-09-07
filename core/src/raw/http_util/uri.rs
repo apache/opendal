@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use percent_encoding::percent_decode_str;
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;
@@ -47,6 +48,16 @@ pub fn percent_encode_path(path: &str) -> String {
     utf8_percent_encode(path, &PATH_ENCODE_SET).to_string()
 }
 
+/// percent_decode_path will do percent decoding for http decode path.
+///
+/// If the input is not percent encoded or not valid utf8, return the input.
+pub fn percent_decode_path(path: &str) -> String {
+    match percent_decode_str(path).decode_utf8() {
+        Ok(v) => v.to_string(),
+        Err(_) => path.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,6 +86,45 @@ mod tests {
 
         for (name, input, expected) in cases {
             let actual = percent_encode_path(input);
+
+            assert_eq!(actual, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_percent_decode_path() {
+        let cases = vec![
+            (
+                "Reserved Characters",
+                "%3B%2C/%3F%3A%40%26%3D%2B%24",
+                ";,/?:@&=+$",
+            ),
+            ("Unescaped Characters", "-_.!~*'()", "-_.!~*'()"),
+            ("Number Sign", "%23", "#"),
+            (
+                "Alphanumeric Characters + Space",
+                "ABC%20abc%20123",
+                "ABC abc 123",
+            ),
+            (
+                "Unicode Characters",
+                "%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C%EF%BC%81%E2%9D%A4",
+                "你好，世界！❤",
+            ),
+            (
+                "Double Encoded Characters",
+                "Double%2520Encoded",
+                "Double%20Encoded",
+            ),
+            (
+                "Not Percent Encoded Characters",
+                "/not percent encoded/path;,/?:@&=+$-",
+                "/not percent encoded/path;,/?:@&=+$-",
+            ),
+        ];
+
+        for (name, input, expected) in cases {
+            let actual = percent_decode_path(input);
 
             assert_eq!(actual, expected, "{name}");
         }

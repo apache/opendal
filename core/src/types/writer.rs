@@ -415,7 +415,8 @@ impl BlockingWriter {
     }
 
     /// Write into inner writer.
-    pub fn write(&mut self, mut bs: impl Buf) -> Result<()> {
+    pub fn write(&mut self, bs: impl Into<Bytes>) -> Result<()> {
+        let mut bs = bs.into();
         while bs.remaining() > 0 {
             let n = self.inner.write(&bs)?;
             bs.advance(n);

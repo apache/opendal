@@ -876,7 +876,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         let mut backoff = self.builder.build();
 
         loop {
-            match self.inner.write(bs.clone()).await {
+            match self.inner.write(bs).await {
                 Ok(v) => return Ok(v),
                 Err(e) if !e.is_temporary() => return Err(e),
                 Err(e) => match backoff.next() {
@@ -953,7 +953,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
     fn write(&mut self, bs: &dyn Buf) -> Result<usize> {
-        { || self.inner.write(bs.clone()) }
+        { || self.inner.write(bs) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {

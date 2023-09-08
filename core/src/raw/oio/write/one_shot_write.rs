@@ -16,6 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use std::task::{ready, Context, Poll};
 
@@ -33,7 +34,7 @@ pub trait OneShotWrite: Send + Sync + Unpin {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    async fn write_once(&self, body: &dyn oio::WriteBuf) -> Result<()>;
+    async fn write_once(&self, bs: Bytes) -> Result<()>;
 }
 
 /// OneShotWrite is used to implement [`Write`] based on one shot.
@@ -62,7 +63,14 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
             match &mut self.state {
                 State::Idle(w) => {
                     let w = w.take().expect("writer must be valid");
-                    let fut = w.write_once(bs);
+
+                    let size = bs.remaining();
+                    let bs = bs.copy_to_bytes(size);
+                    let fut = async {
+                        let res = w.write_once(bs).await;
+
+                        (w, res.map(|_| size))
+                    };
 
                     self.state = State::Write(Box::pin(fut));
                 }

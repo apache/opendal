@@ -16,6 +16,7 @@
 // under the License.
 
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -41,14 +42,16 @@ impl SupabaseWriter {
             path: path.to_string(),
         }
     }
+}
 
-    pub async fn upload(&self, bytes: Bytes) -> Result<()> {
-        let size = bytes.len();
+impl oio::OneShotWrite for SupabaseWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
             Some(size),
             self.op.content_type(),
-            AsyncBody::Bytes(bytes),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req)?;
@@ -62,25 +65,5 @@ impl SupabaseWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for SupabaseWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        let size = bs.remaining();
-        self.upload(bs.copy_to_bytes(size)).await?;
-        Ok(size)
-    }
-
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "The abort operation is not yet supported for Supabase backend",
-        ))
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
     }
 }

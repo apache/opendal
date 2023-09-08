@@ -27,6 +27,7 @@ use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
+use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
 

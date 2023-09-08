@@ -20,6 +20,7 @@ use std::task::{ready, Context, Poll};
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::FutureExt;
 
 use super::Adapter;
 use crate::raw::*;
@@ -445,9 +446,7 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
                         None => return Poll::Ready(Ok(())),
                     };
 
-                    let fut = async move {
-                        kv.set(&path, &buf).await?;
-                    };
+                    let fut = async move { kv.set(&path, &buf).await };
                     self.future = Some(Box::pin(fut));
                 }
             }

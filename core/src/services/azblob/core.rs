@@ -352,12 +352,6 @@ impl AzblobCore {
     ///
     /// - The maximum size of the content could be appended is 4MB.
     /// - `Append Block` succeeds only if the blob already exists.
-    /// - It does not need to provide append position.
-    /// - But it could use append position to verify the content is appended to the right position.
-    ///
-    /// Since the `appendpos` only returned by the append operation response,
-    /// we could not use it when we want to append content to the blob first time.
-    /// (The first time of the appender, not the blob)
     ///
     /// # Reference
     ///
@@ -365,8 +359,8 @@ impl AzblobCore {
     pub fn azblob_append_blob_request(
         &self,
         path: &str,
+        position: u64,
         size: u64,
-        position: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -385,12 +379,7 @@ impl AzblobCore {
 
         req = req.header(CONTENT_LENGTH, size);
 
-        if let Some(pos) = position {
-            req = req.header(
-                HeaderName::from_static(constants::X_MS_BLOB_CONDITION_APPENDPOS),
-                pos.to_string(),
-            );
-        }
+        req = req.header(constants::X_MS_BLOB_CONDITION_APPENDPOS, position);
 
         let req = req.body(body).map_err(new_request_build_error)?;
 

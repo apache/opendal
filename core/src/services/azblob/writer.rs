@@ -16,9 +16,9 @@
 // under the License.
 
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzblobCore;
@@ -27,34 +27,32 @@ use crate::raw::*;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
-const X_MS_BLOB_APPEND_OFFSET: &str = "x-ms-blob-append-offset";
+
+pub type AzblobWriters =
+    oio::TwoWaysWriter<oio::OneShotWriter<AzblobWriter>, oio::AppendObjectWriter<AzblobWriter>>;
 
 pub struct AzblobWriter {
     core: Arc<AzblobCore>,
 
     op: OpWrite,
     path: String,
-
-    position: Option<u64>,
 }
 
 impl AzblobWriter {
     pub fn new(core: Arc<AzblobCore>, op: OpWrite, path: String) -> Self {
-        AzblobWriter {
-            core,
-            op,
-            path,
-            position: None,
-        }
+        AzblobWriter { core, op, path }
     }
+}
 
-    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
+#[async_trait]
+impl oio::OneShotWrite for AzblobWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.azblob_put_blob_request(
             &self.path,
-            Some(size),
+            Some(bs.len() as u64),
             self.op.content_type(),
             self.op.cache_control(),
-            body,
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -71,13 +69,11 @@ impl AzblobWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
-    async fn current_position(&mut self) -> Result<Option<u64>> {
-        if let Some(v) = self.position {
-            return Ok(Some(v));
-        }
-
-        // TODO: we should check with current etag to make sure file not changed.
+#[async_trait]
+impl oio::AppendObjectWrite for AzblobWriter {
+    async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
             .azblob_get_blob_properties(&self.path, None, None)
@@ -86,9 +82,6 @@ impl AzblobWriter {
         let status = resp.status();
 
         match status {
-            // Just check the blob type.
-            // If it is not an appendable blob, return an error.
-            // We can not get the append position of the blob here.
             StatusCode::OK => {
                 let headers = resp.headers();
                 let blob_type = headers.get(X_MS_BLOB_TYPE).and_then(|v| v.to_str().ok());
@@ -98,9 +91,9 @@ impl AzblobWriter {
                         "the blob is not an appendable blob.",
                     ));
                 }
-                Ok(None)
+
+                Ok(parse_content_length(headers)?.unwrap_or_default())
             }
-            // If the blob is not existing, we need to create one.
             StatusCode::NOT_FOUND => {
                 let mut req = self.core.azblob_init_appendable_blob_request(
                     &self.path,
@@ -121,20 +114,16 @@ impl AzblobWriter {
                         return Err(parse_error(resp).await?);
                     }
                 }
-
-                self.position = Some(0);
-                Ok(Some(0))
+                Ok(0)
             }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn append_oneshot(&mut self, size: u64, body: AsyncBody) -> Result<()> {
-        let _ = self.current_position().await?;
-
-        let mut req =
-            self.core
-                .azblob_append_blob_request(&self.path, size, self.position, body)?;
+    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
+            .core
+            .azblob_append_blob_request(&self.path, offset, size, body)?;
 
         self.core.sign(&mut req).await?;
 
@@ -143,33 +132,10 @@ impl AzblobWriter {
         let status = resp.status();
         match status {
             StatusCode::CREATED => {
-                let headers = resp.headers();
-                let position = headers
-                    .get(X_MS_BLOB_APPEND_OFFSET)
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<u64>().ok());
-                self.position = position.map(|v| v + size);
+                resp.into_body().consume().await?;
+                Ok(())
             }
-            _ => {
-                return Err(parse_error(resp).await?);
-            }
+            _ => Err(parse_error(resp).await?),
         }
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl oio::Write for AzblobWriter {
-    fn poll_write(&mut self, _: &mut Context<'_>, _: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        todo!()
-    }
-
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
     }
 }

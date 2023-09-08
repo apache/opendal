@@ -17,9 +17,11 @@
 
 use async_trait::async_trait;
 use http::StatusCode;
+use std::task::{Context, Poll};
 
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -35,9 +37,8 @@ impl IpmfsWriter {
     }
 }
 
-#[async_trait]
-impl oio::Write for IpmfsWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+impl oio::OneShotWrite for IpmfsWriter {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
         let size = bs.remaining();
         let resp = self
             .backend
@@ -49,17 +50,9 @@ impl oio::Write for IpmfsWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
     }
 }

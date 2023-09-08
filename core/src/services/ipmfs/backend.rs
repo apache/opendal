@@ -65,7 +65,7 @@ impl IpmfsBackend {
 impl Accessor for IpmfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = IpmfsWriter;
+    type Writer = oio::OneShotWriter<IpmfsWriter>;
     type BlockingWriter = ();
     type Pager = IpmfsPager;
     type BlockingPager = ();
@@ -131,7 +131,7 @@ impl Accessor for IpmfsBackend {
 
         Ok((
             RpWrite::default(),
-            IpmfsWriter::new(self.clone(), path.to_string()),
+            oio::OneShotWriter::new(IpmfsWriter::new(self.clone(), path.to_string())),
         ))
     }
 

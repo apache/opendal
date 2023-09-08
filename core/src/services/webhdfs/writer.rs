@@ -37,6 +37,7 @@ impl WebhdfsWriter {
     }
 }
 
+#[async_trait]
 impl oio::OneShotWrite for WebhdfsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

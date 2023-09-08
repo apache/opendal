@@ -37,6 +37,7 @@ impl VercelArtifactsWriter {
     }
 }
 
+#[async_trait]
 impl oio::OneShotWrite for VercelArtifactsWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

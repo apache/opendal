@@ -40,6 +40,7 @@ impl WasabiWriter {
     }
 }
 
+#[async_trait]
 impl oio::OneShotWrite for WasabiWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

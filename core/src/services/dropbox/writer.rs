@@ -38,6 +38,7 @@ impl DropboxWriter {
     }
 }
 
+#[async_trait]
 impl oio::OneShotWrite for DropboxWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

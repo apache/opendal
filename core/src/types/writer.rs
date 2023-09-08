@@ -28,8 +28,8 @@ use futures::AsyncWrite;
 use futures::FutureExt;
 use futures::TryStreamExt;
 
-use crate::raw::oio::Write;
 use crate::raw::oio::WriteBuf;
+use crate::raw::oio::{Write, WriteExt};
 use crate::raw::*;
 use crate::*;
 
@@ -205,7 +205,7 @@ impl Writer {
     ///
     /// Abort should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
-    pub fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    pub async fn abort(&mut self) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
             w.abort().await
         } else {
@@ -222,7 +222,7 @@ impl Writer {
     ///
     /// Close should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
-    pub fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    pub async fn close(&mut self) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
             w.close().await
         } else {

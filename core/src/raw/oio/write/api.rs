@@ -181,7 +181,7 @@ impl<W> Future for AbortFuture<'_, W>
 where
     W: Write + Unpin + ?Sized,
 {
-    type Output = Result<usize>;
+    type Output = Result<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.project();
@@ -199,7 +199,7 @@ impl<W> Future for CloseFuture<'_, W>
 where
     W: Write + Unpin + ?Sized,
 {
-    type Output = Result<usize>;
+    type Output = Result<()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.project();

@@ -37,6 +37,7 @@ impl IpmfsWriter {
     }
 }
 
+#[async_trait]
 impl oio::OneShotWrite for IpmfsWriter {
     async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
         let size = bs.remaining();

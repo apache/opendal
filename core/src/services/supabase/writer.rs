@@ -44,6 +44,7 @@ impl SupabaseWriter {
     }
 }
 
+#[async_trait]
 impl oio::OneShotWrite for SupabaseWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

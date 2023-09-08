@@ -87,6 +87,7 @@ impl GdriveWriter {
     }
 }
 
+#[async_trait]
 impl oio::OneShotWrite for GdriveWriter {
     async fn write_once(&self, bs: Bytes) -> Result<()> {
         let size = bs.len();

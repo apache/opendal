@@ -18,7 +18,7 @@
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 use crate::raw::*;
 use crate::*;
@@ -147,12 +147,12 @@ where
                     }
                 }
                 State::Init(fut) => {
-                    let (w, upload_id) = futures::ready!(fut.as_mut().poll(cx));
+                    let (w, upload_id) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
                     self.upload_id = Some(Arc::new(upload_id?));
                 }
                 State::Write(fut) => {
-                    let (w, res) = futures::ready!(fut.as_mut().poll(cx));
+                    let (w, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
 
                     let (written, part) = res?;

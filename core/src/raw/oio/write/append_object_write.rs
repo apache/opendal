@@ -16,6 +16,8 @@
 // under the License.
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
+use std::task::{ready, Context, Poll};
 
 use crate::raw::*;
 use crate::*;
@@ -46,16 +48,22 @@ pub trait AppendObjectWrite: Send + Sync + Unpin {
 ///
 /// - Allow users to switch to un-buffered mode if users write 16MiB every time.
 pub struct AppendObjectWriter<W: AppendObjectWrite> {
-    inner: W,
+    state: State<W>,
 
     offset: Option<u64>,
+}
+
+enum State<W> {
+    Idle(Option<W>),
+    Offset(BoxFuture<'static, (W, Result<u64>)>),
+    Append(BoxFuture<'static, (W, Result<usize>)>),
 }
 
 impl<W: AppendObjectWrite> AppendObjectWriter<W> {
     /// Create a new AppendObjectWriter.
     pub fn new(inner: W) -> Self {
         Self {
-            inner,
+            state: State::Idle(Some(inner)),
             offset: None,
         }
     }
@@ -78,27 +86,51 @@ where
     W: AppendObjectWrite,
 {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        let offset = self.offset().await?;
+        loop {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let w = w.take().expect("writer must be valid");
+                    match self.offset {
+                        Some(offset) => {
+                            let size = bs.remaining();
+                            let bs = bs.copy_to_bytes(size);
 
-        let size = bs.remaining();
+                            self.state = State::Append(Box::pin(async move {
+                                w.append(offset, size as u64, AsyncBody::Bytes(bs)).await?;
 
-        self.inner
-            .append(
-                offset,
-                size as u64,
-                AsyncBody::Bytes(bs.copy_to_bytes(size)),
-            )
-            .await
-            .map(|_| self.offset = Some(offset + size as u64))?;
+                                (w, Ok(size))
+                            }));
+                        }
+                        None => {
+                            self.state = State::Offset(Box::pin(async move {
+                                let offset = w.offset().await?;
 
-        Ok(size)
+                                (w, Ok(offset))
+                            }));
+                        }
+                    }
+                }
+                State::Offset(fut) => {
+                    let (w, offset) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+                    self.offset = Some(offset?);
+                }
+                State::Append(fut) => {
+                    let (w, res) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+
+                    let size = res?;
+                    return Poll::Ready(Ok(size));
+                }
+            }
+        }
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 }

@@ -403,7 +403,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
 
 #[async_trait::async_trait]
 impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner.write(bs).await.map_err(|err| {
             err.with_operation(WriteOperation::Write)
                 .with_context("service", self.scheme)
@@ -411,7 +411,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         })
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.inner.abort().await.map_err(|err| {
             err.with_operation(WriteOperation::Abort)
                 .with_context("service", self.scheme)
@@ -419,7 +419,7 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
         })
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.inner.close().await.map_err(|err| {
             err.with_operation(WriteOperation::Close)
                 .with_context("service", self.scheme)

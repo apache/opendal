@@ -662,7 +662,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner
             .write(bs)
             .await
@@ -679,14 +679,14 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             })
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.inner.abort().await.map_err(|err| {
             self.stats.increment_errors_total(self.op, err.kind());
             err
         })
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.inner.close().await.map_err(|err| {
             self.stats.increment_errors_total(self.op, err.kind());
             err

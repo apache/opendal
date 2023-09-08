@@ -285,15 +285,15 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner.write(bs).await
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.inner.abort().await
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.inner.close().await
     }
 }

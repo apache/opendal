@@ -33,20 +33,20 @@ impl SftpWriter {
 
 #[async_trait]
 impl oio::Write for SftpWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let size = self.file.write(bs.chunk()).await?;
 
         Ok(size)
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "SFTP does not support aborting writes",
         ))
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         Ok(())
     }
 }

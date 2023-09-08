@@ -163,11 +163,11 @@ mod tests {
             Poll::Ready(Ok(bs.chunk().len()))
         }
 
-        fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
+        fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
             Ok(())
         }
 
-        fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
+        fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
             Ok(())
         }
     }

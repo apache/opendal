@@ -118,7 +118,7 @@ impl GcsWriter {
 
 #[async_trait]
 impl oio::Write for GcsWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let size = bs.remaining();
 
         let location = match &self.location {
@@ -161,7 +161,7 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let location = if let Some(location) = &self.location {
             location
         } else {
@@ -183,7 +183,7 @@ impl oio::Write for GcsWriter {
         }
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let location = if let Some(location) = &self.location {
             location
         } else {

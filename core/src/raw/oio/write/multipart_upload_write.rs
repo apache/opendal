@@ -119,7 +119,7 @@ impl<W> oio::Write for MultipartUploadWriter<W>
 where
     W: MultipartUploadWrite,
 {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let upload_id = self.upload_id().await?;
 
         let size = bs.remaining();
@@ -137,7 +137,7 @@ where
         Ok(size)
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let upload_id = if let Some(upload_id) = &self.upload_id {
             upload_id
         } else {
@@ -147,7 +147,7 @@ where
         self.inner.complete_part(upload_id, &self.parts).await
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let upload_id = if let Some(upload_id) = &self.upload_id {
             upload_id
         } else {

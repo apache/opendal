@@ -87,11 +87,11 @@ pub trait Write: Unpin + Send + Sync {
     /// repeatedly until all bytes has been written.
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>>;
 
-    /// Abort the pending writer.
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
-
     /// Close the writer and make sure all data has been flushed.
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
+
+    /// Abort the pending writer.
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
 }
 
 #[async_trait]
@@ -100,17 +100,17 @@ impl Write for () {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support abort",
-        )))
-    }
-
     fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support close",
+        )))
+    }
+
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
         )))
     }
 }
@@ -124,12 +124,12 @@ impl<T: Write + ?Sized> Write for Box<T> {
         (**self).poll_write(cx, bs)
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        (**self).poll_abort(cx)
-    }
-
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         (**self).poll_close(cx)
+    }
+
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        (**self).poll_abort(cx)
     }
 }
 
@@ -143,12 +143,12 @@ pub trait WriteExt: Write {
         WriteFuture { writer: self, buf }
     }
 
-    fn abort(&mut self) -> AbortFuture<Self> {
-        AbortFuture { writer: self }
-    }
-
     fn close(&mut self) -> CloseFuture<Self> {
         CloseFuture { writer: self }
+    }
+
+    fn abort(&mut self) -> AbortFuture<Self> {
+        AbortFuture { writer: self }
     }
 }
 

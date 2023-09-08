@@ -16,10 +16,11 @@
 // under the License.
 
 use std::io::Write;
-use std::task::Context;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use futures::AsyncWriteExt;
+use futures::{AsyncWrite, AsyncWriteExt};
 
 use super::error::parse_io_error;
 use crate::raw::*;
@@ -38,20 +39,17 @@ impl<F> HdfsWriter<F> {
 #[async_trait]
 impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        self.f.write(bs.chunk()).await.map_err(parse_io_error)
+        Pin::new(&mut self.f)
+            .poll_write(cx, bs.chunk())
+            .map_err(parse_io_error)
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support abort",
-        ))
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.f.close().await.map_err(parse_io_error)?;
-
-        Ok(())
+        Pin::new(&mut self.f).poll_close(cx).map_err(parse_io_error)
     }
 }
 

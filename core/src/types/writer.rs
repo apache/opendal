@@ -15,17 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Display;
 use std::io;
 use std::pin::Pin;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::future::BoxFuture;
 use futures::AsyncWrite;
-use futures::FutureExt;
 use futures::TryStreamExt;
 
 use crate::raw::oio::WriteBuf;

@@ -219,7 +219,7 @@ where
                     let w = w.take().expect("writer must be valid");
                     match self.upload_id.clone() {
                         Some(upload_id) => {
-                            self.state = State::Close(Box::pin(async move {
+                            self.state = State::Abort(Box::pin(async move {
                                 let res = w.abort_part(&upload_id).await;
                                 (w, res)
                             }));

@@ -29,17 +29,17 @@ pub struct BlackHoleWriter;
 impl oio::Write for BlackHoleWriter {
     fn poll_write(
         &mut self,
-        cx: &mut Context<'_>,
+        _: &mut Context<'_>,
         bs: &dyn oio::WriteBuf,
     ) -> Poll<opendal::Result<usize>> {
         Poll::Ready(Ok(bs.remaining()))
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
         Poll::Ready(Ok(()))
     }
 }

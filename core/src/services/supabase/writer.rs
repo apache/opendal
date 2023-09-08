@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use bytes::Bytes;

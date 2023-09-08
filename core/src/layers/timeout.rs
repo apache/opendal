@@ -206,6 +206,7 @@ pub struct TimeoutWrapper<R> {
     inner: R,
 
     timeout: Duration,
+    #[allow(dead_code)]
     speed: u64,
 
     start: Option<Instant>,
@@ -221,6 +222,7 @@ impl<R> TimeoutWrapper<R> {
         }
     }
 
+    #[allow(dead_code)]
     fn io_timeout(&self, size: u64) -> Duration {
         let timeout = Duration::from_millis(size * 1000 / self.speed + 1);
 

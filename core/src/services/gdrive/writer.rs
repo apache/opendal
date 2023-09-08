@@ -24,7 +24,6 @@ use http::StatusCode;
 use super::core::GdriveCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::gdrive::core::GdriveFile;
 use crate::*;
 
 pub struct GdriveWriter {

@@ -22,7 +22,6 @@ use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 
 use crate::raw::oio::WriteBuf;
-use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
 
@@ -146,6 +145,7 @@ mod tests {
 
     use super::*;
     use crate::raw::oio::Write;
+    use crate::raw::oio::WriteExt;
 
     struct MockWriter {
         buf: Vec<u8>,
@@ -153,7 +153,7 @@ mod tests {
 
     #[async_trait]
     impl Write for MockWriter {
-        fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
+        fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
             debug!(
                 "test_fuzz_exact_buf_writer: flush size: {}",
                 bs.chunk().len()
@@ -163,11 +163,11 @@ mod tests {
             Poll::Ready(Ok(bs.chunk().len()))
         }
 
-        fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
             Poll::Ready(Ok(()))
         }
 
-        fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
             Poll::Ready(Ok(()))
         }
     }

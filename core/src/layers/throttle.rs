@@ -225,7 +225,7 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
                 Err(negative) => match negative {
                     // the query is valid but the Decider can not accommodate them.
                     NegativeMultiDecision::BatchNonConforming(_, not_until) => {
-                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
+                        let _ = not_until.wait_time_from(DefaultClock::default().now());
                         // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
 
                         // FIXME: we should sleep here.

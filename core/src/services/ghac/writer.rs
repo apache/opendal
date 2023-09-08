@@ -102,7 +102,7 @@ impl oio::Write for GhacWriter {
         }
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
         self.state = State::Idle(None);
 
         Poll::Ready(Ok(()))

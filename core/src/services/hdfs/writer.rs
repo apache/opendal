@@ -20,7 +20,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use futures::{AsyncWrite, AsyncWriteExt};
+use futures::AsyncWrite;
 
 use super::error::parse_io_error;
 use crate::raw::*;

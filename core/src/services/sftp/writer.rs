@@ -16,9 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
-use futures::AsyncWrite;
 use openssh_sftp_client::file::File;
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use crate::raw::oio;
@@ -36,7 +34,7 @@ impl SftpWriter {
 
 #[async_trait]
 impl oio::Write for SftpWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _: &mut Context<'_>, _: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         // Pin::new(&mut self.file)
         //     .poll_write(cx, bs.chunk())
         //     .map_err(Error::from)
@@ -44,11 +42,11 @@ impl oio::Write for SftpWriter {
         todo!()
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
         // Pin::new(&mut self.file).poll_flush(cx).map_err(Error::from)
         todo!()
     }

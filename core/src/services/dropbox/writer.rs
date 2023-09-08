@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::DropboxCore;
@@ -37,10 +38,9 @@ impl DropboxWriter {
     }
 }
 
-#[async_trait]
-impl oio::Write for DropboxWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        let size = bs.remaining();
+impl oio::OneShotWrite for DropboxWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
 
         let resp = self
             .core
@@ -48,24 +48,16 @@ impl oio::Write for DropboxWriter {
                 &self.path,
                 Some(size),
                 self.op.content_type(),
-                AsyncBody::Bytes(bs.copy_to_bytes(size)),
+                AsyncBody::Bytes(bs),
             )
             .await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
     }
 }

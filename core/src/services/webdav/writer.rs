@@ -16,6 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::WebdavBackend;
@@ -34,16 +35,21 @@ impl WebdavWriter {
     pub fn new(backend: WebdavBackend, op: OpWrite, path: String) -> Self {
         WebdavWriter { backend, op, path }
     }
+}
 
-    async fn write_oneshot(&mut self, size: u64, body: AsyncBody) -> Result<()> {
+#[async_trait]
+impl oio::OneShotWrite for WebdavWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+
         let resp = self
             .backend
             .webdav_put(
                 &self.path,
-                Some(size),
+                Some(size as u64),
                 self.op.content_type(),
                 self.op.content_disposition(),
-                body,
+                AsyncBody::Bytes(bs),
             )
             .await?;
 
@@ -56,25 +62,5 @@ impl WebdavWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for WebdavWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        let size = bs.remaining();
-
-        self.write_oneshot(size as u64, AsyncBody::Bytes(bs.copy_to_bytes(size)))
-            .await?;
-
-        Ok(size)
-    }
-
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
     }
 }

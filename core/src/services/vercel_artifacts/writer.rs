@@ -16,6 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::VercelArtifactsBackend;
@@ -36,18 +37,13 @@ impl VercelArtifactsWriter {
     }
 }
 
-#[async_trait]
-impl oio::Write for VercelArtifactsWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        let size = bs.remaining();
+impl oio::OneShotWrite for VercelArtifactsWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
 
         let resp = self
             .backend
-            .vercel_artifacts_put(
-                self.path.as_str(),
-                self.op.content_length().unwrap(),
-                AsyncBody::Bytes(bs.copy_to_bytes(size)),
-            )
+            .vercel_artifacts_put(self.path.as_str(), size as u64, AsyncBody::Bytes(bs))
             .await?;
 
         let status = resp.status();
@@ -55,17 +51,9 @@ impl oio::Write for VercelArtifactsWriter {
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
     }
 }

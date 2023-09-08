@@ -44,6 +44,7 @@ impl Accessor for GdriveBackend {
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type BlockingWriter = ();
     type Pager = GdrivePager;
+    type Pager = GdrivePager;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {

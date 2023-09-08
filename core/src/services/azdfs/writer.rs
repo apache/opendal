@@ -16,6 +16,7 @@
 // under the License.
 
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use http::StatusCode;
@@ -90,10 +91,10 @@ impl oio::Write for AzdfsWriter {
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 }

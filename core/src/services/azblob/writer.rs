@@ -16,6 +16,7 @@
 // under the License.
 
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use http::StatusCode;
@@ -161,31 +162,14 @@ impl AzblobWriter {
 #[async_trait]
 impl oio::Write for AzblobWriter {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        let size = bs.remaining();
-
-        if self.op.append() {
-            self.append_oneshot(size as u64, AsyncBody::Bytes(bs.copy_to_bytes(size)))
-                .await?;
-        } else {
-            if self.op.content_length().is_none() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "write without content length is not supported",
-                ));
-            }
-
-            self.write_oneshot(size as u64, AsyncBody::Bytes(bs.copy_to_bytes(size)))
-                .await?;
-        }
-
-        Ok(size)
+        todo!()
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }

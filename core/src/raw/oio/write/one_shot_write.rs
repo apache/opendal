@@ -30,7 +30,7 @@ use crate::*;
 ///
 /// The layout after adopting [`OneShotWrite`]:
 #[async_trait]
-pub trait OneShotWrite: Send + Sync + Unpin {
+pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
@@ -71,7 +71,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
 
                     let size = bs.remaining();
                     let bs = bs.copy_to_bytes(size);
-                    let fut = async {
+                    let fut = async move {
                         let res = w.write_once(bs).await;
 
                         (w, res.map(|_| size))

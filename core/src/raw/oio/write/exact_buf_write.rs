@@ -164,11 +164,11 @@ mod tests {
         }
 
         fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-            Ok(())
+            Poll::Ready(Ok(()))
         }
 
         fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-            Ok(())
+            Poll::Ready(Ok(()))
         }
     }
 

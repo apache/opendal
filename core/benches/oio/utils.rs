@@ -20,6 +20,7 @@ use bytes::Bytes;
 use opendal::raw::oio;
 use rand::prelude::ThreadRng;
 use rand::RngCore;
+use std::task::{Context, Poll};
 
 /// BlackHoleWriter will discard all data written to it so we can measure the buffer's cost.
 pub struct BlackHoleWriter;
@@ -30,16 +31,16 @@ impl oio::Write for BlackHoleWriter {
         &mut self,
         cx: &mut Context<'_>,
         bs: &dyn oio::WriteBuf,
-    ) -> opendal::Result<usize> {
-        Ok(bs.remaining())
+    ) -> Poll<opendal::Result<usize>> {
+        Poll::Ready(Ok(bs.remaining()))
     }
 
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> opendal::Result<()> {
-        Ok(())
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> opendal::Result<()> {
-        Ok(())
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 

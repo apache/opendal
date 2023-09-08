@@ -33,7 +33,7 @@ use crate::*;
 /// - `MultipartUploadWriter` impl `Write`
 /// - Expose `MultipartUploadWriter` as `Accessor::Writer`
 #[async_trait]
-pub trait MultipartUploadWrite: Send + Sync + Unpin {
+pub trait MultipartUploadWrite: Send + Sync + Unpin + 'static {
     /// initiate_part will call start a multipart upload and return the upload id.
     ///
     /// MultipartUploadWriter will call this when:
@@ -72,6 +72,7 @@ pub trait MultipartUploadWrite: Send + Sync + Unpin {
 ///
 /// - `part_number` is the index of the part, starting from 0.
 /// - `etag` is the `ETag` of the part.
+#[derive(Clone)]
 pub struct MultipartUploadPart {
     /// The number of the part, starting from 0.
     pub part_number: usize,
@@ -91,7 +92,7 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
 enum State<W> {
     Idle(Option<W>),
     Init(BoxFuture<'static, (W, Result<String>)>),
-    Write(BoxFuture<'static, (W, Result<(usize, MultipartUploadPart)>)>),
+    Write(BoxFuture<'static, (W, usize, Result<MultipartUploadPart>)>),
     Close(BoxFuture<'static, (W, Result<()>)>),
     Abort(BoxFuture<'static, (W, Result<()>)>),
 }
@@ -138,9 +139,9 @@ where
                                         size as u64,
                                         AsyncBody::Bytes(bs),
                                     )
-                                    .await?;
+                                    .await;
 
-                                (w, Ok((size, part)))
+                                (w, size, part)
                             }));
                         }
                         None => {
@@ -157,12 +158,11 @@ where
                     self.upload_id = Some(Arc::new(upload_id?));
                 }
                 State::Write(fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
+                    let (w, size, part) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
 
-                    let (written, part) = res?;
-                    self.parts.push(part);
-                    return Poll::Ready(Ok(written));
+                    self.parts.push(part?);
+                    return Poll::Ready(Ok(size));
                 }
                 State::Close(_) => {
                     unreachable!(
@@ -183,11 +183,11 @@ where
             match &mut self.state {
                 State::Idle(w) => {
                     let w = w.take().expect("writer must be valid");
-                    match &self.upload_id {
+                    match self.upload_id.clone() {
                         Some(upload_id) => {
                             let parts = self.parts.clone();
                             self.state = State::Close(Box::pin(async move {
-                                let res = w.complete_part(&upload_id, &self.parts).await;
+                                let res = w.complete_part(&upload_id, &parts).await;
                                 (w, res)
                             }));
                         }
@@ -217,7 +217,7 @@ where
             match &mut self.state {
                 State::Idle(w) => {
                     let w = w.take().expect("writer must be valid");
-                    match &self.upload_id {
+                    match self.upload_id.clone() {
                         Some(upload_id) => {
                             self.state = State::Close(Box::pin(async move {
                                 let res = w.abort_part(&upload_id).await;

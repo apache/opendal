@@ -166,8 +166,8 @@ where
     type Output = Result<usize>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
-        let this = self.project();
-        Pin::new(this.writer).poll_write(cx, this.buf)
+        let mut this = self.project();
+        Pin::new(this.writer).poll_write(cx, *this.buf)
     }
 }
 

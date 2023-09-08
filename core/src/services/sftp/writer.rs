@@ -37,9 +37,11 @@ impl SftpWriter {
 #[async_trait]
 impl oio::Write for SftpWriter {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        Pin::new(&mut self.file)
-            .poll_write(cx, bs.chunk())
-            .map_err(Error::from)
+        // Pin::new(&mut self.file)
+        //     .poll_write(cx, bs.chunk())
+        //     .map_err(Error::from)
+
+        todo!()
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -47,6 +49,7 @@ impl oio::Write for SftpWriter {
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Pin::new(&mut self.file).poll_flush(cx).map_err(Error::from)
+        // Pin::new(&mut self.file).poll_flush(cx).map_err(Error::from)
+        todo!()
     }
 }

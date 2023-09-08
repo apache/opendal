@@ -32,7 +32,7 @@ use crate::*;
 /// - `AppendObjectWriter` impl `Write`
 /// - Expose `AppendObjectWriter` as `Accessor::Writer`
 #[async_trait]
-pub trait AppendObjectWrite: Send + Sync + Unpin {
+pub trait AppendObjectWrite: Send + Sync + Unpin + 'static {
     /// Get the current offset of the append object.
     ///
     /// Returns `0` if the object is not exist.
@@ -90,9 +90,9 @@ where
                             let bs = bs.copy_to_bytes(size);
 
                             self.state = State::Append(Box::pin(async move {
-                                w.append(offset, size as u64, AsyncBody::Bytes(bs)).await?;
+                                let res = w.append(offset, size as u64, AsyncBody::Bytes(bs)).await;
 
-                                (w, Ok(size))
+                                (w, res.map(|_| size))
                             }));
                         }
                         None => {
@@ -110,11 +110,10 @@ where
                     self.offset = Some(offset?);
                 }
                 State::Append(fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
+                    let (w, size) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
 
-                    let size = res?;
-                    return Poll::Ready(Ok(size));
+                    return Poll::Ready(Ok(size?));
                 }
             }
         }

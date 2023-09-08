@@ -42,7 +42,7 @@ impl<F> FsWriter<F> {
         Self {
             target_path,
             tmp_path,
-            f,
+            f: Some(f),
             fut: None,
         }
     }
@@ -80,7 +80,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
             let f = self.f.take().expect("FsWriter must be initialized");
             let tmp_path = self.tmp_path.clone();
             let target_path = self.target_path.clone();
-            self.fut = Some(Box::pin(async {
+            self.fut = Some(Box::pin(async move {
                 f.sync_all().await.map_err(parse_io_error)?;
 
                 if let Some(tmp_path) = &tmp_path {

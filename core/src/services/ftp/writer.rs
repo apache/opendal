@@ -18,6 +18,7 @@
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::AsyncWriteExt;
+use futures::FutureExt;
 use std::task::{ready, Context, Poll};
 
 use super::backend::FtpBackend;
@@ -66,7 +67,7 @@ impl oio::Write for FtpWriter {
 
             let path = self.path.clone();
             let backend = self.backend.clone();
-            let fut = async {
+            let fut = async move {
                 let mut ftp_stream = backend.ftp_connect(Operation::Write).await?;
                 let mut data_stream = ftp_stream.append_with_stream(&path).await?;
                 data_stream.write_all(&bs).await.map_err(|err| {

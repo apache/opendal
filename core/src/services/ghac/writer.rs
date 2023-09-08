@@ -64,21 +64,24 @@ impl oio::Write for GhacWriter {
                     let size = bs.remaining();
                     let bs = bs.copy_to_bytes(size);
 
-                    let fut = async {
-                        let req = backend
-                            .ghac_upload(cache_id, size as u64, AsyncBody::Bytes(bs))
-                            .await?;
+                    let fut = async move {
+                        let res = async {
+                            let req = backend
+                                .ghac_upload(cache_id, size as u64, AsyncBody::Bytes(bs))
+                                .await?;
 
-                        let resp = backend.client.send(req).await?;
+                            let resp = backend.client.send(req).await?;
 
-                        let res = if resp.status().is_success() {
-                            resp.into_body().consume().await?;
-                            Ok(size)
-                        } else {
-                            Err(parse_error(resp)
-                                .await
-                                .map(|err| err.with_operation("Backend::ghac_upload"))?)
-                        };
+                            if resp.status().is_success() {
+                                resp.into_body().consume().await?;
+                                Ok(size)
+                            } else {
+                                Err(parse_error(resp)
+                                    .await
+                                    .map(|err| err.with_operation("Backend::ghac_upload"))?)
+                            }
+                        }
+                        .await;
 
                         (backend, res)
                     };
@@ -114,18 +117,21 @@ impl oio::Write for GhacWriter {
                     let cache_id = self.cache_id;
                     let size = self.size;
 
-                    let fut = async {
-                        let req = backend.ghac_commit(cache_id, size).await?;
-                        let resp = backend.client.send(req).await?;
+                    let fut = async move {
+                        let res = async {
+                            let req = backend.ghac_commit(cache_id, size).await?;
+                            let resp = backend.client.send(req).await?;
 
-                        let res = if resp.status().is_success() {
-                            resp.into_body().consume().await?;
-                            Ok(())
-                        } else {
-                            Err(parse_error(resp)
-                                .await
-                                .map(|err| err.with_operation("Backend::ghac_commit"))?)
-                        };
+                            if resp.status().is_success() {
+                                resp.into_body().consume().await?;
+                                Ok(size as usize)
+                            } else {
+                                Err(parse_error(resp)
+                                    .await
+                                    .map(|err| err.with_operation("Backend::ghac_commit"))?)
+                            }
+                        }
+                        .await;
 
                         (backend, res)
                     };

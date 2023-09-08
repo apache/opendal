@@ -49,7 +49,7 @@ pub struct DropboxBackend {
 impl Accessor for DropboxBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = DropboxWriter;
+    type Writer = oio::OneShotWriter<DropboxWriter>;
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
@@ -114,7 +114,11 @@ impl Accessor for DropboxBackend {
         }
         Ok((
             RpWrite::default(),
-            DropboxWriter::new(self.core.clone(), args, String::from(path)),
+            oio::OneShotWriter::new(DropboxWriter::new(
+                self.core.clone(),
+                args,
+                String::from(path),
+            )),
         ))
     }
 

@@ -368,6 +368,11 @@ pub struct KvWriter<S> {
     future: Option<BoxFuture<'static, Result<()>>>,
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for KvWriter.
+unsafe impl<S: Adapter> Sync for KvWriter<S> {}
+
 impl<S> KvWriter<S> {
     fn new(kv: Arc<S>, path: String, op: OpWrite) -> Self {
         KvWriter {

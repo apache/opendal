@@ -399,7 +399,7 @@ impl WebhdfsBackend {
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WebhdfsWriter;
+    type Writer = oio::OneShotWriter<WebhdfsWriter>;
     type BlockingWriter = ();
     type Pager = WebhdfsPager;
     type BlockingPager = ();
@@ -483,7 +483,7 @@ impl Accessor for WebhdfsBackend {
 
         Ok((
             RpWrite::default(),
-            WebhdfsWriter::new(self.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(WebhdfsWriter::new(self.clone(), args, path.to_string())),
         ))
     }
 

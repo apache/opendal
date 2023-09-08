@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzdfsCore;
@@ -40,8 +41,8 @@ impl AzdfsWriter {
 }
 
 #[async_trait]
-impl oio::Write for AzdfsWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+impl oio::OneShotWrite for AzdfsWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.azdfs_create_request(
             &self.path,
             "file",
@@ -66,13 +67,11 @@ impl oio::Write for AzdfsWriter {
             }
         }
 
-        let size = bs.remaining();
+        let size = bs.len();
 
-        let mut req = self.core.azdfs_update_request(
-            &self.path,
-            Some(size),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
-        )?;
+        let mut req =
+            self.core
+                .azdfs_update_request(&self.path, Some(size), AsyncBody::Bytes(bs))?;
 
         self.core.sign(&mut req).await?;
 
@@ -82,19 +81,11 @@ impl oio::Write for AzdfsWriter {
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azdfs_update_request")),
         }
-    }
-
-    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
     }
 }

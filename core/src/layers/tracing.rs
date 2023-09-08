@@ -325,7 +325,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         level = "trace",
         skip_all)]
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        self.inner.write(bs).await
+        self.inner.poll_write(cx, bs)
     }
 
     #[tracing::instrument(
@@ -333,7 +333,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         level = "trace",
         skip_all)]
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.abort().await
+        self.inner.poll_abort(cx)
     }
 
     #[tracing::instrument(
@@ -341,7 +341,7 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         level = "trace",
         skip_all)]
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.close().await
+        self.inner.poll_close(cx)
     }
 }
 

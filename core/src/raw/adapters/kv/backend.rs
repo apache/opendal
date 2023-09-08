@@ -390,6 +390,11 @@ impl<S> KvWriter<S> {
     }
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for KvWriter.
+unsafe impl<S: Adapter> Sync for KvWriter<S> {}
+
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     // TODO: we need to support append in the future.

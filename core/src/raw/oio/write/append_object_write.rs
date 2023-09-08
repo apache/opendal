@@ -59,6 +59,11 @@ enum State<W> {
     Append(BoxFuture<'static, (W, Result<usize>)>),
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for State.
+unsafe impl<S: AppendObjectWrite> Sync for State<S> {}
+
 impl<W: AppendObjectWrite> AppendObjectWriter<W> {
     /// Create a new AppendObjectWriter.
     pub fn new(inner: W) -> Self {
@@ -66,17 +71,6 @@ impl<W: AppendObjectWrite> AppendObjectWriter<W> {
             state: State::Idle(Some(inner)),
             offset: None,
         }
-    }
-
-    async fn offset(&mut self) -> Result<u64> {
-        if let Some(offset) = self.offset {
-            return Ok(offset);
-        }
-
-        let offset = self.inner.offset().await?;
-        self.offset = Some(offset);
-
-        Ok(offset)
     }
 }
 
@@ -103,9 +97,9 @@ where
                         }
                         None => {
                             self.state = State::Offset(Box::pin(async move {
-                                let offset = w.offset().await?;
+                                let offset = w.offset().await;
 
-                                (w, Ok(offset))
+                                (w, offset)
                             }));
                         }
                     }

@@ -47,6 +47,11 @@ enum State {
     Commit(BoxFuture<'static, (GhacBackend, Result<()>)>),
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for State.
+unsafe impl Sync for State {}
+
 #[async_trait]
 impl oio::Write for GhacWriter {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {

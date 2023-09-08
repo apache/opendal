@@ -221,20 +221,22 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 
         loop {
             match self.limiter.check_n(buf_length) {
-                Ok(_) => return self.inner.write(bs).await,
+                Ok(_) => return self.inner.poll_write(cx, bs),
                 Err(negative) => match negative {
                     // the query is valid but the Decider can not accommodate them.
                     NegativeMultiDecision::BatchNonConforming(_, not_until) => {
                         let wait_time = not_until.wait_time_from(DefaultClock::default().now());
                         // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
-                        tokio::time::sleep(wait_time).await;
+
+                        // FIXME: we should sleep here.
+                        // tokio::time::sleep(wait_time).await;
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                     NegativeMultiDecision::InsufficientCapacity(_) => {
-                        return Err(Error::new(
+                        return Poll::Ready(Err(Error::new(
                             ErrorKind::RateLimited,
                             "InsufficientCapacity due to burst size being smaller than the request size",
-                        ))
+                        )))
                     }
                 },
             }
@@ -242,11 +244,11 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.abort().await
+        self.inner.poll_abort(cx)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.close().await
+        self.inner.poll_close(cx)
     }
 }
 

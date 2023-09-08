@@ -48,6 +48,11 @@ impl<F> FsWriter<F> {
     }
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for FsWriter.
+unsafe impl<F> Sync for FsWriter<F> {}
+
 #[async_trait]
 impl oio::Write for FsWriter<tokio::fs::File> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {

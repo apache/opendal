@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Bytes;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -51,14 +52,14 @@ impl ObsWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for ObsWriter {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let size = bs.remaining();
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
         let mut req = self.core.obs_put_object_request(
             &self.path,
             Some(size as u64),
             self.op.content_type(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;

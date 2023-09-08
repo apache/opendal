@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 use std::sync::Arc;
-use std::task::Context;
 use std::task::Poll;
+use std::task::{ready, Context};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -715,22 +715,22 @@ where
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        let n = w.write(bs).await?;
+        let n = ready!(w.poll_write(cx, bs))?;
         self.written += n as u64;
 
         if let Some(size) = self.size {
             if self.written > size {
-                return Err(Error::new(
+                return Poll::Ready(Err(Error::new(
                     ErrorKind::ContentTruncated,
                     &format!(
                         "writer got too much data, expect: {size}, actual: {}",
                         self.written + n as u64
                     ),
-                ));
+                )));
             }
         }
 
-        Ok(n)
+        Poll::Ready(Ok(n))
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -738,22 +738,22 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.abort().await?;
+        ready!(w.poll_abort(cx))?;
         self.inner = None;
 
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         if let Some(size) = self.size {
             if self.written < size {
-                return Err(Error::new(
+                return Poll::Ready(Err(Error::new(
                     ErrorKind::ContentIncomplete,
                     &format!(
                         "writer got too less data, expect: {size}, actual: {}",
                         self.written
                     ),
-                ));
+                )));
             }
         }
 
@@ -761,10 +761,10 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.close().await?;
+        ready!(w.poll_close(cx))?;
         self.inner = None;
 
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 }
 

@@ -46,6 +46,11 @@ impl FtpWriter {
     }
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for FtpWriter.
+unsafe impl Sync for FtpWriter {}
+
 #[async_trait]
 impl oio::Write for FtpWriter {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {

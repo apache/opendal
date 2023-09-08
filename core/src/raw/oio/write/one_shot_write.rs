@@ -47,6 +47,11 @@ enum State<W> {
     Write(BoxFuture<'static, (W, Result<usize>)>),
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for State.
+unsafe impl<S: OneShotWrite> Sync for State<S> {}
+
 impl<W: OneShotWrite> OneShotWriter<W> {
     /// Create a new one shot writer.
     pub fn new(inner: W) -> Self {

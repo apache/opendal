@@ -338,33 +338,21 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MinitraceWrapper<R> {
 #[async_trait]
 impl<R: oio::Write> oio::Write for MinitraceWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        self.inner
-            .write(bs)
-            .in_span(Span::enter_with_parent(
-                WriteOperation::Write.into_static(),
-                &self.span,
-            ))
-            .await
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Write.into_static());
+        self.inner.poll_write(cx, bs)
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner
-            .abort()
-            .in_span(Span::enter_with_parent(
-                WriteOperation::Abort.into_static(),
-                &self.span,
-            ))
-            .await
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Abort.into_static());
+        self.inner.poll_abort(cx)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner
-            .close()
-            .in_span(Span::enter_with_parent(
-                WriteOperation::Close.into_static(),
-                &self.span,
-            ))
-            .await
+        let _g = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(WriteOperation::Close.into_static());
+        self.inner.poll_close(cx)
     }
 }
 

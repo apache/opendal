@@ -670,7 +670,7 @@ pub struct WasabiBackend {
 impl Accessor for WasabiBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WasabiWriter;
+    type Writer = oio::OneShotWriter<WasabiWriter>;
     type BlockingWriter = ();
     type Pager = WasabiPager;
     type BlockingPager = ();
@@ -759,7 +759,7 @@ impl Accessor for WasabiBackend {
 
         Ok((
             RpWrite::default(),
-            WasabiWriter::new(self.core.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(WasabiWriter::new(self.core.clone(), args, path.to_string())),
         ))
     }
 

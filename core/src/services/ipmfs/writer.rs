@@ -16,6 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 use std::task::{Context, Poll};
 
@@ -39,12 +40,9 @@ impl IpmfsWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for IpmfsWriter {
-    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let size = bs.remaining();
-        let resp = self
-            .backend
-            .ipmfs_write(&self.path, bs.copy_to_bytes(size))
-            .await?;
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
+        let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();
 

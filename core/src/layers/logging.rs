@@ -17,8 +17,8 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::task::Context;
 use std::task::Poll;
+use std::task::{ready, Context};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -1253,7 +1253,7 @@ impl<W> LoggingWriter<W> {
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        match self.inner.write(bs).await {
+        match ready!(self.inner.poll_write(cx, bs)) {
             Ok(n) => {
                 self.written += n as u64;
                 trace!(
@@ -1265,7 +1265,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     self.written,
                     n
                 );
-                Ok(n)
+                Poll::Ready(Ok(n))
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1280,13 +1280,13 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Err(err)
+                Poll::Ready(Err(err))
             }
         }
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        match self.inner.abort().await {
+        match ready!(self.inner.poll_abort(cx)) {
             Ok(_) => {
                 trace!(
                     target: LOGGING_TARGET,
@@ -1296,7 +1296,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     self.path,
                     self.written,
                 );
-                Ok(())
+                Poll::Ready(Ok(()))
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1311,13 +1311,13 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Err(err)
+                Poll::Ready(Err(err))
             }
         }
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        match self.inner.close().await {
+        match ready!(self.inner.poll_close(cx)) {
             Ok(_) => {
                 debug!(
                     target: LOGGING_TARGET,
@@ -1327,7 +1327,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     self.path,
                     self.written
                 );
-                Ok(())
+                Poll::Ready(Ok(()))
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
@@ -1342,7 +1342,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Err(err)
+                Poll::Ready(Err(err))
             }
         }
     }

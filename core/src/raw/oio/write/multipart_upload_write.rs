@@ -96,6 +96,11 @@ enum State<W> {
     Abort(BoxFuture<'static, (W, Result<()>)>),
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for State.
+unsafe impl<S: MultipartUploadWrite> Sync for State<S> {}
+
 impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
     /// Create a new MultipartUploadWriter.
     pub fn new(inner: W) -> Self {

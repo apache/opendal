@@ -849,9 +849,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for MetricWrapper<R> {
 impl<R: oio::Write> oio::Write for MetricWrapper<R> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner
-            .write(bs)
-            .await
-            .map(|n| {
+            .poll_write(cx, bs)
+            .map_ok(|n| {
                 self.bytes += n as u64;
                 n
             })
@@ -862,14 +861,14 @@ impl<R: oio::Write> oio::Write for MetricWrapper<R> {
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.abort().await.map_err(|err| {
+        self.inner.poll_abort(cx).map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());
             err
         })
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.inner.close().await.map_err(|err| {
+        self.inner.poll_close(cx).map_err(|err| {
             self.handle.increment_errors_total(self.op, err.kind());
             err
         })

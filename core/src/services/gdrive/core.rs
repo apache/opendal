@@ -99,7 +99,7 @@ impl GdriveCore {
                 "name = \"{}\" and \"{}\" in parents and trashed = false",
                 item, parent_id
             );
-            if i != file_path_items.len() - 1 {
+            if i != file_path_items.len() - 1 || path.ends_with('/') {
                 query += " and mimeType = 'application/vnd.google-apps.folder'";
             }
 
@@ -316,6 +316,43 @@ impl GdriveCore {
             "https://www.googleapis.com/drive/v3/files/{}?alt=media",
             self.get_file_id_by_path(path).await?
         );
+
+        let mut req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+
+        self.client.send(req).await
+    }
+
+    pub async fn gdrive_list(
+        &self,
+        path: &str,
+        page_size: i32,
+        next_page_token: Option<String>,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let q = format!(
+            "'{}' in parents and trashed = false",
+            self.get_file_id_by_path(path).await?
+        );
+
+        let url = match next_page_token {
+            Some(page_token) => {
+                format!(
+                    "https://www.googleapis.com/drive/v3/files?pageSize={}&pageToken={}&q={}",
+                    page_size,
+                    page_token,
+                    percent_encode_path(q.as_str())
+                )
+            }
+            None => {
+                format!(
+                    "https://www.googleapis.com/drive/v3/files?pageSize={}&q={}",
+                    page_size,
+                    percent_encode_path(q.as_str())
+                )
+            }
+        };
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
@@ -556,4 +593,5 @@ pub struct GdriveFile {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GdriveFileList {
     pub(crate) files: Vec<GdriveFile>,
+    pub(crate) next_page_token: Option<String>,
 }

@@ -24,6 +24,7 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
+use super::pager::GdrivePager;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::services::gdrive::core::GdriveFile;
@@ -42,7 +43,7 @@ impl Accessor for GdriveBackend {
     type BlockingReader = ();
     type Writer = GdriveWriter;
     type BlockingWriter = ();
-    type Pager = ();
+    type Pager = GdrivePager;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -53,6 +54,8 @@ impl Accessor for GdriveBackend {
                 stat: true,
 
                 read: true,
+
+                list: true,
 
                 write: true,
 
@@ -243,6 +246,13 @@ impl Accessor for GdriveBackend {
         } else {
             Err(e)
         }
+    }
+
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
+        Ok((
+            RpList::default(),
+            GdrivePager::new(self.core.root.clone(), path.into(), self.core.clone()),
+        ))
     }
 }
 

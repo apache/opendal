@@ -872,7 +872,7 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 
 #[async_trait]
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let mut backoff = self.builder.build();
 
         loop {
@@ -898,7 +898,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         }
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
         let mut backoff = self.builder.build();
 
         loop {
@@ -924,7 +924,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
         let mut backoff = self.builder.build();
 
         loop {

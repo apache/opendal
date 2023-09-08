@@ -160,7 +160,7 @@ impl AzblobWriter {
 
 #[async_trait]
 impl oio::Write for AzblobWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.remaining();
 
         if self.op.append() {
@@ -181,11 +181,11 @@ impl oio::Write for AzblobWriter {
         Ok(size)
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Ok(())
     }
 }

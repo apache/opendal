@@ -205,7 +205,7 @@ impl Writer {
     ///
     /// Abort should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
-    pub async fn abort(&mut self) -> Result<()> {
+    pub fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
             w.abort().await
         } else {
@@ -222,7 +222,7 @@ impl Writer {
     ///
     /// Close should only be called when the writer is not closed or
     /// aborted, otherwise an unexpected error could be returned.
-    pub async fn close(&mut self) -> Result<()> {
+    pub fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
             w.close().await
         } else {

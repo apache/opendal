@@ -40,7 +40,7 @@ impl FtpWriter {
 
 #[async_trait]
 impl oio::Write for FtpWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.remaining();
         let bs = bs.copy_to_bytes(size);
 
@@ -55,11 +55,11 @@ impl oio::Write for FtpWriter {
         Ok(size)
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Ok(())
     }
 
-    async fn close(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Ok(())
     }
 }

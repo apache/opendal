@@ -77,7 +77,7 @@ impl<W> oio::Write for AppendObjectWriter<W>
 where
     W: AppendObjectWrite,
 {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let offset = self.offset().await?;
 
         let size = bs.remaining();
@@ -94,11 +94,11 @@ where
         Ok(size)
     }
 
-    async fn close(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Ok(())
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Ok(())
     }
 }

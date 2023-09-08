@@ -67,20 +67,20 @@ impl SupabaseWriter {
 
 #[async_trait]
 impl oio::Write for SupabaseWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let size = bs.remaining();
         self.upload(bs.copy_to_bytes(size)).await?;
         Ok(size)
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "The abort operation is not yet supported for Supabase backend",
         ))
     }
 
-    async fn close(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Result<()> {
         Ok(())
     }
 }

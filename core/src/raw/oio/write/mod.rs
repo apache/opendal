@@ -19,6 +19,7 @@ mod api;
 pub use api::BlockingWrite;
 pub use api::BlockingWriter;
 pub use api::Write;
+pub use api::WriteExt;
 pub use api::WriteOperation;
 pub use api::Writer;
 

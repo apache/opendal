@@ -16,7 +16,10 @@
 // under the License.
 
 use async_trait::async_trait;
+use futures::AsyncWrite;
 use openssh_sftp_client::file::File;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use crate::raw::oio;
 use crate::*;
@@ -34,19 +37,16 @@ impl SftpWriter {
 #[async_trait]
 impl oio::Write for SftpWriter {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        let size = self.file.write(bs.chunk()).await?;
-
-        Ok(size)
+        Pin::new(&mut self.file)
+            .poll_write(cx, bs.chunk())
+            .map_err(Error::from)
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "SFTP does not support aborting writes",
-        ))
+        Poll::Ready(Ok(()))
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Ok(())
+        Pin::new(&mut self.file).poll_flush(cx).map_err(Error::from)
     }
 }

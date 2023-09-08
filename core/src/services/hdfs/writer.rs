@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io::Write;
+use std::task::Context;
 
 use async_trait::async_trait;
 use futures::AsyncWriteExt;

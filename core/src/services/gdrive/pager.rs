@@ -32,7 +32,6 @@ use super::{
     error::parse_error,
 };
 pub struct GdrivePager {
-    root: String,
     path: String,
     core: Arc<GdriveCore>,
     next_page_token: Option<String>,
@@ -40,9 +39,8 @@ pub struct GdrivePager {
 }
 
 impl GdrivePager {
-    pub fn new(root: String, path: String, core: Arc<GdriveCore>) -> Self {
+    pub fn new(path: String, core: Arc<GdriveCore>) -> Self {
         Self {
-            root,
             path,
             core,
             next_page_token: None,
@@ -63,43 +61,39 @@ impl oio::Page for GdrivePager {
             .gdrive_list(&self.path, 100, self.next_page_token.clone())
             .await?;
 
-        match resp.status() {
-            StatusCode::OK => {
-                let bytes = resp.into_body().bytes().await?;
-                let decoded_response = serde_json::from_slice::<GdriveFileList>(&bytes)
-                    .map_err(new_json_deserialize_error)?;
+        let bytes = match resp.status() {
+            StatusCode::OK => resp.into_body().bytes().await?,
+            _ => return Err(parse_error(resp).await?),
+        };
 
-                if let Some(next_page_token) = decoded_response.next_page_token {
-                    self.next_page_token = Some(next_page_token);
-                } else {
-                    self.done = true;
-                }
+        let decoded_response =
+            serde_json::from_slice::<GdriveFileList>(&bytes).map_err(new_json_deserialize_error)?;
 
-                let entries: Vec<oio::Entry> = decoded_response
-                    .files
-                    .into_iter()
-                    .map(|mut file| {
-                        let file_type =
-                            if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
-                                file.name = format!("{}/", file.name);
-                                EntryMode::DIR
-                            } else {
-                                EntryMode::FILE
-                            };
-
-                        let path = format!(
-                            "{}{}",
-                            build_rooted_abs_path(&self.root, &self.path),
-                            file.name
-                        );
-                        let normalized_path = build_rel_path(&self.root, &path);
-                        oio::Entry::new(&normalized_path, Metadata::new(file_type))
-                    })
-                    .collect();
-
-                Ok(Some(entries))
-            }
-            _ => Err(parse_error(resp).await?),
+        if let Some(next_page_token) = decoded_response.next_page_token {
+            self.next_page_token = Some(next_page_token);
+        } else {
+            self.done = true;
         }
+
+        let entries: Vec<oio::Entry> = decoded_response
+            .files
+            .into_iter()
+            .map(|mut file| {
+                let file_type = if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
+                    file.name = format!("{}/", file.name);
+                    EntryMode::DIR
+                } else {
+                    EntryMode::FILE
+                };
+
+                let root = &self.core.root;
+                let path = format!("{}{}", build_rooted_abs_path(root, &self.path), file.name);
+                let normalized_path = build_rel_path(root, &path);
+
+                oio::Entry::new(&normalized_path, Metadata::new(file_type))
+            })
+            .collect();
+
+        Ok(Some(entries))
     }
 }

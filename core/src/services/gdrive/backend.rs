@@ -251,7 +251,7 @@ impl Accessor for GdriveBackend {
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            GdrivePager::new(self.core.root.clone(), path.into(), self.core.clone()),
+            GdrivePager::new(path.into(), self.core.clone()),
         ))
     }
 }

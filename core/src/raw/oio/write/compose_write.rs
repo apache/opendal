@@ -38,8 +38,10 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
-use std::task::{Context, Poll};
 
 use crate::raw::*;
 use crate::*;

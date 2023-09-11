@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use opendal::raw::oio;
 use rand::prelude::ThreadRng;
 use rand::RngCore;
-use std::task::{Context, Poll};
 
 /// BlackHoleWriter will discard all data written to it so we can measure the buffer's cost.
 pub struct BlackHoleWriter;

@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::ffi;
 use opendal as od;
+
+use super::ffi;
 
 impl From<od::Metadata> for ffi::Metadata {
     fn from(meta: od::Metadata) -> Self {

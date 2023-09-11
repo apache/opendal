@@ -15,11 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
 use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use tokio::io::AsyncWrite;
 
 use crate::raw::oio;

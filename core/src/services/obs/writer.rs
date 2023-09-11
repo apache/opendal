@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;

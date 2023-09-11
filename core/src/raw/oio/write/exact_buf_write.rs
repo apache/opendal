@@ -16,10 +16,13 @@
 // under the License.
 
 use std::cmp::min;
-use std::task::{ready, Context, Poll};
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
+use bytes::BytesMut;
 
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;

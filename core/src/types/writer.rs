@@ -24,8 +24,9 @@ use bytes::Bytes;
 use futures::AsyncWrite;
 use futures::TryStreamExt;
 
+use crate::raw::oio::Write;
 use crate::raw::oio::WriteBuf;
-use crate::raw::oio::{Write, WriteExt};
+use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
 

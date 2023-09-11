@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::AsyncWriteExt;
 use futures::FutureExt;
-use std::task::{ready, Context, Poll};
 
 use super::backend::FtpBackend;
 use crate::raw::*;

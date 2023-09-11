@@ -17,8 +17,9 @@
 
 use std::fmt::Debug;
 use std::io;
+use std::task::ready;
+use std::task::Context;
 use std::task::Poll;
-use std::task::{ready, Context};
 
 use async_trait::async_trait;
 use bytes::Bytes;

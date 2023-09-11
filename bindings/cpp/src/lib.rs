@@ -19,11 +19,12 @@ mod lister;
 mod reader;
 mod types;
 
+use std::str::FromStr;
+
 use anyhow::Result;
 use lister::Lister;
 use opendal as od;
 use reader::Reader;
-use std::str::FromStr;
 
 #[cxx::bridge(namespace = "opendal::ffi")]
 mod ffi {

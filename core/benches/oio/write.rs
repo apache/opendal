@@ -18,7 +18,8 @@
 use bytes::Buf;
 use criterion::Criterion;
 use once_cell::sync::Lazy;
-use opendal::raw::oio::{ExactBufWriter, WriteExt};
+use opendal::raw::oio::ExactBufWriter;
+use opendal::raw::oio::WriteExt;
 use rand::thread_rng;
 use size::Size;
 

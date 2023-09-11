@@ -15,8 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes, BytesMut};
-use std::{cmp, ptr};
+use std::cmp;
+use std::ptr;
+
+use bytes::Bytes;
+use bytes::BytesMut;
 
 /// WriteBuf is used in [`oio::Write`] to provide a trait similar to [`bytes::Buf`].
 ///

@@ -19,7 +19,8 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use pin_project::pin_project;

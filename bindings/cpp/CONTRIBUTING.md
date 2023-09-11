@@ -91,7 +91,7 @@ mkdir build
 cd build
 
 # Add -DCMAKE_EXPORT_COMPILE_COMMANDS=1 to generate compile_commands.json for clangd
-cmake -GNinja .. 
+cmake -DOPENDAL_DEV=ON -GNinja .. 
 
 ninja
 ```
@@ -107,9 +107,7 @@ ninja clean
 
 ## Test
 
-To build and run the tests. (Note that you need to install GTest)
-
-You should build the project first. Then run:
+To run the tests. (Note that you need to install GTest)
 
 ```shell
 ninja test

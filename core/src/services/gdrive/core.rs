@@ -24,6 +24,7 @@ use bytes;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
+use futures::stream;
 use http::header;
 use http::Request;
 use http::Response;
@@ -331,10 +332,34 @@ impl GdriveCore {
         page_size: i32,
         next_page_token: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let q = format!(
-            "'{}' in parents and trashed = false",
-            self.get_file_id_by_path(path).await?
-        );
+        let file_id = self.get_file_id_by_path(path).await;
+
+        // when list over a no exist dir, `get_file_id_by_path` will return a NotFound Error, we should return a empty list in this case.
+        let q = match file_id {
+            Ok(file_id) => {
+                format!("'{}' in parents and trashed = false", file_id)
+            }
+            Err(e) => match e.kind() {
+                ErrorKind::NotFound => {
+                    return Response::builder()
+                        .status(StatusCode::OK)
+                        .body(IncomingAsyncBody::new(
+                            Box::new(oio::into_stream(stream::empty())),
+                            Some(0),
+                        ))
+                        .map_err(|e| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                &format!("failed to create a empty response for list: {}", e),
+                            )
+                            .set_source(e)
+                        });
+                }
+                _ => {
+                    return Err(e);
+                }
+            },
+        };
 
         let url = match next_page_token {
             Some(page_token) => {

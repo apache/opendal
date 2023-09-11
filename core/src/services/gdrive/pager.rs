@@ -66,6 +66,10 @@ impl oio::Page for GdrivePager {
             _ => return Err(parse_error(resp).await?),
         };
 
+        if bytes.is_empty() {
+            return Ok(None);
+        }
+
         let decoded_response =
             serde_json::from_slice::<GdriveFileList>(&bytes).map_err(new_json_deserialize_error)?;
 

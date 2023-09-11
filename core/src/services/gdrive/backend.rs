@@ -57,6 +57,8 @@ impl Accessor for GdriveBackend {
 
                 list: true,
 
+                list_with_delimiter_slash: true,
+
                 write: true,
 
                 create_dir: true,

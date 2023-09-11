@@ -112,11 +112,12 @@ impl Writer {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn sink<S, T>(&mut self, mut sink_from: S) -> Result<u64>
+    pub async fn sink<S, T>(&mut self, sink_from: S) -> Result<u64>
     where
-        S: futures::Stream<Item = Result<T>> + Send + Sync + Unpin + 'static,
+        S: futures::Stream<Item = Result<T>>,
         T: Into<Bytes>,
     {
+        let mut sink_from = Box::pin(sink_from);
         let mut written = 0;
         while let Some(bs) = sink_from.try_next().await? {
             let mut bs = bs.into();
@@ -161,7 +162,7 @@ impl Writer {
     /// ```
     pub async fn copy<R>(&mut self, read_from: R) -> Result<u64>
     where
-        R: futures::AsyncRead + Send + Sync + Unpin + 'static,
+        R: futures::AsyncRead,
     {
         futures::io::copy(read_from, self).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "copy into writer failed")

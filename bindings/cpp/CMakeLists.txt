@@ -57,7 +57,7 @@ if (OPENDAL_ENABLE_DOCUMENTATION OR OPENDAL_DOCS_ONLY)
     endif()
 endif()
 
-# get cargo traget dir using cargo locate-project
+# get cargo target dir using cargo locate-project
 # we should this because the target dir is different for development and release
 execute_process(COMMAND cargo locate-project --workspace --message-format plain
     OUTPUT_VARIABLE CARGO_TARGET_DIR

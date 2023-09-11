@@ -17,37 +17,40 @@
 
 use async_trait::async_trait;
 use openssh_sftp_client::file::File;
+use openssh_sftp_client::file::TokioCompatFile;
+use std::pin::Pin;
 use std::task::{Context, Poll};
+use tokio::io::AsyncWrite;
 
 use crate::raw::oio;
 use crate::*;
 
 pub struct SftpWriter {
-    file: File,
+    file: Pin<Box<TokioCompatFile>>,
 }
 
 impl SftpWriter {
     pub fn new(file: File) -> Self {
-        SftpWriter { file }
+        SftpWriter {
+            file: Box::pin(TokioCompatFile::new(file)),
+        }
     }
 }
 
 #[async_trait]
 impl oio::Write for SftpWriter {
-    fn poll_write(&mut self, _: &mut Context<'_>, _: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        // Pin::new(&mut self.file)
-        //     .poll_write(cx, bs.chunk())
-        //     .map_err(Error::from)
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        self.file
+            .as_mut()
+            .poll_write(cx, bs.chunk())
+            .map_err(Error::from)
+    }
 
-        todo!()
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.file.as_mut().poll_shutdown(cx).map_err(Error::from)
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        // Pin::new(&mut self.file).poll_flush(cx).map_err(Error::from)
-        todo!()
     }
 }

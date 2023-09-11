@@ -49,6 +49,9 @@ jobs:
           cargo test atomicdata --features services-atomicdata -j=1
         env:
           RUST_BACKTRACE: full
-          OPENDAL_ATOMICDATA_TEST: on
-          OPENDAL_ATOMICDATA_ROOT: /tmp/opendal
-          OPENDAL_ATOMICDATA_ENDPOINT: https://atomicdata.dev
+          OPENDAL_ATOMICDATA_TEST: off
+          OPENDAL_ATOMICDATA_ROOT: TODO - ${{ secrets.OPENDAL_ATOMICDATA_ROOT }}
+          OPENDAL_ATOMICDATA_ENDPOINT: TODO - ${{ secrets.OPENDAL_ATOMICDATA_ENDPOINT }}
+          OPENDAL_ATOMICDATA_PRIVATE_KEY: TODO - ${{ secrets.OPENDAL_ATOMICDATA_PRIVATE_KEY }}
+          OPENDAL_ATOMICDATA_PUBLIC_KEY: TODO - ${{ secrets.OPENDAL_ATOMICDATA_PUBLIC_KEY }}
+          OPENDAL_ATOMICDATA_PARENT_RESOURCE_ID: TODO - ${{ secrets.OPENDAL_ATOMICDATA_PARENT_RESOURCE_ID }}

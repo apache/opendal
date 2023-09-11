@@ -144,6 +144,7 @@ impl FromStr for Scheme {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
         match s.as_str() {
+            "atomicdata" => Ok(Scheme::Atomicdata),
             "azblob" => Ok(Scheme::Azblob),
             // Notes:
             //

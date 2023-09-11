@@ -128,7 +128,6 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
         loop {
             match &mut self.state {
                 State::Idle(w) => {
-                    let w = w.take().unwrap();
                     match self.location.clone() {
                         Some(location) => {
                             let remaining = bs.remaining();
@@ -152,6 +151,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                             align_buffer.push(bs);
 
                             let written = self.written;
+                            let w = w.take().unwrap();
                             let fut = async move {
                                 let size = align_buffer.len() as u64;
                                 let res = w
@@ -168,6 +168,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                             self.state = State::Write(Box::pin(fut));
                         }
                         None => {
+                            let w = w.take().unwrap();
                             let fut = async move {
                                 let res = w.initiate_range().await;
 
@@ -188,7 +189,10 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     let (consume, written) = res?;
                     self.written += written;
                     self.align_buffer.clear();
-                    return Poll::Ready(Ok(consume));
+                    // It's possible that the buffer is already aligned, no bytes has been consumed.
+                    if consume != 0 {
+                        return Poll::Ready(Ok(consume));
+                    }
                 }
                 State::Complete(_) => {
                     unreachable!("RangeWriter must not go into State::Complete during poll_write")

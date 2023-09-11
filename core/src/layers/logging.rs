@@ -1258,12 +1258,13 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                 self.written += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
+                    "service={} operation={} path={} written={}B -> input data {}B, write {}B",
                     self.ctx.scheme,
                     WriteOperation::Write,
                     self.path,
                     self.written,
-                    n
+                    bs.remaining(),
+                    n,
                 );
                 Poll::Ready(Ok(n))
             }
@@ -1272,7 +1273,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {}",
+                        "service={} operation={} path={} written={}B -> data write failed: {}",
                         self.ctx.scheme,
                         WriteOperation::Write,
                         self.path,
@@ -1290,7 +1291,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
             Ok(_) => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> abort writer",
+                    "service={} operation={} path={} written={}B -> abort writer",
                     self.ctx.scheme,
                     WriteOperation::Abort,
                     self.path,
@@ -1303,7 +1304,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> abort writer failed: {}",
+                        "service={} operation={} path={} written={}B -> abort writer failed: {}",
                         self.ctx.scheme,
                         WriteOperation::Abort,
                         self.path,
@@ -1321,7 +1322,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
             Ok(_) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data written finished",
+                    "service={} operation={} path={} written={}B -> data written finished",
                     self.ctx.scheme,
                     self.op,
                     self.path,
@@ -1334,7 +1335,7 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data close failed: {}",
+                        "service={} operation={} path={} written={}B -> data close failed: {}",
                         self.ctx.scheme,
                         WriteOperation::Close,
                         self.path,
@@ -1355,11 +1356,12 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                 self.written += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
+                    "service={} operation={} path={} written={}B -> input data {}B, write {}B",
                     self.ctx.scheme,
                     WriteOperation::BlockingWrite,
                     self.path,
                     self.written,
+                    bs.remaining(),
                     n
                 );
                 Ok(n)
@@ -1369,7 +1371,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {}",
+                        "service={} operation={} path={} written={}B -> data write failed: {}",
                         self.ctx.scheme,
                         WriteOperation::BlockingWrite,
                         self.path,
@@ -1387,7 +1389,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
             Ok(_) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data written finished",
+                    "service={} operation={} path={} written={}B -> data written finished",
                     self.ctx.scheme,
                     self.op,
                     self.path,
@@ -1400,7 +1402,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data close failed: {}",
+                        "service={} operation={} path={} written={}B -> data close failed: {}",
                         self.ctx.scheme,
                         WriteOperation::BlockingClose,
                         self.path,

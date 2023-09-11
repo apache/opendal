@@ -63,12 +63,6 @@ impl oio::Write for FsWriter<tokio::fs::File> {
             .map_err(parse_io_error)
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        self.f = None;
-
-        Poll::Ready(Ok(()))
-    }
-
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             if let Some(fut) = self.fut.as_mut() {
@@ -90,6 +84,31 @@ impl oio::Write for FsWriter<tokio::fs::File> {
                 }
 
                 Ok(())
+            }));
+        }
+    }
+
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            if let Some(fut) = self.fut.as_mut() {
+                let res = ready!(fut.poll_unpin(cx));
+                self.fut = None;
+                return Poll::Ready(res);
+            }
+
+            let _ = self.f.take().expect("FsWriter must be initialized");
+            let tmp_path = self.tmp_path.clone();
+            self.fut = Some(Box::pin(async move {
+                if let Some(tmp_path) = &tmp_path {
+                    tokio::fs::remove_file(tmp_path)
+                        .await
+                        .map_err(parse_io_error)
+                } else {
+                    Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "Fs doesn't support abort if atomic_write_dir is not set",
+                    ))
+                }
             }));
         }
     }

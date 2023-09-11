@@ -89,7 +89,10 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "OneShotWriter doesn't support abort since all content has been flushed",
+        )))
     }
 
     fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {

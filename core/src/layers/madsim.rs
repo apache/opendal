@@ -346,10 +346,8 @@ impl oio::Page for MadsimPager {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Error::new(ErrorKind::Unexpected, "madsim error")
-    }
+fn parse_io_error(e: std::io::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "madsim error")
 }
 
 /// A simulated server.This an experimental feature, docs are not ready yet.

@@ -45,7 +45,10 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "HdfsWriter doesn't support abort",
+        )))
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {

@@ -55,7 +55,7 @@ impl oio::Write for SftpWriter {
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
-            "HdfsWriter doesn't support abort",
+            "SftpWriter doesn't support abort",
         )))
     }
 }

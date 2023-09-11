@@ -42,3 +42,7 @@ pub use one_shot_write::OneShotWriter;
 
 mod exact_buf_write;
 pub use exact_buf_write::ExactBufWriter;
+
+mod range_write;
+pub use range_write::RangeWrite;
+pub use range_write::RangeWriter;

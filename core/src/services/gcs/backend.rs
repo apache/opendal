@@ -35,6 +35,7 @@ use super::error::parse_error;
 use super::pager::GcsPager;
 use super::writer::GcsWriter;
 use crate::raw::*;
+use crate::services::gcs::writer::GcsWriters;
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
@@ -336,7 +337,7 @@ pub struct GcsBackend {
 impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = GcsWriter;
+    type Writer = GcsWriters;
     type BlockingWriter = ();
     type Pager = GcsPager;
     type BlockingPager = ();
@@ -418,10 +419,14 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            GcsWriter::new(self.core.clone(), path, args),
-        ))
+        let w = GcsWriter::new(self.core.clone(), path, args.clone());
+        let w = if args.content_length().is_some() {
+            GcsWriters::One(oio::OneShotWriter::new(w))
+        } else {
+            GcsWriters::Two(oio::RangeWriter::new(w))
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

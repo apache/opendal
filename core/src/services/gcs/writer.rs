@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use http::StatusCode;
 
 use super::core::GcsCore;
@@ -27,38 +30,33 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
+pub type GcsWriters =
+    oio::TwoWaysWriter<oio::OneShotWriter<GcsWriter>, oio::RangeWriter<GcsWriter>>;
+
 pub struct GcsWriter {
     core: Arc<GcsCore>,
     path: String,
     op: OpWrite,
-
-    location: Option<String>,
-    written: u64,
-    buffer: oio::VectorCursor,
-    write_fixed_size: usize,
 }
 
 impl GcsWriter {
     pub fn new(core: Arc<GcsCore>, path: &str, op: OpWrite) -> Self {
-        let write_fixed_size = core.write_fixed_size;
         GcsWriter {
             core,
             path: path.to_string(),
             op,
-
-            location: None,
-            written: 0,
-            buffer: oio::VectorCursor::new(),
-            write_fixed_size,
         }
     }
+}
 
-    async fn write_oneshot(&self, size: u64, body: AsyncBody) -> Result<()> {
+#[async_trait]
+impl oio::OneShotWrite for GcsWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
-            Some(size),
+            Some(bs.len() as u64),
             &self.op,
-            body,
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -75,8 +73,11 @@ impl GcsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
 
-    async fn initiate_upload(&self) -> Result<String> {
+#[async_trait]
+impl oio::RangeWrite for GcsWriter {
+    async fn initiate_range(&self) -> Result<String> {
         let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
         let status = resp.status();
 
@@ -96,14 +97,16 @@ impl GcsWriter {
         }
     }
 
-    async fn write_part(&self, location: &str, bs: Bytes) -> Result<()> {
-        let mut req = self.core.gcs_upload_in_resumable_upload(
-            location,
-            bs.len() as u64,
-            self.written,
-            false,
-            AsyncBody::Bytes(bs),
-        )?;
+    async fn write_range(
+        &self,
+        location: &str,
+        written: u64,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<()> {
+        let mut req = self
+            .core
+            .gcs_upload_in_resumable_upload(location, size, written, body)?;
 
         self.core.sign(&mut req).await?;
 
@@ -115,105 +118,40 @@ impl GcsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::Write for GcsWriter {
-    fn poll_write(&mut self, _: &mut Context<'_>, _: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        // let size = bs.remaining();
-        //
-        // let location = match &self.location {
-        //     Some(location) => location,
-        //     None => {
-        //         if self.op.content_length().unwrap_or_default() == size as u64 && self.written == 0
-        //         {
-        //             self.write_oneshot(size as u64, AsyncBody::Bytes(bs.copy_to_bytes(size)))
-        //                 .await?;
-        //
-        //             return Ok(size);
-        //         } else {
-        //             let location = self.initiate_upload().await?;
-        //             self.location = Some(location);
-        //             self.location.as_deref().unwrap()
-        //         }
-        //     }
-        // };
-        //
-        // self.buffer.push(bs.copy_to_bytes(size));
-        // // Return directly if the buffer is not full
-        // if self.buffer.len() <= self.write_fixed_size {
-        //     return Ok(size);
-        // }
-        //
-        // let bs = self.buffer.peak_exact(self.write_fixed_size);
-        //
-        // match self.write_part(location, bs).await {
-        //     Ok(_) => {
-        //         self.buffer.take(self.write_fixed_size);
-        //         self.written += self.write_fixed_size as u64;
-        //         Ok(size)
-        //     }
-        //     Err(e) => {
-        //         // If the upload fails, we should pop the given bs to make sure
-        //         // write is re-enter safe.
-        //         self.buffer.pop();
-        //         Err(e)
-        //     }
-        // }
+    async fn complete_range(
+        &self,
+        location: &str,
+        written: u64,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<()> {
+        let resp = self
+            .core
+            .gcs_complete_resumable_upload(location, written, size, body)
+            .await?;
 
-        todo!()
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        // let location = if let Some(location) = &self.location {
-        //     location
-        // } else {
-        //     return Ok(());
-        // };
-        //
-        // let resp = self.core.gcs_abort_resumable_upload(location).await?;
-        //
-        // match resp.status().as_u16() {
-        //     // gcs returns 499 if the upload aborted successfully
-        //     // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
-        //     499 => {
-        //         resp.into_body().consume().await?;
-        //         self.location = None;
-        //         self.buffer.clear();
-        //         Ok(())
-        //     }
-        //     _ => Err(parse_error(resp).await?),
-        // }
+    async fn abort_range(&self, location: &str) -> Result<()> {
+        let resp = self.core.gcs_abort_resumable_upload(location).await?;
 
-        todo!()
-    }
-
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        // let location = if let Some(location) = &self.location {
-        //     location
-        // } else {
-        //     return Ok(());
-        // };
-        //
-        // let bs = self.buffer.peak_exact(self.buffer.len());
-        //
-        // let resp = self
-        //     .core
-        //     .gcs_complete_resumable_upload(location, self.written, bs)
-        //     .await?;
-        //
-        // let status = resp.status();
-        // match status {
-        //     StatusCode::OK => {
-        //         resp.into_body().consume().await?;
-        //
-        //         self.location = None;
-        //         self.buffer.clear();
-        //         Ok(())
-        //     }
-        //     _ => Err(parse_error(resp).await?),
-        // }
-
-        todo!()
+        match resp.status().as_u16() {
+            // gcs returns 499 if the upload aborted successfully
+            // reference: https://cloud.google.com/storage/docs/performing-resumable-uploads#cancel-upload-json
+            499 => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

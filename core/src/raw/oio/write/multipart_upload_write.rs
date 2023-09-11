@@ -166,12 +166,12 @@ where
                 }
                 State::Close(_) => {
                     unreachable!(
-                        "MultipartUploadWriter must not go into State:Close during poll_write"
+                        "MultipartUploadWriter must not go into State::Close during poll_write"
                     )
                 }
                 State::Abort(_) => {
                     unreachable!(
-                        "MultipartUploadWriter must not go into State:Abort during poll_write"
+                        "MultipartUploadWriter must not go into State::Abort during poll_write"
                     )
                 }
             }
@@ -200,13 +200,13 @@ where
                     return Poll::Ready(res);
                 }
                 State::Init(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State:Init during poll_close"
+                    "MultipartUploadWriter must not go into State::Init during poll_close"
                 ),
                 State::Write(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State:Write during poll_close"
+                    "MultipartUploadWriter must not go into State::Write during poll_close"
                 ),
                 State::Abort(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State:Abort during poll_close"
+                    "MultipartUploadWriter must not go into State::Abort during poll_close"
                 ),
             }
         }
@@ -233,13 +233,13 @@ where
                     return Poll::Ready(res);
                 }
                 State::Init(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State:Init during poll_abort"
+                    "MultipartUploadWriter must not go into State::Init during poll_abort"
                 ),
                 State::Write(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State:Write during poll_abort"
+                    "MultipartUploadWriter must not go into State::Write during poll_abort"
                 ),
                 State::Close(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State:Close during poll_abort"
+                    "MultipartUploadWriter must not go into State::Close during poll_abort"
                 ),
             }
         }

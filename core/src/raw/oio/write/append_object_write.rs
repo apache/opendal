@@ -113,7 +113,10 @@ where
                     let (w, size) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
 
-                    return Poll::Ready(Ok(size?));
+                    let size = size?;
+                    // Update offset after succeed.
+                    self.offset = self.offset.map(|offset| offset + size as u64);
+                    return Poll::Ready(Ok(size));
                 }
             }
         }

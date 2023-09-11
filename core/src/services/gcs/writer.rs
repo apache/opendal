@@ -15,14 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
-use std::task::{ready, Context, Poll};
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::FutureExt;
 use http::StatusCode;
 
 use super::core::GcsCore;

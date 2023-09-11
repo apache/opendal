@@ -89,20 +89,6 @@ impl<W: RangeWrite> RangeWriter<W> {
     }
 }
 
-impl<W: RangeWrite> RangeWriter<W> {
-    fn align(&mut self, bs: &dyn WriteBuf) -> usize {
-        let remaining = bs.remaining();
-        let current_size = self.align_buffer.len();
-
-        let total_size = current_size + remaining;
-        if total_size <= self.align_size {
-            return remaining;
-        }
-
-        total_size - total_size % self.align_size - current_size
-    }
-}
-
 impl<W: RangeWrite> oio::Write for RangeWriter<W> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
         loop {
@@ -191,7 +177,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                                 self.align_buffer.len() > 0,
                                 "RangeWriter requires to have last chunk"
                             );
-                            let mut align_buffer = self.align_buffer.clone();
+                            let align_buffer = self.align_buffer.clone();
 
                             let written = self.written;
                             let fut = async move {
@@ -243,7 +229,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
 
                                 (w, res)
                             };
-                            self.state = State::Complete(Box::pin(fut));
+                            self.state = State::Abort(Box::pin(fut));
                         }
                         None => return Poll::Ready(Ok(())),
                     }

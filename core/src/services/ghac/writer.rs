@@ -124,7 +124,7 @@ impl oio::Write for GhacWriter {
 
                             if resp.status().is_success() {
                                 resp.into_body().consume().await?;
-                                Ok(size as usize)
+                                Ok(())
                             } else {
                                 Err(parse_error(resp)
                                     .await
@@ -135,7 +135,7 @@ impl oio::Write for GhacWriter {
 
                         (backend, res)
                     };
-                    self.state = State::Upload(Box::pin(fut));
+                    self.state = State::Commit(Box::pin(fut));
                 }
                 State::Upload(_) => {
                     unreachable!("GhacWriter must not go into State:Upload during poll_close")

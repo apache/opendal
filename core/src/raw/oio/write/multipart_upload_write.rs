@@ -25,9 +25,11 @@ use crate::*;
 
 /// MultipartUploadWrite is used to implement [`Write`] based on multipart
 /// uploads. By implementing MultipartUploadWrite, services don't need to
-/// care about the details of buffering and uploading parts.
+/// care about the details of uploading parts.
 ///
-/// The layout after adopting [`MultipartUploadWrite`]:
+/// # Architecture
+///
+/// The architecture after adopting [`MultipartUploadWrite`]:
 ///
 /// - Services impl `MultipartUploadWrite`
 /// - `MultipartUploadWriter` impl `Write`

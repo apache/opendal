@@ -24,10 +24,33 @@ use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
+/// RangeWrite is used to implement [`Write`] based on range write.
+///
+/// # Services
+///
+/// Services like gcs support range write via [GCS Resumable Upload](https://cloud.google.com/storage/docs/resumable-uploads).
+///
+/// GCS will support upload content by specifying the range of the file in `CONTENT-RANGE`.
+///
+/// Most range based services will have the following limitations:
+///
+/// - The size of chunk per upload must be aligned to a certain size. For example, GCS requires
+///   to align with 256KiB.
+/// - Some services requires to complete the write at the last chunk with the total size.
+///
+/// # Architecture
+///
+/// The architecture after adopting [`RangeWrite`]:
+///
+/// - Services impl `RangeWrite`
+/// - `RangeWriter` impl `Write`
+/// - Expose `RangeWriter` as `Accessor::Writer`
 #[async_trait]
 pub trait RangeWrite: Send + Sync + Unpin + 'static {
+    /// Initiate range the range write, the returning value is the location.
     async fn initiate_range(&self) -> Result<String>;
 
+    /// write_range will write a range of data.
     async fn write_range(
         &self,
         location: &str,
@@ -36,6 +59,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         body: AsyncBody,
     ) -> Result<()>;
 
+    /// complete_range will complete the range write by uploading the last chunk.
     async fn complete_range(
         &self,
         location: &str,
@@ -44,9 +68,11 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
         body: AsyncBody,
     ) -> Result<()>;
 
+    /// abort_range will abort the range write by abort all already uploaded data.
     async fn abort_range(&self, location: &str) -> Result<()>;
 }
 
+/// RangeWriter will implements [`Write`] based on range write.
 pub struct RangeWriter<W: RangeWrite> {
     location: Option<String>,
     written: u64,
@@ -83,6 +109,14 @@ impl<W: RangeWrite> RangeWriter<W> {
         }
     }
 
+    /// Set the align size.
+    ///
+    /// The size is default to 256 KiB.
+    ///
+    /// # Note
+    ///
+    /// Please don't mix this with the buffer size. Align size is usually the hard
+    /// limit for the service to accept the chunk.
     pub fn with_align_size(mut self, size: usize) -> Self {
         self.align_size = size;
         self

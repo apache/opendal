@@ -143,10 +143,12 @@ pub trait WriteExt: Write {
         WriteFuture { writer: self, buf }
     }
 
+    /// Build a future for `poll_close`.
     fn close(&mut self) -> CloseFuture<Self> {
         CloseFuture { writer: self }
     }
 
+    /// Build a future for `poll_abort`.
     fn abort(&mut self) -> AbortFuture<Self> {
         AbortFuture { writer: self }
     }

@@ -26,14 +26,18 @@ use crate::*;
 
 pub struct VercelArtifactsWriter {
     backend: VercelArtifactsBackend,
-    op: OpWrite,
+    _op: OpWrite,
 
     path: String,
 }
 
 impl VercelArtifactsWriter {
     pub fn new(backend: VercelArtifactsBackend, op: OpWrite, path: String) -> Self {
-        VercelArtifactsWriter { backend, op, path }
+        VercelArtifactsWriter {
+            backend,
+            _op: op,
+            path,
+        }
     }
 }
 

@@ -221,7 +221,7 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WebdavWriter;
+    type Writer = oio::OneShotWriter<WebdavWriter>;
     type BlockingWriter = ();
     type Pager = Option<WebdavPager>;
     type BlockingPager = ();
@@ -286,7 +286,10 @@ impl Accessor for WebdavBackend {
 
         let p = build_abs_path(&self.root, path);
 
-        Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(WebdavWriter::new(self.clone(), args, p)),
+        ))
     }
 
     /// # Notes

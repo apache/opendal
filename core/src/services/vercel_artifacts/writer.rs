@@ -16,6 +16,7 @@
 // under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::VercelArtifactsBackend;
@@ -25,29 +26,29 @@ use crate::*;
 
 pub struct VercelArtifactsWriter {
     backend: VercelArtifactsBackend,
-    op: OpWrite,
+    _op: OpWrite,
 
     path: String,
 }
 
 impl VercelArtifactsWriter {
     pub fn new(backend: VercelArtifactsBackend, op: OpWrite, path: String) -> Self {
-        VercelArtifactsWriter { backend, op, path }
+        VercelArtifactsWriter {
+            backend,
+            _op: op,
+            path,
+        }
     }
 }
 
 #[async_trait]
-impl oio::Write for VercelArtifactsWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.remaining();
+impl oio::OneShotWrite for VercelArtifactsWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
 
         let resp = self
             .backend
-            .vercel_artifacts_put(
-                self.path.as_str(),
-                self.op.content_length().unwrap(),
-                AsyncBody::Bytes(bs.copy_to_bytes(size)),
-            )
+            .vercel_artifacts_put(self.path.as_str(), size as u64, AsyncBody::Bytes(bs))
             .await?;
 
         let status = resp.status();
@@ -55,17 +56,9 @@ impl oio::Write for VercelArtifactsWriter {
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

@@ -46,7 +46,7 @@ impl Debug for VercelArtifactsBackend {
 impl Accessor for VercelArtifactsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = VercelArtifactsWriter;
+    type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
@@ -93,7 +93,11 @@ impl Accessor for VercelArtifactsBackend {
 
         Ok((
             RpWrite::default(),
-            VercelArtifactsWriter::new(self.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(VercelArtifactsWriter::new(
+                self.clone(),
+                args,
+                path.to_string(),
+            )),
         ))
     }
 

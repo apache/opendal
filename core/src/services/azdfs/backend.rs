@@ -230,7 +230,7 @@ pub struct AzdfsBackend {
 impl Accessor for AzdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = AzdfsWriter;
+    type Writer = oio::OneShotWriter<AzdfsWriter>;
     type BlockingWriter = ();
     type Pager = AzdfsPager;
     type BlockingPager = ();
@@ -305,7 +305,7 @@ impl Accessor for AzdfsBackend {
 
         Ok((
             RpWrite::default(),
-            AzdfsWriter::new(self.core.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(AzdfsWriter::new(self.core.clone(), args, path.to_string())),
         ))
     }
 

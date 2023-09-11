@@ -41,14 +41,17 @@ impl SupabaseWriter {
             path: path.to_string(),
         }
     }
+}
 
-    pub async fn upload(&self, bytes: Bytes) -> Result<()> {
-        let size = bytes.len();
+#[async_trait]
+impl oio::OneShotWrite for SupabaseWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
         let mut req = self.core.supabase_upload_object_request(
             &self.path,
             Some(size),
             self.op.content_type(),
-            AsyncBody::Bytes(bytes),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req)?;
@@ -62,25 +65,5 @@ impl SupabaseWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[async_trait]
-impl oio::Write for SupabaseWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.remaining();
-        self.upload(bs.copy_to_bytes(size)).await?;
-        Ok(size)
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "The abort operation is not yet supported for Supabase backend",
-        ))
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

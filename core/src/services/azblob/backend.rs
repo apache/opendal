@@ -38,6 +38,7 @@ use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
+use crate::services::azblob::writer::AzblobWriters;
 use crate::types::Metadata;
 use crate::*;
 
@@ -506,7 +507,7 @@ pub struct AzblobBackend {
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = AzblobWriter;
+    type Writer = AzblobWriters;
     type BlockingWriter = ();
     type Pager = AzblobPager;
     type BlockingPager = ();
@@ -601,10 +602,14 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            AzblobWriter::new(self.core.clone(), args, path.to_string()),
-        ))
+        let w = AzblobWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = if args.append() {
+            AzblobWriters::Two(oio::AppendObjectWriter::new(w))
+        } else {
+            AzblobWriters::One(oio::OneShotWriter::new(w))
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

@@ -17,8 +17,13 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
+use pin_project::pin_project;
 
 use crate::raw::*;
 use crate::*;
@@ -81,35 +86,33 @@ pub trait Write: Unpin + Send + Sync {
     ///
     /// It's possible that `n < bs.len()`, caller should pass the remaining bytes
     /// repeatedly until all bytes has been written.
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize>;
-
-    /// Abort the pending writer.
-    async fn abort(&mut self) -> Result<()>;
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>>;
 
     /// Close the writer and make sure all data has been flushed.
-    async fn close(&mut self) -> Result<()>;
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
+
+    /// Abort the pending writer.
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>>;
 }
 
 #[async_trait]
 impl Write for () {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let _ = bs;
-
+    fn poll_write(&mut self, _: &mut Context<'_>, _: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         unimplemented!("write is required to be implemented for oio::Write")
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support abort",
-        ))
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Err(Error::new(
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support close",
-        ))
+        )))
+    }
+
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support abort",
+        )))
     }
 }
 
@@ -118,16 +121,92 @@ impl Write for () {
 /// To make Writer work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        (**self).write(bs).await
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        (**self).poll_write(cx, bs)
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        (**self).abort().await
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        (**self).poll_close(cx)
     }
 
-    async fn close(&mut self) -> Result<()> {
-        (**self).close().await
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        (**self).poll_abort(cx)
+    }
+}
+
+/// Impl WriteExt for all T: Write
+impl<T: Write> WriteExt for T {}
+
+/// Extension of [`Read`] to make it easier for use.
+pub trait WriteExt: Write {
+    /// Build a future for `poll_write`.
+    fn write<'a>(&'a mut self, buf: &'a dyn oio::WriteBuf) -> WriteFuture<'a, Self> {
+        WriteFuture { writer: self, buf }
+    }
+
+    /// Build a future for `poll_close`.
+    fn close(&mut self) -> CloseFuture<Self> {
+        CloseFuture { writer: self }
+    }
+
+    /// Build a future for `poll_abort`.
+    fn abort(&mut self) -> AbortFuture<Self> {
+        AbortFuture { writer: self }
+    }
+}
+
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
+pub struct WriteFuture<'a, W: Write + Unpin + ?Sized> {
+    writer: &'a mut W,
+    buf: &'a dyn oio::WriteBuf,
+}
+
+impl<W> Future for WriteFuture<'_, W>
+where
+    W: Write + Unpin + ?Sized,
+{
+    type Output = Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
+        let this = self.project();
+        Pin::new(this.writer).poll_write(cx, *this.buf)
+    }
+}
+
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
+pub struct AbortFuture<'a, W: Write + Unpin + ?Sized> {
+    writer: &'a mut W,
+}
+
+impl<W> Future for AbortFuture<'_, W>
+where
+    W: Write + Unpin + ?Sized,
+{
+    type Output = Result<()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this = self.project();
+        Pin::new(this.writer).poll_abort(cx)
+    }
+}
+
+/// Make this future `!Unpin` for compatibility with async trait methods.
+#[pin_project(!Unpin)]
+pub struct CloseFuture<'a, W: Write + Unpin + ?Sized> {
+    writer: &'a mut W,
+}
+
+impl<W> Future for CloseFuture<'_, W>
+where
+    W: Write + Unpin + ?Sized,
+{
+    type Output = Result<()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let this = self.project();
+        Pin::new(this.writer).poll_close(cx)
     }
 }
 

@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzdfsCore;
@@ -39,8 +40,8 @@ impl AzdfsWriter {
 }
 
 #[async_trait]
-impl oio::Write for AzdfsWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+impl oio::OneShotWrite for AzdfsWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
         let mut req = self.core.azdfs_create_request(
             &self.path,
             "file",
@@ -65,13 +66,11 @@ impl oio::Write for AzdfsWriter {
             }
         }
 
-        let size = bs.remaining();
+        let size = bs.len();
 
-        let mut req = self.core.azdfs_update_request(
-            &self.path,
-            Some(size),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
-        )?;
+        let mut req =
+            self.core
+                .azdfs_update_request(&self.path, Some(size), AsyncBody::Bytes(bs))?;
 
         self.core.sign(&mut req).await?;
 
@@ -81,19 +80,11 @@ impl oio::Write for AzdfsWriter {
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp)
                 .await?
                 .with_operation("Backend::azdfs_update_request")),
         }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

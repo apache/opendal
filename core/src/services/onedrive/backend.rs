@@ -64,7 +64,7 @@ impl Debug for OnedriveBackend {
 impl Accessor for OnedriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = OneDriveWriter;
+    type Writer = oio::OneShotWriter<OneDriveWriter>;
     type BlockingWriter = ();
     type Pager = OnedrivePager;
     type BlockingPager = ();
@@ -114,7 +114,7 @@ impl Accessor for OnedriveBackend {
 
         Ok((
             RpWrite::default(),
-            OneDriveWriter::new(self.clone(), args, path),
+            oio::OneShotWriter::new(OneDriveWriter::new(self.clone(), args, path)),
         ))
     }
 

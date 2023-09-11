@@ -16,8 +16,13 @@
 // under the License.
 
 use std::sync::Arc;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 
 use super::Adapter;
 use crate::raw::*;
@@ -374,6 +379,7 @@ pub struct KvWriter<S> {
 
     /// TODO: if kv supports append, we can use them directly.
     buf: Option<Vec<u8>>,
+    future: Option<BoxFuture<'static, Result<()>>>,
 }
 
 impl<S> KvWriter<S> {
@@ -382,36 +388,71 @@ impl<S> KvWriter<S> {
             kv,
             path,
             buf: None,
+            future: None,
         }
     }
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for KvWriter.
+unsafe impl<S: Adapter> Sync for KvWriter<S> {}
+
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
     // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
+        }
+
         let size = bs.chunk().len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
         buf.extend_from_slice(bs.chunk());
         self.buf = Some(buf);
 
-        Ok(size)
+        Poll::Ready(Ok(size))
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support abort",
-        ))
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        if let Some(buf) = self.buf.as_deref() {
-            self.kv.set(&self.path, buf).await?;
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
         }
 
-        Ok(())
+        self.buf = None;
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match self.future.as_mut() {
+                Some(fut) => {
+                    ready!(fut.poll_unpin(cx))?;
+                    self.future = None;
+                    return Poll::Ready(Ok(()));
+                }
+                None => {
+                    let kv = self.kv.clone();
+                    let path = self.path.clone();
+                    let buf = match self.buf.take() {
+                        Some(buf) => buf,
+                        None => return Poll::Ready(Ok(())),
+                    };
+
+                    let fut = async move { kv.set(&path, &buf).await };
+                    self.future = Some(Box::pin(fut));
+                }
+            }
+        }
     }
 }
 

@@ -16,9 +16,13 @@
 // under the License.
 
 use std::cmp::min;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
+use bytes::BytesMut;
 
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
@@ -62,20 +66,20 @@ enum Buffer {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
-    async fn write(&mut self, bs: &dyn WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
         loop {
             match &mut self.buffer {
                 Buffer::Empty => {
                     if bs.remaining() >= self.buffer_size {
                         self.buffer = Buffer::Consuming(bs.copy_to_bytes(self.buffer_size));
-                        return Ok(self.buffer_size);
+                        return Poll::Ready(Ok(self.buffer_size));
                     }
 
                     let chunk = bs.chunk();
                     let mut fill = BytesMut::with_capacity(chunk.len());
                     fill.extend_from_slice(chunk);
                     self.buffer = Buffer::Filling(fill);
-                    return Ok(chunk.len());
+                    return Poll::Ready(Ok(chunk.len()));
                 }
                 Buffer::Filling(fill) => {
                     if fill.len() >= self.buffer_size {
@@ -85,14 +89,14 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
                     let size = min(self.buffer_size - fill.len(), bs.chunk().len());
                     fill.extend_from_slice(&bs.chunk()[..size]);
-                    return Ok(size);
+                    return Poll::Ready(Ok(size));
                 }
                 Buffer::Consuming(consume) => {
                     // Make sure filled buffer has been flushed.
                     //
                     // TODO: maybe we can re-fill it after a successful write.
                     while !consume.is_empty() {
-                        let n = self.inner.write(consume).await?;
+                        let n = ready!(self.inner.poll_write(cx, consume)?);
                         consume.advance(n);
                     }
                     self.buffer = Buffer::Empty;
@@ -101,12 +105,12 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
         }
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         self.buffer = Buffer::Empty;
-        self.inner.abort().await
+        self.inner.poll_abort(cx)
     }
 
-    async fn close(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.buffer {
                 Buffer::Empty => break,
@@ -119,7 +123,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
                     //
                     // TODO: maybe we can re-fill it after a successful write.
                     while !consume.is_empty() {
-                        let n = self.inner.write(&consume).await?;
+                        let n = ready!(self.inner.poll_write(cx, &consume))?;
                         consume.advance(n);
                     }
                     self.buffer = Buffer::Empty;
@@ -128,7 +132,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
             }
         }
 
-        self.inner.close().await
+        self.inner.poll_close(cx)
     }
 }
 
@@ -144,6 +148,7 @@ mod tests {
 
     use super::*;
     use crate::raw::oio::Write;
+    use crate::raw::oio::WriteExt;
 
     struct MockWriter {
         buf: Vec<u8>,
@@ -151,22 +156,22 @@ mod tests {
 
     #[async_trait]
     impl Write for MockWriter {
-        async fn write(&mut self, bs: &dyn WriteBuf) -> Result<usize> {
+        fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
             debug!(
                 "test_fuzz_exact_buf_writer: flush size: {}",
                 bs.chunk().len()
             );
 
             self.buf.extend_from_slice(bs.chunk());
-            Ok(bs.chunk().len())
+            Poll::Ready(Ok(bs.chunk().len()))
         }
 
-        async fn abort(&mut self) -> Result<()> {
-            Ok(())
+        fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+            Poll::Ready(Ok(()))
         }
 
-        async fn close(&mut self) -> Result<()> {
-            Ok(())
+        fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+            Poll::Ready(Ok(()))
         }
     }
 

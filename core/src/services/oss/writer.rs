@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -50,15 +51,15 @@ impl OssWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for OssWriter {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let size = bs.remaining();
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
         let mut req = self.core.oss_put_object_request(
             &self.path,
             Some(size as u64),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
+            AsyncBody::Bytes(bs),
             false,
         )?;
 

@@ -158,7 +158,7 @@ pub struct SupabaseBackend {
 impl Accessor for SupabaseBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = SupabaseWriter;
+    type Writer = oio::OneShotWriter<SupabaseWriter>;
     type BlockingWriter = ();
     // todo: implement Pager to support list and scan
     type Pager = ();
@@ -233,7 +233,7 @@ impl Accessor for SupabaseBackend {
 
         Ok((
             RpWrite::default(),
-            SupabaseWriter::new(self.core.clone(), path, args),
+            oio::OneShotWriter::new(SupabaseWriter::new(self.core.clone(), path, args)),
         ))
     }
 

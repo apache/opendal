@@ -24,7 +24,6 @@ use http::StatusCode;
 use super::core::GdriveCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::gdrive::core::GdriveFile;
 use crate::*;
 
 pub struct GdriveWriter {
@@ -49,7 +48,7 @@ impl GdriveWriter {
     ///
     /// This is used for small objects.
     /// And should overwrite the object if it already exists.
-    pub async fn write_create(&mut self, size: u64, body: Bytes) -> Result<()> {
+    pub async fn write_create(&self, size: u64, body: Bytes) -> Result<()> {
         let resp = self
             .core
             .gdrive_upload_simple_request(&self.path, size, body)
@@ -59,13 +58,7 @@ impl GdriveWriter {
 
         match status {
             StatusCode::OK | StatusCode::CREATED => {
-                let bs = resp.into_body().bytes().await?;
-
-                let file = serde_json::from_slice::<GdriveFile>(&bs)
-                    .map_err(new_json_deserialize_error)?;
-
-                self.file_id = Some(file.id);
-
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => Err(parse_error(resp).await?),
@@ -94,25 +87,15 @@ impl GdriveWriter {
 }
 
 #[async_trait]
-impl oio::Write for GdriveWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.remaining();
+impl oio::OneShotWrite for GdriveWriter {
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
         if self.file_id.is_none() {
-            self.write_create(size as u64, bs.copy_to_bytes(size))
-                .await?;
+            self.write_create(size as u64, bs).await?;
         } else {
-            self.write_overwrite(size as u64, bs.copy_to_bytes(size))
-                .await?;
+            self.write_overwrite(size as u64, bs).await?;
         }
 
-        Ok(size)
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
         Ok(())
     }
 }

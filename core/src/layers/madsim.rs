@@ -302,7 +302,11 @@ pub struct MadsimWriter {
 
 #[async_trait]
 impl oio::Write for MadsimWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> crate::Result<usize> {
+    fn poll_write(
+        &mut self,
+        cx: &mut Context<'_>,
+        bs: &dyn oio::WriteBuf,
+    ) -> Poll<crate::Result<usize>> {
         #[cfg(madsim)]
         {
             let req = Request::Write(self.path.to_string(), bs);
@@ -318,15 +322,15 @@ impl oio::Write for MadsimWriter {
         }
     }
 
-    async fn abort(&mut self) -> crate::Result<()> {
-        Err(Error::new(
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+        Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
             "will be supported in the future",
-        ))
+        )))
     }
 
-    async fn close(&mut self) -> crate::Result<()> {
-        Ok(())
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 
@@ -342,10 +346,8 @@ impl oio::Page for MadsimPager {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(e: std::io::Error) -> Self {
-        Error::new(ErrorKind::Unexpected, "madsim error")
-    }
+fn parse_io_error(e: std::io::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "madsim error")
 }
 
 /// A simulated server.This an experimental feature, docs are not ready yet.

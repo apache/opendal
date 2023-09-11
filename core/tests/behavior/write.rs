@@ -19,7 +19,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Result;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;

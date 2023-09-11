@@ -40,7 +40,7 @@ pub struct GdriveBackend {
 impl Accessor for GdriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = GdriveWriter;
+    type Writer = oio::OneShotWriter<GdriveWriter>;
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
@@ -194,7 +194,11 @@ impl Accessor for GdriveBackend {
 
         Ok((
             RpWrite::default(),
-            GdriveWriter::new(self.core.clone(), String::from(path), file_id),
+            oio::OneShotWriter::new(GdriveWriter::new(
+                self.core.clone(),
+                String::from(path),
+                file_id,
+            )),
         ))
     }
 

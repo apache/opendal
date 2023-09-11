@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -50,15 +51,15 @@ impl CosWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for CosWriter {
-    async fn write_once(&self, buf: &dyn oio::WriteBuf) -> Result<()> {
-        let size = buf.remaining();
+    async fn write_once(&self, buf: Bytes) -> Result<()> {
+        let size = buf.len();
         let mut req = self.core.cos_put_object_request(
             &self.path,
             Some(size as u64),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            AsyncBody::Bytes(buf.copy_to_bytes(size)),
+            AsyncBody::Bytes(buf),
         )?;
 
         self.core.sign(&mut req).await?;

@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -47,8 +48,8 @@ impl S3Writer {
 
 #[async_trait]
 impl oio::OneShotWrite for S3Writer {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let size = bs.remaining();
+    async fn write_once(&self, bs: Bytes) -> Result<()> {
+        let size = bs.len();
 
         let mut req = self.core.s3_put_object_request(
             &self.path,
@@ -56,7 +57,7 @@ impl oio::OneShotWrite for S3Writer {
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;

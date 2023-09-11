@@ -15,7 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 
 use crate::raw::*;
 use crate::*;
@@ -30,7 +35,7 @@ use crate::*;
 /// - `AppendObjectWriter` impl `Write`
 /// - Expose `AppendObjectWriter` as `Accessor::Writer`
 #[async_trait]
-pub trait AppendObjectWrite: Send + Sync + Unpin {
+pub trait AppendObjectWrite: Send + Sync + Unpin + 'static {
     /// Get the current offset of the append object.
     ///
     /// Returns `0` if the object is not exist.
@@ -46,29 +51,29 @@ pub trait AppendObjectWrite: Send + Sync + Unpin {
 ///
 /// - Allow users to switch to un-buffered mode if users write 16MiB every time.
 pub struct AppendObjectWriter<W: AppendObjectWrite> {
-    inner: W,
+    state: State<W>,
 
     offset: Option<u64>,
 }
+
+enum State<W> {
+    Idle(Option<W>),
+    Offset(BoxFuture<'static, (W, Result<u64>)>),
+    Append(BoxFuture<'static, (W, Result<usize>)>),
+}
+
+/// # Safety
+///
+/// We will only take `&mut Self` reference for State.
+unsafe impl<S: AppendObjectWrite> Sync for State<S> {}
 
 impl<W: AppendObjectWrite> AppendObjectWriter<W> {
     /// Create a new AppendObjectWriter.
     pub fn new(inner: W) -> Self {
         Self {
-            inner,
+            state: State::Idle(Some(inner)),
             offset: None,
         }
-    }
-
-    async fn offset(&mut self) -> Result<u64> {
-        if let Some(offset) = self.offset {
-            return Ok(offset);
-        }
-
-        let offset = self.inner.offset().await?;
-        self.offset = Some(offset);
-
-        Ok(offset)
     }
 }
 
@@ -77,28 +82,54 @@ impl<W> oio::Write for AppendObjectWriter<W>
 where
     W: AppendObjectWrite,
 {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let offset = self.offset().await?;
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        loop {
+            match &mut self.state {
+                State::Idle(w) => {
+                    let w = w.take().expect("writer must be valid");
+                    match self.offset {
+                        Some(offset) => {
+                            let size = bs.remaining();
+                            let bs = bs.copy_to_bytes(size);
 
-        let size = bs.remaining();
+                            self.state = State::Append(Box::pin(async move {
+                                let res = w.append(offset, size as u64, AsyncBody::Bytes(bs)).await;
 
-        self.inner
-            .append(
-                offset,
-                size as u64,
-                AsyncBody::Bytes(bs.copy_to_bytes(size)),
-            )
-            .await
-            .map(|_| self.offset = Some(offset + size as u64))?;
+                                (w, res.map(|_| size))
+                            }));
+                        }
+                        None => {
+                            self.state = State::Offset(Box::pin(async move {
+                                let offset = w.offset().await;
 
-        Ok(size)
+                                (w, offset)
+                            }));
+                        }
+                    }
+                }
+                State::Offset(fut) => {
+                    let (w, offset) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+                    self.offset = Some(offset?);
+                }
+                State::Append(fut) => {
+                    let (w, size) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+
+                    let size = size?;
+                    // Update offset after succeed.
+                    self.offset = self.offset.map(|offset| offset + size as u64);
+                    return Poll::Ready(Ok(size));
+                }
+            }
+        }
     }
 
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }

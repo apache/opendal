@@ -21,6 +21,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 
 use crate::raw::*;
@@ -37,8 +38,26 @@ use crate::*;
 /// - Services impl `MultipartUploadWrite`
 /// - `MultipartUploadWriter` impl `Write`
 /// - Expose `MultipartUploadWriter` as `Accessor::Writer`
+///
+/// # Notes
+///
+/// `MultipartUploadWrite` has an oneshot optimization when `write` has been called only once:
+///
+/// ```rust,no_build
+/// w.write(bs).await?;
+/// w.close().await?;
+/// ```
+///
+/// We will use `write_once` instead of starting a new multipart upload.
 #[async_trait]
 pub trait MultipartUploadWrite: Send + Sync + Unpin + 'static {
+    /// write_once is used to write the data to underlying storage at once.
+    ///
+    /// MultipartUploadWriter will call this API when:
+    ///
+    /// - All the data has been written to the buffer and we can perform the upload at once.
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()>;
+
     /// initiate_part will call start a multipart upload and return the upload id.
     ///
     /// MultipartUploadWriter will call this when:
@@ -90,6 +109,7 @@ pub struct MultipartUploadPart {
 pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
     state: State<W>,
 
+    cache: Option<Bytes>,
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartUploadPart>,
 }
@@ -97,7 +117,7 @@ pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
 enum State<W> {
     Idle(Option<W>),
     Init(BoxFuture<'static, (W, Result<String>)>),
-    Write(BoxFuture<'static, (W, usize, Result<MultipartUploadPart>)>),
+    Write(BoxFuture<'static, (W, Result<MultipartUploadPart>)>),
     Close(BoxFuture<'static, (W, Result<()>)>),
     Abort(BoxFuture<'static, (W, Result<()>)>),
 }
@@ -113,6 +133,7 @@ impl<W: MultipartUploadWrite> MultipartUploadWriter<W> {
         Self {
             state: State::Idle(Some(inner)),
 
+            cache: None,
             upload_id: None,
             parts: Vec::new(),
         }
@@ -128,15 +149,15 @@ where
         loop {
             match &mut self.state {
                 State::Idle(w) => {
-                    let w = w.take().expect("writer must be valid");
                     match self.upload_id.as_ref() {
                         Some(upload_id) => {
-                            let size = bs.remaining();
-                            let bs = bs.copy_to_bytes(size);
                             let upload_id = upload_id.clone();
                             let part_number = self.parts.len();
 
+                            let bs = self.cache.clone().expect("cache must be valid").clone();
+                            let w = w.take().expect("writer must be valid");
                             self.state = State::Write(Box::pin(async move {
+                                let size = bs.len();
                                 let part = w
                                     .write_part(
                                         &upload_id,
@@ -146,10 +167,18 @@ where
                                     )
                                     .await;
 
-                                (w, size, part)
+                                (w, part)
                             }));
                         }
                         None => {
+                            // Fill cache with the first write.
+                            if self.cache.is_none() {
+                                let size = bs.remaining();
+                                self.cache = Some(bs.copy_to_bytes(size));
+                                return Poll::Ready(Ok(size));
+                            }
+
+                            let w = w.take().expect("writer must be valid");
                             self.state = State::Init(Box::pin(async move {
                                 let upload_id = w.initiate_part().await;
                                 (w, upload_id)
@@ -163,10 +192,12 @@ where
                     self.upload_id = Some(Arc::new(upload_id?));
                 }
                 State::Write(fut) => {
-                    let (w, size, part) = ready!(fut.as_mut().poll(cx));
+                    let (w, part) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
-
                     self.parts.push(part?);
+                    // Replace the cache when last write succeeded
+                    let size = bs.remaining();
+                    self.cache = Some(bs.copy_to_bytes(size));
                     return Poll::Ready(Ok(size));
                 }
                 State::Close(_) => {
@@ -191,25 +222,57 @@ where
                     match self.upload_id.clone() {
                         Some(upload_id) => {
                             let parts = self.parts.clone();
-                            self.state = State::Close(Box::pin(async move {
-                                let res = w.complete_part(&upload_id, &parts).await;
-                                (w, res)
-                            }));
+                            match self.cache.clone() {
+                                Some(bs) => {
+                                    let upload_id = upload_id.clone();
+                                    self.state = State::Write(Box::pin(async move {
+                                        let size = bs.len();
+                                        let part = w
+                                            .write_part(
+                                                &upload_id,
+                                                parts.len(),
+                                                size as u64,
+                                                AsyncBody::Bytes(bs),
+                                            )
+                                            .await;
+                                        (w, part)
+                                    }));
+                                }
+                                None => {
+                                    self.state = State::Close(Box::pin(async move {
+                                        let res = w.complete_part(&upload_id, &parts).await;
+                                        (w, res)
+                                    }));
+                                }
+                            }
                         }
-                        None => return Poll::Ready(Ok(())),
+                        None => match self.cache.clone() {
+                            Some(bs) => {
+                                self.state = State::Close(Box::pin(async move {
+                                    let size = bs.len();
+                                    let res = w.write_once(size as u64, AsyncBody::Bytes(bs)).await;
+                                    (w, res)
+                                }));
+                            }
+                            None => return Poll::Ready(Ok(())),
+                        },
                     }
                 }
                 State::Close(fut) => {
                     let (w, res) = futures::ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
+                    self.cache = None;
                     return Poll::Ready(res);
                 }
                 State::Init(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Init during poll_close"
                 ),
-                State::Write(_) => unreachable!(
-                    "MultipartUploadWriter must not go into State::Write during poll_close"
-                ),
+                State::Write(fut) => {
+                    let (w, part) = ready!(fut.as_mut().poll(cx));
+                    self.state = State::Idle(Some(w));
+                    self.parts.push(part?);
+                    self.cache = None;
+                }
                 State::Abort(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Abort during poll_close"
                 ),
@@ -229,7 +292,10 @@ where
                                 (w, res)
                             }));
                         }
-                        None => return Poll::Ready(Ok(())),
+                        None => {
+                            self.cache = None;
+                            return Poll::Ready(Ok(()));
+                        }
                     }
                 }
                 State::Abort(fut) => {

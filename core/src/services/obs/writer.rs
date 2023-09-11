@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
@@ -27,11 +26,8 @@ use crate::raw::oio::MultipartUploadPart;
 use crate::raw::*;
 use crate::*;
 
-pub type ObsWriters = oio::ThreeWaysWriter<
-    oio::OneShotWriter<ObsWriter>,
-    oio::MultipartUploadWriter<ObsWriter>,
-    oio::AppendObjectWriter<ObsWriter>,
->;
+pub type ObsWriters =
+    oio::TwoWaysWriter<oio::MultipartUploadWriter<ObsWriter>, oio::AppendObjectWriter<ObsWriter>>;
 
 pub struct ObsWriter {
     core: Arc<ObsCore>,
@@ -51,15 +47,14 @@ impl ObsWriter {
 }
 
 #[async_trait]
-impl oio::OneShotWrite for ObsWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+impl oio::MultipartUploadWrite for ObsWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.obs_put_object_request(
             &self.path,
-            Some(size as u64),
+            Some(size),
             self.op.content_type(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs),
+            body,
         )?;
 
         self.core.sign(&mut req).await?;
@@ -76,10 +71,7 @@ impl oio::OneShotWrite for ObsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::MultipartUploadWrite for ObsWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core

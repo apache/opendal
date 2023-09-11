@@ -337,11 +337,9 @@ impl Accessor for CosBackend {
         let writer = CosWriter::new(self.core.clone(), path, args.clone());
 
         let w = if args.append() {
-            CosWriters::Three(oio::AppendObjectWriter::new(writer))
-        } else if args.content_length().is_some() {
-            CosWriters::One(oio::OneShotWriter::new(writer))
+            CosWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            CosWriters::Two(oio::MultipartUploadWriter::new(writer))
+            CosWriters::One(oio::MultipartUploadWriter::new(writer))
         };
 
         let w = if let Some(buffer_size) = args.buffer_size() {

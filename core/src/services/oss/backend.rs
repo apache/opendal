@@ -473,11 +473,9 @@ impl Accessor for OssBackend {
         let writer = OssWriter::new(self.core.clone(), path, args.clone());
 
         let w = if args.append() {
-            OssWriters::Three(oio::AppendObjectWriter::new(writer))
-        } else if args.content_length().is_some() {
-            OssWriters::One(oio::OneShotWriter::new(writer))
+            OssWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            OssWriters::Two(oio::MultipartUploadWriter::new(writer))
+            OssWriters::One(oio::MultipartUploadWriter::new(writer))
         };
 
         let w = if let Some(buffer_size) = args.buffer_size() {

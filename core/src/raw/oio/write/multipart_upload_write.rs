@@ -43,7 +43,7 @@ use crate::*;
 ///
 /// `MultipartUploadWrite` has an oneshot optimization when `write` has been called only once:
 ///
-/// ```rust,no_build
+/// ```no_build
 /// w.write(bs).await?;
 /// w.close().await?;
 /// ```

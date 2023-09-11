@@ -207,10 +207,6 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     let w = w.take().unwrap();
                     match self.location.clone() {
                         Some(location) => {
-                            debug_assert!(
-                                self.align_buffer.len() > 0,
-                                "RangeWriter requires to have last chunk"
-                            );
                             let align_buffer = self.align_buffer.clone();
 
                             let written = self.written;

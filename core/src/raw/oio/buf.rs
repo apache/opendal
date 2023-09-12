@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::IoSlice;
+
 use bytes::Bytes;
 use bytes::BytesMut;
-use std::io::IoSlice;
 
 /// WriteBuf is used in [`oio::Write`] to provide in-memory buffer support.
 pub trait WriteBuf: Send + Sync {

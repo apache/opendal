@@ -61,7 +61,7 @@ impl oio::Write for FsWriter<tokio::fs::File> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
         Pin::new(f)
-            .poll_write(cx, bs.chunk())
+            .poll_write_vectored(cx, &bs.vectored_chunk())
             .map_err(parse_io_error)
     }
 
@@ -120,7 +120,8 @@ impl oio::BlockingWrite for FsWriter<std::fs::File> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        f.write(bs.chunk()).map_err(parse_io_error)
+        f.write_vectored(&bs.vectored_chunk())
+            .map_err(parse_io_error)
     }
 
     fn close(&mut self) -> Result<()> {

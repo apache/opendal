@@ -18,11 +18,13 @@
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::io::IoSlice;
+use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
 use bytes::BytesMut;
+use futures::Stream;
 
 use crate::raw::*;
 use crate::*;

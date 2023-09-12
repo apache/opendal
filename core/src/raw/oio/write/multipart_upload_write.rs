@@ -174,7 +174,7 @@ where
                             // Fill cache with the first write.
                             if self.cache.is_none() {
                                 let size = bs.remaining();
-                                self.cache = Some(bs.copy_to_bytes(size));
+                                self.cache = Some(bs.bytes(size));
                                 return Poll::Ready(Ok(size));
                             }
 
@@ -197,7 +197,7 @@ where
                     self.parts.push(part?);
                     // Replace the cache when last write succeeded
                     let size = bs.remaining();
-                    self.cache = Some(bs.copy_to_bytes(size));
+                    self.cache = Some(bs.bytes(size));
                     return Poll::Ready(Ok(size));
                 }
                 State::Close(_) => {

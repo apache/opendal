@@ -138,7 +138,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                             let mut total_size = current_size + remaining;
 
                             if total_size <= self.align_size {
-                                let bs = bs.copy_to_bytes(remaining);
+                                let bs = bs.bytes(remaining);
                                 self.align_buffer.push(bs);
                                 return Poll::Ready(Ok(remaining));
                             }
@@ -150,7 +150,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
 
                             let consume = total_size - total_size % self.align_size - current_size;
                             let mut align_buffer = self.align_buffer.clone();
-                            let bs = bs.copy_to_bytes(consume);
+                            let bs = bs.bytes(consume);
                             align_buffer.push(bs);
 
                             let written = self.written;

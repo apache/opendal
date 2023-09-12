@@ -66,7 +66,7 @@ impl oio::Write for FtpWriter {
             }
 
             let size = bs.remaining();
-            let bs = bs.copy_to_bytes(size);
+            let bs = bs.bytes(size);
 
             let path = self.path.clone();
             let backend = self.backend.clone();

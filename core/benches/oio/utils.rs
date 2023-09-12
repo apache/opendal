@@ -34,8 +34,6 @@ impl oio::Write for BlackHoleWriter {
         _: &mut Context<'_>,
         bs: &dyn oio::WriteBuf,
     ) -> Poll<opendal::Result<usize>> {
-        // Simulate the write operation.
-        let _ = bs.bytes(bs.remaining());
         Poll::Ready(Ok(bs.remaining()))
     }
 

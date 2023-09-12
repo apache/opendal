@@ -103,6 +103,18 @@ impl ChunkedBytes {
     pub fn push(&mut self, mut bs: Bytes) {
         self.size += bs.len();
 
+        // Optimization: if active is empty, we can push to frozen directly if possible.
+        if self.active.is_empty() {
+            let aligned_size = bs.len() - bs.len() % self.chunk_size;
+            if aligned_size > 0 {
+                self.frozen.push_back(bs.split_to(aligned_size));
+            }
+            if !bs.is_empty() {
+                self.active.extend_from_slice(&bs);
+            }
+            return;
+        }
+
         // Try to fill bytes into active first.
         let remaining = self.chunk_size.saturating_sub(self.active.len());
         if remaining > 0 {
@@ -116,8 +128,9 @@ impl ChunkedBytes {
         }
 
         // Split remaining bytes into chunks.
-        while bs.len() >= self.chunk_size {
-            self.frozen.push_back(bs.split_to(self.chunk_size));
+        let aligned_size = bs.len() - bs.len() % self.chunk_size;
+        if aligned_size > 0 {
+            self.frozen.push_back(bs.split_to(aligned_size));
         }
 
         // Append to active if there are remaining bytes.

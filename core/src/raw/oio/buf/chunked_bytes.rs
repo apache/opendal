@@ -76,9 +76,9 @@ impl ChunkedBytes {
     /// Reference: <https://doc.rust-lang.org/stable/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT,+A%3E%3E-for-VecDeque%3CT,+A%3E>
     pub fn from_vec(bs: Vec<Bytes>) -> Self {
         Self {
+            size: bs.iter().map(|v| v.len()).sum(),
             frozen: bs.into(),
             active: BytesMut::new(),
-            size: 0,
 
             chunk_size: DEFAULT_CHUNK_SIZE,
         }

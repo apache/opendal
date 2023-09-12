@@ -400,7 +400,6 @@ unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    // TODO: we need to support append in the future.
     fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         if self.future.is_some() {
             self.future = None;
@@ -419,26 +418,13 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
         Poll::Ready(Ok(size))
     }
 
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        if self.future.is_some() {
-            self.future = None;
-            return Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "there is a future on going, it's maybe a bug to go into this case",
-            )));
-        }
-
-        self.buf = None;
-        Poll::Ready(Ok(()))
-    }
-
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match self.future.as_mut() {
                 Some(fut) => {
-                    ready!(fut.poll_unpin(cx))?;
+                    let res = ready!(fut.poll_unpin(cx));
                     self.future = None;
-                    return Poll::Ready(Ok(()));
+                    return Poll::Ready(res);
                 }
                 None => {
                     let kv = self.kv.clone();
@@ -453,6 +439,19 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
                 }
             }
         }
+    }
+
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
+        }
+
+        self.buf = None;
+        Poll::Ready(Ok(()))
     }
 }
 

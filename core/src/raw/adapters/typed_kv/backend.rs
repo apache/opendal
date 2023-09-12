@@ -368,6 +368,7 @@ pub struct KvWriter<S> {
 
     op: OpWrite,
     buf: Option<Vec<u8>>,
+    value: Option<Value>,
     future: Option<BoxFuture<'static, Result<()>>>,
 }
 
@@ -383,6 +384,7 @@ impl<S> KvWriter<S> {
             path,
             op,
             buf: None,
+            value: None,
             future: None,
         }
     }
@@ -442,7 +444,14 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
                 None => {
                     let kv = self.kv.clone();
                     let path = self.path.clone();
-                    let value = self.build();
+                    let value = match &self.value {
+                        Some(value) => value.clone(),
+                        None => {
+                            let value = self.build();
+                            self.value = Some(value.clone());
+                            value
+                        }
+                    };
 
                     let fut = async move { kv.set(&path, value).await };
                     self.future = Some(Box::pin(fut));
@@ -479,7 +488,14 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
 
     fn close(&mut self) -> Result<()> {
         let kv = self.kv.clone();
-        let value = self.build();
+        let value = match &self.value {
+            Some(value) => value.clone(),
+            None => {
+                let value = self.build();
+                self.value = Some(value.clone());
+                value
+            }
+        };
 
         kv.blocking_set(&self.path, value)?;
         Ok(())

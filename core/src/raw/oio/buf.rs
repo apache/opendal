@@ -15,16 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp;
-use std::ptr;
+use std::io::IoSlice;
 
 use bytes::Bytes;
 use bytes::BytesMut;
 
-/// WriteBuf is used in [`oio::Write`] to provide a trait similar to [`bytes::Buf`].
-///
-/// The biggest difference is that `Buf`'s `copy_to_slice` and `copy_to_bytes` only needs `&self`
-/// instead of `&mut self`.
+/// WriteBuf is used in [`oio::Write`] to provide in-memory buffer support.
 pub trait WriteBuf: Send + Sync {
     /// Returns the number of bytes between the current position and the end of the buffer.
     ///
@@ -37,6 +33,15 @@ pub trait WriteBuf: Send + Sync {
     /// current position.
     fn remaining(&self) -> usize;
 
+    /// Advance the internal cursor of the Buf
+    ///
+    /// The next call to chunk() will return a slice starting cnt bytes further into the underlying buffer.
+    ///
+    /// # Panics
+    ///
+    /// This function may panic if cnt > self.remaining().
+    fn advance(&mut self, cnt: usize);
+
     /// Returns a slice starting at the current position and of length between 0 and
     /// Buf::remaining(). Note that this can return shorter slice (this allows non-continuous
     /// internal representation).
@@ -47,51 +52,44 @@ pub trait WriteBuf: Send + Sync {
     /// Buf::remaining returns 0, calls to chunk() should return an empty slice.
     fn chunk(&self) -> &[u8];
 
-    /// Advance the internal cursor of the Buf
-    ///
-    /// The next call to chunk() will return a slice starting cnt bytes further into the underlying buffer.
-    ///
-    /// Panics
-    /// This function may panic if cnt > self.remaining().
-    fn advance(&mut self, cnt: usize);
-
-    /// Copies current chunk into dst.
-    ///
-    /// Returns the number of bytes copied.
+    /// Returns a vectored view of the underlying buffer at the current position and of
+    /// length between 0 and Buf::remaining(). Note that this can return shorter slice
+    /// (this allows non-continuous internal representation).
     ///
     /// # Notes
     ///
-    /// Users should not assume the returned bytes is the same as the Buf::remaining().
-    fn copy_to_slice(&self, dst: &mut [u8]) -> usize {
-        let src = self.chunk();
-        let size = cmp::min(src.len(), dst.len());
+    /// This function should never panic.
+    fn vectored_chunk(&self) -> Vec<IoSlice>;
 
-        // # Safety
-        //
-        // `src` and `dst` are guaranteed have enough space for `size` bytes.
-        unsafe {
-            ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), size);
-        }
-
-        size
-    }
-
-    /// Copies current chunk into a bytes.
-    ///
-    /// This function may be optimized by the underlying type to avoid actual copies.
-    /// For example, Bytes implementation will do a shallow copy (ref-count increment).
+    /// Returns a bytes starting at the current position and of length between 0 and
+    /// Buf::remaining().
     ///
     /// # Notes
     ///
-    /// Users should not assume the returned bytes is the same as the Buf::remaining().
-    fn copy_to_bytes(&self, len: usize) -> Bytes {
-        let src = self.chunk();
-        let size = cmp::min(src.len(), len);
+    /// This functions is used to concat a single bytes from underlying chunks.
+    /// Use `vectored_bytes` if you want to avoid copy when possible.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if size > self.remaining().
+    fn bytes(&self, size: usize) -> Bytes;
 
-        let mut ret = BytesMut::with_capacity(size);
-        ret.extend_from_slice(&src[..size]);
-        ret.freeze()
-    }
+    /// Returns a vectored bytes of the underlying buffer at the current position and of
+    /// length between 0 and Buf::remaining().
+    ///
+    /// # Notes for Users
+    ///
+    /// This functions is used to return a vectored bytes from underlying chunks.
+    /// Use `bytes` if you just want to get a continuous bytes.
+    ///
+    /// # Notes for implementors
+    ///
+    /// It's better to align the vectored bytes with underlying chunks to avoid copy.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if size > self.remaining().
+    fn vectored_bytes(&self, size: usize) -> Vec<Bytes>;
 }
 
 macro_rules! deref_forward_buf {
@@ -100,20 +98,24 @@ macro_rules! deref_forward_buf {
             (**self).remaining()
         }
 
-        fn chunk(&self) -> &[u8] {
-            (**self).chunk()
-        }
-
         fn advance(&mut self, cnt: usize) {
             (**self).advance(cnt)
         }
 
-        fn copy_to_slice(&self, dst: &mut [u8]) -> usize {
-            (**self).copy_to_slice(dst)
+        fn chunk(&self) -> &[u8] {
+            (**self).chunk()
         }
 
-        fn copy_to_bytes(&self, len: usize) -> Bytes {
-            (**self).copy_to_bytes(len)
+        fn vectored_chunk(&self) -> Vec<IoSlice> {
+            (**self).vectored_chunk()
+        }
+
+        fn bytes(&self, size: usize) -> Bytes {
+            (**self).bytes(size)
+        }
+
+        fn vectored_bytes(&self, size: usize) -> Vec<Bytes> {
+            (**self).vectored_bytes(size)
         }
     };
 }
@@ -133,13 +135,28 @@ impl WriteBuf for &[u8] {
     }
 
     #[inline]
+    fn advance(&mut self, cnt: usize) {
+        *self = &self[cnt..];
+    }
+
+    #[inline]
     fn chunk(&self) -> &[u8] {
         self
     }
 
     #[inline]
-    fn advance(&mut self, cnt: usize) {
-        *self = &self[cnt..];
+    fn vectored_chunk(&self) -> Vec<IoSlice> {
+        vec![IoSlice::new(self)]
+    }
+
+    #[inline]
+    fn bytes(&self, size: usize) -> Bytes {
+        Bytes::copy_from_slice(&self[..size])
+    }
+
+    #[inline]
+    fn vectored_bytes(&self, size: usize) -> Vec<Bytes> {
+        vec![self.bytes(size)]
     }
 }
 
@@ -155,6 +172,15 @@ impl<T: AsRef<[u8]> + Send + Sync> WriteBuf for std::io::Cursor<T> {
         len - pos as usize
     }
 
+    fn advance(&mut self, cnt: usize) {
+        let pos = (self.position() as usize)
+            .checked_add(cnt)
+            .expect("overflow");
+
+        assert!(pos <= self.get_ref().as_ref().len());
+        self.set_position(pos as u64);
+    }
+
     fn chunk(&self) -> &[u8] {
         let len = self.get_ref().as_ref().len();
         let pos = self.position();
@@ -166,13 +192,16 @@ impl<T: AsRef<[u8]> + Send + Sync> WriteBuf for std::io::Cursor<T> {
         &self.get_ref().as_ref()[pos as usize..]
     }
 
-    fn advance(&mut self, cnt: usize) {
-        let pos = (self.position() as usize)
-            .checked_add(cnt)
-            .expect("overflow");
+    fn vectored_chunk(&self) -> Vec<IoSlice> {
+        vec![IoSlice::new(self.chunk())]
+    }
 
-        assert!(pos <= self.get_ref().as_ref().len());
-        self.set_position(pos as u64);
+    fn bytes(&self, size: usize) -> Bytes {
+        Bytes::copy_from_slice(&self.chunk()[..size])
+    }
+
+    fn vectored_bytes(&self, size: usize) -> Vec<Bytes> {
+        vec![self.bytes(size)]
     }
 }
 
@@ -183,19 +212,28 @@ impl WriteBuf for Bytes {
     }
 
     #[inline]
-    fn chunk(&self) -> &[u8] {
-        self
-    }
-
-    #[inline]
     fn advance(&mut self, cnt: usize) {
         bytes::Buf::advance(self, cnt)
     }
 
     #[inline]
-    fn copy_to_bytes(&self, len: usize) -> Bytes {
-        let size = cmp::min(self.len(), len);
+    fn chunk(&self) -> &[u8] {
+        self
+    }
+
+    #[inline]
+    fn vectored_chunk(&self) -> Vec<IoSlice> {
+        vec![IoSlice::new(self)]
+    }
+
+    #[inline]
+    fn bytes(&self, size: usize) -> Bytes {
         self.slice(..size)
+    }
+
+    #[inline]
+    fn vectored_bytes(&self, size: usize) -> Vec<Bytes> {
+        vec![self.slice(..size)]
     }
 }
 
@@ -206,18 +244,27 @@ impl WriteBuf for BytesMut {
     }
 
     #[inline]
-    fn chunk(&self) -> &[u8] {
-        self
-    }
-
-    #[inline]
     fn advance(&mut self, cnt: usize) {
         bytes::Buf::advance(self, cnt)
     }
 
     #[inline]
-    fn copy_to_bytes(&self, len: usize) -> Bytes {
-        let size = cmp::min(self.len(), len);
+    fn chunk(&self) -> &[u8] {
+        self
+    }
+
+    #[inline]
+    fn vectored_chunk(&self) -> Vec<IoSlice> {
+        vec![IoSlice::new(self)]
+    }
+
+    #[inline]
+    fn bytes(&self, size: usize) -> Bytes {
         Bytes::copy_from_slice(&self[..size])
+    }
+
+    #[inline]
+    fn vectored_bytes(&self, size: usize) -> Vec<Bytes> {
+        vec![self.bytes(size)]
     }
 }

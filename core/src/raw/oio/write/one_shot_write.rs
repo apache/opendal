@@ -73,7 +73,7 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
                     let w = w.take().expect("writer must be valid");
 
                     let size = bs.remaining();
-                    let bs = bs.copy_to_bytes(size);
+                    let bs = bs.bytes(size);
                     let fut = async move {
                         let res = w.write_once(bs).await;
 

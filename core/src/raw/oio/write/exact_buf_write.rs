@@ -71,7 +71,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
             match &mut self.buffer {
                 Buffer::Empty => {
                     if bs.remaining() >= self.buffer_size {
-                        self.buffer = Buffer::Consuming(bs.copy_to_bytes(self.buffer_size));
+                        self.buffer = Buffer::Consuming(bs.bytes(self.buffer_size));
                         return Poll::Ready(Ok(self.buffer_size));
                     }
 

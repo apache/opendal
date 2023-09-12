@@ -65,7 +65,7 @@ impl oio::Write for GhacWriter {
 
                     let cache_id = self.cache_id;
                     let size = bs.remaining();
-                    let bs = bs.copy_to_bytes(size);
+                    let bs = bs.bytes(size);
 
                     let fut = async move {
                         let res = async {

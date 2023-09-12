@@ -90,7 +90,7 @@ where
                     match self.offset {
                         Some(offset) => {
                             let size = bs.remaining();
-                            let bs = bs.copy_to_bytes(size);
+                            let bs = bs.bytes(size);
 
                             self.state = State::Append(Box::pin(async move {
                                 let res = w.append(offset, size as u64, AsyncBody::Bytes(bs)).await;

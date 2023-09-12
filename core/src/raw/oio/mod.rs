@@ -41,5 +41,5 @@ pub use cursor::Cursor;
 mod entry;
 pub use entry::Entry;
 
-mod buf;
-pub use buf::WriteBuf;
+mod write_buf;
+pub use write_buf::WriteBuf;

@@ -94,7 +94,7 @@ pub struct RangeWriter<W: RangeWrite> {
 enum State<W> {
     Idle(Option<W>),
     Init(BoxFuture<'static, (W, Result<String>)>),
-    Write(BoxFuture<'static, (W, Result<()>)>),
+    Write(BoxFuture<'static, (W, Result<u64>)>),
     Complete(BoxFuture<'static, (W, Result<()>)>),
     Abort(BoxFuture<'static, (W, Result<()>)>),
 }
@@ -126,20 +126,20 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                         Some(location) => {
                             let written = self.written;
 
-                            let bs = self.buffer.clone().expect("cache must be valid").clone();
+                            let buffer = self.buffer.clone().expect("cache must be valid").clone();
                             let w = w.take().expect("writer must be valid");
                             self.state = State::Write(Box::pin(async move {
-                                let size = bs.len();
+                                let size = buffer.len() as u64;
                                 let res = w
                                     .write_range(
                                         &location,
                                         written,
-                                        size as u64,
-                                        AsyncBody::ChunkedBytes(bs),
+                                        size,
+                                        AsyncBody::ChunkedBytes(buffer),
                                     )
                                     .await;
 
-                                (w, res)
+                                (w, res.map(|_| size))
                             }));
                         }
                         None => {
@@ -165,10 +165,10 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     self.location = Some(res?);
                 }
                 State::Write(fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
+                    let (w, size) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
-                    // Check the result.
-                    res?;
+                    // Update the written.
+                    self.written += size?;
 
                     // Replace the cache when last write succeeded
                     let size = bs.remaining();

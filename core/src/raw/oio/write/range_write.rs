@@ -50,6 +50,13 @@ use crate::*;
 /// - Expose `RangeWriter` as `Accessor::Writer`
 #[async_trait]
 pub trait RangeWrite: Send + Sync + Unpin + 'static {
+    /// write_once is used to write the data to underlying storage at once.
+    ///
+    /// RangeWriter will call this API when:
+    ///
+    /// - All the data has been written to the buffer and we can perform the upload at once.
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()>;
+
     /// Initiate range the range write, the returning value is the location.
     async fn initiate_range(&self) -> Result<String>;
 
@@ -79,8 +86,7 @@ pub trait RangeWrite: Send + Sync + Unpin + 'static {
 pub struct RangeWriter<W: RangeWrite> {
     location: Option<String>,
     written: u64,
-    align_size: usize,
-    align_buffer: oio::ChunkedCursor,
+    buffer: Option<oio::ChunkedBytes>,
 
     state: State<W>,
 }
@@ -88,8 +94,7 @@ pub struct RangeWriter<W: RangeWrite> {
 enum State<W> {
     Idle(Option<W>),
     Init(BoxFuture<'static, (W, Result<String>)>),
-    /// The returning value is (consume size, written size).
-    Write(BoxFuture<'static, (W, Result<(usize, u64)>)>),
+    Write(BoxFuture<'static, (W, Result<u64>)>),
     Complete(BoxFuture<'static, (W, Result<()>)>),
     Abort(BoxFuture<'static, (W, Result<()>)>),
 }
@@ -105,24 +110,10 @@ impl<W: RangeWrite> RangeWriter<W> {
         Self {
             state: State::Idle(Some(inner)),
 
+            buffer: None,
             location: None,
             written: 0,
-            align_size: 256 * 1024,
-            align_buffer: oio::ChunkedCursor::default(),
         }
-    }
-
-    /// Set the align size.
-    ///
-    /// The size is default to 256 KiB.
-    ///
-    /// # Note
-    ///
-    /// Please don't mix this with the buffer size. Align size is usually the hard
-    /// limit for the service to accept the chunk.
-    pub fn with_align_size(mut self, size: usize) -> Self {
-        self.align_size = size;
-        self
     }
 }
 
@@ -133,51 +124,38 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 State::Idle(w) => {
                     match self.location.clone() {
                         Some(location) => {
-                            let remaining = bs.remaining();
-                            let current_size = self.align_buffer.len();
-                            let mut total_size = current_size + remaining;
-
-                            if total_size <= self.align_size {
-                                let bs = bs.bytes(remaining);
-                                self.align_buffer.push(bs);
-                                return Poll::Ready(Ok(remaining));
-                            }
-                            // If total_size is aligned, we need to write one less chunk to make sure
-                            // that the file has at least one chunk during complete stage.
-                            if total_size % self.align_size == 0 {
-                                total_size -= self.align_size;
-                            }
-
-                            let consume = total_size - total_size % self.align_size - current_size;
-                            let mut align_buffer = self.align_buffer.clone();
-                            let bs = bs.bytes(consume);
-                            align_buffer.push(bs);
-
                             let written = self.written;
-                            let w = w.take().unwrap();
-                            let fut = async move {
-                                let size = align_buffer.len() as u64;
+
+                            let buffer = self.buffer.clone().expect("cache must be valid").clone();
+                            let w = w.take().expect("writer must be valid");
+                            self.state = State::Write(Box::pin(async move {
+                                let size = buffer.len() as u64;
                                 let res = w
                                     .write_range(
                                         &location,
                                         written,
                                         size,
-                                        AsyncBody::Stream(Box::new(align_buffer)),
+                                        AsyncBody::ChunkedBytes(buffer),
                                     )
                                     .await;
 
-                                (w, res.map(|_| (consume, size)))
-                            };
-                            self.state = State::Write(Box::pin(fut));
+                                (w, res.map(|_| size))
+                            }));
                         }
                         None => {
-                            let w = w.take().unwrap();
-                            let fut = async move {
-                                let res = w.initiate_range().await;
+                            // Fill cache with the first write.
+                            if self.buffer.is_none() {
+                                let size = bs.remaining();
+                                let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+                                self.buffer = Some(cb);
+                                return Poll::Ready(Ok(size));
+                            }
 
-                                (w, res)
-                            };
-                            self.state = State::Init(Box::pin(fut));
+                            let w = w.take().expect("writer must be valid");
+                            self.state = State::Init(Box::pin(async move {
+                                let location = w.initiate_range().await;
+                                (w, location)
+                            }));
                         }
                     }
                 }
@@ -187,15 +165,16 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                     self.location = Some(res?);
                 }
                 State::Write(fut) => {
-                    let (w, res) = ready!(fut.poll_unpin(cx));
+                    let (w, size) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
-                    let (consume, written) = res?;
-                    self.written += written;
-                    self.align_buffer.clear();
-                    // It's possible that the buffer is already aligned, no bytes has been consumed.
-                    if consume != 0 {
-                        return Poll::Ready(Ok(consume));
-                    }
+                    // Update the written.
+                    self.written += size?;
+
+                    // Replace the cache when last write succeeded
+                    let size = bs.remaining();
+                    let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+                    self.buffer = Some(cb);
+                    return Poll::Ready(Ok(size));
                 }
                 State::Complete(_) => {
                     unreachable!("RangeWriter must not go into State::Complete during poll_write")
@@ -211,28 +190,41 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
         loop {
             match &mut self.state {
                 State::Idle(w) => {
-                    let w = w.take().unwrap();
+                    let w = w.take().expect("writer must be valid");
                     match self.location.clone() {
                         Some(location) => {
-                            let align_buffer = self.align_buffer.clone();
-
                             let written = self.written;
-                            let fut = async move {
-                                let size = align_buffer.len() as u64;
-                                let res = w
-                                    .complete_range(
-                                        &location,
-                                        written,
-                                        size,
-                                        AsyncBody::Stream(Box::new(align_buffer)),
-                                    )
-                                    .await;
-
-                                (w, res)
-                            };
-                            self.state = State::Complete(Box::pin(fut));
+                            match self.buffer.clone() {
+                                Some(bs) => {
+                                    self.state = State::Complete(Box::pin(async move {
+                                        let res = w
+                                            .complete_range(
+                                                &location,
+                                                written,
+                                                bs.len() as u64,
+                                                AsyncBody::ChunkedBytes(bs),
+                                            )
+                                            .await;
+                                        (w, res)
+                                    }));
+                                }
+                                None => {
+                                    unreachable!("It's must be bug that RangeWrite is in State::Idle with no cache but has location")
+                                }
+                            }
                         }
-                        None => return Poll::Ready(Ok(())),
+                        None => match self.buffer.clone() {
+                            Some(bs) => {
+                                self.state = State::Complete(Box::pin(async move {
+                                    let size = bs.len();
+                                    let res = w
+                                        .write_once(size as u64, AsyncBody::ChunkedBytes(bs))
+                                        .await;
+                                    (w, res)
+                                }));
+                            }
+                            None => return Poll::Ready(Ok(())),
+                        },
                     }
                 }
                 State::Init(_) => {
@@ -244,7 +236,6 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 State::Complete(fut) => {
                     let (w, res) = ready!(fut.poll_unpin(cx));
                     self.state = State::Idle(Some(w));
-                    self.align_buffer.clear();
                     return Poll::Ready(res);
                 }
                 State::Abort(_) => {
@@ -283,7 +274,7 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 State::Abort(fut) => {
                     let (w, res) = ready!(fut.poll_unpin(cx));
                     self.state = State::Idle(Some(w));
-                    self.align_buffer.clear();
+                    self.buffer = None;
                     return Poll::Ready(res);
                 }
             }

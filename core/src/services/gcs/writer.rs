@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::GcsCore;
@@ -26,8 +25,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type GcsWriters =
-    oio::TwoWaysWriter<oio::OneShotWriter<GcsWriter>, oio::RangeWriter<GcsWriter>>;
+pub type GcsWriters = oio::RangeWriter<GcsWriter>;
 
 pub struct GcsWriter {
     core: Arc<GcsCore>,
@@ -46,13 +44,13 @@ impl GcsWriter {
 }
 
 #[async_trait]
-impl oio::OneShotWrite for GcsWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+impl oio::RangeWrite for GcsWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
-            Some(bs.len() as u64),
+            Some(size),
             &self.op,
-            AsyncBody::Bytes(bs),
+            body,
         )?;
 
         self.core.sign(&mut req).await?;
@@ -69,10 +67,7 @@ impl oio::OneShotWrite for GcsWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::RangeWrite for GcsWriter {
     async fn initiate_range(&self) -> Result<String> {
         let resp = self.core.gcs_initiate_resumable_upload(&self.path).await?;
         let status = resp.status();

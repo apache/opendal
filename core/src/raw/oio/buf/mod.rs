@@ -15,5 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod chunked_bytes;
+pub use chunked_bytes::ChunkedBytes;
+
 mod write_buf;
 pub use write_buf::WriteBuf;

@@ -42,4 +42,4 @@ mod entry;
 pub use entry::Entry;
 
 mod buf;
-pub use buf::WriteBuf;
+pub use buf::*;

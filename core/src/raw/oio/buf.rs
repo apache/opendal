@@ -58,8 +58,7 @@ pub trait WriteBuf: Send + Sync {
     ///
     /// # Notes
     ///
-    /// This function should never panic. Once the end of the buffer is reached, i.e.,
-    /// Buf::remaining returns 0, calls to vectored_chunk() should return an empty `vec![]`.
+    /// This function should never panic.
     fn vectored_chunk(&self) -> Vec<IoSlice>;
 
     /// Returns a bytes starting at the current position and of length between 0 and

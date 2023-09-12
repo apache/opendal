@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -337,7 +338,7 @@ pub struct GcsBackend {
 impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = GcsWriters;
+    type Writer = oio::TwoWaysWriter<GcsWriters, oio::ExactBufWriter<GcsWriters>>;
     type BlockingWriter = ();
     type Pager = GcsPager;
     type BlockingPager = ();
@@ -421,6 +422,15 @@ impl Accessor for GcsBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let w = GcsWriter::new(self.core.clone(), path, args.clone());
         let w = oio::RangeWriter::new(w);
+
+        let w = if let Some(buffer_size) = args.buffer_size() {
+            // FIXME: we should align with 256KiB instead.
+            let buffer_size = max(DEFAULT_WRITE_FIXED_SIZE, buffer_size);
+
+            oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, buffer_size))
+        } else {
+            oio::TwoWaysWriter::One(w)
+        };
 
         Ok((RpWrite::default(), w))
     }

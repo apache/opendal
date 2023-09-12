@@ -15,14 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::min;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use bytes::BytesMut;
 
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
@@ -44,7 +41,7 @@ pub struct ExactBufWriter<W: oio::Write> {
 
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     buffer_size: usize,
-    buffer: Buffer,
+    buffer: oio::ChunkedBytes,
 }
 
 impl<W: oio::Write> ExactBufWriter<W> {
@@ -53,83 +50,33 @@ impl<W: oio::Write> ExactBufWriter<W> {
         Self {
             inner,
             buffer_size,
-            buffer: Buffer::Empty,
+            buffer: oio::ChunkedBytes::default(),
         }
     }
-}
-
-enum Buffer {
-    Empty,
-    Filling(BytesMut),
-    Consuming(Bytes),
 }
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn WriteBuf) -> Poll<Result<usize>> {
-        loop {
-            match &mut self.buffer {
-                Buffer::Empty => {
-                    if bs.remaining() >= self.buffer_size {
-                        self.buffer = Buffer::Consuming(bs.bytes(self.buffer_size));
-                        return Poll::Ready(Ok(self.buffer_size));
-                    }
-
-                    let chunk = bs.chunk();
-                    let mut fill = BytesMut::with_capacity(chunk.len());
-                    fill.extend_from_slice(chunk);
-                    self.buffer = Buffer::Filling(fill);
-                    return Poll::Ready(Ok(chunk.len()));
-                }
-                Buffer::Filling(fill) => {
-                    if fill.len() >= self.buffer_size {
-                        self.buffer = Buffer::Consuming(fill.split().freeze());
-                        continue;
-                    }
-
-                    let size = min(self.buffer_size - fill.len(), bs.chunk().len());
-                    fill.extend_from_slice(&bs.chunk()[..size]);
-                    return Poll::Ready(Ok(size));
-                }
-                Buffer::Consuming(consume) => {
-                    // Make sure filled buffer has been flushed.
-                    //
-                    // TODO: maybe we can re-fill it after a successful write.
-                    while !consume.is_empty() {
-                        let n = ready!(self.inner.poll_write(cx, consume)?);
-                        consume.advance(n);
-                    }
-                    self.buffer = Buffer::Empty;
-                }
-            }
+        if self.buffer.len() >= self.buffer_size {
+            let written = ready!(self.inner.poll_write(cx, &self.buffer)?);
+            self.buffer.advance(written);
         }
+
+        let remaining = self.buffer_size - self.buffer.len();
+        let written = self.buffer.extend_from_write_buf(remaining, bs);
+        Poll::Ready(Ok(written))
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        self.buffer = Buffer::Empty;
+        self.buffer.clear();
         self.inner.poll_abort(cx)
     }
 
     fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match &mut self.buffer {
-                Buffer::Empty => break,
-                Buffer::Filling(fill) => {
-                    self.buffer = Buffer::Consuming(fill.split().freeze());
-                    continue;
-                }
-                Buffer::Consuming(consume) => {
-                    // Make sure filled buffer has been flushed.
-                    //
-                    // TODO: maybe we can re-fill it after a successful write.
-                    while !consume.is_empty() {
-                        let n = ready!(self.inner.poll_write(cx, &consume))?;
-                        consume.advance(n);
-                    }
-                    self.buffer = Buffer::Empty;
-                    break;
-                }
-            }
+        while !self.buffer.is_empty() {
+            let n = ready!(self.inner.poll_write(cx, &self.buffer))?;
+            self.buffer.advance(n);
         }
 
         self.inner.poll_close(cx)
@@ -138,6 +85,7 @@ impl<W: oio::Write> oio::Write for ExactBufWriter<W> {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
     use log::debug;
     use pretty_assertions::assert_eq;
     use rand::thread_rng;
@@ -231,7 +179,7 @@ mod tests {
             let mut bs = Bytes::from(content.clone());
             while !bs.is_empty() {
                 let n = writer.write(&bs).await?;
-                bs.advance(n as usize);
+                bs.advance(n);
             }
         }
         writer.close().await?;

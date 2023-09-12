@@ -74,6 +74,22 @@ pub trait WriteBuf: Send + Sync {
     /// This function will panic if size > self.remaining().
     fn bytes(&self, size: usize) -> Bytes;
 
+    /// Returns true if the underlying buffer is optimized for bytes with given size.
+    ///
+    /// # Notes
+    ///
+    /// This function is used to avoid copy when possible. Implementors should return `true`
+    /// the given `self.bytes(size)` could be done without cost. For example, the underlying
+    /// buffer is `Bytes`.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if size > self.remaining().
+    fn is_bytes_optimized(&self, size: usize) -> bool {
+        let _ = size;
+        false
+    }
+
     /// Returns a vectored bytes of the underlying buffer at the current position and of
     /// length between 0 and Buf::remaining().
     ///
@@ -112,6 +128,10 @@ macro_rules! deref_forward_buf {
 
         fn bytes(&self, size: usize) -> Bytes {
             (**self).bytes(size)
+        }
+
+        fn is_bytes_optimized(&self, size: usize) -> bool {
+            (**self).is_bytes_optimized(size)
         }
 
         fn vectored_bytes(&self, size: usize) -> Vec<Bytes> {
@@ -229,6 +249,11 @@ impl WriteBuf for Bytes {
     #[inline]
     fn bytes(&self, size: usize) -> Bytes {
         self.slice(..size)
+    }
+
+    #[inline]
+    fn is_bytes_optimized(&self, _: usize) -> bool {
+        true
     }
 
     #[inline]

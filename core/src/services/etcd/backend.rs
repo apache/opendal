@@ -20,7 +20,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
-use bb8::{PooledConnection, RunError};
+use bb8::PooledConnection;
+use bb8::RunError;
 use etcd_client::Certificate;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;

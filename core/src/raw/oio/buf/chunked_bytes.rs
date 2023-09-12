@@ -15,13 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::{Bytes, BytesMut};
-use futures::Stream;
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::io::IoSlice;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
+
+use bytes::Bytes;
+use bytes::BytesMut;
+use futures::Stream;
 
 use crate::raw::*;
 use crate::*;
@@ -356,8 +359,11 @@ impl Stream for ChunkedBytes {
 mod tests {
     use log::debug;
     use pretty_assertions::assert_eq;
-    use rand::{thread_rng, Rng, RngCore};
-    use sha2::{Digest, Sha256};
+    use rand::thread_rng;
+    use rand::Rng;
+    use rand::RngCore;
+    use sha2::Digest;
+    use sha2::Sha256;
 
     use super::*;
     use crate::raw::oio::WriteBuf;

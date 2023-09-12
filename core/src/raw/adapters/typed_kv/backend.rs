@@ -368,6 +368,7 @@ pub struct KvWriter<S> {
 
     op: OpWrite,
     buf: Option<Vec<u8>>,
+    value: Option<Value>,
     future: Option<BoxFuture<'static, Result<()>>>,
 }
 
@@ -383,6 +384,7 @@ impl<S> KvWriter<S> {
             path,
             op,
             buf: None,
+            value: None,
             future: None,
         }
     }
@@ -412,7 +414,6 @@ impl<S> KvWriter<S> {
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    // TODO: we need to support append in the future.
     fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         if self.future.is_some() {
             self.future = None;
@@ -432,6 +433,33 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
         Poll::Ready(Ok(size))
     }
 
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match self.future.as_mut() {
+                Some(fut) => {
+                    let res = ready!(fut.poll_unpin(cx));
+                    self.future = None;
+                    return Poll::Ready(res);
+                }
+                None => {
+                    let kv = self.kv.clone();
+                    let path = self.path.clone();
+                    let value = match &self.value {
+                        Some(value) => value.clone(),
+                        None => {
+                            let value = self.build();
+                            self.value = Some(value.clone());
+                            value
+                        }
+                    };
+
+                    let fut = async move { kv.set(&path, value).await };
+                    self.future = Some(Box::pin(fut));
+                }
+            }
+        }
+    }
+
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
         if self.future.is_some() {
             self.future = None;
@@ -443,26 +471,6 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 
         self.buf = None;
         Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match self.future.as_mut() {
-                Some(fut) => {
-                    ready!(fut.poll_unpin(cx))?;
-                    self.future = None;
-                    return Poll::Ready(Ok(()));
-                }
-                None => {
-                    let kv = self.kv.clone();
-                    let path = self.path.clone();
-                    let value = self.build();
-
-                    let fut = async move { kv.set(&path, value).await };
-                    self.future = Some(Box::pin(fut));
-                }
-            }
-        }
     }
 }
 
@@ -480,7 +488,14 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
 
     fn close(&mut self) -> Result<()> {
         let kv = self.kv.clone();
-        let value = self.build();
+        let value = match &self.value {
+            Some(value) => value.clone(),
+            None => {
+                let value = self.build();
+                self.value = Some(value.clone());
+                value
+            }
+        };
 
         kv.blocking_set(&self.path, value)?;
         Ok(())

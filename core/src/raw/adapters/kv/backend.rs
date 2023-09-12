@@ -21,6 +21,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::{Bytes, BytesMut};
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
@@ -377,8 +378,7 @@ pub struct KvWriter<S> {
     kv: Arc<S>,
     path: String,
 
-    /// TODO: if kv supports append, we can use them directly.
-    buf: Option<Vec<u8>>,
+    buffer: Buffer,
     future: Option<BoxFuture<'static, Result<()>>>,
 }
 
@@ -387,10 +387,15 @@ impl<S> KvWriter<S> {
         KvWriter {
             kv,
             path,
-            buf: None,
+            buffer: Buffer::Active(BytesMut::new()),
             future: None,
         }
     }
+}
+
+enum Buffer {
+    Active(BytesMut),
+    Frozen(Bytes),
 }
 
 /// # Safety
@@ -400,7 +405,6 @@ unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    // TODO: we need to support append in the future.
     fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         if self.future.is_some() {
             self.future = None;
@@ -410,13 +414,40 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
             )));
         }
 
-        let size = bs.chunk().len();
+        match &mut self.buffer {
+            Buffer::Active(buf) => {
+                buf.extend_from_slice(bs.chunk());
+                Poll::Ready(Ok(bs.chunk().len()))
+            }
+            Buffer::Frozen(_) => unreachable!("KvWriter should not be frozen during poll_write"),
+        }
+    }
 
-        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
-        self.buf = Some(buf);
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match self.future.as_mut() {
+                Some(fut) => {
+                    let res = ready!(fut.poll_unpin(cx));
+                    self.future = None;
+                    return Poll::Ready(res);
+                }
+                None => {
+                    let kv = self.kv.clone();
+                    let path = self.path.clone();
+                    let buf = match &mut self.buffer {
+                        Buffer::Active(buf) => {
+                            let buf = buf.split().freeze();
+                            self.buffer = Buffer::Frozen(buf.clone());
+                            buf
+                        }
+                        Buffer::Frozen(buf) => buf.clone(),
+                    };
 
-        Poll::Ready(Ok(size))
+                    let fut = async move { kv.set(&path, &buf).await };
+                    self.future = Some(Box::pin(fut));
+                }
+            }
+        }
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
@@ -428,51 +459,33 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
             )));
         }
 
-        self.buf = None;
+        self.buffer = Buffer::Active(BytesMut::new());
         Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match self.future.as_mut() {
-                Some(fut) => {
-                    ready!(fut.poll_unpin(cx))?;
-                    self.future = None;
-                    return Poll::Ready(Ok(()));
-                }
-                None => {
-                    let kv = self.kv.clone();
-                    let path = self.path.clone();
-                    let buf = match self.buf.take() {
-                        Some(buf) => buf,
-                        None => return Poll::Ready(Ok(())),
-                    };
-
-                    let fut = async move { kv.set(&path, &buf).await };
-                    self.future = Some(Box::pin(fut));
-                }
-            }
-        }
     }
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.chunk().len();
-
-        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
-        buf.extend_from_slice(bs.chunk());
-
-        self.buf = Some(buf);
-
-        Ok(size)
+        match &mut self.buffer {
+            Buffer::Active(buf) => {
+                buf.extend_from_slice(bs.chunk());
+                Ok(bs.chunk().len())
+            }
+            Buffer::Frozen(_) => unreachable!("KvWriter should not be frozen during poll_write"),
+        }
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(buf) = self.buf.as_deref() {
-            self.kv.blocking_set(&self.path, buf)?;
-        }
+        let buf = match &mut self.buffer {
+            Buffer::Active(buf) => {
+                let buf = buf.split().freeze();
+                self.buffer = Buffer::Frozen(buf.clone());
+                buf
+            }
+            Buffer::Frozen(buf) => buf.clone(),
+        };
 
+        self.kv.blocking_set(&self.path, &buf)?;
         Ok(())
     }
 }

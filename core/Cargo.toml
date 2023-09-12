@@ -119,7 +119,7 @@ services-cos = [
 ]
 services-dashmap = ["dep:dashmap"]
 services-dropbox = []
-services-etcd = ["dep:etcd-client"]
+services-etcd = ["dep:etcd-client", "dep:bb8"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]

@@ -104,6 +104,7 @@ impl oio::Page for OssPager {
             let mut meta = Metadata::new(EntryMode::FILE);
 
             meta.set_etag(&object.etag);
+            meta.set_content_md5(object.etag.trim_matches('"'));
             meta.set_content_length(object.size);
             meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
 

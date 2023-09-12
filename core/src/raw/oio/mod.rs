@@ -35,7 +35,6 @@ mod page;
 pub use page::*;
 
 mod cursor;
-pub use cursor::ChunkedCursor;
 pub use cursor::Cursor;
 
 mod entry;

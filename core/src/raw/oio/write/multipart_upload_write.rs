@@ -21,7 +21,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::future::BoxFuture;
 
 use crate::raw::*;
@@ -109,7 +108,7 @@ pub struct MultipartUploadPart {
 pub struct MultipartUploadWriter<W: MultipartUploadWrite> {
     state: State<W>,
 
-    cache: Option<Bytes>,
+    cache: Option<oio::ChunkedBytes>,
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartUploadPart>,
 }
@@ -163,7 +162,7 @@ where
                                         &upload_id,
                                         part_number,
                                         size as u64,
-                                        AsyncBody::Bytes(bs),
+                                        AsyncBody::ChunkedBytes(bs),
                                     )
                                     .await;
 
@@ -174,7 +173,8 @@ where
                             // Fill cache with the first write.
                             if self.cache.is_none() {
                                 let size = bs.remaining();
-                                self.cache = Some(bs.bytes(size));
+                                let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+                                self.cache = Some(cb);
                                 return Poll::Ready(Ok(size));
                             }
 
@@ -197,7 +197,8 @@ where
                     self.parts.push(part?);
                     // Replace the cache when last write succeeded
                     let size = bs.remaining();
-                    self.cache = Some(bs.bytes(size));
+                    let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
+                    self.cache = Some(cb);
                     return Poll::Ready(Ok(size));
                 }
                 State::Close(_) => {
@@ -232,7 +233,7 @@ where
                                                 &upload_id,
                                                 parts.len(),
                                                 size as u64,
-                                                AsyncBody::Bytes(bs),
+                                                AsyncBody::ChunkedBytes(bs),
                                             )
                                             .await;
                                         (w, part)
@@ -250,7 +251,9 @@ where
                             Some(bs) => {
                                 self.state = State::Close(Box::pin(async move {
                                     let size = bs.len();
-                                    let res = w.write_once(size as u64, AsyncBody::Bytes(bs)).await;
+                                    let res = w
+                                        .write_once(size as u64, AsyncBody::ChunkedBytes(bs))
+                                        .await;
                                     (w, res)
                                 }));
                             }

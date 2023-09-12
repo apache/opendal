@@ -16,9 +16,11 @@
 // under the License.
 
 use bytes::{Bytes, BytesMut};
+use futures::Stream;
 use std::cmp::min;
 use std::collections::VecDeque;
 use std::io::IoSlice;
+use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use crate::raw::*;
@@ -74,9 +76,9 @@ impl ChunkedBytes {
     /// Reference: <https://doc.rust-lang.org/stable/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT,+A%3E%3E-for-VecDeque%3CT,+A%3E>
     pub fn from_vec(bs: Vec<Bytes>) -> Self {
         Self {
+            size: bs.iter().map(|v| v.len()).sum(),
             frozen: bs.into(),
             active: BytesMut::new(),
-            size: 0,
 
             chunk_size: DEFAULT_CHUNK_SIZE,
         }
@@ -329,6 +331,24 @@ impl oio::Stream for ChunkedBytes {
             ErrorKind::Unsupported,
             "ChunkedBytes does not support reset",
         )))
+    }
+}
+
+impl Stream for ChunkedBytes {
+    type Item = Result<Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.frozen.pop_front() {
+            Some(bs) => {
+                self.size -= bs.len();
+                Poll::Ready(Some(Ok(bs)))
+            }
+            None if !self.active.is_empty() => {
+                self.size -= self.active.len();
+                Poll::Ready(Some(Ok(self.active.split().freeze())))
+            }
+            None => Poll::Ready(None),
+        }
     }
 }
 

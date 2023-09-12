@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use bb8::{PooledConnection, RunError};
 use etcd_client::Certificate;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
@@ -231,10 +232,36 @@ impl EtcdBuilder {
 pub type EtcdBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
+pub struct Manager {
+    endpoints: Vec<String>,
+    options: ConnectOptions,
+}
+
+#[async_trait]
+impl bb8::ManageConnection for Manager {
+    type Connection = Client;
+    type Error = Error;
+
+    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+        Ok(Client::connect(self.endpoints.clone(), Some(self.options.clone())).await?)
+    }
+
+    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+        let _ = conn.status().await?;
+        Ok(())
+    }
+
+    /// Always allow reuse conn.
+    fn has_broken(&self, _: &mut Self::Connection) -> bool {
+        false
+    }
+}
+
+#[derive(Clone)]
 pub struct Adapter {
     endpoints: Vec<String>,
-    client: OnceCell<Client>,
     options: ConnectOptions,
+    client: OnceCell<bb8::Pool<Manager>>,
 }
 
 // implement `Debug` manually, or password may be leaked.
@@ -249,14 +276,26 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    async fn conn(&self) -> Result<Client> {
-        Ok(self
+    async fn conn(&self) -> Result<PooledConnection<'static, Manager>> {
+        let client = self
             .client
             .get_or_try_init(|| async {
-                Client::connect(self.endpoints.clone(), Some(self.options.clone())).await
+                bb8::Pool::builder()
+                    .max_size(64)
+                    .build(Manager {
+                        endpoints: self.endpoints.clone(),
+                        options: self.options.clone(),
+                    })
+                    .await
             })
-            .await?
-            .clone())
+            .await?;
+
+        client.get_owned().await.map_err(|err| match err {
+            RunError::User(err) => err,
+            RunError::TimedOut => {
+                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
+            }
+        })
     }
 }
 

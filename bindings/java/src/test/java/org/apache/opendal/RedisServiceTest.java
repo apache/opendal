@@ -26,12 +26,18 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import lombok.Cleanup;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIf;
+import org.junit.jupiter.api.condition.OS;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
+@DisabledIf("skipOnCIWithoutDocker")
 public class RedisServiceTest {
+    public static boolean skipOnCIWithoutDocker() {
+        return Boolean.parseBoolean(System.getenv("CI")) && (OS.current() != OS.LINUX);
+    }
 
     @Container
     private final GenericContainer<?> redisContainer = new GenericContainer<>("redis:7.2.1").withExposedPorts(6379);

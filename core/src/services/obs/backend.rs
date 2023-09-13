@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -35,11 +34,6 @@ use super::writer::ObsWriter;
 use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
 use crate::*;
-
-/// The minimum multipart size of OBS is 5 MiB.
-///
-/// ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-const MINIMUM_MULTIPART_SIZE: usize = 5 * 1024 * 1024;
 
 /// Huawei-Cloud Object Storage Service (OBS) support
 #[doc = include_str!("docs.md")]
@@ -256,7 +250,7 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<ObsWriters, oio::ExactBufWriter<ObsWriters>>;
+    type Writer = ObsWriters;
     type BlockingWriter = ();
     type Pager = ObsPager;
     type BlockingPager = ();
@@ -282,6 +276,14 @@ impl Accessor for ObsBackend {
                 write_can_multi: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
+                // The min multipart size of OBS is 5 MiB.
+                //
+                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                write_multi_min_size: Some(5 * 1024 * 1024),
+                // The max multipart size of OBS is 5 GiB.
+                //
+                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
 
                 delete: true,
                 create_dir: true,
@@ -378,16 +380,6 @@ impl Accessor for ObsBackend {
             ObsWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
             ObsWriters::One(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w = oio::ExactBufWriter::new(w, buffer_size);
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
         };
 
         Ok((RpWrite::default(), w))

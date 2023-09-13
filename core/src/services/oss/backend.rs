@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -39,10 +38,6 @@ use crate::raw::*;
 use crate::services::oss::writer::OssWriters;
 use crate::*;
 
-/// The minimum multipart size of OSS is 100 KiB.
-///
-/// ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-const MINIMUM_MULTIPART_SIZE: usize = 100 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aliyun Object Storage Service (OSS) support
@@ -381,7 +376,7 @@ pub struct OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<OssWriters, oio::ExactBufWriter<OssWriters>>;
+    type Writer = OssWriters;
     type BlockingWriter = ();
     type Pager = OssPager;
     type BlockingPager = ();
@@ -408,6 +403,14 @@ impl Accessor for OssBackend {
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_with_content_disposition: true,
+                // The min multipart size of OSS is 100 KiB.
+                //
+                // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+                write_multi_min_size: Some(100 * 1024),
+                // The max multipart size of OSS is 5 GiB.
+                //
+                // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
 
                 delete: true,
                 create_dir: true,
@@ -477,16 +480,6 @@ impl Accessor for OssBackend {
             OssWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
             OssWriters::One(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w = oio::ExactBufWriter::new(w, buffer_size);
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
         };
 
         Ok((RpWrite::default(), w))

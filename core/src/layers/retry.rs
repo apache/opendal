@@ -998,7 +998,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
                             &err,
                             dur,
                             &[
-                                ("operation", WriteOperation::Abort.into_static()),
+                                ("operation", WriteOperation::Close.into_static()),
                                 ("path", &self.path),
                             ],
                         );

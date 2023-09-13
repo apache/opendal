@@ -25,13 +25,11 @@ use crate::raw::oio::ReadExt;
 use crate::raw::*;
 use crate::*;
 
-/// Add blocking API support for every operations.
+/// Add blocking API support for non-blocking services.
 ///
-/// # Blocking API
+/// # Notes
 ///
-/// - This layer is auto-added to the operator if it's accessor doesn't support blocking APIs.
-///
-/// Tracking issue: #2678
+/// Please only enable this layer when underlying services are not blocking.
 #[derive(Debug, Clone)]
 pub struct BlockingLayer {
     handle: Handle,

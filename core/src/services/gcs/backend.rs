@@ -399,7 +399,7 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = GcsWriter::new(self.core.clone(), path, args.clone());
+        let w = GcsWriter::new(self.core.clone(), path, args);
         let w = oio::RangeWriter::new(w);
 
         Ok((RpWrite::default(), w))

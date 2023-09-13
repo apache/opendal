@@ -26,6 +26,7 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use tokio::io::AsyncWrite;
+use tokio::io::AsyncWriteExt;
 
 use super::error::parse_io_error;
 use crate::raw::*;
@@ -73,10 +74,11 @@ impl oio::Write for FsWriter<tokio::fs::File> {
                 return Poll::Ready(res);
             }
 
-            let f = self.f.take().expect("FsWriter must be initialized");
+            let mut f = self.f.take().expect("FsWriter must be initialized");
             let tmp_path = self.tmp_path.clone();
             let target_path = self.target_path.clone();
             self.fut = Some(Box::pin(async move {
+                f.flush().await.map_err(parse_io_error)?;
                 f.sync_all().await.map_err(parse_io_error)?;
 
                 if let Some(tmp_path) = &tmp_path {

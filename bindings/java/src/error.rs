@@ -31,7 +31,12 @@ pub(crate) struct Error {
 impl Error {
     pub(crate) fn throw(&self, env: &mut JNIEnv) {
         if let Err(err) = self.do_throw(env) {
-            env.fatal_error(err.to_string());
+            match err {
+                jni::errors::Error::JavaException => {
+                    // other calls throws exception; safely ignored
+                }
+                _ => env.fatal_error(err.to_string()),
+            }
         }
     }
 

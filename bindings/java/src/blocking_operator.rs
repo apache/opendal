@@ -24,12 +24,14 @@ use jni::objects::JString;
 use jni::sys::jlong;
 use jni::sys::jstring;
 use jni::JNIEnv;
+
+use opendal::layers::BlockingLayer;
 use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::jmap_to_hashmap;
 use crate::Result;
+use crate::{get_global_runtime, jmap_to_hashmap};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(
@@ -47,7 +49,11 @@ pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(
 fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
     let scheme = Scheme::from_str(env.get_string(&scheme)?.to_str()?)?;
     let map = jmap_to_hashmap(env, &map)?;
-    let op = Operator::via_map(scheme, map)?;
+    let mut op = Operator::via_map(scheme, map)?;
+    if !op.info().full_capability().blocking {
+        let _guard = unsafe { get_global_runtime() }.enter();
+        op = op.layer(BlockingLayer::create()?);
+    }
     Ok(Box::into_raw(Box::new(op.blocking())) as jlong)
 }
 
@@ -57,7 +63,7 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_disposeInternal(
     _: JNIEnv,
-    _: JClass,
+    _: JObject,
     op: *mut BlockingOperator,
 ) {
     drop(Box::from_raw(op));

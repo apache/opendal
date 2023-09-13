@@ -54,7 +54,11 @@ if __name__ == '__main__':
     parser.add_argument('--classifier', type=str, required=True)
     args = parser.parse_args()
 
-    cmd = ['cargo', 'build', '--color=always', '--release']
+    cmd = ['cargo', 'build', '--color=always']
+
+    # Only enable release build while OPENDAL_RELEASE is on.
+    if os.environ.get('OPENDAL_RELEASE') == 'on':
+        cmd.append('--release')
 
     target = classifier_to_target(args.classifier)
     if target:

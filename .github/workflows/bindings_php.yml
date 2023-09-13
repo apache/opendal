@@ -18,6 +18,8 @@
 name: Bindings PHP CI
 
 on:
+# Disable PHP build until https://github.com/apache/incubator-opendal/issues/3055 addressed
+#
 #  push:
 #    branches:
 #      - main

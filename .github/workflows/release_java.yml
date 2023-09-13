@@ -19,7 +19,6 @@ name: Bindings Java Release
 
 on:
   push:
-    branches: [check-java-release]
     tags:
       # Staging JARs on Apache Nexus repository for RCs. Read more on
       # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts

@@ -79,11 +79,11 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and test
         working-directory: bindings/java
-        # `install` is required to verify reproducible builds:
+        # `mvn install` and `mvn artifact:compare` are required to verify reproducible builds:
         # https://maven.apache.org/guides/mini/guide-reproducible-builds.html#how-to-test-my-maven-build-reproducibility
-        run: ./mvnw clean install
-      - name: Verify reproducibility
-        working-directory: bindings/java
-        # `artifact:compare` is required to verify reproducible builds:
-        # https://maven.apache.org/guides/mini/guide-reproducible-builds.html#how-to-test-my-maven-build-reproducibility
-        run: ./mvnw verify artifact:compare
+        run: |
+          if [[ "${{ runner.os }}" != Linux ]]; then
+            export NO_DOCKER=true
+          fi
+          ./mvnw clean install -DskipTests
+          ./mvnw verify artifact:compare

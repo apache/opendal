@@ -29,7 +29,7 @@ use crate::*;
 ///
 /// # Notes
 ///
-/// Please only enable this layer when underlying services are not blocking.
+/// Please only enable this layer when the underlying service does not support blocking.
 #[derive(Debug, Clone)]
 pub struct BlockingLayer {
     handle: Handle,

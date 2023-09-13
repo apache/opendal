@@ -24,10 +24,10 @@ mod azblob;
 #[cfg(feature = "services-azblob")]
 pub use azblob::Azblob;
 
-#[cfg(feature = "services-azdfs")]
-mod azdfs;
-#[cfg(feature = "services-azdfs")]
-pub use azdfs::Azdfs;
+#[cfg(feature = "services-azdls")]
+mod azdls;
+#[cfg(feature = "services-azdls")]
+pub use azdls::Azdls;
 
 #[cfg(feature = "services-cos")]
 mod cos;

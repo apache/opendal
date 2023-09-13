@@ -166,8 +166,8 @@ impl Config {
                 Operator::from_map::<services::Azblob>(profile.clone())?.finish(),
                 path,
             )),
-            Scheme::Azdfs => Ok((
-                Operator::from_map::<services::Azdfs>(profile.clone())?.finish(),
+            Scheme::Azdls => Ok((
+                Operator::from_map::<services::Azdls>(profile.clone())?.finish(),
                 path,
             )),
             #[cfg(feature = "services-dashmap")]

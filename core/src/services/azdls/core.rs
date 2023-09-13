@@ -37,7 +37,7 @@ use crate::*;
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
 
-pub struct AzdfsCore {
+pub struct AzdlsCore {
     pub filesystem: String,
     pub root: String,
     pub endpoint: String,
@@ -47,9 +47,9 @@ pub struct AzdfsCore {
     pub signer: AzureStorageSigner,
 }
 
-impl Debug for AzdfsCore {
+impl Debug for AzdlsCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AzdfsCore")
+        f.debug_struct("AzdlsCore")
             .field("filesystem", &self.filesystem)
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
@@ -57,7 +57,7 @@ impl Debug for AzdfsCore {
     }
 }
 
-impl AzdfsCore {
+impl AzdlsCore {
     async fn load_credential(&self) -> Result<AzureStorageCredential> {
         let cred = self
             .loader
@@ -96,8 +96,8 @@ impl AzdfsCore {
     }
 }
 
-impl AzdfsCore {
-    pub async fn azdfs_read(
+impl AzdlsCore {
+    pub async fn azdls_read(
         &self,
         path: &str,
         range: BytesRange,
@@ -138,7 +138,7 @@ impl AzdfsCore {
     /// resource should be one of `file` or `directory`
     ///
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/create
-    pub fn azdfs_create_request(
+    pub fn azdls_create_request(
         &self,
         path: &str,
         resource: &str,
@@ -176,7 +176,7 @@ impl AzdfsCore {
         Ok(req)
     }
 
-    pub async fn azdfs_rename(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azdls_rename(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
         let source = build_abs_path(&self.root, from);
         let target = build_abs_path(&self.root, to);
 
@@ -201,7 +201,7 @@ impl AzdfsCore {
     }
 
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
-    pub fn azdfs_update_request(
+    pub fn azdls_update_request(
         &self,
         path: &str,
         size: Option<usize>,
@@ -230,7 +230,7 @@ impl AzdfsCore {
         Ok(req)
     }
 
-    pub async fn azdfs_get_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azdls_get_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -252,7 +252,7 @@ impl AzdfsCore {
         self.client.send(req).await
     }
 
-    pub async fn azdfs_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azdls_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -274,7 +274,7 @@ impl AzdfsCore {
         self.send(req).await
     }
 
-    pub async fn azdfs_list(
+    pub async fn azdls_list(
         &self,
         path: &str,
         continuation: &str,
@@ -307,7 +307,7 @@ impl AzdfsCore {
         self.send(req).await
     }
 
-    pub async fn azdfs_ensure_parent_path(
+    pub async fn azdls_ensure_parent_path(
         &self,
         path: &str,
     ) -> Result<Option<Response<IncomingAsyncBody>>> {
@@ -325,7 +325,7 @@ impl AzdfsCore {
         if !parts.is_empty() {
             let parent_path = parts.join("/");
             let mut req =
-                self.azdfs_create_request(&parent_path, "directory", None, None, AsyncBody::Empty)?;
+                self.azdls_create_request(&parent_path, "directory", None, None, AsyncBody::Empty)?;
 
             self.sign(&mut req).await?;
 

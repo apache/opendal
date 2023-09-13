@@ -37,7 +37,7 @@ all-features = true
 default = [
   "rustls",
   "services-azblob",
-  "services-azdfs",
+  "services-azdls",
   "services-cos",
   "services-fs",
   "services-gcs",
@@ -106,7 +106,7 @@ services-azblob = [
   "reqsign?/services-azblob",
   "reqsign?/reqwest_request",
 ]
-services-azdfs = [
+services-azdls = [
   "dep:reqsign",
   "reqsign?/services-azblob",
   "reqsign?/reqwest_request",

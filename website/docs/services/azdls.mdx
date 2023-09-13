@@ -1,10 +1,10 @@
 ---
-title: Azdfs
+title: Azdls
 ---
 
 Azure Data Lake Storage Gen2 Support.
 
-import Docs from '../../../core/src/services/azdfs/docs.md'
+import Docs from '../../../core/src/services/azdls/docs.md'
 
 <Docs components={props.components} />
 
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     map.insert("account_name".to_string(), "account_name".to_string());
     map.insert("account_key".to_string(), "account_key".to_string());
 
-    let op: Operator = Operator::via_map(Scheme::Azdfs, map)?;
+    let op: Operator = Operator::via_map(Scheme::Azdls, map)?;
     Ok(())
 }
 ```
@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
 import { Operator } from "opendal";
 
 async function main() {
-  const op = new Operator("azdfs", {
+  const op = new Operator("azdls", {
     root: "/path/to/dir",
     filesystem: "test",
     endpoint: "https://accountname.dfs.core.windows.net",
@@ -60,7 +60,7 @@ async function main() {
 ```python
 import opendal
 
-op = opendal.Operator("azdfs",
+op = opendal.Operator("azdls",
     root="/path/to/dir",
     filesystem="test",
     endpoint="https://accountname.dfs.core.windows.net",

@@ -15,24 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::task::ready;
-use std::task::Context;
-use std::task::Poll;
-
 use async_trait::async_trait;
-use futures::future::BoxFuture;
 use futures::AsyncWriteExt;
-use futures::FutureExt;
 
 use super::backend::FtpBackend;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
+
+pub type FtpWriters = oio::OneShotWriter<FtpWriter>;
 
 pub struct FtpWriter {
     backend: FtpBackend,
     path: String,
-
-    fut: Option<BoxFuture<'static, Result<usize>>>,
 }
 
 /// # TODO
@@ -42,11 +37,7 @@ pub struct FtpWriter {
 /// After we can use data stream, we should return it directly.
 impl FtpWriter {
     pub fn new(backend: FtpBackend, path: String) -> Self {
-        FtpWriter {
-            backend,
-            path,
-            fut: None,
-        }
+        FtpWriter { backend, path }
     }
 }
 
@@ -56,39 +47,18 @@ impl FtpWriter {
 unsafe impl Sync for FtpWriter {}
 
 #[async_trait]
-impl oio::Write for FtpWriter {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
-        loop {
-            if let Some(fut) = self.fut.as_mut() {
-                let res = ready!(fut.poll_unpin(cx));
-                self.fut = None;
-                return Poll::Ready(res);
-            }
+impl oio::OneShotWrite for FtpWriter {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let size = bs.remaining();
+        let bs = bs.bytes(size);
 
-            let size = bs.remaining();
-            let bs = bs.bytes(size);
+        let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
+        let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
+        data_stream.write_all(&bs).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
+        })?;
 
-            let path = self.path.clone();
-            let backend = self.backend.clone();
-            let fut = async move {
-                let mut ftp_stream = backend.ftp_connect(Operation::Write).await?;
-                let mut data_stream = ftp_stream.append_with_stream(&path).await?;
-                data_stream.write_all(&bs).await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-                })?;
-
-                ftp_stream.finalize_put_stream(data_stream).await?;
-                Ok(size)
-            };
-            self.fut = Some(Box::pin(fut));
-        }
-    }
-
-    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
+        ftp_stream.finalize_put_stream(data_stream).await?;
+        Ok(())
     }
 }

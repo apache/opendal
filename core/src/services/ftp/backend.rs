@@ -42,6 +42,7 @@ use super::pager::FtpPager;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
+use crate::services::ftp::writer::FtpWriters;
 use crate::*;
 
 /// FTP and FTPS services support.
@@ -264,7 +265,7 @@ impl Debug for FtpBackend {
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
     type BlockingReader = ();
-    type Writer = FtpWriter;
+    type Writer = FtpWriters;
     type BlockingWriter = ();
     type Pager = FtpPager;
     type BlockingPager = ();
@@ -374,10 +375,10 @@ impl Accessor for FtpBackend {
             }
         }
 
-        Ok((
-            RpWrite::new(),
-            FtpWriter::new(self.clone(), path.to_string()),
-        ))
+        let w = FtpWriter::new(self.clone(), path.to_string());
+        let w = oio::OneShotWriter::new(w);
+
+        Ok((RpWrite::new(), w))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -35,11 +34,6 @@ use super::writer::CosWriter;
 use crate::raw::*;
 use crate::services::cos::writer::CosWriters;
 use crate::*;
-
-/// The minimum multipart size of COS is 1 MiB.
-///
-/// ref: <https://www.tencentcloud.com/document/product/436/14112>
-const MINIMUM_MULTIPART_SIZE: usize = 1024 * 1024;
 
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
@@ -249,7 +243,7 @@ pub struct CosBackend {
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<CosWriters, oio::ExactBufWriter<CosWriters>>;
+    type Writer = CosWriters;
     type BlockingWriter = ();
     type Pager = CosPager;
     type BlockingPager = ();
@@ -276,6 +270,14 @@ impl Accessor for CosBackend {
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_with_content_disposition: true,
+                // The min multipart size of COS is 1 MiB.
+                //
+                // ref: <https://www.tencentcloud.com/document/product/436/14112>
+                write_multi_min_size: Some(1024 * 1024),
+                // The max multipart size of COS is 5 GiB.
+                //
+                // ref: <https://www.tencentcloud.com/document/product/436/14112>
+                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
 
                 delete: true,
                 create_dir: true,
@@ -340,16 +342,6 @@ impl Accessor for CosBackend {
             CosWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
             CosWriters::One(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w = oio::ExactBufWriter::new(w, buffer_size);
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
         };
 
         Ok((RpWrite::default(), w))

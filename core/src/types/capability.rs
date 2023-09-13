@@ -84,6 +84,18 @@ pub struct Capability {
     pub write_with_content_disposition: bool,
     /// If operator supports write with cache control.
     pub write_with_cache_control: bool,
+    /// write_multi_max_size is the max size that services support in write_multi.
+    ///
+    /// For example, AWS S3 supports 5GiB as max in write_multi.
+    pub write_multi_max_size: Option<usize>,
+    /// write_multi_min_size is the min size that services support in write_multi.
+    ///
+    /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
+    pub write_multi_min_size: Option<usize>,
+    /// write_multi_align_size is the align size that services required in write_multi.
+    ///
+    /// For example, Google GCS requires align size to 256KiB in write_multi.
+    pub write_multi_align_size: Option<usize>,
 
     /// If operator supports create dir.
     pub create_dir: bool,

@@ -454,8 +454,15 @@ impl FutureWriter {
     ///
     /// ## NOTE
     ///
-    /// Service could have their own minimum buffer size while perform write operations like
-    /// multipart uploads. So the buffer size may be larger than the given buffer size.
+    /// Service could have their own limitation for buffer size. It's possible that buffer size
+    /// is not equal to the given buffer size.
+    ///
+    /// For example:
+    ///
+    /// - AWS S3 requires the part size to be in [5MiB, 5GiB].
+    /// - GCS requires the part size to be aligned with 256 KiB.
+    ///
+    /// The services will alter the buffer size to meet their requirements.
     pub fn buffer(mut self, v: usize) -> Self {
         self.0 = self.0.map_args(|args| args.with_buffer(v));
         self

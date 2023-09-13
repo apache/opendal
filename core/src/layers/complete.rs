@@ -17,11 +17,11 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io;
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::{cmp, io};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -94,17 +94,6 @@ use crate::*;
 ///
 /// If there is a hint that `ReadStreamable`, we will use existing reader
 /// directly. Otherwise, we will use transform this reader as a stream.
-///
-/// ### Consume instead of Drop
-///
-/// Normally, if reader is seekable, we need to drop current reader and start
-/// a new read call.
-///
-/// We can consume the data if the seek position is close enough. For
-/// example, users try to seek to `Current(1)`, we can just read the data
-/// can consume it.
-///
-/// In this way, we can reduce the extra cost of dropping reader.
 ///
 /// ## List Completion
 ///
@@ -366,7 +355,10 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Writer = CompleteWriter<A::Writer>;
+    type Writer = oio::TwoWaysWriter<
+        CompleteWriter<A::Writer>,
+        oio::ExactBufWriter<CompleteWriter<A::Writer>>,
+    >;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Pager = CompletePager<A, A::Pager>;
     type BlockingPager = CompletePager<A, A::BlockingPager>;
@@ -433,10 +425,32 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
             ));
         }
 
-        self.inner
-            .write(path, args)
-            .await
-            .map(|(rp, w)| (rp, CompleteWriter::new(w)))
+        // Calculate buffer size.
+        let buffer_size = args.buffer().map(|mut size| {
+            if let Some(v) = capability.write_multi_max_size {
+                size = cmp::min(v, size);
+            }
+            if let Some(v) = capability.write_multi_min_size {
+                size = cmp::max(v, size);
+            }
+            if let Some(v) = capability.write_multi_align_size {
+                // Make sure size >= size first.
+                size = cmp::max(v, size);
+                size -= size % v;
+            }
+
+            size
+        });
+
+        let (rp, w) = self.inner.write(path, args.clone()).await?;
+        let w = CompleteWriter::new(w);
+
+        let w = match buffer_size {
+            None => oio::TwoWaysWriter::One(w),
+            Some(size) => oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, size)),
+        };
+
+        Ok((rp, w))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {

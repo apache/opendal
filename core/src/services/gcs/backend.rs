@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -41,8 +40,6 @@ use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
-/// It's recommended that you use at least 8 MiB for the chunk size.
-const DEFAULT_WRITE_FIXED_SIZE: usize = 8 * 1024 * 1024;
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[doc = include_str!("docs.md")]
@@ -69,9 +66,6 @@ pub struct GcsBuilder {
     customed_token_loader: Option<Box<dyn GoogleTokenLoad>>,
     predefined_acl: Option<String>,
     default_storage_class: Option<String>,
-
-    /// the fixed size writer uses to flush into underlying storage.
-    write_fixed_size: Option<usize>,
 }
 
 impl GcsBuilder {
@@ -189,16 +183,6 @@ impl GcsBuilder {
         };
         self
     }
-
-    /// The buffer size should be a multiple of 256 KiB (256 x 1024 bytes), unless it's the last chunk that completes the upload.
-    /// Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
-    /// It's recommended that you use at least 8 MiB for the chunk size.
-    /// Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
-    pub fn write_fixed_size(&mut self, fixed_buffer_size: usize) -> &mut Self {
-        self.write_fixed_size = Some(fixed_buffer_size);
-
-        self
-    }
 }
 
 impl Debug for GcsBuilder {
@@ -298,17 +282,6 @@ impl Builder for GcsBuilder {
 
         let signer = GoogleSigner::new("storage");
 
-        let write_fixed_size = self.write_fixed_size.unwrap_or(DEFAULT_WRITE_FIXED_SIZE);
-        // GCS requires write must align with 256 KiB.
-        if write_fixed_size % (256 * 1024) != 0 {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "The write fixed buffer size is misconfigured",
-            )
-            .with_context("service", Scheme::Gcs)
-            .with_context("write_fixed_size", write_fixed_size.to_string()));
-        }
-
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
                 endpoint,
@@ -320,7 +293,6 @@ impl Builder for GcsBuilder {
                 credential_loader: cred_loader,
                 predefined_acl: self.predefined_acl.clone(),
                 default_storage_class: self.default_storage_class.clone(),
-                write_fixed_size,
             }),
         };
 
@@ -338,7 +310,7 @@ pub struct GcsBackend {
 impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<GcsWriters, oio::ExactBufWriter<GcsWriters>>;
+    type Writer = GcsWriters;
     type BlockingWriter = ();
     type Pager = GcsPager;
     type BlockingPager = ();
@@ -364,6 +336,13 @@ impl Accessor for GcsBackend {
                 write: true,
                 write_can_multi: true,
                 write_with_content_type: true,
+                // The buffer size should be a multiple of 256 KiB (256 x 1024 bytes), unless it's the last chunk that completes the upload.
+                // Larger chunk sizes typically make uploads faster, but note that there's a tradeoff between speed and memory usage.
+                // It's recommended that you use at least 8 MiB for the chunk size.
+                //
+                // Reference: [Perform resumable uploads](https://cloud.google.com/storage/docs/performing-resumable-uploads)
+                write_multi_align_size: Some(256 * 1024 * 1024),
+
                 delete: true,
                 copy: true,
 
@@ -420,17 +399,8 @@ impl Accessor for GcsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = GcsWriter::new(self.core.clone(), path, args.clone());
+        let w = GcsWriter::new(self.core.clone(), path, args);
         let w = oio::RangeWriter::new(w);
-
-        let w = if let Some(buffer_size) = args.buffer() {
-            // FIXME: we should align with 256KiB instead.
-            let buffer_size = max(DEFAULT_WRITE_FIXED_SIZE, buffer_size);
-
-            oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, buffer_size))
-        } else {
-            oio::TwoWaysWriter::One(w)
-        };
 
         Ok((RpWrite::default(), w))
     }

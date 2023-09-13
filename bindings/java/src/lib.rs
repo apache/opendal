@@ -32,6 +32,7 @@ use tokio::runtime::Runtime;
 
 mod blocking_operator;
 mod error;
+mod layer;
 mod metadata;
 mod operator;
 

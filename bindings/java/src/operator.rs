@@ -25,12 +25,14 @@ use jni::objects::JValue;
 use jni::objects::JValueOwned;
 use jni::sys::jlong;
 use jni::JNIEnv;
+
 use opendal::Operator;
 use opendal::Scheme;
 
 use crate::get_current_env;
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
+use crate::layer::{construct_layers, LayerBridge};
 use crate::Result;
 
 #[no_mangle]
@@ -38,18 +40,31 @@ pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
     mut env: JNIEnv,
     _: JClass,
     scheme: JString,
+    layers: JObject,
     map: JObject,
 ) -> jlong {
-    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
+    intern_constructor(&mut env, scheme, layers, map).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
 }
 
-fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
+fn intern_constructor(
+    env: &mut JNIEnv,
+    scheme: JString,
+    layers: JObject,
+    map: JObject,
+) -> Result<jlong> {
     let scheme = Scheme::from_str(env.get_string(&scheme)?.to_str()?)?;
     let map = jmap_to_hashmap(env, &map)?;
-    let op = Operator::via_map(scheme, map)?;
+    let mut op = Operator::via_map(scheme, map)?;
+    let layers = construct_layers(env, &layers)?;
+    for layer in layers {
+        op = match *layer {
+            LayerBridge::Retry(layer) => op.layer(layer),
+            LayerBridge::Blocking(layer) => op.layer(layer),
+        }
+    }
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
@@ -59,7 +74,7 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
     _: JNIEnv,
-    _: JClass,
+    _: JObject,
     op: *mut Operator,
 ) {
     drop(Box::from_raw(op));

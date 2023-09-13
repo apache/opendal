@@ -20,6 +20,8 @@
 package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -99,6 +101,13 @@ public class Operator extends NativeObject {
     }
 
     /**
+     * @see Operator#Operator(String, List, Map)
+     */
+    public Operator(String schema, Map<String, String> map) {
+        this(schema, Collections.emptyList(), map);
+    }
+
+    /**
      * Construct an OpenDAL operator:
      *
      * <p>
@@ -106,10 +115,11 @@ public class Operator extends NativeObject {
      * and see what config options each service supports.
      *
      * @param schema the name of the underneath service to access data from.
+     * @param layerSpecs a list of specifications to construct layers.
      * @param map    a map of properties to construct the underneath operator.
      */
-    public Operator(String schema, Map<String, String> map) {
-        super(constructor(schema, map));
+    public Operator(String schema, List<LayerSpec> layerSpecs, Map<String, String> map) {
+        super(constructor(schema, layerSpecs, map));
     }
 
     public CompletableFuture<Void> write(String path, String content) {
@@ -149,7 +159,7 @@ public class Operator extends NativeObject {
     @Override
     protected native void disposeInternal(long handle);
 
-    private static native long constructor(String schema, Map<String, String> map);
+    private static native long constructor(String schema, List<LayerSpec> layerSpecs, Map<String, String> map);
 
     private static native long read(long nativeHandle, String path);
 

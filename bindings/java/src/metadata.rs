@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::objects::JClass;
+use jni::objects::{JClass, JObject};
 use jni::sys::jboolean;
 use jni::sys::jlong;
 use jni::JNIEnv;
@@ -53,7 +53,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_getContentLength(
 #[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Metadata_disposeInternal(
     _: JNIEnv,
-    _: JClass,
+    _: JObject,
     ptr: *mut Metadata,
 ) {
     drop(Box::from_raw(ptr));

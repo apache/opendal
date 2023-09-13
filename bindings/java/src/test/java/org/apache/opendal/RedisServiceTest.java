@@ -26,13 +26,14 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import lombok.Cleanup;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
+@DisabledIfEnvironmentVariable(named = "NO_DOCKER", matches = "true")
 public class RedisServiceTest {
-
     @Container
     private final GenericContainer<?> redisContainer = new GenericContainer<>("redis:7.2.1").withExposedPorts(6379);
 

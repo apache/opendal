@@ -18,11 +18,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzdfsCore;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -41,7 +41,7 @@ impl AzdfsWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for AzdfsWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
         let mut req = self.core.azdfs_create_request(
             &self.path,
             "file",
@@ -66,11 +66,12 @@ impl oio::OneShotWrite for AzdfsWriter {
             }
         }
 
-        let size = bs.len();
-
-        let mut req =
-            self.core
-                .azdfs_update_request(&self.path, Some(size), AsyncBody::Bytes(bs))?;
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
+        let mut req = self.core.azdfs_update_request(
+            &self.path,
+            Some(bs.len()),
+            AsyncBody::ChunkedBytes(bs),
+        )?;
 
         self.core.sign(&mut req).await?;
 

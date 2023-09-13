@@ -20,7 +20,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::future::BoxFuture;
 
 use crate::raw::*;
@@ -37,17 +36,18 @@ pub trait OneShotWrite: Send + Sync + Unpin + 'static {
     /// write_once write all data at once.
     ///
     /// Implementations should make sure that the data is written correctly at once.
-    async fn write_once(&self, bs: Bytes) -> Result<()>;
+    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()>;
 }
 
 /// OneShotWrite is used to implement [`Write`] based on one shot.
 pub struct OneShotWriter<W: OneShotWrite> {
     state: State<W>,
+    buffer: Option<oio::ChunkedBytes>,
 }
 
 enum State<W> {
     Idle(Option<W>),
-    Write(BoxFuture<'static, (W, Result<usize>)>),
+    Write(BoxFuture<'static, (W, Result<()>)>),
 }
 
 /// # Safety
@@ -60,45 +60,73 @@ impl<W: OneShotWrite> OneShotWriter<W> {
     pub fn new(inner: W) -> Self {
         Self {
             state: State::Idle(Some(inner)),
+            buffer: None,
         }
     }
 }
 
 #[async_trait]
 impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
-    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        loop {
+            match &mut self.state {
+                State::Idle(_) => {
+                    return match &self.buffer {
+                        Some(_) => Poll::Ready(Err(Error::new(
+                            ErrorKind::Unsupported,
+                            "OneShotWriter doesn't support multiple write",
+                        ))),
+                        None => {
+                            let size = bs.remaining();
+                            let bs = bs.vectored_bytes(size);
+                            self.buffer = Some(oio::ChunkedBytes::from_vec(bs));
+                            Poll::Ready(Ok(size))
+                        }
+                    }
+                }
+                State::Write(_) => {
+                    unreachable!("OneShotWriter must not go into State::Write during poll_write")
+                }
+            }
+        }
+    }
+
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.state {
                 State::Idle(w) => {
                     let w = w.take().expect("writer must be valid");
 
-                    let size = bs.remaining();
-                    let bs = bs.bytes(size);
-                    let fut = async move {
-                        let res = w.write_once(bs).await;
+                    match self.buffer.clone() {
+                        Some(bs) => {
+                            let fut = Box::pin(async move {
+                                let res = w.write_once(&bs).await;
 
-                        (w, res.map(|_| size))
+                                (w, res)
+                            });
+                            self.state = State::Write(fut);
+                        }
+                        None => {
+                            let fut = Box::pin(async move {
+                                let res = w.write_once(&"".as_bytes()).await;
+
+                                (w, res)
+                            });
+                            self.state = State::Write(fut);
+                        }
                     };
-
-                    self.state = State::Write(Box::pin(fut));
                 }
                 State::Write(fut) => {
-                    let (w, size) = ready!(fut.as_mut().poll(cx));
+                    let (w, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
-                    return Poll::Ready(size);
+                    return Poll::Ready(res);
                 }
             }
         }
     }
 
     fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Err(Error::new(
-            ErrorKind::Unsupported,
-            "OneShotWriter doesn't support abort since all content has been flushed",
-        )))
-    }
-
-    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        self.buffer = None;
         Poll::Ready(Ok(()))
     }
 }

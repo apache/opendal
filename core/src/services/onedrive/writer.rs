@@ -23,6 +23,7 @@ use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -45,7 +46,8 @@ impl OneDriveWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for OneDriveWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = bs.bytes(bs.remaining());
         let size = bs.len();
 
         if size <= Self::MAX_SIMPLE_SIZE {

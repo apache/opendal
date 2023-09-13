@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::AzblobCore;
@@ -46,13 +45,14 @@ impl AzblobWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for AzblobWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
         let mut req = self.core.azblob_put_blob_request(
             &self.path,
             Some(bs.len() as u64),
             self.op.content_type(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs),
+            AsyncBody::ChunkedBytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;

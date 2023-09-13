@@ -105,7 +105,6 @@ impl Writer {
     /// async fn sink_example(op: Operator) -> Result<()> {
     ///     let mut w = op
     ///         .writer_with("path/to/file")
-    ///         .content_length(2 * 4096)
     ///         .await?;
     ///     let stream = stream::iter(vec![vec![0; 4096], vec![1; 4096]]).map(Ok);
     ///     w.sink(stream).await?;
@@ -154,7 +153,7 @@ impl Writer {
     ///
     /// #[tokio::main]
     /// async fn copy_example(op: Operator) -> Result<()> {
-    ///     let mut w = op.writer_with("path/to/file").content_length(4096).await?;
+    ///     let mut w = op.writer_with("path/to/file").await?;
     ///     let reader = Cursor::new(vec![0; 4096]);
     ///     w.copy(reader).await?;
     ///     w.close().await?;

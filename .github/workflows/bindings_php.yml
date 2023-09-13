@@ -18,17 +18,17 @@
 name: Bindings PHP CI
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - '*'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "bindings/php/**"
-      - ".github/workflows/bindings_php.yml"
+#  push:
+#    branches:
+#      - main
+#    tags:
+#      - '*'
+#  pull_request:
+#    branches:
+#      - main
+#    paths:
+#      - "bindings/php/**"
+#      - ".github/workflows/bindings_php.yml"
   workflow_dispatch:
 
 concurrency:

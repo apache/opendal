@@ -39,8 +39,9 @@ impl WebhdfsWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for WebhdfsWriter {
+    /// Using `bytes` instead of `vectored_bytes` to allow request to be redirected.
     async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
+        let bs = bs.bytes(bs.remaining());
 
         let req = self
             .backend
@@ -48,7 +49,7 @@ impl oio::OneShotWrite for WebhdfsWriter {
                 &self.path,
                 Some(bs.len()),
                 self.op.content_type(),
-                AsyncBody::ChunkedBytes(bs),
+                AsyncBody::Bytes(bs),
             )
             .await?;
 

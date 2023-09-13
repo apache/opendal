@@ -474,13 +474,6 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
             oio::OneShotWriter::new(WebhdfsWriter::new(self.clone(), args, path.to_string())),

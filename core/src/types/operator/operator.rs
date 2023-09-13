@@ -717,7 +717,7 @@ impl Operator {
         let fut = FutureWrite(OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpWrite::default().with_content_length(bs.len() as u64), bs),
+            (OpWrite::default(), bs),
             |inner, path, (args, mut bs)| {
                 let fut = async move {
                     if !validate_path(&path, EntryMode::FILE) {

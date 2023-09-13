@@ -23,6 +23,7 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -88,7 +89,8 @@ impl GdriveWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for GdriveWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = bs.bytes(bs.remaining());
         let size = bs.len();
         if self.file_id.is_none() {
             self.write_create(size as u64, bs).await?;

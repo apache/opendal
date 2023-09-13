@@ -42,6 +42,7 @@ use super::pager::FtpPager;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
+use crate::services::ftp::writer::FtpWriters;
 use crate::*;
 
 /// FTP and FTPS services support.
@@ -264,7 +265,7 @@ impl Debug for FtpBackend {
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
     type BlockingReader = ();
-    type Writer = FtpWriter;
+    type Writer = FtpWriters;
     type BlockingWriter = ();
     type Pager = FtpPager;
     type BlockingPager = ();
@@ -351,14 +352,7 @@ impl Accessor for FtpBackend {
         Ok((RpRead::new(size), FtpReader::new(r, ftp_stream)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         // Ensure the parent dir exists.
         let parent = get_parent(path);
         let paths: Vec<&str> = parent.split('/').collect();
@@ -381,10 +375,10 @@ impl Accessor for FtpBackend {
             }
         }
 
-        Ok((
-            RpWrite::new(),
-            FtpWriter::new(self.clone(), path.to_string()),
-        ))
+        let w = FtpWriter::new(self.clone(), path.to_string());
+        let w = oio::OneShotWriter::new(w);
+
+        Ok((RpWrite::new(), w))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

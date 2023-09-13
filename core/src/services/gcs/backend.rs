@@ -362,8 +362,8 @@ impl Accessor for GcsBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_multi: true,
                 write_with_content_type: true,
-                write_without_content_length: true,
                 delete: true,
                 copy: true,
 
@@ -423,7 +423,7 @@ impl Accessor for GcsBackend {
         let w = GcsWriter::new(self.core.clone(), path, args.clone());
         let w = oio::RangeWriter::new(w);
 
-        let w = if let Some(buffer_size) = args.buffer_size() {
+        let w = if let Some(buffer_size) = args.buffer() {
             // FIXME: we should align with 256KiB instead.
             let buffer_size = max(DEFAULT_WRITE_FIXED_SIZE, buffer_size);
 

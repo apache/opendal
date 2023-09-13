@@ -166,14 +166,7 @@ impl Accessor for GdriveBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         // As Google Drive allows files have the same name, we need to check if the file exists.
         // If the file exists, we will keep its ID and update it.
         let mut file_id: Option<String> = None;

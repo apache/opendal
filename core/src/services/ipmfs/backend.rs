@@ -21,7 +21,6 @@ use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -121,14 +120,7 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
             oio::OneShotWriter::new(IpmfsWriter::new(self.clone(), path.to_string())),
@@ -290,7 +282,7 @@ impl IpmfsBackend {
     pub async fn ipmfs_write(
         &self,
         path: &str,
-        body: Bytes,
+        body: oio::ChunkedBytes,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -300,7 +292,8 @@ impl IpmfsBackend {
             percent_encode_path(&p)
         );
 
-        let multipart = Multipart::new().part(FormDataPart::new("data").content(body));
+        let multipart = Multipart::new()
+            .part(FormDataPart::new("data").stream(body.len() as u64, Box::new(body)));
 
         let req: http::request::Builder = Request::post(url);
         let req = multipart.apply(req)?;

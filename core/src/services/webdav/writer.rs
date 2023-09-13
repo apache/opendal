@@ -16,11 +16,11 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::WebdavBackend;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -39,17 +39,17 @@ impl WebdavWriter {
 
 #[async_trait]
 impl oio::OneShotWrite for WebdavWriter {
-    async fn write_once(&self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
 
         let resp = self
             .backend
             .webdav_put(
                 &self.path,
-                Some(size as u64),
+                Some(bs.len() as u64),
                 self.op.content_type(),
                 self.op.content_disposition(),
-                AsyncBody::Bytes(bs),
+                AsyncBody::ChunkedBytes(bs),
             )
             .await?;
 

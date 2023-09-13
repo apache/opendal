@@ -264,8 +264,10 @@ where
                 State::Close(fut) => {
                     let (w, res) = futures::ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
+                    // We should check res first before clean up cache.
+                    let _ = res?;
                     self.cache = None;
-                    return Poll::Ready(res);
+                    return Poll::Ready(Ok(()));
                 }
                 State::Init(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Init during poll_close"

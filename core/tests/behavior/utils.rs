@@ -82,8 +82,6 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
         op.layer(ChaosLayer::new(0.1))
     };
 
-    let _guard = RUNTIME.enter();
-
     let mut op = op
         .layer(LoggingLayer::default().with_backtrace_output(true))
         .layer(TimeoutLayer::new())

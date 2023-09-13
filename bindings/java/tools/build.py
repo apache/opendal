@@ -17,11 +17,10 @@
 # under the License.
 
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, BooleanOptionalAction
 from pathlib import Path
 import shutil
 import subprocess
-import os
 
 
 def classifier_to_target(classifier: str) -> str:
@@ -53,12 +52,13 @@ if __name__ == '__main__':
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--classifier', type=str, required=True)
+    parser.add_argument('--release', action=BooleanOptionalAction)
     args = parser.parse_args()
 
     cmd = ['cargo', 'build', '--color=always']
-
-    # Only enable release build while OPENDAL_RELEASE is on.
-    if os.environ.get('OPENDAL_RELEASE') == 'on':
+    profile = 'debug'
+    if args.release:
+        profile = 'release'
         cmd.append('--release')
 
     target = classifier_to_target(args.classifier)
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     subprocess.run(cmd, cwd=basedir, check=True)
 
     artifact = get_cargo_artifact_name(args.classifier)
-    src = output / target / 'release' / artifact
+    src = output / target / profile / artifact
     dst = basedir / 'target' / 'classes' / 'native' / args.classifier / artifact
     dst.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy2(src, dst)

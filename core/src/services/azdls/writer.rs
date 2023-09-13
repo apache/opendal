@@ -20,29 +20,29 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
-use super::core::AzdfsCore;
+use super::core::AzdlsCore;
 use super::error::parse_error;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
-pub struct AzdfsWriter {
-    core: Arc<AzdfsCore>,
+pub struct AzdlsWriter {
+    core: Arc<AzdlsCore>,
 
     op: OpWrite,
     path: String,
 }
 
-impl AzdfsWriter {
-    pub fn new(core: Arc<AzdfsCore>, op: OpWrite, path: String) -> Self {
-        AzdfsWriter { core, op, path }
+impl AzdlsWriter {
+    pub fn new(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Self {
+        AzdlsWriter { core, op, path }
     }
 }
 
 #[async_trait]
-impl oio::OneShotWrite for AzdfsWriter {
+impl oio::OneShotWrite for AzdlsWriter {
     async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let mut req = self.core.azdfs_create_request(
+        let mut req = self.core.azdls_create_request(
             &self.path,
             "file",
             self.op.content_type(),
@@ -62,12 +62,12 @@ impl oio::OneShotWrite for AzdfsWriter {
             _ => {
                 return Err(parse_error(resp)
                     .await?
-                    .with_operation("Backend::azdfs_create_request"));
+                    .with_operation("Backend::azdls_create_request"));
             }
         }
 
         let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
-        let mut req = self.core.azdfs_update_request(
+        let mut req = self.core.azdls_update_request(
             &self.path,
             Some(bs.len()),
             AsyncBody::ChunkedBytes(bs),
@@ -85,7 +85,7 @@ impl oio::OneShotWrite for AzdfsWriter {
             }
             _ => Err(parse_error(resp)
                 .await?
-                .with_operation("Backend::azdfs_update_request")),
+                .with_operation("Backend::azdls_update_request")),
         }
     }
 }

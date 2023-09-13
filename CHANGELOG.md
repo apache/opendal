@@ -336,7 +336,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Docs
 
-- docs: add service doc for azdfs (#2310)
+- docs: add service doc for azdls (#2310)
 - docs(bidnings/java): how to deploy snapshots (#2311)
 - docs(bidnings/java): how to deploy snapshots (#2311)
 - docs: Fixed links of languages to open in same tab (#2327)
@@ -648,7 +648,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- feat(services/azdfs): support rename (#1929)
+- feat(services/azdls): support rename (#1929)
 - test: Increate copy/move nested path test depth (#1932)
 - feat(layers): add a basic minitrace layer (#1931)
 - feat: add Writer::abort method (#1937)
@@ -735,7 +735,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: Remove not used blocking http client (#1895)
 - refactor: Change presign to async for future refactor (#1900)
 - refactor(services/gcs): Migrate to async reqsign (#1906)
-- refactor(services/azdfs): Migrate to async reqsign (#1903)
+- refactor(services/azdls): Migrate to async reqsign (#1903)
 - refactor(services/azblob): Adopt new reqsign (#1902)
 - refactor(services/s3): Migrate to async reqsign (#1909)
 - refactor(services/oss): Migrate to async reqsign (#1911)
@@ -1502,12 +1502,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- feat: Add azdfs support (#1009)
+- feat: Add azdls support (#1009)
 - feat: Set MSRV of opendal to 1.60 (#1012)
 
 ### Docs
 
-- docs: Fix docs for azdfs service (#1010)
+- docs: Fix docs for azdls service (#1010)
 
 ## [v0.21.1] - 2022-11-26
 

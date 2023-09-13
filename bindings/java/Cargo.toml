@@ -42,7 +42,7 @@ tokio = { version = "1.28.1", features = ["full"] }
 workspace = true
 features = [
   "services-azblob",
-  "services-azdfs",
+  "services-azdls",
   "services-cacache",
   "services-cos",
   "services-dashmap",

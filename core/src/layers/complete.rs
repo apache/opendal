@@ -426,6 +426,12 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         if !capability.write {
             return new_capability_unsupported_error(Operation::Write);
         }
+        if args.append() && !capability.write_can_append {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write with append enabled is not supported",
+            ));
+        }
 
         self.inner
             .write(path, args)
@@ -437,6 +443,12 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         let capability = self.meta.full_capability();
         if !capability.write || !capability.blocking {
             return new_capability_unsupported_error(Operation::BlockingWrite);
+        }
+        if args.append() && !capability.write_can_append {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write with append enabled is not supported",
+            ));
         }
 
         self.inner

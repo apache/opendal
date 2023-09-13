@@ -274,8 +274,11 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                 State::Abort(fut) => {
                     let (w, res) = ready!(fut.poll_unpin(cx));
                     self.state = State::Idle(Some(w));
+                    // We should check res first before clean up cache.
+                    res?;
+
                     self.buffer = None;
-                    return Poll::Ready(res);
+                    return Poll::Ready(Ok(()));
                 }
             }
         }

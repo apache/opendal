@@ -195,6 +195,7 @@ where
                     let (w, part) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
                     self.parts.push(part?);
+
                     // Replace the cache when last write succeeded
                     let size = bs.remaining();
                     let cb = oio::ChunkedBytes::from_vec(bs.vectored_bytes(size));
@@ -264,8 +265,11 @@ where
                 State::Close(fut) => {
                     let (w, res) = futures::ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(w));
+                    // We should check res first before clean up cache.
+                    res?;
+
                     self.cache = None;
-                    return Poll::Ready(res);
+                    return Poll::Ready(Ok(()));
                 }
                 State::Init(_) => unreachable!(
                     "MultipartUploadWriter must not go into State::Init during poll_close"

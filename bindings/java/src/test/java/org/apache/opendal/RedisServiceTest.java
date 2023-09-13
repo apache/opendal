@@ -49,14 +49,14 @@ public class RedisServiceTest {
         assertThat(op.read("testAccessRedisService").join()).isEqualTo("Odin");
         op.delete("testAccessRedisService").join();
         op.stat("testAccessRedisService")
-            .handle((r, e) -> {
-                assertThat(r).isNull();
-                assertThat(e).isInstanceOf(CompletionException.class).hasCauseInstanceOf(OpenDALException.class);
-                OpenDALException.Code code = ((OpenDALException) e.getCause()).getCode();
-                assertThat(code).isEqualTo(OpenDALException.Code.NotFound);
-                return null;
-            })
-            .join();
+                .handle((r, e) -> {
+                    assertThat(r).isNull();
+                    assertThat(e).isInstanceOf(CompletionException.class).hasCauseInstanceOf(OpenDALException.class);
+                    OpenDALException.Code code = ((OpenDALException) e.getCause()).getCode();
+                    assertThat(code).isEqualTo(OpenDALException.Code.NotFound);
+                    return null;
+                })
+                .join();
     }
 
     @Test
@@ -72,8 +72,8 @@ public class RedisServiceTest {
         assertThat(op.read("testAccessRedisServiceBlocking")).isEqualTo("Odin");
         op.delete("testAccessRedisServiceBlocking");
         assertThatExceptionOfType(OpenDALException.class)
-            .isThrownBy(() -> op.stat("testAccessRedisServiceBlocking"))
-            .extracting(OpenDALException::getCode)
-            .isEqualTo(OpenDALException.Code.NotFound);
+                .isThrownBy(() -> op.stat("testAccessRedisServiceBlocking"))
+                .extracting(OpenDALException::getCode)
+                .isEqualTo(OpenDALException.Code.NotFound);
     }
 }

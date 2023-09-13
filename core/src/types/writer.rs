@@ -38,20 +38,39 @@ use crate::*;
 /// Please make sure either `close` or `abort` has been called before
 /// dropping the writer otherwise the data could be lost.
 ///
-/// ## Notes
+/// ## Usage
 ///
-/// Writer can be used in two ways:
+/// ### Write Multiple Chunks
 ///
-/// - Sized: write data with a known size by specify the content length.
-/// - Unsized: write data with an unknown size, also known as streaming.
+/// Some services support to write multiple chunks of data into given path. Services that doesn't
+/// support write multiple chunks will return [`ErrorKind::Unsupported`] error when calling `write`
+/// at the second time.
 ///
-/// All services will support `sized` writer and provide special optimization if
-/// the given data size is the same as the content length, allowing them to
-/// be written in one request.
+/// ```no_build
+/// let mut w = op.writer("path/to/file").await?;
+/// w.write(bs).await?;
+/// w.write(bs).await?;
+/// w.close().await?
+/// ```
 ///
-/// Some services also supports `unsized` writer. They MAY buffer part of the data
-/// and flush them into storage at needs. And finally, the file will be available
-/// after `close` has been called.
+/// Our writer also provides [`Writer::sink`] and [`Writer::copy`] support.
+///
+/// Besides, our writer implements [`AsyncWrite`] and [`tokio::io::AsyncWrite`].
+///
+/// ### Write with append enabled
+///
+/// Writer also supports to write with append enabled. This is useful when users want to append
+/// some data to the end of the file.
+///
+/// - If file doesn't exist, it will be created and just like calling `write`.
+/// - If file exists, data will be appended to the end of the file.
+///
+/// Possible Errors:
+///
+/// - Some services store normal file and appendable file in different way. Trying to append
+///   on non-appendable file could return [`ErrorKind::ConditionNotMatch`] error.
+/// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
+///   creating writer with `append` enabled.
 pub struct Writer {
     inner: oio::Writer,
 }

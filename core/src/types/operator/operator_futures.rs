@@ -440,7 +440,7 @@ impl FutureWriter {
     ///
     /// If the append mode is set, the data will be appended to the end of the file.
     ///
-    /// # Notes
+    /// ## Notes
     ///
     /// Service could return `Unsupported` if the underlying storage does not support append.
     pub fn append(mut self, v: bool) -> Self {

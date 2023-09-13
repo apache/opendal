@@ -62,8 +62,15 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Local staging
         working-directory: bindings/java
+        shell: bash
         run: |
-          ./mvnw -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy "-Djni.classifier=${{ matrix.classifier }}" -DskipTests=true -DaltStagingDirectory=local-staging -DskipRemoteStaging=true "-DserverId=apache.releases.https" "-DnexusUrl=https://repository.apache.org"
+          ./mvnw -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy \
+            -DskipTests=true \
+            -Djni.classifier=${{ matrix.classifier }} \
+            -DaltStagingDirectory=local-staging \
+            -DskipRemoteStaging=true \
+            -DserverId=apache.releases.https \
+            -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
@@ -124,13 +131,22 @@ jobs:
           path: ci-opendal
       - name: Merge staging repositories
         working-directory: ci-opendal
-        run: bash ./scripts/merge_local_staging.sh $LOCAL_STAGING_DIR/staging ~/windows-x86_64-local-staging/staging ~/linux-x86_64-local-staging/staging ~/osx-x86_64-local-staging/staging ~/osx-aarch_64-local-staging/staging
+        run: |
+          bash ./scripts/merge_local_staging.sh $LOCAL_STAGING_DIR/staging \
+            ~/windows-x86_64-local-staging/staging \
+            ~/linux-x86_64-local-staging/staging \
+            ~/osx-x86_64-local-staging/staging \
+            ~/osx-aarch_64-local-staging/staging
 
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}
         working-directory: bindings/java
         run: |
-          ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged -DaltStagingDirectory=$LOCAL_STAGING_DIR -DskipStagingRepositoryClose=true -DserverId=apache.releases.https -DnexusUrl=https://repository.apache.org
+          ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
+            -DaltStagingDirectory=$LOCAL_STAGING_DIR \
+            -DskipStagingRepositoryClose=true \
+            -DserverId=apache.releases.https \
+            -DnexusUrl=https://repository.apache.org
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}

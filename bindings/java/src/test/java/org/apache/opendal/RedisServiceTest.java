@@ -42,7 +42,7 @@ public class RedisServiceTest {
 
         final Map<String, String> params = new HashMap<>();
         params.put("root", "/tmp");
-        params.put("endpoint", "tcp://127.0.0.1:6379");
+        params.put("endpoint", "tcp://127.0.0.1:" + redisContainer.getMappedPort(6379));
         @Cleanup final Operator op = new Operator("Redis", params);
 
         op.write("testAccessRedisService", "Odin").join();
@@ -65,7 +65,7 @@ public class RedisServiceTest {
 
         final Map<String, String> params = new HashMap<>();
         params.put("root", "/tmp");
-        params.put("endpoint", "tcp://127.0.0.1:6379");
+        params.put("endpoint", "tcp://127.0.0.1:" + redisContainer.getMappedPort(6379));
         @Cleanup final BlockingOperator op = new BlockingOperator("Redis", params);
 
         op.write("testAccessRedisServiceBlocking", "Odin");

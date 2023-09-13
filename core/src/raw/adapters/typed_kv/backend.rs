@@ -393,6 +393,8 @@ impl<S> KvWriter<S> {
         let value = self.buf.take().map(Bytes::from).unwrap_or_default();
 
         let mut metadata = Metadata::new(EntryMode::FILE);
+        metadata.set_content_length(value.len() as u64);
+
         if let Some(v) = self.op.cache_control() {
             metadata.set_cache_control(v);
         }
@@ -401,11 +403,6 @@ impl<S> KvWriter<S> {
         }
         if let Some(v) = self.op.content_type() {
             metadata.set_content_type(v);
-        }
-        if let Some(v) = self.op.content_length() {
-            metadata.set_content_length(v);
-        } else {
-            metadata.set_content_length(value.len() as u64);
         }
 
         Value { metadata, value }

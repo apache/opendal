@@ -913,9 +913,10 @@ impl Accessor for S3Backend {
                 read_with_override_content_type: true,
 
                 write: true,
+                write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
-                write_without_content_length: true,
+
                 create_dir: true,
                 delete: true,
                 copy: true,
@@ -979,7 +980,7 @@ impl Accessor for S3Backend {
 
         let w = oio::MultipartUploadWriter::new(writer);
 
-        let w = if let Some(buffer_size) = args.buffer_size() {
+        let w = if let Some(buffer_size) = args.buffer() {
             let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
 
             oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, buffer_size))

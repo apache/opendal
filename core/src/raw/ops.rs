@@ -405,9 +405,8 @@ impl OpStat {
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     append: bool,
+    buffer: Option<usize>,
 
-    buffer_size: Option<usize>,
-    content_length: Option<u64>,
     content_type: Option<String>,
     content_disposition: Option<String>,
     cache_control: Option<String>,
@@ -440,39 +439,23 @@ impl OpWrite {
         self
     }
 
-    /// Get the buffer size from op.
+    /// Get the buffer from op.
     ///
-    /// The buffer size is used by service to decide the buffer size of the underlying writer.
-    pub fn buffer_size(&self) -> Option<usize> {
-        self.buffer_size
+    /// The buffer is used by service to decide the buffer size of the underlying writer.
+    pub fn buffer(&self) -> Option<usize> {
+        self.buffer
     }
 
-    /// Set the buffer size of op.
+    /// Set the buffer of op.
     ///
-    /// If buffer size is set, the data will be buffered by the underlying writer.
+    /// If buffer is set, the data will be buffered by the underlying writer.
     ///
     /// ## NOTE
     ///
     /// Service could have their own minimum buffer size while perform write operations like
     /// multipart uploads. So the buffer size may be larger than the given buffer size.
-    pub fn with_buffer_size(mut self, buffer_size: usize) -> Self {
-        self.buffer_size = Some(buffer_size);
-        self
-    }
-
-    /// Get the content length from op.
-    ///
-    /// The content length is the total length of the data to be written.
-    pub fn content_length(&self) -> Option<u64> {
-        self.content_length
-    }
-
-    /// Set the content length of op.
-    ///
-    /// If the content length is not set, the content length will be
-    /// calculated automatically by buffering part of data.
-    pub fn with_content_length(mut self, content_length: u64) -> Self {
-        self.content_length = Some(content_length);
+    pub fn with_buffer(mut self, buffer: usize) -> Self {
+        self.buffer = Some(buffer);
         self
     }
 

@@ -427,11 +427,10 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
             return new_capability_unsupported_error(Operation::Write);
         }
 
-        let size = args.content_length();
         self.inner
             .write(path, args)
             .await
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
+            .map(|(rp, w)| (rp, CompleteWriter::new(w)))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
@@ -440,10 +439,9 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
             return new_capability_unsupported_error(Operation::BlockingWrite);
         }
 
-        let size = args.content_length();
         self.inner
             .blocking_write(path, args)
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
+            .map(|(rp, w)| (rp, CompleteWriter::new(w)))
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -681,17 +679,11 @@ where
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,
-    size: Option<u64>,
-    written: u64,
 }
 
 impl<W> CompleteWriter<W> {
-    pub fn new(inner: W, size: Option<u64>) -> CompleteWriter<W> {
-        CompleteWriter {
-            inner: Some(inner),
-            size,
-            written: 0,
-        }
+    pub fn new(inner: W) -> CompleteWriter<W> {
+        CompleteWriter { inner: Some(inner) }
     }
 }
 
@@ -717,21 +709,19 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
         let n = ready!(w.poll_write(cx, bs))?;
-        self.written += n as u64;
-
-        if let Some(size) = self.size {
-            if self.written > size {
-                return Poll::Ready(Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + n as u64
-                    ),
-                )));
-            }
-        }
 
         Poll::Ready(Ok(n))
+    }
+
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+
+        ready!(w.poll_close(cx))?;
+        self.inner = None;
+
+        Poll::Ready(Ok(()))
     }
 
     fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
@@ -740,29 +730,6 @@ where
         })?;
 
         ready!(w.poll_abort(cx))?;
-        self.inner = None;
-
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        if let Some(size) = self.size {
-            if self.written < size {
-                return Poll::Ready(Err(Error::new(
-                    ErrorKind::ContentIncomplete,
-                    &format!(
-                        "writer got too less data, expect: {size}, actual: {}",
-                        self.written
-                    ),
-                )));
-            }
-        }
-
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-
-        ready!(w.poll_close(cx))?;
         self.inner = None;
 
         Poll::Ready(Ok(()))
@@ -778,36 +745,11 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
         let n = w.write(bs)?;
-        self.written += n as u64;
-
-        if let Some(size) = self.size {
-            if self.written > size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + n as u64
-                    ),
-                ));
-            }
-        }
 
         Ok(n)
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(size) = self.size {
-            if self.written < size {
-                return Err(Error::new(
-                    ErrorKind::ContentIncomplete,
-                    &format!(
-                        "writer got too less data, expect: {size}, actual: {}",
-                        self.written
-                    ),
-                ));
-            }
-        }
-
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;

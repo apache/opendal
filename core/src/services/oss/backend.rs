@@ -404,10 +404,11 @@ impl Accessor for OssBackend {
 
                 write: true,
                 write_can_append: true,
+                write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_with_content_disposition: true,
-                write_without_content_length: true,
+
                 delete: true,
                 create_dir: true,
                 copy: true,
@@ -478,7 +479,7 @@ impl Accessor for OssBackend {
             OssWriters::One(oio::MultipartUploadWriter::new(writer))
         };
 
-        let w = if let Some(buffer_size) = args.buffer_size() {
+        let w = if let Some(buffer_size) = args.buffer() {
             let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
 
             let w = oio::ExactBufWriter::new(w, buffer_size);

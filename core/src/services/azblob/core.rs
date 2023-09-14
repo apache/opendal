@@ -408,7 +408,7 @@ impl AzblobCore {
         path: &str,
         args: &OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.azblob_head_blob_request(path, &args.clone().to_owned().into())?;
+        let mut req = self.azblob_head_blob_request(path, &args.to_owned().into())?;
 
         self.sign(&mut req).await?;
         self.send(req).await

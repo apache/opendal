@@ -302,7 +302,7 @@ impl Accessor for CosBackend {
         let mut req = self.core.cos_put_object_request(
             path,
             Some(0),
-            &Default::default(),
+            &OpWrite::default(),
             AsyncBody::Empty,
         )?;
 

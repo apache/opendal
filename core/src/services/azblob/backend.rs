@@ -561,7 +561,7 @@ impl Accessor for AzblobBackend {
         let mut req = self.core.azblob_put_blob_request(
             path,
             Some(0),
-            &Default::default(),
+            &OpWrite::default(),
             AsyncBody::Empty,
         )?;
 
@@ -689,7 +689,7 @@ impl Accessor for AzblobBackend {
             PresignOperation::Write(_) => self.core.azblob_put_blob_request(
                 path,
                 None,
-                &Default::default(),
+                &OpWrite::default(),
                 AsyncBody::Empty,
             )?,
         };

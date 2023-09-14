@@ -192,6 +192,12 @@ jobs:
           need-rocksdb: true
           need-protoc: true
 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "23.4"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build
         shell: bash
         run: |

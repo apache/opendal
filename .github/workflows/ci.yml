@@ -227,7 +227,8 @@ jobs:
             services-redb
             services-redis
             services-redis-rustls
-            services-rocksdb
+            # TODO: we need to find ways to using pre-install rocksdb library
+            # services-rocksdb
             services-s3
             services-sftp
             services-sled

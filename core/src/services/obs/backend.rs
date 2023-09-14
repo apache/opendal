@@ -319,8 +319,7 @@ impl Accessor for ObsBackend {
             PresignOperation::Write(v) => self.core.obs_put_object_request(
                 path,
                 None,
-                v.content_type(),
-                v.cache_control(),
+                v,
                 AsyncBody::Empty,
             )?,
         };
@@ -339,7 +338,7 @@ impl Accessor for ObsBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
-                .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+                .obs_put_object_request(path, Some(0), &OpWrite::default(), AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 

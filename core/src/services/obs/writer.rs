@@ -49,13 +49,9 @@ impl ObsWriter {
 #[async_trait]
 impl oio::MultipartUploadWrite for ObsWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
-        let mut req = self.core.obs_put_object_request(
-            &self.path,
-            Some(size),
-            self.op.content_type(),
-            self.op.cache_control(),
-            body,
-        )?;
+        let mut req = self
+            .core
+            .obs_put_object_request(&self.path, Some(size), &self.op, body)?;
 
         self.core.sign(&mut req).await?;
 

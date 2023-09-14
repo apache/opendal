@@ -72,7 +72,7 @@ if __name__ == '__main__':
     subprocess.run(cmd, cwd=basedir, check=True)
 
     # History reason of cargo profiles.
-    profile_output = 'debug' if args.profile in ['dev', 'test', 'bench'] else args.profile
+    profile = 'debug' if args.profile in ['dev', 'test', 'bench'] else args.profile
     artifact = get_cargo_artifact_name(args.classifier)
     src = output / target / profile_output / artifact
     dst = basedir / 'target' / 'classes' / 'native' / args.classifier / artifact

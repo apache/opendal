@@ -21,7 +21,8 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::{Bytes, BytesMut};
+use bytes::Bytes;
+use bytes::BytesMut;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 

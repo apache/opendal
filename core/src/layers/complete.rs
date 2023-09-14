@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io;
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
-use std::{cmp, io};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -794,10 +795,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use async_trait::async_trait;
     use http::HeaderMap;
     use http::Method as HttpMethod;
-    use std::time::Duration;
 
     use super::*;
 

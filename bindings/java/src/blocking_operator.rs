@@ -24,14 +24,14 @@ use jni::objects::JString;
 use jni::sys::jlong;
 use jni::sys::jstring;
 use jni::JNIEnv;
-
 use opendal::layers::BlockingLayer;
 use opendal::BlockingOperator;
 use opendal::Operator;
 use opendal::Scheme;
 
+use crate::get_global_runtime;
+use crate::jmap_to_hashmap;
 use crate::Result;
-use crate::{get_global_runtime, jmap_to_hashmap};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(

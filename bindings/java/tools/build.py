@@ -74,7 +74,7 @@ if __name__ == '__main__':
     # History reason of cargo profiles.
     profile = 'debug' if args.profile in ['dev', 'test', 'bench'] else args.profile
     artifact = get_cargo_artifact_name(args.classifier)
-    src = output / target / profile_output / artifact
+    src = output / target / profile / artifact
     dst = basedir / 'target' / 'classes' / 'native' / args.classifier / artifact
     dst.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy2(src, dst)

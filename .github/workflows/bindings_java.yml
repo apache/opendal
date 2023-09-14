@@ -60,10 +60,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-          - os: windows-latest
-          - os: macos-latest
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 8

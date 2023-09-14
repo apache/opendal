@@ -53,6 +53,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
 
         <cargo-build.profile>dev</cargo-build.profile>
+        <cargo-build.features>default</cargo-build.features>
         <jni.classifier>${os.detected.classifier}</jni.classifier>
 
         <assertj.version>3.23.1</assertj.version>
@@ -193,6 +194,8 @@
                                 <argument>${jni.classifier}</argument>
                                 <argument>--profile</argument>
                                 <argument>${cargo-build.profile}</argument>
+                                <argument>--features</argument>
+                                <argument>${cargo-build.features}</argument>
                             </arguments>
                         </configuration>
                     </execution>

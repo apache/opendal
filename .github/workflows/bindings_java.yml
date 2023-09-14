@@ -60,10 +60,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-          - os: windows-latest
-          - os: macos-latest
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 8
@@ -86,5 +86,5 @@ jobs:
           if [[ "${{ runner.os }}" != Linux ]]; then
             export NO_DOCKER=true
           fi
-          ./mvnw clean install -DskipTests
-          ./mvnw verify artifact:compare
+          ./mvnw clean install -DskipTests -Dcargo-build.features=services-redis
+          ./mvnw verify artifact:compare -Dcargo-build.features=services-redis

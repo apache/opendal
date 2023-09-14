@@ -193,6 +193,7 @@ jobs:
           need-protoc: true
 
       - name: Build
+        shell: bash
         run: |
           FEATURES=(
             services-azblob

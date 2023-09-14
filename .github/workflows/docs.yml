@@ -199,8 +199,10 @@ jobs:
       - name: Restore haskell cache
         uses: actions/cache/restore@v3
         with:
-          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal') }}
-          path: ~/.cabal/store
+          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
+          path: |
+            ~/.cabal/store
+            bindings/haskell/dist-newstyle
           restore-keys: ${{ runner.os }}-haskell-
 
       - name: Build Docs
@@ -212,8 +214,10 @@ jobs:
       - name: Save haskell cache
         uses: actions/cache/save@v3
         with:
-          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal') }}
-          path: ~/.cabal/store
+          key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
+          path: |
+            ~/.cabal/store
+            bindings/haskell/dist-newstyle
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

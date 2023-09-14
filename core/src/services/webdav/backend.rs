@@ -437,8 +437,7 @@ impl WebdavBackend {
         &self,
         abs_path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
@@ -453,11 +452,11 @@ impl WebdavBackend {
             req = req.header(header::CONTENT_LENGTH, size)
         }
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 
-        if let Some(cd) = content_disposition {
+        if let Some(cd) = args.content_disposition() {
             req = req.header(header::CONTENT_DISPOSITION, cd)
         }
 

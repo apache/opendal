@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import org.junit.jupiter.api.Test;
@@ -44,13 +43,7 @@ public class OperatorTest {
         assertThat(op.read("testCreateAndDelete").join()).isEqualTo("Odin");
         op.delete("testCreateAndDelete").join();
         op.stat("testCreateAndDelete")
-                .handle((r, e) -> {
-                    assertThat(r).isNull();
-                    assertThat(e).isInstanceOf(CompletionException.class).hasCauseInstanceOf(OpenDALException.class);
-                    OpenDALException.Code code = ((OpenDALException) e.getCause()).getCode();
-                    assertThat(code).isEqualTo(OpenDALException.Code.NotFound);
-                    return null;
-                })
+                .handle(TestHelper.assertAsyncOpenDALException(OpenDALException.Code.NotFound))
                 .join();
     }
 

@@ -178,6 +178,8 @@ public class Operator extends NativeObject {
     private static native long stat(long nativeHandle, String path);
 
     private static native long presignRead(long nativeHandle, String path, long duration);
+
     private static native long presignWrite(long nativeHandle, String path, long duration);
+
     private static native long presignStat(long nativeHandle, String path, long duration);
 }

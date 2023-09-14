@@ -50,8 +50,7 @@ impl oio::OneShotWrite for AzblobWriter {
         let mut req = self.core.azblob_put_blob_request(
             &self.path,
             Some(bs.len() as u64),
-            self.op.content_type(),
-            self.op.cache_control(),
+            &self.op,
             AsyncBody::ChunkedBytes(bs),
         )?;
 
@@ -95,11 +94,9 @@ impl oio::AppendObjectWrite for AzblobWriter {
                 Ok(parse_content_length(headers)?.unwrap_or_default())
             }
             StatusCode::NOT_FOUND => {
-                let mut req = self.core.azblob_init_appendable_blob_request(
-                    &self.path,
-                    self.op.content_type(),
-                    self.op.cache_control(),
-                )?;
+                let mut req = self
+                    .core
+                    .azblob_init_appendable_blob_request(&self.path, &self.op)?;
 
                 self.core.sign(&mut req).await?;
 

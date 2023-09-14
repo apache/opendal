@@ -558,9 +558,12 @@ impl Accessor for AzblobBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .azblob_put_blob_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self.core.azblob_put_blob_request(
+            path,
+            Some(0),
+            &Default::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -683,10 +686,12 @@ impl Accessor for AzblobBackend {
                 v.if_match(),
                 v.override_content_disposition(),
             )?,
-            PresignOperation::Write(_) => {
-                self.core
-                    .azblob_put_blob_request(path, None, None, None, AsyncBody::Empty)?
-            }
+            PresignOperation::Write(_) => self.core.azblob_put_blob_request(
+                path,
+                None,
+                &Default::default(),
+                AsyncBody::Empty,
+            )?,
         };
 
         self.core.sign_query(&mut req).await?;

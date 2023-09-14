@@ -104,3 +104,14 @@ fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String,
 
     Ok(result)
 }
+
+fn hashmap_to_jmap<'a>(env: &mut JNIEnv<'a>, map: &HashMap<String, String>) -> Result<JObject<'a>> {
+    let map_object = env.new_object("java.util.HashMap", "()V", &[])?;
+    let jmap = env.get_map(&map_object)?;
+    for (k, v) in map {
+        let key = env.new_string(k)?;
+        let value = env.new_string(v)?;
+        jmap.put(env, &key, &value)?;
+    }
+    Ok(map_object)
+}

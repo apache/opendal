@@ -24,10 +24,7 @@ This service can be used to:
 - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
 - `enable_copy`: Set whether the remote server has copy-file extension
 
-It doesn't support password login, you can use public key instead.
-
-If you are interested in password login, please refer to [this](https://github.com/apache/incubator-opendal/issues/2966) issue.
-Welcome to leave your comments or make contributions.
+For security reasons, it doesn't support password login, you can use public key or ssh-copy-id instead.
 
 You can refer to [`SftpBuilder`]'s docs for more information
 

@@ -25,7 +25,6 @@ use jni::objects::JValue;
 use jni::objects::JValueOwned;
 use jni::sys::jlong;
 use jni::JNIEnv;
-
 use opendal::layers::BlockingLayer;
 use opendal::Operator;
 use opendal::Scheme;

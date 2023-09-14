@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::objects::{JClass, JObject};
+use jni::objects::JClass;
+use jni::objects::JObject;
 use jni::sys::jboolean;
 use jni::sys::jlong;
 use jni::JNIEnv;

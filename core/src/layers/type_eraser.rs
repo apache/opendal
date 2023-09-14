@@ -25,6 +25,8 @@ use crate::*;
 
 /// TypeEraseLayer will erase the types on internal accessor.
 ///
+/// For example, we will erase `Self::Reader` to `oio::Reader` (`Box<dyn oio::Read>`).
+///
 /// # Notes
 ///
 /// TypeEraseLayer is not a public accessible layer that can be used by
@@ -71,12 +73,6 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
             .map(|(rp, r)| (rp, Box::new(r) as oio::Reader))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner
-            .blocking_read(path, args)
-            .map(|(rp, r)| (rp, Box::new(r) as oio::BlockingReader))
-    }
-
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
@@ -84,17 +80,23 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
             .map(|(rp, w)| (rp, Box::new(w) as oio::Writer))
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, w)| (rp, Box::new(w) as oio::BlockingWriter))
-    }
-
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
             .await
             .map(|(rp, p)| (rp, Box::new(p) as oio::Pager))
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, r)| (rp, Box::new(r) as oio::BlockingReader))
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, w)| (rp, Box::new(w) as oio::BlockingWriter))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {

@@ -56,12 +56,12 @@ use crate::*;
 /// capabilities. CompleteLayer will add those capabilities in
 /// a zero cost way.
 ///
-/// Underlying services will return [`AccessorHint`] to indicate the
+/// Underlying services will return [`AccessorInfo`] to indicate the
 /// features that returning readers support.
 ///
 /// - If both `seekable` and `streamable`, return directly.
-/// - If not `streamable`, with [`oio::into_streamable_reader`].
-/// - If not `seekable`, with [`oio::into_reader::by_range`]
+/// - If not `streamable`, with [`oio::into_read_from_stream`].
+/// - If not `seekable`, with [`oio::into_seekable_read_by_range`]
 /// - If neither not supported, wrap both by_range and into_streamable.
 ///
 /// All implementations of Reader should be `zero cost`. In our cases,
@@ -73,10 +73,9 @@ use crate::*;
 ///
 /// ### Read is Seekable
 ///
-/// We use internal `AccessorHint::ReadSeekable` to decide the most
-/// suitable implementations.
+/// We use [`Capability`] to decide the most suitable implementations.
 ///
-/// If there is a hint that `ReadSeekable`, we will open it with given args
+/// If [`Capability`] `read_can_seek` is true, we will open it with given args
 /// directly. Otherwise, we will pick a seekable reader implementation based
 /// on input range for it.
 ///
@@ -92,7 +91,7 @@ use crate::*;
 /// We use internal `AccessorHint::ReadStreamable` to decide the most
 /// suitable implementations.
 ///
-/// If there is a hint that `ReadStreamable`, we will use existing reader
+/// If [`Capability`] `read_can_next` is true, we will use existing reader
 /// directly. Otherwise, we will use transform this reader as a stream.
 ///
 /// ## List Completion
@@ -100,21 +99,19 @@ use crate::*;
 /// There are two styles of list, but not all services support both of
 /// them. CompleteLayer will add those capabilities in a zero cost way.
 ///
-/// Underlying services will return [`AccessorHint`] to indicate the
+/// Underlying services will return [`Capability`] to indicate the
 /// features that returning pagers support.
 ///
-/// - If both `flat` and `hierarchy`, return directly.
-/// - If only `flat`, with [`oio::to_flat_pager`].
-/// - if only `hierarchy`, with [`oio::to_hierarchy_pager`].
-/// - If neither not supported, something must be wrong.
+/// - If both `list_with_delimiter_slash` and `list_without_delimiter`, return directly.
+/// - If only `list_without_delimiter`, with [`oio::to_flat_pager`].
+/// - if only `list_with_delimiter_slash`, with [`oio::to_hierarchy_pager`].
+/// - If neither not supported, something must be wrong for `list` is true.
 ///
 /// ## Capability Check
 ///
 /// Before performing any operations, `CompleteLayer` will first check
 /// the operation against capability of the underlying service. If the
 /// operation is not supported, an error will be returned directly.
-///
-/// [`AccessorHint`]: crate::raw::AccessorHint
 pub struct CompleteLayer;
 
 impl<A: Accessor> Layer<A> for CompleteLayer {
@@ -128,7 +125,7 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
     }
 }
 
-/// Provide reader wrapper for backend.
+/// Provide complete wrapper for backend.
 pub struct CompleteReaderAccessor<A: Accessor> {
     meta: AccessorInfo,
     inner: Arc<A>,
@@ -377,40 +374,17 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         meta
     }
 
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.meta.full_capability();
+        if !capability.create_dir {
+            return new_capability_unsupported_error(Operation::CreateDir);
+        }
+
+        self.inner().create_dir(path, args).await
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.complete_reader(path, args).await
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.complete_blocking_reader(path, args)
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
-        if !capability.stat {
-            return new_capability_unsupported_error(Operation::Stat);
-        }
-
-        self.inner.stat(path, args).await.map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
-            })
-        })
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.meta.full_capability();
-        if !capability.stat || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingStat);
-        }
-
-        self.inner.blocking_stat(path, args).map(|v| {
-            v.map_metadata(|m| {
-                let bit = m.bit();
-                m.with_bit(bit | Metakey::Complete)
-            })
-        })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -453,6 +427,87 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         Ok((rp, w))
     }
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let capability = self.meta.full_capability();
+        if !capability.copy {
+            return new_capability_unsupported_error(Operation::Copy);
+        }
+
+        self.inner().copy(from, to, args).await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let capability = self.meta.full_capability();
+        if !capability.rename {
+            return new_capability_unsupported_error(Operation::Rename);
+        }
+
+        self.inner().rename(from, to, args).await
+    }
+
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let capability = self.meta.full_capability();
+        if !capability.stat {
+            return new_capability_unsupported_error(Operation::Stat);
+        }
+
+        self.inner.stat(path, args).await.map(|v| {
+            v.map_metadata(|m| {
+                let bit = m.bit();
+                m.with_bit(bit | Metakey::Complete)
+            })
+        })
+    }
+
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let capability = self.meta.full_capability();
+        if !capability.delete {
+            return new_capability_unsupported_error(Operation::Delete);
+        }
+
+        self.inner().delete(path, args).await
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let capability = self.meta.full_capability();
+        if !capability.list {
+            return new_capability_unsupported_error(Operation::List);
+        }
+
+        self.complete_list(path, args).await
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let capability = self.meta.full_capability();
+        if !capability.batch {
+            return new_capability_unsupported_error(Operation::Batch);
+        }
+
+        self.inner().batch(args).await
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let capability = self.meta.full_capability();
+        if !capability.presign {
+            return new_capability_unsupported_error(Operation::Presign);
+        }
+
+        self.inner.presign(path, args).await
+    }
+
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.meta.full_capability();
+        if !capability.create_dir || !capability.blocking {
+            return new_capability_unsupported_error(Operation::BlockingCreateDir);
+        }
+
+        self.inner().blocking_create_dir(path, args)
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.complete_blocking_reader(path, args)
+    }
+
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let capability = self.meta.full_capability();
         if !capability.write || !capability.blocking {
@@ -470,51 +525,6 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
             .map(|(rp, w)| (rp, CompleteWriter::new(w)))
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
-        if !capability.create_dir {
-            return new_capability_unsupported_error(Operation::CreateDir);
-        }
-
-        self.inner().create_dir(path, args).await
-    }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
-        if !capability.create_dir || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingCreateDir);
-        }
-
-        self.inner().blocking_create_dir(path, args)
-    }
-
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.full_capability();
-        if !capability.delete {
-            return new_capability_unsupported_error(Operation::Delete);
-        }
-
-        self.inner().delete(path, args).await
-    }
-
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.full_capability();
-        if !capability.delete || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingDelete);
-        }
-
-        self.inner().blocking_delete(path, args)
-    }
-
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.full_capability();
-        if !capability.copy {
-            return new_capability_unsupported_error(Operation::Copy);
-        }
-
-        self.inner().copy(from, to, args).await
-    }
-
     fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let capability = self.meta.full_capability();
         if !capability.copy || !capability.blocking {
@@ -522,15 +532,6 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         }
 
         self.inner().blocking_copy(from, to, args)
-    }
-
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.full_capability();
-        if !capability.rename {
-            return new_capability_unsupported_error(Operation::Rename);
-        }
-
-        self.inner().rename(from, to, args).await
     }
 
     fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -542,13 +543,27 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         self.inner().blocking_rename(from, to, args)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let capability = self.meta.full_capability();
-        if !capability.list {
-            return new_capability_unsupported_error(Operation::List);
+        if !capability.stat || !capability.blocking {
+            return new_capability_unsupported_error(Operation::BlockingStat);
         }
 
-        self.complete_list(path, args).await
+        self.inner.blocking_stat(path, args).map(|v| {
+            v.map_metadata(|m| {
+                let bit = m.bit();
+                m.with_bit(bit | Metakey::Complete)
+            })
+        })
+    }
+
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let capability = self.meta.full_capability();
+        if !capability.delete || !capability.blocking {
+            return new_capability_unsupported_error(Operation::BlockingDelete);
+        }
+
+        self.inner().blocking_delete(path, args)
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
@@ -558,24 +573,6 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         }
 
         self.complete_blocking_list(path, args)
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let capability = self.meta.full_capability();
-        if !capability.presign {
-            return new_capability_unsupported_error(Operation::Presign);
-        }
-
-        self.inner.presign(path, args).await
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let capability = self.meta.full_capability();
-        if !capability.batch {
-            return new_capability_unsupported_error(Operation::Batch);
-        }
-
-        self.inner().batch(args).await
     }
 }
 
@@ -849,8 +846,8 @@ mod tests {
             info
         }
 
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
+        async fn create_dir(&self, _: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+            Ok(RpCreateDir {})
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -865,8 +862,12 @@ mod tests {
             Ok(RpCopy {})
         }
 
-        async fn create_dir(&self, _: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-            Ok(RpCreateDir {})
+        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
+            Ok(RpRename {})
+        }
+
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
         }
 
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
@@ -875,10 +876,6 @@ mod tests {
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
             Ok((RpList {}, ()))
-        }
-
-        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
-            Ok(RpRename {})
         }
 
         async fn presign(&self, _: &str, _: OpPresign) -> Result<RpPresign> {

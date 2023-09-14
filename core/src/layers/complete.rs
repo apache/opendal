@@ -794,41 +794,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::time::Duration;
-
     use async_trait::async_trait;
     use http::HeaderMap;
     use http::Method as HttpMethod;
+    use std::time::Duration;
 
     use super::*;
-
-    #[derive(Default)]
-    struct MockBuilder {
-        capability: Capability,
-    }
-
-    impl MockBuilder {
-        fn with_capacity(mut self, capability: Capability) -> Self {
-            self.capability = capability;
-            self
-        }
-    }
-
-    impl Builder for MockBuilder {
-        const SCHEME: Scheme = Scheme::Custom("mock");
-        type Accessor = MockService;
-
-        fn from_map(_: HashMap<String, String>) -> Self {
-            Self::default()
-        }
-
-        fn build(&mut self) -> Result<Self::Accessor> {
-            Ok(MockService {
-                capability: self.capability,
-            })
-        }
-    }
 
     #[derive(Debug)]
     struct MockService {
@@ -837,12 +808,12 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        type Reader = ();
-        type BlockingReader = ();
-        type Writer = ();
-        type BlockingWriter = ();
-        type Pager = ();
-        type BlockingPager = ();
+        type Reader = oio::Reader;
+        type BlockingReader = oio::BlockingReader;
+        type Writer = oio::Writer;
+        type BlockingWriter = oio::BlockingWriter;
+        type Pager = oio::Pager;
+        type BlockingPager = oio::BlockingPager;
 
         fn info(&self) -> AccessorInfo {
             let mut info = AccessorInfo::default();
@@ -856,11 +827,11 @@ mod tests {
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(0), ()))
+            Ok((RpRead::new(0), Box::new(())))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), ()))
+            Ok((RpWrite::new(), Box::new(())))
         }
 
         async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
@@ -880,7 +851,7 @@ mod tests {
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
-            Ok((RpList {}, ()))
+            Ok((RpList {}, Box::new(())))
         }
 
         async fn presign(&self, _: &str, _: OpPresign) -> Result<RpPresign> {
@@ -892,50 +863,144 @@ mod tests {
         }
     }
 
-    /// Perform the test against different capability preconditions.
-    macro_rules! capability_test {
-        ($cap:ident, |$arg:ident| { $($body:tt)* }) => {
-            paste::item! {
-                #[tokio::test]
-                async fn [<test_capability_ $cap>]() {
-                    let res_builder = |$arg: Operator| async move {
-                        let res = { $($body)* };
-                        res.await.err()
-                    };
+    fn new_test_operator(capability: Capability) -> Operator {
+        let srv = MockService { capability };
 
-                    let builder = MockBuilder::default().with_capacity(Capability {
-                        $cap: false,
-                        ..Default::default()
-                    });
-                    let op = Operator::new(builder).expect("should build").finish();
-                    let res = res_builder(op.clone()).await;
-                    assert_eq!(res.expect("should not be None").kind(), ErrorKind::Unsupported);
-
-                    let builder = MockBuilder::default().with_capacity(Capability {
-                        $cap: true,
-                        ..Default::default()
-                    });
-                    let op = Operator::new(builder).expect("should build").finish();
-                    let res = res_builder(op.clone()).await;
-                    assert!(res.is_none());
-                }
-            }
-        };
+        Operator::from_inner(Arc::new(srv)).layer(CompleteLayer)
     }
 
-    capability_test!(stat, |op| { op.stat("/path/to/mock_file") });
-    capability_test!(read, |op| { op.read("/path/to/mock_file") });
-    capability_test!(write, |op| { op.writer("/path/to/mock_file") });
-    capability_test!(create_dir, |op| { op.create_dir("/path/to/mock_dir/") });
-    capability_test!(delete, |op| { op.delete("/path/to/mock_file") });
-    capability_test!(copy, |op| {
-        op.copy("/path/to/mock_file", "/path/to/mock_file_2")
-    });
-    capability_test!(rename, |op| {
-        op.rename("/path/to/mock_file", "/path/to/mock_file_2")
-    });
-    capability_test!(list, |op| { op.lister("/path/to/mock_dir/") });
-    capability_test!(presign, |op| {
-        op.presign_read("/path/to/mock_file", Duration::from_secs(1))
-    });
+    #[tokio::test]
+    async fn test_read() {
+        let op = new_test_operator(Capability::default());
+        let res = op.read("path").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            read: true,
+            ..Default::default()
+        });
+        let res = op.read("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_stat() {
+        let op = new_test_operator(Capability::default());
+        let res = op.stat("path").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            stat: true,
+            ..Default::default()
+        });
+        let res = op.stat("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_writer() {
+        let op = new_test_operator(Capability::default());
+        let res = op.write("path", vec![]).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            write: true,
+            ..Default::default()
+        });
+        let res = op.writer("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_create_dir() {
+        let op = new_test_operator(Capability::default());
+        let res = op.create_dir("path/").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            create_dir: true,
+            ..Default::default()
+        });
+        let res = op.create_dir("path/").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_delete() {
+        let op = new_test_operator(Capability::default());
+        let res = op.delete("path").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            delete: true,
+            ..Default::default()
+        });
+        let res = op.delete("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_copy() {
+        let op = new_test_operator(Capability::default());
+        let res = op.copy("path_a", "path_b").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            copy: true,
+            ..Default::default()
+        });
+        let res = op.copy("path_a", "path_b").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_rename() {
+        let op = new_test_operator(Capability::default());
+        let res = op.rename("path_a", "path_b").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            rename: true,
+            ..Default::default()
+        });
+        let res = op.rename("path_a", "path_b").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_list() {
+        let op = new_test_operator(Capability::default());
+        let res = op.list("path/").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            list: true,
+            ..Default::default()
+        });
+        let res = op.list("path/").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_presign() {
+        let op = new_test_operator(Capability::default());
+        let res = op.presign_read("path", Duration::from_secs(1)).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            presign: true,
+            ..Default::default()
+        });
+        let res = op.presign_read("path", Duration::from_secs(1)).await;
+        assert!(res.is_ok())
+    }
 }

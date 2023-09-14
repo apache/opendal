@@ -81,10 +81,12 @@ jobs:
         working-directory: bindings/java
         # `mvn install` and `mvn artifact:compare` are required to verify reproducible builds:
         # https://maven.apache.org/guides/mini/guide-reproducible-builds.html#how-to-test-my-maven-build-reproducibility
+        #
+        # TODO: move redis related tests to a separate job
         shell: bash
         run: |
           if [[ "${{ runner.os }}" != Linux ]]; then
             export NO_DOCKER=true
           fi
-          ./mvnw clean install -DskipTests
-          ./mvnw verify artifact:compare
+          ./mvnw clean install -DskipTests -Dcargo-build.features=services-redis
+          ./mvnw verify artifact:compare -Dcargo-build.features=services-redis

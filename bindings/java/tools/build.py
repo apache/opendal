@@ -53,9 +53,13 @@ if __name__ == '__main__':
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--classifier', type=str, required=True)
     parser.add_argument('--profile', type=str, default='dev')
+    parser.add_argument('--features', type=str, default='default')
     args = parser.parse_args()
 
     cmd = ['cargo', 'build', '--color=always', f'--profile={args.profile}']
+
+    if args.features:
+        cmd += ['--features', args.features]
 
     target = classifier_to_target(args.classifier)
     if target:

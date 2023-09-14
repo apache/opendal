@@ -68,6 +68,7 @@ jobs:
             -DskipTests=true \
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
+            -Dcargo-build.features=services-all \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
             -DserverId=apache.releases.https \

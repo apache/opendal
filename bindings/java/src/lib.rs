@@ -19,14 +19,16 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 
-use jni::objects::JMap;
+use crate::error::Error;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::objects::{JMap, JValue};
 use jni::sys::jint;
 use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
 use jni::JavaVM;
 use once_cell::sync::OnceCell;
+use opendal::raw::Accessor;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
@@ -106,7 +108,7 @@ fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String,
 }
 
 fn hashmap_to_jmap<'a>(env: &mut JNIEnv<'a>, map: &HashMap<String, String>) -> Result<JObject<'a>> {
-    let map_object = env.new_object("java.util.HashMap", "()V", &[])?;
+    let map_object = env.new_object("java/util/HashMap", "()V", &[])?;
     let jmap = env.get_map(&map_object)?;
     for (k, v) in map {
         let key = env.new_string(k)?;
@@ -114,4 +116,32 @@ fn hashmap_to_jmap<'a>(env: &mut JNIEnv<'a>, map: &HashMap<String, String>) -> R
         jmap.put(env, &key, &value)?;
     }
     Ok(map_object)
+}
+
+fn make_presigned_request<'a>(
+    env: &mut JNIEnv<'a>,
+    req: opendal::raw::PresignedRequest,
+) -> Result<JObject<'a>> {
+    let method = env.new_string(req.method().as_str())?;
+    let uri = env.new_string(req.uri().to_string())?;
+    let headers = {
+        let mut map = HashMap::new();
+        for (k, v) in req.header().iter() {
+            let key = k.to_string();
+            let value = v.to_str().map_err(Error::unexpected)?;
+            map.insert(key, value.to_owned());
+        }
+        map
+    };
+    let headers = hashmap_to_jmap(env, &headers)?;
+    let result = env.new_object(
+        "org/apache/opendal/PresignedRequest",
+        "(Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V",
+        &[
+            JValue::Object(&method),
+            JValue::Object(&uri),
+            JValue::Object(&headers),
+        ],
+    )?;
+    Ok(result)
 }

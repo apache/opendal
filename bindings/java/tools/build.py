@@ -52,14 +52,10 @@ if __name__ == '__main__':
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--classifier', type=str, required=True)
-    parser.add_argument('--release', action=BooleanOptionalAction)
+    parser.add_argument('--profile', type=str, default='dev')
     args = parser.parse_args()
 
-    cmd = ['cargo', 'build', '--color=always']
-    profile = 'debug'
-    if args.release:
-        profile = 'release'
-        cmd.append('--release')
+    cmd = ['cargo', 'build', '--color=always', f'--profile={args.profile}']
 
     target = classifier_to_target(args.classifier)
     if target:
@@ -75,8 +71,10 @@ if __name__ == '__main__':
     print('$ ' + subprocess.list2cmdline(cmd))
     subprocess.run(cmd, cwd=basedir, check=True)
 
+    # History reason of cargo profiles.
+    profile_output = 'debug' if args.profile in ['dev', 'test', 'bench'] else args.profile
     artifact = get_cargo_artifact_name(args.classifier)
-    src = output / target / profile / artifact
+    src = output / target / profile_output / artifact
     dst = basedir / 'target' / 'classes' / 'native' / args.classifier / artifact
     dst.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy2(src, dst)

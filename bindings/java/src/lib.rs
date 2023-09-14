@@ -28,7 +28,7 @@ use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
 use jni::JavaVM;
 use once_cell::sync::OnceCell;
-use opendal::raw::Accessor;
+use opendal::raw::{Accessor, PresignedRequest};
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
@@ -118,10 +118,7 @@ fn hashmap_to_jmap<'a>(env: &mut JNIEnv<'a>, map: &HashMap<String, String>) -> R
     Ok(map_object)
 }
 
-fn make_presigned_request<'a>(
-    env: &mut JNIEnv<'a>,
-    req: opendal::raw::PresignedRequest,
-) -> Result<JObject<'a>> {
+fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Result<JObject<'a>> {
     let method = env.new_string(req.method().as_str())?;
     let uri = env.new_string(req.uri().to_string())?;
     let headers = {

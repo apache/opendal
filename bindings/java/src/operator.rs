@@ -16,6 +16,7 @@
 // under the License.
 
 use std::str::FromStr;
+use std::time::Duration;
 
 use jni::objects::JByteArray;
 use jni::objects::JClass;
@@ -26,6 +27,7 @@ use jni::objects::JValueOwned;
 use jni::sys::jlong;
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
+use opendal::raw::PresignedRequest;
 use opendal::Operator;
 use opendal::Scheme;
 
@@ -258,6 +260,141 @@ fn intern_delete(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<j
 
 async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
     Ok(op.delete(&path).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_presignRead(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+    expire: jlong,
+) -> jlong {
+    intern_presign_read(&mut env, op, path, expire).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_presign_read(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    path: JString,
+    expire: jlong,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = env.get_string(&path)?.to_str()?.to_string();
+    let expire = Duration::from_nanos(expire as u64);
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_presign_read(op, path, expire).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
+async fn do_presign_read(
+    op: &mut Operator,
+    path: String,
+    expire: Duration,
+) -> Result<PresignedRequest> {
+    Ok(op.presign_read(&path, expire).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_presignWrite(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+    expire: jlong,
+) -> jlong {
+    intern_presign_write(&mut env, op, path, expire).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_presign_write(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    path: JString,
+    expire: jlong,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = env.get_string(&path)?.to_str()?.to_string();
+    let expire = Duration::from_nanos(expire as u64);
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_presign_write(op, path, expire).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
+async fn do_presign_write(
+    op: &mut Operator,
+    path: String,
+    expire: Duration,
+) -> Result<PresignedRequest> {
+    Ok(op.presign_write(&path, expire).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_presignStat(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+    expire: jlong,
+) -> jlong {
+    intern_presign_stat(&mut env, op, path, expire).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_presign_stat(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    path: JString,
+    expire: jlong,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = env.get_string(&path)?.to_str()?.to_string();
+    let expire = Duration::from_nanos(expire as u64);
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_presign_stat(op, path, expire).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
+async fn do_presign_stat(
+    op: &mut Operator,
+    path: String,
+    expire: Duration,
+) -> Result<PresignedRequest> {
+    Ok(op.presign_stat(&path, expire).await?)
 }
 
 fn make_object<'local>(

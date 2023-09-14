@@ -20,6 +20,7 @@
 package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -141,6 +142,21 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<Void> presignRead(String path, Duration duration) {
+        final long requestId = presignRead(nativeHandle, path, duration.toNanos());
+        return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<Void> presignWrite(String path, Duration duration) {
+        final long requestId = presignWrite(nativeHandle, path, duration.toNanos());
+        return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<Void> presignStat(String path, Duration duration) {
+        final long requestId = presignStat(nativeHandle, path, duration.toNanos());
+        return AsyncRegistry.take(requestId);
+    }
+
     public CompletableFuture<Void> delete(String path) {
         final long requestId = delete(nativeHandle, path);
         return AsyncRegistry.take(requestId);
@@ -160,4 +176,8 @@ public class Operator extends NativeObject {
     private static native long delete(long nativeHandle, String path);
 
     private static native long stat(long nativeHandle, String path);
+
+    private static native long presignRead(long nativeHandle, String path, long duration);
+    private static native long presignWrite(long nativeHandle, String path, long duration);
+    private static native long presignStat(long nativeHandle, String path, long duration);
 }

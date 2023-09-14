@@ -21,9 +21,11 @@ package org.apache.opendal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Cleanup;
+import org.apache.opendal.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
 import org.testcontainers.containers.GenericContainer;
@@ -48,9 +50,8 @@ public class RedisServiceTest {
         op.write("testAccessRedisService", "Odin").join();
         assertThat(op.read("testAccessRedisService").join()).isEqualTo("Odin");
         op.delete("testAccessRedisService").join();
-        op.stat("testAccessRedisService")
-                .handle(TestHelper.assertAsyncOpenDALException(OpenDALException.Code.NotFound))
-                .join();
+        assertThatThrownBy(() -> op.stat("testAccessRedisService").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
     @Test

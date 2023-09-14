@@ -19,6 +19,7 @@
 
 package org.apache.opendal;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +30,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Cleanup;
+import org.apache.opendal.condition.OpenDALExceptionCondition;
 
 public class AsyncStepsTest {
     Operator op;
@@ -71,14 +73,14 @@ public class AsyncStepsTest {
 
     @Then("The presign operation should success or raise exception Unsupported")
     public void the_presign_operation_should_success_or_raise_exception_unsupported() {
-        op.presignStat("test.txt", Duration.ofSeconds(10))
-                .handle(TestHelper.assertAsyncOpenDALException(OpenDALException.Code.Unsupported))
-                .join();
-        op.presignRead("test.txt", Duration.ofSeconds(10))
-                .handle(TestHelper.assertAsyncOpenDALException(OpenDALException.Code.Unsupported))
-                .join();
-        op.presignWrite("test.txt", Duration.ofSeconds(10))
-                .handle(TestHelper.assertAsyncOpenDALException(OpenDALException.Code.Unsupported))
-                .join();
+        assertThatThrownBy(
+                        () -> op.presignStat("test.txt", Duration.ofSeconds(10)).join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported));
+        assertThatThrownBy(
+                        () -> op.presignRead("test.txt", Duration.ofSeconds(10)).join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported));
+        assertThatThrownBy(() ->
+                        op.presignWrite("test.txt", Duration.ofSeconds(10)).join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported));
     }
 }

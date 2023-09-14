@@ -28,7 +28,7 @@ use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
 use jni::JavaVM;
 use once_cell::sync::OnceCell;
-use opendal::raw::{Accessor, PresignedRequest};
+use opendal::raw::PresignedRequest;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 

@@ -245,8 +245,7 @@ impl AzblobCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -263,14 +262,14 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
 
-        if let Some(ty) = content_type {
+        if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
 
@@ -305,8 +304,7 @@ impl AzblobCore {
     pub fn azblob_init_appendable_blob_request(
         &self,
         path: &str,
-        content_type: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -330,11 +328,11 @@ impl AzblobCore {
             "AppendBlob",
         );
 
-        if let Some(ty) = content_type {
+        if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 

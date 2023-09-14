@@ -190,7 +190,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
-          need-protoc: true
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v2

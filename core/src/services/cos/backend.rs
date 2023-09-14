@@ -299,9 +299,12 @@ impl Accessor for CosBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .cos_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+        let mut req = self.core.cos_put_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -409,14 +412,10 @@ impl Accessor for CosBackend {
                 v.if_match(),
                 v.if_none_match(),
             )?,
-            PresignOperation::Write(v) => self.core.cos_put_object_request(
-                path,
-                None,
-                v.content_type(),
-                v.content_disposition(),
-                v.cache_control(),
-                AsyncBody::Empty,
-            )?,
+            PresignOperation::Write(v) => {
+                self.core
+                    .cos_put_object_request(path, None, v, AsyncBody::Empty)?
+            }
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

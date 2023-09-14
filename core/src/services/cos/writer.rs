@@ -175,7 +175,10 @@ impl oio::MultipartUploadWrite for CosWriter {
 #[async_trait]
 impl oio::AppendObjectWrite for CosWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.cos_head_object(&self.path, None, None).await?;
+        let resp = self
+            .core
+            .cos_head_object(&self.path, &OpStat::default())
+            .await?;
 
         let status = resp.status();
         match status {

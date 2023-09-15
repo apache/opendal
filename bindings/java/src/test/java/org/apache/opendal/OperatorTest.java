@@ -20,13 +20,14 @@
 package org.apache.opendal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import org.apache.opendal.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -43,15 +44,8 @@ public class OperatorTest {
         op.write("testCreateAndDelete", "Odin").join();
         assertThat(op.read("testCreateAndDelete").join()).isEqualTo("Odin");
         op.delete("testCreateAndDelete").join();
-        op.stat("testCreateAndDelete")
-                .handle((r, e) -> {
-                    assertThat(r).isNull();
-                    assertThat(e).isInstanceOf(CompletionException.class).hasCauseInstanceOf(OpenDALException.class);
-                    OpenDALException.Code code = ((OpenDALException) e.getCause()).getCode();
-                    assertThat(code).isEqualTo(OpenDALException.Code.NotFound);
-                    return null;
-                })
-                .join();
+        assertThatThrownBy(() -> op.stat("testCreateAndDelete").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
     @Test

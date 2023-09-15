@@ -46,7 +46,7 @@ impl Debug for VercelArtifactsBackend {
 impl Accessor for VercelArtifactsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = VercelArtifactsWriter;
+    type Writer = oio::OneShotWriter<VercelArtifactsWriter>;
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
@@ -84,16 +84,13 @@ impl Accessor for VercelArtifactsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
-            VercelArtifactsWriter::new(self.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(VercelArtifactsWriter::new(
+                self.clone(),
+                args,
+                path.to_string(),
+            )),
         ))
     }
 

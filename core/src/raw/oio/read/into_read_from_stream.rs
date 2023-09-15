@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::SeekFrom;
+use std::task::Context;
+use std::task::Poll;
+
+use bytes::Buf;
+use bytes::Bytes;
+use futures::StreamExt;
+
 use crate::raw::*;
 use crate::*;
-use bytes::{Buf, Bytes};
-use futures::StreamExt;
-use std::io::SeekFrom;
-use std::task::{Context, Poll};
 
 /// Convert given stream `futures::Stream<Item = Result<Bytes>>` into [`oio::Reader`].
 pub fn into_read_from_stream<S>(stream: S) -> FromStreamReader<S> {

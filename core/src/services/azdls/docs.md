@@ -1,6 +1,10 @@
-As known as `abfs`, `azdfs` or `azdls`.
+As known as `abfs`, `azdls` or `azdls`.
 
-This service will visist the [ABFS](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver) URI supported by [Azure Data Lake Storage Gen2](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).
+This service will visit the [ABFS](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver) URI supported by [Azure Data Lake Storage Gen2](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).
+
+## Notes
+
+`azdls` is different from `azfile` service which used to visit [Azure File Storage](https://azure.microsoft.com/en-us/services/storage/files/).
 
 ## Capabilities
 
@@ -36,13 +40,13 @@ Refer to public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::Azdfs;
+use opendal::services::Azdls;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create azblob backend builder.
-    let mut builder = Azdfs::default();
+    let mut builder = Azdls::default();
     // Set the root for azblob, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.

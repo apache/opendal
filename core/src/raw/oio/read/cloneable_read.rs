@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
-use bytes::Bytes;
 use std::io::SeekFrom;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
+
+use bytes::Bytes;
+
+use crate::raw::*;
+use crate::*;
 
 /// Convert given reader into a wrapper with `std::sync::Mutex` for `Send + Sync + Clone`.
 pub fn into_cloneable_reader_within_std<R>(reader: R) -> CloneableReaderWithinStd<R> {

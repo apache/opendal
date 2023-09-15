@@ -221,7 +221,7 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WebdavWriter;
+    type Writer = oio::OneShotWriter<WebdavWriter>;
     type BlockingWriter = ();
     type Pager = Option<WebdavPager>;
     type BlockingPager = ();
@@ -263,7 +263,7 @@ impl Accessor for WebdavBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.webdav_get(path, args.range()).await?;
+        let resp = self.webdav_get(path, args).await?;
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
@@ -275,18 +275,14 @@ impl Accessor for WebdavBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         self.ensure_parent_path(path).await?;
 
         let p = build_abs_path(&self.root, path);
 
-        Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))
+        Ok((
+            RpWrite::default(),
+            oio::OneShotWriter::new(WebdavWriter::new(self.clone(), args, p)),
+        ))
     }
 
     /// # Notes
@@ -412,11 +408,7 @@ impl Accessor for WebdavBackend {
 }
 
 impl WebdavBackend {
-    async fn webdav_get(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    async fn webdav_get(&self, path: &str, args: OpRead) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
@@ -426,6 +418,7 @@ impl WebdavBackend {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
+        let range = args.range();
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -441,8 +434,7 @@ impl WebdavBackend {
         &self,
         abs_path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
@@ -457,11 +449,11 @@ impl WebdavBackend {
             req = req.header(header::CONTENT_LENGTH, size)
         }
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 
-        if let Some(cd) = content_disposition {
+        if let Some(cd) = args.content_disposition() {
             req = req.header(header::CONTENT_DISPOSITION, cd)
         }
 

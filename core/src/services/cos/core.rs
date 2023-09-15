@@ -151,9 +151,7 @@ impl CosCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -165,13 +163,13 @@ impl CosCore {
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
-        if let Some(pos) = content_disposition {
+        if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos)
         }
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
         }
 
@@ -334,9 +332,7 @@ impl CosCore {
     pub async fn cos_initiate_multipart_upload(
         &self,
         path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -344,15 +340,15 @@ impl CosCore {
 
         let mut req = Request::post(&url);
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
         }
 
-        if let Some(content_disposition) = content_disposition {
+        if let Some(content_disposition) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, content_disposition)
         }
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 

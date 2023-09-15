@@ -20,6 +20,7 @@ use http::StatusCode;
 
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -36,30 +37,19 @@ impl IpmfsWriter {
 }
 
 #[async_trait]
-impl oio::Write for IpmfsWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.remaining();
-        let resp = self
-            .backend
-            .ipmfs_write(&self.path, bs.copy_to_bytes(size))
-            .await?;
+impl oio::OneShotWrite for IpmfsWriter {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
+        let resp = self.backend.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

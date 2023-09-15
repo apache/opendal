@@ -121,13 +121,13 @@ impl Value {
 /// by Typed KV Operator.
 #[derive(Copy, Clone, Default)]
 pub struct Capability {
-    /// If typed_kv operator supports get natively, it will be true.
+    /// If typed_kv operator supports get natively.
     pub get: bool,
-    /// If typed_kv operator supports set natively, it will be true.
+    /// If typed_kv operator supports set natively.
     pub set: bool,
-    /// If typed_kv operator supports delete natively, it will be true.
+    /// If typed_kv operator supports delete natively.
     pub delete: bool,
-    /// If typed_kv operator supports scan natively, it will be true.
+    /// If typed_kv operator supports scan natively.
     pub scan: bool,
 }
 

@@ -60,10 +60,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-          - os: windows-latest
-          - os: macos-latest
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
     steps:
       - uses: actions/checkout@v3
       - name: Set up JDK 8
@@ -79,11 +79,12 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and test
         working-directory: bindings/java
-        # `install` is required to verify reproducible builds:
+        # `mvn install` and `mvn artifact:compare` are required to verify reproducible builds:
         # https://maven.apache.org/guides/mini/guide-reproducible-builds.html#how-to-test-my-maven-build-reproducibility
-        run: ./mvnw clean install
-      - name: Verify reproducibility
-        working-directory: bindings/java
-        # `artifact:compare` is required to verify reproducible builds:
-        # https://maven.apache.org/guides/mini/guide-reproducible-builds.html#how-to-test-my-maven-build-reproducibility
-        run: ./mvnw verify artifact:compare
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" != Linux ]]; then
+            export NO_DOCKER=true
+          fi
+          ./mvnw clean install -DskipTests -Dcargo-build.features=services-redis
+          ./mvnw verify artifact:compare -Dcargo-build.features=services-redis

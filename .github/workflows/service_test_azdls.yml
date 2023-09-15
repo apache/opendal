@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Azdfs
+name: Service Test Azdls
 
 on:
   push:
@@ -29,15 +29,15 @@ on:
       - "core/tests/**"
       - "!core/src/docs/**"
       - "!core/src/services/**"
-      - "core/src/services/azdfs/**"
-      - ".github/workflows/service_test_azdfs.yml"
+      - "core/src/services/azdls/**"
+      - ".github/workflows/service_test_azdls.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  azure_azdfs:
+  azure_azdls:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
     steps:
@@ -49,10 +49,10 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run azdfs
+        run: cargo nextest run azdls
         env:
-          OPENDAL_AZDFS_TEST: ${{ secrets.OPENDAL_AZDFS_TEST }}
-          OPENDAL_AZDFS_FILESYSTEM: ${{ secrets.OPENDAL_AZDFS_FILESYSTEM }}
-          OPENDAL_AZDFS_ENDPOINT: ${{ secrets.OPENDAL_AZDFS_ENDPOINT }}
-          OPENDAL_AZDFS_ACCOUNT_NAME: ${{ secrets.OPENDAL_AZDFS_ACCOUNT_NAME }}
-          OPENDAL_AZDFS_ACCOUNT_KEY: ${{ secrets.OPENDAL_AZDFS_ACCOUNT_KEY }}
+          OPENDAL_AZDLS_TEST: ${{ secrets.OPENDAL_AZDLS_TEST }}
+          OPENDAL_AZDLS_FILESYSTEM: ${{ secrets.OPENDAL_AZDLS_FILESYSTEM }}
+          OPENDAL_AZDLS_ENDPOINT: ${{ secrets.OPENDAL_AZDLS_ENDPOINT }}
+          OPENDAL_AZDLS_ACCOUNT_NAME: ${{ secrets.OPENDAL_AZDLS_ACCOUNT_NAME }}
+          OPENDAL_AZDLS_ACCOUNT_KEY: ${{ secrets.OPENDAL_AZDLS_ACCOUNT_KEY }}

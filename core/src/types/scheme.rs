@@ -33,8 +33,8 @@ use crate::Error;
 pub enum Scheme {
     /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
     Azblob,
-    /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
-    Azdfs,
+    /// [Azdls][crate::services::Azdls]: Azure Data Lake Storage Gen2.
+    Azdls,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
@@ -143,7 +143,11 @@ impl FromStr for Scheme {
         let s = s.to_lowercase();
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
-            "azdfs" => Ok(Scheme::Azdfs),
+            // Notes:
+            //
+            // OpenDAL used to call `azdls` as `azdfs`, we keep it for backward compatibility.
+            // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
+            "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "cacache" => Ok(Scheme::Cacache),
             "cos" => Ok(Scheme::Cos),
             "dashmap" => Ok(Scheme::Dashmap),
@@ -188,7 +192,7 @@ impl From<Scheme> for &'static str {
     fn from(v: Scheme) -> Self {
         match v {
             Scheme::Azblob => "azblob",
-            Scheme::Azdfs => "azdfs",
+            Scheme::Azdls => "Azdls",
             Scheme::Cacache => "cacache",
             Scheme::Cos => "cos",
             Scheme::Dashmap => "dashmap",

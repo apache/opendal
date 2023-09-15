@@ -151,8 +151,7 @@ impl ObsCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -164,11 +163,11 @@ impl ObsCore {
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
         }
 
@@ -439,6 +438,7 @@ impl ObsCore {
         self.send(req).await
     }
 }
+
 /// Result of CreateMultipartUpload
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]

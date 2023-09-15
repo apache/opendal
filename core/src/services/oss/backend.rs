@@ -437,7 +437,7 @@ impl Accessor for OssBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self
             .core
-            .oss_put_object(path, None, None, None, None, AsyncBody::Empty)
+            .oss_put_object(path, None, &OpWrite::default(), AsyncBody::Empty)
             .await?;
         let status = resp.status();
 
@@ -559,9 +559,7 @@ impl Accessor for OssBackend {
             PresignOperation::Write(v) => self.core.oss_put_object_request(
                 path,
                 None,
-                v.content_type(),
-                v.content_disposition(),
-                v.cache_control(),
+                v,
                 AsyncBody::Empty,
                 true,
             )?,

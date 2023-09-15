@@ -118,6 +118,11 @@ pub fn test_blocking_write_with_special_chars(op: BlockingOperator) -> Result<()
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
+        return Ok(());
+    }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
@@ -166,6 +171,11 @@ pub fn test_blocking_stat_with_special_chars(op: BlockingOperator) -> Result<()>
     // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
     if op.info().scheme() == opendal::Scheme::Supabase {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
 

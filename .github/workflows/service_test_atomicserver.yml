@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Foundationdb
+name: Service Test Atomicserver
 
 on:
   push:
@@ -29,32 +29,29 @@ on:
       - "core/tests/**"
       - "!core/src/docs/**"
       - "!core/src/services/**"
-      - "core/src/services/foundationdb/**"
-      - ".github/workflows/service_test_foundationdb.yml"
+      - "core/src/services/atomicserver/**"
+      - ".github/workflows/service_test_atomicserver.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  foundationdb:
+  atomicserver:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-foundationdb: true
 
       - name: Test
         shell: bash
         working-directory: core
         run: |
-          sudo service foundationdb start
-          cargo test foundationdb --features services-foundationdb -j=1
+          cargo test atomicserver --features services-atomicserver -j=1
         env:
           RUST_BACKTRACE: full
-          RUST_LOG: debug
-          OPENDAL_FOUNDATIONDB_TEST: off
-          OPENDAL_FOUNDATIONDB_ROOT: /tmp/opendal
-          OPENDAL_FOUNDATIONDB_CONFIG_PATH: /etc/foundationdb/foundationdb.conf
+          OPENDAL_ATOMICSERVER_TEST: off
+          OPENDAL_ATOMICSERVER_ROOT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ROOT }}
+          OPENDAL_ATOMICSERVER_ENDPOINT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ENDPOINT }}
+          OPENDAL_ATOMICSERVER_PRIVATE_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PRIVATE_KEY }}
+          OPENDAL_ATOMICSERVER_PUBLIC_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PUBLIC_KEY }}
+          OPENDAL_ATOMICSERVER_PARENT_RESOURCE_ID: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PARENT_RESOURCE_ID }}

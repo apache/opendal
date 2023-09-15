@@ -208,3 +208,8 @@ pub use self::foundationdb::Foundationdb;
 mod postgresql;
 #[cfg(feature = "services-postgresql")]
 pub use self::postgresql::Postgresql;
+
+#[cfg(feature = "services-atomicserver")]
+mod atomicserver;
+#[cfg(feature = "services-atomicserver")]
+pub use self::atomicserver::Atomicserver;

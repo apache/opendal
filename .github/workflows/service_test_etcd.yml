@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/etcd/**"
       - ".github/workflows/service_test_etcd.yml"
+      - "fixtures/etcd/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

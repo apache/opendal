@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/postgresql/**"
       - ".github/workflows/service_test_postgresql.yml"
+      - "fixtures/postgresql/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

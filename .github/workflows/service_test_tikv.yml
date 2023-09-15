@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/tikv/**"
       - ".github/workflows/service_test_tikv.yml"
+      - "fixtures/tikv/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

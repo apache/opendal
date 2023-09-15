@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/http/**"
       - ".github/workflows/service_test_http.yml"
+      - "fixtures/http/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

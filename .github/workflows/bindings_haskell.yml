@@ -99,10 +99,6 @@ jobs:
           cd target/package
           tar xf opendal-hs-*.crate --strip-components=1
           cabal sdist
-      - name: Publish candidate to Hackage
-        if: "contains(github.ref, 'rc')"
-        run: |
-          cabal upload -t ${{ secrets.HACKAGE_TOKEN }} bindings/haskell/target/package/dist-newstyle/sdist/*.tar.gz
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
@@ -118,6 +114,14 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: bindings-haskell-sdist
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OPENDAL_HACKAGE_TOKEN: op://services/hackage/token
       - name: Publish to Hackage
         run: |
-          cabal upload -t ${{ secrets.HACKAGE_TOKEN }} --publish bindings/haskell/target/package/dist-newstyle/sdist/*.tar.gz
+          cabal upload -t $OPENDAL_HACKAGE_TOKEN --publish bindings/haskell/target/package/dist-newstyle/sdist/*.tar.gz

@@ -24,7 +24,6 @@ exclude = ["examples"]
 members = [
   "core",
   "core/fuzz",
-  "core/tests/fs_write_full_disk",
 
   "bindings/c",
   "bindings/nodejs",

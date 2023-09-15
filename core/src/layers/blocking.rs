@@ -18,19 +18,18 @@
 use async_trait::async_trait;
 use bytes;
 use bytes::Bytes;
+use futures::future::poll_fn;
 use tokio::runtime::Handle;
 
 use crate::raw::oio::ReadExt;
 use crate::raw::*;
 use crate::*;
 
-/// Add blocking API support for every operations.
+/// Add blocking API support for non-blocking services.
 ///
-/// # Blocking API
+/// # Notes
 ///
-/// - This layer is auto-added to the operator if it's accessor doesn't support blocking APIs.
-///
-/// Tracking issue: #2678
+/// Please only enable this layer when the underlying service does not support blocking.
 #[derive(Debug, Clone)]
 pub struct BlockingLayer {
     handle: Handle,
@@ -197,11 +196,13 @@ impl<I: oio::Read + 'static> oio::BlockingRead for BlockingWrapper<I> {
 
 impl<I: oio::Write + 'static> oio::BlockingWrite for BlockingWrapper<I> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        self.handle.block_on(self.inner.write(bs))
+        self.handle
+            .block_on(poll_fn(|cx| self.inner.poll_write(cx, bs)))
     }
 
     fn close(&mut self) -> Result<()> {
-        self.handle.block_on(self.inner.close())
+        self.handle
+            .block_on(poll_fn(|cx| self.inner.poll_close(cx)))
     }
 }
 

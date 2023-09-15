@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use opendal::raw::oio;
@@ -26,16 +29,20 @@ pub struct BlackHoleWriter;
 
 #[async_trait]
 impl oio::Write for BlackHoleWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> opendal::Result<usize> {
-        Ok(bs.remaining())
+    fn poll_write(
+        &mut self,
+        _: &mut Context<'_>,
+        bs: &dyn oio::WriteBuf,
+    ) -> Poll<opendal::Result<usize>> {
+        Poll::Ready(Ok(bs.remaining()))
     }
 
-    async fn abort(&mut self) -> opendal::Result<()> {
-        Ok(())
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
-    async fn close(&mut self) -> opendal::Result<()> {
-        Ok(())
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 

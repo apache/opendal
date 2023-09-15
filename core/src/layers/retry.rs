@@ -872,80 +872,140 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 
 #[async_trait]
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let mut backoff = self.builder.build();
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        if let Some(sleep) = self.sleep.as_mut() {
+            ready!(sleep.poll_unpin(cx));
+            self.sleep = None;
+        }
 
-        loop {
-            match self.inner.write(bs).await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
+        match ready!(self.inner.poll_write(cx, bs)) {
+            Ok(v) => {
+                self.current_backoff = None;
+                Poll::Ready(Ok(v))
+            }
+            Err(err) if !err.is_temporary() => {
+                self.current_backoff = None;
+                Poll::Ready(Err(err))
+            }
+            Err(err) => {
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(backoff) => backoff,
+                    None => {
+                        self.current_backoff = Some(self.builder.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+
+                match backoff.next() {
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         self.notify.intercept(
-                            &e,
+                            &err,
                             dur,
                             &[
                                 ("operation", WriteOperation::Write.into_static()),
                                 ("path", &self.path),
                             ],
                         );
-                        tokio::time::sleep(dur).await;
-                        continue;
+                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                        self.poll_write(cx, bs)
                     }
-                },
+                }
             }
         }
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        let mut backoff = self.builder.build();
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        if let Some(sleep) = self.sleep.as_mut() {
+            ready!(sleep.poll_unpin(cx));
+            self.sleep = None;
+        }
 
-        loop {
-            match self.inner.abort().await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
+        match ready!(self.inner.poll_abort(cx)) {
+            Ok(v) => {
+                self.current_backoff = None;
+                Poll::Ready(Ok(v))
+            }
+            Err(err) if !err.is_temporary() => {
+                self.current_backoff = None;
+                Poll::Ready(Err(err))
+            }
+            Err(err) => {
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(backoff) => backoff,
+                    None => {
+                        self.current_backoff = Some(self.builder.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+
+                match backoff.next() {
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         self.notify.intercept(
-                            &e,
+                            &err,
                             dur,
                             &[
                                 ("operation", WriteOperation::Abort.into_static()),
                                 ("path", &self.path),
                             ],
                         );
-                        tokio::time::sleep(dur).await;
-                        continue;
+                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                        self.poll_abort(cx)
                     }
-                },
+                }
             }
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
-        let mut backoff = self.builder.build();
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        if let Some(sleep) = self.sleep.as_mut() {
+            ready!(sleep.poll_unpin(cx));
+            self.sleep = None;
+        }
 
-        loop {
-            match self.inner.close().await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
+        match ready!(self.inner.poll_close(cx)) {
+            Ok(v) => {
+                self.current_backoff = None;
+                Poll::Ready(Ok(v))
+            }
+            Err(err) if !err.is_temporary() => {
+                self.current_backoff = None;
+                Poll::Ready(Err(err))
+            }
+            Err(err) => {
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(backoff) => backoff,
+                    None => {
+                        self.current_backoff = Some(self.builder.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+
+                match backoff.next() {
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         self.notify.intercept(
-                            &e,
+                            &err,
                             dur,
                             &[
                                 ("operation", WriteOperation::Close.into_static()),
                                 ("path", &self.path),
                             ],
                         );
-                        tokio::time::sleep(dur).await;
-                        continue;
+                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                        self.poll_close(cx)
                     }
-                },
+                }
             }
         }
     }

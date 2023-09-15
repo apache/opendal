@@ -16,22 +16,59 @@ int main() {
 }
 ```
 
-## Build
+## Compiling
+
+### Prerequisites
+
+- CMake >= 3.10
+- C++ compiler with C++17 support
+- The boost library
+
+### Build
 
 ```bash
 mkdir build
 cd build
-
-# Add -DCMAKE_EXPORT_COMPILE_COMMANDS=1 to generate compile_commands.json for clangd
-cmake -DCMAKE_BUILD_TYPE=Debug -GNinja .. 
-
-ninja
+# Add -DOPENDAL_DEV=ON to make development environment for OpenDAL
+cmake ..
+make
 ```
 
-## Test
+### Test
 
-You should build the project first. Then run:
+You should build the project with `OPENDAL_ENABLE_TESTING` option. Then run:
 
 ```bash
-ninja test
+make test
+```
+
+### Docs
+
+You should build the project with `OPENDAL_ENABLE_DOCUMENTATION` option. Then run:
+
+```bash
+make docs
+```
+
+### CMake Options
+
+- `OPENDAL_DEV`: Enable development environment for OpenDAL. It will enable most development options. With this option, you don't need to set other options. Default: `OFF`
+- `OPENDAL_ENABLE_ADDRESS_SANITIZER`: Enable address sanitizer. Default: `OFF`
+- `OPENDAL_ENABLE_DOCUMENTATION`: Enable documentation. Default: `OFF`
+- `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
+- `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
+
+## Using
+
+### CMake
+
+Because the project repo includes rust core code, we can't use `git submodule` directly to add it. So we recommend using `FetchContent` to add the library.
+
+```cmake
+FetchContent_Declare(
+    opendal-cpp
+    URL     https://github.com/apache/incubator-opendal/releases/download/<newest-tag>/opendal-cpp-<newest-tag>.tar.gz
+    URL_HASH SHA256=<newest-tag-sha256>
+)
+FetchContent_MakeAvailable(opendal-cpp)
 ```

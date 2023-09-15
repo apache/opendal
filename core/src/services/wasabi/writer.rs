@@ -22,6 +22,7 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -39,36 +40,28 @@ impl WasabiWriter {
 }
 
 #[async_trait]
-impl oio::Write for WasabiWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let size = bs.remaining();
+impl oio::OneShotWrite for WasabiWriter {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
 
         let resp = self
             .core
             .put_object(
                 &self.path,
-                Some(size),
+                Some(bs.len()),
                 self.op.content_type(),
                 self.op.content_disposition(),
                 self.op.cache_control(),
-                AsyncBody::Bytes(bs.copy_to_bytes(size)),
+                AsyncBody::ChunkedBytes(bs),
             )
             .await?;
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

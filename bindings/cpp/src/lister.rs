@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::ffi;
 use anyhow::Result;
 use opendal as od;
+
+use super::ffi;
 
 pub struct Lister(pub od::BlockingLister);
 

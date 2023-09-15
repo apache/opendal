@@ -670,7 +670,7 @@ pub struct WasabiBackend {
 impl Accessor for WasabiBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WasabiWriter;
+    type Writer = oio::OneShotWriter<WasabiWriter>;
     type BlockingWriter = ();
     type Pager = WasabiPager;
     type BlockingPager = ();
@@ -750,16 +750,9 @@ impl Accessor for WasabiBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
-            WasabiWriter::new(self.core.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(WasabiWriter::new(self.core.clone(), args, path.to_string())),
         ))
     }
 

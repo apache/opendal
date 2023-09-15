@@ -28,51 +28,7 @@ use crate::Scheme;
 use crate::*;
 
 /// [OneDrive](https://onedrive.com) backend support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] list
-/// - [ ] copy
-/// - [ ] rename
-/// - [ ] ~~scan~~
-/// - [ ] ~~presign~~
-/// - [ ] blocking
-///
-/// # Notes
-///
-/// Currently, only OneDrive Personal is supported.
-///
-/// # Configuration
-///
-/// - `access_token`: set the access_token for Graph API
-/// - `root`: Set the work directory for backend
-///
-/// You can refer to [`OnedriveBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Onedrive;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Onedrive::default();
-///
-///     builder.access_token("xxx").root("/path/to/root");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OnedriveBuilder {
     access_token: Option<String>,

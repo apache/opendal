@@ -25,8 +25,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type S3Writers =
-    oio::TwoWaysWriter<oio::OneShotWriter<S3Writer>, oio::MultipartUploadWriter<S3Writer>>;
+pub type S3Writers = oio::MultipartUploadWriter<S3Writer>;
 
 pub struct S3Writer {
     core: Arc<S3Core>,
@@ -46,17 +45,15 @@ impl S3Writer {
 }
 
 #[async_trait]
-impl oio::OneShotWrite for S3Writer {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let size = bs.remaining();
-
+impl oio::MultipartUploadWrite for S3Writer {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
         let mut req = self.core.s3_put_object_request(
             &self.path,
-            Some(size as u64),
+            Some(size),
             self.op.content_type(),
             self.op.content_disposition(),
             self.op.cache_control(),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
+            body,
         )?;
 
         self.core.sign(&mut req).await?;
@@ -73,10 +70,7 @@ impl oio::OneShotWrite for S3Writer {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::MultipartUploadWrite for S3Writer {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core

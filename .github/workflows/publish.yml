@@ -20,7 +20,7 @@ name: Publish
 on:
   push:
     tags:
-      - '*'
+      - 'v[0-9]+\.[0-9]+\.[0-9]+'
 
 jobs:
   publish:
@@ -59,6 +59,13 @@ jobs:
 
       - name: Publish oli
         working-directory: "bin/oli"
+        run: cargo publish
+        env:
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish oay
+        working-directory: "bin/oay"
         run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

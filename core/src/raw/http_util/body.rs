@@ -40,6 +40,10 @@ pub enum AsyncBody {
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
+    /// Body with chunked bytes.
+    ///
+    /// This is nearly the same with stream, but we can save an extra box.
+    ChunkedBytes(oio::ChunkedBytes),
     /// Body with stream.
     Stream(oio::Streamer),
 }

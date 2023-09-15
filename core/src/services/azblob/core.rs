@@ -245,8 +245,7 @@ impl AzblobCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -263,14 +262,14 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
 
-        if let Some(ty) = content_type {
+        if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
 
@@ -305,8 +304,7 @@ impl AzblobCore {
     pub fn azblob_init_appendable_blob_request(
         &self,
         path: &str,
-        content_type: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -330,11 +328,11 @@ impl AzblobCore {
             "AppendBlob",
         );
 
-        if let Some(ty) = content_type {
+        if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 
@@ -352,12 +350,6 @@ impl AzblobCore {
     ///
     /// - The maximum size of the content could be appended is 4MB.
     /// - `Append Block` succeeds only if the blob already exists.
-    /// - It does not need to provide append position.
-    /// - But it could use append position to verify the content is appended to the right position.
-    ///
-    /// Since the `appendpos` only returned by the append operation response,
-    /// we could not use it when we want to append content to the blob first time.
-    /// (The first time of the appender, not the blob)
     ///
     /// # Reference
     ///
@@ -365,8 +357,8 @@ impl AzblobCore {
     pub fn azblob_append_blob_request(
         &self,
         path: &str,
+        position: u64,
         size: u64,
-        position: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -385,12 +377,7 @@ impl AzblobCore {
 
         req = req.header(CONTENT_LENGTH, size);
 
-        if let Some(pos) = position {
-            req = req.header(
-                HeaderName::from_static(constants::X_MS_BLOB_CONDITION_APPENDPOS),
-                pos.to_string(),
-            );
-        }
+        req = req.header(constants::X_MS_BLOB_CONDITION_APPENDPOS, position);
 
         let req = req.body(body).map_err(new_request_build_error)?;
 

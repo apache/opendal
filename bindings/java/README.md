@@ -59,7 +59,7 @@ This project provides OpenDAL Java bindings with artifact name `opendal-java`. I
 You can use Maven to build both Rust dynamic lib and JAR files with one command now:
 
 ```shell
-mvn clean package -DskipTests=true
+./mvnw clean package -DskipTests=true
 ```
 
 ## Run tests
@@ -69,13 +69,20 @@ Currently, all tests are written in Java. It contains the Cucumber feature tests
 You can run tests with the following command:
 
 ```shell
-mvn clean verify
+./mvnw clean verify -Dcargo-build.features=services-redis
 ```
+
+> **Note:**
+> 
+> The `-Dcargo-build.features=services-redis` argument is a temporary workaround. See also:
+> 
+> * https://github.com/apache/incubator-opendal/pull/3060
+> * https://github.com/apache/incubator-opendal/issues/3066
 
 Additionally, this project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.
 
 You can apply the code style with the following command::
 
 ```shell
-mvn spotless:apply
+./mvnw spotless:apply
 ```

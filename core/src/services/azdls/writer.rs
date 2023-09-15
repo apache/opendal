@@ -20,34 +20,31 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::StatusCode;
 
-use super::core::AzdfsCore;
+use super::core::AzdlsCore;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
-pub struct AzdfsWriter {
-    core: Arc<AzdfsCore>,
+pub struct AzdlsWriter {
+    core: Arc<AzdlsCore>,
 
     op: OpWrite,
     path: String,
 }
 
-impl AzdfsWriter {
-    pub fn new(core: Arc<AzdfsCore>, op: OpWrite, path: String) -> Self {
-        AzdfsWriter { core, op, path }
+impl AzdlsWriter {
+    pub fn new(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Self {
+        AzdlsWriter { core, op, path }
     }
 }
 
 #[async_trait]
-impl oio::Write for AzdfsWriter {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        let mut req = self.core.azdfs_create_request(
-            &self.path,
-            "file",
-            self.op.content_type(),
-            self.op.content_disposition(),
-            AsyncBody::Empty,
-        )?;
+impl oio::OneShotWrite for AzdlsWriter {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let mut req =
+            self.core
+                .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -61,16 +58,15 @@ impl oio::Write for AzdfsWriter {
             _ => {
                 return Err(parse_error(resp)
                     .await?
-                    .with_operation("Backend::azdfs_create_request"));
+                    .with_operation("Backend::azdls_create_request"));
             }
         }
 
-        let size = bs.remaining();
-
-        let mut req = self.core.azdfs_update_request(
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
+        let mut req = self.core.azdls_update_request(
             &self.path,
-            Some(size),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
+            Some(bs.len()),
+            AsyncBody::ChunkedBytes(bs),
         )?;
 
         self.core.sign(&mut req).await?;
@@ -81,19 +77,11 @@ impl oio::Write for AzdfsWriter {
         match status {
             StatusCode::OK | StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
-                Ok(size)
+                Ok(())
             }
             _ => Err(parse_error(resp)
                 .await?
-                .with_operation("Backend::azdfs_update_request")),
+                .with_operation("Backend::azdls_update_request")),
         }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

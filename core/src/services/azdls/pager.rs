@@ -21,13 +21,13 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::de;
 
-use super::core::AzdfsCore;
+use super::core::AzdlsCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub struct AzdfsPager {
-    core: Arc<AzdfsCore>,
+pub struct AzdlsPager {
+    core: Arc<AzdlsCore>,
 
     path: String,
     limit: Option<usize>,
@@ -36,8 +36,8 @@ pub struct AzdfsPager {
     done: bool,
 }
 
-impl AzdfsPager {
-    pub fn new(core: Arc<AzdfsCore>, path: String, limit: Option<usize>) -> Self {
+impl AzdlsPager {
+    pub fn new(core: Arc<AzdlsCore>, path: String, limit: Option<usize>) -> Self {
         Self {
             core,
             path,
@@ -50,7 +50,7 @@ impl AzdfsPager {
 }
 
 #[async_trait]
-impl oio::Page for AzdfsPager {
+impl oio::Page for AzdlsPager {
     async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
@@ -58,10 +58,10 @@ impl oio::Page for AzdfsPager {
 
         let resp = self
             .core
-            .azdfs_list(&self.path, &self.continuation, self.limit)
+            .azdls_list(&self.path, &self.continuation, self.limit)
             .await?;
 
-        // Azdfs will return not found for not-exist path.
+        // Azdls will return not found for not-exist path.
         if resp.status() == http::StatusCode::NOT_FOUND {
             resp.into_body().consume().await?;
             return Ok(None);
@@ -91,7 +91,7 @@ impl oio::Page for AzdfsPager {
         let mut entries = Vec::with_capacity(output.paths.len());
 
         for object in output.paths {
-            // Azdfs will return `"true"` and `"false"` for is_directory.
+            // Azdls will return `"true"` and `"false"` for is_directory.
             let mode = if &object.is_directory == "true" {
                 EntryMode::DIR
             } else {
@@ -139,7 +139,7 @@ struct Path {
     content_length: String,
     #[serde(rename = "etag")]
     etag: String,
-    /// Azdfs will return `"true"` and `"false"` for is_directory.
+    /// Azdls will return `"true"` and `"false"` for is_directory.
     #[serde(rename = "isDirectory")]
     is_directory: String,
     #[serde(rename = "lastModified")]

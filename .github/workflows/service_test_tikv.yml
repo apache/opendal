@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/tikv/**"
       - ".github/workflows/service_test_tikv.yml"
+      - "fixtures/tikv/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -54,7 +55,7 @@ jobs:
             [[ "$(curl -I http://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break
             sleep 1
           done
-        working-directory: core/src/services/tikv/fixtures/
+        working-directory: fixtures/tikv
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -80,7 +81,7 @@ jobs:
 
       - name: Copy Tikv Certificate Files
         shell: bash
-        working-directory: core/src/services/tikv/fixtures/
+        working-directory: fixtures/tikv
         run: |
             mkdir -p /tmp/tikv/ssl
             cp -r `pwd`/ssl/* /tmp/tikv/ssl
@@ -117,7 +118,7 @@ jobs:
                 [[ "$(curl -I --cacert /tmp/tikv/ssl/ca.pem --cert /tmp/tikv/ssl/client.pem --key /tmp/tikv/ssl/client-key.pem https://127.0.0.1:2379/pd/api/v1/regions 2>/dev/null | head -n 1 | cut -d$' ' -f2)" -ne "405" ]] || break
                 sleep 1
             done
-        working-directory: core/src/services/tikv/fixtures/
+        working-directory: fixtures/tikv
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

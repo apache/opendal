@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/postgresql/**"
       - ".github/workflows/service_test_postgresql.yml"
+      - "fixtures/postgresql/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -44,8 +45,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Postgresql Server
         shell: bash
-        working-directory: core
-        run: docker-compose -f `pwd`/src/services/postgresql/fixtures/docker-compose.yml up -d
+        working-directory: fixtures/postgresql
+        run: docker-compose -f docker-compose.yml up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

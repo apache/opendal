@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Atomicdata
+name: Service Test Atomicserver
 
 on:
   push:
@@ -29,15 +29,15 @@ on:
       - "core/tests/**"
       - "!core/src/docs/**"
       - "!core/src/services/**"
-      - "core/src/services/atomicdata/**"
-      - ".github/workflows/service_test_atomicdata.yml"
+      - "core/src/services/atomicserver/**"
+      - ".github/workflows/service_test_atomicserver.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  atomicdata:
+  atomicserver:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -46,12 +46,12 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test atomicdata --features services-atomicdata -j=1
+          cargo test atomicserver --features services-atomicserver -j=1
         env:
           RUST_BACKTRACE: full
-          OPENDAL_ATOMICDATA_TEST: off
-          OPENDAL_ATOMICDATA_ROOT: TODO - ${{ secrets.OPENDAL_ATOMICDATA_ROOT }}
-          OPENDAL_ATOMICDATA_ENDPOINT: TODO - ${{ secrets.OPENDAL_ATOMICDATA_ENDPOINT }}
-          OPENDAL_ATOMICDATA_PRIVATE_KEY: TODO - ${{ secrets.OPENDAL_ATOMICDATA_PRIVATE_KEY }}
-          OPENDAL_ATOMICDATA_PUBLIC_KEY: TODO - ${{ secrets.OPENDAL_ATOMICDATA_PUBLIC_KEY }}
-          OPENDAL_ATOMICDATA_PARENT_RESOURCE_ID: TODO - ${{ secrets.OPENDAL_ATOMICDATA_PARENT_RESOURCE_ID }}
+          OPENDAL_ATOMICSERVER_TEST: off
+          OPENDAL_ATOMICSERVER_ROOT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ROOT }}
+          OPENDAL_ATOMICSERVER_ENDPOINT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ENDPOINT }}
+          OPENDAL_ATOMICSERVER_PRIVATE_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PRIVATE_KEY }}
+          OPENDAL_ATOMICSERVER_PUBLIC_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PUBLIC_KEY }}
+          OPENDAL_ATOMICSERVER_PARENT_RESOURCE_ID: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PARENT_RESOURCE_ID }}

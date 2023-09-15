@@ -100,7 +100,7 @@ layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
 
-services-atomicdata = ["dep:atomic_lib"]
+services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [
   "dep:sha2",
   "dep:reqsign",

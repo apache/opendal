@@ -155,9 +155,9 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
-    // Ignore test for atomicdata until TODO-Issue Link addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicdata {
-        warn!("ignore test for atomicdata until TODO-Issue Link is resolved");
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
 
@@ -288,9 +288,9 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
-    // Ignore test for atomicdata until TODO-Issue Link addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicdata {
-        warn!("ignore test for atomicdata until TODO-Issue Link is resolved");
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
 
@@ -821,9 +821,9 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
-    // Ignore test for atomicdata until TODO-Issue Link addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicdata {
-        warn!("ignore test for atomicdata until TODO-Issue Link is resolved");
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
 
@@ -1058,9 +1058,9 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
-    // Ignore test for atomicdata until TODO-Issue Link addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicdata {
-        warn!("ignore test for atomicdata until TODO-Issue Link is resolved");
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
 

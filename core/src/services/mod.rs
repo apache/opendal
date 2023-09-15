@@ -209,7 +209,7 @@ mod postgresql;
 #[cfg(feature = "services-postgresql")]
 pub use self::postgresql::Postgresql;
 
-#[cfg(feature = "services-atomicdata")]
-mod atomicdata;
-#[cfg(feature = "services-atomicdata")]
-pub use self::atomicdata::Atomicdata;
+#[cfg(feature = "services-atomicserver")]
+mod atomicserver;
+#[cfg(feature = "services-atomicserver")]
+pub use self::atomicserver::Atomicserver;

@@ -46,10 +46,10 @@ use crate::Builder;
 use crate::Scheme;
 use crate::*;
 
-/// Atomicdata service support.
+/// Atomicserver service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
-pub struct AtomicdataBuilder {
+pub struct AtomicserverBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     private_key: Option<String>,
@@ -57,26 +57,26 @@ pub struct AtomicdataBuilder {
     parent_resource_id: Option<String>,
 }
 
-impl AtomicdataBuilder {
-    /// Set the root for Atomicdata.
+impl AtomicserverBuilder {
+    /// Set the root for Atomicserver.
     pub fn root(&mut self, path: &str) -> &mut Self {
         self.root = Some(path.into());
         self
     }
 
-    /// Set the server address for Atomicdata.
+    /// Set the server address for Atomicserver.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = Some(endpoint.into());
         self
     }
 
-    /// Set the private key for agent used for Atomicdata.
+    /// Set the private key for agent used for Atomicserver.
     pub fn private_key(&mut self, private_key: &str) -> &mut Self {
         self.private_key = Some(private_key.into());
         self
     }
 
-    /// Set the public key for agent used for Atomicdata.
+    /// Set the public key for agent used for Atomicserver.
     /// For example, if the subject URL for the agent being used
     /// is ${endpoint}/agents/lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=
     /// Then the required public key is `lTB+W3C/2YfDu9IAVleEy34uCmb56iXXuzWCKBVwdRI=`
@@ -85,19 +85,19 @@ impl AtomicdataBuilder {
         self
     }
 
-    /// Set the parent resource id (url) that Atomicdata uses to store resources under.
+    /// Set the parent resource id (url) that Atomicserver uses to store resources under.
     pub fn parent_resource_id(&mut self, parent_resource_id: &str) -> &mut Self {
         self.parent_resource_id = Some(parent_resource_id.into());
         self
     }
 }
 
-impl Builder for AtomicdataBuilder {
-    const SCHEME: Scheme = Scheme::Atomicdata;
-    type Accessor = AtomicdataBackend;
+impl Builder for AtomicserverBuilder {
+    const SCHEME: Scheme = Scheme::Atomicserver;
+    type Accessor = AtomicserverBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = AtomicdataBuilder::default();
+        let mut builder = AtomicserverBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
@@ -128,21 +128,21 @@ impl Builder for AtomicdataBuilder {
             name: Some("agent".to_string()),
         };
 
-        Ok(AtomicdataBackend::new(Adapter {
+        Ok(AtomicserverBackend::new(Adapter {
             parent_resource_id,
             endpoint,
             agent,
             client: HttpClient::new().map_err(|err| {
                 err.with_operation("Builder::build")
-                    .with_context("service", Scheme::Atomicdata)
+                    .with_context("service", Scheme::Atomicserver)
             })?,
         })
         .with_root(&root))
     }
 }
 
-/// Backend for Atomicdata services.
-pub type AtomicdataBackend = kv::Backend<Adapter>;
+/// Backend for Atomicserver services.
+pub type AtomicserverBackend = kv::Backend<Adapter>;
 
 const FILENAME_PROPERTY: &str = "https://atomicdata.dev/properties/filename";
 
@@ -220,7 +220,7 @@ impl Adapter {
                     ErrorKind::Unexpected,
                     "Failed to get authentication headers",
                 )
-                .with_context("service", Scheme::Atomicdata)
+                .with_context("service", Scheme::Atomicserver)
                 .set_source(err)
             })
             .unwrap();
@@ -350,7 +350,7 @@ impl Adapter {
 impl Adapter {
     async fn wait_for_resource(&self, path: &str, expect_exist: bool) -> Result<()> {
         // This is used to wait until insert/delete is actually effective
-        // This wait function is needed because atomicdata commits are not processed in real-time
+        // This wait function is needed because atomicserver commits are not processed in real-time
         // See https://docs.atomicdata.dev/commits/intro.html#motivation
         for _i in 0..1000 {
             let req = self.atomic_get_object_request(path)?;
@@ -376,8 +376,8 @@ impl Adapter {
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
-            Scheme::Atomicdata,
-            "atomicdata",
+            Scheme::Atomicserver,
+            "atomicserver",
             Capability {
                 read: true,
                 write: true,
@@ -398,7 +398,10 @@ impl kv::Adapter for Adapter {
                 .map_err(new_json_deserialize_error)?;
 
         if query_result.results.is_empty() {
-            return Err(Error::new(ErrorKind::NotFound, "atomicdata: key not found"));
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "atomicserver: key not found",
+            ));
         }
 
         let bytes_file = self

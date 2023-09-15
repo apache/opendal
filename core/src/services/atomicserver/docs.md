@@ -18,12 +18,12 @@ This service can be used to:
 ## Configuration
 
 - `root`: Set the working directory of `OpenDAL`
-- `endpoint`: Set the server address for `AtomicData`
-- `private_key`: Set the private key for agent used for `Atomicdata`
-- `public_key`: Set the public key for agent used for `AtomicData`
-- `parent_resource_id`:  Set the parent resource id (url) that `AtomicData` uses to store resources under
+- `endpoint`: Set the server address for `Atomicserver`
+- `private_key`: Set the private key for agent used for `Atomicserver`
+- `public_key`: Set the public key for agent used for `Atomicserver`
+- `parent_resource_id`:  Set the parent resource id (url) that `Atomicserver` uses to store resources under
 
-You can refer to [`AtomicdataBuilder`]'s docs for more information.
+You can refer to [`AtomicserverBuilder`]'s docs for more information.
 
 ## Example
 
@@ -31,19 +31,19 @@ You can refer to [`AtomicdataBuilder`]'s docs for more information.
 
 ```rust
 use anyhow::Result;
-use opendal::services::Atomicdata;
+use opendal::services::Atomicserver;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Atomicdata::default();
+    let mut builder = Atomicserver::default();
 
-    // Set the server address for AtomicData
+    // Set the server address for Atomicserver
     builder.endpoint("http://localhost:9883");
-    // Set the public/private key for agent for AtomicData
+    // Set the public/private key for agent for Atomicserver
     builder.private_key("<private_key>");
     builder.public_key("<public_key>");
-    // Set the parent resource id for AtomicData. In this case
+    // Set the parent resource id for Atomicserver. In this case
     // We are using the root resource (Drive)
     builder.parent_resource_id("http://localhost:9883");
 

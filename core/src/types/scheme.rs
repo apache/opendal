@@ -31,8 +31,8 @@ use crate::Error;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Scheme {
-    /// [atomicdata][crate::services::Atomicdata]: Atomicdata services.
-    Atomicdata,
+    /// [atomicserver][crate::services::Atomicserver]: Atomicserver services.
+    Atomicserver,
     /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
     Azblob,
     /// [Azdls][crate::services::Azdls]: Azure Data Lake Storage Gen2.
@@ -144,7 +144,7 @@ impl FromStr for Scheme {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
         match s.as_str() {
-            "atomicdata" => Ok(Scheme::Atomicdata),
+            "atomicserver" => Ok(Scheme::Atomicserver),
             "azblob" => Ok(Scheme::Azblob),
             // Notes:
             //
@@ -194,7 +194,7 @@ impl FromStr for Scheme {
 impl From<Scheme> for &'static str {
     fn from(v: Scheme) -> Self {
         match v {
-            Scheme::Atomicdata => "atomicdata",
+            Scheme::Atomicserver => "atomicserver",
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "Azdls",
             Scheme::Cacache => "cacache",

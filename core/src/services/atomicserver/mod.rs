@@ -17,4 +17,4 @@
 
 mod backend;
 
-pub use backend::AtomicdataBuilder as Atomicdata;
+pub use backend::AtomicserverBuilder as Atomicserver;

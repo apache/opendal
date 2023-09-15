@@ -89,11 +89,11 @@ Other improvements in the core library can be found in our [CHANGELOG](https://g
 
 #### Cpp
 
-[`opendal-cpp`](https://github.com/apache/incubator-opendal/tree/main/bindings/cpp) is ready for it's first release! Welcome to check it out and give us some feedback.
+[`opendal-cpp`](https://github.com/apache/incubator-opendal/tree/main/bindings/cpp) is ready for its first release! Welcome to check it out and give us some feedback.
 
 #### Haskell
 
-[`opendal-hs`](https://github.com/apache/incubator-opendal/tree/main/bindings/haskell) is ready for it's first release! Welcome to check it out and give us some feedback.
+[`opendal-hs`](https://github.com/apache/incubator-opendal/tree/main/bindings/haskell) is ready for its first release! Welcome to check it out and give us some feedback.
 
 #### Java
 

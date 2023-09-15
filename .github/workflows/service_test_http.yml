@@ -49,7 +49,8 @@ jobs:
         run: |
           mkdir /tmp/static
           cp -r tests/data/* /tmp/static
-          nginx -c ../fixtures/http/nginx.conf
+          cd ..
+          nginx -c `pwd`/fixtures/http/nginx.conf
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

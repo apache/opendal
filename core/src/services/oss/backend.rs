@@ -556,13 +556,10 @@ impl Accessor for OssBackend {
                 v.if_none_match(),
                 v.override_content_disposition(),
             )?,
-            PresignOperation::Write(v) => self.core.oss_put_object_request(
-                path,
-                None,
-                v,
-                AsyncBody::Empty,
-                true,
-            )?,
+            PresignOperation::Write(v) => {
+                self.core
+                    .oss_put_object_request(path, None, v, AsyncBody::Empty, true)?
+            }
         };
 
         self.core.sign_query(&mut req, args.expire()).await?;

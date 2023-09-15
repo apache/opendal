@@ -377,13 +377,7 @@ impl OssCore {
         args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_put_object_request(
-            path,
-            size,
-            args,
-            body,
-            false,
-        )?;
+        let mut req = self.oss_put_object_request(path, size, args, body, false)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

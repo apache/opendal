@@ -53,7 +53,7 @@ let lister: Lister = op.list("dir").await?;
 
 // New API
 let entries: Vec<Entry> = op.list("dir").await?;
-let lister: Vec<Entry> = op.lister("dir").await?;
+let lister: Lister = op.lister("dir").await?;
 ```
 
 This brings uniformity to our API offerings.

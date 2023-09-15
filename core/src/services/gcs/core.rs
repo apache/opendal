@@ -146,13 +146,7 @@ impl GcsCore {
 }
 
 impl GcsCore {
-    pub fn gcs_get_object_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn gcs_get_object_request(&self, path: &str, args: &OpRead) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -164,14 +158,14 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+        if !args.range().is_full() {
+            req = req.header(http::header::RANGE, args.range().to_header());
         }
 
         let req = req
@@ -185,9 +179,7 @@ impl GcsCore {
     pub fn gcs_get_object_xml_request(
         &self,
         path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpRead,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -195,14 +187,14 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+        if !args.range().is_full() {
+            req = req.header(http::header::RANGE, args.range().to_header());
         }
 
         let req = req
@@ -215,11 +207,9 @@ impl GcsCore {
     pub async fn gcs_get_object(
         &self,
         path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_get_object_request(path, range, if_match, if_none_match)?;
+        let mut req = self.gcs_get_object_request(path, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -316,7 +306,7 @@ impl GcsCore {
     pub fn gcs_insert_object_xml_request(
         &self,
         path: &str,
-        content_type: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -325,7 +315,7 @@ impl GcsCore {
 
         let mut req = Request::put(&url);
 
-        if let Some(content_type) = content_type {
+        if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
@@ -342,12 +332,7 @@ impl GcsCore {
         Ok(req)
     }
 
-    pub fn gcs_head_object_request(
-        &self,
-        path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -359,11 +344,11 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -378,8 +363,7 @@ impl GcsCore {
     pub fn gcs_head_object_xml_request(
         &self,
         path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -387,11 +371,11 @@ impl GcsCore {
 
         let mut req = Request::head(&url);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -405,10 +389,9 @@ impl GcsCore {
     pub async fn gcs_get_object_metadata(
         &self,
         path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_head_object_request(path, if_match, if_none_match)?;
+        let mut req = self.gcs_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 

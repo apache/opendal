@@ -16,9 +16,14 @@
 // under the License.
 
 use std::sync::Arc;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 
 use super::Adapter;
 use super::Value;
@@ -363,7 +368,14 @@ pub struct KvWriter<S> {
 
     op: OpWrite,
     buf: Option<Vec<u8>>,
+    value: Option<Value>,
+    future: Option<BoxFuture<'static, Result<()>>>,
 }
+
+/// # Safety
+///
+/// We will only take `&mut Self` reference for KvWriter.
+unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 impl<S> KvWriter<S> {
     fn new(kv: Arc<S>, path: String, op: OpWrite) -> Self {
@@ -372,6 +384,8 @@ impl<S> KvWriter<S> {
             path,
             op,
             buf: None,
+            value: None,
+            future: None,
         }
     }
 
@@ -379,6 +393,8 @@ impl<S> KvWriter<S> {
         let value = self.buf.take().map(Bytes::from).unwrap_or_default();
 
         let mut metadata = Metadata::new(EntryMode::FILE);
+        metadata.set_content_length(value.len() as u64);
+
         if let Some(v) = self.op.cache_control() {
             metadata.set_cache_control(v);
         }
@@ -388,11 +404,6 @@ impl<S> KvWriter<S> {
         if let Some(v) = self.op.content_type() {
             metadata.set_content_type(v);
         }
-        if let Some(v) = self.op.content_length() {
-            metadata.set_content_length(v);
-        } else {
-            metadata.set_content_length(value.len() as u64);
-        }
 
         Value { metadata, value }
     }
@@ -400,8 +411,15 @@ impl<S> KvWriter<S> {
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
+        }
+
         let size = bs.chunk().len();
 
         let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
@@ -409,20 +427,47 @@ impl<S: Adapter> oio::Write for KvWriter<S> {
 
         self.buf = Some(buf);
 
-        Ok(size)
+        Poll::Ready(Ok(size))
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match self.future.as_mut() {
+                Some(fut) => {
+                    let res = ready!(fut.poll_unpin(cx));
+                    self.future = None;
+                    return Poll::Ready(res);
+                }
+                None => {
+                    let kv = self.kv.clone();
+                    let path = self.path.clone();
+                    let value = match &self.value {
+                        Some(value) => value.clone(),
+                        None => {
+                            let value = self.build();
+                            self.value = Some(value.clone());
+                            value
+                        }
+                    };
+
+                    let fut = async move { kv.set(&path, value).await };
+                    self.future = Some(Box::pin(fut));
+                }
+            }
+        }
+    }
+
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
+        }
+
         self.buf = None;
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        let kv = self.kv.clone();
-        let value = self.build();
-
-        kv.set(&self.path, value).await?;
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 }
 
@@ -440,7 +485,14 @@ impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
 
     fn close(&mut self) -> Result<()> {
         let kv = self.kv.clone();
-        let value = self.build();
+        let value = match &self.value {
+            Some(value) => value.clone(),
+            None => {
+                let value = self.build();
+                self.value = Some(value.clone());
+                value
+            }
+        };
 
         kv.blocking_set(&self.path, value)?;
         Ok(())

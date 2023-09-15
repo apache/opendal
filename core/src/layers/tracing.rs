@@ -324,24 +324,24 @@ impl<R: oio::Write> oio::Write for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
-        self.inner.write(bs).await
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        self.inner.poll_write(cx, bs)
     }
 
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_abort(cx)
     }
 
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
         skip_all)]
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_close(cx)
     }
 }
 

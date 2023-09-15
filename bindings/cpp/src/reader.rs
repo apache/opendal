@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::ffi;
 use anyhow::Result;
 use od::raw::oio::BlockingRead;
 use opendal as od;
+
+use super::ffi;
 
 pub struct Reader(pub od::BlockingReader);
 

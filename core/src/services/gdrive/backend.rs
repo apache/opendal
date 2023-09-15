@@ -24,6 +24,7 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
+use super::pager::GdrivePager;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::services::gdrive::core::GdriveFile;
@@ -40,9 +41,9 @@ pub struct GdriveBackend {
 impl Accessor for GdriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = GdriveWriter;
+    type Writer = oio::OneShotWriter<GdriveWriter>;
     type BlockingWriter = ();
-    type Pager = ();
+    type Pager = GdrivePager;
     type BlockingPager = ();
 
     fn info(&self) -> AccessorInfo {
@@ -53,6 +54,10 @@ impl Accessor for GdriveBackend {
                 stat: true,
 
                 read: true,
+
+                list: true,
+
+                list_with_delimiter_slash: true,
 
                 write: true,
 
@@ -161,14 +166,7 @@ impl Accessor for GdriveBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         // As Google Drive allows files have the same name, we need to check if the file exists.
         // If the file exists, we will keep its ID and update it.
         let mut file_id: Option<String> = None;
@@ -194,7 +192,11 @@ impl Accessor for GdriveBackend {
 
         Ok((
             RpWrite::default(),
-            GdriveWriter::new(self.core.clone(), String::from(path), file_id),
+            oio::OneShotWriter::new(GdriveWriter::new(
+                self.core.clone(),
+                String::from(path),
+                file_id,
+            )),
         ))
     }
 
@@ -243,6 +245,13 @@ impl Accessor for GdriveBackend {
         } else {
             Err(e)
         }
+    }
+
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
+        Ok((
+            RpList::default(),
+            GdrivePager::new(path.into(), self.core.clone()),
+        ))
     }
 }
 

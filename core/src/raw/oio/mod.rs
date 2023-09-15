@@ -35,12 +35,10 @@ mod page;
 pub use page::*;
 
 mod cursor;
-pub use cursor::ChunkedCursor;
 pub use cursor::Cursor;
-pub use cursor::VectorCursor;
 
 mod entry;
 pub use entry::Entry;
 
 mod buf;
-pub use buf::WriteBuf;
+pub use buf::*;

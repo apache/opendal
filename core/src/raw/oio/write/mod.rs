@@ -19,6 +19,7 @@ mod api;
 pub use api::BlockingWrite;
 pub use api::BlockingWriter;
 pub use api::Write;
+pub use api::WriteExt;
 pub use api::WriteOperation;
 pub use api::Writer;
 
@@ -41,3 +42,7 @@ pub use one_shot_write::OneShotWriter;
 
 mod exact_buf_write;
 pub use exact_buf_write::ExactBufWriter;
+
+mod range_write;
+pub use range_write::RangeWrite;
+pub use range_write::RangeWriter;

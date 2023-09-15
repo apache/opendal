@@ -25,11 +25,8 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type CosWriters = oio::ThreeWaysWriter<
-    oio::OneShotWriter<CosWriter>,
-    oio::MultipartUploadWriter<CosWriter>,
-    oio::AppendObjectWriter<CosWriter>,
->;
+pub type CosWriters =
+    oio::TwoWaysWriter<oio::MultipartUploadWriter<CosWriter>, oio::AppendObjectWriter<CosWriter>>;
 
 pub struct CosWriter {
     core: Arc<CosCore>,
@@ -49,17 +46,11 @@ impl CosWriter {
 }
 
 #[async_trait]
-impl oio::OneShotWrite for CosWriter {
-    async fn write_once(&self, buf: &dyn oio::WriteBuf) -> Result<()> {
-        let size = buf.remaining();
-        let mut req = self.core.cos_put_object_request(
-            &self.path,
-            Some(size as u64),
-            self.op.content_type(),
-            self.op.content_disposition(),
-            self.op.cache_control(),
-            AsyncBody::Bytes(buf.copy_to_bytes(size)),
-        )?;
+impl oio::MultipartUploadWrite for CosWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
+            .core
+            .cos_put_object_request(&self.path, Some(size), &self.op, body)?;
 
         self.core.sign(&mut req).await?;
 
@@ -75,19 +66,11 @@ impl oio::OneShotWrite for CosWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::MultipartUploadWrite for CosWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .cos_initiate_multipart_upload(
-                &self.path,
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
-            )
+            .cos_initiate_multipart_upload(&self.path, &self.op)
             .await?;
 
         let status = resp.status();

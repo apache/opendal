@@ -17,7 +17,8 @@
 
 use std::time::Duration;
 
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::stream;
 use futures::AsyncReadExt;
 use futures::Stream;
@@ -27,6 +28,7 @@ use tokio::io::ReadBuf;
 
 use super::BlockingOperator;
 use crate::operator_futures::*;
+use crate::raw::oio::WriteExt;
 use crate::raw::*;
 use crate::*;
 
@@ -715,7 +717,7 @@ impl Operator {
         let fut = FutureWrite(OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpWrite::default().with_content_length(bs.len() as u64), bs),
+            (OpWrite::default(), bs),
             |inner, path, (args, mut bs)| {
                 let fut = async move {
                     if !validate_path(&path, EntryMode::FILE) {

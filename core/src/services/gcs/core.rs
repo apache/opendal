@@ -23,7 +23,6 @@ use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -56,8 +55,6 @@ pub struct GcsCore {
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
-
-    pub write_fixed_size: usize,
 }
 
 impl Debug for GcsCore {
@@ -299,6 +296,9 @@ impl GcsCore {
                 AsyncBody::Empty => {}
                 AsyncBody::Bytes(bytes) => {
                     media_part = media_part.content(bytes);
+                }
+                AsyncBody::ChunkedBytes(bs) => {
+                    media_part = media_part.stream(bs.len() as u64, Box::new(bs));
                 }
                 AsyncBody::Stream(stream) => {
                     media_part = media_part.stream(size.unwrap(), stream);
@@ -558,21 +558,11 @@ impl GcsCore {
         location: &str,
         size: u64,
         written: u64,
-        is_last_part: bool,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let mut req = Request::put(location);
 
-        let range_header = if is_last_part {
-            format!(
-                "bytes {}-{}/{}",
-                written,
-                written + size - 1,
-                written + size
-            )
-        } else {
-            format!("bytes {}-{}/*", written, written + size - 1)
-        };
+        let range_header = format!("bytes {}-{}/*", written, written + size - 1);
 
         req = req
             .header(CONTENT_LENGTH, size)
@@ -587,22 +577,22 @@ impl GcsCore {
     pub async fn gcs_complete_resumable_upload(
         &self,
         location: &str,
-        written_bytes: u64,
-        bs: Bytes,
+        written: u64,
+        size: u64,
+        body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let size = bs.len() as u64;
         let mut req = Request::post(location)
             .header(CONTENT_LENGTH, size)
             .header(
                 CONTENT_RANGE,
                 format!(
                     "bytes {}-{}/{}",
-                    written_bytes,
-                    written_bytes + size - 1,
-                    written_bytes + size
+                    written,
+                    written + size - 1,
+                    written + size
                 ),
             )
-            .body(AsyncBody::Bytes(bs))
+            .body(body)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

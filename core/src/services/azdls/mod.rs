@@ -16,7 +16,7 @@
 // under the License.
 
 mod backend;
-pub use backend::AzdfsBuilder as Azdfs;
+pub use backend::AzdlsBuilder as Azdls;
 
 mod core;
 mod error;

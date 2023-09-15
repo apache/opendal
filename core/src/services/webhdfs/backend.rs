@@ -399,7 +399,7 @@ impl WebhdfsBackend {
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WebhdfsWriter;
+    type Writer = oio::OneShotWriter<WebhdfsWriter>;
     type BlockingWriter = ();
     type Pager = WebhdfsPager;
     type BlockingPager = ();
@@ -474,16 +474,9 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
-            WebhdfsWriter::new(self.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(WebhdfsWriter::new(self.clone(), args, path.to_string())),
         ))
     }
 

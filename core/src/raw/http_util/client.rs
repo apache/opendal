@@ -101,6 +101,7 @@ impl HttpClient {
         req_builder = match body {
             AsyncBody::Empty => req_builder.body(reqwest::Body::from("")),
             AsyncBody::Bytes(bs) => req_builder.body(reqwest::Body::from(bs)),
+            AsyncBody::ChunkedBytes(bs) => req_builder.body(reqwest::Body::wrap_stream(bs)),
             AsyncBody::Stream(s) => req_builder.body(reqwest::Body::wrap_stream(s)),
         };
 

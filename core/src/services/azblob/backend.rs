@@ -32,12 +32,12 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::batch::parse_batch_delete_response;
 use super::error::parse_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
+use crate::services::azblob::writer::AzblobWriters;
 use crate::types::Metadata;
 use crate::*;
 
@@ -506,7 +506,7 @@ pub struct AzblobBackend {
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = AzblobWriter;
+    type Writer = AzblobWriters;
     type BlockingWriter = ();
     type Pager = AzblobPager;
     type BlockingPager = ();
@@ -557,9 +557,12 @@ impl Accessor for AzblobBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .azblob_put_blob_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self.core.azblob_put_blob_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -601,10 +604,14 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            AzblobWriter::new(self.core.clone(), args, path.to_string()),
-        ))
+        let w = AzblobWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = if args.append() {
+            AzblobWriters::Two(oio::AppendObjectWriter::new(w))
+        } else {
+            AzblobWriters::One(oio::OneShotWriter::new(w))
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
@@ -678,10 +685,12 @@ impl Accessor for AzblobBackend {
                 v.if_match(),
                 v.override_content_disposition(),
             )?,
-            PresignOperation::Write(_) => {
-                self.core
-                    .azblob_put_blob_request(path, None, None, None, AsyncBody::Empty)?
-            }
+            PresignOperation::Write(_) => self.core.azblob_put_blob_request(
+                path,
+                None,
+                &OpWrite::default(),
+                AsyncBody::Empty,
+            )?,
         };
 
         self.core.sign_query(&mut req).await?;
@@ -737,18 +746,31 @@ impl Accessor for AzblobBackend {
             )
         })?;
 
-        let body = resp.into_body().bytes().await?;
-        let body = String::from_utf8(body.to_vec()).map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                &format!("get invalid batch response {e:?}"),
-            )
-        })?;
+        let multipart: Multipart<MixedPart> = Multipart::new()
+            .with_boundary(boundary)
+            .parse(resp.into_body().bytes().await?)?;
+        let parts = multipart.into_parts();
 
-        let results = parse_batch_delete_response(boundary, body, paths)?
-            .into_iter()
-            .map(|(path, rp)| (path, rp.map(|v| v.into())))
-            .collect();
+        if paths.len() != parts.len() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "invalid batch response, paths and response parts don't match",
+            ));
+        }
+
+        let mut results = Vec::with_capacity(parts.len());
+
+        for (i, part) in parts.into_iter().enumerate() {
+            let resp = part.into_response();
+            let path = paths[i].clone();
+
+            // deleting not existing objects is ok
+            if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
+                results.push((path, Ok(RpDelete::default().into())));
+            } else {
+                results.push((path, Err(parse_error(resp).await?)));
+            }
+        }
         Ok(RpBatch::new(results))
     }
 }

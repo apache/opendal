@@ -19,7 +19,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Result;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
@@ -1110,7 +1111,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
 
 /// Append data into writer
 pub async fn test_writer_write(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_without_content_length) {
+    if !(op.info().full_capability().write_can_multi) {
         return Ok(());
     }
 
@@ -1147,7 +1148,7 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
 /// Streaming data into writer
 pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let cap = op.info().full_capability();
-    if !(cap.write && cap.write_without_content_length) {
+    if !(cap.write && cap.write_can_multi) {
         return Ok(());
     }
 
@@ -1157,7 +1158,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let content_b = gen_fixed_bytes(size);
     let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
 
-    let mut w = op.writer_with(&path).buffer_size(5 * 1024 * 1024).await?;
+    let mut w = op.writer_with(&path).buffer(5 * 1024 * 1024).await?;
     w.sink(stream).await?;
     w.close().await?;
 
@@ -1184,7 +1185,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
 /// Reading data into writer
 pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let cap = op.info().full_capability();
-    if !(cap.write && cap.write_without_content_length) {
+    if !(cap.write && cap.write_can_multi) {
         return Ok(());
     }
 
@@ -1193,7 +1194,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
 
-    let mut w = op.writer_with(&path).buffer_size(5 * 1024 * 1024).await?;
+    let mut w = op.writer_with(&path).buffer(5 * 1024 * 1024).await?;
 
     let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
     while !content.is_empty() {
@@ -1225,7 +1226,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
 
 /// Copy data from reader to writer
 pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_without_content_length) {
+    if !(op.info().full_capability().write_can_multi) {
         return Ok(());
     }
 
@@ -1233,7 +1234,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
+    let mut w = op.writer_with(&path).buffer(8 * 1024 * 1024).await?;
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -1257,7 +1258,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
 
 /// Add test for unsized writer
 pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_without_content_length {
+    if !op.info().full_capability().write_can_multi {
         warn!("{op:?} doesn't support write without content length, test skip");
         return Ok(());
     }
@@ -1266,7 +1267,7 @@ pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
 
     let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
 
-    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
+    let mut w = op.writer_with(&path).buffer(8 * 1024 * 1024).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {

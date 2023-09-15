@@ -243,7 +243,8 @@ impl Accessor for SftpBackend {
                 read_can_seek: true,
 
                 write: true,
-                write_without_content_length: true,
+                write_can_multi: true,
+
                 create_dir: true,
                 delete: true,
 

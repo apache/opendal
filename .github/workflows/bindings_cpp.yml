@@ -45,6 +45,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install libgtest-dev ninja-build libboost-all-dev valgrind doxygen
 
       - name: Setup Rust toolchain
@@ -55,13 +56,15 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -GNinja ..
+          cmake -GNinja -DOPENDAL_DEV=ON ..
           ninja
           ./opendal_cpp_test
 
       - name: Run tests with valgrind
-        working-directory: "bindings/cpp/build"
+        working-directory: "bindings/cpp"
         run: |
-          cmake -GNinja -DENABLE_ADDRESS_SANITIZER=OFF ..
+          mkdir build-valgrind
+          cd build-valgrind
+          cmake -GNinja -DOPENDAL_ENABLE_TESTING=ON ..
           ninja
           valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./opendal_cpp_test

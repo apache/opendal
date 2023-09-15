@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -58,10 +57,6 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
-/// The minimum multipart size of S3 is 5 MiB.
-///
-/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-const MINIMUM_MULTIPART_SIZE: usize = 5 * 1024 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
@@ -888,7 +883,7 @@ pub struct S3Backend {
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<S3Writers, oio::ExactBufWriter<S3Writers>>;
+    type Writer = S3Writers;
     type BlockingWriter = ();
     type Pager = S3Pager;
     type BlockingPager = ();
@@ -913,9 +908,18 @@ impl Accessor for S3Backend {
                 read_with_override_content_type: true,
 
                 write: true,
+                write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
-                write_without_content_length: true,
+                // The min multipart size of S3 is 5 MiB.
+                //
+                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                write_multi_min_size: Some(5 * 1024 * 1024),
+                // The max multipart size of S3 is 5 GiB.
+                //
+                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+
                 create_dir: true,
                 delete: true,
                 copy: true,
@@ -975,21 +979,9 @@ impl Accessor for S3Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = S3Writer::new(self.core.clone(), path, args.clone());
+        let writer = S3Writer::new(self.core.clone(), path, args);
 
-        let w = if args.content_length().is_some() {
-            S3Writers::One(oio::OneShotWriter::new(writer))
-        } else {
-            S3Writers::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, buffer_size))
-        } else {
-            oio::TwoWaysWriter::One(w)
-        };
+        let w = oio::MultipartUploadWriter::new(writer);
 
         Ok((RpWrite::default(), w))
     }

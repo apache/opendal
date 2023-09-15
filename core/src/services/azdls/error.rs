@@ -28,10 +28,10 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-/// AzdfsError is the error returned by azure dfs service.
+/// AzdlsError is the error returned by azure dfs service.
 #[derive(Default, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-struct AzdfsError {
+struct AzdlsError {
     code: String,
     message: String,
     query_parameter_name: String,
@@ -39,9 +39,9 @@ struct AzdfsError {
     reason: String,
 }
 
-impl Debug for AzdfsError {
+impl Debug for AzdlsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("AzdfsError");
+        let mut de = f.debug_struct("AzdlsError");
         de.field("code", &self.code);
         // replace `\n` to ` ` for better reading.
         de.field("message", &self.message.replace('\n', " "));
@@ -76,7 +76,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut message = match de::from_reader::<_, AzdfsError>(bs.clone().reader()) {
+    let mut message = match de::from_reader::<_, AzdlsError>(bs.clone().reader()) {
         Ok(azblob_err) => format!("{azblob_err:?}"),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
@@ -86,7 +86,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
             if let Ok(code) = v.to_str() {
                 message = format!(
                     "{:?}",
-                    AzdfsError {
+                    AzdlsError {
                         code: code.to_string(),
                         ..Default::default()
                     }

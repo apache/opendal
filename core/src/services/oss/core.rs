@@ -152,9 +152,7 @@ impl OssCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
         is_presign: bool,
     ) -> Result<Request<AsyncBody>> {
@@ -166,15 +164,15 @@ impl OssCore {
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
         }
 
-        if let Some(pos) = content_disposition {
+        if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos);
         }
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
@@ -376,20 +374,10 @@ impl OssCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_put_object_request(
-            path,
-            size,
-            content_type,
-            content_disposition,
-            cache_control,
-            body,
-            false,
-        )?;
+        let mut req = self.oss_put_object_request(path, size, args, body, false)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

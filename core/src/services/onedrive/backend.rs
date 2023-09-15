@@ -64,7 +64,7 @@ impl Debug for OnedriveBackend {
 impl Accessor for OnedriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = OneDriveWriter;
+    type Writer = oio::OneShotWriter<OneDriveWriter>;
     type BlockingWriter = ();
     type Pager = OnedrivePager;
     type BlockingPager = ();
@@ -103,18 +103,11 @@ impl Accessor for OnedriveBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         let path = build_rooted_abs_path(&self.root, path);
 
         Ok((
             RpWrite::default(),
-            OneDriveWriter::new(self.clone(), args, path),
+            oio::OneShotWriter::new(OneDriveWriter::new(self.clone(), args, path)),
         ))
     }
 

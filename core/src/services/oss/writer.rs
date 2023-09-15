@@ -25,11 +25,8 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type OssWriters = oio::ThreeWaysWriter<
-    oio::OneShotWriter<OssWriter>,
-    oio::MultipartUploadWriter<OssWriter>,
-    oio::AppendObjectWriter<OssWriter>,
->;
+pub type OssWriters =
+    oio::TwoWaysWriter<oio::MultipartUploadWriter<OssWriter>, oio::AppendObjectWriter<OssWriter>>;
 
 pub struct OssWriter {
     core: Arc<OssCore>,
@@ -49,18 +46,11 @@ impl OssWriter {
 }
 
 #[async_trait]
-impl oio::OneShotWrite for OssWriter {
-    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
-        let size = bs.remaining();
-        let mut req = self.core.oss_put_object_request(
-            &self.path,
-            Some(size as u64),
-            self.op.content_type(),
-            self.op.content_disposition(),
-            self.op.cache_control(),
-            AsyncBody::Bytes(bs.copy_to_bytes(size)),
-            false,
-        )?;
+impl oio::MultipartUploadWrite for OssWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req =
+            self.core
+                .oss_put_object_request(&self.path, Some(size), &self.op, body, false)?;
 
         self.core.sign(&mut req).await?;
 
@@ -76,10 +66,7 @@ impl oio::OneShotWrite for OssWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::MultipartUploadWrite for OssWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core

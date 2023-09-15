@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 use std::sync::Arc;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
@@ -55,12 +57,12 @@ use crate::*;
 /// capabilities. CompleteLayer will add those capabilities in
 /// a zero cost way.
 ///
-/// Underlying services will return [`AccessorHint`] to indicate the
+/// Underlying services will return [`AccessorInfo`] to indicate the
 /// features that returning readers support.
 ///
 /// - If both `seekable` and `streamable`, return directly.
-/// - If not `streamable`, with [`oio::into_streamable_reader`].
-/// - If not `seekable`, with [`oio::into_reader::by_range`]
+/// - If not `streamable`, with [`oio::into_read_from_stream`].
+/// - If not `seekable`, with [`oio::into_seekable_read_by_range`]
 /// - If neither not supported, wrap both by_range and into_streamable.
 ///
 /// All implementations of Reader should be `zero cost`. In our cases,
@@ -72,10 +74,9 @@ use crate::*;
 ///
 /// ### Read is Seekable
 ///
-/// We use internal `AccessorHint::ReadSeekable` to decide the most
-/// suitable implementations.
+/// We use [`Capability`] to decide the most suitable implementations.
 ///
-/// If there is a hint that `ReadSeekable`, we will open it with given args
+/// If [`Capability`] `read_can_seek` is true, we will open it with given args
 /// directly. Otherwise, we will pick a seekable reader implementation based
 /// on input range for it.
 ///
@@ -91,40 +92,27 @@ use crate::*;
 /// We use internal `AccessorHint::ReadStreamable` to decide the most
 /// suitable implementations.
 ///
-/// If there is a hint that `ReadStreamable`, we will use existing reader
+/// If [`Capability`] `read_can_next` is true, we will use existing reader
 /// directly. Otherwise, we will use transform this reader as a stream.
-///
-/// ### Consume instead of Drop
-///
-/// Normally, if reader is seekable, we need to drop current reader and start
-/// a new read call.
-///
-/// We can consume the data if the seek position is close enough. For
-/// example, users try to seek to `Current(1)`, we can just read the data
-/// can consume it.
-///
-/// In this way, we can reduce the extra cost of dropping reader.
 ///
 /// ## List Completion
 ///
 /// There are two styles of list, but not all services support both of
 /// them. CompleteLayer will add those capabilities in a zero cost way.
 ///
-/// Underlying services will return [`AccessorHint`] to indicate the
+/// Underlying services will return [`Capability`] to indicate the
 /// features that returning pagers support.
 ///
-/// - If both `flat` and `hierarchy`, return directly.
-/// - If only `flat`, with [`oio::to_flat_pager`].
-/// - if only `hierarchy`, with [`oio::to_hierarchy_pager`].
-/// - If neither not supported, something must be wrong.
+/// - If both `list_with_delimiter_slash` and `list_without_delimiter`, return directly.
+/// - If only `list_without_delimiter`, with [`oio::to_flat_pager`].
+/// - if only `list_with_delimiter_slash`, with [`oio::to_hierarchy_pager`].
+/// - If neither not supported, something must be wrong for `list` is true.
 ///
 /// ## Capability Check
 ///
 /// Before performing any operations, `CompleteLayer` will first check
 /// the operation against capability of the underlying service. If the
 /// operation is not supported, an error will be returned directly.
-///
-/// [`AccessorHint`]: crate::raw::AccessorHint
 pub struct CompleteLayer;
 
 impl<A: Accessor> Layer<A> for CompleteLayer {
@@ -138,7 +126,7 @@ impl<A: Accessor> Layer<A> for CompleteLayer {
     }
 }
 
-/// Provide reader wrapper for backend.
+/// Provide complete wrapper for backend.
 pub struct CompleteReaderAccessor<A: Accessor> {
     meta: AccessorInfo,
     inner: Arc<A>,
@@ -151,6 +139,16 @@ impl<A: Accessor> Debug for CompleteReaderAccessor<A> {
 }
 
 impl<A: Accessor> CompleteReaderAccessor<A> {
+    fn new_unsupported_error(&self, op: impl Into<&'static str>) -> Error {
+        let scheme = self.meta.scheme();
+        let op = op.into();
+        Error::new(
+            ErrorKind::Unsupported,
+            &format!("service {scheme} doesn't support operation {op}"),
+        )
+        .with_operation(op)
+    }
+
     async fn complete_reader(
         &self,
         path: &str,
@@ -158,7 +156,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
     ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
         let capability = self.meta.native_capability();
         if !capability.read {
-            return new_capability_unsupported_error(Operation::Read);
+            return Err(self.new_unsupported_error(Operation::Read));
         }
 
         let seekable = capability.read_can_seek;
@@ -211,7 +209,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
         let capability = self.meta.full_capability();
         if !capability.read || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingRead);
+            return Err(self.new_unsupported_error(Operation::BlockingRead));
         }
 
         let seekable = capability.read_can_seek;
@@ -267,11 +265,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
         let cap = self.meta.full_capability();
         if !cap.list {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_context("service", self.meta.scheme())
-                    .with_operation("list"),
-            );
+            return Err(self.new_unsupported_error(Operation::List));
         }
 
         let delimiter = args.delimiter();
@@ -316,11 +310,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
         let cap = self.meta.full_capability();
         if !cap.list {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_context("service", self.meta.scheme())
-                    .with_operation("list"),
-            );
+            return Err(self.new_unsupported_error(Operation::BlockingList));
         }
 
         let delimiter = args.delimiter();
@@ -365,7 +355,10 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Writer = CompleteWriter<A::Writer>;
+    type Writer = oio::TwoWaysWriter<
+        CompleteWriter<A::Writer>,
+        oio::ExactBufWriter<CompleteWriter<A::Writer>>,
+    >;
     type BlockingWriter = CompleteWriter<A::BlockingWriter>;
     type Pager = CompletePager<A, A::Pager>;
     type BlockingPager = CompletePager<A, A::BlockingPager>;
@@ -384,18 +377,84 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         meta
     }
 
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.meta.full_capability();
+        if !capability.create_dir {
+            return Err(self.new_unsupported_error(Operation::CreateDir));
+        }
+
+        self.inner().create_dir(path, args).await
+    }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.complete_reader(path, args).await
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.complete_blocking_reader(path, args)
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let capability = self.meta.full_capability();
+        if !capability.write {
+            return Err(self.new_unsupported_error(Operation::Write));
+        }
+        if args.append() && !capability.write_can_append {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                &format!(
+                    "service {} doesn't support operation write with append",
+                    self.info().scheme()
+                ),
+            ));
+        }
+
+        // Calculate buffer size.
+        let buffer_size = args.buffer().map(|mut size| {
+            if let Some(v) = capability.write_multi_max_size {
+                size = cmp::min(v, size);
+            }
+            if let Some(v) = capability.write_multi_min_size {
+                size = cmp::max(v, size);
+            }
+            if let Some(v) = capability.write_multi_align_size {
+                // Make sure size >= size first.
+                size = cmp::max(v, size);
+                size -= size % v;
+            }
+
+            size
+        });
+
+        let (rp, w) = self.inner.write(path, args.clone()).await?;
+        let w = CompleteWriter::new(w);
+
+        let w = match buffer_size {
+            None => oio::TwoWaysWriter::One(w),
+            Some(size) => oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, size)),
+        };
+
+        Ok((rp, w))
+    }
+
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let capability = self.meta.full_capability();
+        if !capability.copy {
+            return Err(self.new_unsupported_error(Operation::Copy));
+        }
+
+        self.inner().copy(from, to, args).await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let capability = self.meta.full_capability();
+        if !capability.rename {
+            return Err(self.new_unsupported_error(Operation::Rename));
+        }
+
+        self.inner().rename(from, to, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let capability = self.meta.full_capability();
         if !capability.stat {
-            return new_capability_unsupported_error(Operation::Stat);
+            return Err(self.new_unsupported_error(Operation::Stat));
         }
 
         self.inner.stat(path, args).await.map(|v| {
@@ -406,10 +465,98 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         })
     }
 
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let capability = self.meta.full_capability();
+        if !capability.delete {
+            return Err(self.new_unsupported_error(Operation::Delete));
+        }
+
+        self.inner().delete(path, args).await
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let capability = self.meta.full_capability();
+        if !capability.list {
+            return Err(self.new_unsupported_error(Operation::List));
+        }
+
+        self.complete_list(path, args).await
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let capability = self.meta.full_capability();
+        if !capability.batch {
+            return Err(self.new_unsupported_error(Operation::Batch));
+        }
+
+        self.inner().batch(args).await
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let capability = self.meta.full_capability();
+        if !capability.presign {
+            return Err(self.new_unsupported_error(Operation::Presign));
+        }
+
+        self.inner.presign(path, args).await
+    }
+
+    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let capability = self.meta.full_capability();
+        if !capability.create_dir || !capability.blocking {
+            return Err(self.new_unsupported_error(Operation::BlockingCreateDir));
+        }
+
+        self.inner().blocking_create_dir(path, args)
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.complete_blocking_reader(path, args)
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let capability = self.meta.full_capability();
+        if !capability.write || !capability.blocking {
+            return Err(self.new_unsupported_error(Operation::BlockingWrite));
+        }
+
+        if args.append() && !capability.write_can_append {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                &format!(
+                    "service {} doesn't support operation write with append",
+                    self.info().scheme()
+                ),
+            ));
+        }
+
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, w)| (rp, CompleteWriter::new(w)))
+    }
+
+    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let capability = self.meta.full_capability();
+        if !capability.copy || !capability.blocking {
+            return Err(self.new_unsupported_error(Operation::BlockingCopy));
+        }
+
+        self.inner().blocking_copy(from, to, args)
+    }
+
+    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let capability = self.meta.full_capability();
+        if !capability.rename || !capability.blocking {
+            return Err(self.new_unsupported_error(Operation::BlockingRename));
+        }
+
+        self.inner().blocking_rename(from, to, args)
+    }
+
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let capability = self.meta.full_capability();
         if !capability.stat || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingStat);
+            return Err(self.new_unsupported_error(Operation::BlockingStat));
         }
 
         self.inner.blocking_stat(path, args).map(|v| {
@@ -420,137 +567,22 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let capability = self.meta.full_capability();
-        if !capability.write {
-            return new_capability_unsupported_error(Operation::Write);
-        }
-
-        let size = args.content_length();
-        self.inner
-            .write(path, args)
-            .await
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let capability = self.meta.full_capability();
-        if !capability.write || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingWrite);
-        }
-
-        let size = args.content_length();
-        self.inner
-            .blocking_write(path, args)
-            .map(|(rp, w)| (rp, CompleteWriter::new(w, size)))
-    }
-
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
-        if !capability.create_dir {
-            return new_capability_unsupported_error(Operation::CreateDir);
-        }
-
-        self.inner().create_dir(path, args).await
-    }
-
-    fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.meta.full_capability();
-        if !capability.create_dir || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingCreateDir);
-        }
-
-        self.inner().blocking_create_dir(path, args)
-    }
-
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let capability = self.meta.full_capability();
-        if !capability.delete {
-            return new_capability_unsupported_error(Operation::Delete);
-        }
-
-        self.inner().delete(path, args).await
-    }
-
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let capability = self.meta.full_capability();
         if !capability.delete || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingDelete);
+            return Err(self.new_unsupported_error(Operation::BlockingDelete));
         }
 
         self.inner().blocking_delete(path, args)
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.full_capability();
-        if !capability.copy {
-            return new_capability_unsupported_error(Operation::Copy);
-        }
-
-        self.inner().copy(from, to, args).await
-    }
-
-    fn blocking_copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let capability = self.meta.full_capability();
-        if !capability.copy || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingCopy);
-        }
-
-        self.inner().blocking_copy(from, to, args)
-    }
-
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.full_capability();
-        if !capability.rename {
-            return new_capability_unsupported_error(Operation::Rename);
-        }
-
-        self.inner().rename(from, to, args).await
-    }
-
-    fn blocking_rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        let capability = self.meta.full_capability();
-        if !capability.rename || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingRename);
-        }
-
-        self.inner().blocking_rename(from, to, args)
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let capability = self.meta.full_capability();
-        if !capability.list {
-            return new_capability_unsupported_error(Operation::List);
-        }
-
-        self.complete_list(path, args).await
-    }
-
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let capability = self.meta.full_capability();
         if !capability.list || !capability.blocking {
-            return new_capability_unsupported_error(Operation::BlockingList);
+            return Err(self.new_unsupported_error(Operation::BlockingList));
         }
 
         self.complete_blocking_list(path, args)
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        let capability = self.meta.full_capability();
-        if !capability.presign {
-            return new_capability_unsupported_error(Operation::Presign);
-        }
-
-        self.inner.presign(path, args).await
-    }
-
-    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
-        let capability = self.meta.full_capability();
-        if !capability.batch {
-            return new_capability_unsupported_error(Operation::Batch);
-        }
-
-        self.inner().batch(args).await
     }
 }
 
@@ -680,17 +712,11 @@ where
 
 pub struct CompleteWriter<W> {
     inner: Option<W>,
-    size: Option<u64>,
-    written: u64,
 }
 
 impl<W> CompleteWriter<W> {
-    pub fn new(inner: W, size: Option<u64>) -> CompleteWriter<W> {
-        CompleteWriter {
-            inner: Some(inner),
-            size,
-            written: 0,
-        }
+    pub fn new(inner: W) -> CompleteWriter<W> {
+        CompleteWriter { inner: Some(inner) }
     }
 }
 
@@ -711,60 +737,35 @@ impl<W> oio::Write for CompleteWriter<W>
 where
     W: oio::Write,
 {
-    async fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
-        let n = w.write(bs).await?;
-        self.written += n as u64;
+        let n = ready!(w.poll_write(cx, bs))?;
 
-        if let Some(size) = self.size {
-            if self.written > size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + n as u64
-                    ),
-                ));
-            }
-        }
-
-        Ok(n)
+        Poll::Ready(Ok(n))
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.abort().await?;
+        ready!(w.poll_close(cx))?;
         self.inner = None;
 
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 
-    async fn close(&mut self) -> Result<()> {
-        if let Some(size) = self.size {
-            if self.written < size {
-                return Err(Error::new(
-                    ErrorKind::ContentIncomplete,
-                    &format!(
-                        "writer got too less data, expect: {size}, actual: {}",
-                        self.written
-                    ),
-                ));
-            }
-        }
-
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.close().await?;
+        ready!(w.poll_abort(cx))?;
         self.inner = None;
 
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 }
 
@@ -777,36 +778,11 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
         let n = w.write(bs)?;
-        self.written += n as u64;
-
-        if let Some(size) = self.size {
-            if self.written > size {
-                return Err(Error::new(
-                    ErrorKind::ContentTruncated,
-                    &format!(
-                        "writer got too much data, expect: {size}, actual: {}",
-                        self.written + n as u64
-                    ),
-                ));
-            }
-        }
 
         Ok(n)
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(size) = self.size {
-            if self.written < size {
-                return Err(Error::new(
-                    ErrorKind::ContentIncomplete,
-                    &format!(
-                        "writer got too less data, expect: {size}, actual: {}",
-                        self.written
-                    ),
-                ));
-            }
-        }
-
         let w = self.inner.as_mut().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
@@ -817,13 +793,8 @@ where
     }
 }
 
-fn new_capability_unsupported_error<R>(operation: Operation) -> Result<R> {
-    Err(Error::new(ErrorKind::Unsupported, "operation is not supported").with_operation(operation))
-}
-
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::time::Duration;
 
     use async_trait::async_trait;
@@ -832,33 +803,6 @@ mod tests {
 
     use super::*;
 
-    #[derive(Default)]
-    struct MockBuilder {
-        capability: Capability,
-    }
-
-    impl MockBuilder {
-        fn with_capacity(mut self, capability: Capability) -> Self {
-            self.capability = capability;
-            self
-        }
-    }
-
-    impl Builder for MockBuilder {
-        const SCHEME: Scheme = Scheme::Custom("mock");
-        type Accessor = MockService;
-
-        fn from_map(_: HashMap<String, String>) -> Self {
-            Self::default()
-        }
-
-        fn build(&mut self) -> Result<Self::Accessor> {
-            Ok(MockService {
-                capability: self.capability,
-            })
-        }
-    }
-
     #[derive(Debug)]
     struct MockService {
         capability: Capability,
@@ -866,12 +810,12 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        type Reader = ();
-        type BlockingReader = ();
-        type Writer = ();
-        type BlockingWriter = ();
-        type Pager = ();
-        type BlockingPager = ();
+        type Reader = oio::Reader;
+        type BlockingReader = oio::BlockingReader;
+        type Writer = oio::Writer;
+        type BlockingWriter = oio::BlockingWriter;
+        type Pager = oio::Pager;
+        type BlockingPager = oio::BlockingPager;
 
         fn info(&self) -> AccessorInfo {
             let mut info = AccessorInfo::default();
@@ -880,24 +824,28 @@ mod tests {
             info
         }
 
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
+        async fn create_dir(&self, _: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+            Ok(RpCreateDir {})
         }
 
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(0), ()))
+            Ok((RpRead::new(0), Box::new(())))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-            Ok((RpWrite::new(), ()))
+            Ok((RpWrite::new(), Box::new(())))
         }
 
         async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
             Ok(RpCopy {})
         }
 
-        async fn create_dir(&self, _: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-            Ok(RpCreateDir {})
+        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
+            Ok(RpRename {})
+        }
+
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(Metadata::new(EntryMode::Unknown)))
         }
 
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
@@ -905,11 +853,7 @@ mod tests {
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
-            Ok((RpList {}, ()))
-        }
-
-        async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
-            Ok(RpRename {})
+            Ok((RpList {}, Box::new(())))
         }
 
         async fn presign(&self, _: &str, _: OpPresign) -> Result<RpPresign> {
@@ -921,50 +865,144 @@ mod tests {
         }
     }
 
-    /// Perform the test against different capability preconditions.
-    macro_rules! capability_test {
-        ($cap:ident, |$arg:ident| { $($body:tt)* }) => {
-            paste::item! {
-                #[tokio::test]
-                async fn [<test_capability_ $cap>]() {
-                    let res_builder = |$arg: Operator| async move {
-                        let res = { $($body)* };
-                        res.await.err()
-                    };
+    fn new_test_operator(capability: Capability) -> Operator {
+        let srv = MockService { capability };
 
-                    let builder = MockBuilder::default().with_capacity(Capability {
-                        $cap: false,
-                        ..Default::default()
-                    });
-                    let op = Operator::new(builder).expect("should build").finish();
-                    let res = res_builder(op.clone()).await;
-                    assert_eq!(res.expect("should not be None").kind(), ErrorKind::Unsupported);
-
-                    let builder = MockBuilder::default().with_capacity(Capability {
-                        $cap: true,
-                        ..Default::default()
-                    });
-                    let op = Operator::new(builder).expect("should build").finish();
-                    let res = res_builder(op.clone()).await;
-                    assert!(res.is_none());
-                }
-            }
-        };
+        Operator::from_inner(Arc::new(srv)).layer(CompleteLayer)
     }
 
-    capability_test!(stat, |op| { op.stat("/path/to/mock_file") });
-    capability_test!(read, |op| { op.read("/path/to/mock_file") });
-    capability_test!(write, |op| { op.writer("/path/to/mock_file") });
-    capability_test!(create_dir, |op| { op.create_dir("/path/to/mock_dir/") });
-    capability_test!(delete, |op| { op.delete("/path/to/mock_file") });
-    capability_test!(copy, |op| {
-        op.copy("/path/to/mock_file", "/path/to/mock_file_2")
-    });
-    capability_test!(rename, |op| {
-        op.rename("/path/to/mock_file", "/path/to/mock_file_2")
-    });
-    capability_test!(list, |op| { op.lister("/path/to/mock_dir/") });
-    capability_test!(presign, |op| {
-        op.presign_read("/path/to/mock_file", Duration::from_secs(1))
-    });
+    #[tokio::test]
+    async fn test_read() {
+        let op = new_test_operator(Capability::default());
+        let res = op.read("path").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            read: true,
+            ..Default::default()
+        });
+        let res = op.read("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_stat() {
+        let op = new_test_operator(Capability::default());
+        let res = op.stat("path").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            stat: true,
+            ..Default::default()
+        });
+        let res = op.stat("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_writer() {
+        let op = new_test_operator(Capability::default());
+        let res = op.write("path", vec![]).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            write: true,
+            ..Default::default()
+        });
+        let res = op.writer("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_create_dir() {
+        let op = new_test_operator(Capability::default());
+        let res = op.create_dir("path/").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            create_dir: true,
+            ..Default::default()
+        });
+        let res = op.create_dir("path/").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_delete() {
+        let op = new_test_operator(Capability::default());
+        let res = op.delete("path").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            delete: true,
+            ..Default::default()
+        });
+        let res = op.delete("path").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_copy() {
+        let op = new_test_operator(Capability::default());
+        let res = op.copy("path_a", "path_b").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            copy: true,
+            ..Default::default()
+        });
+        let res = op.copy("path_a", "path_b").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_rename() {
+        let op = new_test_operator(Capability::default());
+        let res = op.rename("path_a", "path_b").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            rename: true,
+            ..Default::default()
+        });
+        let res = op.rename("path_a", "path_b").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_list() {
+        let op = new_test_operator(Capability::default());
+        let res = op.list("path/").await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            list: true,
+            ..Default::default()
+        });
+        let res = op.list("path/").await;
+        assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_presign() {
+        let op = new_test_operator(Capability::default());
+        let res = op.presign_read("path", Duration::from_secs(1)).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            presign: true,
+            ..Default::default()
+        });
+        let res = op.presign_read("path", Duration::from_secs(1)).await;
+        assert!(res.is_ok())
+    }
 }

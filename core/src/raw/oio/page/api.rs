@@ -72,9 +72,9 @@ pub trait Page: Send + Sync + 'static {
 pub type Pager = Box<dyn Page>;
 
 #[async_trait]
-impl Page for Pager {
+impl<P: Page + ?Sized> Page for Box<P> {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        self.as_mut().next().await
+        (**self).next().await
     }
 }
 
@@ -107,9 +107,9 @@ pub trait BlockingPage: Send + 'static {
 /// BlockingPager is a boxed [`BlockingPage`]
 pub type BlockingPager = Box<dyn BlockingPage>;
 
-impl BlockingPage for BlockingPager {
+impl<P: BlockingPage + ?Sized> BlockingPage for Box<P> {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
-        self.as_mut().next()
+        (**self).next()
     }
 }
 
@@ -119,7 +119,6 @@ impl BlockingPage for () {
     }
 }
 
-#[async_trait]
 impl<P: BlockingPage> BlockingPage for Option<P> {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         match self {

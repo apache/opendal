@@ -49,7 +49,7 @@ pub struct DropboxBackend {
 impl Accessor for DropboxBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = DropboxWriter;
+    type Writer = oio::OneShotWriter<DropboxWriter>;
     type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
@@ -106,15 +106,13 @@ impl Accessor for DropboxBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
         Ok((
             RpWrite::default(),
-            DropboxWriter::new(self.core.clone(), args, String::from(path)),
+            oio::OneShotWriter::new(DropboxWriter::new(
+                self.core.clone(),
+                args,
+                String::from(path),
+            )),
         ))
     }
 

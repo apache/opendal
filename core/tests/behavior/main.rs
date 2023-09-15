@@ -99,8 +99,8 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(feature = "services-azblob")]
     tests.extend(behavior_test::<services::Azblob>());
-    #[cfg(feature = "services-azdfs")]
-    tests.extend(behavior_test::<services::Azdfs>());
+    #[cfg(feature = "services-Azdls")]
+    tests.extend(behavior_test::<services::Azdls>());
     #[cfg(feature = "services-cacache")]
     tests.extend(behavior_test::<services::Cacache>());
     #[cfg(feature = "services-cos")]

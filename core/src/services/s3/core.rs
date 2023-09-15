@@ -346,7 +346,7 @@ impl S3Core {
         let mut req = Request::put(&url);
 
         if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
+            req = req.header(CONTENT_LENGTH, size.to_string())
         }
 
         if let Some(mime) = args.content_type() {

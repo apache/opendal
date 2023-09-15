@@ -943,7 +943,7 @@ impl Accessor for S3Backend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
-                .s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+                .s3_put_object_request(path, Some(0), &OpWrite::default(),AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -1071,7 +1071,7 @@ impl Accessor for S3Backend {
             PresignOperation::Read(v) => self.core.s3_get_object_request(path, v.clone())?,
             PresignOperation::Write(_) => {
                 self.core
-                    .s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
+                    .s3_put_object_request(path, None, &OpWrite::default(),  AsyncBody::Empty)?
             }
         };
 

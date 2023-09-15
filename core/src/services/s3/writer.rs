@@ -53,9 +53,7 @@ impl oio::OneShotWrite for S3Writer {
         let mut req = self.core.s3_put_object_request(
             &self.path,
             Some(size as u64),
-            self.op.content_type(),
-            self.op.content_disposition(),
-            self.op.cache_control(),
+            &self.op,
             AsyncBody::Bytes(bs.copy_to_bytes(size)),
         )?;
 
@@ -82,9 +80,7 @@ impl oio::MultipartUploadWrite for S3Writer {
             .core
             .s3_initiate_multipart_upload(
                 &self.path,
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
+                &self.op,
             )
             .await?;
 

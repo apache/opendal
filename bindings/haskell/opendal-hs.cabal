@@ -1,4 +1,4 @@
-cabal-version:      2.2
+cabal-version:      3.0
 -- Licensed to the Apache Software Foundation (ASF) under one
 -- or more contributor license agreements.  See the NOTICE file
 -- distributed with this work for additional information
@@ -22,13 +22,16 @@ license:            Apache-2.0
 synopsis:           OpenDAL Haskell Binding
 description:
     OpenDAL Haskell Binding. Open Data Access Layer: Access data freely, painlessly, and efficiently
+author:             OpenDAL Contributors
+maintainer:         dev@opendal.apache.org
 category:           Storage, Binding
 tested-with:        GHC ==9.2.7
+extra-doc-files:    README.md, CONTRIBUTING.md
+extra-source-files: src/*.rs, Cargo.toml
+
 build-type:         Custom
 custom-setup
     setup-depends:  Cabal, base, directory, process
-
-extra-source-files: src/*.rs, Cargo.toml, build.rs
 
 source-repository head
     type:     git

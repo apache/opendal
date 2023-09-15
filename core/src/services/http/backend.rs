@@ -232,9 +232,7 @@ impl Accessor for HttpBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .http_get(path, &args)
-            .await?;
+        let resp = self.http_get(path, &args).await?;
 
         let status = resp.status();
 
@@ -253,9 +251,7 @@ impl Accessor for HttpBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .http_head(path, &args)
-            .await?;
+        let resp = self.http_head(path, &args).await?;
 
         let status = resp.status();
 
@@ -272,11 +268,7 @@ impl Accessor for HttpBackend {
 }
 
 impl HttpBackend {
-    async fn http_get(
-        &self,
-        path: &str,
-        args: &OpRead,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_get(&self, path: &str, args: &OpRead) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
@@ -306,11 +298,7 @@ impl HttpBackend {
         self.client.send(req).await
     }
 
-    async fn http_head(
-        &self,
-        path: &str,
-        args: &OpStat,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_head(&self, path: &str, args: &OpStat) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));

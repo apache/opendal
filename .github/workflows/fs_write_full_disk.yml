@@ -1,0 +1,35 @@
+name: Fs write full disk
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create disk image
+        run: |
+          fallocate -l 512K disk.img
+          mkfs disk.img
+
+      - name: Mount disk image
+        run: |
+          mkdir ./td
+          sudo mount -o loop disk.img ./td
+
+      - name: Set permissions
+        run: chmod a+wr ./td
+
+      # Add more steps for testing as needed
+
+      - name: Clean up
+        run: |
+          sudo umount ./td
+          rm -rf ./td
+          rm disk.img

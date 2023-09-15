@@ -20,7 +20,7 @@ name: Publish
 on:
   push:
     tags:
-      - 'v[0-9]+\.[0-9]+\.[0-9]+'
+      - '*'
 
 jobs:
   publish:
@@ -45,28 +45,48 @@ jobs:
 
       - name: Publish opendal
         working-directory: "core"
-        run: cargo publish --all-features
+        run: |
+          if [[ "${{ github.ref }}" == *rc* ]]; then
+            cargo publish --all-features --dry-run
+          else
+            cargo publish --all-features
+          fi
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish object_store_opendal
         working-directory: "integrations/object_store"
-        run: cargo publish
+        run: |
+          if [[ "${{ github.ref }}" == *rc* ]]; then
+            cargo publish --dry-run
+          else
+            cargo publish
+          fi
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish oli
         working-directory: "bin/oli"
-        run: cargo publish
+        run: |
+          if [[ "${{ github.ref }}" == *rc* ]]; then
+            cargo publish --dry-run
+          else
+            cargo publish
+          fi
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish oay
         working-directory: "bin/oay"
-        run: cargo publish
+        run: |
+          if [[ "${{ github.ref }}" == *rc* ]]; then
+            cargo publish --dry-run
+          else
+            cargo publish
+          fi
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

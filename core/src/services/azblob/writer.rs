@@ -75,7 +75,7 @@ impl oio::AppendObjectWrite for AzblobWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
-            .azblob_get_blob_properties(&self.path, &OpRead::default())
+            .azblob_get_blob_properties(&self.path, &OpStat::default())
             .await?;
 
         let status = resp.status();

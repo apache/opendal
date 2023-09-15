@@ -406,9 +406,9 @@ impl AzblobCore {
     pub async fn azblob_get_blob_properties(
         &self,
         path: &str,
-        args: &OpRead,
+        args: &OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.azblob_head_blob_request(path, &args.to_owned().into())?;
+        let mut req = self.azblob_head_blob_request(path, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

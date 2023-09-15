@@ -625,10 +625,7 @@ impl Accessor for AzblobBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .azblob_get_blob_properties(path, &args.to_owned().into())
-            .await?;
+        let resp = self.core.azblob_get_blob_properties(path, &args).await?;
 
         let status = resp.status();
 

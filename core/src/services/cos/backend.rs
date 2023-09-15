@@ -322,10 +322,7 @@ impl Accessor for CosBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .cos_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.cos_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -370,10 +367,7 @@ impl Accessor for CosBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .cos_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.cos_head_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -402,16 +396,8 @@ impl Accessor for CosBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .cos_head_object_request(path, v.if_match(), v.if_none_match())?
-            }
-            PresignOperation::Read(v) => self.core.cos_get_object_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
+            PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.cos_get_object_request(path, v)?,
             PresignOperation::Write(v) => {
                 self.core
                     .cos_put_object_request(path, None, v, AsyncBody::Empty)?

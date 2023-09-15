@@ -183,11 +183,7 @@ impl CosCore {
         self.send(req).await
     }
 
-    pub fn cos_head_object_request(
-        &self,
-        path: &str,
-        args: &OpStat,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn cos_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));

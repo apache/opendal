@@ -1,0 +1,5 @@
+[package]
+name = "fs_write_full_disk"
+version = "0.1.0"
+
+[dependencies]

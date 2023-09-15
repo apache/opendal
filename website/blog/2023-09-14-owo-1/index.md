@@ -114,7 +114,7 @@ Welcome to integrate `opendal-java` into your project and give us some feedback.
 
 In this release, we implement basic `webdav` support. Users can convert any storage services to a webdav server!
 
-#### Oli
+#### oli
 
 [oli](https://github.com/apache/incubator-opendal/tree/main/bin/oay) is OpenDAL CLI that allows users to access storage services via CLI like `s3cmd` and `gcloud` does.
 

@@ -145,10 +145,10 @@ jobs:
 
         - name: Copy Etcd Certificate Files
           shell: bash
-          working-directory: core
+          working-directory: fixtures
           run: |
             mkdir -p /tmp/etcd
-            cp -r `pwd`/src/services/etcd/fixtures/* /tmp/etcd
+            cp -r `pwd`/etcd/* /tmp/etcd
 
         - name: Configure Etcd Service With TLS
           # ETCD will use ports: 23790,23791,23792,23800,23801,23802

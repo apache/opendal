@@ -257,7 +257,7 @@ impl OnedriveBackend {
         &self,
         path: &str,
         size: Option<usize>,
-        content_type: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
@@ -274,7 +274,7 @@ impl OnedriveBackend {
             req = req.header(header::CONTENT_LENGTH, size)
         }
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 
@@ -286,7 +286,7 @@ impl OnedriveBackend {
     pub(crate) async fn onedrive_chunked_upload(
         &self,
         url: &str,
-        content_type: Option<&str>,
+        args: &OpWrite,
         offset: usize,
         chunk_end: usize,
         total_len: usize,
@@ -303,7 +303,7 @@ impl OnedriveBackend {
         let size = chunk_end - offset + 1;
         req = req.header(header::CONTENT_LENGTH, size.to_string());
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 

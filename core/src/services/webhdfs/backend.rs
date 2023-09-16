@@ -201,7 +201,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         size: Option<usize>,
-        content_type: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -230,7 +230,7 @@ impl WebhdfsBackend {
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size.to_string());
         }
-        if let Some(content_type) = content_type {
+        if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
@@ -430,7 +430,7 @@ impl Accessor for WebhdfsBackend {
     /// Create a file or directory
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let req = self
-            .webhdfs_create_object_request(path, Some(0), None, AsyncBody::Empty)
+            .webhdfs_create_object_request(path, Some(0), &OpWrite::default(), AsyncBody::Empty)
             .await?;
 
         let resp = self.client.send(req).await?;

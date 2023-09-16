@@ -63,9 +63,10 @@ impl oio::Page for WebhdfsPager {
         return match self.backend.disable_list_batch {
             true => self.webhdfs_get_next_list_statuses(),
             false => {
+                let args = OpList::set_start_after(OpList::default(), &self.batch_start_after);
                 let req = self
                     .backend
-                    .webhdfs_list_status_batch_request(&self.path, &self.batch_start_after)?;
+                    .webhdfs_list_status_batch_request(&self.path, &args)?;
                 let resp = self.backend.client.send(req).await?;
 
                 match resp.status() {

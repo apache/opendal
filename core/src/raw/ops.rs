@@ -124,6 +124,12 @@ impl OpList {
         self.start_after.as_deref()
     }
 
+    /// Set the start_after of list operation.
+    pub fn set_start_after(mut self, start_after: &Option<String>) -> Self {
+        self.start_after = start_after.clone();
+        self
+    }
+
     /// Change the delimiter. The default delimiter is "/"
     pub fn with_delimiter(mut self, delimiter: &str) -> Self {
         self.delimiter = delimiter.to_string();

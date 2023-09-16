@@ -296,12 +296,12 @@ impl WebhdfsBackend {
     pub(super) fn webhdfs_list_status_batch_request(
         &self,
         path: &str,
-        start_after: &Option<String>,
+        args: &OpList,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // if it's not the first time to call LISTSTATUS_BATCH, we will add &startAfter=<CHILD>
-        let start_after_param = match start_after {
+        let start_after_param = match args.start_after() {
             Some(sa) if sa.is_empty() => String::new(),
             Some(sa) => format!("&startAfter={}", sa),
             None => String::new(),
@@ -535,7 +535,7 @@ impl Accessor for WebhdfsBackend {
         let path = path.trim_end_matches('/');
 
         if !self.disable_list_batch {
-            let req = self.webhdfs_list_status_batch_request(path, &None)?;
+            let req = self.webhdfs_list_status_batch_request(path, &OpList::default())?;
             let resp = self.client.send(req).await?;
             match resp.status() {
                 StatusCode::OK => {

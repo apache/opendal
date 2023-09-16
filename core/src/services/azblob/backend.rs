@@ -580,16 +580,7 @@ impl Accessor for AzblobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .azblob_get_blob(
-                path,
-                args.range(),
-                args.if_none_match(),
-                args.if_match(),
-                args.override_content_disposition(),
-            )
-            .await?;
+        let resp = self.core.azblob_get_blob(path, &args).await?;
 
         let status = resp.status();
 
@@ -634,10 +625,7 @@ impl Accessor for AzblobBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .azblob_get_blob_properties(path, args.if_none_match(), args.if_match())
-            .await?;
+        let resp = self.core.azblob_get_blob_properties(path, &args).await?;
 
         let status = resp.status();
 
@@ -674,17 +662,8 @@ impl Accessor for AzblobBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .azblob_head_blob_request(path, v.if_none_match(), v.if_match())?
-            }
-            PresignOperation::Read(v) => self.core.azblob_get_blob_request(
-                path,
-                v.range(),
-                v.if_none_match(),
-                v.if_match(),
-                v.override_content_disposition(),
-            )?,
+            PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v)?,
+            PresignOperation::Read(v) => self.core.azblob_get_blob_request(path, v)?,
             PresignOperation::Write(_) => self.core.azblob_put_blob_request(
                 path,
                 None,

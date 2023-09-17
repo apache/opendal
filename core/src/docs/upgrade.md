@@ -6,8 +6,8 @@
 
 [RFC-2578](crate::docs::rfcs::rfc_2578_merge_append_into_write) merges `append` into `write` and removes `append` API.
 
-- For writing a file at once, please use `write()` for convenience.
-- For appending a file, please use `write_with().append(true)` instead.
+- For writing a file at once, please use `op.write()` for convenience.
+- For appending a file, please use `op.write_with().append(true)` instead of `op.append()`.
 
 The same rule applies to `writer()` and `writer_with()`.
 

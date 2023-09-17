@@ -49,9 +49,7 @@ impl oio::OneShotWrite for WasabiWriter {
             .put_object(
                 &self.path,
                 Some(bs.len()),
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
+                &self.op,
                 AsyncBody::ChunkedBytes(bs),
             )
             .await?;

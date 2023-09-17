@@ -259,6 +259,7 @@ impl WasabiCore {
 
         let mut req = Request::get(&url);
 
+        let range = args.range();
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
         }

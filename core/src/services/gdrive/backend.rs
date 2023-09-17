@@ -23,6 +23,7 @@ use bytes::Bytes;
 use chrono::Utc;
 use http::Request;
 use http::StatusCode;
+use serde_json::json;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
@@ -288,16 +289,11 @@ impl Accessor for GdriveBackend {
             from_file_id
         );
 
-        let request_body = format!(
-            r#"{{
-                "name": "{}",
-                "parents": [
-                    "{}"
-                ]
-            }}"#,
-            to_name, to_parent_id
-        );
-        let body = AsyncBody::Bytes(Bytes::from(request_body));
+        let request_body = &json!({
+            "name": to_name,
+            "parents": [to_parent_id],
+        });
+        let body = AsyncBody::Bytes(Bytes::from(request_body.to_string()));
 
         let mut req = Request::post(&url)
             .body(body)

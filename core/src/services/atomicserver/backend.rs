@@ -15,21 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes::Bytes;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use atomic_lib::agents::Agent;
+use atomic_lib::client::get_authentication_headers;
+use atomic_lib::commit::sign_message;
+use bytes::Bytes;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_TYPE;
 use http::Request;
 use serde::Deserialize;
 use serde::Serialize;
-
-use atomic_lib::agents::Agent;
-use atomic_lib::client::get_authentication_headers;
-use atomic_lib::commit::sign_message;
 
 use crate::raw::adapters::kv;
 use crate::raw::new_json_deserialize_error;

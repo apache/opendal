@@ -43,7 +43,7 @@ public abstract class BaseOperatorTest {
 
     @BeforeAll
     public void init() {
-        String schema = this.schema();;
+        String schema = this.schema();
         Optional<Operator> optional = Utils.init(schema);
         assertTrue(optional.isPresent());
         op = optional.get();

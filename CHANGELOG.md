@@ -177,6 +177,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs(services/sftp): update comments about password login by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3065
 * docs: Add OwO 1st by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3086
 * docs: Add upgrade note for v0.40 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3096
+* docs: add basic example for cpp binding by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3108
 ### CI
 * build(deps): bump serde_json from 1.0.99 to 1.0.104 by @dependabot in https://github.com/apache/incubator-opendal/pull/2746
 * build(deps): bump tracing-opentelemetry from 0.17.4 to 0.19.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2744

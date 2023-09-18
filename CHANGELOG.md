@@ -105,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * refactor(services/http): Rewrite `http` methods signature by using OpRead/OpStat by @miroim in https://github.com/apache/incubator-opendal/pull/3083
 * refactor(services/gcs): Rewrite `gcs` methods signature by using OpXxxx by @wavty in https://github.com/apache/incubator-opendal/pull/3087
 * refactor: move all `fixtures` from `core/src/services/{service}` to top-level `fixtures/{service}` by @G-XD in https://github.com/apache/incubator-opendal/pull/3088
+* refactor(services/webhdfs): Rewrite `webhdfs` methods signature by using `OpXxxx` by @cxorm in https://github.com/apache/incubator-opendal/pull/3109
 ### Fixed
 * fix(docs): KEYS broken link by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2749
 * fix: scheme from_str missing redb and tikv by @Ranxy in https://github.com/apache/incubator-opendal/pull/2766
@@ -146,6 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix: Correct the name of azdfs to azdls by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3046
 * fix: Don't apply blocking layer when service support blocking by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3050
 * fix: call `flush` before `sync_all` by @WenyXu in https://github.com/apache/incubator-opendal/pull/3053
+* fix: Metakeys are not propagated with the blocking operators by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3116
 ### Docs
 * doc: fix released doc minor error by @oowl in https://github.com/apache/incubator-opendal/pull/2737
 * docs: create README.md for oli by @STRRL in https://github.com/apache/incubator-opendal/pull/2752
@@ -178,6 +180,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs: Add OwO 1st by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3086
 * docs: Add upgrade note for v0.40 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3096
 * docs: add basic example for cpp binding by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3108
+* docs: Add comments for blocking layer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3117
 ### CI
 * build(deps): bump serde_json from 1.0.99 to 1.0.104 by @dependabot in https://github.com/apache/incubator-opendal/pull/2746
 * build(deps): bump tracing-opentelemetry from 0.17.4 to 0.19.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2744
@@ -215,6 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * ci: Move platform build checks from java binding to rust core by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3060
 * ci(bindings/haskell): add release workflow by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3082
 * ci: Build rc but don't publish by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3089
+* ci: Don't verify content for dry run by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3115
 ### Chore
 * chore(core): bump cargo.toml http version to 0.2.9 by @oowl in https://github.com/apache/incubator-opendal/pull/2740
 * chore: do not export example directory by @oowl in https://github.com/apache/incubator-opendal/pull/2750
@@ -237,6 +241,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(bindings/haskell): make cargo build type same with cabal by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3067
 * chore(bindings/haskell): add PVP-compliant version bounds by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3093
 * chore(bindings/java): align ErrorKind with exception code by @tisonkun in https://github.com/apache/incubator-opendal/pull/3095
+* chore: Bump version to v0.40 to start release process by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3101
+* chore(bindings/haskell): rename library name from opendal-hs to opendal by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3112
 
 ## [v0.39.0] - 2023-07-31
 

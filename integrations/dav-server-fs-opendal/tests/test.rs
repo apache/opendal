@@ -16,9 +16,9 @@
 // under the License.
 
 use anyhow::Result;
-use dav_server_fs_opendal::webdavfs::WebdavFs;
 use dav_server_fs_opendal::davpath::DavPath;
 use dav_server_fs_opendal::fs::DavFileSystem;
+use dav_server_fs_opendal::webdavfs::WebdavFs;
 use opendal::services::Fs;
 use opendal::Operator;
 
@@ -31,7 +31,10 @@ async fn test() -> Result<()> {
 
     let webdavfs = WebdavFs::new(op);
 
-    let metadata = webdavfs.metadata(&DavPath::new("/").unwrap()).await.unwrap();
+    let metadata = webdavfs
+        .metadata(&DavPath::new("/").unwrap())
+        .await
+        .unwrap();
     println!("{}", metadata.is_dir());
 
     Ok(())

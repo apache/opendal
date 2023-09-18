@@ -142,7 +142,11 @@ impl Stream for Lister {
 ///
 /// Users can construct Lister by `blocking_lister`.
 pub struct BlockingLister {
-    pager: oio::BlockingPager,
+    acc: FusedAccessor,
+    /// required_metakey is the metakey required by users.
+    required_metakey: FlagSet<Metakey>,
+
+    pager: Option<oio::BlockingPager>,
     buf: VecDeque<oio::Entry>,
 }
 
@@ -153,11 +157,17 @@ unsafe impl Sync for BlockingLister {}
 
 impl BlockingLister {
     /// Create a new lister.
-    pub(crate) fn new(pager: oio::BlockingPager) -> Self {
-        Self {
-            pager,
-            buf: VecDeque::default(),
-        }
+    pub(crate) fn create(acc: FusedAccessor, path: &str, args: OpList) -> Result<Self> {
+        let required_metakey = args.metakey();
+        let (_, pager) = acc.blocking_list(path, args)?;
+
+        Ok(Self {
+            acc,
+            required_metakey,
+
+            buf: VecDeque::new(),
+            pager: Some(pager),
+        })
     }
 }
 
@@ -167,15 +177,33 @@ impl Iterator for BlockingLister {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(oe) = self.buf.pop_front() {
-            return Some(Ok(oe.into_entry()));
+            let (path, metadata) = oe.into_entry().into_parts();
+            // TODO: we can optimize this by checking the provided metakey provided by services.
+            if metadata.contains_bit(self.required_metakey) {
+                return Some(Ok(Entry::new(path, metadata)));
+            }
+
+            let metadata = match self.acc.blocking_stat(&path, OpStat::default()) {
+                Ok(rp) => rp.into_metadata(),
+                Err(err) => return Some(Err(err)),
+            };
+            return Some(Ok(Entry::new(path, metadata)));
         }
 
-        self.buf = match self.pager.next() {
+        let pager = match self.pager.as_mut() {
+            Some(pager) => pager,
+            None => return None,
+        };
+
+        self.buf = match pager.next() {
             // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
             //
             // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
             Ok(Some(entries)) => entries.into(),
-            Ok(None) => return None,
+            Ok(None) => {
+                self.pager = None;
+                return None;
+            }
             Err(err) => return Some(Err(err)),
         };
 

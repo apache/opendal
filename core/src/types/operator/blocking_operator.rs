@@ -941,8 +941,7 @@ impl BlockingOperator {
                     .with_context("path", &path));
                 }
 
-                let (_, pager) = inner.blocking_list(&path, args)?;
-                let lister = BlockingLister::new(pager);
+                let lister = BlockingLister::create(inner, &path, args)?;
 
                 lister.collect()
             },
@@ -1116,9 +1115,7 @@ impl BlockingOperator {
                     .with_context("path", &path));
                 }
 
-                let (_, pager) = inner.blocking_list(&path, args)?;
-
-                Ok(BlockingLister::new(pager))
+                BlockingLister::create(inner, &path, args)
             },
         ))
     }

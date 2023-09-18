@@ -299,9 +299,12 @@ impl Accessor for CosBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .cos_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+        let mut req = self.core.cos_put_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -319,10 +322,7 @@ impl Accessor for CosBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .cos_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.cos_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -367,10 +367,7 @@ impl Accessor for CosBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .cos_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.cos_head_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -399,24 +396,12 @@ impl Accessor for CosBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
+            PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.cos_get_object_request(path, v)?,
+            PresignOperation::Write(v) => {
                 self.core
-                    .cos_head_object_request(path, v.if_match(), v.if_none_match())?
+                    .cos_put_object_request(path, None, v, AsyncBody::Empty)?
             }
-            PresignOperation::Read(v) => self.core.cos_get_object_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
-            PresignOperation::Write(v) => self.core.cos_put_object_request(
-                path,
-                None,
-                v.content_type(),
-                v.content_disposition(),
-                v.cache_control(),
-                AsyncBody::Empty,
-            )?,
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

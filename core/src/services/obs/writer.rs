@@ -49,13 +49,9 @@ impl ObsWriter {
 #[async_trait]
 impl oio::MultipartUploadWrite for ObsWriter {
     async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
-        let mut req = self.core.obs_put_object_request(
-            &self.path,
-            Some(size),
-            self.op.content_type(),
-            self.op.cache_control(),
-            body,
-        )?;
+        let mut req = self
+            .core
+            .obs_put_object_request(&self.path, Some(size), &self.op, body)?;
 
         self.core.sign(&mut req).await?;
 
@@ -176,7 +172,10 @@ impl oio::MultipartUploadWrite for ObsWriter {
 #[async_trait]
 impl oio::AppendObjectWrite for ObsWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.obs_head_object(&self.path, None, None).await?;
+        let resp = self
+            .core
+            .obs_head_object(&self.path, &OpStat::default())
+            .await?;
 
         let status = resp.status();
         match status {

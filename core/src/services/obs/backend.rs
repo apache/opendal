@@ -306,23 +306,12 @@ impl Accessor for ObsBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
+            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.obs_get_object_request(path, v)?,
+            PresignOperation::Write(v) => {
                 self.core
-                    .obs_head_object_request(path, v.if_match(), v.if_none_match())?
+                    .obs_put_object_request(path, None, v, AsyncBody::Empty)?
             }
-            PresignOperation::Read(v) => self.core.obs_get_object_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
-            PresignOperation::Write(v) => self.core.obs_put_object_request(
-                path,
-                None,
-                v.content_type(),
-                v.cache_control(),
-                AsyncBody::Empty,
-            )?,
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 
@@ -337,9 +326,12 @@ impl Accessor for ObsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self.core.obs_put_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -357,10 +349,7 @@ impl Accessor for ObsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .obs_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.obs_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -405,10 +394,7 @@ impl Accessor for ObsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .obs_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.obs_head_object(path, &args).await?;
 
         let status = resp.status();
 

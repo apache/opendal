@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Postgresql
+name: Service Test Atomicserver
 
 on:
   push:
@@ -29,37 +29,29 @@ on:
       - "core/tests/**"
       - "!core/src/docs/**"
       - "!core/src/services/**"
-      - "core/src/services/postgresql/**"
-      - ".github/workflows/service_test_postgresql.yml"
-      - "fixtures/postgresql/**"
+      - "core/src/services/atomicserver/**"
+      - ".github/workflows/service_test_atomicserver.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  postgresql:
+  atomicserver:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
-      - name: Setup Postgresql Server
-        shell: bash
-        working-directory: fixtures/postgresql
-        run: docker-compose -f docker-compose.yml up -d
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
 
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run postgresql --features services-postgresql
+        run: |
+          cargo test atomicserver --features services-atomicserver -j=1
         env:
-          OPENDAL_POSTGRESQL_TEST: on
-          OPENDAL_POSTGRESQL_CONNECTION_STRING: postgresql://user:password@localhost:5432/testdb
-          OPENDAL_POSTGRESQL_TABLE: data
-          OPENDAL_POSTGRESQL_KEY_FIELD: key
-          OPENDAL_POSTGRESQL_VALUE_FIELD: value
+          RUST_BACKTRACE: full
+          OPENDAL_ATOMICSERVER_TEST: off
+          OPENDAL_ATOMICSERVER_ROOT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ROOT }}
+          OPENDAL_ATOMICSERVER_ENDPOINT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ENDPOINT }}
+          OPENDAL_ATOMICSERVER_PRIVATE_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PRIVATE_KEY }}
+          OPENDAL_ATOMICSERVER_PUBLIC_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PUBLIC_KEY }}
+          OPENDAL_ATOMICSERVER_PARENT_RESOURCE_ID: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PARENT_RESOURCE_ID }}

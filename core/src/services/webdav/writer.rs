@@ -47,8 +47,7 @@ impl oio::OneShotWrite for WebdavWriter {
             .webdav_put(
                 &self.path,
                 Some(bs.len() as u64),
-                self.op.content_type(),
-                self.op.content_disposition(),
+                &self.op,
                 AsyncBody::ChunkedBytes(bs),
             )
             .await?;

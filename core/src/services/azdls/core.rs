@@ -142,8 +142,7 @@ impl AzdlsCore {
         &self,
         path: &str,
         resource: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path)
@@ -162,11 +161,11 @@ impl AzdlsCore {
         // Content length must be 0 for create request.
         req = req.header(CONTENT_LENGTH, 0);
 
-        if let Some(ty) = content_type {
+        if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
 
-        if let Some(pos) = content_disposition {
+        if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos)
         }
 
@@ -324,8 +323,12 @@ impl AzdlsCore {
 
         if !parts.is_empty() {
             let parent_path = parts.join("/");
-            let mut req =
-                self.azdls_create_request(&parent_path, "directory", None, None, AsyncBody::Empty)?;
+            let mut req = self.azdls_create_request(
+                &parent_path,
+                "directory",
+                &OpWrite::default(),
+                AsyncBody::Empty,
+            )?;
 
             self.sign(&mut req).await?;
 

@@ -157,14 +157,7 @@ impl AzblobCore {
 }
 
 impl AzblobCore {
-    pub fn azblob_get_blob_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-        override_content_disposition: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn azblob_get_blob_request(&self, path: &str, args: &OpRead) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -175,7 +168,7 @@ impl AzblobCore {
         );
 
         let mut query_args = Vec::new();
-        if let Some(override_content_disposition) = override_content_disposition {
+        if let Some(override_content_disposition) = args.override_content_disposition() {
             query_args.push(format!(
                 "rscd={}",
                 percent_encode_path(override_content_disposition)
@@ -191,6 +184,7 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
+        let range = args.range();
         if !range.is_full() {
             // azblob doesn't support read with suffix range.
             //
@@ -205,11 +199,11 @@ impl AzblobCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -223,18 +217,9 @@ impl AzblobCore {
     pub async fn azblob_get_blob(
         &self,
         path: &str,
-        range: BytesRange,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
-        override_content_disposition: Option<&str>,
+        args: &OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.azblob_get_blob_request(
-            path,
-            range,
-            if_none_match,
-            if_match,
-            override_content_disposition,
-        )?;
+        let mut req = self.azblob_get_blob_request(path, args)?;
 
         self.sign(&mut req).await?;
 
@@ -245,8 +230,7 @@ impl AzblobCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -263,14 +247,14 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
         }
 
-        if let Some(ty) = content_type {
+        if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
 
@@ -305,8 +289,7 @@ impl AzblobCore {
     pub fn azblob_init_appendable_blob_request(
         &self,
         path: &str,
-        content_type: Option<&str>,
-        cache_control: Option<&str>,
+        args: &OpWrite,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -330,11 +313,11 @@ impl AzblobCore {
             "AppendBlob",
         );
 
-        if let Some(ty) = content_type {
+        if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
         }
 
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
         }
 
@@ -389,8 +372,7 @@ impl AzblobCore {
     pub fn azblob_head_blob_request(
         &self,
         path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -406,11 +388,11 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -424,10 +406,9 @@ impl AzblobCore {
     pub async fn azblob_get_blob_properties(
         &self,
         path: &str,
-        if_none_match: Option<&str>,
-        if_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.azblob_head_blob_request(path, if_none_match, if_match)?;
+        let mut req = self.azblob_head_blob_request(path, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await

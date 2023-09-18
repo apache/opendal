@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/s3/**"
       - ".github/workflows/service_test_s3.yml"
+      - "fixtures/s3/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -113,7 +114,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup MinIO Server
         shell: bash
-        working-directory: core/src/services/s3/fixtures
+        working-directory: fixtures/s3
         run: docker-compose -f docker-compose-minio.yml up -d
       - name: Setup test bucket
         env:
@@ -143,7 +144,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup MinIO Server
         shell: bash
-        working-directory: core/src/services/s3/fixtures
+        working-directory: fixtures/s3
         run: |
           docker-compose -f docker-compose-minio.yml up -d
       - name: Setup test bucket

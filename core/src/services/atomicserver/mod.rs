@@ -16,9 +16,5 @@
 // under the License.
 
 mod backend;
-pub use backend::AzblobBuilder as Azblob;
 
-mod core;
-mod error;
-mod pager;
-mod writer;
+pub use backend::AtomicserverBuilder as Atomicserver;

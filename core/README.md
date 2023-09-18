@@ -73,6 +73,7 @@
 - sled: [sled](https://crates.io/crates/sled) backend
 - redb: [redb](https://crates.io/crates/redb) backend
 - tikv: [tikv](https://tikv.org/) backend
+- atomicserver: [Atomicserver](https://github.com/atomicdata-dev/atomic-server) services
 
 </details>
 

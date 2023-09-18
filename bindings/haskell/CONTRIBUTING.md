@@ -69,8 +69,8 @@ LD_LIBRARY_PATH=../../target/debug cabal test
 
 ```text
 ...(Build Info)
-Test suite opendal-hs-test: RUNNING...
-Test suite opendal-hs-test: PASS
+Test suite opendal-test: RUNNING...
+Test suite opendal-test: PASS
 Test suite logged to: 
 ...(Log Path)
 1 of 1 test suites (1 of 1 test cases) passed.
@@ -84,7 +84,7 @@ To generate the documentation:
 cabal haddock
 ```
 
-If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-hs-$VERSION/doc/html/opendal-hs/index.html`.
+If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-$VERSION/doc/html/opendal/index.html`.
 
 ## Misc
 

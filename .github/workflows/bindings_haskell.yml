@@ -97,7 +97,7 @@ jobs:
         run: |
           cargo package --target-dir target
           cd target/package
-          tar xf opendal-hs-*.crate --strip-components=1
+          tar xf opendal-*.crate --strip-components=1
           cabal sdist
       - name: Upload artifact
         uses: actions/upload-artifact@v3

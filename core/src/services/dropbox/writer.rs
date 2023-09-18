@@ -47,7 +47,7 @@ impl oio::OneShotWrite for DropboxWriter {
             .dropbox_update(
                 &self.path,
                 Some(bs.len()),
-                self.op.content_type(),
+                &self.op,
                 AsyncBody::ChunkedBytes(bs),
             )
             .await?;

@@ -29,7 +29,114 @@ use crate::*;
 ///
 /// # Notes
 ///
-/// Please only enable this layer when the underlying service does not support blocking.
+/// - Please only enable this layer when the underlying service does not support blocking.
+///
+/// # Examples
+///
+/// ## In async context
+///
+/// BlockingLayer will use current async context's runtime to handle the async calls.
+///
+/// ```rust
+/// # use anyhow::Result;
+/// use opendal::layers::BlockingLayer;
+/// use opendal::services::S3;
+/// use opendal::BlockingOperator;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Create fs backend builder.
+///     let mut builder = S3::default();
+///     builder.bucket("test");
+///     builder.region("us-east-1");
+///
+///     // Build an `BlockingOperator` with blocking layer to start operating the storage.
+///     let _: BlockingOperator = Operator::new(builder)?
+///         .layer(BlockingLayer::create()?)
+///         .finish()
+///         .blocking();
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## In async context with blocking functions
+///
+/// If `BlockingLayer` is called in blocking function, please fetch a [`tokio::runtime::EnterGuard`]
+/// first. You can use [`Handle::try_current`] first to get the handle and than call [`Handle::enter`].
+/// This often happens in the case that async function calls blocking function.
+///
+/// ```rust
+/// use opendal::layers::BlockingLayer;
+/// use opendal::services::S3;
+/// use opendal::BlockingOperator;
+/// use opendal::Operator;
+/// use opendal::Result;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let _ = blocking_fn()?;
+///     Ok(())
+/// }
+///
+/// fn blocking_fn() -> Result<BlockingOperator> {
+///     // Create fs backend builder.
+///     let mut builder = S3::default();
+///     builder.bucket("test");
+///     builder.region("us-east-1");
+///
+///     let handle = tokio::runtime::Handle::try_current().unwrap();
+///     let _guard = handle.enter();
+///     // Build an `BlockingOperator` with blocking layer to start operating the storage.
+///     let op: BlockingOperator = Operator::new(builder)?
+///         .layer(BlockingLayer::create()?)
+///         .finish()
+///         .blocking();
+///     Ok(op)
+/// }
+/// ```
+///
+/// ## In blocking context
+///
+/// In a pure blocking context, we can create a runtime and use it to create the `BlockingLayer`.
+///
+/// > The following code uses a global statically created runtime as an example, please manage the
+/// runtime on demand.
+///
+/// ```rust
+/// use once_cell::sync::Lazy;
+/// use opendal::layers::BlockingLayer;
+/// use opendal::services::S3;
+/// use opendal::BlockingOperator;
+/// use opendal::Operator;
+/// use opendal::Result;
+///
+/// static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+///     tokio::runtime::Builder::new_multi_thread()
+///         .enable_all()
+///         .build()
+///         .unwrap()
+/// });
+/// ///
+///
+/// fn main() -> Result<()> {
+///     // Create fs backend builder.
+///     let mut builder = S3::default();
+///     builder.bucket("test");
+///     builder.region("us-east-1");
+///
+///     // Fetch the `EnterGuard` from global runtime.
+///     let _guard = RUNTIME.enter();
+///     // Build an `BlockingOperator` with blocking layer to start operating the storage.
+///     let _: BlockingOperator = Operator::new(builder)?
+///         .layer(BlockingLayer::create()?)
+///         .finish()
+///         .blocking();
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct BlockingLayer {
     handle: Handle,

@@ -31,10 +31,11 @@ use opendal::raw::PresignedRequest;
 use opendal::Operator;
 use opendal::Scheme;
 
+use crate::get_current_env;
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
+use crate::make_presigned_request;
 use crate::Result;
-use crate::{get_current_env, make_presigned_request};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_constructor(

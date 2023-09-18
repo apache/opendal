@@ -19,10 +19,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 
-use crate::error::Error;
+use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::objects::{JMap, JValue};
+use jni::objects::JValue;
 use jni::sys::jint;
 use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
@@ -31,6 +31,8 @@ use once_cell::sync::OnceCell;
 use opendal::raw::PresignedRequest;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
+
+use crate::error::Error;
 
 mod blocking_operator;
 mod error;

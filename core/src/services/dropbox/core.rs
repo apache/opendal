@@ -98,11 +98,11 @@ impl DropboxCore {
         &self,
         path: &str,
         size: Option<usize>,
-        content_type: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = "https://content.dropboxapi.com/2/files/upload".to_string();
-        let args = DropboxUploadArgs {
+        let dropbox_update_args = DropboxUploadArgs {
             path: build_rooted_abs_path(&self.root, path),
             ..Default::default()
         };
@@ -112,13 +112,13 @@ impl DropboxCore {
         }
         request_builder = request_builder.header(
             CONTENT_TYPE,
-            content_type.unwrap_or("application/octet-stream"),
+            args.content_type().unwrap_or("application/octet-stream"),
         );
 
         let mut request = request_builder
             .header(
                 "Dropbox-API-Arg",
-                serde_json::to_string(&args).map_err(new_json_serialize_error)?,
+                serde_json::to_string(&dropbox_update_args).map_err(new_json_serialize_error)?,
             )
             .body(body)
             .map_err(new_request_build_error)?;

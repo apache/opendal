@@ -80,7 +80,7 @@ public abstract class BaseOperatorTest {
         assertThatThrownBy(() -> op.stat(path).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
-        String content = Utils.generateRandomString();
+        String content = Utils.generateString();
         op.write(path, content).join();
 
         assertThat(op.read(path).join()).isEqualTo(content);
@@ -92,22 +92,24 @@ public abstract class BaseOperatorTest {
 
     @Test
     public void testAppend() {
-        String[] trunks = new String[] {"first trunk", "second trunk", "third trunk"};
+        String path = UUID.randomUUID().toString();
+        String[] trunks = new String[] {Utils.generateString(), Utils.generateString(), Utils.generateString()};
 
         for (int i = 0; i < trunks.length; i++) {
-            op.append("testAppendManyTimes", trunks[i]).join();
+            op.append(path, trunks[i]).join();
             String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
-            assertThat(op.read("testAppendManyTimes").join()).isEqualTo(expected);
+            assertThat(op.read(path).join()).isEqualTo(expected);
         }
 
         // write overwrite existing content
-        op.write("testAppendManyTimes", "new attempt").join();
-        assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt");
+        String newAttempt = Utils.generateString();
+        op.write(path, newAttempt).join();
+        assertThat(op.read(path).join()).isEqualTo(newAttempt);
 
         for (int i = 0; i < trunks.length; i++) {
-            op.append("testAppendManyTimes", trunks[i]).join();
+            op.append(path, trunks[i]).join();
             String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
-            assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt" + expected);
+            assertThat(op.read(path).join()).isEqualTo(newAttempt + expected);
         }
     }
 }

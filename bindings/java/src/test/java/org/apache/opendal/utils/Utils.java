@@ -110,7 +110,7 @@ public class Utils {
         return content;
     }
 
-    public static String generateRandomString() {
+    public static String generateString() {
         Random random = new Random();
 
         int length = random.nextInt(256) + 1;

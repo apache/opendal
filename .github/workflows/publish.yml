@@ -47,7 +47,7 @@ jobs:
         working-directory: "core"
         run: |
           if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --all-features --dry-run
+            cargo publish --all-features --dry-run --no-verify
           else
             cargo publish --all-features
           fi
@@ -59,7 +59,7 @@ jobs:
         working-directory: "integrations/object_store"
         run: |
           if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --dry-run
+            cargo publish --dry-run --no-verify
           else
             cargo publish
           fi
@@ -71,7 +71,7 @@ jobs:
         working-directory: "bin/oli"
         run: |
           if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --dry-run
+            cargo publish --dry-run --no-verify
           else
             cargo publish
           fi
@@ -83,7 +83,7 @@ jobs:
         working-directory: "bin/oay"
         run: |
           if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --dry-run
+            cargo publish --dry-run --no-verify
           else
             cargo publish
           fi

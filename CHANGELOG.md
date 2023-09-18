@@ -112,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix: fix compile error by low version of backon in old project by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2781
 * fix: Bump openssh-sftp-client from 0.13.5 to 0.13.7 by @yah01 in https://github.com/apache/incubator-opendal/pull/2797
 * fix: add redis for nextcloud to solve file locking problem by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2805
-* fix: Fix behaivor tests for blocking layer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2809
+* fix: Fix behavior tests for blocking layer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2809
 * fix(services/s3): remove default region `us-east-1` for non-aws s3 by @G-XD in https://github.com/apache/incubator-opendal/pull/2812
 * fix(oli): Fix a test name in ls.rs by @sarutak in https://github.com/apache/incubator-opendal/pull/2817
 * fix(oli, doc): Fix examples of config.toml for oli by @sarutak in https://github.com/apache/incubator-opendal/pull/2819
@@ -158,7 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * doc: add 0.39.0 release link to download.md by @oowl in https://github.com/apache/incubator-opendal/pull/2882
 * doc: add missing release step by @oowl in https://github.com/apache/incubator-opendal/pull/2883
 * docs: add new committer landing doc  by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2905
-* docs: auto relaese maven artifacts by @tisonkun in https://github.com/apache/incubator-opendal/pull/2729
+* docs: auto release maven artifacts by @tisonkun in https://github.com/apache/incubator-opendal/pull/2729
 * doc(tests): fix test command by @G-XD in https://github.com/apache/incubator-opendal/pull/2920
 * docs: add service doc for gcs by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2930
 * docs(services/gcs): fix rust core doc include by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2932
@@ -220,7 +220,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore: Fix build after merging of ocaml by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2776
 * chore: Bump bytes to 1.4 to allow the usage of spare_capacity_mut by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2784
 * chore: disable oldtime feature of chrono by @paolobarbolini in https://github.com/apache/incubator-opendal/pull/2793
-* chore: Disable blocking layer unitl we make all services passed by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2806
+* chore: Disable blocking layer until we make all services passed by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2806
 * chore(bindings/haskell): post release 0.1.0 by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2814
 * chore(bindings/ocaml): Add contributing document to readme by @Ranxy in https://github.com/apache/incubator-opendal/pull/2829
 * chore: Make clippy happy by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2851

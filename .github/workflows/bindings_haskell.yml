@@ -95,7 +95,7 @@ jobs:
       - name: Package
         working-directory: "bindings/haskell"
         run: |
-          cargo package --target-dir target
+          cargo package --no-verify --target-dir target
           cd target/package
           tar xf opendal-*.crate --strip-components=1
           cabal sdist

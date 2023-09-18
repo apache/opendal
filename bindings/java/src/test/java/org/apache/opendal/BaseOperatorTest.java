@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.opendal.condition.OpenDALExceptionCondition;
@@ -38,11 +39,14 @@ public abstract class BaseOperatorTest {
 
     protected Operator op;
 
-    protected abstract void initOp();
+    protected abstract String schema();
 
     @BeforeAll
     public void init() {
-        this.initOp();
+        String schema = this.schema();;
+        Optional<Operator> optional = Utils.init(schema);
+        assertTrue(optional.isPresent());
+        op = optional.get();
     }
 
     @AfterAll
@@ -98,7 +102,7 @@ public abstract class BaseOperatorTest {
 
         // write overwrite existing content
         op.write("testAppendManyTimes", "new attempt").join();
-        assertThat(op.read("testAppendManyTimes1").join()).isEqualTo("new attempt");
+        assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt");
 
         for (int i = 0; i < trunks.length; i++) {
             op.append("testAppendManyTimes", trunks[i]).join();

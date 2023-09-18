@@ -7,13 +7,13 @@ import org.apache.opendal.OpenDALException;
 import org.apache.opendal.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
 
-public class S3Test extends BaseOperatorTest {
+public class MemoryTest extends BaseOperatorTest {
 
     @Override
     public String schema() {
-        return "s3";
+        return "Memory";
     }
-
+    
     @Test
     @Override
     public void testAppend() {

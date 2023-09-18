@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/redis/**"
       - ".github/workflows/service_test_redis.yml"
+      - "fixtures/redis/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -43,8 +44,8 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup Redis Server
         shell: bash
-        working-directory: core
-        run: docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis.yml up -d
+        working-directory: fixtures/redis
+        run: docker-compose -f docker-compose-redis.yml up -d
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -66,14 +67,14 @@ jobs:
 
       - name: Setup Redis with TLS
         shell: bash
-        working-directory: core
+        working-directory: fixtures/redis
         run: |
 
           # Install the CA in the system
-          sudo cp `pwd`/src/services/redis/fixtures/ssl/ca.crt /usr/local/share/ca-certificates
+          sudo cp ssl/ca.crt /usr/local/share/ca-certificates
           sudo update-ca-certificates
 
-          docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-tls.yml up -d
+          docker-compose -f docker-compose-redis-tls.yml up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -100,8 +101,8 @@ jobs:
           need-nextest: true
       - name: Setup Redis Cluster
         shell: bash
-        working-directory: core
-        run: docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-cluster.yml up -d
+        working-directory: fixtures/redis
+        run: docker-compose -f docker-compose-redis-cluster.yml up -d
       - name: Test
         shell: bash
         working-directory: core
@@ -120,15 +121,15 @@ jobs:
 
       - name: Setup Redis Cluster with TLS
         shell: bash
-        working-directory: core
+        working-directory: fixtures/redis
         run: |
 
             # Install the CA in the system
 
-            sudo cp `pwd`/src/services/redis/fixtures/ssl/ca.crt /usr/local/share/ca-certificates
+            sudo cp ssl/ca.crt /usr/local/share/ca-certificates
             sudo update-ca-certificates
 
-            docker-compose -f `pwd`/src/services/redis/fixtures/docker-compose-redis-cluster-tls.yml up -d
+            docker-compose -f docker-compose-redis-cluster-tls.yml up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

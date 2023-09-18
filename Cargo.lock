@@ -377,7 +377,7 @@ dependencies = [
  "futures-io",
  "rustls 0.19.1",
  "webpki",
- "webpki-roots",
+ "webpki-roots 0.21.1",
 ]
 
 [[package]]
@@ -396,6 +396,24 @@ name = "atomic-waker"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1181e1e0d1fce796a03db1ae795d67167da795f9cf4a39c37589e85ef57f26d3"
+
+[[package]]
+name = "atomic_lib"
+version = "0.34.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbfa18995efa467c85a990d0504a6bbc3570b980b38890098232ca61fc45cf81"
+dependencies = [
+ "base64 0.21.2",
+ "rand 0.8.5",
+ "regex",
+ "ring",
+ "serde",
+ "serde_json",
+ "tracing",
+ "ureq",
+ "url",
+ "urlencoding",
+]
 
 [[package]]
 name = "atty"
@@ -3520,6 +3538,7 @@ dependencies = [
  "async-compat",
  "async-tls",
  "async-trait",
+ "atomic_lib",
  "await-tree",
  "backon",
  "base64 0.21.2",
@@ -5173,7 +5192,7 @@ checksum = "1d1feddffcfcc0b33f5c6ce9a29e341e4cd59c3f78e7ee45f4a40c038b1d6cbb"
 dependencies = [
  "log",
  "ring",
- "rustls-webpki",
+ "rustls-webpki 0.101.3",
  "sct 0.7.0",
 ]
 
@@ -5196,6 +5215,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d3987094b1d07b653b7dfdc3f70ce9a1da9c51ac18c1b06b662e4f9a0e9f4b2"
 dependencies = [
  "base64 0.21.2",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.100.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6207cd5ed3d8dca7816f8f3725513a34609c0c765bf652b8c3cb4cfd87db46b"
+dependencies = [
+ "ring",
+ "untrusted",
 ]
 
 [[package]]
@@ -6482,7 +6511,10 @@ dependencies = [
  "log",
  "native-tls",
  "once_cell",
+ "rustls 0.21.6",
+ "rustls-webpki 0.100.1",
  "url",
+ "webpki-roots 0.23.1",
 ]
 
 [[package]]
@@ -6718,6 +6750,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
 dependencies = [
  "webpki",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b03058f88386e5ff5310d9111d53f48b17d732b401aeb83a8d5190f2ac459338"
+dependencies = [
+ "rustls-webpki 0.100.1",
 ]
 
 [[package]]

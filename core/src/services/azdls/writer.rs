@@ -42,13 +42,9 @@ impl AzdlsWriter {
 #[async_trait]
 impl oio::OneShotWrite for AzdlsWriter {
     async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
-        let mut req = self.core.azdls_create_request(
-            &self.path,
-            "file",
-            self.op.content_type(),
-            self.op.content_disposition(),
-            AsyncBody::Empty,
-        )?;
+        let mut req =
+            self.core
+                .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 

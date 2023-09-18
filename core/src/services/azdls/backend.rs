@@ -262,9 +262,12 @@ impl Accessor for AzdlsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .azdls_create_request(path, "directory", None, None, AsyncBody::Empty)?;
+        let mut req = self.core.azdls_create_request(
+            path,
+            "directory",
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 

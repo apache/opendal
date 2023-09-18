@@ -385,10 +385,7 @@ impl Accessor for GcsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .gcs_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.gcs_get_object(path, &args).await?;
 
         if resp.status().is_success() {
             let meta = parse_into_metadata(path, resp.headers())?;
@@ -422,10 +419,7 @@ impl Accessor for GcsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .gcs_get_object_metadata(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.gcs_get_object_metadata(path, &args).await?;
 
         if resp.status().is_success() {
             // read http response body
@@ -549,19 +543,11 @@ impl Accessor for GcsBackend {
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
+            PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v)?,
+            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v)?,
+            PresignOperation::Write(v) => {
                 self.core
-                    .gcs_head_object_xml_request(path, v.if_match(), v.if_none_match())?
-            }
-            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
-            PresignOperation::Write(_) => {
-                self.core
-                    .gcs_insert_object_xml_request(path, None, AsyncBody::Empty)?
+                    .gcs_insert_object_xml_request(path, v, AsyncBody::Empty)?
             }
         };
 

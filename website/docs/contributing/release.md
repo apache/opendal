@@ -155,6 +155,21 @@ svn commit -m "Prepare for ${release_version}"
 
 Visit <https://dist.apache.org/repos/dist/dev/incubator/opendal/> to make sure the artifacts are uploaded correctly.
 
+### Close the Nexus staging repo
+
+To verify the Maven staging artifacts in the next step, close the Nexus staging repo as below.
+
+- `maven_artifact_number`: the number for Maven staging artifacts, like `1010`.
+
+1. Open https://repository.apache.org/#stagingRepositories with your Apache ID login.
+2. Find the artifact `orgapacheopendal-${maven_artifact_number}`, click "Close".
+
+:::caution
+
+If the vote failed, click "Drop" to drop the staging Maven artifacts.
+
+:::
+
 ### Rescure
 
 If you accidentally published wrong or unexpected artifacts, like wrong signature files, wrong sha256 files,
@@ -416,7 +431,7 @@ Take [Add 0.39.0 release link to download.md](https://github.com/apache/incubato
 - `maven_artifact_number`: the number for Maven staging artifacts, like `1010`.
 
 1. Open https://repository.apache.org/#stagingRepositories.
-2. Find the artifact `orgapacheopendal-${maven_artifact_number}`, click "Close" and then "Release".
+2. Find the artifact `orgapacheopendal-${maven_artifact_number}`, click "Release".
 
 :::caution
 

@@ -95,10 +95,17 @@ jobs:
       - name: Package
         working-directory: "bindings/haskell"
         run: |
-          cargo package --target-dir target
+          cargo package --no-verify --target-dir target
           cd target/package
           tar xf opendal-hs-*.crate --strip-components=1
           cabal sdist
+      - name: Verify package
+        run: |
+          # replace the next line of "[dependencies.opendal]" from version to path
+          sed -i '/^\[dependencies\.opendal\]/{n;s~.*~path = "'$(pwd)/core'"~}' bindings/haskell/target/package/Cargo.toml
+          echo "[workspace]" >> bindings/haskell/target/package/Cargo.toml
+          cd bindings/haskell/target/package
+          LD_LIBRARY_PATH=../../../../target/debug cabal test
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:

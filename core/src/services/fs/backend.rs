@@ -374,9 +374,10 @@ impl Accessor for FsBackend {
                 Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
 
             // If the target file exists, we should append to the end of it directly.
-            if tokio::fs::try_exists(&target_path)
-                .await
-                .map_err(parse_io_error)?
+            if op.append()
+                && tokio::fs::try_exists(&target_path)
+                    .await
+                    .map_err(parse_io_error)?
             {
                 (target_path, None)
             } else {
@@ -574,9 +575,10 @@ impl Accessor for FsBackend {
                 Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
 
             // If the target file exists, we should append to the end of it directly.
-            if Path::new(&target_path)
-                .try_exists()
-                .map_err(parse_io_error)?
+            if op.append()
+                && Path::new(&target_path)
+                    .try_exists()
+                    .map_err(parse_io_error)?
             {
                 (target_path, None)
             } else {

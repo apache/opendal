@@ -42,12 +42,14 @@ use rename::behavior_rename_tests;
 use write::behavior_write_tests;
 
 // Blocking test cases
+mod blocking_append;
 mod blocking_copy;
 mod blocking_list;
 mod blocking_read_only;
 mod blocking_rename;
 mod blocking_write;
 
+use blocking_append::behavior_blocking_append_tests;
 use blocking_copy::behavior_blocking_copy_tests;
 use blocking_list::behavior_blocking_list_tests;
 use blocking_read_only::behavior_blocking_read_only_tests;
@@ -73,6 +75,7 @@ fn behavior_test<B: Builder>() -> Vec<Trial> {
 
     let mut trials = vec![];
     // Blocking tests
+    trials.extend(behavior_blocking_append_tests(&operator));
     trials.extend(behavior_blocking_copy_tests(&operator));
     trials.extend(behavior_blocking_list_tests(&operator));
     trials.extend(behavior_blocking_read_only_tests(&operator));

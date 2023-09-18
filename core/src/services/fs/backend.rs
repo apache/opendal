@@ -55,6 +55,11 @@ impl FsBuilder {
     }
 
     /// Set temp dir for atomic write.
+    ///
+    /// # Notes
+    ///
+    /// - When append is enabled, we will not use atomic write
+    /// to avoid data loss and performance issue.
     pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
         self.atomic_write_dir = if dir.is_empty() {
             None
@@ -363,7 +368,7 @@ impl Accessor for FsBackend {
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
+        let (target_path, mut tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
             let tmp_path =
                 Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
@@ -375,10 +380,17 @@ impl Accessor for FsBackend {
         };
 
         let mut open_options = tokio::fs::OpenOptions::new();
-
         open_options.create(true).write(true);
         if op.append() {
             open_options.append(true);
+
+            // If the target file exists, we should append to the end of it directly.
+            if tokio::fs::try_exists(&target_path)
+                .await
+                .map_err(parse_io_error)?
+            {
+                tmp_path = None;
+            }
         } else {
             open_options.truncate(true);
         }
@@ -554,8 +566,8 @@ impl Accessor for FsBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
+    fn blocking_write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let (target_path, mut tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let target_path = Self::blocking_ensure_write_abs_path(&self.root, path)?;
             let tmp_path =
                 Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
@@ -566,10 +578,24 @@ impl Accessor for FsBackend {
             (p, None)
         };
 
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
+        let mut f = std::fs::OpenOptions::new();
+        f.create(true).write(true);
+
+        if op.append() {
+            f.append(true);
+
+            // If the target file exists, we should append to the end of it directly.
+            if Path::new(&target_path)
+                .try_exists()
+                .map_err(parse_io_error)?
+            {
+                tmp_path = None;
+            }
+        } else {
+            f.truncate(true);
+        }
+
+        let f = f
             .open(tmp_path.as_ref().unwrap_or(&target_path))
             .map_err(parse_io_error)?;
 

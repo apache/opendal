@@ -209,7 +209,7 @@ jobs:
         working-directory: "bindings/haskell"
         run: |
           cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source
-          find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal-hs/ doc \;
+          find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

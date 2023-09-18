@@ -369,8 +369,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - @andylokandy made their first contribution in https://github.com/apache/incubator-opendal/pull/2618
 - @parkma99 made their first contribution in https://github.com/apache/incubator-opendal/pull/2634
 
-**Full Changelog**: https://github.com/apache/incubator-opendal/compare/v0.38.0...v0.38.1
-
 ## [v0.38.0] - 2023-06-27
 
 ### Added

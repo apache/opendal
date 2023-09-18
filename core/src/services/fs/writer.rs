@@ -45,6 +45,7 @@ impl<F> FsWriter<F> {
         Self {
             target_path,
             tmp_path,
+
             f: Some(f),
             fut: None,
         }

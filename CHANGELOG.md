@@ -5,6 +5,239 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.40.0] - 2023-09-18
+
+### Added
+* feat(service/etcd): support list by @G-XD in https://github.com/apache/incubator-opendal/pull/2755
+* feat: setup the integrate with PHP binding by @godruoyi in https://github.com/apache/incubator-opendal/pull/2726
+* feat(oay): Add `read_dir` by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2736
+* feat(obs): support loading credential from env by @everpcpc in https://github.com/apache/incubator-opendal/pull/2767
+* feat: add async backtrace layer by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2765
+* feat: Add OCaml Binding by @Ranxy in https://github.com/apache/incubator-opendal/pull/2757
+* feat(bindings/haskell): support logging layer by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2705
+* feat: Add FoundationDB Support for OpenDAL by @ArmandoZ in https://github.com/apache/incubator-opendal/pull/2751
+* feat(oay): add write for oay webdav by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2769
+* feat: Implement RFC-2774 Lister API by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2787
+* feat(bindings/haskell): enhance original `OpMonad` to support custom IO monad by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2789
+* feat: Add into_seekable_read_by_range support for blocking read by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2799
+* feat(layers/blocking): add blocking layer by @yah01 in https://github.com/apache/incubator-opendal/pull/2780
+* feat: Add async list with metakey support by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2803
+* feat(binding/php): Add basic io by @godruoyi in https://github.com/apache/incubator-opendal/pull/2782
+* feat: fuzz test support read from .env by different services by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2824
+* feat(services/rocksdb): Add scan support by @JLerxky in https://github.com/apache/incubator-opendal/pull/2827
+* feat: Add postgresql support for OpenDAL by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2815
+* feat: ci for php binding by @godruoyi in https://github.com/apache/incubator-opendal/pull/2830
+* feat: Add create_dir, remove, copy and rename API for oay-webdav by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2832
+* feat(oli): oli stat should show path as specified by users by @sarutak in https://github.com/apache/incubator-opendal/pull/2842
+* feat(services/moka, services/mini-moka): Add scan support by @JLerxky in https://github.com/apache/incubator-opendal/pull/2850
+* feat(oay): impl some method for `WebdavMetaData` by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2857
+* feat: Implement list with metakey for blocking by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2861
+* feat(services/redis): add redis cluster support by @G-XD in https://github.com/apache/incubator-opendal/pull/2858
+* feat(services/dropbox): read support range by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2848
+* feat(layers/logging): Allow users to control print backtrace or not by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2872
+* feat: add native & full capability by @yah01 in https://github.com/apache/incubator-opendal/pull/2874
+* feat: Implement RFC-2758 Merge Append Into Write by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2880
+* feat(binding/ocaml): Add support for operator reader and metadata by @Ranxy in https://github.com/apache/incubator-opendal/pull/2881
+* feat(core): replace field `_pin` with `!Unpin` as argument by @morristai in https://github.com/apache/incubator-opendal/pull/2886
+* feat: Add retry for Writer::sink operation by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2896
+* feat: remove operator range_read and range_reader API by @oowl in https://github.com/apache/incubator-opendal/pull/2898
+* feat(core): Add unit test for ChunkedCursor by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2907
+* feat(types): remove blocking operation range_read and range_reader API  by @oowl in https://github.com/apache/incubator-opendal/pull/2912
+* feat(types): add stat_with API for blocking operator by @oowl in https://github.com/apache/incubator-opendal/pull/2915
+* feat(services/gdrive): credential manage by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2914
+* feat(core): Implement Exact Buf Writer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2917
+* feat: Add benchmark for buf write by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2922
+* feat(core/raw): Add stream support for multipart by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2923
+* feat(types): synchronous blocking operator and operator's API by @oowl in https://github.com/apache/incubator-opendal/pull/2924
+* feat(bindings/java): bundled services by @tisonkun in https://github.com/apache/incubator-opendal/pull/2934
+* feat(core/raw): support stream body for mixedpart by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2936
+* feat(bindings/python): expose presign api by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2950
+* feat(bindings/nodejs): Implement presign test by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2969
+* docs(services/gdrive): update service doc by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2973
+* feat(bindings/cpp): init cpp binding by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2980
+* feat: gcs insert object support cache control by @fatelei in https://github.com/apache/incubator-opendal/pull/2974
+* feat(bindings/cpp): expose all api returned by value by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3001
+* feat(services/gdrive): implement rename by @suyanhanx in https://github.com/apache/incubator-opendal/pull/3007
+* feat(bindings/cpp): expose reader  by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3004
+* feat(bindings/cpp): expose lister by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3011
+* feat(core): Avoid copy if input is larger than buffer_size by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3016
+* feat(service/gdrive): add gdrive list support by @Young-Flash in https://github.com/apache/incubator-opendal/pull/3025
+* feat(services/etcd): Enable etcd connection pool by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3041
+* feat: Add buffer support for all services by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3045
+* feat(bindings/java): auto enable blocking layer by @tisonkun in https://github.com/apache/incubator-opendal/pull/3049
+* feat(bindings/java): support presign ops by @tisonkun in https://github.com/apache/incubator-opendal/pull/3069
+* feat(services/azblob): Rewrite the method signatures using OpWrite by @acehinnnqru in https://github.com/apache/incubator-opendal/pull/3068
+* feat(services/cos): Rewrite the method signatures using OpWrite by @acehinnnqru in https://github.com/apache/incubator-opendal/pull/3070
+* feat(services/obs): Rewrite method signatures using OpWrite by @hanxuanliang in https://github.com/apache/incubator-opendal/pull/3075
+* feat(services/cos): Rewrite the methods signature using OpStat/OpRead by @acehinnnqru in https://github.com/apache/incubator-opendal/pull/3073
+* feat: Add AtomicServer Support for OpenDAL by @ArmandoZ in https://github.com/apache/incubator-opendal/pull/2878
+* feat(services/onedrive): Rewrite the method signatures using OpWrite by @acehinnnqru in https://github.com/apache/incubator-opendal/pull/3091
+* feat(services/azblob): Rewrite azblob methods signature using OpRead/OpStat by @acehinnnqru in https://github.com/apache/incubator-opendal/pull/3072
+* feat(services/obs): Rewrite methods signature in obs using OpRead/OpStat by @hanxuanliang in https://github.com/apache/incubator-opendal/pull/3094
+* feat(service/gdrive): add gdrive copy by @Young-Flash in https://github.com/apache/incubator-opendal/pull/3098
+* feat(services/wasabi): Rewrite the method signatures using OpRead,OpW… by @acehinnnqru in https://github.com/apache/incubator-opendal/pull/3099
+### Changed
+* refactor(bindings/haskell): unify ffi of creating operator by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2778
+* refactor: Remove optimize in into_seekable_read_by_range by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2796
+* refactor(bindings/ocaml): Refactor module to support documentation by @Ranxy in https://github.com/apache/incubator-opendal/pull/2794
+* refactor: Implement backtrace for Error correctly by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2871
+* refactor: Move object_store_opendal to integrations by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2888
+* refactor(services/gdrive): prepare for CI by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2892
+* refactor(core): Split buffer logic from underlying storage operations by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2903
+* refactor(service/webdav): Add docker-compose file to simplify the CI by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2873
+* refactor(raw): Return written bytes in oio::Write by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3005
+* refactor: Refactor oio::Write by accepting oio::Reader instead by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3008
+* refactor(core): Rename confusing pipe into copy_from by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3015
+* refactor: Remove oio::Write::copy_from by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3018
+* refactor: Make oio::Write accept Buf instead by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3021
+* refactor: Relax bounds on Writer::{sink, copy} by @huonw in https://github.com/apache/incubator-opendal/pull/3027
+* refactor: Refactor oio::Write into poll-based to create more room for optimization by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3029
+* refactor: Polish multipart writer to allow oneshot optimization by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3031
+* refactor: Polish implementation details of WriteBuf and add vector chunks support by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3034
+* refactor: Add ChunkedBytes to improve the exact buf write by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3035
+* refactor: Polish RangeWrite implementation to remove the extra buffer logic by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3038
+* refactor: Remove the requirement of passing `content_length` to writer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3044
+* refactor(services/azblob): instead `parse_batch_delete_response` with `Multipart::parse` by @G-XD in https://github.com/apache/incubator-opendal/pull/3071
+* refactor(services/webdav): Refactor `webdav_put` signatures by using `OpWrite`. by @laipz8200 in https://github.com/apache/incubator-opendal/pull/3076
+* refactor(services/azdls): Use OpWrite instead of passing all args as parameters by @liul85 in https://github.com/apache/incubator-opendal/pull/3077
+* refactor(services/webdav): Use OpRead in `webdav_get`. by @laipz8200 in https://github.com/apache/incubator-opendal/pull/3081
+* refactor(services/oss): Refactor `oss_put_object` signatures by using OpWrite by @sysu-yunz in https://github.com/apache/incubator-opendal/pull/3080
+* refactor(services/http): Rewrite `http` methods signature by using OpRead/OpStat by @miroim in https://github.com/apache/incubator-opendal/pull/3083
+* refactor(services/gcs): Rewrite `gcs` methods signature by using OpXxxx by @wavty in https://github.com/apache/incubator-opendal/pull/3087
+* refactor: move all `fixtures` from `core/src/services/{service}` to top-level `fixtures/{service}` by @G-XD in https://github.com/apache/incubator-opendal/pull/3088
+### Fixed
+* fix(docs): KEYS broken link by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2749
+* fix: scheme from_str missing redb and tikv by @Ranxy in https://github.com/apache/incubator-opendal/pull/2766
+* fix(ci): pin zig version to 0.11.0 by @oowl in https://github.com/apache/incubator-opendal/pull/2772
+* fix: fix compile error by low version of backon in old project by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2781
+* fix: Bump openssh-sftp-client from 0.13.5 to 0.13.7 by @yah01 in https://github.com/apache/incubator-opendal/pull/2797
+* fix: add redis for nextcloud to solve file locking problem by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2805
+* fix: Fix behavior tests for blocking layer by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2809
+* fix(services/s3): remove default region `us-east-1` for non-aws s3 by @G-XD in https://github.com/apache/incubator-opendal/pull/2812
+* fix(oli): Fix a test name in ls.rs by @sarutak in https://github.com/apache/incubator-opendal/pull/2817
+* fix(oli, doc): Fix examples of config.toml for oli by @sarutak in https://github.com/apache/incubator-opendal/pull/2819
+* fix: Cleanup temporary files generated in tests automatically by @sarutak in https://github.com/apache/incubator-opendal/pull/2823
+* fix(services/rocksdb): Make sure return key starts with input path by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2828
+* fix(services/sftp): bump openssh-sftp-client to 0.13.9 by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2831
+* fix(oli): oli commands don't work properly for files in CWD by @sarutak in https://github.com/apache/incubator-opendal/pull/2833
+* fix(oli): oli commands should not accept invalid URI format by @sarutak in https://github.com/apache/incubator-opendal/pull/2845
+* fix(bindings/c): Fix an example of the C binding by @sarutak in https://github.com/apache/incubator-opendal/pull/2854
+* fix(doc): Update instructions for building the C binding in README.md by @sarutak in https://github.com/apache/incubator-opendal/pull/2856
+* fix(oay): add some error handle by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2879
+* fix: Set default timeouts for HttpClient by @sarutak in https://github.com/apache/incubator-opendal/pull/2895
+* fix(website): broken edit link by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2913
+* fix(binding/java): Overwrite default NOTICE file with correct years by @tisonkun in https://github.com/apache/incubator-opendal/pull/2918
+* fix(services/gcs): migrate to new multipart impl for gcs_insert_object_request by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2838
+* fix(core): Invalid lister should not panic nor endless loop by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2931
+* fix: Enable exact_buf_write for R2 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2935
+* fix(services/s3): allow 404 resp when deleting a non-existing object by @gongyisheng in https://github.com/apache/incubator-opendal/pull/2941
+* fix(doc): use crate::docs::rfc to replace relative path in doc by @gongyisheng in https://github.com/apache/incubator-opendal/pull/2942
+* fix: S3 copy error on non-ascii file path by @BoWuGit in https://github.com/apache/incubator-opendal/pull/2909
+* fix: copy error on non-ascii file path for cos/obs/wasabi services by @BoWuGit in https://github.com/apache/incubator-opendal/pull/2948
+* fix(doc): add GCS api reference and known issues to service/s3 doc by @gongyisheng in https://github.com/apache/incubator-opendal/pull/2949
+* fix(oay): pass litmus copymove test by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2944
+* fix(core): Make sure OpenDAL works with http2 on GCS by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2956
+* fix(nodejs|java): Add place holder for BDD test by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2962
+* fix(core): Fix capability of services is not set correctly by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2968
+* fix(core): Fix capability of services is not set correctly by @JLerxky in https://github.com/apache/incubator-opendal/pull/2982
+* fix(services/gcs): Fix handling of media and multipart insert by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2997
+* fix(services/webdav): decode path before set Entry by @G-XD in https://github.com/apache/incubator-opendal/pull/3020
+* fix(services/oss): set content_md5 in lister by @G-XD in https://github.com/apache/incubator-opendal/pull/3043
+* fix: Correct the name of azdfs to azdls by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3046
+* fix: Don't apply blocking layer when service support blocking by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3050
+* fix: call `flush` before `sync_all` by @WenyXu in https://github.com/apache/incubator-opendal/pull/3053
+### Docs
+* doc: fix released doc minor error by @oowl in https://github.com/apache/incubator-opendal/pull/2737
+* docs: create README.md for oli by @STRRL in https://github.com/apache/incubator-opendal/pull/2752
+* docs: polish fuzz README by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2777
+* docs: Add an example for PostgreSQL service by @sarutak in https://github.com/apache/incubator-opendal/pull/2847
+* docs: improve php binding documentation by @godruoyi in https://github.com/apache/incubator-opendal/pull/2843
+* docs: Fix missing link for rust example by @sarutak in https://github.com/apache/incubator-opendal/pull/2866
+* docs: Add blog on how opendal read data by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2869
+* docs: Fix missing link to the contribution guide for the Node.js binding by @sarutak in https://github.com/apache/incubator-opendal/pull/2876
+* doc: add 0.39.0 release link to download.md by @oowl in https://github.com/apache/incubator-opendal/pull/2882
+* doc: add missing release step by @oowl in https://github.com/apache/incubator-opendal/pull/2883
+* docs: add new committer landing doc  by @dqhl76 in https://github.com/apache/incubator-opendal/pull/2905
+* docs: auto release maven artifacts by @tisonkun in https://github.com/apache/incubator-opendal/pull/2729
+* doc(tests): fix test command by @G-XD in https://github.com/apache/incubator-opendal/pull/2920
+* docs: add service doc for gcs by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2930
+* docs(services/gcs): fix rust core doc include by @suyanhanx in https://github.com/apache/incubator-opendal/pull/2932
+* docs: migrate all existed service documents by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2937
+* docs: Fix incorrect links to rfcs by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2943
+* docs: Update Release Process by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2964
+* docs(services/sftp): update comments about windows support and password login support by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2967
+* docs: add service doc for etcd & dropbox & foundationdb & moka by @G-XD in https://github.com/apache/incubator-opendal/pull/2986
+* docs(bindings/cpp): add CONTRIBUTING.md  by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2984
+* docs(bindings/cpp): use doxygen to generate API docs by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2988
+* docs(bindings/c): add awesome-doxygen to beautify document by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2999
+* docs(contributing): add podling status report guide by @PsiACE in https://github.com/apache/incubator-opendal/pull/2996
+* docs: fix spelling - change `Github` to `GitHub` by @jbampton in https://github.com/apache/incubator-opendal/pull/3012
+* docs: fix spelling - change `MacOS` to `macOS` by @jbampton in https://github.com/apache/incubator-opendal/pull/3013
+* docs: add service doc for gdrive & onedrive by @nasnoisaac in https://github.com/apache/incubator-opendal/pull/3028
+* docs(services/sftp): update comments about password login by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3065
+* docs: Add OwO 1st by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3086
+* docs: Add upgrade note for v0.40 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3096
+* docs: add basic example for cpp binding by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3108
+### CI
+* build(deps): bump serde_json from 1.0.99 to 1.0.104 by @dependabot in https://github.com/apache/incubator-opendal/pull/2746
+* build(deps): bump tracing-opentelemetry from 0.17.4 to 0.19.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2744
+* build(deps): bump paste from 1.0.13 to 1.0.14 by @dependabot in https://github.com/apache/incubator-opendal/pull/2742
+* build(deps): bump opentelemetry from 0.19.0 to 0.20.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2743
+* build(deps): bump object_store from 0.5.6 to 0.6.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/2745
+* ci: use cache to speed up haskell ci by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2792
+* ci: Add setup for php and ocaml in dev container by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2825
+* ci: Trying to fix rocksdb build by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2867
+* ci: add reproducibility check by @tisonkun in https://github.com/apache/incubator-opendal/pull/2863
+* ci(services/postgresql): add docker-compose to simplify the CI by @G-XD in https://github.com/apache/incubator-opendal/pull/2877
+* ci(service/s3): Add docker-compose-minio file to simplify the CI by @gongyisheng in https://github.com/apache/incubator-opendal/pull/2887
+* ci(services/hdfs): Load native lib instead by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2900
+* ci(services/rocksdb): Make sure rocksdb lib is loaded by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2902
+* build(bindings/java): bundle bare binaries in JARs with classifier by @tisonkun in https://github.com/apache/incubator-opendal/pull/2910
+* ci(bindings/java): enable auto staging JARs on Apache Nexus repository by @tisonkun in https://github.com/apache/incubator-opendal/pull/2939
+* ci(fix): Add PORTABLE to make sure rocksdb compiled with the same CPU feature set by @gongyisheng in https://github.com/apache/incubator-opendal/pull/2976
+* ci(oay): Polish oay webdav test by @Young-Flash in https://github.com/apache/incubator-opendal/pull/2971
+* build(deps): bump cbindgen from 0.24.5 to 0.25.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2992
+* build(deps): bump actions/checkout from 2 to 3 by @dependabot in https://github.com/apache/incubator-opendal/pull/2995
+* build(deps): bump pin-project from 1.1.2 to 1.1.3 by @dependabot in https://github.com/apache/incubator-opendal/pull/2993
+* build(deps): bump chrono from 0.4.26 to 0.4.28 by @dependabot in https://github.com/apache/incubator-opendal/pull/2989
+* build(deps): bump redb from 1.0.4 to 1.1.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2991
+* build(deps): bump lazy-regex from 2.5.0 to 3.0.1 by @dependabot in https://github.com/apache/incubator-opendal/pull/2990
+* build(deps): bump korandoru/hawkeye from 3.1.0 to 3.3.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/2994
+* ci(bindings/cpp): add ci for test and doc by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2998
+* ci(services/tikv): add tikv integration test with tls by @G-XD in https://github.com/apache/incubator-opendal/pull/3026
+* ci: restrict workflow that need password by @dqhl76 in https://github.com/apache/incubator-opendal/pull/3039
+* ci: Don't release while tag contains rc by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3048
+* ci(bindings/java): skip RedisServiceTest on macos and windows by @tisonkun in https://github.com/apache/incubator-opendal/pull/3054
+* ci: Disable PHP build temporarily by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3058
+* ci(bindings/java): release workflow always uses bash by @tisonkun in https://github.com/apache/incubator-opendal/pull/3056
+* ci(binding/java): Enable release build only when releasing by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3057
+* ci(binding/java): Use cargo profile instead of --release by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3059
+* ci: Move platform build checks from java binding to rust core by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3060
+* ci(bindings/haskell): add release workflow by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3082
+* ci: Build rc but don't publish by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3089
+### Chore
+* chore(core): bump cargo.toml http version to 0.2.9 by @oowl in https://github.com/apache/incubator-opendal/pull/2740
+* chore: do not export example directory by @oowl in https://github.com/apache/incubator-opendal/pull/2750
+* chore: Fix build after merging of ocaml by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2776
+* chore: Bump bytes to 1.4 to allow the usage of spare_capacity_mut by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2784
+* chore: disable oldtime feature of chrono by @paolobarbolini in https://github.com/apache/incubator-opendal/pull/2793
+* chore: Disable blocking layer until we make all services passed by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2806
+* chore(bindings/haskell): post release 0.1.0 by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2814
+* chore(bindings/ocaml): Add contributing document to readme by @Ranxy in https://github.com/apache/incubator-opendal/pull/2829
+* chore: Make clippy happy by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2851
+* chore: add health check for docker-compose minio by @oowl in https://github.com/apache/incubator-opendal/pull/2899
+* chore(ci): offload healthcheck logic to docker-compose config by @oowl in https://github.com/apache/incubator-opendal/pull/2901
+* chore: Make clippy happy by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2927
+* chore: Make C Binding clippy happy by @Xuanwo in https://github.com/apache/incubator-opendal/pull/2928
+* chore: Fix failed ci by @silver-ymz in https://github.com/apache/incubator-opendal/pull/2938
+* chore(ci): remove unreviewable test file and add generate test file step before testing  by @gongyisheng in https://github.com/apache/incubator-opendal/pull/3003
+* chore(bindings/cpp): update CMakeLists.txt to prepare release by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3030
+* chore: fix typo of SftpWriter error message by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3032
+* chore: Polish some details of layers implementation by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3061
+* chore(bindings/haskell): make cargo build type same with cabal by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3067
+* chore(bindings/haskell): add PVP-compliant version bounds by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3093
+* chore(bindings/java): align ErrorKind with exception code by @tisonkun in https://github.com/apache/incubator-opendal/pull/3095
+
 ## [v0.39.0] - 2023-07-31
 
 ### Added
@@ -136,8 +369,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - @Prashanth-Chandra made their first contribution in https://github.com/apache/incubator-opendal/pull/2573
 - @andylokandy made their first contribution in https://github.com/apache/incubator-opendal/pull/2618
 - @parkma99 made their first contribution in https://github.com/apache/incubator-opendal/pull/2634
-
-**Full Changelog**: https://github.com/apache/incubator-opendal/compare/v0.38.0...v0.38.1
 
 ## [v0.38.0] - 2023-06-27
 
@@ -2527,6 +2758,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.40.0]: https://github.com/apache/incubator-opendal/compare/v0.39.1...v0.40.0
+[v0.39.0]: https://github.com/apache/incubator-opendal/compare/v0.38.1...v0.39.0
 [v0.38.1]: https://github.com/apache/incubator-opendal/compare/v0.38.0...v0.38.1
 [v0.38.0]: https://github.com/apache/incubator-opendal/compare/v0.37.0...v0.38.0
 [v0.37.0]: https://github.com/apache/incubator-opendal/compare/v0.36.0...v0.37.0

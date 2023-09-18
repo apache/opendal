@@ -210,3 +210,24 @@ jobs:
           # This is the R2's limitation
           # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
           OPENDAL_S3_ENABLE_EXACT_BUF_WRITE: true
+
+  binding_java_s3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Test
+        shell: bash
+        working-directory: bindings/java
+        run: ./mvnw test -Dtest=org.apache.opendal.services.S3Test
+        env:
+          OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
+          OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
+          OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
+          OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
+          OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
+          OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
+          OPENDAL_S3_REGION: ap-northeast-1

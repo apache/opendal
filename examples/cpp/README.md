@@ -9,5 +9,5 @@ mkdir build
 cd build
 cmake ..
 make
-./basic-exmaple
+./basic-example
 ```

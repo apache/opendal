@@ -11,10 +11,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(opendal-cpp)
 
-add_executable(basic-exmaple basic.cpp)
-target_link_libraries(basic-exmaple opendal_cpp)
-include_directories(basic-exmaple opendal_cpp)
+add_executable(basic-example basic.cpp)
+target_link_libraries(basic-example opendal_cpp)
+include_directories(basic-example opendal_cpp)
 
 if(APPLE)
-    target_link_libraries(basic-exmaple "-framework CoreFoundation -framework Security")
+    target_link_libraries(basic-example "-framework CoreFoundation -framework Security")
 endif()

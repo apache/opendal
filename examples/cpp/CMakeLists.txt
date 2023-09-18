@@ -16,5 +16,5 @@ target_link_libraries(basic-exmaple opendal_cpp)
 include_directories(basic-exmaple opendal_cpp)
 
 if(APPLE)
-    target_link_libraries(opendal-cpp-example "-framework CoreFoundation -framework Security")
+    target_link_libraries(basic-exmaple "-framework CoreFoundation -framework Security")
 endif()

@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::fmt::Debug;
 use std::io;
 use std::sync::Arc;
 use std::task::Context;
@@ -27,7 +27,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
-use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram;
@@ -106,25 +105,13 @@ impl<A: Accessor> Layer<A> for PrometheusClientLayer {
         PrometheusAccessor {
             inner,
             stats,
-            scheme: scheme.to_string(),
+            scheme,
         }
     }
 }
 
-type VecLabels = Vec<(&'static str, String)>;
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct OperationLabels {
-    scheme: Scheme,
-    op: Operation,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct ErrorLabels {
-    scheme: Scheme,
-    op: Operation,
-    err: ErrorKind,
-}
+type OperationLabels = [(&'static str, &'static str); 2];
+type ErrorLabels = [(&'static str, &'static str); 3];
 
 /// [`PrometheusClientMetrics`] provide the performance and IO metrics with the `prometheus-client` crate.
 #[derive(Debug, Clone)]
@@ -169,24 +156,28 @@ impl PrometheusClientMetrics {
     }
 
     fn increment_errors_total(&self, scheme: Scheme, op: Operation, err: ErrorKind) {
-        let labels = ErrorLabels { op, scheme, err };
+        let labels = [
+            ("scheme", scheme.into_static()),
+            ("op", op.into_static()),
+            ("err", err.into_static()),
+        ];
         self.errors_total.get_or_create(&labels).inc();
     }
 
     fn increment_request_total(&self, scheme: Scheme, op: Operation) {
-        let labels = OperationLabels { scheme, op };
+        let labels = [("scheme", scheme.into_static()), ("op", op.into_static())];
         self.requests_total.get_or_create(&labels).inc();
     }
 
     fn observe_bytes_total(&self, scheme: Scheme, op: Operation, bytes: usize) {
-        let labels = OperationLabels { scheme, op };
+        let labels = [("scheme", scheme.into_static()), ("op", op.into_static())];
         self.bytes_histogram
             .get_or_create(&labels)
             .observe(bytes as f64);
     }
 
     fn observe_request_duration(&self, scheme: Scheme, op: Operation, duration: Duration) {
-        let labels = OperationLabels { scheme, op };
+        let labels = [("scheme", scheme.into_static()), ("op", op.into_static())];
         self.request_duration_seconds
             .get_or_create(&labels)
             .observe(duration.as_secs_f64());
@@ -559,7 +550,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
-                self.stats.observe_bytes_total(&self.scheme, self.op, bytes);
+                self.stats.observe_bytes_total(self.scheme, self.op, bytes);
                 Ok(bytes)
             }
             Err(e) => {
@@ -625,7 +616,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
                 self.stats
-                    .observe_bytes_total(&self.scheme, self.op, bytes.len());
+                    .observe_bytes_total(self.scheme, self.op, bytes.len());
                 Ok(bytes)
             }
             Err(e) => {
@@ -643,7 +634,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
         self.inner
             .poll_write(cx, bs)
             .map_ok(|n| {
-                self.stats.observe_bytes_total(&self.scheme, self.op, n);
+                self.stats.observe_bytes_total(self.scheme, self.op, n);
                 n
             })
             .map_err(|err| {

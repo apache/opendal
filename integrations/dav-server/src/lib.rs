@@ -20,4 +20,4 @@ mod webdav_file;
 mod webdav_metadata;
 pub mod webdavfs;
 
-pub use dav_server::*;
+pub use dav_server::DavHandler;

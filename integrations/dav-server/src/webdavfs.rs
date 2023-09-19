@@ -46,14 +46,10 @@ impl DavFileSystem for WebdavFs {
     fn open<'a>(
         &'a self,
         path: &'a dav_server::davpath::DavPath,
-        options: dav_server::fs::OpenOptions,
+        _options: dav_server::fs::OpenOptions,
     ) -> dav_server::fs::FsFuture<Box<dyn dav_server::fs::DavFile>> {
         async move {
-            let file = WebdavFile {
-                op: self.op.clone(),
-                path: path.clone(),
-                options,
-            };
+            let file = WebdavFile::new(self.op.clone(), path.clone());
             Ok(Box::new(file) as Box<dyn DavFile>)
         }
         .boxed()

@@ -16,9 +16,9 @@
 // under the License.
 
 use anyhow::Result;
-use dav_server_fs_opendal::davpath::DavPath;
-use dav_server_fs_opendal::fs::DavFileSystem;
-use dav_server_fs_opendal::webdavfs::WebdavFs;
+use dav_server::davpath::DavPath;
+use dav_server::fs::DavFileSystem;
+use dav_server_opendalfs::webdavfs::WebdavFs;
 use opendal::services::Fs;
 use opendal::Operator;
 

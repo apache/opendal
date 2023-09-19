@@ -22,7 +22,6 @@ use dav_server::davpath::DavPath;
 use dav_server::fs::DavFile;
 use dav_server::fs::DavMetaData;
 use dav_server::fs::FsFuture;
-use dav_server::fs::OpenOptions;
 use futures::FutureExt;
 use opendal::Operator;
 
@@ -30,9 +29,14 @@ use super::webdav_metadata::WebdavMetaData;
 
 #[derive(Debug)]
 pub struct WebdavFile {
-    pub op: Operator,
-    pub path: DavPath,
-    pub options: OpenOptions,
+    op: Operator,
+    path: DavPath,
+}
+
+impl WebdavFile {
+    pub fn new(op: Operator, path: DavPath) -> Self {
+        Self { op, path }
+    }
 }
 
 impl DavFile for WebdavFile {

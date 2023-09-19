@@ -28,14 +28,7 @@ use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
-use prometheus::core::AtomicU64;
-use prometheus::core::GenericCounterVec;
-use prometheus::exponential_buckets;
-use prometheus::histogram_opts;
-use prometheus::register_histogram_vec_with_registry;
-use prometheus::register_int_counter_vec_with_registry;
-use prometheus::HistogramVec;
-use prometheus::Registry;
+use prometheus;
 
 use crate::raw::Accessor;
 use crate::raw::*;
@@ -88,12 +81,12 @@ use crate::*;
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct PrometheusLayer {
-    registry: Registry,
+    registry: prometheus::Registry,
 }
 
 impl PrometheusLayer {
     /// create PrometheusLayer by incoming registry.
-    pub fn with_registry(registry: Registry) -> Self {
+    pub fn with_registry(registry: prometheus::Registry) -> Self {
         Self { registry }
     }
 }
@@ -112,44 +105,45 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
         }
     }
 }
+
 /// [`PrometheusMetrics`] provide the performance and IO metrics.
 #[derive(Debug)]
 pub struct PrometheusMetrics {
     /// Total times of the specific operation be called.
-    pub requests_total: GenericCounterVec<AtomicU64>,
+    pub requests_total: prometheus::core::GenericCounterVec<prometheus::core::AtomicU64>,
     /// Latency of the specific operation be called.
-    pub requests_duration_seconds: HistogramVec,
+    pub requests_duration_seconds: prometheus::HistogramVec,
     /// Size of the specific metrics.
-    pub bytes_total: HistogramVec,
+    pub bytes_total: prometheus::HistogramVec,
 }
 
 impl PrometheusMetrics {
     /// new with prometheus register.
-    pub fn new(registry: Registry) -> Self {
-        let requests_total = register_int_counter_vec_with_registry!(
+    pub fn new(registry: prometheus::Registry) -> Self {
+        let requests_total = prometheus::register_int_counter_vec_with_registry!(
             "requests_total",
             "Total times of create be called",
             &["scheme", "operation"],
             registry
         )
         .unwrap();
-        let opts = histogram_opts!(
+        let opts = prometheus::histogram_opts!(
             "requests_duration_seconds",
             "Histogram of the time spent on specific operation",
-            exponential_buckets(0.01, 2.0, 16).unwrap()
+            prometheus::exponential_buckets(0.01, 2.0, 16).unwrap()
         );
 
         let requests_duration_seconds =
-            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+            prometheus::register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
                 .unwrap();
 
-        let opts = histogram_opts!(
+        let opts = prometheus::histogram_opts!(
             "bytes_total",
             "Total size of ",
-            exponential_buckets(0.01, 2.0, 16).unwrap()
+            prometheus::exponential_buckets(0.01, 2.0, 16).unwrap()
         );
         let bytes_total =
-            register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
+            prometheus::register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
                 .unwrap();
 
         Self {

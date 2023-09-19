@@ -235,7 +235,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.metrics
             .increment_request_total(self.scheme, Operation::Read);
-        let start_time = Instant::now();
 
         let read_res = self
             .inner
@@ -254,11 +253,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
                 })
             })
             .await;
-
-        self.metrics.observe_request_duration(
-            self.scheme,
-            Operation::Read,
-            start_time.elapsed());
         read_res.map_err(|e| {
             self.metrics
                 .increment_errors_total(self.scheme, Operation::Read, e.kind());
@@ -269,7 +263,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.metrics
             .increment_request_total(self.scheme, Operation::Write);
-        let start_time = Instant::now();
 
         let write_res = self
             .inner
@@ -289,11 +282,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             })
             .await;
 
-        self.metrics.observe_request_duration(
-            self.scheme,
-            Operation::Write,
-            start_time.elapsed(),
-        );
         write_res.map_err(|e| {
             self.metrics
                 .increment_errors_total(self.scheme, Operation::Write, e.kind());
@@ -410,7 +398,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.metrics
             .increment_request_total(self.scheme, Operation::BlockingRead);
-        let start_time = Instant::now();
 
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
@@ -424,10 +411,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             )
         });
 
-        self.metrics.observe_request_duration(
-            self.scheme,
-            Operation::BlockingRead,
-            start_time.elapsed());
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(self.scheme, Operation::BlockingRead, e.kind());
@@ -438,7 +421,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.metrics
             .increment_request_total(self.scheme, Operation::BlockingWrite);
-        let start_time = Instant::now();
 
         let result = self.inner.blocking_write(path, args).map(|(rp, r)| {
             (
@@ -452,10 +434,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             )
         });
 
-        self.metrics.observe_request_duration(
-            self.scheme,
-            Operation::BlockingWrite,
-            start_time.elapsed());
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(self.scheme, Operation::BlockingWrite, e.kind());
@@ -528,6 +506,7 @@ pub struct PrometheusMetricWrapper<R> {
     metrics: Arc<PrometheusClientMetrics>,
     scheme: Scheme,
     bytes_total: usize,
+    start_time: Instant,
 }
 
 impl<R> PrometheusMetricWrapper<R> {
@@ -538,6 +517,7 @@ impl<R> PrometheusMetricWrapper<R> {
             metrics,
             scheme,
             bytes_total: 0,
+            start_time: Instant::now(),
         }
     }
 }
@@ -683,5 +663,7 @@ impl<R> Drop for PrometheusMetricWrapper<R> {
     fn drop(&mut self) {
         self.metrics
             .observe_bytes_total(self.scheme, self.op, self.bytes_total);
+        self.metrics
+            .observe_request_duration(self.scheme, self.op, self.start_time.elapsed());
     }
 }

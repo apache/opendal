@@ -35,9 +35,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class BaseOperatorTest {
+public abstract class AbstractOperatorTest {
 
     protected Operator op;
+
+    protected BlockingOperator blockingOp;
 
     protected abstract String schema();
 
@@ -47,13 +49,51 @@ public abstract class BaseOperatorTest {
         Optional<Operator> optional = Utils.init(schema);
         assertTrue(optional.isPresent());
         op = optional.get();
+
+        Optional<BlockingOperator> optionalOfBlocking = Utils.initBlockingOp(schema);
+        assertTrue(optionalOfBlocking.isPresent());
+        blockingOp = optionalOfBlocking.get();
     }
 
     @AfterAll
-    public void destroy() {
+    public void clean() {
         if (op != null) {
             op.close();
         }
+    }
+
+    @Test
+    public void testBlockingWrite() {
+        String path = UUID.randomUUID().toString();
+        byte[] content = Utils.generateBytes();
+        blockingOp.write(path, content);
+
+        Metadata metadata = blockingOp.stat(path);
+
+        assertEquals(content.length, metadata.getContentLength());
+
+        blockingOp.delete(path);
+        assertThatThrownBy(() -> blockingOp.stat(path))
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+    }
+
+    @Test
+    public void testBlockingRead() {
+        Metadata metadata = blockingOp.stat("");
+        assertTrue(!metadata.isFile());
+
+        String path = UUID.randomUUID().toString();
+        assertThatThrownBy(() -> blockingOp.stat(path))
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+
+        String content = Utils.generateString();
+        blockingOp.write(path, content);
+
+        assertThat(blockingOp.read(path)).isEqualTo(content);
+
+        blockingOp.delete(path);
+        assertThatThrownBy(() -> blockingOp.stat(path))
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
     @Test

@@ -19,9 +19,9 @@
 
 package org.apache.opendal.services;
 
-import org.apache.opendal.BaseOperatorTest;
+import org.apache.opendal.AbstractOperatorTest;
 
-public class FsTest extends BaseOperatorTest {
+public class FsTest extends AbstractOperatorTest {
 
     @Override
     public String schema() {

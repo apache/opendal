@@ -20,12 +20,12 @@
 package org.apache.opendal.services;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import org.apache.opendal.BaseOperatorTest;
+import org.apache.opendal.AbstractOperatorTest;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
 
-public class MemoryTest extends BaseOperatorTest {
+public class MemoryTest extends AbstractOperatorTest {
 
     @Override
     public String schema() {

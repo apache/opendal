@@ -110,7 +110,7 @@ jobs:
 #  release:
 #    name: Release
 #    runs-on: ubuntu-latest
-#    if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')"
+#    if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
 #    needs: [package]
 #    steps:
 #      - uses: actions/download-artifact@v3

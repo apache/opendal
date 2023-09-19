@@ -22,7 +22,7 @@ on:
     tags:
       # Staging JARs on Apache Nexus repository for RCs. Read more on
       # https://opendal.apache.org/docs/contributing/release#release-maven-artifacts
-      - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
   workflow_dispatch:
 
 jobs:

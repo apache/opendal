@@ -25,6 +25,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
     steps:
       - uses: actions/checkout@v3
       - name: Checkout python env
@@ -45,48 +46,28 @@ jobs:
 
       - name: Publish opendal
         working-directory: "core"
-        run: |
-          if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --all-features --dry-run --no-verify
-          else
-            cargo publish --all-features
-          fi
+        run: cargo publish --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish object_store_opendal
         working-directory: "integrations/object_store"
-        run: |
-          if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --dry-run --no-verify
-          else
-            cargo publish
-          fi
+        run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish oli
         working-directory: "bin/oli"
-        run: |
-          if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --dry-run --no-verify
-          else
-            cargo publish
-          fi
+        run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
       - name: Publish oay
         working-directory: "bin/oay"
-        run: |
-          if [[ "${{ github.ref }}" == *rc* ]]; then
-            cargo publish --dry-run --no-verify
-          else
-            cargo publish
-          fi
+        run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

@@ -28,7 +28,6 @@ use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
-use prometheus;
 
 use crate::raw::Accessor;
 use crate::raw::*;
@@ -82,12 +81,22 @@ use crate::*;
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct PrometheusLayer {
+    #[cfg(not(feature = "use-prometheus-client"))]
     registry: prometheus::Registry,
+
+    #[cfg(feature = "use-prometheus-client")]
+    registry: prometheus_client::registry::Registry,
 }
 
 impl PrometheusLayer {
     /// create PrometheusLayer by incoming registry.
+    #[cfg(not(feature = "use-prometheus-client"))]
     pub fn with_registry(registry: prometheus::Registry) -> Self {
+        Self { registry }
+    }
+
+    #[cfg(feature = "use-prometheus-client")]
+    pub fn with_registry(registry: prometheus_client::registry::Registry) -> Self {
         Self { registry }
     }
 }
@@ -99,9 +108,15 @@ impl<A: Accessor, M: PrometheusLayerMetrics> Layer<A> for PrometheusLayer {
         let meta = inner.info();
         let scheme = meta.scheme();
 
+        #[cfg(not(feature = "use-prometheus-client"))]
+        let stats = Arc::new(PrometheusLibMetrics::new(self.registry.clone()));
+
+        #[cfg(feature = "use-prometheus-client")]
+        let stats = Arc::new(PrometheusClientMetrics::new(self.registry.clone()));
+
         PrometheusAccessor {
             inner,
-            stats: Arc::new(PrometheusLibMetrics::new(self.registry.clone())),
+            stats,
             scheme: scheme.to_string(),
         }
     }
@@ -115,7 +130,79 @@ trait PrometheusLayerMetrics {
     fn observe_request_duration(&self, scheme: &str, op: Operation, duration: std::time::Duration);
 }
 
+/// [`PrometheusClientMetrics`] provide the performance and IO metrics with the `prometheus-client` crate.
+#[cfg(feature = "use-prometheus-client")]
+#[derive(Debug)]
+struct PrometheusClientMetrics {
+    /// Total counter of the specific operation be called.
+    requests_total: prometheus_client::metrics::family::Family<Vec<(&'static str, &'static str)>, prometheus_client::metrics::counter::Counter>,
+    /// Latency of the specific operation be called.
+    request_duration_seconds: prometheus_client::metrics::family::Family<Vec<(&'static str, &'static str)>, prometheus_client::metrics::histogram::Histogram>,
+    /// The histogram of bytes
+    bytes_histogram: prometheus_client::metrics::family::Family<Vec<(&'static str, &'static str)>, prometheus_client::metrics::histogram::Histogram>,
+}
+
+#[cfg(feature = "use-prometheus-client")]
+impl PrometheusClientMetrics {
+    pub fn new(mut registry: prometheus_client::registry::Registry) -> Self {
+        let requests_total = prometheus_client::metrics::family::Family::default();
+        let request_duration_seconds = prometheus_client::metrics::family::Family::new_with_constructor(|| {
+            let buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16);
+            prometheus_client::metrics::histogram::Histogram::new(buckets)
+        });
+        let bytes_histogram = prometheus_client::metrics::family::Family::new_with_constructor(|| {
+            let buckets = prometheus_client::metrics::histogram::exponential_buckets( 1.0, 2.0, 16);
+            prometheus_client::metrics::histogram::Histogram::new(buckets)
+        });
+
+        registry.register("requests_total", "", requests_total.clone());
+        registry.register("request_duration_seconds", "", request_duration_seconds.clone());
+        registry.register("bytes_histogram", "", bytes_histogram.clone());
+        Self {
+            requests_total,
+            request_duration_seconds,
+            bytes_histogram,
+        }
+    }
+}
+
+#[cfg(feature = "use-prometheus-client")]
+impl PrometheusLayerMetrics for PrometheusClientMetrics {
+    fn increment_errors_total(&self, op: Operation, kind: ErrorKind) {
+        let labels = vec![
+            ("operation", op.as_str()),
+            ("kind", kind.as_str()),
+        ];
+        self.requests_total.get_or_create(&labels).inc();
+    }
+
+    fn increment_request_total(&self, scheme: &str, op: Operation) {
+        let labels = vec![
+            ("scheme", scheme),
+            ("operation", op.as_str()),
+        ];
+        self.requests_total.get_or_create(&labels).inc();
+    }
+
+    fn observe_bytes_total(&self, scheme: &str, op: Operation, bytes: usize) {
+        let labels = vec![
+            ("scheme", scheme),
+            ("operation", op.as_str()),
+        ];
+        self.bytes_histogram.get_or_create(&labels).observe(bytes as f64);
+    }
+
+    fn observe_request_duration(&self, scheme: &str, op: Operation, duration: std::time::Duration) {
+        let labels = vec![
+            ("scheme", scheme),
+            ("operation", op.as_str()),
+        ];
+        self.request_duration_seconds.get_or_create(&labels).observe(duration.as_secs_f64());
+    }
+}
+
 /// [`PrometheusLibMetrics`] provide the performance and IO metrics with the `prometheus` crate.
+#[cfg(not(feature = "use-prometheus-client"))]
 #[derive(Debug)]
 struct PrometheusLibMetrics {
     /// Total times of the specific operation be called.
@@ -126,6 +213,7 @@ struct PrometheusLibMetrics {
     pub bytes_total: prometheus::HistogramVec,
 }
 
+#[cfg(not(feature = "use-prometheus-client"))]
 impl PrometheusLibMetrics {
     /// new with prometheus register.
     pub fn new(registry: prometheus::Registry) -> Self {
@@ -163,6 +251,7 @@ impl PrometheusLibMetrics {
     }
 }
 
+#[cfg(not(feature = "use-prometheus-client"))]
 impl PrometheusLayerMetrics for PrometheusLibMetrics {
     /// error handling is the cold path, so we will not init error counters
     /// in advance.

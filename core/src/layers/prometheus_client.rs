@@ -367,8 +367,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
 
         let result = self.inner.presign(path, args).await;
 
-        self.metrics
-            .observe_request_duration(self.scheme, Operation::Presign, start_time.elapsed());
+        self.metrics.observe_request_duration(
+            self.scheme,
+            Operation::Presign,
+            start_time.elapsed(),
+        );
         result.map_err(|e| {
             self.metrics
                 .increment_errors_total(self.scheme, Operation::Presign, e.kind());
@@ -389,8 +392,11 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             start_time.elapsed(),
         );
         result.map_err(|e| {
-            self.metrics
-                .increment_errors_total(self.scheme, Operation::BlockingCreateDir, e.kind());
+            self.metrics.increment_errors_total(
+                self.scheme,
+                Operation::BlockingCreateDir,
+                e.kind(),
+            );
             e
         })
     }

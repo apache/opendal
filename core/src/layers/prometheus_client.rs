@@ -242,11 +242,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
             .read(path, args)
             .map(|v| {
                 v.map(|(rp, r)| {
-                    self.stats.observe_bytes_total(
-                        self.scheme,
-                        Operation::Read,
-                        rp.metadata().content_length() as usize,
-                    );
                     (
                         rp,
                         PrometheusMetricWrapper::new(
@@ -413,11 +408,6 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
         let start_time = Instant::now();
 
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
-            self.stats.observe_bytes_total(
-                self.scheme,
-                Operation::BlockingRead,
-                rp.metadata().content_length() as usize,
-            );
             (
                 rp,
                 PrometheusMetricWrapper::new(

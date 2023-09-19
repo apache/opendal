@@ -17,7 +17,10 @@
    under the License.
 *)
 
-let new_operator = Opendal_core.Operator.operator
+let new_operator ?(layers : Opendal_core.Layers.layer array = [||]) scheme
+    config_map =
+  Opendal_core.Operator.operator scheme config_map layers
+
 let stat = Opendal_core.Operator.blocking_stat
 let is_exist = Opendal_core.Operator.blocking_is_exist
 let create_dir = Opendal_core.Operator.blocking_create_dir

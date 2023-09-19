@@ -21,7 +21,7 @@ external metadata_last_modified: metadata -> int64 option  = "metadata_last_modi
 
 (* file: mod.rs *)
 
-external operator: string -> (string * string) list -> (operator, string) Result.t  = "operator"
+external operator: string -> (string * string) list -> Layers.layer array -> (operator, string) Result.t  = "operator"
 external blocking_stat: operator -> string -> (metadata, string) Result.t  = "blocking_stat"
 external blocking_is_exist: operator -> string -> (bool, string) Result.t  = "blocking_is_exist"
 external blocking_create_dir: operator -> string -> (bool, string) Result.t  = "blocking_create_dir"

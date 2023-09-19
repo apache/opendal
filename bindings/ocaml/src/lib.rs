@@ -21,6 +21,7 @@ use std::str::FromStr;
 
 use ::opendal as od;
 
+mod layers;
 mod operator;
 mod seek_from;
 

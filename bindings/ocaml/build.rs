@@ -25,5 +25,8 @@ pub fn main() -> std::io::Result<()> {
         .generate()?;
     ocaml_build::Sigs::new("src/operator.ml")
         .with_source_dir(root.join("src/operator"))
+        .generate()?;
+    ocaml_build::Sigs::new("src/layers.ml")
+        .with_source_dir(root.join("src/layers"))
         .generate()
 }

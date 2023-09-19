@@ -18,4 +18,4 @@
 (library
  (name opendal)
  (public_name opendal)
- (libraries opendal.opendal_core))
+ (libraries opendal.opendal_core core))

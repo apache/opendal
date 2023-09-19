@@ -24,12 +24,17 @@ use _type::*;
 use super::*;
 
 #[ocaml::func]
-#[ocaml::sig("string -> (string * string) list -> (operator, string) Result.t ")]
+#[ocaml::sig(
+    "string -> (string * string) list -> Layers.layer array -> (operator, string) Result.t "
+)]
 pub fn operator(
     scheme_str: String,
     map: BTreeMap<String, String>,
+    layers: Vec<layers::Layer>,
 ) -> Result<ocaml::Pointer<Operator>, String> {
     let op = map_res_error(new_operator(scheme_str, map))?;
+
+    let op = add_layers(op, layers);
     Ok(Operator(op.blocking()).into())
 }
 
@@ -107,4 +112,16 @@ pub fn blocking_remove(operator: &mut Operator, path: Vec<String>) -> Result<(),
 #[ocaml::sig("operator -> string -> (unit, string) Result.t ")]
 pub fn blocking_remove_all(operator: &mut Operator, path: String) -> Result<(), String> {
     map_res_error(operator.0.remove_all(path.as_str()))
+}
+
+fn add_layers(mut op: od::Operator, layers: Vec<layers::Layer>) -> od::Operator {
+    for layer in layers {
+        match layer {
+            layers::Layer::Retry(inner) => op = op.layer(inner.build()),
+            layers::Layer::ImmutableIndex(inner) => op = op.layer(inner.build()),
+            layers::Layer::ConcurrentLimit(inner) => op = op.layer(inner.build()),
+            layers::Layer::Timeout(inner) => op = op.layer(inner.build()),
+        }
+    }
+    op
 }

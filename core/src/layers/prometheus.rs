@@ -33,6 +33,7 @@ use prometheus;
 use crate::raw::Accessor;
 use crate::raw::*;
 use crate::*;
+
 /// Add [prometheus](https://docs.rs/prometheus) for every operations.
 ///
 /// # Examples
@@ -91,8 +92,8 @@ impl PrometheusLayer {
     }
 }
 
-impl<A: Accessor> Layer<A> for PrometheusLayer {
-    type LayeredAccessor = PrometheusAccessor<A>;
+impl<A: Accessor, M: PrometheusLayerMetrics> Layer<A> for PrometheusLayer {
+    type LayeredAccessor = PrometheusAccessor<A, M>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
         let meta = inner.info();
@@ -100,15 +101,23 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
 
         PrometheusAccessor {
             inner,
-            stats: Arc::new(PrometheusMetrics::new(self.registry.clone())),
+            stats: Arc::new(PrometheusLibMetrics::new(self.registry.clone())),
             scheme: scheme.to_string(),
         }
     }
 }
 
-/// [`PrometheusMetrics`] provide the performance and IO metrics.
+/// [`LayerPrometheusMetrics`] is called on every operation in [`PrometheusAccessor`].
+trait PrometheusLayerMetrics {
+    fn increment_errors_total(&self, op: Operation, kind: ErrorKind);
+    fn increment_request_total(&self, scheme: &str, op: Operation);
+    fn observe_bytes_total(&self, scheme: &str, op: Operation, bytes: usize);
+    fn observe_request_duration(&self, scheme: &str, op: Operation, duration: std::time::Duration);
+}
+
+/// [`PrometheusLibMetrics`] provide the performance and IO metrics with the `prometheus` crate.
 #[derive(Debug)]
-pub struct PrometheusMetrics {
+struct PrometheusLibMetrics {
     /// Total times of the specific operation be called.
     pub requests_total: prometheus::core::GenericCounterVec<prometheus::core::AtomicU64>,
     /// Latency of the specific operation be called.
@@ -117,7 +126,7 @@ pub struct PrometheusMetrics {
     pub bytes_total: prometheus::HistogramVec,
 }
 
-impl PrometheusMetrics {
+impl PrometheusLibMetrics {
     /// new with prometheus register.
     pub fn new(registry: prometheus::Registry) -> Self {
         let requests_total = prometheus::register_int_counter_vec_with_registry!(
@@ -126,7 +135,7 @@ impl PrometheusMetrics {
             &["scheme", "operation"],
             registry
         )
-        .unwrap();
+            .unwrap();
         let opts = prometheus::histogram_opts!(
             "requests_duration_seconds",
             "Histogram of the time spent on specific operation",
@@ -152,10 +161,11 @@ impl PrometheusMetrics {
             bytes_total,
         }
     }
+}
 
+impl PrometheusLayerMetrics for PrometheusLibMetrics {
     /// error handling is the cold path, so we will not init error counters
     /// in advance.
-    #[inline]
     fn increment_errors_total(&self, op: Operation, kind: ErrorKind) {
         debug!(
             "Prometheus statistics metrics error, operation {} error {}",
@@ -164,21 +174,18 @@ impl PrometheusMetrics {
         );
     }
 
-    #[inline]
     fn increment_request_total(&self, scheme: &str, op: Operation) {
         self.requests_total
             .with_label_values(&[scheme, op.into_static()])
             .inc();
     }
 
-    #[inline]
     fn observe_bytes_total(&self, scheme: &str, op: Operation, bytes: usize) {
         self.bytes_total
             .with_label_values(&[scheme, op.into_static()])
             .observe(bytes as f64);
     }
 
-    #[inline]
     fn observe_request_duration(&self, scheme: &str, op: Operation, duration: std::time::Duration) {
         self.requests_duration_seconds
             .with_label_values(&[scheme, op.into_static()])
@@ -187,13 +194,13 @@ impl PrometheusMetrics {
 }
 
 #[derive(Clone)]
-pub struct PrometheusAccessor<A: Accessor> {
+pub struct PrometheusAccessor<A: Accessor, M: PrometheusLayerMetrics> {
     inner: A,
-    stats: Arc<PrometheusMetrics>,
+    stats: Arc<M>,
     scheme: String,
 }
 
-impl<A: Accessor> Debug for PrometheusAccessor<A> {
+impl<A: Accessor, M> Debug for PrometheusAccessor<A, M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PrometheusAccessor")
             .field("inner", &self.inner)
@@ -202,7 +209,7 @@ impl<A: Accessor> Debug for PrometheusAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
+impl<A: Accessor, M: PrometheusLayerMetrics> LayeredAccessor for PrometheusAccessor<A, M> {
     type Inner = A;
     type Reader = PrometheusMetricWrapper<A::Reader>;
     type BlockingReader = PrometheusMetricWrapper<A::BlockingReader>;
@@ -473,12 +480,12 @@ pub struct PrometheusMetricWrapper<R> {
     inner: R,
 
     op: Operation,
-    stats: Arc<PrometheusMetrics>,
+    stats: Arc<PrometheusLibMetrics>,
     scheme: String,
 }
 
 impl<R> PrometheusMetricWrapper<R> {
-    fn new(inner: R, op: Operation, stats: Arc<PrometheusMetrics>, scheme: &String) -> Self {
+    fn new(inner: R, op: Operation, stats: Arc<PrometheusLibMetrics>, scheme: &String) -> Self {
         Self {
             inner,
             op,

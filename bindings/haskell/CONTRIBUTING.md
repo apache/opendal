@@ -39,17 +39,16 @@ To verify that everything is working properly, run `ghc -V` and `cabal -V`:
 
 ```shell
 > ghc -V
-The Glorious Glasgow Haskell Compilation System, version 9.6.1
+The Glorious Glasgow Haskell Compilation System, version 9.2.8
 > cabal -V
-cabal-install version 3.10.1.0
-compiled using version 3.10.1.0 of the Cabal library
+cabal-install version 3.6.2.0
+compiled using version 3.6.2.0 of the Cabal library
 ```
 
 ## Build
 
 ```shell
-cargo build
-LIBRARY_PATH=../../target/debug cabal build
+cabal build
 ```
 
 To clean up the build:
@@ -64,7 +63,7 @@ cabal clean
 We use [`tasty`](https://hackage.haskell.org/package/tasty) as the test framework. To run the tests:
 
 ```shell
-LD_LIBRARY_PATH=../../target/debug cabal test
+cabal test
 ```
 
 ```text
@@ -85,20 +84,3 @@ cabal haddock
 ```
 
 If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-$VERSION/doc/html/opendal/index.html`.
-
-## Misc
-
-If you don't want to specify `LIBRARY_PATH` and `LD_LIBRARY_PATH` every time, you can use [`direnv`](https://direnv.net/) to set the environment variable automatically. Add the following to your `.envrc`:
-
-```shell
-export LIBRARY_PATH=../../target/debug:$LIBRARY_PATH
-export LD_LIBRARY_PATH=../../target/debug:$LD_LIBRARY_PATH
-```
-
-If you are using [`Haskell`](https://marketplace.visualstudio.com/items?itemName=haskell.haskell) in VSCode, you may need to add the following configuration to your `settings.json`:
-
-```json
-"haskell.serverEnvironment": {
-    "LIBRARY_PATH": "../../target/debug:$LIBRARY_PATH"
-},
-```

@@ -35,24 +35,14 @@ main = do
 
 ## Build
 
-1. Build OpenDAL Haskell Interface
-
 ```bash
-cargo build --package opendal-hs
-```
-
-2. Build Haskell binding
-
-If you don't want to install `libopendal_hs`, you need to specify library path manually by `LIBRARY_PATH=${OPENDAL_ROOT}/target/debug`.
-
-```bash
-LIBRARY_PATH=... cabal build
+cabal build
 ```
 
 ## Test
 
 ```bash
-LD_LIBRARY_PATH=... cabal test
+cabal test
 ```
 
 ## Doc

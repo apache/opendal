@@ -31,6 +31,7 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
+use  prometheus_client::metrics::histogram;
 
 use crate::raw::Accessor;
 use crate::raw::*;
@@ -87,7 +88,7 @@ pub struct PrometheusClientLayer {
 
 impl PrometheusClientLayer {
     /// create PrometheusClientLayer while registering itself to this registry.
-    pub fn with_registry(registry: &mut Registry) -> Self {
+    pub fn new(registry: &mut Registry) -> Self {
         let metrics = PrometheusClientMetrics::register(registry);
         Self { metrics }
     }
@@ -126,21 +127,21 @@ impl PrometheusClientMetrics {
     pub fn register(registry: &mut Registry) -> Self {
         let requests_total = Family::default();
         let request_duration_seconds = Family::<VecLabels, _>::new_with_constructor(|| {
-            let buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16);
+            let buckets = histogram::exponential_buckets(0.01, 2.0, 16);
             Histogram::new(buckets)
         });
         let bytes_histogram = Family::<VecLabels, _>::new_with_constructor(|| {
-            let buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16);
+            let buckets = histogram::exponential_buckets(1.0, 2.0, 16);
             Histogram::new(buckets)
         });
 
-        registry.register("requests_total", "", requests_total.clone());
+        registry.register("opendal_requests_total", "", requests_total.clone());
         registry.register(
-            "request_duration_seconds",
+            "opendal_request_duration_seconds",
             "",
             request_duration_seconds.clone(),
         );
-        registry.register("bytes_histogram", "", bytes_histogram.clone());
+        registry.register("opendal_bytes_histogram", "", bytes_histogram.clone());
         Self {
             requests_total,
             request_duration_seconds,

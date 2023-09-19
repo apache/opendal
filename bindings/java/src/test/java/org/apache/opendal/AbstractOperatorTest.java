@@ -37,33 +37,33 @@ import org.junit.jupiter.api.TestInstance;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class AbstractOperatorTest {
 
-    protected Operator op;
+    protected Optional<Operator> opOptional;
 
-    protected BlockingOperator blockingOp;
+    protected Optional<BlockingOperator> blockingOpOptional;
 
     protected abstract String schema();
 
     @BeforeAll
     public void init() {
         String schema = this.schema();
-        Optional<Operator> optional = Utils.init(schema);
-        assertTrue(optional.isPresent());
-        op = optional.get();
+        opOptional = Utils.init(schema);
 
-        Optional<BlockingOperator> optionalOfBlocking = Utils.initBlockingOp(schema);
-        assertTrue(optionalOfBlocking.isPresent());
-        blockingOp = optionalOfBlocking.get();
+        blockingOpOptional = Utils.initBlockingOp(schema);
     }
 
     @AfterAll
     public void clean() {
-        if (op != null) {
-            op.close();
-        }
+        opOptional.ifPresent(op -> op.close());
+        blockingOpOptional.ifPresent(op -> op.close());
     }
 
     @Test
     public void testBlockingWrite() {
+        if (!blockingOpOptional.isPresent()) {
+            return;
+        }
+        BlockingOperator blockingOp = blockingOpOptional.get();
+
         String path = UUID.randomUUID().toString();
         byte[] content = Utils.generateBytes();
         blockingOp.write(path, content);
@@ -79,6 +79,11 @@ public abstract class AbstractOperatorTest {
 
     @Test
     public void testBlockingRead() {
+        if (!blockingOpOptional.isPresent()) {
+            return;
+        }
+        BlockingOperator blockingOp = blockingOpOptional.get();
+
         Metadata metadata = blockingOp.stat("");
         assertTrue(!metadata.isFile());
 
@@ -98,6 +103,11 @@ public abstract class AbstractOperatorTest {
 
     @Test
     public final void testWrite() throws Exception {
+        if (!opOptional.isPresent()) {
+            return;
+        }
+        Operator op = opOptional.get();
+
         String path = UUID.randomUUID().toString();
         byte[] content = Utils.generateBytes();
         op.write(path, content).join();
@@ -113,6 +123,11 @@ public abstract class AbstractOperatorTest {
 
     @Test
     public final void testRead() throws Exception {
+        if (!opOptional.isPresent()) {
+            return;
+        }
+        Operator op = opOptional.get();
+
         Metadata metadata = op.stat("").get();
         assertTrue(!metadata.isFile());
 
@@ -132,6 +147,11 @@ public abstract class AbstractOperatorTest {
 
     @Test
     public void testAppend() {
+        if (!opOptional.isPresent()) {
+            return;
+        }
+        Operator op = opOptional.get();
+
         String path = UUID.randomUUID().toString();
         String[] trunks = new String[] {Utils.generateString(), Utils.generateString(), Utils.generateString()};
 

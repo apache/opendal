@@ -35,6 +35,9 @@ public class S3Test extends AbstractOperatorTest {
     @Test
     @Override
     public void testAppend() {
+        if (!opOptional.isPresent()) {
+            return;
+        }
         assertThatThrownBy(() -> super.testAppend())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported));
     }

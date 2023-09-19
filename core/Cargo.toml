@@ -100,6 +100,9 @@ layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
 
+# Enable prometheus-client instead of prometheus-rs.
+use-prometheus-client = ["dep:prometheus-client"]
+
 services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [
   "dep:sha2",
@@ -243,6 +246,7 @@ percent-encoding = "2"
 persy = { version = "1.4.4", optional = true }
 pin-project = "1"
 prometheus = { version = "0.13", features = ["process"], optional = true }
+prometheus-client = { version = "0.21.2", optional = true }
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.29", features = ["serialize", "overlapped-lists"] }
 rand = { version = "0.8", optional = true }

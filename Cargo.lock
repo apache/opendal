@@ -1381,6 +1381,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dav-server-opendalfs"
+version = "0.39.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "chrono",
+ "dav-server",
+ "dirs 5.0.1",
+ "futures",
+ "futures-util",
+ "opendal",
+ "quick-xml",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "deadpool"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

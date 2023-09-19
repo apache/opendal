@@ -38,6 +38,7 @@ members = [
   "bin/oay",
 
   "integrations/object_store",
+  "integrations/dav-server",
 ]
 resolver = "2"
 

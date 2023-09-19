@@ -62,7 +62,7 @@ jobs:
       - name: Build & Test
         working-directory: "bindings/haskell"
         run: |
-          LD_LIBRARY_PATH=../../target/debug cabal test
+          cabal test
       - name: Save haskell cache
         uses: actions/cache/save@v3
         with:

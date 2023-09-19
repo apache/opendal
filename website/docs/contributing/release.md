@@ -66,7 +66,7 @@ OpenDAL will release all packages in the same version.
 - For the nodejs binding, bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`.
 - For the java binding, bump version in `bindings/java/pom.xml`.
 - For the cpp binding, bump version in `bindings/cpp/CMakeLists.txt`.
-- For the haskell binding, bump version and update `source-repository this` field in `bindings/haskell/opendal.cabal`.
+- For the haskell binding, bump version and update the `tag` field of `source-repository this` in `bindings/haskell/opendal.cabal`.
 - Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.
 - If there are breaking changes in `core`, please also update `core/src/docs/upgrade.md`.
 - After all those changes, submit a PR with name `Bump to version x.y.z`.

@@ -183,18 +183,10 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
         .map(|num| format!("test_list_rich_dir/file-{num}"))
         .collect();
 
-    expected
-        .iter()
-        .map(|v| async {
-            op.write(v, "test_list_rich_dir")
-                .await
-                .expect("create must succeed");
-        })
-        // Collect into a FuturesUnordered.
-        .collect::<FuturesUnordered<_>>()
-        // Collect to consume all features.
-        .collect::<Vec<_>>()
-        .await;
+    for path in expected.iter() {
+        op.write(&format!("test_list_rich_dir/{path}"), "test_list_rich_dir")
+            .await?;
+    }
 
     let mut objects = op.with_limit(10).lister("test_list_rich_dir/").await?;
     let mut actual = vec![];

@@ -27,7 +27,10 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::TryFutureExt;
-use log::debug;
+use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
+use prometheus_client::metrics::histogram::Histogram;
+use prometheus_client::registry::Registry;
 
 use crate::raw::Accessor;
 use crate::raw::*;
@@ -40,11 +43,10 @@ use crate::*;
 /// ```
 /// use log::debug;
 /// use log::info;
-/// use opendal::layers::PrometheusLayer;
+/// use opendal::layers::PrometheusClientLayer;
 /// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Result;
-/// use prometheus::Encoder;
 ///
 /// /// Visit [`opendal::services`] for more service related config.
 /// /// Visit [`opendal::Operator`] for more operator level APIs.
@@ -52,11 +54,11 @@ use crate::*;
 /// async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.
 ///     let builder = services::Memory::default();
-///     let registry = prometheus::default_registry();
+///     let mut registry = prometheus_client::registry::Registry::default();
 ///
 ///     let op = Operator::new(builder)
 ///         .expect("must init")
-///         .layer(PrometheusLayer::with_registry(registry.clone()))
+///         .layer(PrometheusClientLayer::with_registry(&mut registry))
 ///         .finish();
 ///     debug!("operator: {op:?}");
 ///
@@ -71,22 +73,23 @@ use crate::*;
 ///     info!("meta: {:?}", meta);
 ///
 ///     // Export prometheus metrics.
-///     let mut buffer = Vec::<u8>::new();
-///     let encoder = prometheus::TextEncoder::new();
-///     encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+///     let mut buf = String::new();
+///     prometheus_client::encoding::text::encode(&mut buf, &registry).unwrap();
 ///     println!("## Prometheus Metrics");
-///     println!("{}", String::from_utf8(buffer.clone()).unwrap());
+///     println!("{}", buf);
 ///     Ok(())
 /// }
 /// ```
-#[derive(Default, Debug, Clone)]
-pub struct PrometheusLayer {
-    registry: prometheus_client::registry::Registry,
+#[derive(Debug)]
+pub struct PrometheusClientLayer {
+    metrics: PrometheusClientMetrics,
 }
 
 impl PrometheusClientLayer {
-    pub fn with_registry(registry: prometheus_client::registry::Registry) -> Self {
-        Self { registry }
+    /// create PrometheusClientLayer while registering itself to this registry.
+    pub fn with_registry(registry: &mut Registry) -> Self {
+        let metrics = PrometheusClientMetrics::register(registry);
+        Self { metrics }
     }
 }
 
@@ -97,10 +100,7 @@ impl<A: Accessor> Layer<A> for PrometheusClientLayer {
         let meta = inner.info();
         let scheme = meta.scheme();
 
-            let stats = PrometheusLibMetrics::new(self.registry.clone());
-
-            let stats = Arc::new(PrometheusClientMetrics::new(self.registry.clone()));
-
+        let stats = Arc::new(self.metrics.clone());
         PrometheusAccessor {
             inner,
             stats,
@@ -109,41 +109,30 @@ impl<A: Accessor> Layer<A> for PrometheusClientLayer {
     }
 }
 
+type VecLabels = Vec<(&'static str, String)>;
+
 /// [`PrometheusClientMetrics`] provide the performance and IO metrics with the `prometheus-client` crate.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct PrometheusClientMetrics {
     /// Total counter of the specific operation be called.
-    requests_total: prometheus_client::metrics::family::Family<
-        Vec<(&'static str, &'static str)>,
-        prometheus_client::metrics::counter::Counter,
-    >,
+    requests_total: Family<VecLabels, Counter>,
     /// Latency of the specific operation be called.
-    request_duration_seconds: prometheus_client::metrics::family::Family<
-        Vec<(&'static str, &'static str)>,
-        prometheus_client::metrics::histogram::Histogram,
-    >,
+    request_duration_seconds: Family<VecLabels, Histogram>,
     /// The histogram of bytes
-    bytes_histogram: prometheus_client::metrics::family::Family<
-        Vec<(&'static str, &'static str)>,
-        prometheus_client::metrics::histogram::Histogram,
-    >,
+    bytes_histogram: Family<VecLabels, Histogram>,
 }
 
 impl PrometheusClientMetrics {
-    pub fn new(mut registry: prometheus_client::registry::Registry) -> Self {
-        let requests_total = prometheus_client::metrics::family::Family::default();
-        let request_duration_seconds =
-            prometheus_client::metrics::family::Family::new_with_constructor(|| {
-                let buckets =
-                    prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16);
-                prometheus_client::metrics::histogram::Histogram::new(buckets)
-            });
-        let bytes_histogram =
-            prometheus_client::metrics::family::Family::new_with_constructor(|| {
-                let buckets =
-                    prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16);
-                prometheus_client::metrics::histogram::Histogram::new(buckets)
-            });
+    pub fn register(registry: &mut Registry) -> Self {
+        let requests_total = Family::default();
+        let request_duration_seconds = Family::<VecLabels, _>::new_with_constructor(|| {
+            let buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16);
+            Histogram::new(buckets)
+        });
+        let bytes_histogram  = Family::<VecLabels, _>::new_with_constructor(|| {
+            let buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16);
+            Histogram::new(buckets)
+        });
 
         registry.register("requests_total", "", requests_total.clone());
         registry.register(
@@ -160,24 +149,24 @@ impl PrometheusClientMetrics {
     }
 
     fn increment_errors_total(&self, op: Operation, kind: ErrorKind) {
-        let labels = vec![("operation", op.as_str()), ("kind", kind.as_str())];
+        let labels = vec![("operation", op.to_string()), ("kind", kind.to_string())];
         self.requests_total.get_or_create(&labels).inc();
     }
 
     fn increment_request_total(&self, scheme: &str, op: Operation) {
-        let labels = vec![("scheme", scheme), ("operation", op.as_str())];
+        let labels = vec![("scheme", scheme.to_string()), ("operation", op.to_string())];
         self.requests_total.get_or_create(&labels).inc();
     }
 
     fn observe_bytes_total(&self, scheme: &str, op: Operation, bytes: usize) {
-        let labels = vec![("scheme", scheme), ("operation", op.as_str())];
+        let labels = vec![("scheme", scheme.to_string()), ("operation", op.to_string())];
         self.bytes_histogram
             .get_or_create(&labels)
             .observe(bytes as f64);
     }
 
     fn observe_request_duration(&self, scheme: &str, op: Operation, duration: std::time::Duration) {
-        let labels = vec![("scheme", scheme), ("operation", op.as_str())];
+        let labels = vec![("scheme", scheme.to_string()), ("operation", op.to_string())];
         self.request_duration_seconds
             .get_or_create(&labels)
             .observe(duration.as_secs_f64());
@@ -185,9 +174,9 @@ impl PrometheusClientMetrics {
 }
 
 #[derive(Clone)]
-struct PrometheusAccessor<A: Accessor> {
+pub struct PrometheusAccessor<A: Accessor> {
     inner: A,
-    stats: PrometheusClientMetrics,
+    stats: Arc<PrometheusClientMetrics>,
     scheme: String,
 }
 
@@ -340,7 +329,7 @@ impl<A: Accessor> LayeredAccessor for PrometheusAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.stats
             .increment_request_total(&self.scheme, Operation::List);
-        let start_time = Intant::now();
+        let start_time = Instant::now();
 
         let list_res = self.inner.list(path, args).await;
 
@@ -527,12 +516,17 @@ pub struct PrometheusMetricWrapper<R> {
     inner: R,
 
     op: Operation,
-    stats: Arc<Box<dyn PrometheusLayerMetrics>>,
+    stats: Arc<PrometheusClientMetrics>,
     scheme: String,
 }
 
 impl<R> PrometheusMetricWrapper<R> {
-    fn new(inner: R, op: Operation, stats: Arc<Box<dyn PrometheusLayerMetrics>>, scheme: &String) -> Self {
+    fn new(
+        inner: R,
+        op: Operation,
+        stats: Arc<PrometheusClientMetrics>,
+        scheme: &String,
+    ) -> Self {
         Self {
             inner,
             op,
@@ -606,7 +600,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
     fn next(&mut self) -> Option<Result<Bytes>> {
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
-                self.stats.observe_bytes_total(&self.scheme, self.op, n);
+                self.stats.observe_bytes_total(&self.scheme, self.op, bytes.len());
                 Ok(bytes)
             }
             Err(e) => {

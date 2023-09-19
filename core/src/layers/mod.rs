@@ -56,6 +56,11 @@ mod prometheus;
 #[cfg(feature = "layers-prometheus")]
 pub use self::prometheus::PrometheusLayer;
 
+#[cfg(feature = "layers-prometheus-client")]
+mod prometheus_client;
+#[cfg(feature = "layers-prometheus-client")]
+pub use self::prometheus_client::PrometheusClientLayer;
+
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
@@ -94,5 +99,6 @@ pub use self::await_tree::AwaitTreeLayer;
 
 #[cfg(feature = "layers-async-backtrace")]
 mod async_backtrace;
+
 #[cfg(feature = "layers-async-backtrace")]
 pub use self::async_backtrace::AsyncBacktraceLayer;

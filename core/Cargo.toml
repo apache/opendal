@@ -83,8 +83,10 @@ layers-all = [
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
 layers-metrics = ["dep:metrics"]
-# Enable layers prometheus support
+# Enable layers prometheus support, with tikv/prometheus-rs crate
 layers-prometheus = ["dep:prometheus"]
+# Enable layers prometheus support, with prometheus-client crate
+layers-prometheus-client = ["dep:prometheus-client"]
 # Enable layers madsim support
 layers-madsim = ["dep:madsim"]
 # Enable layers minitrace support.
@@ -99,9 +101,6 @@ layers-throttle = ["dep:governor"]
 layers-await-tree = ["dep:await-tree"]
 # Enable layers async-backtrace support.
 layers-async-backtrace = ["dep:async-backtrace"]
-
-# Enable prometheus-client instead of prometheus-rs.
-use-prometheus-client = ["dep:prometheus-client"]
 
 services-atomicserver = ["dep:atomic_lib"]
 services-azblob = [

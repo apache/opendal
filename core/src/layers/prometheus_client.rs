@@ -129,7 +129,7 @@ impl PrometheusClientMetrics {
             let buckets = prometheus_client::metrics::histogram::exponential_buckets(0.01, 2.0, 16);
             Histogram::new(buckets)
         });
-        let bytes_histogram  = Family::<VecLabels, _>::new_with_constructor(|| {
+        let bytes_histogram = Family::<VecLabels, _>::new_with_constructor(|| {
             let buckets = prometheus_client::metrics::histogram::exponential_buckets(1.0, 2.0, 16);
             Histogram::new(buckets)
         });
@@ -154,19 +154,28 @@ impl PrometheusClientMetrics {
     }
 
     fn increment_request_total(&self, scheme: &str, op: Operation) {
-        let labels = vec![("scheme", scheme.to_string()), ("operation", op.to_string())];
+        let labels = vec![
+            ("scheme", scheme.to_string()),
+            ("operation", op.to_string()),
+        ];
         self.requests_total.get_or_create(&labels).inc();
     }
 
     fn observe_bytes_total(&self, scheme: &str, op: Operation, bytes: usize) {
-        let labels = vec![("scheme", scheme.to_string()), ("operation", op.to_string())];
+        let labels = vec![
+            ("scheme", scheme.to_string()),
+            ("operation", op.to_string()),
+        ];
         self.bytes_histogram
             .get_or_create(&labels)
             .observe(bytes as f64);
     }
 
     fn observe_request_duration(&self, scheme: &str, op: Operation, duration: std::time::Duration) {
-        let labels = vec![("scheme", scheme.to_string()), ("operation", op.to_string())];
+        let labels = vec![
+            ("scheme", scheme.to_string()),
+            ("operation", op.to_string()),
+        ];
         self.request_duration_seconds
             .get_or_create(&labels)
             .observe(duration.as_secs_f64());
@@ -521,12 +530,7 @@ pub struct PrometheusMetricWrapper<R> {
 }
 
 impl<R> PrometheusMetricWrapper<R> {
-    fn new(
-        inner: R,
-        op: Operation,
-        stats: Arc<PrometheusClientMetrics>,
-        scheme: &String,
-    ) -> Self {
+    fn new(inner: R, op: Operation, stats: Arc<PrometheusClientMetrics>, scheme: &String) -> Self {
         Self {
             inner,
             op,
@@ -600,7 +604,8 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
     fn next(&mut self) -> Option<Result<Bytes>> {
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
-                self.stats.observe_bytes_total(&self.scheme, self.op, bytes.len());
+                self.stats
+                    .observe_bytes_total(&self.scheme, self.op, bytes.len());
                 Ok(bytes)
             }
             Err(e) => {

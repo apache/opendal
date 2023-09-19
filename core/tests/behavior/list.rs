@@ -184,8 +184,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
         .collect();
 
     for path in expected.iter() {
-        op.write(&format!("test_list_rich_dir/{path}"), "test_list_rich_dir")
-            .await?;
+        op.write(path, "test_list_rich_dir").await?;
     }
 
     let mut objects = op.with_limit(10).lister("test_list_rich_dir/").await?;

@@ -28,7 +28,7 @@ fi
 # tar source code
 release_version=${OPENDAL_VERSION}
 # rc versions
-rc_version=${OPENDAL_VERSION_RC:rc1}
+rc_version=${OPENDAL_VERSION_RC:rc.1}
 # Corresponding git repository branch
 git_branch=release-${release_version}-${rc_version}
 

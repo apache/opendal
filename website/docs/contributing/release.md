@@ -77,7 +77,7 @@ Take [Bump to version 0.36.0](https://github.com/apache/incubator-opendal/pull/2
 
 After bump version PR gets merged, we can create a GitHub release:
 
-- Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0-rc1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
+- Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.36.0-rc.1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
 - Push tags to GitHub: `git push --tags`.
 - Create Release on the newly created tag
   - If there are breaking changes, please add the content from `upgrade.md` before.
@@ -95,8 +95,8 @@ we will abandon that version and prepare for the next one.
 Our release page will only display ASF releases instead of GitHub Releases.
 
 - `opendal_version`: the version for opendal, like `0.36.0`.
-- `release_version`: the version for voting, like `0.36.0-rc1`.
-- `rc_version`: the minor version for voting, like `rc1`.
+- `release_version`: the version for voting, like `0.36.0-rc.1`.
+- `rc_version`: the minor version for voting, like `rc.1`.
 
 ### Create an ASF Release
 
@@ -137,7 +137,7 @@ svn co https://dist.apache.org/repos/dist/dev/incubator/opendal opendal-dist-dev
 
 Then, upload the artifacts:
 
-> The `${release_version}` here should be like `0.36.0-rc1`
+> The `${release_version}` here should be like `0.36.0-rc.1`
 
 ```shell
 cd opendal-dist-dev
@@ -182,7 +182,7 @@ please cancel the release for the current `release_version`, _increase th RC cou
 As an incubating project, OpenDAL requires votes from both the OpenDAL Community and Incubator Community.
 
 - `opendal_version`: the version for opendal, like `0.36.0`.
-- `release_version`: the version for voting, like `0.36.0-rc1`.
+- `release_version`: the version for voting, like `0.36.0-rc.1`.
 - `maven_artifact_number`: the number for Maven staging artifacts, like `1010`.
 
 Specifically, the `maven_artifact_number` can be found by searching "opendal" on https://repository.apache.org/#stagingRepositories.
@@ -214,11 +214,12 @@ Keys to verify the release candidate:
 
 https://downloads.apache.org/incubator/opendal/KEYS
 
-Git branch for the release:
+Git tag for the release:
 
-https://github.com/apache/incubator-opendal/tree/release-${release_version}
+https://github.com/apache/incubator-opendal/releases/tag/${release_version}
 
 Maven staging repo:
+
 https://repository.apache.org/content/repositories/orgapacheopendal-${maven_artifact_number}/
 
 Please download, verify, and test.
@@ -323,11 +324,12 @@ This release has been signed with a PGP available here:
 
 https://downloads.apache.org/incubator/opendal/KEYS
 
-Git branch for the release:
+Git tag for the release:
 
-https://github.com/apache/incubator-opendal/tree/release-${release_version}
+https://github.com/apache/incubator-opendal/releases/tag/${release_version}
 
 Maven staging repo:
+
 https://repository.apache.org/content/repositories/orgapacheopendal-${maven_artifact_number}/
 
 Please download, verify, and test.
@@ -402,7 +404,7 @@ Example: <https://lists.apache.org/thread/h3x9pq1djpg76q3ojpqmdr3d0o03fld1>
 ### Push the release git tag
 
 - `opendal_version`: the version for opendal, like `0.36.0`.
-- `release_version`: the version for the passed candidate, like `0.36.0-rc1`.
+- `release_version`: the version for the passed candidate, like `0.36.0-rc.1`.
 
 ```shell
 # Checkout the tags that passed VOTE
@@ -416,7 +418,7 @@ git push origin ${opendal_version}
 ### Publish artifacts to SVN RELEASE branch
 
 - `opendal_version`: the version for opendal, like `0.36.0`.
-- `release_version`: the version for voting, like `0.36.0-rc1`.
+- `release_version`: the version for voting, like `0.36.0-rc.1`.
 
 ```shell
 svn mv https://dist.apache.org/repos/dist/dev/incubator/opendal/${release_version} https://dist.apache.org/repos/dist/release/incubator/opendal/${opendal_version} -m "Release ${opendal_version}"

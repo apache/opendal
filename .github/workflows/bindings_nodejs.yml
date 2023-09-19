@@ -237,7 +237,7 @@ jobs:
         run: cp LICENSE NOTICE ./bindings/nodejs
 
       - name: Publish
-        if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')"
+        if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           npm publish --access public --provenance

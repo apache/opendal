@@ -565,16 +565,16 @@ impl<A: Accessor, M: PrometheusLayerMetrics> LayeredAccessor for PrometheusAcces
     }
 }
 
-pub struct PrometheusMetricWrapper<R> {
+pub struct PrometheusMetricWrapper<R, M: PrometheusLayerMetrics> {
     inner: R,
 
     op: Operation,
-    stats: Arc<PrometheusLibMetrics>,
+    stats: Arc<M>,
     scheme: String,
 }
 
-impl<R> PrometheusMetricWrapper<R> {
-    fn new(inner: R, op: Operation, stats: Arc<PrometheusLibMetrics>, scheme: &String) -> Self {
+impl<R, M> PrometheusMetricWrapper<R, M> {
+    fn new(inner: R, op: Operation, stats: Arc<M>, scheme: &String) -> Self {
         Self {
             inner,
             op,
@@ -584,7 +584,7 @@ impl<R> PrometheusMetricWrapper<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
+impl<R: oio::Read, M> oio::Read for PrometheusMetricWrapper<R, M> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
@@ -623,7 +623,7 @@ impl<R: oio::Read> oio::Read for PrometheusMetricWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
+impl<R: oio::BlockingRead, M> oio::BlockingRead for PrometheusMetricWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner
             .read(buf)
@@ -659,7 +659,7 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 }
 
 #[async_trait]
-impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
+impl<R: oio::Write, M> oio::Write for PrometheusMetricWrapper<R, M> {
     fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner
             .poll_write(cx, bs)
@@ -688,7 +688,7 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
     }
 }
 
-impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
+impl<R: oio::BlockingWrite, M> oio::BlockingWrite for PrometheusMetricWrapper<R, M> {
     fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner
             .write(bs)

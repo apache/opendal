@@ -46,15 +46,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: 'zulu'
+          java-version: '21'
           cache: 'maven'
-      - name: Build and test
+      - name: Build and check
         working-directory: bindings/java
-        run: ./mvnw spotless:check
+        run: |
+          ./mvnw clean compile spotless:check
 
   test:
     runs-on: ${{ matrix.os }}

@@ -135,7 +135,7 @@ jobs:
           AWS_WEB_IDENTITY_TOKEN_FILE: tests/data/web_identity_token
           AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
           OPENDAL_S3_TEST: on
-          OPENDAL_S3_ROOT: assume
+          OPENDAL_S3_ROOT: CI/
           OPENDAL_S3_BUCKET: opendal-testing
           OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
           OPENDAL_S3_REGION: ap-northeast-1

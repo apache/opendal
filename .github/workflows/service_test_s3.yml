@@ -126,13 +126,13 @@ jobs:
           script: return await core.getIDToken("sts.amazonaws.com")
           result-encoding: string
       - name: Write ID token to file
-        run: echo "${{ steps.id-token.outputs.result }}" > web_identity_token
+        run: echo "${{ steps.id-token.outputs.result }}" > core/tests/data/web_identity_token
       - name: Test
         shell: bash
         working-directory: core
         run: cargo nextest run s3
         env:
-          AWS_WEB_IDENTITY_TOKEN_FILE: web_identity_token
+          AWS_WEB_IDENTITY_TOKEN_FILE: tests/data/web_identity_token
           AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
           OPENDAL_S3_TEST: on
           OPENDAL_S3_ROOT: assume

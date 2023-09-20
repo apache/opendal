@@ -108,6 +108,38 @@ jobs:
           OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: zZ5FnqcIqUjVwvWmyog4zw==
           OPENDAL_S3_REGION: ap-northeast-1
 
+  aws_s3_with_assume_role:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+      - uses: actions/github-script@v6
+        id: id-token
+        with:
+          script: return await core.getIDToken("sts.amazonaws.com")
+          result-encoding: string
+      - name: Write ID token to file
+        run: echo "${{ steps.id-token.outputs.result }}" > web_identity_token
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run s3
+        env:
+          AWS_WEB_IDENTITY_TOKEN_FILE: web_identity_token
+          AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
+          OPENDAL_S3_TEST: on
+          OPENDAL_S3_ROOT: assume
+          OPENDAL_S3_BUCKET: opendal-testing
+          OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
+          OPENDAL_S3_REGION: ap-northeast-1
+
   minio_s3:
     runs-on: ubuntu-latest
     steps:

@@ -104,39 +104,32 @@ impl ObsCore {
     pub async fn obs_get_object(
         &self,
         path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.obs_get_object_request(path, range, if_match, if_none_match)?;
+        let mut req = self.obs_get_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub fn obs_get_object_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn obs_get_object_request(&self, path: &str, args: &OpRead) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
+        let range = args.range();
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header())
         }
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
@@ -179,22 +172,16 @@ impl ObsCore {
     pub async fn obs_head_object(
         &self,
         path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.obs_head_object_request(path, if_match, if_none_match)?;
+        let mut req = self.obs_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
         self.send(req).await
     }
 
-    pub fn obs_head_object_request(
-        &self,
-        path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn obs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -204,11 +191,11 @@ impl ObsCore {
 
         let mut req = Request::head(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 

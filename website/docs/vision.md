@@ -22,7 +22,7 @@ We
 
 We don't
 - Add support for [Google Cloud Storage(GCS)](https://cloud.google.com/storage) via [XML API](https://cloud.google.com/storage/docs/xml-api/overview): [GCS](https://cloud.google.com/storage) has native [JSON API](https://cloud.google.com/storage/docs/json_api) which more powerful
-- Add support for `MySQL/PostgreSQL`: Relational DBMS provides data types such as BLOB, but they are often not used as a storage service.
+- Add support for structural data in `MySQL/PostgreSQL`: We can treat a database as a simple key value store, but we can't support unified access of structural data.
 
 ## 2. Free from implementations
 

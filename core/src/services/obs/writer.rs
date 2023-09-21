@@ -172,7 +172,10 @@ impl oio::MultipartUploadWrite for ObsWriter {
 #[async_trait]
 impl oio::AppendObjectWrite for ObsWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.obs_head_object(&self.path, None, None).await?;
+        let resp = self
+            .core
+            .obs_head_object(&self.path, &OpStat::default())
+            .await?;
 
         let status = resp.status();
         match status {

@@ -16,7 +16,7 @@ cabal-version:      3.0
 -- specific language governing permissions and limitations
 -- under the License.
 
-name:               opendal-hs
+name:               opendal
 version:            0.1.0.0
 license:            Apache-2.0
 synopsis:           OpenDAL Haskell Binding
@@ -36,17 +36,24 @@ custom-setup
 source-repository head
     type:     git
     location: https://github.com/apache/incubator-opendal
+    subdir:   bindings/haskell
+
+source-repository this
+    type:     git
+    location: https://github.com/apache/incubator-opendal
+    tag:      v0.40.0
+    subdir:   bindings/haskell
 
 common base
     ghc-options:      -Wall
     build-depends:
-        base >=4.10 && <4.17,
-        unordered-containers >=0.2,
-        bytestring >=0.11,
-        mtl >=2.2,
-        time >=1.10,
-        co-log >=0.5,
-        text >=2
+        base >= 4.10 && < 4.17,
+        bytestring >= 0.11.4 && < 0.12,
+        mtl >= 2.2.2 && < 2.3,
+        text (>= 2.0.2 && < 2.1) || (>= 1.2.5 && < 1.3),
+        time >= 1.11.1 && < 1.12,
+        unordered-containers >= 0.2.19 && < 0.3,
+        co-log >= 0.5.0 && < 0.6,
     default-language: Haskell2010
     default-extensions:
         OverloadedStrings,
@@ -64,13 +71,13 @@ library
     hs-source-dirs:   haskell-src
     extra-bundled-libraries: opendal_hs
 
-test-suite opendal-hs-test
+test-suite opendal-test
     import:           base
     type:             exitcode-stdio-1.0
     main-is:          Spec.hs
     other-modules:    BasicTest
     hs-source-dirs:   test
     build-depends:    
-        opendal-hs,
-        tasty,
-        tasty-hunit
+        opendal,
+        tasty >= 1.5 && < 1.6,
+        tasty-hunit >= 0.10.1 && < 0.11,

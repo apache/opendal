@@ -48,7 +48,7 @@ impl oio::OneShotWrite for WebhdfsWriter {
             .webhdfs_create_object_request(
                 &self.path,
                 Some(bs.len()),
-                self.op.content_type(),
+                &self.op,
                 AsyncBody::Bytes(bs),
             )
             .await?;

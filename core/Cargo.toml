@@ -83,8 +83,10 @@ layers-all = [
 layers-chaos = ["dep:rand"]
 # Enable layers metrics support
 layers-metrics = ["dep:metrics"]
-# Enable layers prometheus support
+# Enable layers prometheus support, with tikv/prometheus-rs crate
 layers-prometheus = ["dep:prometheus"]
+# Enable layers prometheus support, with prometheus-client crate
+layers-prometheus-client = ["dep:prometheus-client"]
 # Enable layers madsim support
 layers-madsim = ["dep:madsim"]
 # Enable layers minitrace support.
@@ -243,6 +245,7 @@ percent-encoding = "2"
 persy = { version = "1.4.4", optional = true }
 pin-project = "1"
 prometheus = { version = "0.13", features = ["process"], optional = true }
+prometheus-client = { version = "0.21.2", optional = true }
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.29", features = ["serialize", "overlapped-lists"] }
 rand = { version = "0.8", optional = true }

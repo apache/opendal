@@ -19,8 +19,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use chrono::Utc;
+use http::Request;
 use http::StatusCode;
+use serde_json::json;
 
 use super::core::GdriveCore;
 use super::error::parse_error;
@@ -66,6 +69,8 @@ impl Accessor for GdriveBackend {
                 rename: true,
 
                 delete: true,
+
+                copy: true,
 
                 ..Default::default()
             });
@@ -253,10 +258,59 @@ impl Accessor for GdriveBackend {
             GdrivePager::new(path.into(), self.core.clone()),
         ))
     }
+
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let from_file_id = self.core.get_file_id_by_path(from).await?;
+
+        // split `to` into parent and name according to the last `/`
+        let mut to_path_items: Vec<&str> = to.split('/').filter(|&x| !x.is_empty()).collect();
+
+        let to_name = if let Some(name) = to_path_items.pop() {
+            name
+        } else {
+            return Err(Error::new(ErrorKind::InvalidInput, "invalid 'to' path"));
+        };
+
+        let to_parent = to_path_items.join("/") + "/";
+
+        if to_parent != "/" {
+            self.create_dir(&to_parent, OpCreateDir::new()).await?;
+        }
+
+        let to_parent_id = self.core.get_file_id_by_path(to_parent.as_str()).await?;
+
+        // copy will overwrite `to`, delete it if exist
+        if self.core.get_file_id_by_path(to).await.is_ok() {
+            self.delete(to, OpDelete::new()).await?;
+        }
+
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{}/copy",
+            from_file_id
+        );
+
+        let request_body = &json!({
+            "name": to_name,
+            "parents": [to_parent_id],
+        });
+        let body = AsyncBody::Bytes(Bytes::from(request_body.to_string()));
+
+        let mut req = Request::post(&url)
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.client.send(req).await?;
+
+        match resp.status() {
+            StatusCode::OK => Ok(RpCopy::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
 }
 
 impl GdriveBackend {
-    pub(crate) fn parse_metadata(&self, body: bytes::Bytes) -> Result<Metadata> {
+    pub(crate) fn parse_metadata(&self, body: Bytes) -> Result<Metadata> {
         let metadata =
             serde_json::from_slice::<GdriveFile>(&body).map_err(new_json_deserialize_error)?;
 

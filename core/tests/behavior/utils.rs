@@ -85,7 +85,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
     let mut op = op
         .layer(LoggingLayer::default().with_backtrace_output(true))
         .layer(TimeoutLayer::new())
-        .layer(RetryLayer::new())
+        .layer(RetryLayer::new().with_max_times(4))
         .finish();
 
     if !op.info().full_capability().blocking {

@@ -36,6 +36,8 @@ use opendal::OperatorInfo;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
+use crate::error::Error;
+
 mod blocking_operator;
 mod error;
 mod metadata;

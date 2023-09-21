@@ -306,16 +306,8 @@ impl Accessor for ObsBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .obs_head_object_request(path, v.if_match(), v.if_none_match())?
-            }
-            PresignOperation::Read(v) => self.core.obs_get_object_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
+            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.obs_get_object_request(path, v)?,
             PresignOperation::Write(v) => {
                 self.core
                     .obs_put_object_request(path, None, v, AsyncBody::Empty)?
@@ -357,10 +349,7 @@ impl Accessor for ObsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .obs_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.obs_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -405,10 +394,7 @@ impl Accessor for ObsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .obs_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.obs_head_object(path, &args).await?;
 
         let status = resp.status();
 

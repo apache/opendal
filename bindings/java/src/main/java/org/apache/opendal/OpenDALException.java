@@ -73,5 +73,6 @@ public class OpenDALException extends RuntimeException {
         ConditionNotMatch,
         ContentTruncated,
         ContentIncomplete,
+        InvalidInput,
     }
 }

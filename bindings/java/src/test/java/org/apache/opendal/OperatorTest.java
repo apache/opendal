@@ -32,27 +32,27 @@ import org.apache.opendal.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class AbstractOperatorTest {
+public class OperatorTest {
 
-    protected Optional<Operator> opOptional;
+    private static final String SCHEMA_KEY = "OPENDAL_TEST_SCHEMA";
 
-    protected Optional<BlockingOperator> blockingOpOptional;
+    protected static Optional<Operator> opOptional;
 
-    protected abstract String schema();
+    protected static Optional<BlockingOperator> blockingOpOptional;
 
     @BeforeAll
-    public void init() {
-        String schema = this.schema();
+    public static void init() {
+        String schema = System.getProperty(SCHEMA_KEY);
+        assertTrue(schema != null && schema.length() > 0, () -> SCHEMA_KEY + " is not set");
+
         opOptional = Utils.init(schema);
 
         blockingOpOptional = Utils.initBlockingOp(schema);
     }
 
     @AfterAll
-    public void clean() {
+    public static void clean() {
         opOptional.ifPresent(op -> op.close());
         blockingOpOptional.ifPresent(op -> op.close());
     }
@@ -63,6 +63,10 @@ public abstract class AbstractOperatorTest {
             return;
         }
         BlockingOperator blockingOp = blockingOpOptional.get();
+        Capability cap = blockingOp.info().fullCapability;
+        if (!cap.write || !cap.read) {
+            return;
+        }
 
         String path = UUID.randomUUID().toString();
         byte[] content = Utils.generateBytes();
@@ -83,6 +87,10 @@ public abstract class AbstractOperatorTest {
             return;
         }
         BlockingOperator blockingOp = blockingOpOptional.get();
+        Capability cap = blockingOp.info().fullCapability;
+        if (!cap.write || !cap.read) {
+            return;
+        }
 
         Metadata metadata = blockingOp.stat("");
         assertTrue(!metadata.isFile());
@@ -107,6 +115,10 @@ public abstract class AbstractOperatorTest {
             return;
         }
         Operator op = opOptional.get();
+        Capability cap = op.info().join().fullCapability;
+        if (!cap.write || !cap.read) {
+            return;
+        }
 
         String path = UUID.randomUUID().toString();
         byte[] content = Utils.generateBytes();
@@ -127,6 +139,10 @@ public abstract class AbstractOperatorTest {
             return;
         }
         Operator op = opOptional.get();
+        Capability cap = op.info().join().fullCapability;
+        if (!cap.write || !cap.read) {
+            return;
+        }
 
         Metadata metadata = op.stat("").get();
         assertTrue(!metadata.isFile());
@@ -151,6 +167,10 @@ public abstract class AbstractOperatorTest {
             return;
         }
         Operator op = opOptional.get();
+        Capability cap = op.info().join().fullCapability;
+        if (!cap.write || !cap.writeCanAppend || !cap.read) {
+            return;
+        }
 
         String path = UUID.randomUUID().toString();
         String[] trunks = new String[] {Utils.generateString(), Utils.generateString(), Utils.generateString()};

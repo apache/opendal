@@ -86,22 +86,24 @@ Notice: The default will skip all benches if the env is not set.
 
 Currently, all tests are written in Java.
 
+You must set the `OPENDAL_TEST_SCHEMA` parameter to specify the backends to be tested.
+
 You can run all available backends tests with the following command:
 
 ```shell
-./mvnw clean verify -Dcargo-build.features=services-redis
+./mvnw clean verify -DOPENDAL_TEST_SCHEMA=redis -Dcargo-build.features=services-redis
 ```
 
 Test specific backend(such as `fs`).
 
 ```shell
-./mvnw test -Dtest=org.apache.opendal.services.FsTest
+./mvnw test -Dtest=org.apache.opendal.OperatorTest -DOPENDAL_TEST_SCHEMA=fs
 ```
 
 Test specific backend(such as `redis`).
 
 ```shell
-./mvnw test -Dtest=org.apache.opendal.services.RedisTest -Dcargo-build.features=services-redis
+./mvnw test -Dtest=org.apache.opendal.OperatorTest -DOPENDAL_TEST_SCHEMA=redis -Dcargo-build.features=services-redis
 ```
 
 > **Note:**

@@ -209,7 +209,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dcargo-build.features=services-redis -Dtest=org.apache.opendal.services.RedisTest
+        run: ./mvnw test -Dtest=org.apache.opendal.OperatorTest -DOPENDAL_TEST_SCHEMA=redis -Dcargo-build.features=services-redis
         env:
           OPENDAL_REDIS_TEST: on
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379

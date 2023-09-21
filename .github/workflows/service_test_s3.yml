@@ -222,7 +222,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dtest=org.apache.opendal.services.S3Test
+        run: ./mvnw test -Dtest=org.apache.opendal.OperatorTest -DOPENDAL_TEST_SCHEMA=s3
         env:
           OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
           OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}

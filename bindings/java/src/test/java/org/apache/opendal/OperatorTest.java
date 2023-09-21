@@ -23,46 +23,56 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.opendal.condition.OpenDALExceptionCondition;
+import org.apache.opendal.enums.Schema;
 import org.apache.opendal.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class OperatorTest {
 
-    private static final String SCHEMA_KEY = "OPENDAL_TEST_SCHEMA";
+    protected static final List<Operator> ops = new ArrayList<>();
 
-    protected static Optional<Operator> opOptional;
-
-    protected static Optional<BlockingOperator> blockingOpOptional;
+    protected static final List<BlockingOperator> blockingOps = new ArrayList<>();
 
     @BeforeAll
     public static void init() {
-        String schema = System.getProperty(SCHEMA_KEY);
-        assertTrue(schema != null && schema.length() > 0, () -> SCHEMA_KEY + " is not set");
+        for (Schema schema : Schema.values()) {
 
-        opOptional = Utils.init(schema);
+            Optional<Operator> opOptional = Utils.init(schema);
+            opOptional.ifPresent(op -> ops.add(op));
 
-        blockingOpOptional = Utils.initBlockingOp(schema);
+            Optional<BlockingOperator> blockingOpOptional = Utils.initBlockingOp(schema);
+            blockingOpOptional.ifPresent(op -> blockingOps.add(op));
+        }
     }
 
     @AfterAll
-    public static void clean() {
-        opOptional.ifPresent(op -> op.close());
-        blockingOpOptional.ifPresent(op -> op.close());
+    public static void clean() throws InterruptedException {
+        ops.forEach(Operator::close);
+        blockingOps.forEach(BlockingOperator::close);
     }
 
-    @Test
-    public void testBlockingWrite() {
-        if (!blockingOpOptional.isPresent()) {
-            return;
-        }
-        BlockingOperator blockingOp = blockingOpOptional.get();
+    private static List<Operator> getOperators() {
+        return ops;
+    }
+
+    private static List<BlockingOperator> getBlockingOperators() {
+        return blockingOps;
+    }
+
+    @ParameterizedTest(autoCloseArguments = false)
+    @MethodSource("getBlockingOperators")
+    public void testBlockingWrite(BlockingOperator blockingOp) {
+
         Capability cap = blockingOp.info().fullCapability;
         if (!cap.write || !cap.read) {
             return;
@@ -81,12 +91,9 @@ public class OperatorTest {
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
-    @Test
-    public void testBlockingRead() {
-        if (!blockingOpOptional.isPresent()) {
-            return;
-        }
-        BlockingOperator blockingOp = blockingOpOptional.get();
+    @ParameterizedTest(autoCloseArguments = false)
+    @MethodSource("getBlockingOperators")
+    public void testBlockingRead(BlockingOperator blockingOp) {
         Capability cap = blockingOp.info().fullCapability;
         if (!cap.write || !cap.read) {
             return;
@@ -99,7 +106,7 @@ public class OperatorTest {
         assertThatThrownBy(() -> blockingOp.stat(path))
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
-        String content = Utils.generateString();
+        byte[] content = Utils.generateBytes();
         blockingOp.write(path, content);
 
         assertThat(blockingOp.read(path)).isEqualTo(content);
@@ -109,13 +116,10 @@ public class OperatorTest {
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
-    @Test
-    public final void testWrite() throws Exception {
-        if (!opOptional.isPresent()) {
-            return;
-        }
-        Operator op = opOptional.get();
-        Capability cap = op.info().join().fullCapability;
+    @ParameterizedTest(autoCloseArguments = false)
+    @MethodSource("getOperators")
+    public final void testWrite(Operator op) throws Exception {
+        Capability cap = op.info().fullCapability;
         if (!cap.write || !cap.read) {
             return;
         }
@@ -133,13 +137,10 @@ public class OperatorTest {
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
-    @Test
-    public final void testRead() throws Exception {
-        if (!opOptional.isPresent()) {
-            return;
-        }
-        Operator op = opOptional.get();
-        Capability cap = op.info().join().fullCapability;
+    @ParameterizedTest(autoCloseArguments = false)
+    @MethodSource("getOperators")
+    public final void testRead(Operator op) throws Exception {
+        Capability cap = op.info().fullCapability;
         if (!cap.write || !cap.read) {
             return;
         }
@@ -151,7 +152,7 @@ public class OperatorTest {
         assertThatThrownBy(() -> op.stat(path).join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
-        String content = Utils.generateString();
+        byte[] content = Utils.generateBytes();
         op.write(path, content).join();
 
         assertThat(op.read(path).join()).isEqualTo(content);
@@ -161,35 +162,48 @@ public class OperatorTest {
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
     }
 
-    @Test
-    public void testAppend() {
-        if (!opOptional.isPresent()) {
-            return;
-        }
-        Operator op = opOptional.get();
-        Capability cap = op.info().join().fullCapability;
+    @ParameterizedTest(autoCloseArguments = false)
+    @MethodSource("getOperators")
+    public void testAppend(Operator op) {
+        Capability cap = op.info().fullCapability;
         if (!cap.write || !cap.writeCanAppend || !cap.read) {
             return;
         }
 
         String path = UUID.randomUUID().toString();
-        String[] trunks = new String[] {Utils.generateString(), Utils.generateString(), Utils.generateString()};
+        byte[][] trunks = new byte[][] {Utils.generateBytes(), Utils.generateBytes(), Utils.generateBytes()};
 
         for (int i = 0; i < trunks.length; i++) {
             op.append(path, trunks[i]).join();
-            String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
+
+            byte[] expected = Arrays.stream(trunks).limit(i + 1).reduce(new byte[0], (arr1, arr2) -> {
+                byte[] result = new byte[arr1.length + arr2.length];
+                System.arraycopy(arr1, 0, result, 0, arr1.length);
+                System.arraycopy(arr2, 0, result, arr1.length, arr2.length);
+                return result;
+            });
+
             assertThat(op.read(path).join()).isEqualTo(expected);
         }
 
         // write overwrite existing content
-        String newAttempt = Utils.generateString();
+        byte[] newAttempt = Utils.generateBytes();
         op.write(path, newAttempt).join();
         assertThat(op.read(path).join()).isEqualTo(newAttempt);
 
         for (int i = 0; i < trunks.length; i++) {
             op.append(path, trunks[i]).join();
-            String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
-            assertThat(op.read(path).join()).isEqualTo(newAttempt + expected);
+
+            byte[] expected = Stream.concat(
+                            Stream.of(newAttempt), Arrays.stream(trunks).limit(i + 1))
+                    .reduce(new byte[0], (arr1, arr2) -> {
+                        byte[] result = new byte[arr1.length + arr2.length];
+                        System.arraycopy(arr1, 0, result, 0, arr1.length);
+                        System.arraycopy(arr2, 0, result, arr1.length, arr2.length);
+                        return result;
+                    });
+
+            assertThat(op.read(path).join()).isEqualTo(expected);
         }
     }
 }

@@ -137,7 +137,7 @@ public class Operator extends NativeObject {
         return f.thenApply(Metadata::new);
     }
 
-    public CompletableFuture<String> read(String path) {
+    public CompletableFuture<byte[]> read(String path) {
         final long requestId = read(nativeHandle, path);
         return AsyncRegistry.take(requestId);
     }

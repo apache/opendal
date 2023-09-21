@@ -21,6 +21,7 @@ package org.apache.opendal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -42,7 +43,7 @@ public class OperatorTest {
         @Cleanup Operator op = new Operator("Memory", params);
 
         op.write("testCreateAndDelete", "Odin").join();
-        assertThat(op.read("testCreateAndDelete").join()).isEqualTo("Odin");
+        assertThat(op.read("testCreateAndDelete").join()).isEqualTo("Odin".getBytes(StandardCharsets.UTF_8));
         op.delete("testCreateAndDelete").join();
         assertThatThrownBy(() -> op.stat("testCreateAndDelete").join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
@@ -59,17 +60,18 @@ public class OperatorTest {
         for (int i = 0; i < trunks.length; i++) {
             op.append("testAppendManyTimes", trunks[i]).join();
             String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
-            assertThat(op.read("testAppendManyTimes").join()).isEqualTo(expected);
+            assertThat(op.read("testAppendManyTimes").join()).isEqualTo(expected.getBytes(StandardCharsets.UTF_8));
         }
 
         // write overwrite existing content
         op.write("testAppendManyTimes", "new attempt").join();
-        assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt");
+        assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt".getBytes(StandardCharsets.UTF_8));
 
         for (int i = 0; i < trunks.length; i++) {
             op.append("testAppendManyTimes", trunks[i]).join();
             String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
-            assertThat(op.read("testAppendManyTimes").join()).isEqualTo("new attempt" + expected);
+            assertThat(op.read("testAppendManyTimes").join())
+                    .isEqualTo(("new attempt" + expected).getBytes(StandardCharsets.UTF_8));
         }
     }
 }

@@ -22,6 +22,7 @@ package org.apache.opendal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Cleanup;
@@ -48,7 +49,7 @@ public class RedisServiceTest {
         @Cleanup final Operator op = new Operator("Redis", params);
 
         op.write("testAccessRedisService", "Odin").join();
-        assertThat(op.read("testAccessRedisService").join()).isEqualTo("Odin");
+        assertThat(op.read("testAccessRedisService").join()).isEqualTo("Odin".getBytes(StandardCharsets.UTF_8));
         op.delete("testAccessRedisService").join();
         assertThatThrownBy(() -> op.stat("testAccessRedisService").join())
                 .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
@@ -64,7 +65,7 @@ public class RedisServiceTest {
         @Cleanup final BlockingOperator op = new BlockingOperator("Redis", params);
 
         op.write("testAccessRedisServiceBlocking", "Odin");
-        assertThat(op.read("testAccessRedisServiceBlocking")).isEqualTo("Odin");
+        assertThat(op.read("testAccessRedisServiceBlocking")).isEqualTo("Odin".getBytes(StandardCharsets.UTF_8));
         op.delete("testAccessRedisServiceBlocking");
         assertThatExceptionOfType(OpenDALException.class)
                 .isThrownBy(() -> op.stat("testAccessRedisServiceBlocking"))

@@ -21,9 +21,9 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::sys::jlong;
-use jni::sys::jstring;
+use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
+
 use opendal::layers::BlockingLayer;
 use opendal::BlockingOperator;
 use opendal::Operator;
@@ -78,17 +78,18 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
-) -> jstring {
+) -> jbyteArray {
     intern_read(&mut env, &mut *op, path).unwrap_or_else(|e| {
         e.throw(&mut env);
-        JObject::null().into_raw()
+        JByteArray::default().into_raw()
     })
 }
 
-fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jstring> {
+fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jbyteArray> {
     let path = env.get_string(&path)?;
-    let content = String::from_utf8(op.read(path.to_str()?)?)?;
-    Ok(env.new_string(content)?.into_raw())
+    let content = op.read(path.to_str()?)?;
+    let result = env.byte_array_from_slice(content.as_slice())?;
+    Ok(result.into_raw())
 }
 
 /// # Safety

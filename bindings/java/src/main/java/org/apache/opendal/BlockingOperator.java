@@ -49,7 +49,7 @@ public class BlockingOperator extends NativeObject {
         write(nativeHandle, path, content);
     }
 
-    public String read(String path) {
+    public byte[] read(String path) {
         return read(nativeHandle, path);
     }
 
@@ -68,7 +68,7 @@ public class BlockingOperator extends NativeObject {
 
     private static native void write(long nativeHandle, String path, byte[] content);
 
-    private static native String read(long nativeHandle, String path);
+    private static native byte[] read(long nativeHandle, String path);
 
     private static native void delete(long nativeHandle, String path);
 

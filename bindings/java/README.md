@@ -62,7 +62,17 @@ You can use Maven to build both Rust dynamic lib and JAR files with one command 
 ./mvnw clean package -DskipTests=true
 ```
 
-## Setup Tests
+## Run tests
+
+Currently, all tests are written in Java.
+
+You can run the base tests with the following command:
+
+```shell
+./mvnw clean verify
+```
+
+## Run Service Tests
 
 Please copy `{project.rootdir}/.env.example` to `{project.rootdir}/.env` and change the values on need.
 
@@ -77,33 +87,19 @@ into
 
 ```dotenv
 OPENDAL_FS_TEST=on
-OPENDAL_FS_ROOT=/tmp
+OPENDAL_FS_ROOT=/opendal
 ```
 
-Notice: The default will skip all benches if the env is not set.
-
-## Run tests
-
-Currently, all tests are written in Java.
-
-You must set the `OPENDAL_TEST_SCHEMA` parameter to specify the backends to be tested.
-
-You can run all available backends tests with the following command:
+You can run service tests of enabled with the following command:
 
 ```shell
-./mvnw clean verify -DOPENDAL_TEST_SCHEMA=redis -Dcargo-build.features=services-redis
+./mvnw test -Dtest=org.apache.opendal.OperatorTest
 ```
 
-Test specific backend(such as `fs`).
+You can run the unbound service with the following command:
 
 ```shell
-./mvnw test -Dtest=org.apache.opendal.OperatorTest -DOPENDAL_TEST_SCHEMA=fs
-```
-
-Test specific backend(such as `redis`).
-
-```shell
-./mvnw test -Dtest=org.apache.opendal.OperatorTest -DOPENDAL_TEST_SCHEMA=redis -Dcargo-build.features=services-redis
+./mvnw test -Dtest=org.apache.opendal.OperatorTest -Dcargo-build.features=services-redis
 ```
 
 > **Note:**

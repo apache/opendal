@@ -31,6 +31,7 @@ use opendal::Scheme;
 
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
+use crate::make_operator_info;
 use crate::Result;
 
 #[no_mangle]
@@ -159,4 +160,28 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
 fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
     let path = env.get_string(&path)?;
     Ok(op.delete(path.to_str()?)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_info<'local>(
+    mut env: JNIEnv<'local>,
+    _: JClass,
+    op: *mut BlockingOperator,
+) -> JObject<'local> {
+    intern_info(&mut env, &mut *op).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        JObject::null()
+    })
+}
+
+fn intern_info<'local>(
+    env: &mut JNIEnv<'local>,
+    op: &mut BlockingOperator,
+) -> Result<JObject<'local>> {
+    let info = op.info();
+
+    make_operator_info(env, info)
 }

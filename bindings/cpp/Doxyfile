@@ -15,12 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
-PROJECT_NAME           = "OpenDAL Cpp Binding"
+PROJECT_NAME           = "OpenDAL-CPP"
 PROJECT_BRIEF          = "The Cpp binding for Apache OpenDAL"
 OUTPUT_DIRECTORY       = @CMAKE_CURRENT_BINARY_DIR@/docs_doxygen/
 EXCLUDE_SYMBOLS        = ""
 USE_MDFILE_AS_MAINPAGE = "README.md"
-
 DOXYFILE_ENCODING      = UTF-8
 CREATE_SUBDIRS         = NO
 CREATE_SUBDIRS_LEVEL   = 8

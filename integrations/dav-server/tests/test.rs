@@ -18,7 +18,7 @@
 use anyhow::Result;
 use dav_server::davpath::DavPath;
 use dav_server::fs::DavFileSystem;
-use dav_server_opendalfs::webdavfs::WebdavFs;
+use dav_server_opendalfs::OpendalFs;
 use opendal::services::Fs;
 use opendal::Operator;
 
@@ -29,7 +29,7 @@ async fn test() -> Result<()> {
 
     let op = Operator::new(builder)?.finish();
 
-    let webdavfs = WebdavFs::new(op);
+    let webdavfs = OpendalFs::new(op);
 
     let metadata = webdavfs
         .metadata(&DavPath::new("/").unwrap())

@@ -25,7 +25,7 @@ use dav_server::fs::FsFuture;
 use futures::FutureExt;
 use opendal::Operator;
 
-use super::webdav_metadata::WebdavMetaData;
+use super::metadata::WebdavMetaData;
 
 #[derive(Debug)]
 pub struct WebdavFile {

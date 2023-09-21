@@ -20,8 +20,8 @@ use futures::FutureExt;
 use opendal::Entry;
 use opendal::Operator;
 
-use super::webdav_file::convert_error;
-use super::webdav_metadata::WebdavMetaData;
+use super::file::convert_error;
+use super::metadata::WebdavMetaData;
 
 pub struct WebDAVDirEntry {
     dir_entry: Entry,

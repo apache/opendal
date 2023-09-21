@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod webdav_dir_entry;
-mod webdav_file;
-mod webdav_metadata;
-pub mod webdavfs;
+mod dir_entry;
+mod file;
+mod metadata;
+mod opendalfs;
 
-pub use dav_server::DavHandler;
+pub use opendalfs::OpendalFs;

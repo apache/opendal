@@ -32,17 +32,17 @@ use futures_util::StreamExt;
 use opendal::Lister;
 use opendal::Operator;
 
-use super::webdav_file::convert_error;
-use super::webdav_file::WebdavFile;
-use super::webdav_metadata::WebdavMetaData;
-use crate::webdav_dir_entry::WebDAVDirEntry;
+use super::file::convert_error;
+use super::file::WebdavFile;
+use super::metadata::WebdavMetaData;
+use crate::dir_entry::WebDAVDirEntry;
 
 #[derive(Clone)]
-pub struct WebdavFs {
+pub struct OpendalFs {
     pub op: Operator,
 }
 
-impl DavFileSystem for WebdavFs {
+impl DavFileSystem for OpendalFs {
     fn open<'a>(
         &'a self,
         path: &'a dav_server::davpath::DavPath,
@@ -175,9 +175,9 @@ impl DavFileSystem for WebdavFs {
     }
 }
 
-impl WebdavFs {
-    pub fn new(op: Operator) -> Box<WebdavFs> {
-        Box::new(WebdavFs { op })
+impl OpendalFs {
+    pub fn new(op: Operator) -> Box<OpendalFs> {
+        Box::new(OpendalFs { op })
     }
 }
 

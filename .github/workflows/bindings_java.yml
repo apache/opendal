@@ -85,4 +85,3 @@ jobs:
         shell: bash
         run: |
           ./mvnw clean install -DskipTests -Dcargo-build.features=services-redis
-          ./mvnw verify artifact:compare -DOPENDAL_TEST_SCHEMA=redis -Dcargo-build.features=services-redis

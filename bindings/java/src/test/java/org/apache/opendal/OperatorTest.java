@@ -23,9 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -53,25 +55,32 @@ public class OperatorTest {
             Optional<BlockingOperator> blockingOpOptional = Utils.initBlockingOp(schema);
             blockingOpOptional.ifPresent(op -> blockingOps.add(op));
         }
+        if (ops.isEmpty()) {
+            ops.add(null);
+        }
+        if (blockingOps.isEmpty()) {
+            blockingOps.add(null);
+        }
     }
 
     @AfterAll
-    public static void clean() throws InterruptedException {
-        ops.forEach(Operator::close);
-        blockingOps.forEach(BlockingOperator::close);
+    public static void clean() {
+        ops.stream().filter(Objects::nonNull).forEach(Operator::close);
+        blockingOps.stream().filter(Objects::nonNull).forEach(BlockingOperator::close);
     }
 
-    private static List<Operator> getOperators() {
-        return ops;
+    private static Stream<Operator> getOperators() {
+        return ops.stream();
     }
 
-    private static List<BlockingOperator> getBlockingOperators() {
-        return blockingOps;
+    private static Stream<BlockingOperator> getBlockingOperators() {
+        return blockingOps.stream();
     }
 
     @ParameterizedTest(autoCloseArguments = false)
     @MethodSource("getBlockingOperators")
     public void testBlockingWrite(BlockingOperator blockingOp) {
+        assumeTrue(blockingOp != null);
 
         Capability cap = blockingOp.info().fullCapability;
         if (!cap.write || !cap.read) {
@@ -94,6 +103,8 @@ public class OperatorTest {
     @ParameterizedTest(autoCloseArguments = false)
     @MethodSource("getBlockingOperators")
     public void testBlockingRead(BlockingOperator blockingOp) {
+        assumeTrue(blockingOp != null);
+
         Capability cap = blockingOp.info().fullCapability;
         if (!cap.write || !cap.read) {
             return;
@@ -119,6 +130,8 @@ public class OperatorTest {
     @ParameterizedTest(autoCloseArguments = false)
     @MethodSource("getOperators")
     public final void testWrite(Operator op) throws Exception {
+        assumeTrue(op != null);
+
         Capability cap = op.info().fullCapability;
         if (!cap.write || !cap.read) {
             return;
@@ -140,6 +153,8 @@ public class OperatorTest {
     @ParameterizedTest(autoCloseArguments = false)
     @MethodSource("getOperators")
     public final void testRead(Operator op) throws Exception {
+        assumeTrue(op != null);
+
         Capability cap = op.info().fullCapability;
         if (!cap.write || !cap.read) {
             return;
@@ -165,6 +180,8 @@ public class OperatorTest {
     @ParameterizedTest(autoCloseArguments = false)
     @MethodSource("getOperators")
     public void testAppend(Operator op) {
+        assumeTrue(op != null);
+
         Capability cap = op.info().fullCapability;
         if (!cap.write || !cap.writeCanAppend || !cap.read) {
             return;

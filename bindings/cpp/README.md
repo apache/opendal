@@ -2,6 +2,8 @@
 
 ![](https://github.com/apache/incubator-opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
+Documents: [![Documents](https://img.shields.io/badge/opendal-cpp-blue?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/cpp/)
+
 ## Example
 
 ```cpp
@@ -15,6 +17,47 @@ int main() {
     auto result = op.read("test");  // result == data
 }
 ```
+
+More examples can be found [here](../../examples/cpp).
+
+## Using
+
+### CMake
+
+You can use `FetchContent` to add OpenDAL to your project.
+
+```cmake
+FetchContent_Declare(
+  opendal-cpp
+  GIT_REPOSITORY https://github.com/apache/incubator-opendal.git
+  GIT_TAG        v0.40.0
+  SOURCE_SUBDIR  bindings/cpp
+)
+FetchContent_MakeAvailable(opendal-cpp)
+```
+
+Or you can download the source code and add it to your project.
+
+```shell
+mkdir third_party
+cd third_party
+git clone https://github.com/apache/incubator-opendal.git
+git checkout v0.40.0
+```
+
+```cmake
+add_subdirectory(third_party/incubator-opendal/bindings/cpp)
+```
+
+Now you can use OpenDAL in your project.
+
+```cmake
+target_link_libraries(your_target opendal_cpp)
+```
+
+### Others
+
+Support for more package managers is coming soon!
 
 ## Compiling
 
@@ -57,18 +100,3 @@ make docs
 - `OPENDAL_ENABLE_DOCUMENTATION`: Enable documentation. Default: `OFF`
 - `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
-
-## Using
-
-### CMake
-
-Because the project repo includes rust core code, we can't use `git submodule` directly to add it. So we recommend using `FetchContent` to add the library.
-
-```cmake
-FetchContent_Declare(
-    opendal-cpp
-    URL     https://github.com/apache/incubator-opendal/releases/download/<newest-tag>/opendal-cpp-<newest-tag>.tar.gz
-    URL_HASH SHA256=<newest-tag-sha256>
-)
-FetchContent_MakeAvailable(opendal-cpp)
-```

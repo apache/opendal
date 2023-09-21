@@ -31,11 +31,12 @@ use opendal::raw::PresignedRequest;
 use opendal::Operator;
 use opendal::Scheme;
 
+use crate::get_current_env;
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
 use crate::make_operator_info;
+use crate::make_presigned_request;
 use crate::Result;
-use crate::{get_current_env, make_presigned_request};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
@@ -222,10 +223,9 @@ fn intern_read(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
 async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
     let content = op.read(&path).await?;
-    let content = String::from_utf8(content)?;
 
     let env = unsafe { get_current_env() };
-    let result = env.new_string(content)?;
+    let result = env.byte_array_from_slice(content.as_slice())?;
     Ok(result.into())
 }
 
@@ -267,29 +267,22 @@ async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_info(
-    mut env: JNIEnv,
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_info<'local>(
+    mut env: JNIEnv<'local>,
     _: JClass,
     op: *mut Operator,
-) -> jlong {
+) -> JObject<'local> {
     intern_info(&mut env, op).unwrap_or_else(|e| {
         e.throw(&mut env);
-        0
+        JObject::null()
     })
 }
 
-fn intern_info(env: &mut JNIEnv, op: *mut Operator) -> Result<jlong> {
+fn intern_info<'local>(env: &mut JNIEnv<'local>, op: *mut Operator) -> Result<JObject<'local>> {
     let op = unsafe { &mut *op };
-    let id = request_id(env)?;
 
-    unsafe { get_global_runtime() }.spawn(async move {
-        let info = op.info();
-        let mut env = unsafe { get_current_env() };
-        let result = make_operator_info(&mut env, info);
-        complete_future(id, result.map(JValueOwned::Object))
-    });
-
-    Ok(id)
+    let info = op.info();
+    make_operator_info(env, info)
 }
 
 /// # Safety

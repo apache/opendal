@@ -101,17 +101,17 @@ public class Capability {
      * write_multi_max_size is the max size that services support in write_multi.
      * For example, AWS S3 supports 5GiB as max in write_multi.
      */
-    public final Long writeMultiMaxSize;
+    public final long writeMultiMaxSize;
     /**
      * write_multi_min_size is the min size that services support in write_multi.
      * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
      */
-    public final Long writeMultiMinSize;
+    public final long writeMultiMinSize;
     /**
      * write_multi_align_size is the align size that services required in write_multi.
      * For example, Google GCS requires align size to 256KiB in write_multi.
      */
-    public final Long writeMultiAlignSize;
+    public final long writeMultiAlignSize;
 
     /**
      * If operator supports create dir.
@@ -182,7 +182,7 @@ public class Capability {
     /**
      * The max operations that operator supports in batch.
      */
-    public final Long batchMaxOperations;
+    public final long batchMaxOperations;
 
     /**
      * If operator supports blocking.
@@ -208,9 +208,9 @@ public class Capability {
             boolean writeWithContentType,
             boolean writeWithContentDisposition,
             boolean writeWithCacheControl,
-            Long writeMultiMaxSize,
-            Long writeMultiMinSize,
-            Long writeMultiAlignSize,
+            long writeMultiMaxSize,
+            long writeMultiMinSize,
+            long writeMultiAlignSize,
             boolean createDir,
             boolean delete,
             boolean copy,
@@ -226,7 +226,7 @@ public class Capability {
             boolean presignWrite,
             boolean batch,
             boolean batchDelete,
-            Long batchMaxOperations,
+            long batchMaxOperations,
             boolean blocking) {
         this.stat = stat;
         this.statWithIfMatch = statWithIfMatch;

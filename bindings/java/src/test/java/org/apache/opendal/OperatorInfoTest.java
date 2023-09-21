@@ -21,7 +21,6 @@ package org.apache.opendal;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -52,10 +51,10 @@ public class OperatorInfoTest {
             assertTrue(fullCapability.delete);
             assertTrue(fullCapability.writeCanAppend);
 
-            assertNull(fullCapability.writeMultiAlignSize);
-            assertNull(fullCapability.writeMultiMaxSize);
-            assertNull(fullCapability.writeMultiMinSize);
-            assertNull(fullCapability.batchMaxOperations);
+            assertEquals(fullCapability.writeMultiAlignSize, -1);
+            assertEquals(fullCapability.writeMultiMaxSize, -1);
+            assertEquals(fullCapability.writeMultiMinSize, -1);
+            assertEquals(fullCapability.batchMaxOperations, -1);
 
             Capability nativeCapability = info.nativeCapability;
             assertNotNull(nativeCapability);
@@ -69,7 +68,7 @@ public class OperatorInfoTest {
         conf.put("root", root);
         try (Operator op = new Operator("memory", conf)) {
 
-            OperatorInfo info = op.info().join();
+            OperatorInfo info = op.info();
             assertNotNull(info);
             assertEquals("memory", info.scheme);
             assertEquals(root, info.root);
@@ -82,10 +81,10 @@ public class OperatorInfoTest {
             assertTrue(fullCapability.delete);
             assertTrue(!fullCapability.writeCanAppend);
 
-            assertNull(fullCapability.writeMultiAlignSize);
-            assertNull(fullCapability.writeMultiMaxSize);
-            assertNull(fullCapability.writeMultiMinSize);
-            assertNull(fullCapability.batchMaxOperations);
+            assertEquals(fullCapability.writeMultiAlignSize, -1);
+            assertEquals(fullCapability.writeMultiMaxSize, -1);
+            assertEquals(fullCapability.writeMultiMinSize, -1);
+            assertEquals(fullCapability.batchMaxOperations, -1);
 
             Capability nativeCapability = info.nativeCapability;
             assertNotNull(nativeCapability);

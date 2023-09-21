@@ -3389,7 +3389,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap 4.3.10",
- "dav-server-opendalfs",
+ "dav-server",
  "dirs 5.0.1",
  "futures",
  "futures-util",

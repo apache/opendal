@@ -52,10 +52,10 @@ public class OperatorInfoTest {
             assertTrue(fullCapability.delete);
             assertTrue(fullCapability.writeCanAppend);
 
-            assertNull(fullCapability.writeMultiAlignSize);
-            assertNull(fullCapability.writeMultiMaxSize);
-            assertNull(fullCapability.writeMultiMinSize);
-            assertNull(fullCapability.batchMaxOperations);
+            assertEquals(fullCapability.writeMultiAlignSize, -1);
+            assertEquals(fullCapability.writeMultiMaxSize, -1);
+            assertEquals(fullCapability.writeMultiMinSize, -1);
+            assertEquals(fullCapability.batchMaxOperations, -1);
 
             Capability nativeCapability = info.nativeCapability;
             assertNotNull(nativeCapability);
@@ -82,10 +82,10 @@ public class OperatorInfoTest {
             assertTrue(fullCapability.delete);
             assertTrue(!fullCapability.writeCanAppend);
 
-            assertNull(fullCapability.writeMultiAlignSize);
-            assertNull(fullCapability.writeMultiMaxSize);
-            assertNull(fullCapability.writeMultiMinSize);
-            assertNull(fullCapability.batchMaxOperations);
+            assertEquals(fullCapability.writeMultiAlignSize, -1);
+            assertEquals(fullCapability.writeMultiMaxSize, -1);
+            assertEquals(fullCapability.writeMultiMinSize, -1);
+            assertEquals(fullCapability.batchMaxOperations, -1);
 
             Capability nativeCapability = info.nativeCapability;
             assertNotNull(nativeCapability);

@@ -175,62 +175,50 @@ fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JO
 fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<'a>> {
     let capability_class = env.find_class("org/apache/opendal/Capability")?;
 
-    let write_multi_max_size = make_long(env, cap.write_multi_max_size)?;
-    let write_multi_min_size = make_long(env, cap.write_multi_min_size)?;
-    let write_multi_align_size = make_long(env, cap.write_multi_align_size)?;
-    let batch_max_operations = make_long(env, cap.batch_max_operations)?;
-
-    let capability = env.new_object(capability_class, "(ZZZZZZZZZZZZZZZZZZLjava/lang/Long;Ljava/lang/Long;Ljava/lang/Long;ZZZZZZZZZZZZZZZLjava/lang/Long;Z)V",
-    &[
-        JValue::Bool(cap.stat as jboolean),
-        JValue::Bool(cap.stat_with_if_match as jboolean),
-        JValue::Bool(cap.stat_with_if_none_match as jboolean),
-        JValue::Bool(cap.read as jboolean),
-        JValue::Bool(cap.read_can_seek as jboolean),
-        JValue::Bool(cap.read_can_next as jboolean),
-        JValue::Bool(cap.read_with_range as jboolean),
-        JValue::Bool(cap.read_with_if_match as jboolean),
-        JValue::Bool(cap.read_with_if_none_match as jboolean),
-        JValue::Bool(cap.read_with_override_cache_control as jboolean),
-        JValue::Bool(cap.read_with_override_content_disposition as jboolean),
-        JValue::Bool(cap.read_with_override_content_type as jboolean),
-        JValue::Bool(cap.write as jboolean),
-        JValue::Bool(cap.write_can_multi as jboolean),
-        JValue::Bool(cap.write_can_append as jboolean),
-        JValue::Bool(cap.write_with_content_type as jboolean),
-        JValue::Bool(cap.write_with_content_disposition as jboolean),
-        JValue::Bool(cap.write_with_cache_control as jboolean),
-        JValue::Object(&write_multi_max_size),
-        JValue::Object(&write_multi_min_size),
-        JValue::Object(&write_multi_align_size),
-        JValue::Bool(cap.create_dir as jboolean),
-        JValue::Bool(cap.delete as jboolean),
-        JValue::Bool(cap.copy as jboolean),
-        JValue::Bool(cap.rename as jboolean),
-        JValue::Bool(cap.list as jboolean),
-        JValue::Bool(cap.list_with_limit as jboolean),
-        JValue::Bool(cap.list_with_start_after as jboolean),
-        JValue::Bool(cap.list_with_delimiter_slash as jboolean),
-        JValue::Bool(cap.list_without_delimiter as jboolean),
-        JValue::Bool(cap.presign as jboolean),
-        JValue::Bool(cap.presign_read as jboolean),
-        JValue::Bool(cap.presign_stat as jboolean),
-        JValue::Bool(cap.presign_write as jboolean),
-        JValue::Bool(cap.batch as jboolean),
-        JValue::Bool(cap.batch_delete as jboolean),
-        JValue::Object(&batch_max_operations),
-        JValue::Bool(cap.blocking as jboolean),
-    ])?;
+    let capability = env.new_object(
+        capability_class,
+        "(ZZZZZZZZZZZZZZZZZZJJJZZZZZZZZZZZZZZZJZ)V",
+        &[
+            JValue::Bool(cap.stat as jboolean),
+            JValue::Bool(cap.stat_with_if_match as jboolean),
+            JValue::Bool(cap.stat_with_if_none_match as jboolean),
+            JValue::Bool(cap.read as jboolean),
+            JValue::Bool(cap.read_can_seek as jboolean),
+            JValue::Bool(cap.read_can_next as jboolean),
+            JValue::Bool(cap.read_with_range as jboolean),
+            JValue::Bool(cap.read_with_if_match as jboolean),
+            JValue::Bool(cap.read_with_if_none_match as jboolean),
+            JValue::Bool(cap.read_with_override_cache_control as jboolean),
+            JValue::Bool(cap.read_with_override_content_disposition as jboolean),
+            JValue::Bool(cap.read_with_override_content_type as jboolean),
+            JValue::Bool(cap.write as jboolean),
+            JValue::Bool(cap.write_can_multi as jboolean),
+            JValue::Bool(cap.write_can_append as jboolean),
+            JValue::Bool(cap.write_with_content_type as jboolean),
+            JValue::Bool(cap.write_with_content_disposition as jboolean),
+            JValue::Bool(cap.write_with_cache_control as jboolean),
+            JValue::Long(cap.write_multi_max_size.map_or(-1, |v| v as jlong)),
+            JValue::Long(cap.write_multi_min_size.map_or(-1, |v| v as jlong)),
+            JValue::Long(cap.write_multi_align_size.map_or(-1, |v| v as jlong)),
+            JValue::Bool(cap.create_dir as jboolean),
+            JValue::Bool(cap.delete as jboolean),
+            JValue::Bool(cap.copy as jboolean),
+            JValue::Bool(cap.rename as jboolean),
+            JValue::Bool(cap.list as jboolean),
+            JValue::Bool(cap.list_with_limit as jboolean),
+            JValue::Bool(cap.list_with_start_after as jboolean),
+            JValue::Bool(cap.list_with_delimiter_slash as jboolean),
+            JValue::Bool(cap.list_without_delimiter as jboolean),
+            JValue::Bool(cap.presign as jboolean),
+            JValue::Bool(cap.presign_read as jboolean),
+            JValue::Bool(cap.presign_stat as jboolean),
+            JValue::Bool(cap.presign_write as jboolean),
+            JValue::Bool(cap.batch as jboolean),
+            JValue::Bool(cap.batch_delete as jboolean),
+            JValue::Long(cap.batch_max_operations.map_or(-1, |v| v as jlong)),
+            JValue::Bool(cap.blocking as jboolean),
+        ],
+    )?;
 
     Ok(capability)
-}
-
-fn make_long<'a>(env: &mut JNIEnv<'a>, value: Option<usize>) -> Result<JObject<'a>> {
-    let long_class = env.find_class("java/lang/Long")?;
-
-    let result = match value {
-        Some(val) => env.new_object(long_class, "(J)V", &[JValue::Long(val as jlong)])?,
-        None => JObject::null(),
-    };
-    Ok(result)
 }

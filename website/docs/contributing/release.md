@@ -77,7 +77,9 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 
 > Blockers are the tasks that must be completed before the release.
 
-### Github Side
+### Build Release
+
+#### GitHub Side
 
 - [ ] Bump version in project
   - [ ] rust
@@ -88,12 +90,24 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 - [ ] Update docs
 - [ ] Push release candidate tag to GitHub
 
-### ASF Side
+#### ASF Side
 
 - [ ] Create an ASF Release
+- [ ] Upload artifacts to the SVN dist repo
+- [ ] Close the Nexus staging repo
+
+### Voting
+
 - [ ] Start VOTE at opendal community
 - [ ] Start VOTE at incubator community
-- [ ] Send annouance
+
+### Official Release
+
+- [ ] Push the release git tag
+- [ ] Publish artifacts to SVN RELEASE branch
+- [ ] Change OpenDAL Website download link
+- [ ] Release Maven artifacts
+- [ ] Send the announcement
 
 For details of each steps, please refer to: https://opendal.apache.org/docs/contributing/release
 ```

@@ -21,6 +21,7 @@ package org.apache.opendal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -53,7 +54,7 @@ public class BlockingOperatorTest {
     @Test
     public void testCreateAndDelete() {
         op.write("testCreateAndDelete", "Odin");
-        assertThat(op.read("testCreateAndDelete")).isEqualTo("Odin");
+        assertThat(op.read("testCreateAndDelete")).isEqualTo("Odin".getBytes(StandardCharsets.UTF_8));
         op.delete("testCreateAndDelete");
         assertThatExceptionOfType(OpenDALException.class)
                 .isThrownBy(() -> op.stat("testCreateAndDelete"))

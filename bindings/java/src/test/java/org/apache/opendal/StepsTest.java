@@ -19,12 +19,14 @@
 
 package org.apache.opendal;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Cleanup;
@@ -64,7 +66,7 @@ public class StepsTest {
 
     @Then("The blocking file {string} must have content {string}")
     public void the_blocking_file_test_must_have_content_hello_world(String path, String content) {
-        String readContent = op.read(path);
-        assertEquals(content, readContent);
+        byte[] readContent = op.read(path);
+        assertThat(readContent).isEqualTo(content.getBytes(StandardCharsets.UTF_8));
     }
 }

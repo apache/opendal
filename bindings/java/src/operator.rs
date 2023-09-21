@@ -222,10 +222,9 @@ fn intern_read(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
 async fn do_read<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
     let content = op.read(&path).await?;
-    let content = String::from_utf8(content)?;
 
     let env = unsafe { get_current_env() };
-    let result = env.new_string(content)?;
+    let result = env.byte_array_from_slice(content.as_slice())?;
     Ok(result.into())
 }
 

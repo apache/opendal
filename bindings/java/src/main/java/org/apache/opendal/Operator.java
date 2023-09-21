@@ -142,6 +142,11 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<OperatorInfo> info() {
+        final long requestId = info(nativeHandle);
+        return AsyncRegistry.take(requestId);
+    }
+
     public CompletableFuture<Void> presignRead(String path, Duration duration) {
         final long requestId = presignRead(nativeHandle, path, duration.toNanos());
         return AsyncRegistry.take(requestId);
@@ -176,6 +181,8 @@ public class Operator extends NativeObject {
     private static native long delete(long nativeHandle, String path);
 
     private static native long stat(long nativeHandle, String path);
+
+    private static native long info(long nativeHandle);
 
     private static native long presignRead(long nativeHandle, String path, long duration);
 

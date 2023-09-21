@@ -33,6 +33,7 @@ use opendal::Scheme;
 
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
+use crate::make_operator_info;
 use crate::Result;
 use crate::{get_current_env, make_presigned_request};
 
@@ -260,6 +261,35 @@ fn intern_delete(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<j
 
 async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
     Ok(op.delete(&path).await?)
+}
+
+// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_info(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) -> jlong {
+    intern_info(&mut env, op).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_info(env: &mut JNIEnv, op: *mut Operator) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let info = op.info();
+        let mut env = unsafe { get_current_env() };
+        let result = make_operator_info(&mut env, info);
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
 }
 
 /// # Safety

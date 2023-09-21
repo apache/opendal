@@ -36,8 +36,6 @@ use opendal::OperatorInfo;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
-use crate::error::Error;
-
 mod blocking_operator;
 mod error;
 mod metadata;
@@ -230,14 +228,9 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
 fn make_long<'a>(env: &mut JNIEnv<'a>, value: Option<usize>) -> Result<JObject<'a>> {
     let long_class = env.find_class("java/lang/Long")?;
 
-    let result;
-    match value {
-        Some(val) => {
-            result = env.new_object(long_class, "(J)V", &[JValue::Long(val as jlong)])?;
-        }
-        None => {
-            result = JObject::null();
-        }
-    }
+    let result = match value {
+        Some(val) => env.new_object(long_class, "(J)V", &[JValue::Long(val as jlong)])?,
+        None => JObject::null(),
+    };
     Ok(result)
 }

@@ -64,7 +64,7 @@ You can use Maven to build both Rust dynamic lib and JAR files with one command 
 
 ## Setup Tests
 
-Please copy `{project.rootdir}/.env.example` to `src/test/resources/.env` and change the values on need.
+Please copy `{project.rootdir}/.env.example` to `{project.rootdir}/.env` and change the values on need.
 
 Take `fs` for example, we need to enable bench on `fs` on `/tmp`.
 

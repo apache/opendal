@@ -19,8 +19,11 @@
 
 package org.apache.opendal.utils;
 
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStream;
+import java.io.FileReader;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -85,8 +88,17 @@ public class Utils {
     private static Map<String, String> readEnv(String schema) {
         final Properties properties = new Properties();
 
-        try (InputStream is = Utils.class.getClassLoader().getResourceAsStream(ENV_NAME)) {
-            properties.load(is);
+        String projectRoot = System.getProperty("user.dir");
+
+        projectRoot = Optional.ofNullable(Paths.get(projectRoot))
+                .map(Path::getParent)
+                .map(Path::getParent)
+                .map(Path::toString)
+                .orElse(projectRoot);
+
+        try (BufferedReader reader =
+                new BufferedReader(new FileReader(projectRoot.toString() + File.separator + ENV_NAME))) {
+            properties.load(reader);
         } catch (Exception ignore) {
         }
         for (Map.Entry<String, String> entry : System.getenv().entrySet()) {

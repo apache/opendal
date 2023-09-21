@@ -19,6 +19,7 @@
 
 package org.apache.opendal;
 
+import lombok.NonNull;
 import lombok.ToString;
 
 @ToString
@@ -30,7 +31,11 @@ public class OperatorInfo {
     public final Capability nativeCapability;
 
     public OperatorInfo(
-            String scheme, String root, String name, Capability fullCapability, Capability nativeCapability) {
+            @NonNull String scheme,
+            @NonNull String root,
+            @NonNull String name,
+            @NonNull Capability fullCapability,
+            @NonNull Capability nativeCapability) {
         this.scheme = scheme;
         this.root = root;
         this.name = name;

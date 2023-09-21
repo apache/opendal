@@ -56,24 +56,80 @@ Thanks
 ${name}
 ```
 
-## GitHub Release
+## Start tracking issues about the next release
 
-### Bump Version
+Start a tracking issue on Github for the upcoming release to track all tasks that need to be completed.
 
-OpenDAL will release all packages in the same version.
+Title:
 
-- Bump version in `Cargo.toml`.
-- For the nodejs binding, bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`.
-- For the java binding, bump version in `bindings/java/pom.xml`.
-- For the cpp binding, bump version in `bindings/cpp/CMakeLists.txt`.
-- For the haskell binding, bump version and update the `tag` field of `source-repository this` in `bindings/haskell/opendal.cabal`.
+```
+Tracking issuses of OpenDAL ${opendal_version} Release
+```
+
+Content:
+
+```markdown
+This issue is used to track tasks of the opendal ${opendal_version} release.
+
+## Tasks
+
+### Blockers
+
+> Blockers are the tasks that must be completed before the release.
+
+### Build Release
+
+#### GitHub Side
+
+- [ ] Bump version in project
+  - [ ] rust
+  - [ ] cpp
+  - [ ] haskell
+  - [ ] java
+  - [ ] nodejs
+- [ ] Update docs
+- [ ] Push release candidate tag to GitHub
+
+#### ASF Side
+
+- [ ] Create an ASF Release
+- [ ] Upload artifacts to the SVN dist repo
+- [ ] Close the Nexus staging repo
+
+### Voting
+
+- [ ] Start VOTE at opendal community
+- [ ] Start VOTE at incubator community
+
+### Official Release
+
+- [ ] Push the release git tag
+- [ ] Publish artifacts to SVN RELEASE branch
+- [ ] Change OpenDAL Website download link
+- [ ] Release Maven artifacts
+- [ ] Send the announcement
+
+For details of each steps, please refer to: https://opendal.apache.org/docs/contributing/release
+```
+
+## GitHub Side
+
+### Bump version in project
+
+Bump all version in the project to the new opendal version. Please note that this version is the exact version of the release, not the release candidate version.
+
+- rust core: bump version in `Cargo.toml`
+- cpp binding: bump version in `bindings/cpp/CMakeLists.txt`
+- haskell binding: bump version and update the `tag` field of `source-repository this` in `bindings/haskell/opendal.cabal`
+- java binding: bump version in `bindings/java/pom.xml`
+- nodejs binding: bump version in `bindings/nodejs/package.json` and `bindings/nodejs/npm/*/package.json`
+
+### Update docs
+
 - Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.
-- If there are breaking changes in `core`, please also update `core/src/docs/upgrade.md`.
-- After all those changes, submit a PR with name `Bump to version x.y.z`.
+- Update `core/src/docs/upgrade.md` if there are breaking changes in `core`
 
-Take [Bump to version 0.36.0](https://github.com/apache/incubator-opendal/pull/2366) as an example.
-
-### Create a GitHub Release
+### Push release candidate tag
 
 After bump version PR gets merged, we can create a GitHub release:
 
@@ -88,7 +144,7 @@ Pushing a Git tag to GitHub repo will trigger a GitHub Actions workflow that cre
 
 :::
 
-## ASF Release
+## ASF Side
 
 If any step in the ASF Release process fails and requires code changes,
 we will abandon that version and prepare for the next one.
@@ -224,7 +280,8 @@ https://repository.apache.org/content/repositories/orgapacheopendal-${maven_arti
 
 Please download, verify, and test.
 
-The VOTE will pass after got 3 binding approve.
+The VOTE will be open for at least 72 hours and until the necessary
+number of votes are reached.
 
 [ ] +1 approve
 [ ] +0 no opinion
@@ -334,7 +391,8 @@ https://repository.apache.org/content/repositories/orgapacheopendal-${maven_arti
 
 Please download, verify, and test.
 
-The VOTE will pass after got 3 binding approve.
+The VOTE will be open for at least 72 hours and until the necessary
+number of votes are reached.
 
 [ ] +1 approve
 [ ] +0 no opinion

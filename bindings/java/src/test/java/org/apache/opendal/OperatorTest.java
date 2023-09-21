@@ -70,7 +70,8 @@ public class OperatorTest {
         for (int i = 0; i < trunks.length; i++) {
             op.append("testAppendManyTimes", trunks[i]).join();
             String expected = Arrays.stream(trunks).limit(i + 1).collect(Collectors.joining());
-            assertThat(op.read("testAppendManyTimes").join()).isEqualTo(("new attempt" + expected).getBytes(StandardCharsets.UTF_8));
+            assertThat(op.read("testAppendManyTimes").join())
+                    .isEqualTo(("new attempt" + expected).getBytes(StandardCharsets.UTF_8));
         }
     }
 }

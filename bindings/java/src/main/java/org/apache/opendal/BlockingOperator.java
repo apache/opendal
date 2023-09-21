@@ -61,6 +61,10 @@ public class BlockingOperator extends NativeObject {
         return new Metadata(stat(nativeHandle, path));
     }
 
+    public OperatorInfo info() {
+        return info(nativeHandle);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -73,4 +77,6 @@ public class BlockingOperator extends NativeObject {
     private static native void delete(long nativeHandle, String path);
 
     private static native long stat(long nativeHandle, String path);
+
+    private static native OperatorInfo info(long nativeHandle);
 }

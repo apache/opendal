@@ -59,7 +59,9 @@ public abstract class BehaviorTest {
 
     @BeforeAll
     public void setup() {
-        assumeTrue(isEnabled(config), "service test for " + scheme + " is not enabled.");
+        assertThat(isEnabled(config))
+                .describedAs("service test for " + scheme + " is not enabled.")
+                .isTrue();
         this.operator = new Operator(scheme, config);
         this.blockingOperator = new BlockingOperator(scheme, config);
     }

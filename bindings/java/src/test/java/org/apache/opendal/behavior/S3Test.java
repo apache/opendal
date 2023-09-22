@@ -19,8 +19,15 @@
 
 package org.apache.opendal.behavior;
 
+import org.junit.jupiter.api.condition.EnabledIf;
+
+@EnabledIf("enabled")
 public class S3Test extends BehaviorTest {
     public S3Test() {
         super("s3");
+    }
+
+    private static boolean enabled() {
+        return isEnabled(createSchemeConfig("s3"));
     }
 }

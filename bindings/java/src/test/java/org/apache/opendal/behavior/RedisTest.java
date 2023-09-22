@@ -19,8 +19,15 @@
 
 package org.apache.opendal.behavior;
 
+import org.junit.jupiter.api.condition.EnabledIf;
+
+@EnabledIf("enabled")
 public class RedisTest extends BehaviorTest {
     public RedisTest() {
         super("redis");
+    }
+
+    private static boolean enabled() {
+        return isEnabled(createSchemeConfig("redis"));
     }
 }

@@ -19,18 +19,23 @@
 
 package org.apache.opendal.behavior;
 
-import java.util.HashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class MemoryTest extends BehaviorTest {
     public MemoryTest() {
         super("memory", defaultSchemeConfig());
     }
 
     private static Map<String, String> defaultSchemeConfig() {
-        final Map<String, String> config = new HashMap<>();
-        config.put("test", "on");
-        config.put("root", "/tmp");
+        final Map<String, String> config = createSchemeConfig("memory");
+        if (!isEnabled(config)) {
+            log.info("Running MemoryTest with default config.");
+            config.clear();
+            config.put("test", "on");
+            config.put("root", "/tmp");
+        }
         return config;
     }
 }

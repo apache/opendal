@@ -57,14 +57,9 @@ public abstract class BehaviorTest {
         this.config = config;
     }
 
-    private boolean isEnabled() {
-        final String turnOn = config.getOrDefault("test", "").toLowerCase();
-        return turnOn.equals("on") || turnOn.equals("true");
-    }
-
     @BeforeAll
     public void setup() {
-        assumeTrue(isEnabled(), "service test for " + scheme + " is not enabled.");
+        assumeTrue(isEnabled(config), "service test for " + scheme + " is not enabled.");
         this.operator = new Operator(scheme, config);
         this.blockingOperator = new BlockingOperator(scheme, config);
     }
@@ -97,7 +92,7 @@ public abstract class BehaviorTest {
         public void testReadNotExist() {
             final String path = UUID.randomUUID().toString();
             assertThatThrownBy(() -> operator.read(path).join())
-                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
         }
 
         /**
@@ -162,6 +157,8 @@ public abstract class BehaviorTest {
             assertThat(Arrays.copyOfRange(actualContent, 0, contentOne.length)).isEqualTo(contentOne);
             assertThat(Arrays.copyOfRange(actualContent, contentOne.length, actualContent.length))
                     .isEqualTo(contentTwo);
+
+            operator.delete(path).join();
         }
     }
 
@@ -181,7 +178,7 @@ public abstract class BehaviorTest {
         public void testBlockingReadNotExist() {
             final String path = UUID.randomUUID().toString();
             assertThatThrownBy(() -> blockingOperator.read(path))
-                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
         }
 
         /**
@@ -224,10 +221,15 @@ public abstract class BehaviorTest {
         return content;
     }
 
-    private static Map<String, String> createSchemeConfig(String scheme) {
+    protected static boolean isEnabled(Map<String, String> config) {
+        final String turnOn = config.getOrDefault("test", "").toLowerCase();
+        return turnOn.equals("on") || turnOn.equals("true");
+    }
+
+    protected static Map<String, String> createSchemeConfig(String scheme) {
         final Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         final Map<String, String> config = new HashMap<>();
-        final String prefix = "opendal_" + scheme + "_";
+        final String prefix = "opendal_" + scheme.toLowerCase() + "_";
         for (DotenvEntry entry : dotenv.entries()) {
             final String key = entry.getKey().toLowerCase();
             if (key.startsWith(prefix)) {

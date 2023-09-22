@@ -20,22 +20,27 @@
 package org.apache.opendal.behavior;
 
 import java.io.File;
-import java.util.HashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.util.Files;
 
+@Slf4j
 public class FsTest extends BehaviorTest {
     public FsTest() {
-        super("fs", defaultSchemeConfig());
+        super("fs", schemeConfig());
     }
 
-    private static Map<String, String> defaultSchemeConfig() {
-        final File tempDir = Files.newTemporaryFolder();
-        tempDir.deleteOnExit();
+    private static Map<String, String> schemeConfig() {
+        final Map<String, String> config = createSchemeConfig("fs");
+        if (!isEnabled(config)) {
+            log.info("Running FsTest with default config.");
+            config.clear();
 
-        final Map<String, String> config = new HashMap<>();
-        config.put("test", "on");
-        config.put("root", tempDir.getAbsolutePath());
+            final File tempDir = Files.newTemporaryFolder();
+            tempDir.deleteOnExit();
+            config.put("test", "on");
+            config.put("root", tempDir.getAbsolutePath());
+        }
         return config;
     }
 }

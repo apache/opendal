@@ -28,7 +28,7 @@ Generally, you can first add the `os-maven-plugin` for automatically detect the 
 Then add the dependency to `opendal-java` as following:
 
 ```xml
-<dependenies>
+<dependencies>
 <dependency>
   <groupId>org.apache.opendal</groupId>
   <artifactId>opendal-java</artifactId>
@@ -40,7 +40,7 @@ Then add the dependency to `opendal-java` as following:
   <version>${opendal.version}</version>
   <classifier>${os.detected.classifier}</classifier>
 </dependency>
-</dependenies>
+</dependencies>
 ```
 
 ### Gradle
@@ -109,18 +109,13 @@ You can apply the code style with the following command::
 
 ## Run Service Tests
 
-Please copy `{project.rootdir}/.env.example` to `{project.rootdir}/.env` and change the values on need.
+Services tests read necessary configs from env vars or the `.env` file.
 
-Take `fs` for example, we need to enable bench on `fs` on `/tmp`.
+You can copy [.env.example](/.env.example) to `${project.rootdir}/.env` and change the values on need, or directly set env vars with `export KEY=VALUE`.
 
-```dotenv
-OPENDAL_FS_TEST=false
-OPENDAL_FS_ROOT=/path/to/dir
-```
+Take `fs` for example, we need to enable bench on `fs` on `/tmp`:
 
-into
-
-```dotenv
+```properties
 OPENDAL_FS_TEST=on
 OPENDAL_FS_ROOT=/opendal
 ```
@@ -128,11 +123,11 @@ OPENDAL_FS_ROOT=/opendal
 You can run service tests of enabled with the following command:
 
 ```shell
-./mvnw test -Dtest=org.apache.opendal.OperatorTest
+./mvnw test -Dtest=org.apache.opendal.behavior.FsTest # replace with the certain service tests
 ```
 
-You can run the unbound service with the following command:
+Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
 
 ```shell
-./mvnw test -Dtest=org.apache.opendal.OperatorTest -Dcargo-build.features=services-redis
+./mvnw test -Dtest=org.apache.opendal.behavior.RedisTest -Dcargo-build.features=services-redis
 ```

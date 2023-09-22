@@ -15,19 +15,20 @@ Generally, you can first add the `os-maven-plugin` for automatically detect the 
 
 ```xml
 <build>
-    <extensions>
-        <extension>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>1.7.0</version>
-        </extension>
-    </extensions>
+<extensions>
+  <extension>
+    <groupId>kr.motd.maven</groupId>
+    <artifactId>os-maven-plugin</artifactId>
+    <version>1.7.0</version>
+  </extension>
+</extensions>
 </build>
 ```
 
 Then add the dependency to `opendal-java` as following:
 
 ```xml
+<dependenies>
 <dependency>
   <groupId>org.apache.opendal</groupId>
   <artifactId>opendal-java</artifactId>
@@ -39,32 +40,30 @@ Then add the dependency to `opendal-java` as following:
   <version>${opendal.version}</version>
   <classifier>${os.detected.classifier}</classifier>
 </dependency>
+</dependenies>
 ```
 
 ### Gradle
 
-For Gradle you can first add the `com.google.osdetector` for automatically detect the classifier based on your platform:
+For Gradle, you can first add the `com.google.osdetector` for automatically detect the classifier based on your platform:
 
 ```groovy
 plugins {
-    ...
     id "com.google.osdetector" version "1.7.3"
 }
-
 ```
 
 Then add the dependency to `opendal-java` as following:
 
 ```groovy
 dependencies {
-    ...
-    // OpenDAL
     implementation "org.apache.opendal:opendal-java:0.40.0"
     implementation "org.apache.opendal:opendal-java:0.40.0:$osdetector.classifier"
 }
 ```
 
 ### Classified library
+
 Note that the dependency without classifier ships all classes and resources except the "opendal_java" shared library. And those with classifier bundle only the shared library.
 
 For downstream usage, it's recommended:
@@ -98,6 +97,16 @@ You can run the base tests with the following command:
 ./mvnw clean verify
 ```
 
+## Code style
+
+This project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.
+
+You can apply the code style with the following command::
+
+```shell
+./mvnw spotless:apply
+```
+
 ## Run Service Tests
 
 Please copy `{project.rootdir}/.env.example` to `{project.rootdir}/.env` and change the values on need.
@@ -126,19 +135,4 @@ You can run the unbound service with the following command:
 
 ```shell
 ./mvnw test -Dtest=org.apache.opendal.OperatorTest -Dcargo-build.features=services-redis
-```
-
-> **Note:**
-> 
-> The `-Dcargo-build.features=services-redis` argument is a temporary workaround. See also:
-> 
-> * https://github.com/apache/incubator-opendal/pull/3060
-> * https://github.com/apache/incubator-opendal/issues/3066
-
-Additionally, this project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.
-
-You can apply the code style with the following command::
-
-```shell
-./mvnw spotless:apply
 ```

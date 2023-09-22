@@ -59,7 +59,7 @@
 
         <!-- library dependencies -->
         <assertj.version>3.23.1</assertj.version>
-        <dotenv.version>3.0.0</dotenv.version>
+        <dotenv.version>2.3.2</dotenv.version>
         <lombok.version>1.18.30</lombok.version>
         <slf4j.version>2.0.7</slf4j.version>
 

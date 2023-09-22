@@ -90,14 +90,14 @@ public class Utils {
 
         String projectRoot = System.getProperty("user.dir");
 
-        projectRoot = Optional.ofNullable(Paths.get(projectRoot))
+        projectRoot = Optional.of(Paths.get(projectRoot))
                 .map(Path::getParent)
                 .map(Path::getParent)
                 .map(Path::toString)
                 .orElse(projectRoot);
 
         try (BufferedReader reader =
-                new BufferedReader(new FileReader(projectRoot.toString() + File.separator + ENV_NAME))) {
+                new BufferedReader(new FileReader(projectRoot + File.separator + ENV_NAME))) {
             properties.load(reader);
         } catch (Exception ignore) {
         }

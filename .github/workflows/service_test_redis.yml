@@ -193,7 +193,7 @@ jobs:
           OPENDAL_REDIS_ROOT: /
           OPENDAL_REDIS_DB: 0
 
-  binding_java_redis:
+  java:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

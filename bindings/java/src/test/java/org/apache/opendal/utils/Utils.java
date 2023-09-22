@@ -33,7 +33,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.opendal.BlockingOperator;
 import org.apache.opendal.Operator;
-import org.apache.opendal.enums.Schema;
 
 public class Utils {
 
@@ -50,14 +49,14 @@ public class Utils {
      * @return       If `opendal_{schema}_test` is on, construct a new Operator with given root.
      *               Else, returns a `Empty` to represent no valid config for operator.
      */
-    public static Optional<Operator> init(Schema schema) {
-        Map<String, String> conf = readEnv(schema.getServicesName());
+    public static Optional<Operator> init(String schema) {
+        Map<String, String> conf = readEnv(schema);
 
         final String turnOnTest = conf.get(CONF_TURN_ON_TEST);
         if (!isTurnOn(turnOnTest)) {
             return Optional.empty();
         }
-        Operator op = new Operator(schema.getServicesName(), conf);
+        Operator op = new Operator(schema, conf);
         return Optional.of(op);
     }
 
@@ -68,14 +67,14 @@ public class Utils {
      * @return        If `opendal_{schema}_test` is on, construct a new BlockingOperator with given root.
      *                Else, returns a `Empty` to represent no valid config for operator.
      */
-    public static Optional<BlockingOperator> initBlockingOp(Schema schema) {
-        Map<String, String> conf = readEnv(schema.getServicesName());
+    public static Optional<BlockingOperator> initBlockingOp(String schema) {
+        Map<String, String> conf = readEnv(schema);
 
         final String turnOnTest = conf.get(CONF_TURN_ON_TEST);
         if (!isTurnOn(turnOnTest)) {
             return Optional.empty();
         }
-        BlockingOperator op = new BlockingOperator(schema.getServicesName(), conf);
+        BlockingOperator op = new BlockingOperator(schema, conf);
         return Optional.of(op);
     }
 

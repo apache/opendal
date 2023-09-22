@@ -32,7 +32,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.opendal.condition.OpenDALExceptionCondition;
-import org.apache.opendal.enums.Schema;
 import org.apache.opendal.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,13 +40,55 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public class OperatorTest {
 
-    protected static final List<Operator> ops = new ArrayList<>();
+    private static final List<Operator> ops = new ArrayList<>();
 
-    protected static final List<BlockingOperator> blockingOps = new ArrayList<>();
+    private static final List<BlockingOperator> blockingOps = new ArrayList<>();
+
+    protected static final String[] schemas = new String[] {
+        "atomicserver",
+        "azblob",
+        "azdls",
+        "cacache",
+        "cos",
+        "dashmap",
+        "etcd",
+        "foundationdb",
+        "fs",
+        "ftp",
+        "gcs",
+        "ghac",
+        "hdfs",
+        "http",
+        "ipfs",
+        "ipmfs",
+        "memcached",
+        "memory",
+        "minimoka",
+        "moka",
+        "obs",
+        "onedrive",
+        "gdrive",
+        "dropbox",
+        "oss",
+        "persy",
+        "redis",
+        "postgresql",
+        "rocksdb",
+        "s3",
+        "sftp",
+        "sled",
+        "supabase",
+        "vercel-artifacts",
+        "wasabi",
+        "webdav",
+        "webhdfs",
+        "redb",
+        "tikv",
+    };
 
     @BeforeAll
     public static void init() {
-        for (Schema schema : Schema.values()) {
+        for (String schema : schemas) {
 
             Optional<Operator> opOptional = Utils.init(schema);
             opOptional.ifPresent(op -> ops.add(op));

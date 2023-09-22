@@ -64,6 +64,7 @@ dependencies {
 }
 ```
 
+### Classified library
 Note that the dependency without classifier ships all classes and resources except the "opendal_java" shared library. And those with classifier bundle only the shared library.
 
 For downstream usage, it's recommended:

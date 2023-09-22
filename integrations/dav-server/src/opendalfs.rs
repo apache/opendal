@@ -16,8 +16,7 @@
 // under the License.
 
 use std::path::Path;
-use std::pin::Pin;
-use std::task::Poll::Pending;
+use std::task::ready;
 use std::task::Poll::Ready;
 
 use dav_server::davpath::DavPath;
@@ -194,17 +193,12 @@ impl Stream for DavStream {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         let dav_stream = self.get_mut();
-        let lister = Pin::new(&mut dav_stream.lister).get_mut();
-
-        match Pin::new(lister).poll_next(cx) {
-            Ready(entry) => match entry {
-                Some(entry) => {
-                    let webdav_entry = WebDAVDirEntry::new(entry.unwrap(), dav_stream.op.clone());
-                    Ready(Some(Box::new(webdav_entry) as Box<dyn DavDirEntry>))
-                }
-                None => Ready(None),
-            },
-            Pending => Pending,
+        match ready!(dav_stream.lister.poll_next_unpin(cx)) {
+            Some(entry) => {
+                let webdav_entry = WebDAVDirEntry::new(entry.unwrap(), dav_stream.op.clone());
+                Ready(Some(Box::new(webdav_entry) as Box<dyn DavDirEntry>))
+            }
+            None => Ready(None),
         }
     }
 }

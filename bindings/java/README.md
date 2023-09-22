@@ -90,12 +90,42 @@ You can use Maven to build both Rust dynamic lib and JAR files with one command 
 
 ## Run tests
 
-Currently, all tests are written in Java. It contains the Cucumber feature tests and other unit tests.
+Currently, all tests are written in Java.
 
-You can run tests with the following command:
+You can run the base tests with the following command:
 
 ```shell
-./mvnw clean verify -Dcargo-build.features=services-redis
+./mvnw clean verify
+```
+
+## Run Service Tests
+
+Please copy `{project.rootdir}/.env.example` to `{project.rootdir}/.env` and change the values on need.
+
+Take `fs` for example, we need to enable bench on `fs` on `/tmp`.
+
+```dotenv
+OPENDAL_FS_TEST=false
+OPENDAL_FS_ROOT=/path/to/dir
+```
+
+into
+
+```dotenv
+OPENDAL_FS_TEST=on
+OPENDAL_FS_ROOT=/opendal
+```
+
+You can run service tests of enabled with the following command:
+
+```shell
+./mvnw test -Dtest=org.apache.opendal.OperatorTest
+```
+
+You can run the unbound service with the following command:
+
+```shell
+./mvnw test -Dtest=org.apache.opendal.OperatorTest -Dcargo-build.features=services-redis
 ```
 
 > **Note:**

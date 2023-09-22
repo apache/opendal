@@ -192,3 +192,26 @@ jobs:
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379
           OPENDAL_REDIS_ROOT: /
           OPENDAL_REDIS_DB: 0
+
+  binding_java_redis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Redis Server
+        shell: bash
+        working-directory: fixtures/redis
+        run: docker-compose -f docker-compose-redis.yml up -d
+
+      - name: Test
+        shell: bash
+        working-directory: bindings/java
+        run: ./mvnw test -Dtest=org.apache.opendal.OperatorTest -Dcargo-build.features=services-redis
+        env:
+          OPENDAL_REDIS_TEST: on
+          OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379
+          OPENDAL_REDIS_ROOT: /
+          OPENDAL_REDIS_DB: 0

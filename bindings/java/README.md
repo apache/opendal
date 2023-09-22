@@ -9,6 +9,8 @@
 
 This project is built upon the native OpenDAL lib. And it is released for multiple platforms that you can use a classifier to specify the platform you are building the application on.
 
+### Maven
+
 Generally, you can first add the `os-maven-plugin` for automatically detect the classifier based on your platform:
 
 ```xml
@@ -39,6 +41,30 @@ Then add the dependency to `opendal-java` as following:
 </dependency>
 ```
 
+### Gradle
+
+For Gradle you can first add the `com.google.osdetector` for automatically detect the classifier based on your platform:
+
+```groovy
+plugins {
+    ...
+    id "com.google.osdetector" version "1.7.3"
+}
+
+```
+
+Then add the dependency to `opendal-java` as following:
+
+```groovy
+dependencies {
+    ...
+    // OpenDAL
+    implementation "org.apache.opendal:opendal-java:0.40.0"
+    implementation "org.apache.opendal:opendal-java:0.40.0:$osdetector.classifier"
+}
+```
+
+### Classified library
 Note that the dependency without classifier ships all classes and resources except the "opendal_java" shared library. And those with classifier bundle only the shared library.
 
 For downstream usage, it's recommended:

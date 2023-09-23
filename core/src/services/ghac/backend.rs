@@ -311,6 +311,7 @@ impl Accessor for GhacBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_multi: true,
                 create_dir: true,
                 delete: true,
 

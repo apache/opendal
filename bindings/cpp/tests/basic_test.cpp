@@ -117,7 +117,7 @@ TEST_F(OpendalTest, ReaderTest) {
   reader.seek(0, std::ios::beg);
 
   // stream
-  opendal::ReaderStream stream(reader);
+  opendal::ReaderStream stream(std::move(reader));
 
   auto read_fn = [&](std::size_t to_read, std::streampos expected_tellg) {
     std::vector<char> v(to_read);

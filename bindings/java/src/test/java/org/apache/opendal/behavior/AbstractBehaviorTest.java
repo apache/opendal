@@ -42,24 +42,24 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class BehaviorTest {
+public abstract class AbstractBehaviorTest {
     protected final String scheme;
     protected final Map<String, String> config;
     protected Operator operator;
     protected BlockingOperator blockingOperator;
 
-    protected BehaviorTest(String scheme) {
+    protected AbstractBehaviorTest(String scheme) {
         this(scheme, createSchemeConfig(scheme));
     }
 
-    protected BehaviorTest(String scheme, Map<String, String> config) {
+    protected AbstractBehaviorTest(String scheme, Map<String, String> config) {
         this.scheme = scheme;
         this.config = config;
     }
 
     @BeforeAll
     public void setup() {
-        assertThat(isEnabled(config))
+        assertThat(isSchemeEnabled(config))
                 .describedAs("service test for " + scheme + " is not enabled.")
                 .isTrue();
         this.operator = new Operator(scheme, config);
@@ -223,7 +223,7 @@ public abstract class BehaviorTest {
         return content;
     }
 
-    protected static boolean isEnabled(Map<String, String> config) {
+    protected static boolean isSchemeEnabled(Map<String, String> config) {
         final String turnOn = config.getOrDefault("test", "").toLowerCase();
         return turnOn.equals("on") || turnOn.equals("true");
     }

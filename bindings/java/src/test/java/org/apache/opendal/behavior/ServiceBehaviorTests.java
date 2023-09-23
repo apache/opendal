@@ -23,16 +23,35 @@ import java.io.File;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.util.Files;
+import org.junit.jupiter.api.condition.EnabledIf;
 
 @Slf4j
-public class FsTest extends BehaviorTest {
+class MemoryTest extends AbstractBehaviorTest {
+    public MemoryTest() {
+        super("memory", defaultSchemeConfig());
+    }
+
+    private static Map<String, String> defaultSchemeConfig() {
+        final Map<String, String> config = createSchemeConfig("memory");
+        if (!isSchemeEnabled(config)) {
+            log.info("Running MemoryTest with default config.");
+            config.clear();
+            config.put("test", "on");
+            config.put("root", "/tmp");
+        }
+        return config;
+    }
+}
+
+@Slf4j
+class FsTest extends AbstractBehaviorTest {
     public FsTest() {
         super("fs", schemeConfig());
     }
 
     private static Map<String, String> schemeConfig() {
         final Map<String, String> config = createSchemeConfig("fs");
-        if (!isEnabled(config)) {
+        if (!isSchemeEnabled(config)) {
             log.info("Running FsTest with default config.");
             config.clear();
 
@@ -42,5 +61,27 @@ public class FsTest extends BehaviorTest {
             config.put("root", tempDir.getAbsolutePath());
         }
         return config;
+    }
+}
+
+@EnabledIf("enabled")
+class RedisTest extends AbstractBehaviorTest {
+    public RedisTest() {
+        super("redis");
+    }
+
+    private static boolean enabled() {
+        return isSchemeEnabled(createSchemeConfig("redis"));
+    }
+}
+
+@EnabledIf("enabled")
+class S3Test extends AbstractBehaviorTest {
+    public S3Test() {
+        super("s3");
+    }
+
+    private static boolean enabled() {
+        return isSchemeEnabled(createSchemeConfig("s3"));
     }
 }

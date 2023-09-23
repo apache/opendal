@@ -97,6 +97,11 @@ unsafe fn get_global_runtime<'local>() -> &'local Runtime {
     RUNTIME.get_unchecked()
 }
 
+fn usize_to_jlong(n: Option<usize>) -> jlong {
+    // usize is always >= 0, so we can use -1 to identify the empty value.
+    n.map_or(-1, |v| v as jlong)
+}
+
 fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String, String>> {
     let map = JMap::from_env(env, params)?;
     let mut iter = map.iter(env)?;
@@ -148,17 +153,15 @@ fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Re
 }
 
 fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JObject<'a>> {
-    let operator_info_class = env.find_class("org/apache/opendal/OperatorInfo")?;
-
     let schema = env.new_string(info.scheme().to_string())?;
     let root = env.new_string(info.root().to_string())?;
     let name = env.new_string(info.name().to_string())?;
     let full_capability_obj = make_capability(env, info.full_capability())?;
     let native_capability_obj = make_capability(env, info.native_capability())?;
 
-    let operator_info_obj = env
+    let result = env
         .new_object(
-            operator_info_class,
+            "org/apache/opendal/OperatorInfo",
             "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/apache/opendal/Capability;Lorg/apache/opendal/Capability;)V",
             &[
                 JValue::Object(&schema),
@@ -168,15 +171,12 @@ fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JO
                 JValue::Object(&native_capability_obj),
             ],
         )?;
-
-    Ok(operator_info_obj)
+    Ok(result)
 }
 
 fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<'a>> {
-    let capability_class = env.find_class("org/apache/opendal/Capability")?;
-
     let capability = env.new_object(
-        capability_class,
+        "org/apache/opendal/Capability",
         "(ZZZZZZZZZZZZZZZZZZJJJZZZZZZZZZZZZZZZJZ)V",
         &[
             JValue::Bool(cap.stat as jboolean),
@@ -197,9 +197,9 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.write_with_content_type as jboolean),
             JValue::Bool(cap.write_with_content_disposition as jboolean),
             JValue::Bool(cap.write_with_cache_control as jboolean),
-            JValue::Long(cap.write_multi_max_size.map_or(-1, |v| v as jlong)),
-            JValue::Long(cap.write_multi_min_size.map_or(-1, |v| v as jlong)),
-            JValue::Long(cap.write_multi_align_size.map_or(-1, |v| v as jlong)),
+            JValue::Long(usize_to_jlong(cap.write_multi_max_size)),
+            JValue::Long(usize_to_jlong(cap.write_multi_min_size)),
+            JValue::Long(usize_to_jlong(cap.write_multi_align_size)),
             JValue::Bool(cap.create_dir as jboolean),
             JValue::Bool(cap.delete as jboolean),
             JValue::Bool(cap.copy as jboolean),
@@ -215,10 +215,9 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
             JValue::Bool(cap.presign_write as jboolean),
             JValue::Bool(cap.batch as jboolean),
             JValue::Bool(cap.batch_delete as jboolean),
-            JValue::Long(cap.batch_max_operations.map_or(-1, |v| v as jlong)),
+            JValue::Long(usize_to_jlong(cap.batch_max_operations)),
             JValue::Bool(cap.blocking as jboolean),
         ],
     )?;
-
     Ok(capability)
 }

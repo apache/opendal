@@ -17,12 +17,15 @@
  * under the License.
  */
 
-package org.apache.opendal;
+package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.Operator;
+import org.apache.opendal.OperatorInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

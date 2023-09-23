@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.opendal.condition;
+package org.apache.opendal.test.condition;
 
 import java.util.ArrayList;
 import java.util.Collections;

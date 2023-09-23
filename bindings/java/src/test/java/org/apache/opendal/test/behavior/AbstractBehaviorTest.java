@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.opendal.behavior;
+package org.apache.opendal.test.behavior;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,7 +34,7 @@ import org.apache.opendal.Capability;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
-import org.apache.opendal.condition.OpenDALExceptionCondition;
+import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;

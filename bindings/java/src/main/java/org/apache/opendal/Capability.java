@@ -19,18 +19,22 @@
 
 package org.apache.opendal;
 
+import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 @ToString
+@EqualsAndHashCode
 public class Capability {
     /**
      *  If operator supports stat.
      */
     public final boolean stat;
+
     /**
-     * If operator supports stat with if match.
+     * If operator supports stat with if matched.
      */
     public final boolean statWithIfMatch;
+
     /**
      * If operator supports stat with if none match.
      */
@@ -40,34 +44,42 @@ public class Capability {
      * If operator supports read.
      */
     public final boolean read;
+
     /**
      * If operator supports seek on returning reader.
      */
     public final boolean readCanSeek;
+
     /**
      * If operator supports next on returning reader.
      */
     public final boolean readCanNext;
+
     /**
      * If operator supports read with range.
      */
     public final boolean readWithRange;
+
     /**
-     * If operator supports read with if match.
+     * If operator supports read with if matched.
      */
     public final boolean readWithIfMatch;
+
     /**
      * If operator supports read with if none match.
      */
     public final boolean readWithIfNoneMatch;
+
     /**
      * If operator supports read with override cache control.
      */
     public final boolean readWithOverrideCacheControl;
+
     /**
      * if operator supports read with override content disposition.
      */
     public final boolean readWithOverrideContentDisposition;
+
     /**
      * if operator supports read with override content type.
      */
@@ -77,36 +89,44 @@ public class Capability {
      * If operator supports write.
      */
     public final boolean write;
+
     /**
      * If operator supports write can be called in multi times.
      */
     public final boolean writeCanMulti;
+
     /**
      * If operator supports write by append.
      */
     public final boolean writeCanAppend;
+
     /**
      * If operator supports write with content type.
      */
     public final boolean writeWithContentType;
+
     /**
      * If operator supports write with content disposition.
      */
     public final boolean writeWithContentDisposition;
+
     /**
      * If operator supports write with cache control.
      */
     public final boolean writeWithCacheControl;
+
     /**
      * write_multi_max_size is the max size that services support in write_multi.
      * For example, AWS S3 supports 5GiB as max in write_multi.
      */
     public final long writeMultiMaxSize;
+
     /**
      * write_multi_min_size is the min size that services support in write_multi.
      * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
      */
     public final long writeMultiMinSize;
+
     /**
      * write_multi_align_size is the align size that services required in write_multi.
      * For example, Google GCS requires align size to 256KiB in write_multi.
@@ -137,18 +157,22 @@ public class Capability {
      * If operator supports list.
      */
     public final boolean list;
+
     /**
      * If backend supports list with limit.
      */
     public final boolean listWithLimit;
+
     /**
      * If backend supports list with start after.
      */
     public final boolean listWithStartAfter;
+
     /**
      * If backend support list with using slash as delimiter.
      */
     public final boolean listWithDelimiterSlash;
+
     /**
      * If backend supports list without delimiter.
      */
@@ -158,14 +182,17 @@ public class Capability {
      * If operator supports presign.
      */
     public final boolean presign;
+
     /**
      * If operator supports presign read.
      */
     public final boolean presignRead;
+
     /**
      * If operator supports presign stat.
      */
     public final boolean presignStat;
+
     /**
      * If operator supports presign write.
      */
@@ -175,10 +202,12 @@ public class Capability {
      * If operator supports batch.
      */
     public final boolean batch;
+
     /**
      * If operator supports batch delete.
      */
     public final boolean batchDelete;
+
     /**
      * The max operations that operator supports in batch.
      */

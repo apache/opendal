@@ -20,6 +20,7 @@
 package org.apache.opendal.condition;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -36,6 +37,10 @@ public class OpenDALExceptionCondition extends Condition<Throwable> {
         canBeStripped.add(CompletionException.class);
         canBeStripped.add(ExecutionException.class);
         return new OpenDALExceptionCondition(code, canBeStripped);
+    }
+
+    public static OpenDALExceptionCondition ofSync(OpenDALException.Code code) {
+        return new OpenDALExceptionCondition(code, Collections.emptyList());
     }
 
     public OpenDALExceptionCondition(OpenDALException.Code code, List<Class<? extends Throwable>> canBeStripped) {

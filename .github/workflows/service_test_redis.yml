@@ -193,7 +193,7 @@ jobs:
           OPENDAL_REDIS_ROOT: /
           OPENDAL_REDIS_DB: 0
 
-  binding_java_redis:
+  java:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -209,7 +209,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dtest=org.apache.opendal.OperatorTest -Dcargo-build.features=services-redis
+        run: ./mvnw test -Dtest=org.apache.opendal.behavior.RedisTest -Dcargo-build.features=services-redis
         env:
           OPENDAL_REDIS_TEST: on
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379

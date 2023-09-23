@@ -197,8 +197,7 @@ private:
  * @details It provides basic read and seek operations. If you want to use it
  * like a stream, you can use `ReaderStream` instead.
  * @code{.cpp}
- * auto reader = operator.reader("path");
- * opendal::ReaderStream stream(reader);
+ * opendal::ReaderStream stream(operator.reader("path"));
  * @endcode
  */
 class Reader
@@ -221,15 +220,19 @@ private:
 /**
  * @class ReaderStream
  * @brief ReaderStream is a stream wrapper of Reader which can provide
- * `iostream` interface.
- * @note It's an undefined behavior to make multiple streams from one reader.
+ * `iostream` interface. It will keep a Reader inside so that you can ignore the
+ * lifetime of original Reader.
  */
 class ReaderStream
     : public boost::iostreams::stream<boost::reference_wrapper<Reader>> {
 public:
-  ReaderStream(Reader &reader)
+  ReaderStream(Reader &&reader)
       : boost::iostreams::stream<boost::reference_wrapper<Reader>>(
-            boost::ref(reader)) {}
+            boost::ref(reader_)),
+        reader_(std::move(reader)) {}
+
+private:
+  Reader reader_;
 };
 
 /**

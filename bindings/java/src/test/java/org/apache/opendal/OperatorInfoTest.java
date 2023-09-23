@@ -19,9 +19,7 @@
 
 package org.apache.opendal;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,65 +27,53 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class OperatorInfoTest {
-
     @TempDir
     private static Path tempDir;
 
     @Test
     public void testBlockingOperatorInfo() {
-        Map<String, String> conf = new HashMap<>();
+        final Map<String, String> conf = new HashMap<>();
         conf.put("root", tempDir.toString());
-        try (BlockingOperator op = new BlockingOperator("fs", conf)) {
 
-            OperatorInfo info = op.info();
-            assertNotNull(info);
-            assertEquals("fs", info.scheme);
+        try (final BlockingOperator op = new BlockingOperator("fs", conf)) {
+            final OperatorInfo info = op.info();
+            assertThat(info).isNotNull();
+            assertThat(info.scheme).isEqualTo("fs");
 
-            Capability fullCapability = info.fullCapability;
-            assertNotNull(fullCapability);
+            assertThat(info.fullCapability).isNotNull();
+            assertThat(info.fullCapability.read).isTrue();
+            assertThat(info.fullCapability.write).isTrue();
+            assertThat(info.fullCapability.delete).isTrue();
+            assertThat(info.fullCapability.writeCanAppend).isTrue();
+            assertThat(info.fullCapability.writeMultiAlignSize).isEqualTo(-1);
+            assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
+            assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
+            assertThat(info.fullCapability.batchMaxOperations).isEqualTo(-1);
 
-            assertTrue(fullCapability.read);
-            assertTrue(fullCapability.write);
-            assertTrue(fullCapability.delete);
-            assertTrue(fullCapability.writeCanAppend);
-
-            assertEquals(fullCapability.writeMultiAlignSize, -1);
-            assertEquals(fullCapability.writeMultiMaxSize, -1);
-            assertEquals(fullCapability.writeMultiMinSize, -1);
-            assertEquals(fullCapability.batchMaxOperations, -1);
-
-            Capability nativeCapability = info.nativeCapability;
-            assertNotNull(nativeCapability);
+            assertThat(info.nativeCapability).isNotNull();
         }
     }
 
     @Test
     public void testOperatorInfo() {
-        Map<String, String> conf = new HashMap<>();
-        String root = "/opendal/";
-        conf.put("root", root);
-        try (Operator op = new Operator("memory", conf)) {
+        final Map<String, String> conf = new HashMap<>();
+        conf.put("root", "/opendal/");
+        try (final Operator op = new Operator("memory", conf)) {
+            final OperatorInfo info = op.info();
+            assertThat(info).isNotNull();
+            assertThat(info.scheme).isEqualTo("memory");
 
-            OperatorInfo info = op.info();
-            assertNotNull(info);
-            assertEquals("memory", info.scheme);
-            assertEquals(root, info.root);
+            assertThat(info.fullCapability).isNotNull();
+            assertThat(info.fullCapability.read).isTrue();
+            assertThat(info.fullCapability.write).isTrue();
+            assertThat(info.fullCapability.delete).isTrue();
+            assertThat(info.fullCapability.writeCanAppend).isFalse();
+            assertThat(info.fullCapability.writeMultiAlignSize).isEqualTo(-1);
+            assertThat(info.fullCapability.writeMultiMaxSize).isEqualTo(-1);
+            assertThat(info.fullCapability.writeMultiMinSize).isEqualTo(-1);
+            assertThat(info.fullCapability.batchMaxOperations).isEqualTo(-1);
 
-            Capability fullCapability = info.fullCapability;
-            assertNotNull(fullCapability);
-
-            assertTrue(fullCapability.read);
-            assertTrue(fullCapability.write);
-            assertTrue(fullCapability.delete);
-            assertTrue(!fullCapability.writeCanAppend);
-
-            assertEquals(fullCapability.writeMultiAlignSize, -1);
-            assertEquals(fullCapability.writeMultiMaxSize, -1);
-            assertEquals(fullCapability.writeMultiMinSize, -1);
-            assertEquals(fullCapability.batchMaxOperations, -1);
-
-            Capability nativeCapability = info.nativeCapability;
-            assertNotNull(nativeCapability);
+            assertThat(info.nativeCapability).isNotNull();
         }
     }
 }

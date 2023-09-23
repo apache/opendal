@@ -84,4 +84,5 @@ jobs:
         # https://maven.apache.org/guides/mini/guide-reproducible-builds.html#how-to-test-my-maven-build-reproducibility
         shell: bash
         run: |
-          ./mvnw clean install -DskipTests -Dcargo-build.features=services-redis
+          ./mvnw clean install -DskipTests
+          ./mvnw verify artifact:compare

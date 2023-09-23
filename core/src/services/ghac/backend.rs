@@ -351,7 +351,7 @@ impl Accessor for GhacBackend {
 
         // Write only 1 byte to allow create.
         let req = self
-            .ghac_upload(cache_id, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
+            .ghac_upload(cache_id, 0, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
             .await?;
 
         let resp = self.client.send(req).await?;
@@ -562,6 +562,7 @@ impl GhacBackend {
     pub async fn ghac_upload(
         &self,
         cache_id: i64,
+        offset: u64,
         size: u64,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
@@ -575,7 +576,7 @@ impl GhacBackend {
         req = req.header(
             CONTENT_RANGE,
             BytesContentRange::default()
-                .with_range(0, size - 1)
+                .with_range(offset, offset + size - 1)
                 .to_header(),
         );
 

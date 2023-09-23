@@ -64,13 +64,14 @@ impl oio::Write for GhacWriter {
                     let backend = backend.take().expect("GhacWriter must be initialized");
 
                     let cache_id = self.cache_id;
+                    let offset = self.size;
                     let size = bs.remaining();
                     let bs = bs.bytes(size);
 
                     let fut = async move {
                         let res = async {
                             let req = backend
-                                .ghac_upload(cache_id, size as u64, AsyncBody::Bytes(bs))
+                                .ghac_upload(cache_id, offset, size as u64, AsyncBody::Bytes(bs))
                                 .await?;
 
                             let resp = backend.client.send(req).await?;

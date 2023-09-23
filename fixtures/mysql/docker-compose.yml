@@ -18,19 +18,16 @@
 version: '3.8'
 
 services:
-  postgres-db:
-    image: postgres:13
+  mysql-db:
+    image: mysql:8.1.0
     ports:
-      - 5432:5432
+      - 3306:3306
     environment:
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_USER=user
-      - POSTGRES_DB=testdb
-    command: --max_allowed_packet=1024M
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=testdb
     volumes:
         - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "sh -c 'pg_isready -U user -d testdb'"]
-      interval: 3s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10

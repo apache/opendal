@@ -1,0 +1,21 @@
+   Compiling opendal v0.40.0 (/home/manjusaka/Documents/projects/opendal/core)
+warning: unused import: `std::path`
+  --> core/src/services/mysql/backend.rs:20:5
+   |
+20 | use std::path;
+   |     ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `mysql_async::Statement`
+  --> core/src/services/mysql/backend.rs:26:5
+   |
+26 | use mysql_async::Statement;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `tokio::sync::OnceCell`
+  --> core/src/services/mysql/backend.rs:27:5
+   |
+27 | use tokio::sync::OnceCell;
+   |     ^^^^^^^^^^^^^^^^^^^^^
+

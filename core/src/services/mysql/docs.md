@@ -18,9 +18,9 @@ This service can be used to:
 
 - `root`: Set the working directory of `OpenDAL`
 - `connection_string`: Set the connection string of postgres server
-- `table`: Set the table of postgresql
-- `key_field`: Set the key field of postgresql
-- `value_field`: Set the value field of postgresql
+- `table`: Set the table of mysql
+- `key_field`: Set the key field of mysql
+- `value_field`: Set the value field of mysql
 
 ## Example
 
@@ -28,14 +28,14 @@ This service can be used to:
 
 ```rust
 use anyhow::Result;
-use opendal::services::Postgresql;
+use opendal::services::MySql;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Postgresql::default();
+    let mut builder = MySql::default();
     builder.root("/");
-    builder.connection_string("postgresql://you_username:your_password@127.0.0.1:5432/your_database");
+    builder.connection_string("mysql://you_username:your_password@127.0.0.1:5432/your_database");
     builder.table("your_table");
     // key field type in the table should be compatible with Rust's &str like text
     builder.key_field("key");

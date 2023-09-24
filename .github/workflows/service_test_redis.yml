@@ -30,6 +30,7 @@ on:
       - "!core/src/docs/**"
       - "!core/src/services/**"
       - "core/src/services/redis/**"
+      - "bindings/java/**"
       - ".github/workflows/service_test_redis.yml"
       - "fixtures/redis/**"
 
@@ -209,7 +210,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dtest=org.apache.opendal.behavior.RedisTest -Dcargo-build.features=services-redis
+        run: ./mvnw test -Dtest=org.apache.opendal.test.behavior.RedisTest -Dcargo-build.features=services-redis
         env:
           OPENDAL_REDIS_TEST: on
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379

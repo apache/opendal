@@ -26,7 +26,6 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_USER=user
       - POSTGRES_DB=testdb
-    command: --max_allowed_packet=1024M
     volumes:
         - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:

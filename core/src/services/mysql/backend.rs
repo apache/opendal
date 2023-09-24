@@ -51,22 +51,21 @@ impl Debug for MysqlBuilder {
 }
 
 impl MysqlBuilder {
-
     /// Set the connection_string of the mysql service.
     ///
     /// This connection string is used to connect to the mysql service. There are url based formats:
-    /// 
+    ///
     /// ## Url
-    /// 
+    ///
     /// This format resembles the url format of the mysql client. The format is: [scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...
-    /// 
+    ///
     /// - `mysql://user@localhost`
     /// - `mysql://user:password@localhost`
     /// - `mysql://user:password@localhost:3306`
     /// - `mysql://user:password@localhost:3306/db`
-    /// 
+    ///
     /// For more information, please refer to [mysql client](https://dev.mysql.com/doc/refman/8.0/en/connecting-using-uri-or-key-value-pairs.html)
-    /// 
+    ///
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.connection_string = Some(v.to_string());
@@ -91,7 +90,6 @@ impl MysqlBuilder {
         }
         self
     }
-
 
     /// Set the key field name of the mysql service to read/write.
     ///
@@ -241,7 +239,8 @@ impl kv::Adapter for Adapter {
                     "path" => path,
                 },
             )
-            .await.map_err(|err| {
+            .await
+            .map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "delete failed")
                     .with_context("service", Scheme::Mysql)
                     .set_source(err)
@@ -276,7 +275,8 @@ impl kv::Adapter for Adapter {
                 "new_value" => value,
             },
         )
-        .await.map_err(|err| {
+        .await
+        .map_err(|err| {
             Error::new(ErrorKind::Unexpected, "set failed")
                 .with_context("service", Scheme::Mysql)
                 .set_source(err)
@@ -306,7 +306,8 @@ impl kv::Adapter for Adapter {
                 "path" => path,
             },
         )
-        .await.map_err(|err| {
+        .await
+        .map_err(|err| {
             Error::new(ErrorKind::Unexpected, "delete failed")
                 .with_context("service", Scheme::Mysql)
                 .set_source(err)

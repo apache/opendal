@@ -22,6 +22,7 @@ services:
     image: mysql:8.1.0
     ports:
       - 3306:3306
+    command: --max_allowed_packet=1024M
     environment:
       - MYSQL_ROOT_PASSWORD=password
       - MYSQL_DATABASE=testdb

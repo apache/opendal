@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Postgresql
+name: Service Test Mysql
 
 on:
   push:

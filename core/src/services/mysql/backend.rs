@@ -224,12 +224,10 @@ impl kv::Adapter for Adapter {
         );
         let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "connection failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
         let statement = conn.prep(query).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "prepare statement failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
         let result: Option<Vec<u8>> = conn
@@ -242,7 +240,6 @@ impl kv::Adapter for Adapter {
             .await
             .map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "delete failed")
-                    .with_context("service", Scheme::Mysql)
                     .set_source(err)
             })?;
         match result {
@@ -253,17 +250,17 @@ impl kv::Adapter for Adapter {
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
         let query = format!(
-            "INSERT INTO `{}` (`{}`, `{}`) VALUES (:path, :value) ON DUPLICATE KEY UPDATE `{}` = :new_value",
-            self.table, self.key_field, self.value_field, self.value_field
+            "INSERT INTO `{}` (`{}`, `{}`) 
+            VALUES (:path, :value) 
+            ON DUPLICATE KEY UPDATE `{}` = VALUES({})",
+            self.table, self.key_field, self.value_field, self.value_field, self.value_field
         );
         let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "connection failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
         let statement = conn.prep(query).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "prepare statement failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
 
@@ -272,13 +269,11 @@ impl kv::Adapter for Adapter {
             params! {
                 "path" => path,
                 "value" => value,
-                "new_value" => value,
             },
         )
         .await
         .map_err(|err| {
             Error::new(ErrorKind::Unexpected, "set failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
         Ok(())
@@ -291,12 +286,10 @@ impl kv::Adapter for Adapter {
         );
         let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "connection failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
         let statement = conn.prep(query).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "prepare statement failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
 
@@ -309,7 +302,6 @@ impl kv::Adapter for Adapter {
         .await
         .map_err(|err| {
             Error::new(ErrorKind::Unexpected, "delete failed")
-                .with_context("service", Scheme::Mysql)
                 .set_source(err)
         })?;
         Ok(())

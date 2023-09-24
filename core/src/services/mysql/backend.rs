@@ -223,12 +223,10 @@ impl kv::Adapter for Adapter {
             self.value_field, self.table, self.key_field
         );
         let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed")
-                .set_source(err)
+            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
         })?;
         let statement = conn.prep(query).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "prepare statement failed")
-                .set_source(err)
+            Error::new(ErrorKind::Unexpected, "prepare statement failed").set_source(err)
         })?;
         let result: Option<Vec<u8>> = conn
             .exec_first(
@@ -238,10 +236,7 @@ impl kv::Adapter for Adapter {
                 },
             )
             .await
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "delete failed")
-                    .set_source(err)
-            })?;
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "delete failed").set_source(err))?;
         match result {
             Some(v) => Ok(Some(v)),
             None => Ok(None),
@@ -256,12 +251,10 @@ impl kv::Adapter for Adapter {
             self.table, self.key_field, self.value_field, self.value_field, self.value_field
         );
         let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed")
-                .set_source(err)
+            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
         })?;
         let statement = conn.prep(query).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "prepare statement failed")
-                .set_source(err)
+            Error::new(ErrorKind::Unexpected, "prepare statement failed").set_source(err)
         })?;
 
         conn.exec_drop(
@@ -272,10 +265,7 @@ impl kv::Adapter for Adapter {
             },
         )
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "set failed")
-                .set_source(err)
-        })?;
+        .map_err(|err| Error::new(ErrorKind::Unexpected, "set failed").set_source(err))?;
         Ok(())
     }
 
@@ -285,12 +275,10 @@ impl kv::Adapter for Adapter {
             self.table, self.key_field
         );
         let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed")
-                .set_source(err)
+            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
         })?;
         let statement = conn.prep(query).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "prepare statement failed")
-                .set_source(err)
+            Error::new(ErrorKind::Unexpected, "prepare statement failed").set_source(err)
         })?;
 
         conn.exec_drop(
@@ -300,10 +288,7 @@ impl kv::Adapter for Adapter {
             },
         )
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "delete failed")
-                .set_source(err)
-        })?;
+        .map_err(|err| Error::new(ErrorKind::Unexpected, "delete failed").set_source(err))?;
         Ok(())
     }
 }

@@ -99,6 +99,8 @@ public class Operator extends NativeObject {
         }
     }
 
+    public final OperatorInfo info;
+
     /**
      * Construct an OpenDAL operator:
      *
@@ -109,8 +111,21 @@ public class Operator extends NativeObject {
      * @param schema the name of the underneath service to access data from.
      * @param map    a map of properties to construct the underneath operator.
      */
-    public Operator(String schema, Map<String, String> map) {
-        super(constructor(schema, map));
+    public static Operator of(String schema, Map<String, String> map) {
+        final long nativeHandle = constructor(schema, map);
+        final OperatorInfo info = makeOperatorInfo(nativeHandle);
+        return new Operator(nativeHandle, info);
+    }
+
+    Operator(long nativeHandle, OperatorInfo info) {
+        super(nativeHandle);
+        this.info = info;
+    }
+
+    public BlockingOperator blocking() {
+        final long nativeHandle = makeBlockingOp(this.nativeHandle);
+        final OperatorInfo info = this.info;
+        return new BlockingOperator(nativeHandle, info);
     }
 
     public CompletableFuture<Void> write(String path, String content) {
@@ -140,10 +155,6 @@ public class Operator extends NativeObject {
     public CompletableFuture<byte[]> read(String path) {
         final long requestId = read(nativeHandle, path);
         return AsyncRegistry.take(requestId);
-    }
-
-    public OperatorInfo info() {
-        return info(nativeHandle);
     }
 
     public CompletableFuture<Void> presignRead(String path, Duration duration) {
@@ -187,5 +198,7 @@ public class Operator extends NativeObject {
 
     private static native long presignStat(long nativeHandle, String path, long duration);
 
-    private static native OperatorInfo info(long nativeHandle);
+    private static native OperatorInfo makeOperatorInfo(long nativeHandle);
+
+    private static native long makeBlockingOp(long nativeHandle);
 }

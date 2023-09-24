@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::str::FromStr;
-
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -24,39 +22,9 @@ use jni::objects::JString;
 use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
 
-use opendal::layers::BlockingLayer;
 use opendal::BlockingOperator;
-use opendal::Operator;
-use opendal::Scheme;
 
-use crate::get_global_runtime;
-use crate::jmap_to_hashmap;
-use crate::make_operator_info;
 use crate::Result;
-
-#[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(
-    mut env: JNIEnv,
-    _: JClass,
-    scheme: JString,
-    map: JObject,
-) -> jlong {
-    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
-    })
-}
-
-fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
-    let scheme = Scheme::from_str(env.get_string(&scheme)?.to_str()?)?;
-    let map = jmap_to_hashmap(env, &map)?;
-    let mut op = Operator::via_map(scheme, map)?;
-    if !op.info().full_capability().blocking {
-        let _guard = unsafe { get_global_runtime() }.enter();
-        op = op.layer(BlockingLayer::create()?);
-    }
-    Ok(Box::into_raw(Box::new(op.blocking())) as jlong)
-}
 
 /// # Safety
 ///
@@ -160,28 +128,4 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
 fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
     let path = env.get_string(&path)?;
     Ok(op.delete(path.to_str()?)?)
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator are ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_info<'local>(
-    mut env: JNIEnv<'local>,
-    _: JClass,
-    op: *mut BlockingOperator,
-) -> JObject<'local> {
-    intern_info(&mut env, &mut *op).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        JObject::null()
-    })
-}
-
-fn intern_info<'local>(
-    env: &mut JNIEnv<'local>,
-    op: &mut BlockingOperator,
-) -> Result<JObject<'local>> {
-    let info = op.info();
-
-    make_operator_info(env, info)
 }

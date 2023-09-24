@@ -17,12 +17,15 @@
  * under the License.
  */
 
-package org.apache.opendal;
+package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.Operator;
+import org.apache.opendal.OperatorInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -35,8 +38,8 @@ public class OperatorInfoTest {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", tempDir.toString());
 
-        try (final BlockingOperator op = new BlockingOperator("fs", conf)) {
-            final OperatorInfo info = op.info();
+        try (final BlockingOperator op = BlockingOperator.of("fs", conf)) {
+            final OperatorInfo info = op.info;
             assertThat(info).isNotNull();
             assertThat(info.scheme).isEqualTo("fs");
 
@@ -58,8 +61,8 @@ public class OperatorInfoTest {
     public void testOperatorInfo() {
         final Map<String, String> conf = new HashMap<>();
         conf.put("root", "/opendal/");
-        try (final Operator op = new Operator("memory", conf)) {
-            final OperatorInfo info = op.info();
+        try (final Operator op = Operator.of("memory", conf)) {
+            final OperatorInfo info = op.info;
             assertThat(info).isNotNull();
             assertThat(info.scheme).isEqualTo("memory");
 

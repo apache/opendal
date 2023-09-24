@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.opendal.behavior;
+package org.apache.opendal.test.behavior;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,7 +34,7 @@ import org.apache.opendal.Capability;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
-import org.apache.opendal.condition.OpenDALExceptionCondition;
+import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
@@ -62,8 +62,8 @@ public abstract class AbstractBehaviorTest {
         assertThat(isSchemeEnabled(config))
                 .describedAs("service test for " + scheme + " is not enabled.")
                 .isTrue();
-        this.operator = new Operator(scheme, config);
-        this.blockingOperator = new BlockingOperator(scheme, config);
+        this.operator = Operator.of(scheme, config);
+        this.blockingOperator = BlockingOperator.of(scheme, config);
     }
 
     @AfterAll
@@ -83,7 +83,7 @@ public abstract class AbstractBehaviorTest {
     class AsyncWriteTest {
         @BeforeAll
         public void precondition() {
-            final Capability capability = operator.info().fullCapability;
+            final Capability capability = operator.info.fullCapability;
             assumeTrue(capability.read && capability.write);
         }
 
@@ -141,7 +141,7 @@ public abstract class AbstractBehaviorTest {
     class AsyncAppendTest {
         @BeforeAll
         public void precondition() {
-            final Capability capability = operator.info().fullCapability;
+            final Capability capability = operator.info.fullCapability;
             assumeTrue(capability.read && capability.write && capability.writeCanAppend);
         }
 
@@ -169,7 +169,7 @@ public abstract class AbstractBehaviorTest {
     class BlockingWriteTest {
         @BeforeAll
         public void precondition() {
-            final Capability capability = blockingOperator.info().fullCapability;
+            final Capability capability = blockingOperator.info.fullCapability;
             assumeTrue(capability.read && capability.write && capability.blocking);
         }
 

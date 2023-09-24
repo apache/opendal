@@ -24,7 +24,7 @@ use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
-use jni::sys::jlong;
+use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
 use opendal::raw::PresignedRequest;
@@ -263,26 +263,37 @@ async fn do_delete(op: &mut Operator, path: String) -> Result<()> {
     Ok(op.delete(&path).await?)
 }
 
-// # Safety
+/// # Safety
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_info<'local>(
-    mut env: JNIEnv<'local>,
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_makeBlockingOp(
+    _: JNIEnv,
     _: JClass,
     op: *mut Operator,
-) -> JObject<'local> {
-    intern_info(&mut env, op).unwrap_or_else(|e| {
+) -> jlong {
+    let op = unsafe { &mut *op };
+    Box::into_raw(Box::new(op.blocking())) as jlong
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_makeOperatorInfo(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) -> jobject {
+    intern_make_operator_info(&mut env, op).unwrap_or_else(|e| {
         e.throw(&mut env);
-        JObject::null()
+        JObject::default().into_raw()
     })
 }
 
-fn intern_info<'local>(env: &mut JNIEnv<'local>, op: *mut Operator) -> Result<JObject<'local>> {
+fn intern_make_operator_info(env: &mut JNIEnv, op: *mut Operator) -> Result<jobject> {
     let op = unsafe { &mut *op };
-
-    let info = op.info();
-    make_operator_info(env, info)
+    Ok(make_operator_info(env, op.info())?.into_raw())
 }
 
 /// # Safety

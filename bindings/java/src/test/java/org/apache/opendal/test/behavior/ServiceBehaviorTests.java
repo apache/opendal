@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.opendal.behavior;
+package org.apache.opendal.test.behavior;
 
 import java.io.File;
 import java.util.Map;

@@ -17,7 +17,7 @@
 # under the License.
 
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, BooleanOptionalAction
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 import shutil
 import subprocess
@@ -52,6 +52,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--classifier', type=str, required=True)
+    parser.add_argument('--target', type=str, default='')
     parser.add_argument('--profile', type=str, default='dev')
     parser.add_argument('--features', type=str, default='default')
     args = parser.parse_args()
@@ -61,12 +62,15 @@ if __name__ == '__main__':
     if args.features:
         cmd += ['--features', args.features]
 
-    target = classifier_to_target(args.classifier)
-    if target:
-        command = ['rustup', 'target', 'add', target]
-        print('$ ' + subprocess.list2cmdline(command))
-        subprocess.run(command, cwd=basedir, check=True)
-        cmd += ['--target', target]
+    if args.target:
+        target = args.target
+    else:
+        target = classifier_to_target(args.classifier)
+
+    command = ['rustup', 'target', 'add', target]
+    print('$ ' + subprocess.list2cmdline(command))
+    subprocess.run(command, cwd=basedir, check=True)
+    cmd += ['--target', target]
 
     output = basedir / 'target' / 'bindings'
     Path(output).mkdir(exist_ok=True, parents=True)

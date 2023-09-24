@@ -55,6 +55,7 @@
         <!-- customized properties -->
         <cargo-build.profile>dev</cargo-build.profile>
         <cargo-build.features>default</cargo-build.features>
+        <cargo-build.target/> <!-- override cargo build target; e.g., use musl instead -->
         <jni.classifier>${os.detected.classifier}</jni.classifier>
 
         <!-- library dependencies -->
@@ -177,6 +178,8 @@
                                 <argument>${project.basedir}/tools/build.py</argument>
                                 <argument>--classifier</argument>
                                 <argument>${jni.classifier}</argument>
+                                <argument>--target</argument>
+                                <argument>${cargo-build.target}</argument>
                                 <argument>--profile</argument>
                                 <argument>${cargo-build.profile}</argument>
                                 <argument>--features</argument>

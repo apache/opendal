@@ -70,14 +70,9 @@ jobs:
       - name: Set up JDK 8
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '8'
           cache: 'maven'
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.4"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and test
         working-directory: bindings/java
         # `mvn install` and `mvn artifact:compare` are required to verify reproducible builds:

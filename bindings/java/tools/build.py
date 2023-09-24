@@ -17,7 +17,7 @@
 # under the License.
 
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, BooleanOptionalAction
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 import shutil
 import subprocess

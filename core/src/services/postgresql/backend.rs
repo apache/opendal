@@ -25,7 +25,6 @@ use async_trait::async_trait;
 use tokio::sync::OnceCell;
 use tokio_postgres::Client;
 use tokio_postgres::Config;
-use tokio_postgres::Statement;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -256,7 +255,7 @@ impl kv::Adapter for Adapter {
             "SELECT {} FROM {} WHERE {} = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let mut statement = self
+        let statement = self
             .get_client()
             .await?
             .prepare(&query)
@@ -281,7 +280,7 @@ impl kv::Adapter for Adapter {
                 ON CONFLICT ({key_field}) \
                     DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         );
-        let mut statement = self
+        let statement = self
             .get_client()
             .await?
             .prepare(&query)
@@ -298,7 +297,7 @@ impl kv::Adapter for Adapter {
 
     async fn delete(&self, path: &str) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE {} = $1", self.table, self.key_field);
-        let mut statement = self
+        let statement = self
             .get_client()
             .await?
             .prepare(&query)

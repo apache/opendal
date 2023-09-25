@@ -166,6 +166,45 @@ public abstract class AbstractBehaviorTest {
 
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     @Nested
+    class AsyncCreateDirTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = operator.info.fullCapability;
+            assumeTrue(capability.createDir);
+        }
+
+        /**
+         * Create dir with dir path should succeed.
+         */
+        @Test
+        public void testCreateDir() {
+            final String path = String.format("%s/", UUID.randomUUID().toString());
+            operator.createDir(path).join();
+
+            try (final Metadata meta = operator.stat(path).join()) {
+                assertThat(meta.isFile()).isFalse();
+            }
+            operator.delete(path).join();
+        }
+
+        /**
+         * Create dir on existing dir should succeed.
+         */
+        @Test
+        public void testCreateDirExisting() {
+            final String path = String.format("%s/", UUID.randomUUID().toString());
+            operator.createDir(path).join();
+            operator.createDir(path).join();
+
+            try (final Metadata meta = operator.stat(path).join()) {
+                assertThat(meta.isFile()).isFalse();
+            }
+            operator.delete(path).join();
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
     class BlockingWriteTest {
         @BeforeAll
         public void precondition() {
@@ -207,6 +246,45 @@ public abstract class AbstractBehaviorTest {
             try (final Metadata meta = blockingOperator.stat(path)) {
                 assertThat(meta.isFile()).isTrue();
                 assertThat(meta.getContentLength()).isEqualTo(content.length);
+            }
+            blockingOperator.delete(path);
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
+    class BlockingCreateDirTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = blockingOperator.info.fullCapability;
+            assumeTrue(capability.createDir);
+        }
+
+        /**
+         * Create dir with dir path should succeed.
+         */
+        @Test
+        public void testBlockingCreateDir() {
+            final String path = String.format("%s/", UUID.randomUUID().toString());
+            blockingOperator.createDir(path);
+
+            try (final Metadata meta = blockingOperator.stat(path)) {
+                assertThat(meta.isFile()).isFalse();
+            }
+            blockingOperator.delete(path);
+        }
+
+        /**
+         * Create dir on existing dir should succeed.
+         */
+        @Test
+        public void testBlockingDirExisting() {
+            final String path = String.format("%s/", UUID.randomUUID().toString());
+            blockingOperator.createDir(path);
+            blockingOperator.createDir(path);
+
+            try (final Metadata meta = blockingOperator.stat(path)) {
+                assertThat(meta.isFile()).isFalse();
             }
             blockingOperator.delete(path);
         }

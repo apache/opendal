@@ -177,6 +177,11 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<Void> createDir(String path) {
+        final long requestId = createDir(nativeHandle, path);
+        return AsyncRegistry.take(requestId);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -201,4 +206,6 @@ public class Operator extends NativeObject {
     private static native OperatorInfo makeOperatorInfo(long nativeHandle);
 
     private static native long makeBlockingOp(long nativeHandle);
+
+    private static native long createDir(long nativeHandle, String path);
 }

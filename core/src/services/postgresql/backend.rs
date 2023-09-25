@@ -190,10 +190,6 @@ impl Builder for PostgresqlBuilder {
             table,
             key_field,
             value_field,
-
-            statement_get: OnceCell::new(),
-            statement_set: OnceCell::new(),
-            statement_del: OnceCell::new(),
         })
         .with_root(&root))
     }
@@ -210,11 +206,6 @@ pub struct Adapter {
     table: String,
     key_field: String,
     value_field: String,
-
-    /// Prepared statements for get/put/delete.
-    statement_get: OnceCell<Statement>,
-    statement_set: OnceCell<Statement>,
-    statement_del: OnceCell<Statement>,
 }
 
 impl Debug for Adapter {
@@ -265,18 +256,14 @@ impl kv::Adapter for Adapter {
             "SELECT {} FROM {} WHERE {} = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let statement = self
-            .statement_get
-            .get_or_try_init(|| async {
-                self.get_client()
-                    .await?
-                    .prepare(&query)
-                    .await
-                    .map_err(Error::from)
-            })
-            .await?;
+        let mut statement = self
+            .get_client()
+            .await?
+            .prepare(&query)
+            .await
+            .map_err(Error::from)?;
 
-        let rows = self.get_client().await?.query(statement, &[&path]).await?;
+        let rows = self.get_client().await?.query(&statement, &[&path]).await?;
         if rows.is_empty() {
             return Ok(None);
         }
@@ -294,39 +281,31 @@ impl kv::Adapter for Adapter {
                 ON CONFLICT ({key_field}) \
                     DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         );
-        let statement = self
-            .statement_set
-            .get_or_try_init(|| async {
-                self.get_client()
-                    .await?
-                    .prepare(&query)
-                    .await
-                    .map_err(Error::from)
-            })
-            .await?;
+        let mut statement = self
+            .get_client()
+            .await?
+            .prepare(&query)
+            .await
+            .map_err(Error::from)?;
 
         let _ = self
             .get_client()
             .await?
-            .query(statement, &[&path, &value])
+            .query(&statement, &[&path, &value])
             .await?;
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE {} = $1", self.table, self.key_field);
-        let statement = self
-            .statement_del
-            .get_or_try_init(|| async {
-                self.get_client()
-                    .await?
-                    .prepare(&query)
-                    .await
-                    .map_err(Error::from)
-            })
-            .await?;
+        let mut statement = self
+            .get_client()
+            .await?
+            .prepare(&query)
+            .await
+            .map_err(Error::from)?;
 
-        let _ = self.get_client().await?.query(statement, &[&path]).await?;
+        let _ = self.get_client().await?.query(&statement, &[&path]).await?;
         Ok(())
     }
 }

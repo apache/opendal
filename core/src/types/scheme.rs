@@ -88,6 +88,8 @@ pub enum Scheme {
     Redis,
     /// [postgresql][crate::services::Postgresql]: Postgresql services
     Postgresql,
+    /// [mysql][crate::services::Mysql]: Mysql services
+    Mysql,
     /// [rocksdb][crate::services::Rocksdb]: RocksDB services
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
@@ -167,6 +169,7 @@ impl FromStr for Scheme {
             "ipmfs" => Ok(Scheme::Ipmfs),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
+            "mysql" => Ok(Scheme::Mysql),
             "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
@@ -218,6 +221,7 @@ impl From<Scheme> for &'static str {
             Scheme::Onedrive => "onedrive",
             Scheme::Persy => "persy",
             Scheme::Postgresql => "postgresql",
+            Scheme::Mysql => "mysql",
             Scheme::Gdrive => "gdrive",
             Scheme::Dropbox => "dropbox",
             Scheme::Redis => "redis",

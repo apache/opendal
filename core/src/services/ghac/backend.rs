@@ -286,7 +286,11 @@ impl Builder for GhacBuilder {
             enable_create_simulation: self.enable_create_simulation,
 
             cache_url: value_or_env(self.endpoint.take(), ACTIONS_CACHE_URL, "Builder::build")?,
-            catch_token: value_or_env(self.runtime_token.take(), ACTIONS_RUNTIME_TOKEN, "Builder::build")?,
+            catch_token: value_or_env(
+                self.runtime_token.take(),
+                ACTIONS_RUNTIME_TOKEN,
+                "Builder::build",
+            )?,
             version: self
                 .version
                 .clone()

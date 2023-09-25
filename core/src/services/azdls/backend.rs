@@ -170,7 +170,7 @@ impl Builder for AzdlsBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azdls)),
         }?;
-        debug!("backend use endpoint {}", &filesystem);
+        debug!("backend use endpoint {}", &endpoint);
 
         let client = if let Some(client) = self.http_client.take() {
             client

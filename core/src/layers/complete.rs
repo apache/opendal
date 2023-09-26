@@ -406,9 +406,15 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         }
 
         // Calculate buffer size.
-        let buffer_size = args.buffer().map(|mut size| {
+        let buffer_size = args.buffer().map(|size| {
+            let mut size = size as u64;
             if let Some(v) = capability.write_multi_max_size {
                 size = cmp::min(v, size);
+
+                #[cfg(target_pointer_width = "32")]
+                {
+                    size = cmp::min(size, u32::MAX as u64);
+                }
             }
             if let Some(v) = capability.write_multi_min_size {
                 size = cmp::max(v, size);
@@ -427,7 +433,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
         let w = match buffer_size {
             None => oio::TwoWaysWriter::One(w),
-            Some(size) => oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, size)),
+            Some(size) => oio::TwoWaysWriter::Two(oio::ExactBufWriter::new(w, size as usize)),
         };
 
         Ok((rp, w))

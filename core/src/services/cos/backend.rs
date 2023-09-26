@@ -277,7 +277,11 @@ impl Accessor for CosBackend {
                 // The max multipart size of COS is 5 GiB.
                 //
                 // ref: <https://www.tencentcloud.com/document/product/436/14112>
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "32") {
+                    Some(usize::MAX)
+                } else {
+                    Some(5 * 1024 * 1024 * 1024)
+                },
 
                 delete: true,
                 create_dir: true,

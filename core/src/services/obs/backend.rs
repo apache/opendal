@@ -283,7 +283,11 @@ impl Accessor for ObsBackend {
                 // The max multipart size of OBS is 5 GiB.
                 //
                 // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "32") {
+                    Some(usize::MAX)
+                } else {
+                    Some(5 * 1024 * 1024 * 1024)
+                },
 
                 delete: true,
                 create_dir: true,

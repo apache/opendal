@@ -129,3 +129,23 @@ fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> 
     let path = env.get_string(&path)?;
     Ok(op.delete(path.to_str()?)?)
 }
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_createDir(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    path: JString,
+) {
+    intern_create_dir(&mut env, &mut *op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+    let path = env.get_string(&path)?;
+    Ok(op.create_dir(path.to_str()?)?)
+}

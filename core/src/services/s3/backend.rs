@@ -923,10 +923,10 @@ impl Accessor for S3Backend {
                 // The max multipart size of S3 is 5 GiB.
                 //
                 // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                write_multi_max_size: if cfg!(target_pointer_width = "32") {
-                    Some(usize::MAX)
-                } else {
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
                     Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
                 },
 
                 create_dir: true,

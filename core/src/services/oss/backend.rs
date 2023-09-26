@@ -410,10 +410,10 @@ impl Accessor for OssBackend {
                 // The max multipart size of OSS is 5 GiB.
                 //
                 // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-                write_multi_max_size: if cfg!(target_pointer_width = "32") {
-                    Some(usize::MAX)
-                } else {
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
                     Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
                 },
 
                 delete: true,

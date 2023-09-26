@@ -55,8 +55,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read(
 }
 
 fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jbyteArray> {
-    let path = env.get_string(&path)?;
-    let content = op.read(path.to_str()?)?;
+    let path: String = env.get_string(&path)?.into();
+    let content = op.read(&path)?;
     let result = env.byte_array_from_slice(content.as_slice())?;
     Ok(result.into_raw())
 }
@@ -83,9 +83,9 @@ fn intern_write(
     path: JString,
     content: JByteArray,
 ) -> Result<()> {
-    let path = env.get_string(&path)?;
+    let path: String = env.get_string(&path)?.into();
     let content = env.convert_byte_array(content)?;
-    Ok(op.write(path.to_str()?, content)?)
+    Ok(op.write(&path, content)?)
 }
 
 /// # Safety
@@ -105,8 +105,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
 }
 
 fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jlong> {
-    let path = env.get_string(&path)?;
-    let metadata = op.stat(path.to_str()?)?;
+    let path: String = env.get_string(&path)?.into();
+    let metadata = op.stat(&path)?;
     Ok(Box::into_raw(Box::new(metadata)) as jlong)
 }
 
@@ -126,8 +126,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
 }
 
 fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
-    let path = env.get_string(&path)?;
-    Ok(op.delete(path.to_str()?)?)
+    let path: String = env.get_string(&path)?.into();
+    Ok(op.delete(&path)?)
 }
 
 /// # Safety
@@ -146,6 +146,6 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_createDir
 }
 
 fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
-    let path = env.get_string(&path)?;
-    Ok(op.create_dir(path.to_str()?)?)
+    let path: String = env.get_string(&path)?.into();
+    Ok(op.create_dir(&path)?)
 }

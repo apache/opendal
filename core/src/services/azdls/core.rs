@@ -203,7 +203,8 @@ impl AzdlsCore {
     pub fn azdls_update_request(
         &self,
         path: &str,
-        size: Option<usize>,
+        size: Option<u64>,
+        position: u64,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -211,10 +212,11 @@ impl AzdlsCore {
         // - close: Make this is the final action to this file.
         // - flush: Flush the file directly.
         let url = format!(
-            "{}/{}/{}?action=append&close=true&flush=true&position=0",
+            "{}/{}/{}?action=append&close=true&flush=true&position={}",
             self.endpoint,
             self.filesystem,
-            percent_encode_path(&p)
+            percent_encode_path(&p),
+            position
         );
 
         let mut req = Request::patch(&url);

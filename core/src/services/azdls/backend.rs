@@ -32,6 +32,7 @@ use super::error::parse_error;
 use super::pager::AzdlsPager;
 use super::writer::AzdlsWriter;
 use crate::raw::*;
+use crate::services::azdls::writer::AzdlsWriters;
 use crate::*;
 
 /// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
@@ -230,7 +231,7 @@ pub struct AzdlsBackend {
 impl Accessor for AzdlsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::OneShotWriter<AzdlsWriter>;
+    type Writer = AzdlsWriters;
     type BlockingWriter = ();
     type Pager = AzdlsPager;
     type BlockingPager = ();
@@ -248,6 +249,7 @@ impl Accessor for AzdlsBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_append: true,
                 create_dir: true,
                 delete: true,
                 rename: true,
@@ -299,10 +301,13 @@ impl Accessor for AzdlsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            oio::OneShotWriter::new(AzdlsWriter::new(self.core.clone(), args, path.to_string())),
-        ))
+        let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = if args.append() {
+            AzdlsWriters::Two(oio::AppendObjectWriter::new(w))
+        } else {
+            AzdlsWriters::One(oio::OneShotWriter::new(w))
+        };
+        Ok((RpWrite::default(), w))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {

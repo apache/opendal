@@ -26,6 +26,9 @@ use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
+pub type AzdlsWriters =
+    oio::TwoWaysWriter<oio::OneShotWriter<AzdlsWriter>, oio::AppendObjectWriter<AzdlsWriter>>;
+
 pub struct AzdlsWriter {
     core: Arc<AzdlsCore>,
 
@@ -65,9 +68,47 @@ impl oio::OneShotWrite for AzdlsWriter {
         let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
         let mut req = self.core.azdls_update_request(
             &self.path,
-            Some(bs.len()),
+            Some(bs.len() as u64),
+            0,
             AsyncBody::ChunkedBytes(bs),
         )?;
+
+        self.core.sign(&mut req).await?;
+
+        let resp = self.core.send(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::ACCEPTED => {
+                resp.into_body().consume().await?;
+                Ok(())
+            }
+            _ => Err(parse_error(resp)
+                .await?
+                .with_operation("Backend::azdls_update_request")),
+        }
+    }
+}
+
+#[async_trait]
+impl oio::AppendObjectWrite for AzdlsWriter {
+    async fn offset(&self) -> Result<u64> {
+        let resp = self.core.azdls_get_properties(&self.path).await?;
+
+        let status = resp.status();
+        let headers = resp.headers();
+
+        match status {
+            StatusCode::OK => Ok(parse_content_length(headers)?.unwrap_or_default()),
+            StatusCode::NOT_FOUND => Ok(0),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
+            .core
+            .azdls_update_request(&self.path, Some(size), offset, body)?;
 
         self.core.sign(&mut req).await?;
 

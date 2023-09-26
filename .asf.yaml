@@ -26,6 +26,7 @@ github:
     - gcs
     - azblob
     - redis
+    - hacktoberfest
   enabled_merge_buttons:
     squash: true
     merge: false

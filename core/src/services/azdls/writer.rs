@@ -93,7 +93,7 @@ impl oio::OneShotWrite for AzdlsWriter {
 #[async_trait]
 impl oio::AppendObjectWrite for AzdlsWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.azdls_get_properties_request(&self.path).await?;
+        let resp = self.core.azdls_get_properties(&self.path).await?;
 
         let status = resp.status();
         let headers = resp.headers();

@@ -305,7 +305,7 @@ impl Accessor for AzdlsBackend {
         let w = if args.append() {
             AzdlsWriters::Two(oio::AppendObjectWriter::new(w))
         } else {
-            AzdlsWriter::One(oio::OneShotWriter::new(w))
+            AzdlsWriters::One(oio::OneShotWriter::new(w))
         };
         Ok((RpWrite::default(), w))
     }

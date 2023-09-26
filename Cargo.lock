@@ -3790,7 +3790,7 @@ dependencies = [
  "futures",
  "futures-util",
  "opendal",
- "quick-xml",
+ "quick-xml 0.29.0",
  "serde",
  "tokio",
  "toml 0.7.5",
@@ -4003,7 +4003,7 @@ dependencies = [
  "prometheus",
  "prometheus-client",
  "prost",
- "quick-xml",
+ "quick-xml 0.30.0",
  "rand 0.8.5",
  "redb",
  "redis",
@@ -5190,6 +5190,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eff6510e86862b57b210fd8cbe8ed3f0d7d600b9c2863cd4549a2e033c66e956"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5498,7 +5508,7 @@ dependencies = [
  "log",
  "once_cell",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.29.0",
  "rand 0.8.5",
  "reqwest",
  "rsa",

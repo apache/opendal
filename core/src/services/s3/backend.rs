@@ -563,6 +563,10 @@ impl S3Builder {
     ///
     /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
     pub async fn detect_region(endpoint: &str, bucket: &str) -> Option<String> {
+        // Remove the possible trailing `/` in endpoint.
+        let endpoint = endpoint.trim_end_matches('/');
+
+        // Make sure the endpoint contains the scheme.
         let mut endpoint = if endpoint.starts_with("http") {
             endpoint.to_string()
         } else {
@@ -623,9 +627,10 @@ impl S3Builder {
         );
 
         // Get region from response header no matter status code.
-        let region = res.headers().get("x-amz-bucket-region")?;
-        if let Ok(regin) = region.to_str() {
-            return Some(regin.to_string());
+        if let Some(header) = res.headers().get("x-amz-bucket-region") {
+            if let Ok(regin) = header.to_str() {
+                return Some(regin.to_string());
+            }
         }
 
         // Status code is 403 or 200 means we already visit the correct

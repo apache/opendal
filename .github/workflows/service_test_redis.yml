@@ -175,7 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis:
-        image: apache/kvrocks
+        image: apache/kvrocks:2.5.1
         ports:
           - 6379:6666
     steps:

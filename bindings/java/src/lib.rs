@@ -221,3 +221,12 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
     )?;
     Ok(capability)
 }
+
+/// # Safety
+///
+/// The caller must guarantee that the Object passed in is an instance
+/// of `java.lang.String`, passing in anything else will lead to undefined behavior.
+fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
+    let res = unsafe { env.get_string_unchecked(s)? };
+    Ok(res.into())
+}

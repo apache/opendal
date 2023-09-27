@@ -134,6 +134,21 @@ public abstract class AbstractBehaviorTest {
             }
             operator.delete(path).join();
         }
+
+        /**
+         * Write file with non ascii name should succeed.
+         */
+        @Test
+        public void testWriteFileWithNonAsciiName() {
+            final String path = "❌😱中文.test";
+            final byte[] content = generateBytes();
+            operator.write(path, content).join();
+            try (final Metadata meta = operator.stat(path).join()) {
+                assertThat(meta.isFile()).isTrue();
+                assertThat(meta.getContentLength()).isEqualTo(content.length);
+            }
+            operator.delete(path).join();
+        }
     }
 
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)

@@ -63,8 +63,14 @@ fn build_operator(
     scheme: od::Scheme,
     map: HashMap<String, String>,
     layers: Vec<layers::Layer>,
+    blocking: bool,
 ) -> PyResult<od::Operator> {
-    let op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    let mut op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    if blocking && !op.info().full_capability().blocking {
+        let runtime = pyo3_asyncio::tokio::get_runtime();
+        let _guard = runtime.enter();
+        op = op.layer(od::layers::BlockingLayer::create().expect("blocking layer must be created"));
+    }
 
     add_layers(op, layers)
 }
@@ -92,7 +98,9 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(build_operator(scheme, map, layers)?.blocking()))
+        Ok(Operator(
+            build_operator(scheme, map, layers, true)?.blocking(),
+        ))
     }
 
     /// Read the whole path into bytes.

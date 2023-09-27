@@ -34,6 +34,7 @@ use opendal::Scheme;
 use crate::get_current_env;
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
+use crate::jstring_to_string;
 use crate::make_operator_info;
 use crate::make_presigned_request;
 use crate::Result;
@@ -52,8 +53,7 @@ pub extern "system" fn Java_org_apache_opendal_Operator_constructor(
 }
 
 fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
-    let schema: String = env.get_string(&scheme)?.into();
-    let scheme = Scheme::from_str(&schema)?;
+    let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
     let map = jmap_to_hashmap(env, &map)?;
     let mut op = Operator::via_map(scheme, map)?;
     if !op.info().full_capability().blocking {
@@ -101,7 +101,7 @@ fn intern_write(
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
     unsafe { get_global_runtime() }.spawn(async move {
@@ -142,7 +142,7 @@ fn intern_append(
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
     unsafe { get_global_runtime() }.spawn(async move {
@@ -177,7 +177,7 @@ fn intern_stat(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
 
     unsafe { get_global_runtime() }.spawn(async move {
         let result = do_stat(op, path).await;
@@ -212,7 +212,7 @@ fn intern_read(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
 
     unsafe { get_global_runtime() }.spawn(async move {
         let result = do_read(op, path).await;
@@ -250,7 +250,7 @@ fn intern_delete(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<j
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
 
     unsafe { get_global_runtime() }.spawn(async move {
         let result = do_delete(op, path).await;
@@ -317,7 +317,7 @@ fn intern_create_dir(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Resu
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
 
     unsafe { get_global_runtime() }.spawn(async move {
         let result = do_create_dir(op, path).await;
@@ -357,7 +357,7 @@ fn intern_presign_read(
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
     unsafe { get_global_runtime() }.spawn(async move {
@@ -404,7 +404,7 @@ fn intern_presign_write(
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
     unsafe { get_global_runtime() }.spawn(async move {
@@ -451,7 +451,7 @@ fn intern_presign_stat(
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
-    let path = env.get_string(&path)?.into();
+    let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
     unsafe { get_global_runtime() }.spawn(async move {

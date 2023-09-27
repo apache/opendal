@@ -221,3 +221,8 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
     )?;
     Ok(capability)
 }
+
+fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
+    let res = unsafe { env.get_string_unchecked(s)? };
+    Ok(res.into())
+}

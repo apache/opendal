@@ -162,6 +162,26 @@ let s3 = S3Config {
 
 The public API of existing builders will remain unchanged, although their internal implementations will be modified to utilize `XxxConfig`. Type that can't be represents as `String` like `Box<dyn AwsCredentialLoad>` and `HttpClient` will be kept in `Builder` as before.
 
+For example:
+
+```rust
+#[non_exhaustive]
+pub struct S3Config {
+  pub root: Option<String>,
+  pub bucket: String,
+  pub endpoint: Option<String>,
+  pub region: Option<String>,
+  ...
+}
+
+pub struct S3Builder {
+    config: S3Config,
+    
+    customed_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+    http_client: Option<HttpClient>,
+}
+```
+
 # Drawbacks
 
 This modification will significantly expand OpenDAL's public API surface, makes it harder to maintain and increases the risk of breaking changes. Also, this change will add much more work for bindings which need to implement `XxxConfig` for each service.

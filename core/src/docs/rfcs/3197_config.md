@@ -9,9 +9,9 @@ Expose services config to the user.
 
 # Motivation
 
-OpenDAL have two ways to configure services: builder and map.
+OpenDAL provides two ways to configure services: through a builder pattern and via a map.
 
-`Builder` allows user to configure services in builder pattern:
+The `Builder` allows users to configure services using the builder pattern:
 
 ```rust
 // Create fs backend builder.
@@ -23,9 +23,9 @@ builder.root("/tmp");
 let op: Operator = Operator::new(builder)?.finish();
 ```
 
-The benefit of builder is that it is type safe and easy to use. However, it is not flexible enough to configure services. Users will need to create a new builder for each service they want to configure and convert them from users input to builder's API one by one.
+The benefit of builder is that it is type safe and easy to use. However, it is not flexible enough to configure services. Users must create a new builder for each service they wish to configure, translating user input into the API calls for each respective builder.
 
-Take one of our users real code as an example:
+Consider the following real-world example from one of our users:
 
 ```rust
 let mut builder = services::S3::default();
@@ -52,7 +52,7 @@ if cfg.enable_virtual_host_style {
 }
 ```
 
-`Map` allows user to configure services in a string based `HashMap`:
+The `Map` approach allows users to configure services using a string-based HashMap:
 
 ```rust
 let map = HashMap::from([
@@ -64,9 +64,9 @@ let map = HashMap::from([
 let op: Operator = Operator::via_map(Scheme::Fs, map)?;
 ```
 
-It's much simple since users can configure all services in one map. However, it is not type safe and not easy to use. Users will need to convert their input to string and make sure the key is correct. And breaking changes could happen silently.
+This approach is simpler since it allows users to configure all services within a single map. However, it is not type safe and not easy to use. Users will need to convert their input to string and make sure the key is correct. And breaking changes could happen silently.
 
-This is one of our limitations: We need a way to configure services that is type safe, easy to use and flexible. The other one is that there is no way for users to fetch the config of a service after it's built. This behavior makes it much complex for users to implement logic that changing the root path of a service dynamically.
+This is one of our limitations: We need a way to configure services that is type safe, easy to use and flexible. The other one is that there is no way for users to fetch the config of a service after it's built. This limitation complicates the dynamic modification of a service's root path for the user.
 
 Our users have to wrap all our configs into an enum and store it in their own struct:
 
@@ -94,7 +94,7 @@ So I propose to expose services config to the users, allowing them to work on co
 
 # Guide-level explanation
 
-First of all, we will add config struct for each service. For example, `Fs` will have a `FsConfig` struct and `S3` will have a `S3Config`. The config's filed is public and non-exhaustive.
+First of all, we will add config struct for each service. For example, `Fs` will have a `FsConfig` struct and `S3` will have a `S3Config`. The fields within the config struct are public and marked as non-exhaustive.
 
 ```rust
 #[non_exhaustive]
@@ -118,7 +118,7 @@ pub enum Config {
 }
 ```
 
-Especially, we will add a `Custom` variant to the enum. This variant aligns with `Scheme::Custom(name)` and allows users to configure custom services.
+Notably, a `Custom` variant will be added to the enum. This variant aligns with `Scheme::Custom(name)` and allows users to configure custom services.
 
 At `Operator` level, we will add `from_config` and `via_config` methods.
 
@@ -128,7 +128,7 @@ impl Operator {
 }
 ```
 
-And `OperatorInfo` will provide a new API called `config()`:
+Additionally, `OperatorInfo` will introduce a new API method, `config()`:
 
 ```rust
 impl OperatorInfo {
@@ -160,11 +160,11 @@ let s3 = S3Config {
 }
 ```
 
-Existing builder's public API will not be changed, but it's internal implementation will be changed to use `XxxConfig` instead. Type that can't be represents as `String` like `Box<dyn AwsCredentialLoad>` and `HttpClient` will be kept in `Builder` as before.
+The public API of existing builders will remain unchanged, although their internal implementations will be modified to utilize `XxxConfig`. Type that can't be represents as `String` like `Box<dyn AwsCredentialLoad>` and `HttpClient` will be kept in `Builder` as before.
 
 # Drawbacks
 
-This change makes OpenDAL's public API surface much larger.
+This modification will significantly expand OpenDAL's public API surface, makes it harder to maintain and increases the risk of breaking changes. Also, this change will add much more work for bindings which need to implement `XxxConfig` for each service.
 
 # Rationale and alternatives
 
@@ -202,3 +202,7 @@ let bs = serde_json::to_vec(&cfg)?;
 // Deserialize
 let cfg: Config = serde_json::from_slice(&bs)?;
 ```
+
+## Implement `check` for `Config`
+
+Implement check for config so that users can check if a config is valid before `build`.

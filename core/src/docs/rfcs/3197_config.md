@@ -184,7 +184,13 @@ pub struct S3Builder {
 
 # Drawbacks
 
+## API Surface
+
 This modification will significantly expand OpenDAL's public API surface, makes it harder to maintain and increases the risk of breaking changes. Also, this change will add much more work for bindings which need to implement `XxxConfig` for each service.
+
+## Secrets Leakage
+
+After our config supports `Serialize`, it's possible that users will serialize the config and log it. This will lead to secrets leakage. We should add a warning in the docs to prevent this. And we should also encourage uses of services like AWS IAM instead of static secrets.
 
 # Rationale and alternatives
 

@@ -259,6 +259,7 @@ jobs:
       - name: Install dependencies
         run: | 
           opam install -y dune odoc ounit2
+          eval $(opam env)
 
       - name: Build OCaml docs
         working-directory: "bindings/ocaml"

@@ -57,10 +57,13 @@ eval $(opam env)
 ```
 #### Install OPAM Package
 
-opendal does not depend on opam package except `ounit2` for testing.
+opendal api depends on core and test depends on ounit2, Developers can only install these two dependencies.
+```bash
+opam install -y core ounit2
+```
 However, in order to facilitate development in an IDE such as vscode, it is usually necessary to install the following content
 ```bash
-opam install -y utop odoc ounit2 ocaml-lsp-server ocamlformat ocamlformat-rpc
+opam install -y utop odoc ocaml-lsp-server ocamlformat ocamlformat-rpc
 ```
 ### Build
 

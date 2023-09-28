@@ -20,6 +20,7 @@
 package opendal
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,9 +32,27 @@ func TestOperations(t *testing.T) {
 	operator, err := NewOperator("memory", opts)
 	assert.NoError(t, err)
 	defer operator.Close()
-	err = operator.Write("test", []byte("Hello World"))
+	err = operator.Write("test", []byte("Hello World from OpenDAL CGO!"))
 	assert.NoError(t, err)
 	value, err := operator.Read("test")
 	assert.NoError(t, err)
-	assert.Equal(t, "Hello World", string(value))
+	assert.Equal(t, "Hello World from OpenDAL CGO!", string(value))
+
+    println(string(value))
+}
+
+func BenchmarkOperator_Write(b *testing.B) {
+	opts := make(Options)
+	opts["root"] = "/myroot"
+	op, _ := NewOperator("memory", opts)
+	defer op.Close()
+
+	bs := bytes.Repeat([]byte("a"), 1024*1024)
+	op.Write("test", bs)
+
+    b.SetBytes(1024*1024)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		op.Read("test")
+	}
 }

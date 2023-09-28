@@ -244,6 +244,33 @@ jobs:
           name: cpp-docs
           path: ./bindings/cpp/build/docs_doxygen/html
 
+  build-ocaml-doc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup OCaml toolchain
+        uses: ./.github/actions/setup-ocaml
+
+      - name: Install dependencies
+        run: | 
+          opam install -y dune odoc ounit2
+
+      - name: Build OCaml docs
+        working-directory: "bindings/ocaml"
+        run: |
+          dune build @all @doc
+
+      - name: Upload docs
+        uses: actions/upload-artifact@v3
+        with:
+          name: ocaml-docs
+          path: ./bindings/ocaml/_build/default/_doc/_html
+
   build-website:
     runs-on: ubuntu-latest
     needs:
@@ -255,6 +282,7 @@ jobs:
       - build-lua-doc
       - build-haskell-doc
       - build-cpp-doc
+      - build-ocaml-doc
 
     steps:
       - uses: actions/checkout@v3
@@ -316,6 +344,12 @@ jobs:
         with:
           name: cpp-docs
           path: ./website/static/docs/cpp
+
+      - name: Download ocaml docs
+        uses: actions/download-artifact@v3
+        with:
+          name: ocaml-docs
+          path: ./website/static/docs/ocaml
 
       - name: Install Dependencies
         working-directory: website

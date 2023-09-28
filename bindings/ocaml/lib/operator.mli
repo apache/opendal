@@ -22,8 +22,8 @@ val new_operator :
   string ->
   (string * string) list ->
   (Opendal_core.Operator.operator, string) result
-(** [new_operator scheme config_map] Create a new block operator from given scheme and config_map.
-    @param layers 
+(** [new_operator ?layers scheme config_map] Create a new block operator from given scheme and config_map.
+    @param layers is the mechanism to intercept operations.
     @param scheme Supported services, for details, refer to https://opendal.apache.org/docs/category/services/
     @param config_map Configuration information required by the target service
     @return The block operator

@@ -41,7 +41,6 @@ type Operator struct {
 }
 
 func NewOperator(scheme string, opt Options) (*Operator, error) {
-	fmt.Println("libopendal_c info: ", LibopendalLinkInfo)
 	if len(scheme) == 0 {
 		return nil, errInvalidScheme
 	}

@@ -223,7 +223,13 @@ impl<W: RangeWrite> oio::Write for RangeWriter<W> {
                                     (w, res)
                                 }));
                             }
-                            None => return Poll::Ready(Ok(())),
+                            None => {
+                                // Call write_once if there is no data in buffer and no location.
+                                self.state = State::Complete(Box::pin(async move {
+                                    let res = w.write_once(0, AsyncBody::Empty).await;
+                                    (w, res)
+                                }));
+                            }
                         },
                     }
                 }

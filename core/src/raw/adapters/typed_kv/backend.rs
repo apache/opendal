@@ -84,6 +84,7 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         if kv_cap.set {
             cap.write = true;
+            cap.write_can_empty = true;
             cap.create_dir = true;
         }
 

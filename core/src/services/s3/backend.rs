@@ -913,6 +913,7 @@ impl Accessor for S3Backend {
                 read_with_override_content_type: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,

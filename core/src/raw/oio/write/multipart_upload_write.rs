@@ -258,7 +258,13 @@ where
                                     (w, res)
                                 }));
                             }
-                            None => return Poll::Ready(Ok(())),
+                            None => {
+                                // Call write_once if there is no data in cache and no upload_id.
+                                self.state = State::Close(Box::pin(async move {
+                                    let res = w.write_once(0, AsyncBody::Empty).await;
+                                    (w, res)
+                                }));
+                            }
                         },
                     }
                 }

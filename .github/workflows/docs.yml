@@ -256,15 +256,12 @@ jobs:
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
 
-      - name: Install dependencies
-        run: | 
-          opam install -y dune odoc ounit2
-          eval $(opam env)
-
       - name: Build OCaml docs
         working-directory: "bindings/ocaml"
         run: |
-          dune build @all @doc
+          opam install -y dune odoc
+          eval $(opam env)
+          dune build @doc
 
       - name: Upload docs
         uses: actions/upload-artifact@v3

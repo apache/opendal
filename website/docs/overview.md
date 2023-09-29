@@ -13,4 +13,4 @@ See the page for our vision in details: [Vision](vision.md).
 
 ## Getting started
 
-See the page for quick start with multiple languages: [Getting started](getting-started.md).
+See the page for quick start with multiple languages: [Quickstart](quickstart.md).

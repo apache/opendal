@@ -1,5 +1,5 @@
 ---
-title: Podling Status Reports
+title: Podling status reports
 sidebar_position: 4
 ---
 

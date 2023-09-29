@@ -74,6 +74,20 @@ const config = {
     ],
   ],
 
+  plugins: [
+    [
+        '@docusaurus/plugin-content-docs',
+        {
+            id: 'community',
+            path: 'community',
+            routeBasePath: 'community',
+            sidebarPath: require.resolve('./community/sidebars.js'),
+            editUrl: 'https://github.com/apache/incubator-opendal/tree/main/website/',
+        },
+    ],
+    [require.resolve("docusaurus-plugin-image-zoom"), {}],
+],
+
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
@@ -94,9 +108,10 @@ const config = {
         },
         items: [
           {
+            type: 'doc',
+            docId: 'overview',
             position: 'right',
             label: 'Docs',
-            to: '/docs/overview'
           },
           {
             position: 'right',
@@ -142,23 +157,11 @@ const config = {
             position: 'right'
           },
           {
-            type: 'dropdown',
-            label: 'Community',
+            type: 'doc',
+            docId: 'community',
             position: 'right',
-            items: [
-              {
-                label: 'Source Code',
-                to: repoAddress
-              },
-              {
-                label: 'Issues Tracker',
-                to: `${repoAddress}/issues/`
-              },
-              {
-                label: 'Code of Conduct',
-                to: 'https://www.apache.org/foundation/policies/conduct.html'
-              }
-            ]
+            label: 'Community',
+            docsPluginId: 'community'
           },
           {
             to: '/download',
@@ -198,6 +201,10 @@ const config = {
                 label: 'Thanks',
                 to: 'https://www.apache.org/foundation/thanks.html'
               },
+              {
+                label: 'Code of Conduct',
+                to: 'https://www.apache.org/foundation/policies/conduct.html'
+              }
             ]
           },
           {

@@ -1,5 +1,5 @@
 ---
-title: Generate Release Note
+title: Generate release note
 ---
 
 This document describes how to generate release notes using GitHub:

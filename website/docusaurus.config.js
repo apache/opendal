@@ -96,20 +96,7 @@ const config = {
           {
             position: 'right',
             label: 'Docs',
-            items: [
-              {
-                label: 'Overview',
-                to: '/docs/overview'
-              },
-              {
-                label: 'Contributing',
-                to: '/docs/category/contributing'
-              },
-              {
-                label: 'Services',
-                to: '/docs/category/services'
-              },
-            ]
+            to: '/docs/overview'
           },
           {
             position: 'right',
@@ -240,7 +227,7 @@ const config = {
       prism: {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
-        additionalLanguages: ['rust'],
+        additionalLanguages: ['rust', 'java', 'groovy'],
       },
     }),
 };

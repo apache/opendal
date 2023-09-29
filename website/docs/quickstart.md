@@ -1,5 +1,5 @@
 ---
-title: Getting started
+title: Quickstart
 sidebar_position: 3
 ---
 
@@ -131,8 +131,11 @@ For details in specifying classified library, read the [dedicated explanation](h
 Try it out:
 
 ```java
+// Configure service
 final Map<String, String> conf = new HashMap<>();
-final Operator op = Operator.of("memory", conf);
+conf.put("root", "/tmp");
+// Construct operator
+final Operator op = Operator.of("fs", conf);
 // Write data
 op.write("hello.txt", "Hello, World!").join();
 // Read data
@@ -143,7 +146,19 @@ op.delete("hello.txt").join();
 
 ## Python binding
 
+OpenDAL's Python binding is released to PyPI repository as [`opendal`](https://pypi.org/project/opendal/).
+
+### Install
+
+Run the following command to install `opendal`:
+
+```shell
+pip install opendal
+```
+
 ### Demo
+
+Try it out:
 
 ```python
 import opendal
@@ -159,7 +174,19 @@ asyncio.run(main())
 
 ## Node.js binding
 
+OpenDAL's Python binding is released to npm registry as [`opendal`](https://www.npmjs.com/package/opendal).
+
+### Install
+
+Run the following command to install `opendal`:
+
+```shell
+npm install opendal
+```
+
 ### Demo
+
+Try it out:
 
 ```javascript
 import { Operator } from "opendal";

@@ -98,7 +98,7 @@ const config = {
             label: 'Docs',
             items: [
               {
-                label: 'General',
+                label: 'Overview',
                 to: '/docs/overview'
               },
               {
@@ -109,6 +109,12 @@ const config = {
                 label: 'Services',
                 to: '/docs/category/services'
               },
+            ]
+          },
+          {
+            position: 'right',
+            label: 'API',
+            items: [
               {
                 label: 'Rust Core',
                 to: 'pathname:///docs/rust/opendal/'

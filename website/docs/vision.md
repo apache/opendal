@@ -3,7 +3,7 @@ title: Vision
 sidebar_position: 2
 ---
 
-OpenDAL VISION is: **access data freely**.
+The VISION of OpenDAL is: **access data freely**.
 
 ---
 

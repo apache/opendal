@@ -40,7 +40,7 @@ jobs:
   sftp-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup sftp
         run: |
           mkdir -p target/ssh
@@ -70,7 +70,7 @@ jobs:
   sftp-test-default-root:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup sftp
         run: |
           mkdir -p target/ssh

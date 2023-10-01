@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Checkout python env
         uses: actions/setup-python@v4
         with:

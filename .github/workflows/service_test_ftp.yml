@@ -56,7 +56,7 @@ jobs:
           - vsftpd-data:/home/vsftpd
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set swap
         shell: bash
         run: |

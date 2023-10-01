@@ -45,7 +45,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Check license headers
-        uses: korandoru/hawkeye@v3.3.0
+        uses: korandoru/hawkeye@v3.4.0
 
       - name: Cargo format
         run: cargo fmt --all -- --check

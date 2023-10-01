@@ -145,10 +145,13 @@ Every services will have a `XxxConfig` struct.
 `XxxConfig` will implement the following things:
 
 - `Default` trait: All config fields will have a default value.
-- `Serialize` trait.
-- `Deserialize` trait.
-- `FromMap` trait: Convert from a `HashMap<String, String>`.
+- `Deserialize` trait: Allow users to deserialize a config from a string.
 - `Into<Config>` trait: All service config can be converted to `Config` enum.
+
+Internally, `XxxConfig` will have the following traits:
+
+- `FromMap` trait: Allow users to build a config via hashmap which will replace existing `from_map` API in `Builder`.
+- `Into<XxxBuilder>` trait: Config can convert into corresponding builder with zero cost. 
 
 All config fields will be public and non-exhaustive, allowing users to build config this way:
 
@@ -218,9 +221,9 @@ We can implement `FromStr` for `Config` so that users can parse a config from a 
 let cfg = Config::from_str("s3://bucket/path/to/file?access_key_id=xxx&secret_access_key=xxx")?;
 ```
 
-## Implement `Serialize` and `Deserialize` for `Config`
+## Implement `Serialize` for `Config`
 
-We can implement `Serialize` and `Deserialize` for `Config` so that users can serialize and deserialize a config.
+We can implement `Serialize` for `Config` so that users can serialize a config.
 
 ```rust
 // Serialize

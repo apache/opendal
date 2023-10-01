@@ -238,6 +238,7 @@ impl Accessor for WebdavBackend {
                 read_with_range: true,
 
                 write: true,
+                write_can_empty: true,
 
                 create_dir: true,
                 delete: true,

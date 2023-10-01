@@ -76,6 +76,8 @@ pub struct Capability {
     pub write: bool,
     /// If operator supports write can be called in multi times.
     pub write_can_multi: bool,
+    /// If operator supports write with empty content.
+    pub write_can_empty: bool,
     /// If operator supports write by append.
     pub write_can_append: bool,
     /// If operator supports write with content type.

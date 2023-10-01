@@ -1,5 +1,5 @@
 ---
-title: Verify
+title: Verify a release candidate
 sidebar_position: 2
 ---
 

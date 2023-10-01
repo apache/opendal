@@ -182,6 +182,11 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<Void> copy(String sourcePath, String targetPath) {
+        final long requestId = copy(nativeHandle, sourcePath, targetPath);
+        return AsyncRegistry.take(requestId);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -208,4 +213,6 @@ public class Operator extends NativeObject {
     private static native long makeBlockingOp(long nativeHandle);
 
     private static native long createDir(long nativeHandle, String path);
+
+    private static native long copy(long nativeHandle, String sourcePath, String targetPath);
 }

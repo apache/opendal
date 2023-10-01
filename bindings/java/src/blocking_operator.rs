@@ -150,3 +150,31 @@ fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString)
     let path = jstring_to_string(env, &path)?;
     Ok(op.create_dir(&path)?)
 }
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_copy(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) {
+    intern_copy(&mut env, &mut *op, source_path, target_path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_copy(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) -> Result<()> {
+    let source_path = jstring_to_string(env, &source_path)?;
+    let target_path = jstring_to_string(env, &target_path)?;
+
+    Ok(op.copy(&source_path, &target_path)?)
+}

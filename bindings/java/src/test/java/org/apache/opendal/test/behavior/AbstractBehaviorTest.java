@@ -21,6 +21,7 @@ package org.apache.opendal.test.behavior;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import io.github.cdimascio.dotenv.Dotenv;
 import io.github.cdimascio.dotenv.DotenvEntry;
@@ -220,6 +221,162 @@ public abstract class AbstractBehaviorTest {
 
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     @Nested
+    class AsyncCopyTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = operator.info.fullCapability;
+            assumeTrue(capability.read && capability.write && capability.copy);
+        }
+
+        /**
+         * Copy a file with ascii name and test contents.
+         */
+        @Test
+        public void testCopyFileWithAsciiName() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            operator.write(sourcePath, sourceContent).join();
+
+            final String targetPath = UUID.randomUUID().toString();
+
+            operator.copy(sourcePath, targetPath).join();
+
+            assertThat(operator.read(targetPath).join()).isEqualTo(sourceContent);
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+
+        /**
+         * Copy a file with non ascii name and test contents.
+         */
+        @Test
+        public void testCopyFileWithNonAsciiName() {
+            final String sourcePath = "🐂🍺中文.docx";
+            final String targetPath = "😈🐅Français.docx";
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+            operator.copy(sourcePath, targetPath).join();
+
+            assertThat(operator.read(targetPath).join()).isEqualTo(content);
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+
+        /**
+         * Copy a nonexistent source should return an error.
+         */
+        @Test
+        public void testCopyNonExistingSource() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final String targetPath = UUID.randomUUID().toString();
+
+            assertThatThrownBy(() -> operator.copy(sourcePath, targetPath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+        }
+
+        /**
+         * Copy a dir as source should return an error.
+         */
+        @Test
+        public void testCopySourceDir() {
+            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID().toString();
+
+            assertThatThrownBy(() -> operator.copy(sourcePath, targetPath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+        }
+
+        /**
+         * Copy to a dir should return an error.
+         */
+        @Test
+        public void testCopyTargetDir() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+
+            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+            operator.createDir(targetPath).join();
+
+            assertThatThrownBy(() -> operator.copy(sourcePath, targetPath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+
+        /**
+         * Copy a file to self should return an error.
+         */
+        @Test
+        public void testCopySelf() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+
+            assertThatThrownBy(() -> operator.copy(sourcePath, sourcePath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+
+            operator.delete(sourcePath).join();
+        }
+
+        /**
+         * Copy to a nested path, parent path should be created successfully.
+         */
+        @Test
+        public void testCopyNested() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+
+            final String targetPath = String.format(
+                    "%s/%s/%s",
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString());
+
+            operator.copy(sourcePath, targetPath).join();
+
+            assertThat(operator.read(targetPath).join()).isEqualTo(content);
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+
+        /**
+         * Copy to a exist path should overwrite successfully.
+         */
+        @Test
+        public void testCopyOverwrite() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            operator.write(sourcePath, sourceContent).join();
+
+            final String targetPath = UUID.randomUUID().toString();
+            final byte[] targetContent = generateBytes();
+            assertNotEquals(sourceContent, targetContent);
+
+            operator.write(targetPath, targetContent).join();
+
+            operator.copy(sourcePath, targetPath).join();
+
+            assertThat(operator.read(targetPath).join()).isEqualTo(sourceContent);
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
     class BlockingWriteTest {
         @BeforeAll
         public void precondition() {
@@ -302,6 +459,149 @@ public abstract class AbstractBehaviorTest {
                 assertThat(meta.isFile()).isFalse();
             }
             blockingOperator.delete(path);
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
+    class BlockingCopyTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = blockingOperator.info.fullCapability;
+            assumeTrue(capability.read && capability.write && capability.copy);
+        }
+
+        /**
+         * Copy a file and test with stat.
+         */
+        @Test
+        public void testBlockingCopyFile() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            final String targetPath = UUID.randomUUID().toString();
+
+            blockingOperator.copy(sourcePath, targetPath);
+
+            assertThat(blockingOperator.read(targetPath)).isEqualTo(sourceContent);
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
+        }
+
+        /**
+         * Copy a nonexistent source should return an error.
+         */
+        @Test
+        public void testBlockingCopyNonExistingSource() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final String targetPath = UUID.randomUUID().toString();
+
+            assertThatThrownBy(() -> blockingOperator.copy(sourcePath, targetPath))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+        }
+
+        /**
+         * Copy a dir as source should return an error.
+         */
+        @Test
+        public void testBlockingCopySourceDir() {
+            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID().toString();
+
+            blockingOperator.createDir(sourcePath);
+
+            assertThatThrownBy(() -> blockingOperator.copy(sourcePath, targetPath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+
+            blockingOperator.delete(sourcePath);
+        }
+
+        /**
+         * Copy to a dir should return an error.
+         */
+        @Test
+        public void testBlockingCopyTargetDir() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+
+            blockingOperator.createDir(targetPath);
+
+            assertThatThrownBy(() -> operator.copy(sourcePath, targetPath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
+        }
+
+        /**
+         * Copy a file to self should return an error.
+         */
+        @Test
+        public void testBlockingCopySelf() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            assertThatThrownBy(() -> blockingOperator.copy(sourcePath, sourcePath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+
+            blockingOperator.delete(sourcePath);
+        }
+
+        /**
+         * Copy to a nested path, parent path should be created successfully.
+         */
+        @Test
+        public void testBlockingCopyNested() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            blockingOperator.write(sourcePath, content);
+
+            final String targetPath = String.format(
+                    "%s/%s/%s",
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString());
+
+            blockingOperator.copy(sourcePath, targetPath);
+
+            assertThat(blockingOperator.read(targetPath)).isEqualTo(content);
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
+        }
+
+        /**
+         * Copy to a exist path should overwrite successfully.
+         */
+        @Test
+        public void testBlockingCopyOverwrite() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            final String targetPath = UUID.randomUUID().toString();
+            final byte[] targetContent = generateBytes();
+            assertNotEquals(sourceContent, targetContent);
+
+            blockingOperator.write(targetPath, targetContent);
+
+            blockingOperator.copy(sourcePath, targetPath);
+
+            assertThat(blockingOperator.read(targetPath)).isEqualTo(sourceContent);
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
         }
     }
 

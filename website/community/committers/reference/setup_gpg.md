@@ -1,8 +1,12 @@
 ---
-title: Setup GPG Key
+title: Setup GPG key
 ---
 
-> This section is a brief from the [Cryptography with OpenPGP](https://infra.apache.org/openpgp.html) guideline.
+:::note
+
+This section is a brief from the [Cryptography with OpenPGP](https://infra.apache.org/openpgp.html) guideline.
+
+:::
 
 ## Install GPG
 

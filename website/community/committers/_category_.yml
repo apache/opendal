@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-position: 4
-label: 'Contributing'
+position: 5
+label: 'Committers'
 collapsible: true
 collapsed: true
 link:
   type: generated-index
-  title: Contributing
+  title: Committers

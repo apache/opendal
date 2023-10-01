@@ -1,5 +1,5 @@
 ---
-title: Committer Onboarding
+title: Committer onboarding
 sidebar_position: 3
 ---
 

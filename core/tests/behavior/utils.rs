@@ -96,16 +96,6 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
     Some(op)
 }
 
-pub fn gen_bytes() -> (Vec<u8>, usize) {
-    let mut rng = thread_rng();
-
-    let size = rng.gen_range(1..4 * 1024 * 1024);
-    let mut content = vec![0; size];
-    rng.fill_bytes(&mut content);
-
-    (content, size)
-}
-
 pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
     let mut rng = thread_rng();
 
@@ -116,11 +106,12 @@ pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) 
     (content, size)
 }
 
-pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {
-    let mut rng = thread_rng();
+pub fn gen_bytes() -> (Vec<u8>, usize) {
+    gen_bytes_with_range(1..4 * 1024 * 1024)
+}
 
-    let mut content = vec![0; size];
-    rng.fill_bytes(&mut content);
+pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {
+    let (content, _) = gen_bytes_with_range(size..=size);
 
     content
 }

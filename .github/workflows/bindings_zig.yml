@@ -44,7 +44,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: korandoru/setup-zig@v1
         with:
           zig-version: 0.11.0

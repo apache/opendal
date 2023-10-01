@@ -40,7 +40,7 @@ jobs:
   ipfs-daemon:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up IPFS ${{ matrix.ipfs }}
         uses: ibnesayeed/setup-ipfs@b9b9f7d73db5f77d462225bb37dbd51153351dd9
         id: ipfs_setup
@@ -69,7 +69,7 @@ jobs:
 #  ipfs-io:
 #    runs-on: ubuntu-latest
 #    steps:
-#      - uses: actions/checkout@v3
+#      - uses: actions/checkout@v4
 #      - name: Test
 #        shell: bash
 #        run: cargo test ipfs --features services-ipfs -- --show-output

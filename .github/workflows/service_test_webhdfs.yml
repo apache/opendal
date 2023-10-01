@@ -40,7 +40,7 @@ jobs:
   webhdfs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Configure Webhdfs
         # namenode will use ports: 9870 and 9000
@@ -79,7 +79,7 @@ jobs:
   webhdfs_with_list_batch_disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Configure Webhdfs
         # namenode will use ports: 9870 and 9000

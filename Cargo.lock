@@ -1196,12 +1196,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
-name = "constant_time_eq"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
-=======
 name = "const_format"
 version = "0.2.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1220,7 +1214,12 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
->>>>>>> 5c295bce (Add zookeeper backend)
+
+[[package]]
+name = "constant_time_eq"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
 name = "convert_case"
@@ -2417,15 +2416,9 @@ dependencies = [
 
 [[package]]
 name = "hashlink"
-<<<<<<< HEAD
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8094feaf31ff591f651a2664fb9cfd92bba7a60ce3197265e9482ebe753c8f7"
-=======
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "312f66718a2d7789ffef4f4b7b213138ed9f1eb3aa1d0d82fc99f88fb3ffd26f"
->>>>>>> 5c295bce (Add zookeeper backend)
 dependencies = [
  "hashbrown 0.14.0",
 ]
@@ -3582,7 +3575,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56b0d8a0db9bf6d2213e11f2c701cb91387b0614361625ab7b9743b41aa4938f"
 dependencies = [
  "darling 0.20.3",
- "heck",
+ "heck 0.4.1",
  "num-bigint",
  "proc-macro-crate 1.3.1",
  "proc-macro-error",
@@ -3879,7 +3872,7 @@ version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcbff9bc912032c62bf65ef1d5aea88983b420f4f839db1e9b0c281a25c9c799"
 dependencies = [
- "proc-macro-crate",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -4967,7 +4960,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
 name = "priority-queue"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4987,8 +4979,6 @@ dependencies = [
 ]
 
 [[package]]
-=======
->>>>>>> 5c295bce (Add zookeeper backend)
 name = "proc-macro-crate"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6435,15 +6425,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
-<<<<<<< HEAD
-name = "subprocess"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c2e86926081dda636c546d8c5e641661049d7562a68f5488be4a1f7f66f6086"
-dependencies = [
- "libc",
- "winapi",
-=======
 name = "strum"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6463,7 +6444,16 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 1.0.109",
->>>>>>> 5c295bce (Add zookeeper backend)
+]
+
+[[package]]
+name = "subprocess"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c2e86926081dda636c546d8c5e641661049d7562a68f5488be4a1f7f66f6086"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
@@ -7826,7 +7816,6 @@ dependencies = [
 ]
 
 [[package]]
-<<<<<<< HEAD
 name = "zip"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7844,6 +7833,27 @@ dependencies = [
  "sha1",
  "time 0.3.22",
  "zstd",
+]
+
+[[package]]
+name = "zookeeper-client"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ade019937af9b1e2160582cb8d905bcff5d4b71da82444b7bf2ccc9c93f344f2"
+dependencies = [
+ "bytes",
+ "compact_str",
+ "const_format",
+ "either",
+ "hashbrown 0.12.3",
+ "hashlink",
+ "ignore-result",
+ "log",
+ "num_enum",
+ "static_assertions",
+ "strum",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -7874,24 +7884,4 @@ dependencies = [
  "cc",
  "libc",
  "pkg-config",
-=======
-name = "zookeeper-client"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ade019937af9b1e2160582cb8d905bcff5d4b71da82444b7bf2ccc9c93f344f2"
-dependencies = [
- "bytes",
- "compact_str",
- "const_format",
- "either",
- "hashbrown 0.12.3",
- "hashlink",
- "ignore-result",
- "log",
- "num_enum",
- "static_assertions",
- "strum",
- "thiserror",
- "tokio",
->>>>>>> 5c295bce (Add zookeeper backend)
 ]

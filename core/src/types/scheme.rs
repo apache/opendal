@@ -114,6 +114,8 @@ pub enum Scheme {
     Redb,
     /// [tikv][crate::services::tikv]: Tikv Services
     Tikv,
+    /// [zookeeper][crate::services::zookeeper]: Zookeeper Services
+    Zookeeper,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -241,6 +243,7 @@ impl From<Scheme> for &'static str {
             Scheme::Redb => "redb",
             Scheme::Tikv => "tikv",
             Scheme::Sqlite => "sqlite",
+            Scheme::Zookeeper => "zookeeper",
             Scheme::Custom(v) => v,
         }
     }

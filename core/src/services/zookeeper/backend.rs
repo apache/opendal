@@ -49,7 +49,7 @@ pub struct ZookeeperBuilder {
     /// Default: 127.0.0.1:2181
     endpoint: Option<String>,
     /// the user to connect to zookeeper service, default None
-    user: Option<String>,
+    username: Option<String>,
     /// the password file of the user to connect to zookeeper service, default None
     password: Option<String>,
 }
@@ -64,9 +64,9 @@ impl ZookeeperBuilder {
     }
 
     /// Set the username of zookeeper service
-    pub fn user(&mut self, user: &str) -> &mut Self {
-        if !user.is_empty() {
-            self.user = Some(user.to_string());
+    pub fn username(&mut self, username: &str) -> &mut Self {
+        if !username.is_empty() {
+            self.username = Some(user.to_string());
         }
         self
     }
@@ -86,8 +86,8 @@ impl Debug for ZookeeperBuilder {
         if let Some(endpoint) = self.endpoint.clone() {
             ds.field("endpoint", &endpoint);
         }
-        if let Some(user) = self.user.clone() {
-            ds.field("user", &user);
+        if let Some(username) = self.username.clone() {
+            ds.field("username", &username);
         }
         ds.finish()
     }
@@ -101,7 +101,7 @@ impl Builder for ZookeeperBuilder {
         let mut builder = ZookeeperBuilder::default();
 
         map.get("endpoint").map(|v| builder.endpoint(v));
-        map.get("user").map(|v| builder.user(v));
+        map.get("username").map(|v| builder.username(v));
         map.get("password").map(|v| builder.password(v));
 
         builder
@@ -112,9 +112,9 @@ impl Builder for ZookeeperBuilder {
             None => DEFAULT_ZOOKEEPER_ENDPOINT.to_string(),
             Some(endpoint) => endpoint,
         };
-        let (auth, acl) = match (self.user.clone(), self.password.clone()) {
-            (Some(user), Some(password)) => {
-                let auth = format!("{user}:{password}").as_bytes().to_vec();
+        let (auth, acl) = match (self.username.clone(), self.password.clone()) {
+            (Some(username), Some(password)) => {
+                let auth = format!("{username}:{password}").as_bytes().to_vec();
                 (auth, zk::Acl::creator_all())
             }
             _ => {

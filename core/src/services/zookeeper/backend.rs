@@ -235,9 +235,7 @@ impl ZkAdapter {
                     }
                 }
             }
-            None => {
-                Ok(())
-            }
+            None => Ok(()),
         }
     }
 }

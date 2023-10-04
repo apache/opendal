@@ -228,4 +228,3 @@ pub use self::sqlite::Sqlite;
 mod zookeeper;
 #[cfg(feature = "services-zookeeper")]
 pub use self::zookeeper::Zookeeper;
-

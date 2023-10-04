@@ -174,8 +174,7 @@ impl ZkAdapter {
     async fn create_nested_node(&self, path: &str, value: &[u8]) -> Result<()> {
         let mut path = path.to_string();
         if !path.starts_with('/') {
-            path =
-                build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(&path));
+            path = build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(&path));
         }
         let mut rend = path.len();
         let res = loop {
@@ -183,46 +182,67 @@ impl ZkAdapter {
             if subpath.is_empty() {
                 subpath = "/";
             }
-            match self.get_connection().await?.create(subpath, value, &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl)).await {
+            match self
+                .get_connection()
+                .await?
+                .create(
+                    subpath,
+                    value,
+                    &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl),
+                )
+                .await
+            {
                 Ok(_) => break Ok(()),
                 Err(e) => match e {
                     zk::Error::NoNode => {
                         rend = path.substring(0, rend).rfind('/').unwrap();
-                    },
-                    _ => {
-                        break Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e))
                     }
-                }
+                    _ => {
+                        break Err(
+                            Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)
+                        )
+                    }
+                },
             }
         };
         if res.is_err() {
-            return res
+            return res;
         }
         match path.substring(rend + 1, path.len()).find('/') {
             Some(len) => {
                 rend = len + rend + 1;
                 loop {
                     let tmp = path.substring(0, rend);
-                    match self.get_connection().await?.create(&path.substring(0, rend), value, &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl)).await {
+                    match self
+                        .get_connection()
+                        .await?
+                        .create(
+                            &path.substring(0, rend),
+                            value,
+                            &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl),
+                        )
+                        .await
+                    {
                         Ok(_) => {
                             if rend == path.len() {
-                                return Ok(())
+                                return Ok(());
                             } else {
                                 match path.substring(rend + 1, path.len()).find('/') {
                                     None => rend = path.len(),
                                     Some(len) => rend = len + rend + 1,
                                 }
                             }
-                        },
+                        }
                         Err(e) => {
-                            return Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e))
+                            return Err(Error::new(ErrorKind::Unexpected, "error from zookeeper")
+                                .set_source(e))
                         }
                     }
                 }
             }
             None => {
                 // No nested node, no need to perform "backtracking"
-                return Ok(())
+                return Ok(());
             }
         }
     }

@@ -32,7 +32,6 @@ use crate::*;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use futures::future::{BoxFuture, FutureExt};
 use substring::Substring;
 
 use log::warn;
@@ -212,12 +211,11 @@ impl ZkAdapter {
             Some(len) => {
                 rend = len + rend + 1;
                 loop {
-                    let tmp = path.substring(0, rend);
                     match self
                         .get_connection()
                         .await?
                         .create(
-                            &path.substring(0, rend),
+                            path.substring(0, rend),
                             value,
                             &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl),
                         )
@@ -241,8 +239,7 @@ impl ZkAdapter {
                 }
             }
             None => {
-                // No nested node, no need to perform "backtracking"
-                return Ok(());
+                Ok(())
             }
         }
     }

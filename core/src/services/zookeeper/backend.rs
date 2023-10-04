@@ -32,6 +32,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 
+use substring::Substring;
+use futures::future::{BoxFuture, FutureExt};
+
 use log::warn;
 
 const DEFAULT_ZOOKEEPER_ENDPOINT: &str = "127.0.0.1:2181";
@@ -173,6 +176,45 @@ impl ZkAdapter {
             Err(e) => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
         }
     }
+
+    fn create_nested_node<'a>(&'a self, path: &'a str, value: &'a [u8]) -> BoxFuture<'a, Result<()>> {
+        eprintln!("{path}");
+        let mut path = path.to_string();
+        async move {
+            return match self.get_connection().await?.create(&path, value, &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl)).await {
+                Ok(_) => Ok(()),
+                Err(e) => match e {
+                    zk::Error::NoNode => {
+                        let idx = path.rfind('/').unwrap();
+                        let tmpath = path.clone();
+                        path = path.to_string().substring(0, idx).to_string();
+                        if path.as_bytes()[0] != b'/' {
+                            path = "/".to_string() + path.strip_suffix('/').unwrap_or(&path);
+                        }
+                        match self.create_nested_node(&path, value).await {
+                            Ok(()) => {},
+                            Err(e) => return Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "error from zookeeper",
+                            ).set_source(e))
+                        };
+                        match self.get_connection().await?.create(&tmpath, value, &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl)).await {
+                            Ok(_) => Ok(()),
+                            Err(e) => Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "error from zookeeper",
+                            ).set_source(e)),
+                        }
+                    }
+                    _ => Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "error from zookeeper",
+                    )
+                        .set_source(e)),
+                }
+            }
+        }.boxed()
+    }
 }
 
 #[async_trait]
@@ -190,17 +232,18 @@ impl kv::Adapter for ZkAdapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let path = "/".to_string() + path;
-        self.get_connection()
-            .await?
-            .get_data(&path)
-            .await
-            .map(|data| Some(data.0))
-            .map_err(parse_zookeeper_error)
+        let path = "/".to_string() + path.strip_suffix('/').unwrap_or(path);
+        match self.get_connection().await?.get_data(&path).await {
+            Ok(data) => Ok(Some(data.0)),
+            Err(e) => match e {
+                zk::Error::NoNode => Ok(None),
+                _ => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
+            },
+        }
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let path = "/".to_string() + path;
+        let path = "/".to_string() + path.strip_suffix('/').unwrap_or(path);
         match self
             .get_connection()
             .await?
@@ -209,24 +252,16 @@ impl kv::Adapter for ZkAdapter {
         {
             Ok(_) => Ok(()),
             Err(e) => match e {
-                zk::Error::NoNode => self
-                    .get_connection()
-                    .await?
-                    .create(
-                        &path,
-                        value,
-                        &zk::CreateOptions::new(zk::CreateMode::Persistent, self.acl),
-                    )
-                    .await
-                    .map(|_| ())
-                    .map_err(parse_zookeeper_error),
+                zk::Error::NoNode => {
+                    return self.create_nested_node(&path, value).await;
+                },
                 _ => Err(Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)),
             },
         }
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let path = "/".to_string() + path;
+        let path = "/".to_string() + path.strip_suffix('/').unwrap_or(path);
         match self.get_connection().await?.delete(&path, None).await {
             Ok(()) => Ok(()),
             Err(e) => match e {

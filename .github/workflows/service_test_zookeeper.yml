@@ -44,6 +44,8 @@ jobs:
         image: zookeeper:3.8.2
         ports:
           - 2181:2181
+        env:
+          JVMFLAGS: $JVMFLAGS -Djute.maxbuffer=50000000
     steps:
       - uses: actions/checkout@v3
       - name: Setup Rust toolchain

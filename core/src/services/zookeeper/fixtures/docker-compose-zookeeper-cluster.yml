@@ -25,6 +25,7 @@ services:
     ports:
       - '2181:2181'
     environment:
+      - 'JVMFLAGS=$JVMFLAGS -Djute.maxbuffer=50000000'
       - 'ZOO_MY_ID=1'
       - 'ZOO_SERVERS=server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181'
   zookeeper-node-2:
@@ -34,6 +35,7 @@ services:
     ports:
       - '2182:2181'
     environment:
+      - 'JVMFLAGS=$JVMFLAGS -Djute.maxbuffer=50000000'
       - 'ZOO_MY_ID=2'
       - 'ZOO_SERVERS=server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181'
   zookeeper-node-3:
@@ -43,5 +45,6 @@ services:
     ports:
       - '2183:2181'
     environment:
+      - 'JVMFLAGS=$JVMFLAGS -Djute.maxbuffer=50000000'
       - 'ZOO_MY_ID=3'
       - 'ZOO_SERVERS=server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181'

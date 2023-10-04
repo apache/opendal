@@ -176,7 +176,7 @@ impl ZkAdapter {
             path = build_rooted_abs_path("/", path.strip_suffix('/').unwrap_or(&path));
         }
         let mut rend = path.len();
-        let res = loop {
+        loop {
             let mut subpath = path.substring(0, rend);
             if subpath.is_empty() {
                 subpath = "/";
@@ -203,10 +203,7 @@ impl ZkAdapter {
                     }
                 },
             }
-        };
-        if res.is_err() {
-            return res;
-        }
+        }?;
         match path.substring(rend + 1, path.len()).find('/') {
             Some(len) => {
                 rend = len + rend + 1;

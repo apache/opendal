@@ -54,6 +54,7 @@ pub struct ZookeeperBuilder {
 }
 
 impl ZookeeperBuilder {
+    /// Set the endpoint of zookeeper service
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.to_string());

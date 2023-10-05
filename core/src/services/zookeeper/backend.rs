@@ -55,7 +55,6 @@ pub struct ZookeeperBuilder {
 }
 
 impl ZookeeperBuilder {
-    /// Set the network addresses of zookeeper service
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.to_string());
@@ -288,4 +287,3 @@ impl kv::Adapter for ZkAdapter {
 fn parse_zookeeper_error(e: zk::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "error from zookeeper").set_source(e)
 }
-

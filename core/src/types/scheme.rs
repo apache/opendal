@@ -88,6 +88,8 @@ pub enum Scheme {
     Redis,
     /// [postgresql][crate::services::Postgresql]: Postgresql services
     Postgresql,
+    /// [libsql][crate::services::Libsql]: Libsql services
+    Libsql,
     /// [mysql][crate::services::Mysql]: Mysql services
     Mysql,
     /// [sqlite][crate::services::Sqlite]: Sqlite services
@@ -169,6 +171,7 @@ impl FromStr for Scheme {
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
+            "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
             "mysql" => Ok(Scheme::Mysql),
@@ -216,6 +219,7 @@ impl From<Scheme> for &'static str {
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
+            Scheme::Libsql => "libsql",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
             Scheme::MiniMoka => "mini_moka",

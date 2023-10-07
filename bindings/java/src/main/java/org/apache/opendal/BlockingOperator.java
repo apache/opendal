@@ -78,6 +78,10 @@ public class BlockingOperator extends NativeObject {
         copy(nativeHandle, sourcePath, targetPath);
     }
 
+    public void rename(String sourcePath, String targetPath) {
+        rename(nativeHandle, sourcePath, targetPath);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -92,4 +96,6 @@ public class BlockingOperator extends NativeObject {
     private static native long createDir(long nativeHandle, String path);
 
     private static native long copy(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native long rename(long nativeHandle, String sourcePath, String targetPath);
 }

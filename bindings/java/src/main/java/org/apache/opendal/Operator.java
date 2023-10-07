@@ -187,6 +187,11 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<Void> rename(String sourcePath, String targetPath) {
+        final long requestId = rename(nativeHandle, sourcePath, targetPath);
+        return AsyncRegistry.take(requestId);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -215,4 +220,6 @@ public class Operator extends NativeObject {
     private static native long createDir(long nativeHandle, String path);
 
     private static native long copy(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native long rename(long nativeHandle, String sourcePath, String targetPath);
 }

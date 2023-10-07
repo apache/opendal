@@ -97,7 +97,6 @@ impl Stream for Lister {
 
             let acc = self.acc.clone();
             let fut = async move {
-                let path = path;
                 let res = acc.stat(&path, OpStat::default()).await;
 
                 (path, res)

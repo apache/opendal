@@ -15,44 +15,33 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
-  "core/fuzz",
+[package]
+description = "Use OpenDAL as a backend to access data in various service with WebDAV protocol"
+name = "dav-server-opendalfs"
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/ocaml",
-  "bindings/php",
-  "bindings/cpp",
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
-  "bin/oli",
-  "bin/oay",
+[dependencies]
+anyhow = "1"
+chrono = "0.4.28"
+dirs = "5.0.0"
+bytes = { version = "1.4.0" }
+dav-server = { version = "0.5.5" }
+futures = "0.3"
+futures-util = { version = "0.3.16" }
+opendal.workspace = true
+quick-xml = { version = "0.29", features = ["serialize", "overlapped-lists"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1.27", features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "io-std",
+] }
 
-  "integrations/object_store",
-  "integrations/dav-server",
-]
-resolver = "2"
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.40.0"
-
-[workspace.dependencies]
-opendal = { version = "0.40", path = "core" }
-
-[profile.bench]
-debug = true

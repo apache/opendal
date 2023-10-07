@@ -35,7 +35,7 @@ jobs:
   rust-00-setup:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Test
@@ -46,7 +46,7 @@ jobs:
   rust-01-init-operator:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Test
@@ -57,7 +57,7 @@ jobs:
   rust-02-async-io:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Test

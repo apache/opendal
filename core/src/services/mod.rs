@@ -213,3 +213,13 @@ pub use self::postgresql::Postgresql;
 mod atomicserver;
 #[cfg(feature = "services-atomicserver")]
 pub use self::atomicserver::Atomicserver;
+
+#[cfg(feature = "services-mysql")]
+mod mysql;
+#[cfg(feature = "services-mysql")]
+pub use self::mysql::Mysql;
+
+#[cfg(feature = "services-sqlite")]
+mod sqlite;
+#[cfg(feature = "services-sqlite")]
+pub use self::sqlite::Sqlite;

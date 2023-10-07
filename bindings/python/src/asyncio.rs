@@ -65,7 +65,7 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map, layers)?))
+        Ok(AsyncOperator(build_operator(scheme, map, layers, false)?))
     }
 
     /// Read the whole path into bytes.

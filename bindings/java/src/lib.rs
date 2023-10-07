@@ -19,20 +19,22 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
 
-use jni::objects::JMap;
+use crate::error::Error;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::objects::JValue;
+use jni::objects::{JMap, JValue};
+use jni::sys::jboolean;
 use jni::sys::jint;
+use jni::sys::jlong;
 use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
 use jni::JavaVM;
 use once_cell::sync::OnceCell;
 use opendal::raw::PresignedRequest;
+use opendal::Capability;
+use opendal::OperatorInfo;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
-
-use crate::error::Error;
 
 mod blocking_operator;
 mod error;
@@ -95,6 +97,11 @@ unsafe fn get_global_runtime<'local>() -> &'local Runtime {
     RUNTIME.get_unchecked()
 }
 
+fn usize_to_jlong(n: Option<usize>) -> jlong {
+    // usize is always >= 0, so we can use -1 to identify the empty value.
+    n.map_or(-1, |v| v as jlong)
+}
+
 fn jmap_to_hashmap(env: &mut JNIEnv, params: &JObject) -> Result<HashMap<String, String>> {
     let map = JMap::from_env(env, params)?;
     let mut iter = map.iter(env)?;
@@ -143,4 +150,83 @@ fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Re
         ],
     )?;
     Ok(result)
+}
+
+fn make_operator_info<'a>(env: &mut JNIEnv<'a>, info: OperatorInfo) -> Result<JObject<'a>> {
+    let schema = env.new_string(info.scheme().to_string())?;
+    let root = env.new_string(info.root().to_string())?;
+    let name = env.new_string(info.name().to_string())?;
+    let full_capability_obj = make_capability(env, info.full_capability())?;
+    let native_capability_obj = make_capability(env, info.native_capability())?;
+
+    let result = env
+        .new_object(
+            "org/apache/opendal/OperatorInfo",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lorg/apache/opendal/Capability;Lorg/apache/opendal/Capability;)V",
+            &[
+                JValue::Object(&schema),
+                JValue::Object(&root),
+                JValue::Object(&name),
+                JValue::Object(&full_capability_obj),
+                JValue::Object(&native_capability_obj),
+            ],
+        )?;
+    Ok(result)
+}
+
+fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<'a>> {
+    let capability = env.new_object(
+        "org/apache/opendal/Capability",
+        "(ZZZZZZZZZZZZZZZZZZJJJZZZZZZZZZZZZZZZJZ)V",
+        &[
+            JValue::Bool(cap.stat as jboolean),
+            JValue::Bool(cap.stat_with_if_match as jboolean),
+            JValue::Bool(cap.stat_with_if_none_match as jboolean),
+            JValue::Bool(cap.read as jboolean),
+            JValue::Bool(cap.read_can_seek as jboolean),
+            JValue::Bool(cap.read_can_next as jboolean),
+            JValue::Bool(cap.read_with_range as jboolean),
+            JValue::Bool(cap.read_with_if_match as jboolean),
+            JValue::Bool(cap.read_with_if_none_match as jboolean),
+            JValue::Bool(cap.read_with_override_cache_control as jboolean),
+            JValue::Bool(cap.read_with_override_content_disposition as jboolean),
+            JValue::Bool(cap.read_with_override_content_type as jboolean),
+            JValue::Bool(cap.write as jboolean),
+            JValue::Bool(cap.write_can_multi as jboolean),
+            JValue::Bool(cap.write_can_append as jboolean),
+            JValue::Bool(cap.write_with_content_type as jboolean),
+            JValue::Bool(cap.write_with_content_disposition as jboolean),
+            JValue::Bool(cap.write_with_cache_control as jboolean),
+            JValue::Long(usize_to_jlong(cap.write_multi_max_size)),
+            JValue::Long(usize_to_jlong(cap.write_multi_min_size)),
+            JValue::Long(usize_to_jlong(cap.write_multi_align_size)),
+            JValue::Bool(cap.create_dir as jboolean),
+            JValue::Bool(cap.delete as jboolean),
+            JValue::Bool(cap.copy as jboolean),
+            JValue::Bool(cap.rename as jboolean),
+            JValue::Bool(cap.list as jboolean),
+            JValue::Bool(cap.list_with_limit as jboolean),
+            JValue::Bool(cap.list_with_start_after as jboolean),
+            JValue::Bool(cap.list_with_delimiter_slash as jboolean),
+            JValue::Bool(cap.list_without_delimiter as jboolean),
+            JValue::Bool(cap.presign as jboolean),
+            JValue::Bool(cap.presign_read as jboolean),
+            JValue::Bool(cap.presign_stat as jboolean),
+            JValue::Bool(cap.presign_write as jboolean),
+            JValue::Bool(cap.batch as jboolean),
+            JValue::Bool(cap.batch_delete as jboolean),
+            JValue::Long(usize_to_jlong(cap.batch_max_operations)),
+            JValue::Bool(cap.blocking as jboolean),
+        ],
+    )?;
+    Ok(capability)
+}
+
+/// # Safety
+///
+/// The caller must guarantee that the Object passed in is an instance
+/// of `java.lang.String`, passing in anything else will lead to undefined behavior.
+fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
+    let res = unsafe { env.get_string_unchecked(s)? };
+    Ok(res.into())
 }

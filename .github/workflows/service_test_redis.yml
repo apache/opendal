@@ -30,6 +30,7 @@ on:
       - "!core/src/docs/**"
       - "!core/src/services/**"
       - "core/src/services/redis/**"
+      - "bindings/java/**"
       - ".github/workflows/service_test_redis.yml"
       - "fixtures/redis/**"
 
@@ -41,7 +42,7 @@ jobs:
   redis:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Redis Server
         shell: bash
         working-directory: fixtures/redis
@@ -63,7 +64,7 @@ jobs:
   redis-tls:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Redis with TLS
         shell: bash
@@ -94,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -117,7 +118,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Redis Cluster with TLS
         shell: bash
@@ -155,7 +156,7 @@ jobs:
         ports:
           - 6379:6379
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -174,11 +175,11 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis:
-        image: apache/kvrocks
+        image: apache/kvrocks:2.5.1
         ports:
           - 6379:6666
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -187,6 +188,29 @@ jobs:
         shell: bash
         working-directory: core
         run: cargo nextest run redis --features services-redis
+        env:
+          OPENDAL_REDIS_TEST: on
+          OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379
+          OPENDAL_REDIS_ROOT: /
+          OPENDAL_REDIS_DB: 0
+
+  java:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Redis Server
+        shell: bash
+        working-directory: fixtures/redis
+        run: docker-compose -f docker-compose-redis.yml up -d
+
+      - name: Test
+        shell: bash
+        working-directory: bindings/java
+        run: ./mvnw test -Dtest=org.apache.opendal.test.behavior.RedisTest -Dcargo-build.features=services-redis
         env:
           OPENDAL_REDIS_TEST: on
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379

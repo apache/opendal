@@ -9,23 +9,26 @@
 
 This project is built upon the native OpenDAL lib. And it is released for multiple platforms that you can use a classifier to specify the platform you are building the application on.
 
+### Maven
+
 Generally, you can first add the `os-maven-plugin` for automatically detect the classifier based on your platform:
 
 ```xml
 <build>
-    <extensions>
-        <extension>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>1.7.0</version>
-        </extension>
-    </extensions>
+<extensions>
+  <extension>
+    <groupId>kr.motd.maven</groupId>
+    <artifactId>os-maven-plugin</artifactId>
+    <version>1.7.0</version>
+  </extension>
+</extensions>
 </build>
 ```
 
 Then add the dependency to `opendal-java` as following:
 
 ```xml
+<dependencies>
 <dependency>
   <groupId>org.apache.opendal</groupId>
   <artifactId>opendal-java</artifactId>
@@ -37,7 +40,29 @@ Then add the dependency to `opendal-java` as following:
   <version>${opendal.version}</version>
   <classifier>${os.detected.classifier}</classifier>
 </dependency>
+</dependencies>
 ```
+
+### Gradle
+
+For Gradle, you can first add the `com.google.osdetector` for automatically detect the classifier based on your platform:
+
+```groovy
+plugins {
+    id "com.google.osdetector" version "1.7.3"
+}
+```
+
+Then add the dependency to `opendal-java` as following:
+
+```groovy
+dependencies {
+    implementation "org.apache.opendal:opendal-java:0.40.0"
+    implementation "org.apache.opendal:opendal-java:0.40.0:$osdetector.classifier"
+}
+```
+
+### Classified library
 
 Note that the dependency without classifier ships all classes and resources except the "opendal_java" shared library. And those with classifier bundle only the shared library.
 
@@ -64,25 +89,45 @@ You can use Maven to build both Rust dynamic lib and JAR files with one command 
 
 ## Run tests
 
-Currently, all tests are written in Java. It contains the Cucumber feature tests and other unit tests.
+Currently, all tests are written in Java.
 
-You can run tests with the following command:
+You can run the base tests with the following command:
 
 ```shell
-./mvnw clean verify -Dcargo-build.features=services-redis
+./mvnw clean verify
 ```
 
-> **Note:**
-> 
-> The `-Dcargo-build.features=services-redis` argument is a temporary workaround. See also:
-> 
-> * https://github.com/apache/incubator-opendal/pull/3060
-> * https://github.com/apache/incubator-opendal/issues/3066
+## Code style
 
-Additionally, this project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.
+This project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.
 
 You can apply the code style with the following command::
 
 ```shell
 ./mvnw spotless:apply
+```
+
+## Run Service Tests
+
+Services tests read necessary configs from env vars or the `.env` file.
+
+You can copy [.env.example](/.env.example) to `${project.rootdir}/.env` and change the values on need, or directly set env vars with `export KEY=VALUE`.
+
+Take `fs` for example, we need to enable bench on `fs` on `/tmp`:
+
+```properties
+OPENDAL_FS_TEST=on
+OPENDAL_FS_ROOT=/opendal
+```
+
+You can run service tests of enabled with the following command:
+
+```shell
+./mvnw test -Dtest=org.apache.opendal.behavior.FsTest # replace with the certain service tests
+```
+
+Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
+
+```shell
+./mvnw test -Dtest=org.apache.opendal.behavior.RedisTest -Dcargo-build.features=services-redis
 ```

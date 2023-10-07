@@ -84,6 +84,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         }
 
         if cap.write {
+            cap.write_can_empty = true;
             cap.create_dir = true;
             cap.delete = true;
         }

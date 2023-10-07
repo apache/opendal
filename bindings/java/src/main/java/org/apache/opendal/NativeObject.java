@@ -122,20 +122,9 @@ public abstract class NativeObject implements AutoCloseable {
     }
 
     private static String bundledLibraryPath() {
-        final String os = System.getProperty("os.name").toLowerCase();
-        final StringBuilder path = new StringBuilder("/native/" + Environment.getClassifier() + "/");
-        if (!os.startsWith("windows")) {
-            path.append("lib");
-        }
-        path.append("opendal_java");
-        if (os.startsWith("windows")) {
-            path.append(".dll");
-        } else if (os.startsWith("mac")) {
-            path.append(".dylib");
-        } else {
-            path.append(".so");
-        }
-        return path.toString();
+        final String classifier = Environment.getClassifier();
+        final String libraryName = System.mapLibraryName("opendal_java");
+        return "/native/" + classifier + "/" + libraryName;
     }
 
     /**

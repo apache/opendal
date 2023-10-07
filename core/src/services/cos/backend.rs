@@ -265,6 +265,7 @@ impl Accessor for CosBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_append: true,
                 write_can_multi: true,
                 write_with_content_type: true,
@@ -277,7 +278,11 @@ impl Accessor for CosBackend {
                 // The max multipart size of COS is 5 GiB.
                 //
                 // ref: <https://www.tencentcloud.com/document/product/436/14112>
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 delete: true,
                 create_dir: true,

@@ -1,8 +1,3 @@
 Apache OpenDAL offers native layer support, enabling users to implement middleware or intercept for all operations.
 
-By using layers, we can:
-
-- `RetryLayer`: Automatically retry failed requests and resume from the point of failure.
-- `ChaosLayer`: Generate simulated chaos for storage services.
-- `ConcurrentLimitLayer`: Set concurrent limit while accessing storage services.
-- `{Logging|Metrics|Tracing}Layer`: Provide native observability for storage services.
+By using layers, we can retry failed requests and resume from the point of failure with RetryLayer, provide native observability with TracingLayer, and so on.

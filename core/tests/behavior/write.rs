@@ -48,6 +48,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_create_dir,
         test_create_dir_existing,
         test_write_only,
+        test_write_with_empty_content,
         test_write_with_dir_path,
         test_write_with_special_chars,
         test_write_with_cache_control,
@@ -131,6 +132,23 @@ pub async fn test_write_only(op: Operator) -> Result<()> {
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Write a file with empty content.
+pub async fn test_write_with_empty_content(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_can_empty {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    op.write(&path, vec![]).await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), 0);
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())

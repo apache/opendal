@@ -153,7 +153,7 @@ services-oss = [
   "reqsign?/reqwest_request",
 ]
 services-persy = ["dep:persy"]
-services-postgresql = ["dep:tokio-postgres"]
+services-postgresql = ["dep:tokio-postgres", "dep:bb8", "dep:bb8-postgres"]
 services-redb = ["dep:redb"]
 services-redis = ["dep:redis"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
@@ -176,6 +176,8 @@ services-wasabi = [
 ]
 services-webdav = []
 services-webhdfs = []
+services-mysql = ["dep:mysql_async"]
+services-sqlite = ["dep:rusqlite"]
 
 [lib]
 bench = false
@@ -247,7 +249,7 @@ pin-project = "1"
 prometheus = { version = "0.13", features = ["process"], optional = true }
 prometheus-client = { version = "0.21.2", optional = true }
 prost = { version = "0.11", optional = true }
-quick-xml = { version = "0.29", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
 rand = { version = "0.8", optional = true }
 redb = { version = "1.1.0", optional = true }
 redis = { version = "0.23.1", features = [
@@ -273,6 +275,9 @@ tokio = "1.27"
 tokio-postgres = { version = "0.7.8", optional = true }
 tracing = { version = "0.1", optional = true }
 uuid = { version = "1", features = ["serde", "v4"] }
+mysql_async = { version = "0.32.2", optional = true }
+bb8-postgres = { version = "0.8.1", optional = true }
+rusqlite = { version = "0.29.0", optional = true, features = ["bundled"] }
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["async", "async_tokio"] }

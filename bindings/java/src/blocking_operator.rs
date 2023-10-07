@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::str::FromStr;
-
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -24,38 +22,10 @@ use jni::objects::JString;
 use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
 
-use opendal::layers::BlockingLayer;
 use opendal::BlockingOperator;
-use opendal::Operator;
-use opendal::Scheme;
 
-use crate::get_global_runtime;
-use crate::jmap_to_hashmap;
+use crate::jstring_to_string;
 use crate::Result;
-
-#[no_mangle]
-pub extern "system" fn Java_org_apache_opendal_BlockingOperator_constructor(
-    mut env: JNIEnv,
-    _: JClass,
-    scheme: JString,
-    map: JObject,
-) -> jlong {
-    intern_constructor(&mut env, scheme, map).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
-    })
-}
-
-fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
-    let scheme = Scheme::from_str(env.get_string(&scheme)?.to_str()?)?;
-    let map = jmap_to_hashmap(env, &map)?;
-    let mut op = Operator::via_map(scheme, map)?;
-    if !op.info().full_capability().blocking {
-        let _guard = unsafe { get_global_runtime() }.enter();
-        op = op.layer(BlockingLayer::create()?);
-    }
-    Ok(Box::into_raw(Box::new(op.blocking())) as jlong)
-}
 
 /// # Safety
 ///
@@ -86,8 +56,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read(
 }
 
 fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jbyteArray> {
-    let path = env.get_string(&path)?;
-    let content = op.read(path.to_str()?)?;
+    let path = jstring_to_string(env, &path)?;
+    let content = op.read(&path)?;
     let result = env.byte_array_from_slice(content.as_slice())?;
     Ok(result.into_raw())
 }
@@ -114,9 +84,9 @@ fn intern_write(
     path: JString,
     content: JByteArray,
 ) -> Result<()> {
-    let path = env.get_string(&path)?;
+    let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
-    Ok(op.write(path.to_str()?, content)?)
+    Ok(op.write(&path, content)?)
 }
 
 /// # Safety
@@ -136,8 +106,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
 }
 
 fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jlong> {
-    let path = env.get_string(&path)?;
-    let metadata = op.stat(path.to_str()?)?;
+    let path = jstring_to_string(env, &path)?;
+    let metadata = op.stat(&path)?;
     Ok(Box::into_raw(Box::new(metadata)) as jlong)
 }
 
@@ -157,6 +127,54 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
 }
 
 fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
-    let path = env.get_string(&path)?;
-    Ok(op.delete(path.to_str()?)?)
+    let path = jstring_to_string(env, &path)?;
+    Ok(op.delete(&path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_createDir(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    path: JString,
+) {
+    intern_create_dir(&mut env, &mut *op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+    let path = jstring_to_string(env, &path)?;
+    Ok(op.create_dir(&path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_copy(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) {
+    intern_copy(&mut env, &mut *op, source_path, target_path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_copy(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) -> Result<()> {
+    let source_path = jstring_to_string(env, &source_path)?;
+    let target_path = jstring_to_string(env, &target_path)?;
+
+    Ok(op.copy(&source_path, &target_path)?)
 }

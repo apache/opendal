@@ -183,7 +183,7 @@ where
                 self.poll_read(cx, buf)
             }
             State::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
-                Ok(n) if n == 0 => {
+                Ok(0) => {
                     // Reset state to Idle after all data has been consumed.
                     self.state = State::Idle;
                     Poll::Ready(Ok(0))
@@ -293,7 +293,7 @@ where
             }
             State::Reading(r) => {
                 match r.read(buf) {
-                    Ok(n) if n == 0 => {
+                    Ok(0) => {
                         // Reset state to Idle after all data has been consumed.
                         self.state = State::Idle;
                         Ok(0)

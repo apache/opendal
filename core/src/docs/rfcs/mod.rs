@@ -163,3 +163,6 @@ pub mod rfc_3017_remove_write_copy_from {}
 
 #[doc = include_str!("3197_config.md")]
 pub mod rfc_3197_config {}
+
+#[doc = include_str!("3232_align_list_api.md")]
+pub mod rfc_3232_align_list_api {}

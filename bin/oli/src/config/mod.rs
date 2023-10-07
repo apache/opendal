@@ -79,7 +79,7 @@ impl Config {
         let profiles = Config::load_from_env().profiles.into_iter().fold(
             cfg.profiles,
             |mut acc, (name, opts)| {
-                acc.entry(name).or_insert_with(HashMap::new).extend(opts);
+                acc.entry(name).or_default().extend(opts);
                 acc
             },
         );
@@ -115,12 +115,13 @@ impl Config {
                     },
                 )
             })
-            .fold(HashMap::new(), |mut acc, (profile_name, key, val)| {
-                acc.entry(profile_name)
-                    .or_insert_with(HashMap::new)
-                    .insert(key, val);
-                acc
-            });
+            .fold(
+                HashMap::new(),
+                |mut acc: HashMap<String, HashMap<_, _>>, (profile_name, key, val)| {
+                    acc.entry(profile_name).or_default().insert(key, val);
+                    acc
+                },
+            );
         Config { profiles }
     }
 

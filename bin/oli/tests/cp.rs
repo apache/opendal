@@ -54,7 +54,7 @@ async fn test_cp_for_path_in_current_dir() -> Result<()> {
     cmd.arg("cp")
         .arg("src.txt")
         .arg("dst.txt")
-        .current_dir(dir.path().clone());
+        .current_dir(dir.path());
     cmd.assert().success();
 
     let actual = fs::read_to_string(dst_path)?;

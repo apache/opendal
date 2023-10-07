@@ -1283,7 +1283,7 @@ mod tests {
         fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
             let mut bs = vec![0; 1];
             match ready!(self.poll_read(cx, &mut bs)) {
-                Ok(v) if v == 0 => Poll::Ready(None),
+                Ok(0) => Poll::Ready(None),
                 Ok(v) => Poll::Ready(Some(Ok(Bytes::from(bs[..v].to_vec())))),
                 Err(err) => Poll::Ready(Some(Err(err))),
             }

@@ -1568,7 +1568,7 @@ dependencies = [
  "futures",
  "futures-util",
  "opendal",
- "quick-xml",
+ "quick-xml 0.29.0",
  "serde",
  "tokio",
 ]

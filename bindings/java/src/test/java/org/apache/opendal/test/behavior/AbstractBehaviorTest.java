@@ -763,8 +763,7 @@ public abstract class AbstractBehaviorTest {
         @BeforeAll
         public void precondition() {
             final Capability capability = blockingOperator.info.fullCapability;
-            assumeTrue(
-                    capability.read && capability.write && capability.copy && capability.blocking && capability.rename);
+            assumeTrue(capability.read && capability.write && capability.blocking && capability.rename);
         }
 
         /**

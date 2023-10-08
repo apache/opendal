@@ -26,7 +26,7 @@ BASE_DIR = os.getcwd()
 
 def check_rust():
     try:
-        subprocess.run(['cargo', '--version'], check=True)
+        subprocess.run(["cargo", "--version"], check=True)
         return True
     except FileNotFoundError:
         return False
@@ -36,7 +36,7 @@ def check_rust():
 
 def check_java():
     try:
-        subprocess.run(['java', '--version'], check=True)
+        subprocess.run(["java", "--version"], check=True)
         return True
     except FileNotFoundError:
         return False
@@ -47,16 +47,25 @@ def check_java():
 def build_core():
     print("Start building opendal core")
 
-    subprocess.run(['cargo', 'build'], check=True)
+    subprocess.run(["cargo", "build", "--release"], check=True)
 
 
 def build_java_binding():
     print("Start building opendal java binding")
 
     # change to java binding directory
-    os.chdir('bindings/java')
+    os.chdir("bindings/java")
 
-    subprocess.run(['./mvnw', 'clean', 'install', '-DskipTests=true'], check=True)
+    subprocess.run(
+        [
+            "./mvnw",
+            "clean",
+            "install",
+            "-DskipTests=true",
+            "-Dcargo-build.profile=release",
+        ],
+        check=True,
+    )
 
     # change back to base directory
     os.chdir(BASE_DIR)
@@ -64,7 +73,9 @@ def build_java_binding():
 
 def main():
     if not check_rust():
-        print("Cargo is not found, please check if rust development has been setup correctly")
+        print(
+            "Cargo is not found, please check if rust development has been setup correctly"
+        )
         print("Visit https://www.rust-lang.org/tools/install for more information")
         sys.exit(1)
 

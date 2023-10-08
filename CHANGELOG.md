@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [v0.41.0] - 2023-10-08
 
-## What's Changed
 ### Added
 * feat: allow using `prometheus-client` crate with PrometheusClientLayer by @flaneur2020 in https://github.com/apache/incubator-opendal/pull/3134
 * feat(binding/java): support info ops by @G-XD in https://github.com/apache/incubator-opendal/pull/3154
@@ -72,15 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(bindings/java): simplify library path resolution by @tisonkun in https://github.com/apache/incubator-opendal/pull/3196
 * chore: Make clippy happy by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3229
 
-## New Contributors
-* @ImSingee made their first contribution in https://github.com/apache/incubator-opendal/pull/3126
-* @eastack made their first contribution in https://github.com/apache/incubator-opendal/pull/3158
-* @Venderbad made their first contribution in https://github.com/apache/incubator-opendal/pull/3172
-* @OmAximani0 made their first contribution in https://github.com/apache/incubator-opendal/pull/3183
-* @git-hulk made their first contribution in https://github.com/apache/incubator-opendal/pull/3192
-* @zhao-gang made their first contribution in https://github.com/apache/incubator-opendal/pull/3219
-
-**Full Changelog**: https://github.com/apache/incubator-opendal/compare/v0.40.0...v0.41.0
 
 ## [v0.40.0] - 2023-09-18
 

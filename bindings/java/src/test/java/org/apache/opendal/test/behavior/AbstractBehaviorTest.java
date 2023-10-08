@@ -377,6 +377,158 @@ public abstract class AbstractBehaviorTest {
 
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     @Nested
+    class AsyncRenameTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = operator.info.fullCapability;
+            assumeTrue(capability.read && capability.write && capability.rename);
+        }
+
+        /**
+         * Rename a file and test with stat.
+         */
+        @Test
+        public void testRenameFile() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+
+            final String targetPath = UUID.randomUUID().toString();
+
+            operator.rename(sourcePath, targetPath).join();
+
+            assertThatThrownBy(() -> operator.stat(sourcePath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+
+            assertThat(operator.read(targetPath).join()).isEqualTo(content);
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+
+        /**
+         * Rename a nonexistent source should return an error.
+         */
+        @Test
+        public void testRenameNonExistingSource() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final String targetPath = UUID.randomUUID().toString();
+
+            assertThatThrownBy(() -> operator.rename(sourcePath, targetPath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+        }
+
+        /**
+         * Rename a dir as source should return an error.
+         */
+        @Test
+        public void testRenameSourceDir() {
+            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID().toString();
+
+            operator.createDir(sourcePath).join();
+
+            assertThatThrownBy(() -> operator.rename(sourcePath, targetPath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+
+            operator.delete(sourcePath).join();
+        }
+
+        /**
+         * Rename to a dir should return an error.
+         */
+        @Test
+        public void testRenameTargetDir() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+
+            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+
+            operator.createDir(targetPath).join();
+
+            assertThatThrownBy(() -> operator.rename(sourcePath, targetPath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+
+        /**
+         * Rename a file to self should return an error.
+         */
+        @Test
+        public void testRenameSelf() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+
+            assertThatThrownBy(() -> operator.rename(sourcePath, sourcePath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+
+            operator.delete(sourcePath).join();
+        }
+
+        /**
+         * Rename to a nested path, parent path should be created successfully.
+         */
+        @Test
+        public void testRenameNested() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] content = generateBytes();
+
+            operator.write(sourcePath, content).join();
+
+            final String targetPath = String.format(
+                    "%s/%s/%s",
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString());
+
+            operator.rename(sourcePath, targetPath).join();
+
+            assertThatThrownBy(() -> operator.stat(sourcePath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+
+            assertThat(operator.read(targetPath).join()).isEqualTo(content);
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+
+        /**
+         * Rename to a exist path should overwrite successfully.
+         */
+        @Test
+        public void testRenameOverwrite() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            operator.write(sourcePath, sourceContent).join();
+
+            final String targetPath = UUID.randomUUID().toString();
+            final byte[] targetContent = generateBytes();
+            assertNotEquals(sourceContent, targetContent);
+
+            operator.write(targetPath, targetContent).join();
+
+            operator.rename(sourcePath, targetPath).join();
+
+            assertThatThrownBy(() -> operator.stat(sourcePath).join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+
+            assertThat(operator.read(targetPath).join()).isEqualTo(sourceContent);
+
+            operator.delete(sourcePath).join();
+            operator.delete(targetPath).join();
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
     class BlockingWriteTest {
         @BeforeAll
         public void precondition() {
@@ -597,6 +749,157 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.write(targetPath, targetContent);
 
             blockingOperator.copy(sourcePath, targetPath);
+
+            assertThat(blockingOperator.read(targetPath)).isEqualTo(sourceContent);
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
+    class BlockingRenameTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = blockingOperator.info.fullCapability;
+            assumeTrue(capability.read && capability.write && capability.blocking && capability.rename);
+        }
+
+        /**
+         * Rename a file and test with stat.
+         */
+        @Test
+        public void testBlockingRenameFile() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            final String targetPath = UUID.randomUUID().toString();
+
+            blockingOperator.rename(sourcePath, targetPath);
+
+            assertThatThrownBy(() -> blockingOperator.stat(sourcePath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+
+            assertThat(blockingOperator.stat(targetPath).getContentLength()).isEqualTo(sourceContent.length);
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
+        }
+
+        /**
+         * Rename a nonexistent source should return an error.
+         */
+        @Test
+        public void testBlockingRenameNonExistingSource() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final String targetPath = UUID.randomUUID().toString();
+
+            assertThatThrownBy(() -> blockingOperator.rename(sourcePath, targetPath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+        }
+
+        /**
+         * Rename a dir as source should return an error.
+         */
+        @Test
+        public void testBlockingRenameSourceDir() {
+            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID().toString();
+
+            blockingOperator.createDir(sourcePath);
+
+            assertThatThrownBy(() -> blockingOperator.rename(sourcePath, targetPath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+        }
+
+        /**
+         * Rename to a dir should return an error.
+         */
+        @Test
+        public void testBlockingRenameTargetDir() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+
+            blockingOperator.createDir(targetPath);
+
+            assertThatThrownBy(() -> blockingOperator.rename(sourcePath, targetPath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
+        }
+
+        /**
+         * Rename a file to self should return an error.
+         */
+        @Test
+        public void testBlockingRenameSelf() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            assertThatThrownBy(() -> blockingOperator.rename(sourcePath, sourcePath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+
+            blockingOperator.delete(sourcePath);
+        }
+
+        /**
+         * Rename to a nested path, parent path should be created successfully.
+         */
+        @Test
+        public void testBlockingRenameNested() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            final String targetPath = String.format(
+                    "%s/%s/%s",
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString(),
+                    UUID.randomUUID().toString());
+
+            blockingOperator.rename(sourcePath, targetPath);
+
+            assertThatThrownBy(() -> blockingOperator.stat(sourcePath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+
+            assertThat(blockingOperator.read(targetPath)).isEqualTo(sourceContent);
+
+            blockingOperator.delete(sourcePath);
+            blockingOperator.delete(targetPath);
+        }
+
+        /**
+         * Rename to a exist path should overwrite successfully.
+         */
+        @Test
+        public void testBlockingRenameOverwrite() {
+            final String sourcePath = UUID.randomUUID().toString();
+            final byte[] sourceContent = generateBytes();
+
+            blockingOperator.write(sourcePath, sourceContent);
+
+            final String targetPath = UUID.randomUUID().toString();
+            final byte[] targetContent = generateBytes();
+
+            assertNotEquals(sourceContent, targetContent);
+
+            blockingOperator.write(targetPath, targetContent);
+
+            blockingOperator.rename(sourcePath, targetPath);
+
+            assertThatThrownBy(() -> blockingOperator.stat(sourcePath))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
             assertThat(blockingOperator.read(targetPath)).isEqualTo(sourceContent);
 

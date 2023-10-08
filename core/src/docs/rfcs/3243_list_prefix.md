@@ -1,6 +1,6 @@
 - Proposal Name: `list_prefix`
 - Start Date: 2023-10-08
-- RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
+- RFC PR: [apache/incubator-opendal#3243](https://github.com/apache/incubator-opendal/pull/3243)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary

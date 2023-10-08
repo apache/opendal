@@ -53,9 +53,6 @@ def build_core():
 def build_java_binding():
     print("Start building opendal java binding")
 
-    # change to java binding directory
-    os.chdir("bindings/java")
-
     subprocess.run(
         [
             "./mvnw",
@@ -65,10 +62,8 @@ def build_java_binding():
             "-Dcargo-build.profile=release",
         ],
         check=True,
+        cwd="bindings/java"
     )
-
-    # change back to base directory
-    os.chdir(BASE_DIR)
 
 
 def main():

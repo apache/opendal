@@ -304,6 +304,10 @@ https://github.com/apache/incubator-opendal/tree/main/scripts
 To compile from source, please refer to:
 https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md
 
+Here is python script in release to help you verify the release candidate:
+
+./scripts/verify.py
+
 Thanks
 
 ${name}
@@ -414,6 +418,10 @@ https://github.com/apache/incubator-opendal/tree/main/scripts
 
 To compile from source, please refer to:
 https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md
+
+Here is python script in release to help you verify the release candidate:
+
+./scripts/verify.py
 
 Thanks
 

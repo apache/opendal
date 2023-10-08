@@ -163,3 +163,6 @@ pub mod rfc_3017_remove_write_copy_from {}
 
 #[doc = include_str!("3232_align_list_api.md")]
 pub mod rfc_3232_align_list_api {}
+
+#[doc = include_str!("3243_list_prefix.md")]
+pub mod rfc_3243_list_prefix {}

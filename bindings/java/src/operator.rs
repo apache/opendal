@@ -376,6 +376,47 @@ async fn do_copy(op: &mut Operator, source_path: String, target_path: String) ->
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    source_path: JString,
+    target_path: JString,
+) -> jlong {
+    intern_rename(&mut env, op, source_path, target_path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_rename(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    source_path: JString,
+    target_path: JString,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let source_path = jstring_to_string(env, &source_path)?;
+    let target_path = jstring_to_string(env, &target_path)?;
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_rename(op, source_path, target_path).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
+    });
+
+    Ok(id)
+}
+
+async fn do_rename(op: &mut Operator, source_path: String, target_path: String) -> Result<()> {
+    Ok(op.rename(&source_path, &target_path).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_presignRead(
     mut env: JNIEnv,
     _: JClass,

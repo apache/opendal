@@ -178,3 +178,31 @@ fn intern_copy(
 
     Ok(op.copy(&source_path, &target_path)?)
 }
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_rename(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) {
+    intern_rename(&mut env, &mut *op, source_path, target_path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_rename(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) -> Result<()> {
+    let source_path = jstring_to_string(env, &source_path)?;
+    let target_path = jstring_to_string(env, &target_path)?;
+
+    Ok(op.rename(&source_path, &target_path)?)
+}

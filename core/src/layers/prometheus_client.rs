@@ -179,7 +179,7 @@ impl PrometheusClientMetrics {
         self.bytes_histogram
             .get_or_create(&labels)
             .observe(bytes as f64);
-        self.bytes_total.get_or_create(&labels).inc_by(bytes as f64);
+        self.bytes_total.get_or_create(&labels).inc_by(bytes as u64);
     }
 
     fn observe_request_duration(&self, scheme: Scheme, op: Operation, duration: Duration) {

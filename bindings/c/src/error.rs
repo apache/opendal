@@ -17,20 +17,17 @@
 
 use ::opendal as od;
 
+use crate::types::opendal_bytes;
+
 /// The wrapper type for opendal's error, wrapped because of the
 /// orphan rule
-struct opendal_error(od::Error);
+struct opendal_internal_error(od::Error);
 
 /// \brief The error code for all opendal APIs in C binding.
 /// \todo The error handling is not complete, the error with error message will be
 /// added in the future.
 #[repr(C)]
-pub enum opendal_code {
-    /// All is well
-    OPENDAL_OK,
-    /// General error
-    // \todo: make details in the `opendal_error *`
-    OPENDAL_ERROR,
+pub(crate) enum opendal_code {
     /// returning it back. For example, s3 returns an internal service error.
     OPENDAL_UNEXPECTED,
     /// Underlying service doesn't support this operation.
@@ -53,14 +50,7 @@ pub enum opendal_code {
     OPENDAL_IS_SAME_FILE,
 }
 
-impl opendal_code {
-    pub(crate) fn from_opendal_error(e: od::Error) -> Self {
-        let error = opendal_error(e);
-        error.error_code()
-    }
-}
-
-impl opendal_error {
+impl opendal_internal_error {
     /// Convert the [`od::ErrorKind`] of [`od::Error`] to [`opendal_code`]
     pub(crate) fn error_code(&self) -> opendal_code {
         let e = &self.0;
@@ -79,5 +69,23 @@ impl opendal_error {
             // new error code accordingly
             _ => panic!("The newly added ErrorKind in core crate is not handled in C bindings"),
         }
+    }
+}
+
+#[repr(C)]
+pub struct opendal_error {
+    code: opendal_code,
+    message: opendal_bytes,
+}
+
+impl opendal_error {
+    // The caller should sink the error to heap memory and return the pointer
+    // that will not be freed by rustc
+    pub(crate) fn from_opendal_error(error: od::Error) -> Self {
+        let error = opendal_internal_error(error);
+        let code = error.error_code();
+        let c_str = format!("{}", error.0);
+        let message = opendal_bytes::new(c_str.into_bytes());
+        opendal_error { code, message }
     }
 }

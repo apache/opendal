@@ -20,7 +20,7 @@
 //! "opendal_result_opendal_operator_ptr", which is unacceptable. Therefore,
 //! we are defining all Result types here
 
-use crate::error::opendal_code;
+use crate::error::opendal_error;
 use crate::types::opendal_blocking_lister;
 use crate::types::opendal_bytes;
 use crate::types::opendal_metadata;
@@ -35,8 +35,8 @@ use crate::types::opendal_metadata;
 pub struct opendal_result_read {
     /// The byte array with length returned by read operations
     pub data: *mut opendal_bytes,
-    /// The error code, should be OPENDAL_OK if succeeds
-    pub code: opendal_code,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
 }
 
 /// \brief The result type returned by opendal_operator_is_exist().
@@ -51,8 +51,8 @@ pub struct opendal_result_read {
 pub struct opendal_result_is_exist {
     /// Whether the path exists
     pub is_exist: bool,
-    /// The error code, should be OPENDAL_OK if succeeds
-    pub code: opendal_code,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
 }
 
 /// \brief The result type returned by opendal_operator_stat().
@@ -63,8 +63,8 @@ pub struct opendal_result_is_exist {
 pub struct opendal_result_stat {
     /// The metadata output of the stat
     pub meta: *mut opendal_metadata,
-    /// The error code, should be OPENDAL_OK if succeeds
-    pub code: opendal_code,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
 }
 
 /// \brief The result type returned by opendal_operator_blocking_list().
@@ -74,6 +74,8 @@ pub struct opendal_result_stat {
 /// whether the stat operation is successful.
 #[repr(C)]
 pub struct opendal_result_list {
+    /// The lister, used for further listing operations
     pub lister: *mut opendal_blocking_lister,
-    pub code: opendal_code,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
 }

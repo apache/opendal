@@ -32,14 +32,6 @@
  */
 typedef enum opendal_code {
   /**
-   * All is well
-   */
-  OPENDAL_OK,
-  /**
-   * General error
-   */
-  OPENDAL_ERROR,
-  /**
    * returning it back. For example, s3 returns an internal service error.
    */
   OPENDAL_UNEXPECTED,
@@ -237,6 +229,11 @@ typedef struct opendal_bytes {
   uintptr_t len;
 } opendal_bytes;
 
+typedef struct opendal_error {
+  enum opendal_code code;
+  struct opendal_bytes message;
+} opendal_error;
+
 /**
  * \brief The result type returned by opendal's read operation.
  *
@@ -251,9 +248,9 @@ typedef struct opendal_result_read {
    */
   struct opendal_bytes *data;
   /**
-   * The error code, should be OPENDAL_OK if succeeds
+   * The error, if ok, it is null
    */
-  enum opendal_code code;
+  struct opendal_error *error;
 } opendal_result_read;
 
 /**
@@ -272,9 +269,9 @@ typedef struct opendal_result_is_exist {
    */
   bool is_exist;
   /**
-   * The error code, should be OPENDAL_OK if succeeds
+   * The error, if ok, it is null
    */
-  enum opendal_code code;
+  struct opendal_error *error;
 } opendal_result_is_exist;
 
 /**
@@ -308,9 +305,9 @@ typedef struct opendal_result_stat {
    */
   struct opendal_metadata *meta;
   /**
-   * The error code, should be OPENDAL_OK if succeeds
+   * The error, if ok, it is null
    */
-  enum opendal_code code;
+  struct opendal_error *error;
 } opendal_result_stat;
 
 /**
@@ -334,8 +331,14 @@ typedef struct opendal_blocking_lister {
  * whether the stat operation is successful.
  */
 typedef struct opendal_result_list {
+  /**
+   * The lister, used for further listing operations
+   */
   struct opendal_blocking_lister *lister;
-  enum opendal_code code;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
 } opendal_result_list;
 
 /**
@@ -445,9 +448,9 @@ const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_write(const struct opendal_operator_ptr *ptr,
-                                                  const char *path,
-                                                  struct opendal_bytes bytes);
+struct opendal_error *opendal_operator_blocking_write(const struct opendal_operator_ptr *ptr,
+                                                      const char *path,
+                                                      struct opendal_bytes bytes);
 
 /**
  * \brief Blockingly read the data from `path`.
@@ -533,8 +536,8 @@ struct opendal_result_read opendal_operator_blocking_read(const struct opendal_o
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_delete(const struct opendal_operator_ptr *ptr,
-                                                   const char *path);
+struct opendal_error *opendal_operator_blocking_delete(const struct opendal_operator_ptr *ptr,
+                                                       const char *path);
 
 /**
  * \brief Check whether the path exists.

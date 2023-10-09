@@ -34,13 +34,13 @@ int main()
     };
 
     /* Write this into path "/testpath" */
-    opendal_code code = opendal_operator_blocking_write(op, "/testpath", data);
-    assert(code == OPENDAL_OK);
+    opendal_error *error = opendal_operator_blocking_write(op, "/testpath", data);
+    assert(error == NULL);
 
     /* We can read it out, make sure the data is the same */
     opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
     opendal_bytes* read_bytes = r.data;
-    assert(r.code == OPENDAL_OK);
+    assert(r.error == NULL);
     assert(read_bytes->len == 24);
 
     /* Lets print it out */

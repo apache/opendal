@@ -63,11 +63,11 @@ TEST_F(OpendalListTest, ListDirTest)
 
     // write must succeed
     EXPECT_EQ(opendal_operator_blocking_write(this->p, path.c_str(), data),
-        OPENDAL_OK);
+        nullptr);
 
     // list must succeed since the write succeeded
     opendal_result_list l = opendal_operator_blocking_list(this->p, (dname + "/").c_str());
-    EXPECT_EQ(l.code, OPENDAL_OK);
+    EXPECT_EQ(l.error, nullptr);
 
     opendal_blocking_lister* lister = l.lister;
 
@@ -80,7 +80,7 @@ TEST_F(OpendalListTest, ListDirTest)
 
         // stat must succeed
         opendal_result_stat s = opendal_operator_stat(this->p, de_path);
-        EXPECT_EQ(s.code, OPENDAL_OK);
+        EXPECT_EQ(s.error, nullptr);
 
         if (!strcmp(de_path, path.c_str())) {
             found = true;
@@ -102,7 +102,7 @@ TEST_F(OpendalListTest, ListDirTest)
 
     // delete
     EXPECT_EQ(opendal_operator_blocking_delete(this->p, path.c_str()),
-        OPENDAL_OK);
+        nullptr);
 
     opendal_lister_free(lister);
 }

@@ -17,30 +17,39 @@
  * under the License.
  */
 
-#include "assert.h"
+#include "gtest/gtest.h"
+extern "C" {
 #include "opendal.h"
-#include "stdio.h"
+}
 
-// this example shows how to get error message from opendal_error
-int main()
+// Test no memory leak of error message
+TEST(ErrorMessageTest, ErrorMessageTest)
 {
-    /* Initialize a operator for "memory" backend, with no options */
+    // Initialize a operator for "memory" backend, with no options
     const opendal_operator_ptr* op = opendal_operator_new("memory", 0);
-    assert(op->ptr != NULL);
+    ASSERT_NE(op->ptr, nullptr);
 
-    /* The read is supposed to fail */
+    // The read is supposed to fail
     opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
-    assert(r.error != NULL);
+    ASSERT_NE(r.error, nullptr);
 
-    /* Lets print the error message out */
+    // Lets check the error message out
     struct opendal_bytes* error_msg = &r.error->message;
-    for (int i = 0; i < error_msg->len; ++i) {
-        printf("%c", error_msg->data[i]);
-    }
+    ASSERT_NE(error_msg->data, nullptr);
+    ASSERT_GT(error_msg->len, 0);
 
-    /* free the error */
+    // the opendal_bytes read is heap allocated, please free it
+    opendal_bytes_free(r.data);
+
+    // free the error
     opendal_error_free(r.error);
 
-    /* the operator_ptr is also heap allocated */
+    // the operator_ptr is also heap allocated
     opendal_operator_free(op);
+}
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

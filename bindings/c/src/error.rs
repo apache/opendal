@@ -89,4 +89,21 @@ impl opendal_error {
         let message = opendal_bytes::new(c_str.into_bytes());
         opendal_error { code, message }
     }
+
+    /// \brief Frees the opendal_error
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_error_free(ptr: *mut opendal_error) {
+        if !ptr.is_null() {
+            let message_ptr = &(*ptr).message as *const opendal_bytes as *mut opendal_bytes;
+            if !message_ptr.is_null() {
+                let data_mut = unsafe { (*message_ptr).data as *mut u8 };
+                let _ = unsafe {
+                    Vec::from_raw_parts(data_mut, (*message_ptr).len, (*message_ptr).len)
+                };
+            }
+
+            // free the pointer
+            let _ = unsafe { Box::from_raw(ptr) };
+        }
+    }
 }

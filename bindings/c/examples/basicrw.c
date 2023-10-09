@@ -24,7 +24,7 @@
 int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
-    const opendal_operator_ptr *op = opendal_operator_new("memory", 0);
+    const opendal_operator_ptr* op = opendal_operator_new("memory", 0);
     assert(op->ptr != NULL);
 
     /* Prepare some data to be written */
@@ -34,7 +34,7 @@ int main()
     };
 
     /* Write this into path "/testpath" */
-    opendal_error *error = opendal_operator_blocking_write(op, "/testpath", data);
+    opendal_error* error = opendal_operator_blocking_write(op, "/testpath", data);
     assert(error == NULL);
 
     /* We can read it out, make sure the data is the same */

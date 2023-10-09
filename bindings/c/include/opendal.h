@@ -678,6 +678,11 @@ struct opendal_result_list opendal_operator_blocking_list(const struct opendal_o
                                                           const char *path);
 
 /**
+ * \brief Frees the opendal_error
+ */
+void opendal_error_free(struct opendal_error *ptr);
+
+/**
  * \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
  *
  * Please only use this for a pointer pointing at a valid opendal_operator_ptr.

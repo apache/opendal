@@ -78,6 +78,7 @@ pub struct opendal_error {
     message: opendal_bytes,
 }
 
+// todo: add free
 impl opendal_error {
     // The caller should sink the error to heap memory and return the pointer
     // that will not be freed by rustc

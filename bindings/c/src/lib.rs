@@ -46,6 +46,7 @@ use crate::types::opendal_metadata;
 use crate::types::opendal_operator_options;
 use crate::types::opendal_operator_ptr;
 
+//todo: add error to this
 /// \brief Construct an operator based on `scheme` and `options`
 ///
 /// Uses an array of key-value pairs to initialize the operator based on provided `scheme`

@@ -1,1 +1,9 @@
 build/
+
+# Ignore everything under 'examples'
+examples/*
+!examples/
+!examples/*.h
+!examples/*.c
+!examples/*.cc
+!examples/*.cpp

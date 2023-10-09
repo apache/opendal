@@ -35,7 +35,10 @@ protected:
         opendal_operator_options* options = opendal_operator_options_new();
         opendal_operator_options_set(options, "root", "/myroot");
 
-        this->p = opendal_operator_new("memory", options);
+        opendal_result_operator_new result = opendal_operator_new("memory", options);
+        EXPECT_TRUE(result.error == nullptr);
+
+        this->p = result.operator_ptr;
         EXPECT_TRUE(this->p->ptr);
 
         opendal_operator_options_free(options);

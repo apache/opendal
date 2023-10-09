@@ -22,15 +22,34 @@ extern "C" {
 #include "opendal.h"
 }
 
+class OpendalErrorMsgTest : public ::testing::Test {
+protected:
+    const opendal_operator_ptr* p;
+
+    // set up a brand new operator
+    void SetUp() override
+    {
+        opendal_operator_options* options = opendal_operator_options_new();
+        opendal_operator_options_set(options, "root", "/myroot");
+
+        opendal_result_operator_new result = opendal_operator_new("memory", options);
+        EXPECT_TRUE(result.error == nullptr);
+
+        this->p = result.operator_ptr;
+        EXPECT_TRUE(this->p->ptr);
+
+        opendal_operator_options_free(options);
+    }
+
+    void TearDown() override { opendal_operator_free(this->p); }
+};
+
 // Test no memory leak of error message
-TEST(ErrorMessageTest, ErrorMessageTest)
+TEST_F(OpendalErrorMsgTest, ErrorReadTest)
 {
     // Initialize a operator for "memory" backend, with no options
-    const opendal_operator_ptr* op = opendal_operator_new("memory", 0);
-    ASSERT_NE(op->ptr, nullptr);
-
     // The read is supposed to fail
-    opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
+    opendal_result_read r = opendal_operator_blocking_read(this->p, "/testpath");
     ASSERT_NE(r.error, nullptr);
 
     // Lets check the error message out
@@ -43,9 +62,6 @@ TEST(ErrorMessageTest, ErrorMessageTest)
 
     // free the error
     opendal_error_free(r.error);
-
-    // the operator_ptr is also heap allocated
-    opendal_operator_free(op);
 }
 
 int main(int argc, char** argv)

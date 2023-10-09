@@ -168,7 +168,7 @@ impl opendal_metadata {
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
-    /// assert(s.code == OPENDAL_OK);
+    /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;
     /// assert(opendal_metadata_content_length(meta) == 13);
@@ -186,7 +186,7 @@ impl opendal_metadata {
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
-    /// assert(s.code == OPENDAL_OK);
+    /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;
     /// assert(opendal_metadata_is_file(meta));
@@ -206,7 +206,7 @@ impl opendal_metadata {
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
     /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
-    /// assert(s.code == OPENDAL_OK);
+    /// assert(s.error == NULL);
     ///
     /// opendal_metadata *meta = s.meta;
     ///

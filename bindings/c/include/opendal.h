@@ -238,9 +238,9 @@ typedef struct opendal_error {
  * \brief The result type returned by opendal's read operation.
  *
  * The result type of read operation in opendal C binding, it contains
- * the data that the read operation returns and a error code.
+ * the data that the read operation returns and an NULL error.
  * If the read operation failed, the `data` fields should be a nullptr
- * and the error code is **NOT** OPENDAL_OK.
+ * and the error is not NULL.
  */
 typedef struct opendal_result_read {
   /**
@@ -257,8 +257,8 @@ typedef struct opendal_result_read {
  * \brief The result type returned by opendal_operator_is_exist().
  *
  * The result type for opendal_operator_is_exist(), the field `is_exist`
- * contains whether the path exists, and the field `code` contains the
- * corresponding error code.
+ * contains whether the path exists, and the field `error` contains the
+ * corresponding error. If successful, the `error` field is null.
  *
  * \note If the opendal_operator_is_exist() fails, the `is_exist` field
  * will be set to false.
@@ -297,7 +297,8 @@ typedef struct opendal_metadata {
  * \brief The result type returned by opendal_operator_stat().
  *
  * The result type for opendal_operator_stat(), the field `meta` contains the metadata
- * of the path, the field `code` represents whether the stat operation is successful.
+ * of the path, the field `error` represents whether the stat operation is successful.
+ * If successful, the `error` field is null.
  */
 typedef struct opendal_result_stat {
   /**
@@ -327,8 +328,8 @@ typedef struct opendal_blocking_lister {
  * \brief The result type returned by opendal_operator_blocking_list().
  *
  * The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
- * of the path, which is an iterator of the objects under the path. the field `code` represents
- * whether the stat operation is successful.
+ * of the path, which is an iterator of the objects under the path. the field `error` represents
+ * whether the stat operation is successful. If successful, the `error` field is null.
  */
 typedef struct opendal_result_list {
   /**
@@ -405,19 +406,19 @@ const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
 /**
  * \brief Blockingly write raw bytes to `path`.
  *
- * Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
- * if succeeds, others otherwise.
+ * Write the `bytes` into the `path` blockingly by `op_ptr`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * @NOTE It is important to notice that the `bytes` that is passes in will be consumed by this
- *       function.
+ *       function. Therefore, you should not use the `bytes` after this function returns.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The designated path you want to write your bytes in
  * @param bytes The opendal_byte typed bytes to be written
  * @see opendal_operator_ptr
  * @see opendal_bytes
- * @see opendal_code
- * @return OPENDAL_OK if succeeds others otherwise
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
  *
  * # Example
  *
@@ -430,10 +431,10 @@ const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
  * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
  *
  * // now you can write!
- * opendal_code code = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+ * opendal_error *err = opendal_operator_blocking_write(ptr, "/testpath", bytes);
  *
  * // Assert that this succeeds
- * assert(code == OPENDAL_OK)
+ * assert(err == NULL);
  * ```
  *
  * # Safety
@@ -455,17 +456,16 @@ struct opendal_error *opendal_operator_blocking_write(const struct opendal_opera
 /**
  * \brief Blockingly read the data from `path`.
  *
- * Read the data out from `path` blockingly by operator, returns
- * an opendal_result_read with error code.
+ * Read the data out from `path` blockingly by operator.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The path you want to read the data out
  * @see opendal_operator_ptr
  * @see opendal_result_read
- * @see opendal_code
+ * @see opendal_error
  * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
- * opendal_bytes, the `code` field contains the error code. If the `code` is not OPENDAL_OK,
- * the `data` field points to NULL.
+ * opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+ * the operation failed and the `data` field is a nullptr.
  *
  * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
  * After your usage of that, please call opendal_bytes_free() to free the space.
@@ -477,7 +477,7 @@ struct opendal_error *opendal_operator_blocking_write(const struct opendal_opera
  * // ... you have write "Hello, World!" to path "/testpath"
  *
  * opendal_result_read r = opendal_operator_blocking_read(ptr, "testpath");
- * assert(r.code == OPENDAL_OK);
+ * assert(r.error == NULL);
  *
  * opendal_bytes *bytes = r.data;
  * assert(bytes->len == 13);
@@ -499,14 +499,14 @@ struct opendal_result_read opendal_operator_blocking_read(const struct opendal_o
 /**
  * \brief Blockingly delete the object in `path`.
  *
- * Delete the object in `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
- * if succeeds, others otherwise
+ * Delete the object in `path` blockingly by `op_ptr`.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The designated path you want to delete
  * @see opendal_operator_ptr
- * @see opendal_code
- * @return OPENDAL_OK if succeeds others otherwise
+ * @see opendal_error
+ * @return NULL if succeeds, otherwise it contains the error code and error message.
  *
  * # Example
  *
@@ -517,13 +517,15 @@ struct opendal_result_read opendal_operator_blocking_read(const struct opendal_o
  * // prepare your data
  * char* data = "Hello, World!";
  * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
- * opendal_code code = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+ * opendal_error *error = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+ *
+ * assert(error == NULL);
  *
  * // now you can delete!
- * opendal_code code = opendal_operator_blocking_delete(ptr, "/testpath");
+ * opendal_error *error = opendal_operator_blocking_delete(ptr, "/testpath");
  *
  * // Assert that this succeeds
- * assert(code == OPENDAL_OK)
+ * assert(error == NULL);
  * ```
  *
  * # Safety
@@ -543,30 +545,28 @@ struct opendal_error *opendal_operator_blocking_delete(const struct opendal_oper
  * \brief Check whether the path exists.
  *
  * If the operation succeeds, no matter the path exists or not,
- * the error code should be opendal_code::OPENDAL_OK. Otherwise,
- * the field `is_exist` is filled with false, and the error code
- * is set correspondingly.
+ * the error should be a nullptr. Otherwise, the field `is_exist`
+ * is filled with false, and the error is set
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The path you want to check existence
  * @see opendal_operator_ptr
  * @see opendal_result_is_exist
- * @see opendal_code
+ * @see opendal_error
  * @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
- * However, it the operation fails, the `is_exist` will contains false and the error code will be
- * stored in the `code` field.
+ * However, it the operation fails, the `is_exist` will contains false and the error will be set.
  *
  * # Example
  *
  * ```C
  * // .. you previously wrote some data to path "/mytest/obj"
  * opendal_result_is_exist e = opendal_operator_is_exist(ptr, "/mytest/obj");
- * assert(e.code == OPENDAL_OK);
+ * assert(e.error == NULL);
  * assert(e.is_exist);
  *
  * // but you previously did **not** write any data to path "/yourtest/obj"
- * opendal_result_is_exist e = opendal_operator_is_exist(ptr, "yourtest/obj");
- * assert(e.code == OPENDAL_OK);
+ * opendal_result_is_exist e = opendal_operator_is_exist(ptr, "/yourtest/obj");
+ * assert(e.error == NULL);
  * assert(!e.is_exist);
  * ```
  *
@@ -586,26 +586,24 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
 /**
  * \brief Stat the path, return its metadata.
  *
- * If the operation succeeds, the error code should be
- * OPENDAL_OK. Otherwise, the field `meta` is filled with
- * a NULL pointer, and the error code is set correspondingly.
+ * Error is NULL if successful, otherwise it contains the error code and error message.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The path you want to stat
  * @see opendal_operator_ptr
  * @see opendal_result_stat
  * @see opendal_metadata
- * @return Returns opendal_result_stat, containing a metadata and a opendal_code.
+ * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
  * If the operation succeeds, the `meta` field would holds a valid metadata and
- * the `code` field should hold OPENDAL_OK. Otherwise the metadata will contain a
- * NULL pointer, i.e. invalid, and the `code` will be set correspondingly.
+ * the `error` field should hold nullptr. Otherwise the metadata will contain a
+ * NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
  *
  * # Example
  *
  * ```C
  * // ... previously you wrote "Hello, World!" to path "/testpath"
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
- * assert(s.code == OPENDAL_OK);
+ * assert(s.error == NULL);
  *
  * const opendal_metadata *meta = s.meta;
  *
@@ -636,7 +634,10 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * @param ptr The opendal_operator_ptr created previously
  * @param path The designated path you want to delete
  * @see opendal_blocking_lister
- * @return
+ * @return Returns opendal_result_list, containing a lister and an opendal_error.
+ * If the operation succeeds, the `lister` field would holds a valid lister and
+ * the `error` field should hold nullptr. Otherwise the `lister`` will contain a
+ * NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
  *
  * # Example
  *
@@ -645,7 +646,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * // You have written some data into some files path "root/dir1"
  * // Your opendal_operator_ptr was called ptr
  * opendal_result_list l = opendal_operator_blocking_list(ptr, "root/dir1");
- * assert(l.code == OPENDAL_OK);
+ * assert(l.error == ERROR);
  *
  * opendal_blocking_lister *lister = l.lister;
  * opendal_list_entry *entry;
@@ -712,7 +713,7 @@ void opendal_metadata_free(struct opendal_metadata *ptr);
  * ```C
  * // ... previously you wrote "Hello, World!" to path "/testpath"
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
- * assert(s.code == OPENDAL_OK);
+ * assert(s.error == NULL);
  *
  * opendal_metadata *meta = s.meta;
  * assert(opendal_metadata_content_length(meta) == 13);
@@ -727,7 +728,7 @@ uint64_t opendal_metadata_content_length(const struct opendal_metadata *self);
  * ```C
  * // ... previously you wrote "Hello, World!" to path "/testpath"
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
- * assert(s.code == OPENDAL_OK);
+ * assert(s.error == NULL);
  *
  * opendal_metadata *meta = s.meta;
  * assert(opendal_metadata_is_file(meta));
@@ -742,7 +743,7 @@ bool opendal_metadata_is_file(const struct opendal_metadata *self);
  * ```C
  * // ... previously you wrote "Hello, World!" to path "/testpath"
  * opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
- * assert(s.code == OPENDAL_OK);
+ * assert(s.error == NULL);
  *
  * opendal_metadata *meta = s.meta;
  *

@@ -28,9 +28,9 @@ use crate::types::opendal_metadata;
 /// \brief The result type returned by opendal's read operation.
 ///
 /// The result type of read operation in opendal C binding, it contains
-/// the data that the read operation returns and a error code.
+/// the data that the read operation returns and an NULL error.
 /// If the read operation failed, the `data` fields should be a nullptr
-/// and the error code is **NOT** OPENDAL_OK.
+/// and the error is not NULL.
 #[repr(C)]
 pub struct opendal_result_read {
     /// The byte array with length returned by read operations
@@ -42,8 +42,8 @@ pub struct opendal_result_read {
 /// \brief The result type returned by opendal_operator_is_exist().
 ///
 /// The result type for opendal_operator_is_exist(), the field `is_exist`
-/// contains whether the path exists, and the field `code` contains the
-/// corresponding error code.
+/// contains whether the path exists, and the field `error` contains the
+/// corresponding error. If successful, the `error` field is null.
 ///
 /// \note If the opendal_operator_is_exist() fails, the `is_exist` field
 /// will be set to false.
@@ -58,7 +58,8 @@ pub struct opendal_result_is_exist {
 /// \brief The result type returned by opendal_operator_stat().
 ///
 /// The result type for opendal_operator_stat(), the field `meta` contains the metadata
-/// of the path, the field `code` represents whether the stat operation is successful.
+/// of the path, the field `error` represents whether the stat operation is successful.
+/// If successful, the `error` field is null.
 #[repr(C)]
 pub struct opendal_result_stat {
     /// The metadata output of the stat
@@ -70,8 +71,8 @@ pub struct opendal_result_stat {
 /// \brief The result type returned by opendal_operator_blocking_list().
 ///
 /// The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
-/// of the path, which is an iterator of the objects under the path. the field `code` represents
-/// whether the stat operation is successful.
+/// of the path, which is an iterator of the objects under the path. the field `error` represents
+/// whether the stat operation is successful. If successful, the `error` field is null.
 #[repr(C)]
 pub struct opendal_result_list {
     /// The lister, used for further listing operations

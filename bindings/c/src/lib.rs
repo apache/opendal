@@ -47,7 +47,6 @@ use crate::types::opendal_metadata;
 use crate::types::opendal_operator_options;
 use crate::types::opendal_operator_ptr;
 
-//todo: add error to this
 /// \brief Construct an operator based on `scheme` and `options`
 ///
 /// Uses an array of key-value pairs to initialize the operator based on provided `scheme`
@@ -59,10 +58,9 @@ use crate::types::opendal_operator_ptr;
 /// @param options the pointer to the options for this operators, it could be NULL, which means no
 /// option is set
 /// @see opendal_operator_options
-/// @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
-/// succeeds. A null opendal_operator_ptr if any error happens.
-///
-/// \remark You may use the `ptr` field of opendal_operator_ptr to check if it is NULL.
+/// @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
+/// succeeds. On success the operator_ptr field is a valid pointer to a newly allocated opendal_operator_ptr,
+/// and the error field is NULL. Otherwise, the operator_ptr field is a NULL pointer and the error field.
 ///
 /// # Example
 ///
@@ -74,7 +72,8 @@ use crate::types::opendal_operator_ptr;
 /// opendal_operator_options_set(options, "root", "/myroot");
 ///
 /// // Construct the operator based on the options and scheme
-/// const opendal_operator_ptr *ptr = opendal_operator_new("memory", options);
+/// opendal_result_operator_new result = opendal_operator_new("memory", options);
+/// opendal_operator_ptr* op = result.operator_ptr;
 ///
 /// // you could free the options right away since the options is not used afterwards
 /// opendal_operator_options_free(options);
@@ -84,10 +83,7 @@ use crate::types::opendal_operator_ptr;
 ///
 /// # Safety
 ///
-/// It is **safe** under two cases below
-/// * The memory pointed to by `scheme` contain a valid nul terminator at the end of
-///   the string.
-/// * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
+/// The only unsafe case is passing a invalid c string pointer to the `scheme` argument.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,

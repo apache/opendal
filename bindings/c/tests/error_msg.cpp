@@ -36,7 +36,7 @@ protected:
         EXPECT_TRUE(result.error == nullptr);
 
         this->p = result.operator_ptr;
-        EXPECT_TRUE(this->p->ptr);
+        EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
     }

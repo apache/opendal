@@ -235,6 +235,18 @@ typedef struct opendal_error {
   struct opendal_bytes message;
 } opendal_error;
 
+/**
+ * \brief The result type returned by opendal_operator_new() operation.
+ *
+ * If the init logic is successful, the `operator_ptr` field will be set to a valid
+ * pointer, and the `error` field will be set to null. If the init logic fails, the
+ * `operator_ptr` field will be set to null, and the `error` field will be set to a
+ * valid pointer with error code and error message.
+ *
+ * @see opendal_operator_new()
+ * @see opendal_operator_ptr
+ * @see opendal_error
+ */
 typedef struct opendal_result_operator_new {
   struct opendal_operator_ptr *operator_ptr;
   struct opendal_error *error;
@@ -394,10 +406,9 @@ extern "C" {
  * @param options the pointer to the options for this operators, it could be NULL, which means no
  * option is set
  * @see opendal_operator_options
- * @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
- * succeeds. A null opendal_operator_ptr if any error happens.
- *
- * \remark You may use the `ptr` field of opendal_operator_ptr to check if it is NULL.
+ * @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
+ * succeeds. On success the operator_ptr field is a valid pointer to a newly allocated opendal_operator_ptr,
+ * and the error field is NULL. Otherwise, the operator_ptr field is a NULL pointer and the error field.
  *
  * # Example
  *
@@ -409,7 +420,8 @@ extern "C" {
  * opendal_operator_options_set(options, "root", "/myroot");
  *
  * // Construct the operator based on the options and scheme
- * const opendal_operator_ptr *ptr = opendal_operator_new("memory", options);
+ * opendal_result_operator_new result = opendal_operator_new("memory", options);
+ * opendal_operator_ptr* op = result.operator_ptr;
  *
  * // you could free the options right away since the options is not used afterwards
  * opendal_operator_options_free(options);
@@ -419,10 +431,7 @@ extern "C" {
  *
  * # Safety
  *
- * It is **safe** under two cases below
- * * The memory pointed to by `scheme` contain a valid nul terminator at the end of
- *   the string.
- * * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
+ * The only unsafe case is passing a invalid c string pointer to the `scheme` argument.
  */
 struct opendal_result_operator_new opendal_operator_new(const char *scheme,
                                                         const struct opendal_operator_options *options);

@@ -26,6 +26,16 @@ use crate::types::opendal_bytes;
 use crate::types::opendal_metadata;
 use crate::types::opendal_operator_ptr;
 
+/// \brief The result type returned by opendal_operator_new() operation.
+///
+/// If the init logic is successful, the `operator_ptr` field will be set to a valid
+/// pointer, and the `error` field will be set to null. If the init logic fails, the
+/// `operator_ptr` field will be set to null, and the `error` field will be set to a
+/// valid pointer with error code and error message.
+///
+/// @see opendal_operator_new()
+/// @see opendal_operator_ptr
+/// @see opendal_error
 #[repr(C)]
 pub struct opendal_result_operator_new {
     pub operator_ptr: *mut opendal_operator_ptr,

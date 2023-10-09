@@ -56,6 +56,9 @@ pub use serde_util::*;
 mod chrono_util;
 pub use chrono_util::*;
 
+mod tokio_util;
+pub use tokio_util::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;
 pub mod oio;

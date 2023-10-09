@@ -16,9 +16,15 @@
 // under the License.
 
 use std::sync::Arc;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use bytes::BytesMut;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 
 use super::Adapter;
 use crate::raw::*;
@@ -69,7 +75,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         let mut am: AccessorInfo = self.kv.metadata().into();
         am.set_root(&self.root);
 
-        let cap = am.full_capability_mut();
+        let mut cap = am.native_capability();
         if cap.read {
             cap.read_can_seek = true;
             cap.read_can_next = true;
@@ -78,6 +84,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         }
 
         if cap.write {
+            cap.write_can_empty = true;
             cap.create_dir = true;
             cap.delete = true;
         }
@@ -93,6 +100,8 @@ impl<S: Adapter> Accessor for Backend<S> {
         if cap.list {
             cap.list_without_delimiter = true;
         }
+
+        am.set_native_capability(cap);
 
         am
     }
@@ -136,27 +145,13 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok((RpRead::new(bs.len() as u64), oio::Cursor::from(bs)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let p = build_abs_path(&self.root, path);
 
         Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
@@ -371,8 +366,8 @@ pub struct KvWriter<S> {
     kv: Arc<S>,
     path: String,
 
-    /// TODO: if kv supports append, we can use them directly.
-    buf: Option<Vec<u8>>,
+    buffer: Buffer,
+    future: Option<BoxFuture<'static, Result<()>>>,
 }
 
 impl<S> KvWriter<S> {
@@ -380,55 +375,105 @@ impl<S> KvWriter<S> {
         KvWriter {
             kv,
             path,
-            buf: None,
+            buffer: Buffer::Active(BytesMut::new()),
+            future: None,
         }
     }
 }
 
+enum Buffer {
+    Active(BytesMut),
+    Frozen(Bytes),
+}
+
+/// # Safety
+///
+/// We will only take `&mut Self` reference for KvWriter.
+unsafe impl<S: Adapter> Sync for KvWriter<S> {}
+
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf = Some(bs.into());
-
-        Ok(())
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support abort",
-        ))
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        if let Some(buf) = self.buf.as_deref() {
-            self.kv.set(&self.path, buf).await?;
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
         }
 
-        Ok(())
+        match &mut self.buffer {
+            Buffer::Active(buf) => {
+                buf.extend_from_slice(bs.chunk());
+                Poll::Ready(Ok(bs.chunk().len()))
+            }
+            Buffer::Frozen(_) => unreachable!("KvWriter should not be frozen during poll_write"),
+        }
+    }
+
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match self.future.as_mut() {
+                Some(fut) => {
+                    let res = ready!(fut.poll_unpin(cx));
+                    self.future = None;
+                    return Poll::Ready(res);
+                }
+                None => {
+                    let kv = self.kv.clone();
+                    let path = self.path.clone();
+                    let buf = match &mut self.buffer {
+                        Buffer::Active(buf) => {
+                            let buf = buf.split().freeze();
+                            self.buffer = Buffer::Frozen(buf.clone());
+                            buf
+                        }
+                        Buffer::Frozen(buf) => buf.clone(),
+                    };
+
+                    let fut = async move { kv.set(&path, &buf).await };
+                    self.future = Some(Box::pin(fut));
+                }
+            }
+        }
+    }
+
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
+        }
+
+        self.buffer = Buffer::Active(BytesMut::new());
+        Poll::Ready(Ok(()))
     }
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf = Some(bs.into());
-
-        Ok(())
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        match &mut self.buffer {
+            Buffer::Active(buf) => {
+                buf.extend_from_slice(bs.chunk());
+                Ok(bs.chunk().len())
+            }
+            Buffer::Frozen(_) => unreachable!("KvWriter should not be frozen during poll_write"),
+        }
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(buf) = self.buf.as_deref() {
-            self.kv.blocking_set(&self.path, buf)?;
-        }
+        let buf = match &mut self.buffer {
+            Buffer::Active(buf) => {
+                let buf = buf.split().freeze();
+                self.buffer = Buffer::Frozen(buf.clone());
+                buf
+            }
+            Buffer::Frozen(buf) => buf.clone(),
+        };
 
+        self.kv.blocking_set(&self.path, &buf)?;
         Ok(())
     }
 }

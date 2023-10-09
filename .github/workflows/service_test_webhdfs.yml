@@ -37,10 +37,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  hdfs:
+  webhdfs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Configure Webhdfs
         # namenode will use ports: 9870 and 9000
@@ -76,10 +76,10 @@ jobs:
           OPENDAL_WEBHDFS_ROOT: /
           OPENDAL_WEBHDFS_ENDPOINT: http://127.0.0.1:9870
 
-  hdfs_with_list_batch_disabled:
+  webhdfs_with_list_batch_disabled:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Configure Webhdfs
         # namenode will use ports: 9870 and 9000

@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::VercelArtifactsBackend;
@@ -26,26 +25,32 @@ use crate::*;
 
 pub struct VercelArtifactsWriter {
     backend: VercelArtifactsBackend,
-    op: OpWrite,
+    _op: OpWrite,
 
     path: String,
 }
 
 impl VercelArtifactsWriter {
     pub fn new(backend: VercelArtifactsBackend, op: OpWrite, path: String) -> Self {
-        VercelArtifactsWriter { backend, op, path }
+        VercelArtifactsWriter {
+            backend,
+            _op: op,
+            path,
+        }
     }
 }
 
 #[async_trait]
-impl oio::Write for VercelArtifactsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for VercelArtifactsWriter {
+    async fn write_once(&self, bs: &dyn oio::WriteBuf) -> Result<()> {
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
+
         let resp = self
             .backend
             .vercel_artifacts_put(
                 self.path.as_str(),
-                self.op.content_length().unwrap(),
-                AsyncBody::Bytes(bs),
+                bs.len() as u64,
+                AsyncBody::ChunkedBytes(bs),
             )
             .await?;
 
@@ -58,20 +63,5 @@ impl oio::Write for VercelArtifactsWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

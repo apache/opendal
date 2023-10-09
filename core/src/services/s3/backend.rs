@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -58,10 +57,6 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
-/// The minimum multipart size of S3 is 5 MiB.
-///
-/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-const MINIMUM_MULTIPART_SIZE: usize = 5 * 1024 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
@@ -568,6 +563,10 @@ impl S3Builder {
     ///
     /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
     pub async fn detect_region(endpoint: &str, bucket: &str) -> Option<String> {
+        // Remove the possible trailing `/` in endpoint.
+        let endpoint = endpoint.trim_end_matches('/');
+
+        // Make sure the endpoint contains the scheme.
         let mut endpoint = if endpoint.starts_with("http") {
             endpoint.to_string()
         } else {
@@ -628,9 +627,10 @@ impl S3Builder {
         );
 
         // Get region from response header no matter status code.
-        let region = res.headers().get("x-amz-bucket-region")?;
-        if let Ok(regin) = region.to_str() {
-            return Some(regin.to_string());
+        if let Some(header) = res.headers().get("x-amz-bucket-region") {
+            if let Ok(regin) = header.to_str() {
+                return Some(regin.to_string());
+            }
         }
 
         // Status code is 403 or 200 means we already visit the correct
@@ -888,11 +888,7 @@ pub struct S3Backend {
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::ThreeWaysWriter<
-        S3Writers,
-        oio::AtLeastBufWriter<S3Writers>,
-        oio::ExactBufWriter<S3Writers>,
-    >;
+    type Writer = S3Writers;
     type BlockingWriter = ();
     type Pager = S3Pager;
     type BlockingPager = ();
@@ -902,7 +898,7 @@ impl Accessor for S3Backend {
         am.set_scheme(Scheme::S3)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -917,10 +913,23 @@ impl Accessor for S3Backend {
                 read_with_override_content_type: true,
 
                 write: true,
-                write_can_sink: true,
+                write_can_empty: true,
+                write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
-                write_without_content_length: true,
+                // The min multipart size of S3 is 5 MiB.
+                //
+                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                write_multi_min_size: Some(5 * 1024 * 1024),
+                // The max multipart size of S3 is 5 GiB.
+                //
+                // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
+
                 create_dir: true,
                 delete: true,
                 copy: true,
@@ -946,9 +955,12 @@ impl Accessor for S3Backend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .s3_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+        let mut req = self.core.s3_put_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -980,28 +992,9 @@ impl Accessor for S3Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = S3Writer::new(self.core.clone(), path, args.clone());
+        let writer = S3Writer::new(self.core.clone(), path, args);
 
-        let w = if args.content_length().is_some() {
-            S3Writers::One(oio::OneShotWriter::new(writer))
-        } else {
-            S3Writers::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            if self.core.enable_exact_buf_write {
-                oio::ThreeWaysWriter::Three(oio::ExactBufWriter::new(w, buffer_size))
-            } else {
-                oio::ThreeWaysWriter::Two(
-                    oio::AtLeastBufWriter::new(w, buffer_size)
-                        .with_total_size(args.content_length()),
-                )
-            }
-        } else {
-            oio::ThreeWaysWriter::One(w)
-        };
+        let w = oio::MultipartUploadWriter::new(writer);
 
         Ok((RpWrite::default(), w))
     }
@@ -1081,10 +1074,12 @@ impl Accessor for S3Backend {
                     .s3_head_object_request(path, v.if_none_match(), v.if_match())?
             }
             PresignOperation::Read(v) => self.core.s3_get_object_request(path, v.clone())?,
-            PresignOperation::Write(_) => {
-                self.core
-                    .s3_put_object_request(path, None, None, None, None, AsyncBody::Empty)?
-            }
+            PresignOperation::Write(_) => self.core.s3_put_object_request(
+                path,
+                None,
+                &OpWrite::default(),
+                AsyncBody::Empty,
+            )?,
         };
 
         self.core.sign_query(&mut req, args.expire()).await?;

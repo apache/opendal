@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use ::opendal as od;
 use futures::TryStreamExt;
@@ -39,6 +40,7 @@ use crate::format_pyerr;
 use crate::layers;
 use crate::Entry;
 use crate::Metadata;
+use crate::PresignedRequest;
 
 /// `AsyncOperator` is the entry for all public async APIs
 ///
@@ -63,7 +65,7 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map, layers)?))
+        Ok(AsyncOperator(build_operator(scheme, map, layers, false)?))
     }
 
     /// Read the whole path into bytes.
@@ -156,6 +158,63 @@ impl AsyncOperator {
                 .map_err(format_pyerr)?;
             let pylister: PyObject = Python::with_gil(|py| AsyncLister::new(lister).into_py(py));
             Ok(pylister)
+        })
+    }
+
+    /// Presign an operation for stat(head) which expires after `expire_second` seconds.
+    pub fn presign_stat<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        expire_second: u64,
+    ) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            let res = this
+                .presign_stat(&path, Duration::from_secs(expire_second))
+                .await
+                .map_err(format_pyerr)
+                .map(PresignedRequest)?;
+
+            Ok(res)
+        })
+    }
+
+    /// Presign an operation for read which expires after `expire_second` seconds.
+    pub fn presign_read<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        expire_second: u64,
+    ) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            let res = this
+                .presign_read(&path, Duration::from_secs(expire_second))
+                .await
+                .map_err(format_pyerr)
+                .map(PresignedRequest)?;
+
+            Ok(res)
+        })
+    }
+
+    /// Presign an operation for write which expires after `expire_second` seconds.
+    pub fn presign_write<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        expire_second: u64,
+    ) -> PyResult<&'p PyAny> {
+        let this = self.0.clone();
+        future_into_py(py, async move {
+            let res = this
+                .presign_write(&path, Duration::from_secs(expire_second))
+                .await
+                .map_err(format_pyerr)
+                .map(PresignedRequest)?;
+
+            Ok(res)
         })
     }
 

@@ -31,10 +31,12 @@ use crate::Error;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Scheme {
+    /// [atomicserver][crate::services::Atomicserver]: Atomicserver services.
+    Atomicserver,
     /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
     Azblob,
-    /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
-    Azdfs,
+    /// [Azdls][crate::services::Azdls]: Azure Data Lake Storage Gen2.
+    Azdls,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
     /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
@@ -86,6 +88,10 @@ pub enum Scheme {
     Redis,
     /// [postgresql][crate::services::Postgresql]: Postgresql services
     Postgresql,
+    /// [mysql][crate::services::Mysql]: Mysql services
+    Mysql,
+    /// [sqlite][crate::services::Sqlite]: Sqlite services
+    Sqlite,
     /// [rocksdb][crate::services::Rocksdb]: RocksDB services
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
@@ -142,8 +148,13 @@ impl FromStr for Scheme {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
         match s.as_str() {
+            "atomicserver" => Ok(Scheme::Atomicserver),
             "azblob" => Ok(Scheme::Azblob),
-            "azdfs" => Ok(Scheme::Azdfs),
+            // Notes:
+            //
+            // OpenDAL used to call `azdls` as `azdfs`, we keep it for backward compatibility.
+            // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
+            "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "cacache" => Ok(Scheme::Cacache),
             "cos" => Ok(Scheme::Cos),
             "dashmap" => Ok(Scheme::Dashmap),
@@ -160,6 +171,8 @@ impl FromStr for Scheme {
             "ipmfs" => Ok(Scheme::Ipmfs),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
+            "mysql" => Ok(Scheme::Mysql),
+            "sqlite" => Ok(Scheme::Sqlite),
             "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
@@ -187,8 +200,9 @@ impl FromStr for Scheme {
 impl From<Scheme> for &'static str {
     fn from(v: Scheme) -> Self {
         match v {
+            Scheme::Atomicserver => "atomicserver",
             Scheme::Azblob => "azblob",
-            Scheme::Azdfs => "azdfs",
+            Scheme::Azdls => "Azdls",
             Scheme::Cacache => "cacache",
             Scheme::Cos => "cos",
             Scheme::Dashmap => "dashmap",
@@ -210,6 +224,7 @@ impl From<Scheme> for &'static str {
             Scheme::Onedrive => "onedrive",
             Scheme::Persy => "persy",
             Scheme::Postgresql => "postgresql",
+            Scheme::Mysql => "mysql",
             Scheme::Gdrive => "gdrive",
             Scheme::Dropbox => "dropbox",
             Scheme::Redis => "redis",
@@ -225,6 +240,7 @@ impl From<Scheme> for &'static str {
             Scheme::Webhdfs => "webhdfs",
             Scheme::Redb => "redb",
             Scheme::Tikv => "tikv",
+            Scheme::Sqlite => "sqlite",
             Scheme::Custom(v) => v,
         }
     }

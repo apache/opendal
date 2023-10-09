@@ -25,8 +25,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Checkout python env
         uses: actions/setup-python@v4
         with:
@@ -59,6 +60,13 @@ jobs:
 
       - name: Publish oli
         working-directory: "bin/oli"
+        run: cargo publish
+        env:
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish oay
+        working-directory: "bin/oay"
         run: cargo publish
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

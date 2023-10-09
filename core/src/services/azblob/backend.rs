@@ -32,12 +32,12 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::batch::parse_batch_delete_response;
 use super::error::parse_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
 use crate::raw::*;
 use crate::services::azblob::core::AzblobCore;
+use crate::services::azblob::writer::AzblobWriters;
 use crate::types::Metadata;
 use crate::*;
 
@@ -506,7 +506,7 @@ pub struct AzblobBackend {
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = AzblobWriter;
+    type Writer = AzblobWriters;
     type BlockingWriter = ();
     type Pager = AzblobPager;
     type BlockingPager = ();
@@ -516,7 +516,7 @@ impl Accessor for AzblobBackend {
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.core.root)
             .set_name(&self.core.container)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -529,8 +529,8 @@ impl Accessor for AzblobBackend {
                 read_with_override_content_disposition: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_append: true,
-                write_can_sink: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
 
@@ -558,9 +558,12 @@ impl Accessor for AzblobBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .azblob_put_blob_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self.core.azblob_put_blob_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -578,16 +581,7 @@ impl Accessor for AzblobBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .azblob_get_blob(
-                path,
-                args.range(),
-                args.if_none_match(),
-                args.if_match(),
-                args.override_content_disposition(),
-            )
-            .await?;
+        let resp = self.core.azblob_get_blob(path, &args).await?;
 
         let status = resp.status();
 
@@ -602,10 +596,14 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            AzblobWriter::new(self.core.clone(), args, path.to_string()),
-        ))
+        let w = AzblobWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = if args.append() {
+            AzblobWriters::Two(oio::AppendObjectWriter::new(w))
+        } else {
+            AzblobWriters::One(oio::OneShotWriter::new(w))
+        };
+
+        Ok((RpWrite::default(), w))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
@@ -628,10 +626,7 @@ impl Accessor for AzblobBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .azblob_get_blob_properties(path, args.if_none_match(), args.if_match())
-            .await?;
+        let resp = self.core.azblob_get_blob_properties(path, &args).await?;
 
         let status = resp.status();
 
@@ -668,21 +663,14 @@ impl Accessor for AzblobBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
-                self.core
-                    .azblob_head_blob_request(path, v.if_none_match(), v.if_match())?
-            }
-            PresignOperation::Read(v) => self.core.azblob_get_blob_request(
+            PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v)?,
+            PresignOperation::Read(v) => self.core.azblob_get_blob_request(path, v)?,
+            PresignOperation::Write(_) => self.core.azblob_put_blob_request(
                 path,
-                v.range(),
-                v.if_none_match(),
-                v.if_match(),
-                v.override_content_disposition(),
+                None,
+                &OpWrite::default(),
+                AsyncBody::Empty,
             )?,
-            PresignOperation::Write(_) => {
-                self.core
-                    .azblob_put_blob_request(path, None, None, None, AsyncBody::Empty)?
-            }
         };
 
         self.core.sign_query(&mut req).await?;
@@ -738,18 +726,31 @@ impl Accessor for AzblobBackend {
             )
         })?;
 
-        let body = resp.into_body().bytes().await?;
-        let body = String::from_utf8(body.to_vec()).map_err(|e| {
-            Error::new(
-                ErrorKind::Unexpected,
-                &format!("get invalid batch response {e:?}"),
-            )
-        })?;
+        let multipart: Multipart<MixedPart> = Multipart::new()
+            .with_boundary(boundary)
+            .parse(resp.into_body().bytes().await?)?;
+        let parts = multipart.into_parts();
 
-        let results = parse_batch_delete_response(boundary, body, paths)?
-            .into_iter()
-            .map(|(path, rp)| (path, rp.map(|v| v.into())))
-            .collect();
+        if paths.len() != parts.len() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "invalid batch response, paths and response parts don't match",
+            ));
+        }
+
+        let mut results = Vec::with_capacity(parts.len());
+
+        for (i, part) in parts.into_iter().enumerate() {
+            let resp = part.into_response();
+            let path = paths[i].clone();
+
+            // deleting not existing objects is ok
+            if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
+                results.push((path, Ok(RpDelete::default().into())));
+            } else {
+                results.push((path, Err(parse_error(resp).await?)));
+            }
+        }
         Ok(RpBatch::new(results))
     }
 }

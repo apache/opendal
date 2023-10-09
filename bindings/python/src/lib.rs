@@ -27,9 +27,11 @@ use std::str::FromStr;
 use ::opendal as od;
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
+use pyo3::exceptions::PyFileExistsError;
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
+use pyo3::exceptions::PyPermissionError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -61,8 +63,14 @@ fn build_operator(
     scheme: od::Scheme,
     map: HashMap<String, String>,
     layers: Vec<layers::Layer>,
+    blocking: bool,
 ) -> PyResult<od::Operator> {
-    let op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    let mut op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    if blocking && !op.info().full_capability().blocking {
+        let runtime = pyo3_asyncio::tokio::get_runtime();
+        let _guard = runtime.enter();
+        op = op.layer(od::layers::BlockingLayer::create().expect("blocking layer must be created"));
+    }
 
     add_layers(op, layers)
 }
@@ -90,7 +98,9 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(build_operator(scheme, map, layers)?.blocking()))
+        Ok(Operator(
+            build_operator(scheme, map, layers, true)?.blocking(),
+        ))
     }
 
     /// Read the whole path into bytes.
@@ -368,10 +378,45 @@ impl EntryMode {
     }
 }
 
+#[pyclass(module = "opendal")]
+struct PresignedRequest(od::raw::PresignedRequest);
+
+#[pymethods]
+impl PresignedRequest {
+    /// Return the URL of this request.
+    #[getter]
+    pub fn url(&self) -> String {
+        self.0.uri().to_string()
+    }
+
+    /// Return the HTTP method of this request.
+    #[getter]
+    pub fn method(&self) -> &str {
+        self.0.method().as_str()
+    }
+
+    /// Return the HTTP headers of this request.
+    #[getter]
+    pub fn headers(&self) -> PyResult<HashMap<&str, &str>> {
+        let mut headers = HashMap::new();
+        for (k, v) in self.0.header().iter() {
+            let k = k.as_str();
+            let v = v.to_str().map_err(|err| Error::new_err(err.to_string()))?;
+            if headers.insert(k, v).is_some() {
+                return Err(Error::new_err("duplicate header"));
+            }
+        }
+        Ok(headers)
+    }
+}
+
 fn format_pyerr(err: od::Error) -> PyErr {
     use od::ErrorKind::*;
     match err.kind() {
         NotFound => PyFileNotFoundError::new_err(err.to_string()),
+        AlreadyExists => PyFileExistsError::new_err(err.to_string()),
+        PermissionDenied => PyPermissionError::new_err(err.to_string()),
+        Unsupported => PyNotImplementedError::new_err(err.to_string()),
         _ => Error::new_err(err.to_string()),
     }
 }
@@ -416,6 +461,7 @@ fn _opendal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<Entry>()?;
     m.add_class::<EntryMode>()?;
     m.add_class::<Metadata>()?;
+    m.add_class::<PresignedRequest>()?;
     m.add("Error", py.get_type::<Error>())?;
 
     let layers = layers::create_submodule(py)?;

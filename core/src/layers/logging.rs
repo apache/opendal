@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::io;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
@@ -1252,28 +1253,28 @@ impl<W> LoggingWriter<W> {
 
 #[async_trait]
 impl<W: oio::Write> oio::Write for LoggingWriter<W> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
-        match self.inner.write(bs).await {
-            Ok(_) => {
-                self.written += size as u64;
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        match ready!(self.inner.poll_write(cx, bs)) {
+            Ok(n) => {
+                self.written += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
+                    "service={} operation={} path={} written={}B -> input data {}B, write {}B",
                     self.ctx.scheme,
                     WriteOperation::Write,
                     self.path,
                     self.written,
-                    size
+                    bs.remaining(),
+                    n,
                 );
-                Ok(())
+                Poll::Ready(Ok(n))
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {}",
+                        "service={} operation={} path={} written={}B -> data write failed: {}",
                         self.ctx.scheme,
                         WriteOperation::Write,
                         self.path,
@@ -1281,63 +1282,30 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Err(err)
+                Poll::Ready(Err(err))
             }
         }
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        match self.inner.sink(size, s).await {
-            Ok(_) => {
-                self.written += size;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data sink {}B",
-                    self.ctx.scheme,
-                    WriteOperation::Sink,
-                    self.path,
-                    self.written,
-                    size
-                );
-                Ok(())
-            }
-            Err(err) => {
-                if let Some(lvl) = self.ctx.error_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} written={} -> data sink failed: {}",
-                        self.ctx.scheme,
-                        WriteOperation::Sink,
-                        self.path,
-                        self.written,
-                        self.ctx.error_print(&err),
-                    )
-                }
-                Err(err)
-            }
-        }
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        match self.inner.abort().await {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        match ready!(self.inner.poll_abort(cx)) {
             Ok(_) => {
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> abort writer",
+                    "service={} operation={} path={} written={}B -> abort writer",
                     self.ctx.scheme,
                     WriteOperation::Abort,
                     self.path,
                     self.written,
                 );
-                Ok(())
+                Poll::Ready(Ok(()))
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> abort writer failed: {}",
+                        "service={} operation={} path={} written={}B -> abort writer failed: {}",
                         self.ctx.scheme,
                         WriteOperation::Abort,
                         self.path,
@@ -1345,30 +1313,30 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Err(err)
+                Poll::Ready(Err(err))
             }
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
-        match self.inner.close().await {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        match ready!(self.inner.poll_close(cx)) {
             Ok(_) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data written finished",
+                    "service={} operation={} path={} written={}B -> data written finished",
                     self.ctx.scheme,
                     self.op,
                     self.path,
                     self.written
                 );
-                Ok(())
+                Poll::Ready(Ok(()))
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data close failed: {}",
+                        "service={} operation={} path={} written={}B -> data close failed: {}",
                         self.ctx.scheme,
                         WriteOperation::Close,
                         self.path,
@@ -1376,35 +1344,35 @@ impl<W: oio::Write> oio::Write for LoggingWriter<W> {
                         self.ctx.error_print(&err),
                     )
                 }
-                Err(err)
+                Poll::Ready(Err(err))
             }
         }
     }
 }
 
 impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         match self.inner.write(bs) {
-            Ok(_) => {
-                self.written += size as u64;
+            Ok(n) => {
+                self.written += n as u64;
                 trace!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data write {}B",
+                    "service={} operation={} path={} written={}B -> input data {}B, write {}B",
                     self.ctx.scheme,
                     WriteOperation::BlockingWrite,
                     self.path,
                     self.written,
-                    size
+                    bs.remaining(),
+                    n
                 );
-                Ok(())
+                Ok(n)
             }
             Err(err) => {
                 if let Some(lvl) = self.ctx.error_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data write failed: {}",
+                        "service={} operation={} path={} written={}B -> data write failed: {}",
                         self.ctx.scheme,
                         WriteOperation::BlockingWrite,
                         self.path,
@@ -1422,7 +1390,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
             Ok(_) => {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} written={} -> data written finished",
+                    "service={} operation={} path={} written={}B -> data written finished",
                     self.ctx.scheme,
                     self.op,
                     self.path,
@@ -1435,7 +1403,7 @@ impl<W: oio::BlockingWrite> oio::BlockingWrite for LoggingWriter<W> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} written={} -> data close failed: {}",
+                        "service={} operation={} path={} written={}B -> data close failed: {}",
                         self.ctx.scheme,
                         WriteOperation::BlockingClose,
                         self.path,

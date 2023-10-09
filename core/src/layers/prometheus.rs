@@ -662,16 +662,15 @@ impl<R: oio::BlockingRead> oio::BlockingRead for PrometheusMetricWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         self.inner
-            .write(bs)
-            .await
-            .map(|_| {
+            .poll_write(cx, bs)
+            .map_ok(|n| {
                 self.stats
                     .bytes_total
                     .with_label_values(&[&self.scheme, Operation::Write.into_static()])
-                    .observe(size as f64)
+                    .observe(n as f64);
+                n
             })
             .map_err(|err| {
                 self.stats.increment_errors_total(self.op, err.kind());
@@ -679,31 +678,15 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
             })
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner
-            .sink(size, s)
-            .await
-            .map(|_| {
-                self.stats
-                    .bytes_total
-                    .with_label_values(&[&self.scheme, Operation::Write.into_static()])
-                    .observe(size as f64)
-            })
-            .map_err(|err| {
-                self.stats.increment_errors_total(self.op, err.kind());
-                err
-            })
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await.map_err(|err| {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_abort(cx).map_err(|err| {
             self.stats.increment_errors_total(self.op, err.kind());
             err
         })
     }
 
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await.map_err(|err| {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_close(cx).map_err(|err| {
             self.stats.increment_errors_total(self.op, err.kind());
             err
         })
@@ -711,15 +694,15 @@ impl<R: oio::Write> oio::Write for PrometheusMetricWrapper<R> {
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for PrometheusMetricWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        let size = bs.len();
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner
             .write(bs)
-            .map(|_| {
+            .map(|n| {
                 self.stats
                     .bytes_total
                     .with_label_values(&[&self.scheme, Operation::BlockingWrite.into_static()])
-                    .observe(size as f64)
+                    .observe(n as f64);
+                n
             })
             .map_err(|err| {
                 self.stats.increment_errors_total(self.op, err.kind());

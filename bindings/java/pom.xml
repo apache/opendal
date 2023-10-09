@@ -32,7 +32,7 @@
 
     <groupId>org.apache.opendal</groupId>
     <artifactId>opendal-java</artifactId>
-    <version>0.39.0</version>
+    <version>0.41.0</version>
 
     <url>https://opendal.apache.org</url>
     <mailingLists>
@@ -52,27 +52,28 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
 
+        <!-- customized properties -->
+        <cargo-build.profile>dev</cargo-build.profile>
+        <cargo-build.features>default</cargo-build.features>
+        <cargo-build.target/> <!-- override cargo build target; e.g., use musl instead -->
         <jni.classifier>${os.detected.classifier}</jni.classifier>
-        <suffix.snapshot /> <!-- used by snapshots releases -->
 
-        <assertj-version>3.23.1</assertj-version>
-        <lombok.version>1.18.26</lombok.version>
+        <!-- library dependencies -->
+        <assertj.version>3.23.1</assertj.version>
+        <dotenv.version>2.3.2</dotenv.version>
+        <lombok.version>1.18.30</lombok.version>
+        <slf4j.version>2.0.7</slf4j.version>
 
-        <maven-surefire-plugin.version>3.0.0</maven-surefire-plugin.version>
+        <!-- plugins dependencies -->
+        <maven-surefire-plugin.version>3.1.2</maven-surefire-plugin.version>
         <exec-maven-plugin.version>3.1.0</exec-maven-plugin.version>
         <os-maven-plugin.version>1.7.0</os-maven-plugin.version>
-        <spotless.version>2.37.0</spotless.version>
+        <palantir-java-format.version>2.36.0</palantir-java-format.version>
+        <spotless.version>2.39.0</spotless.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>io.cucumber</groupId>
-                <artifactId>cucumber-bom</artifactId>
-                <version>7.11.2</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
@@ -83,12 +84,22 @@
             <dependency>
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
-                <version>${assertj-version}</version>
+                <version>${assertj.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-simple</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.cdimascio</groupId>
+                <artifactId>dotenv-java</artifactId>
+                <version>${dotenv.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -100,16 +111,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-java</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.cucumber</groupId>
-            <artifactId>cucumber-junit-platform-engine</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-suite</artifactId>
@@ -123,6 +124,16 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.cdimascio</groupId>
+            <artifactId>dotenv-java</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -167,6 +178,12 @@
                                 <argument>${project.basedir}/tools/build.py</argument>
                                 <argument>--classifier</argument>
                                 <argument>${jni.classifier}</argument>
+                                <argument>--target</argument>
+                                <argument>${cargo-build.target}</argument>
+                                <argument>--profile</argument>
+                                <argument>${cargo-build.profile}</argument>
+                                <argument>--features</argument>
+                                <argument>${cargo-build.features}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -213,7 +230,7 @@
                 <configuration>
                     <java>
                         <palantirJavaFormat>
-                            <version>2.30.0</version>
+                            <version>${palantir-java-format.version}</version>
                         </palantirJavaFormat>
                         <!-- static imports first, then others, no blank lines  -->
                         <importOrder>

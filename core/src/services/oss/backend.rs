@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -39,10 +38,6 @@ use crate::raw::*;
 use crate::services::oss::writer::OssWriters;
 use crate::*;
 
-/// The minimum multipart size of OSS is 100 KiB.
-///
-/// ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-const MINIMUM_MULTIPART_SIZE: usize = 100 * 1024;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aliyun Object Storage Service (OSS) support
@@ -381,7 +376,7 @@ pub struct OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<OssWriters, oio::AtLeastBufWriter<OssWriters>>;
+    type Writer = OssWriters;
     type BlockingWriter = ();
     type Pager = OssPager;
     type BlockingPager = ();
@@ -391,7 +386,7 @@ impl Accessor for OssBackend {
         am.set_scheme(Scheme::Oss)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -403,12 +398,25 @@ impl Accessor for OssBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_append: true,
-                write_can_sink: true,
+                write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
                 write_with_content_disposition: true,
-                write_without_content_length: true,
+                // The min multipart size of OSS is 100 KiB.
+                //
+                // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+                write_multi_min_size: Some(100 * 1024),
+                // The max multipart size of OSS is 5 GiB.
+                //
+                // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
+
                 delete: true,
                 create_dir: true,
                 copy: true,
@@ -434,7 +442,7 @@ impl Accessor for OssBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self
             .core
-            .oss_put_object(path, None, None, None, None, AsyncBody::Empty)
+            .oss_put_object(path, None, &OpWrite::default(), AsyncBody::Empty)
             .await?;
         let status = resp.status();
 
@@ -474,22 +482,9 @@ impl Accessor for OssBackend {
         let writer = OssWriter::new(self.core.clone(), path, args.clone());
 
         let w = if args.append() {
-            OssWriters::Three(oio::AppendObjectWriter::new(writer))
-        } else if args.content_length().is_some() {
-            OssWriters::One(oio::OneShotWriter::new(writer))
+            OssWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            OssWriters::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
+            OssWriters::One(oio::MultipartUploadWriter::new(writer))
         };
 
         Ok((RpWrite::default(), w))
@@ -566,15 +561,10 @@ impl Accessor for OssBackend {
                 v.if_none_match(),
                 v.override_content_disposition(),
             )?,
-            PresignOperation::Write(v) => self.core.oss_put_object_request(
-                path,
-                None,
-                v.content_type(),
-                v.content_disposition(),
-                v.cache_control(),
-                AsyncBody::Empty,
-                true,
-            )?,
+            PresignOperation::Write(v) => {
+                self.core
+                    .oss_put_object_request(path, None, v, AsyncBody::Empty, true)?
+            }
         };
 
         self.core.sign_query(&mut req, args.expire()).await?;

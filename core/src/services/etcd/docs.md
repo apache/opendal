@@ -18,7 +18,7 @@ This service can be used to:
 
 - `root`: Set the working directory of `OpenDAL`
 - `endpoints`: Set the network address of etcd servers
-- `username`: Set the username of Redis
+- `username`: Set the username of Etcd
 - `password`: Set the password for authentication
 - `ca_path`: Set the ca path to the etcd connection
 - `cert_path`: Set the cert path to the etcd connection

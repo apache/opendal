@@ -19,6 +19,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Result;
+use bytes::Buf;
+use bytes::Bytes;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
@@ -46,6 +48,7 @@ pub fn behavior_write_tests(op: &Operator) -> Vec<Trial> {
         test_create_dir,
         test_create_dir_existing,
         test_write_only,
+        test_write_with_empty_content,
         test_write_with_dir_path,
         test_write_with_special_chars,
         test_write_with_cache_control,
@@ -134,6 +137,23 @@ pub async fn test_write_only(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Write a file with empty content.
+pub async fn test_write_with_empty_content(op: Operator) -> Result<()> {
+    if !op.info().full_capability().write_can_empty {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    op.write(&path, vec![]).await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), 0);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
 /// Write file with dir path should return an error
 pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
@@ -151,6 +171,11 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
     if op.info().scheme() == opendal::Scheme::Supabase {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
 
@@ -279,6 +304,11 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 addressed.
     if op.info().scheme() == opendal::Scheme::Supabase {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
+        return Ok(());
+    }
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
         return Ok(());
     }
 
@@ -809,6 +839,11 @@ pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
+        return Ok(());
+    }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
@@ -1041,6 +1076,11 @@ pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
         warn!("ignore test for supabase until https://github.com/apache/incubator-opendal/issues/2194 is resolved");
         return Ok(());
     }
+    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
+    if op.info().scheme() == opendal::Scheme::Atomicserver {
+        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
+        return Ok(());
+    }
 
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
@@ -1109,7 +1149,7 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
 
 /// Append data into writer
 pub async fn test_writer_write(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_without_content_length) {
+    if !(op.info().full_capability().write_can_multi) {
         return Ok(());
     }
 
@@ -1146,7 +1186,7 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
 /// Streaming data into writer
 pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let cap = op.info().full_capability();
-    if !(cap.write && cap.write_can_sink) {
+    if !(cap.write && cap.write_can_multi) {
         return Ok(());
     }
 
@@ -1156,11 +1196,8 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let content_b = gen_fixed_bytes(size);
     let stream = stream::iter(vec![content_a.clone(), content_b.clone()]).map(Ok);
 
-    let mut w = op
-        .writer_with(&path)
-        .content_length(2 * size as u64)
-        .await?;
-    w.sink(2 * size as u64, stream).await?;
+    let mut w = op.writer_with(&path).buffer(5 * 1024 * 1024).await?;
+    w.sink(stream).await?;
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
@@ -1186,7 +1223,7 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
 /// Reading data into writer
 pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let cap = op.info().full_capability();
-    if !(cap.write && cap.write_can_sink) {
+    if !(cap.write && cap.write_can_multi) {
         return Ok(());
     }
 
@@ -1194,13 +1231,15 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
     let size = 5 * 1024 * 1024; // write file with 5 MiB
     let content_a = gen_fixed_bytes(size);
     let content_b = gen_fixed_bytes(size);
-    let reader = Cursor::new([content_a.clone(), content_b.clone()].concat());
 
-    let mut w = op
-        .writer_with(&path)
-        .content_length(2 * size as u64)
-        .await?;
-    w.copy(2 * size as u64, reader).await?;
+    let mut w = op.writer_with(&path).buffer(5 * 1024 * 1024).await?;
+
+    let mut content = Bytes::from([content_a.clone(), content_b.clone()].concat());
+    while !content.is_empty() {
+        let reader = Cursor::new(content.clone());
+        let n = w.copy(reader).await?;
+        content.advance(n as usize);
+    }
     w.close().await?;
 
     let meta = op.stat(&path).await.expect("stat must succeed");
@@ -1225,7 +1264,7 @@ pub async fn test_writer_copy(op: Operator) -> Result<()> {
 
 /// Copy data from reader to writer
 pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().write_without_content_length) {
+    if !(op.info().full_capability().write_can_multi) {
         return Ok(());
     }
 
@@ -1233,7 +1272,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let (content, size): (Vec<u8>, usize) =
         gen_bytes_with_range(10 * 1024 * 1024..20 * 1024 * 1024);
 
-    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
+    let mut w = op.writer_with(&path).buffer(8 * 1024 * 1024).await?;
 
     // Wrap a buf reader here to make sure content is read in 1MiB chunks.
     let mut cursor = BufReader::with_capacity(1024 * 1024, Cursor::new(content.clone()));
@@ -1257,7 +1296,7 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
 
 /// Add test for unsized writer
 pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_without_content_length {
+    if !op.info().full_capability().write_can_multi {
         warn!("{op:?} doesn't support write without content length, test skip");
         return Ok(());
     }
@@ -1266,7 +1305,7 @@ pub async fn test_fuzz_unsized_writer(op: Operator) -> Result<()> {
 
     let mut fuzzer = ObjectWriterFuzzer::new(&path, None);
 
-    let mut w = op.writer_with(&path).buffer_size(8 * 1024 * 1024).await?;
+    let mut w = op.writer_with(&path).buffer(8 * 1024 * 1024).await?;
 
     for _ in 0..100 {
         match fuzzer.fuzz() {

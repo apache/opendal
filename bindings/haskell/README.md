@@ -35,24 +35,14 @@ main = do
 
 ## Build
 
-1. Build OpenDAL Haskell Interface
-
 ```bash
-cargo build --package opendal-hs
-```
-
-2. Build Haskell binding
-
-If you don't want to install `libopendal_hs`, you need to specify library path manually by `LIBRARY_PATH=${OPENDAL_ROOT}/target/debug`.
-
-```bash
-LIBRARY_PATH=... cabal build
+cabal build
 ```
 
 ## Test
 
 ```bash
-LD_LIBRARY_PATH=... cabal test
+cabal test
 ```
 
 ## Doc
@@ -62,4 +52,4 @@ To generate the documentation:
 cabal haddock
 ```
 
-If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-hs-$VERSION/doc/html/opendal-hs/index.html`.
+If your `cabal` version is greater than `3.8`, you can use `cabal haddock --open` to open the documentation in your browser. Otherwise, you can visit the documentation from `dist-newstyle/build/$ARCH/ghc-$VERSION/opendal-$VERSION/doc/html/opendal/index.html`.

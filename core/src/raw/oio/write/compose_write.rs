@@ -38,10 +38,11 @@
 //! This module is used to provide some enums for the above code. We should remove this module once
 //! type_alias_impl_trait has been stabilized.
 
-use async_trait::async_trait;
-use bytes::Bytes;
+use std::task::Context;
+use std::task::Poll;
 
-use crate::raw::oio::Streamer;
+use async_trait::async_trait;
+
 use crate::raw::*;
 use crate::*;
 
@@ -57,31 +58,24 @@ pub enum TwoWaysWriter<ONE: oio::Write, TWO: oio::Write> {
 
 #[async_trait]
 impl<ONE: oio::Write, TWO: oio::Write> oio::Write for TwoWaysWriter<ONE, TWO> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         match self {
-            Self::One(one) => one.write(bs).await,
-            Self::Two(two) => two.write(bs).await,
+            Self::One(one) => one.poll_write(cx, bs),
+            Self::Two(two) => two.poll_write(cx, bs),
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match self {
-            Self::One(one) => one.sink(size, s).await,
-            Self::Two(two) => two.sink(size, s).await,
+            Self::One(one) => one.poll_close(cx),
+            Self::Two(two) => two.poll_close(cx),
         }
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match self {
-            Self::One(one) => one.abort().await,
-            Self::Two(two) => two.abort().await,
-        }
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        match self {
-            Self::One(one) => one.close().await,
-            Self::Two(two) => two.close().await,
+            Self::One(one) => one.poll_abort(cx),
+            Self::Two(two) => two.poll_abort(cx),
         }
     }
 }
@@ -102,35 +96,27 @@ pub enum ThreeWaysWriter<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> {
 impl<ONE: oio::Write, TWO: oio::Write, THREE: oio::Write> oio::Write
     for ThreeWaysWriter<ONE, TWO, THREE>
 {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
         match self {
-            Self::One(one) => one.write(bs).await,
-            Self::Two(two) => two.write(bs).await,
-            Self::Three(three) => three.write(bs).await,
+            Self::One(one) => one.poll_write(cx, bs),
+            Self::Two(two) => two.poll_write(cx, bs),
+            Self::Three(three) => three.poll_write(cx, bs),
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match self {
-            Self::One(one) => one.sink(size, s).await,
-            Self::Two(two) => two.sink(size, s).await,
-            Self::Three(three) => three.sink(size, s).await,
+            Self::One(one) => one.poll_close(cx),
+            Self::Two(two) => two.poll_close(cx),
+            Self::Three(three) => three.poll_close(cx),
         }
     }
 
-    async fn abort(&mut self) -> Result<()> {
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match self {
-            Self::One(one) => one.abort().await,
-            Self::Two(two) => two.abort().await,
-            Self::Three(three) => three.abort().await,
-        }
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        match self {
-            Self::One(one) => one.close().await,
-            Self::Two(two) => two.close().await,
-            Self::Three(three) => three.close().await,
+            Self::One(one) => one.poll_abort(cx),
+            Self::Two(two) => two.poll_abort(cx),
+            Self::Three(three) => three.poll_abort(cx),
         }
     }
 }

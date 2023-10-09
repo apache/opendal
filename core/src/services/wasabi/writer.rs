@@ -18,11 +18,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -40,17 +40,17 @@ impl WasabiWriter {
 }
 
 #[async_trait]
-impl oio::Write for WasabiWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for WasabiWriter {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = oio::ChunkedBytes::from_vec(bs.vectored_bytes(bs.remaining()));
+
         let resp = self
             .core
             .put_object(
                 &self.path,
                 Some(bs.len()),
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
-                AsyncBody::Bytes(bs),
+                &self.op,
+                AsyncBody::ChunkedBytes(bs),
             )
             .await?;
 
@@ -61,20 +61,5 @@ impl oio::Write for WasabiWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

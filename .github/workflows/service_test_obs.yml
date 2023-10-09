@@ -39,20 +39,28 @@ concurrency:
 jobs:
   obs:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    if: (github.event_name == 'push' && github.repository == 'apache/incubator-opendal') || !github.event.pull_request.head.repo.fork
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           need-nextest: true
+
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OPENDAL_OBS_TEST: op://services/obs/test
+          OPENDAL_OBS_BUCKET: op://services/obs/bucket
+          OPENDAL_OBS_ENDPOINT: op://services/obs/endpoint
+          OPENDAL_OBS_ACCESS_KEY_ID: op://services/obs/access_key_id
+          OPENDAL_OBS_SECRET_ACCESS_KEY: op://services/obs/secret_access_key
+
       - name: Test
         shell: bash
         working-directory: core
         run: cargo nextest run obs
-        env:
-          OPENDAL_OBS_TEST: ${{ secrets.OPENDAL_OBS_TEST }}
-          OPENDAL_OBS_BUCKET: ${{ secrets.OPENDAL_OBS_BUCKET }}
-          OPENDAL_OBS_ENDPOINT: ${{ secrets.OPENDAL_OBS_ENDPOINT }}
-          OPENDAL_OBS_ACCESS_KEY_ID: ${{ secrets.OPENDAL_OBS_ACCESS_KEY_ID }}
-          OPENDAL_OBS_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_OBS_SECRET_ACCESS_KEY }}

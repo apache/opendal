@@ -18,20 +18,15 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Buf;
 use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
-pub type CosWriters = oio::ThreeWaysWriter<
-    oio::OneShotWriter<CosWriter>,
-    oio::MultipartUploadWriter<CosWriter>,
-    oio::AppendObjectWriter<CosWriter>,
->;
+pub type CosWriters =
+    oio::TwoWaysWriter<oio::MultipartUploadWriter<CosWriter>, oio::AppendObjectWriter<CosWriter>>;
 
 pub struct CosWriter {
     core: Arc<CosCore>,
@@ -51,16 +46,11 @@ impl CosWriter {
 }
 
 #[async_trait]
-impl oio::OneShotWrite for CosWriter {
-    async fn write_once(&self, size: u64, stream: Streamer) -> Result<()> {
-        let mut req = self.core.cos_put_object_request(
-            &self.path,
-            Some(size),
-            self.op.content_type(),
-            self.op.content_disposition(),
-            self.op.cache_control(),
-            AsyncBody::Stream(stream),
-        )?;
+impl oio::MultipartUploadWrite for CosWriter {
+    async fn write_once(&self, size: u64, body: AsyncBody) -> Result<()> {
+        let mut req = self
+            .core
+            .cos_put_object_request(&self.path, Some(size), &self.op, body)?;
 
         self.core.sign(&mut req).await?;
 
@@ -76,19 +66,11 @@ impl oio::OneShotWrite for CosWriter {
             _ => Err(parse_error(resp).await?),
         }
     }
-}
 
-#[async_trait]
-impl oio::MultipartUploadWrite for CosWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .cos_initiate_multipart_upload(
-                &self.path,
-                self.op.content_type(),
-                self.op.content_disposition(),
-                self.op.cache_control(),
-            )
+            .cos_initiate_multipart_upload(&self.path, &self.op)
             .await?;
 
         let status = resp.status();
@@ -98,7 +80,8 @@ impl oio::MultipartUploadWrite for CosWriter {
                 let bs = resp.into_body().bytes().await?;
 
                 let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bytes::Buf::reader(bs))
+                        .map_err(new_xml_deserialize_error)?;
 
                 Ok(result.upload_id)
             }
@@ -192,7 +175,10 @@ impl oio::MultipartUploadWrite for CosWriter {
 #[async_trait]
 impl oio::AppendObjectWrite for CosWriter {
     async fn offset(&self) -> Result<u64> {
-        let resp = self.core.cos_head_object(&self.path, None, None).await?;
+        let resp = self
+            .core
+            .cos_head_object(&self.path, &OpStat::default())
+            .await?;
 
         let status = resp.status();
         match status {

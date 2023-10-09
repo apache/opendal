@@ -1,12 +1,13 @@
 # Contributing
 
-- [Setup](#setup)
-  - [Using a dev container environment](#using-a-devcontainer-environment)
-  - [Bring your own toolbox](#bring-your-own-toolbox)
-- [Prepare](#prepare)
-- [Build](#build)
-- [Test](#test)
-- [Docs](#docs)
+- [Contributing](#contributing)
+  - [Setup](#setup)
+    - [Using a dev container environment](#using-a-dev-container-environment)
+    - [Bring your own toolbox](#bring-your-own-toolbox)
+  - [Prepare](#prepare)
+  - [Build](#build)
+  - [Test](#test)
+  - [Docs](#docs)
 
 ## Setup
 
@@ -16,7 +17,7 @@ For small or first-time contributions, we recommend the dev container method. Pr
 
 ### Using a dev container environment
 
-OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [Github Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
+OpenDAL provides a pre-configured [dev container](https://containers.dev/) that could be used in [GitHub Codespaces](https://github.com/features/codespaces), [VSCode](https://code.visualstudio.com/), [JetBrains](https://www.jetbrains.com/remote-development/gateway/), [JuptyerLab](https://jupyterlab.readthedocs.io/en/stable/). Please pick up your favourite runtime environment.
 
 The fastest way is:
 
@@ -50,11 +51,19 @@ pip install maturin[patchelf]
 
 ## Build
 
-To build python binding:
+To build python binding only:
+
+```shell
+maturin build
+```
+
+To build and install python binding directly in the current virtualenv:
 
 ```shell
 maturin develop
 ```
+
+Note: `maturin develop` will be faster, but doesn't support all the features. In most development cases, we recommend using `maturin develop`.
 
 ## Test
 

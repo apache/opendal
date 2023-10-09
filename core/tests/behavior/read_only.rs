@@ -53,9 +53,9 @@ pub fn behavior_read_only_tests(op: &Operator) -> Vec<Trial> {
 
 /// Stat normal file and dir should return metadata
 pub async fn test_read_only_stat_file_and_dir(op: Operator) -> Result<()> {
-    let meta = op.stat("normal_file").await?;
+    let meta = op.stat("normal_file.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 30482);
 
     let meta = op.stat("normal_dir/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -65,9 +65,9 @@ pub async fn test_read_only_stat_file_and_dir(op: Operator) -> Result<()> {
 
 /// Stat special file and dir should return metadata
 pub async fn test_read_only_stat_special_chars(op: Operator) -> Result<()> {
-    let meta = op.stat("special_file  !@#$%^&()_+-=;',").await?;
+    let meta = op.stat("special_file  !@#$%^&()_+-=;',.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 30482);
 
     let meta = op.stat("special_dir  !@#$%^&()_+-=;',/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
@@ -77,9 +77,9 @@ pub async fn test_read_only_stat_special_chars(op: Operator) -> Result<()> {
 
 /// Stat not cleaned path should also succeed.
 pub async fn test_read_only_stat_not_cleaned_path(op: Operator) -> Result<()> {
-    let meta = op.stat("//normal_file").await?;
+    let meta = op.stat("//normal_file.txt").await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 30482);
 
     Ok(())
 }
@@ -101,11 +101,11 @@ pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 30482);
 
     let res = op.stat_with(path).if_match("invalid_etag").await;
     assert!(res.is_err());
@@ -126,11 +126,11 @@ pub async fn test_read_only_stat_with_if_none_match(op: Operator) -> Result<()> 
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
     assert_eq!(meta.mode(), EntryMode::FILE);
-    assert_eq!(meta.content_length(), 262144);
+    assert_eq!(meta.content_length(), 30482);
 
     let res = op
         .stat_with(path)
@@ -159,11 +159,11 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
-    let bs = op.read("normal_file").await?;
-    assert_eq!(bs.len(), 262144, "read size");
+    let bs = op.read("normal_file.txt").await?;
+    assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
 
@@ -172,11 +172,11 @@ pub async fn test_read_only_read_full(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result<()> {
-    let bs = op.read("special_file  !@#$%^&()_+-=;',").await?;
-    assert_eq!(bs.len(), 262144, "read size");
+    let bs = op.read("special_file  !@#$%^&()_+-=;',.txt").await?;
+    assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
 
@@ -185,11 +185,11 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> Result
 
 /// Read full content should match.
 pub async fn test_read_only_read_with_range(op: Operator) -> Result<()> {
-    let bs = op.read_with("normal_file").range(1024..2048).await?;
+    let bs = op.read_with("normal_file.txt").range(1024..2048).await?;
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
         "read content"
     );
 
@@ -198,7 +198,7 @@ pub async fn test_read_only_read_with_range(op: Operator) -> Result<()> {
 
 /// Read range should match.
 pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file").range(1024..2048).await?;
+    let mut r = op.reader_with("normal_file.txt").range(1024..2048).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -206,7 +206,7 @@ pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
         "read content"
     );
 
@@ -215,7 +215,7 @@ pub async fn test_read_only_reader_with_range(op: Operator) -> Result<()> {
 
 /// Read from should match.
 pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file").range(261120..).await?;
+    let mut r = op.reader_with("normal_file.txt").range(29458..).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -223,7 +223,7 @@ pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "81fa400e85baa2a5c7006d77d4320b73d36222974b923e03ed9891580f989e2a",
+        "cc9312c869238ea9410b6716e0fc3f48056f2bfb2fe06ccf5f96f2c3bf39e71b",
         "read content"
     );
 
@@ -232,7 +232,7 @@ pub async fn test_read_only_reader_from(op: Operator) -> Result<()> {
 
 /// Read tail should match.
 pub async fn test_read_only_reader_tail(op: Operator) -> Result<()> {
-    let mut r = op.reader_with("normal_file").range(..1024).await?;
+    let mut r = op.reader_with("normal_file.txt").range(..1024).await?;
 
     let mut bs = Vec::new();
     r.read_to_end(&mut bs).await?;
@@ -240,7 +240,7 @@ pub async fn test_read_only_reader_tail(op: Operator) -> Result<()> {
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "81fa400e85baa2a5c7006d77d4320b73d36222974b923e03ed9891580f989e2a",
+        "cc9312c869238ea9410b6716e0fc3f48056f2bfb2fe06ccf5f96f2c3bf39e71b",
         "read content"
     );
 
@@ -275,7 +275,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
 
@@ -288,10 +288,10 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> Result<()> {
         .if_match(meta.etag().expect("etag must exist"))
         .await
         .expect("read must succeed");
-    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
 
@@ -304,7 +304,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> Result<()> 
         return Ok(());
     }
 
-    let path = "normal_file";
+    let path = "normal_file.txt";
 
     let meta = op.stat(path).await?;
 
@@ -320,10 +320,10 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> Result<()> 
         .if_none_match("invalid_etag")
         .await
         .expect("read must succeed");
-    assert_eq!(bs.len(), 262144, "read size");
+    assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        "e7541d0f50d2d5c79dc41f28ccba8e0cdfbbc8c4b1aa1a0110184ef0ef67689f",
+        "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
 

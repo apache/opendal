@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -22,7 +23,6 @@ use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use bytes::Bytes;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -55,8 +55,6 @@ pub struct GcsCore {
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
-
-    pub write_fixed_size: usize,
 }
 
 impl Debug for GcsCore {
@@ -148,13 +146,7 @@ impl GcsCore {
 }
 
 impl GcsCore {
-    pub fn gcs_get_object_request(
-        &self,
-        path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn gcs_get_object_request(&self, path: &str, args: &OpRead) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -166,14 +158,14 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+        if !args.range().is_full() {
+            req = req.header(http::header::RANGE, args.range().to_header());
         }
 
         let req = req
@@ -187,9 +179,7 @@ impl GcsCore {
     pub fn gcs_get_object_xml_request(
         &self,
         path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpRead,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -197,14 +187,14 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
-        if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+        if !args.range().is_full() {
+            req = req.header(http::header::RANGE, args.range().to_header());
         }
 
         let req = req
@@ -217,11 +207,9 @@ impl GcsCore {
     pub async fn gcs_get_object(
         &self,
         path: &str,
-        range: BytesRange,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpRead,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_get_object_request(path, range, if_match, if_none_match)?;
+        let mut req = self.gcs_get_object_request(path, args)?;
 
         self.sign(&mut req).await?;
         self.send(req).await
@@ -231,19 +219,27 @@ impl GcsCore {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<&str>,
+        op: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
+
+        let mut metadata = HashMap::new();
+        if let Some(storage_class) = &self.default_storage_class {
+            metadata.insert("storageClass", storage_class.as_str());
+        }
+        if let Some(cache_control) = op.cache_control() {
+            metadata.insert("cacheControl", cache_control);
+        }
 
         let mut url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType={}&name={}",
             self.endpoint,
             self.bucket,
-            if self.default_storage_class.is_some() {
-                "multipart"
-            } else {
+            if metadata.is_empty() {
                 "media"
+            } else {
+                "multipart"
             },
             percent_encode_path(&p)
         );
@@ -256,7 +252,14 @@ impl GcsCore {
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if let Some(storage_class) = &self.default_storage_class {
+        if metadata.is_empty() {
+            if let Some(content_type) = op.content_type() {
+                req = req.header(CONTENT_TYPE, content_type);
+            }
+
+            let req = req.body(body).map_err(new_request_build_error)?;
+            Ok(req)
+        } else {
             let mut multipart = Multipart::new();
 
             multipart = multipart.part(
@@ -265,21 +268,27 @@ impl GcsCore {
                         CONTENT_TYPE,
                         "application/json; charset=UTF-8".parse().unwrap(),
                     )
-                    .content(json!({"storageClass": storage_class}).to_string()),
+                    .content(json!(metadata).to_string()),
             );
 
-            let mut media_part = FormDataPart::new("media").header(
-                CONTENT_TYPE,
-                content_type
-                    .unwrap_or("application/octet-stream")
-                    .parse()
-                    .unwrap(),
-            );
+            let mut media_part = FormDataPart::new("media");
+
+            if let Some(content_type) = op.content_type() {
+                media_part = media_part.header(
+                    CONTENT_TYPE,
+                    content_type
+                        .parse()
+                        .map_err(|_| Error::new(ErrorKind::Unexpected, "invalid header value"))?,
+                );
+            }
 
             match body {
                 AsyncBody::Empty => {}
                 AsyncBody::Bytes(bytes) => {
                     media_part = media_part.content(bytes);
+                }
+                AsyncBody::ChunkedBytes(bs) => {
+                    media_part = media_part.stream(bs.len() as u64, Box::new(bs));
                 }
                 AsyncBody::Stream(stream) => {
                     media_part = media_part.stream(size.unwrap(), stream);
@@ -290,13 +299,6 @@ impl GcsCore {
 
             let req = multipart.apply(Request::post(url))?;
             Ok(req)
-        } else {
-            if let Some(content_type) = content_type {
-                req = req.header(CONTENT_TYPE, content_type);
-            }
-
-            let req = req.body(body).map_err(new_request_build_error)?;
-            Ok(req)
         }
     }
 
@@ -304,7 +306,7 @@ impl GcsCore {
     pub fn gcs_insert_object_xml_request(
         &self,
         path: &str,
-        content_type: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -313,7 +315,7 @@ impl GcsCore {
 
         let mut req = Request::put(&url);
 
-        if let Some(content_type) = content_type {
+        if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
@@ -330,12 +332,7 @@ impl GcsCore {
         Ok(req)
     }
 
-    pub fn gcs_head_object_request(
-        &self,
-        path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
-    ) -> Result<Request<AsyncBody>> {
+    pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -347,11 +344,11 @@ impl GcsCore {
 
         let mut req = Request::get(&url);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -366,8 +363,7 @@ impl GcsCore {
     pub fn gcs_head_object_xml_request(
         &self,
         path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -375,11 +371,11 @@ impl GcsCore {
 
         let mut req = Request::head(&url);
 
-        if let Some(if_none_match) = if_none_match {
+        if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        if let Some(if_match) = if_match {
+        if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
 
@@ -393,10 +389,9 @@ impl GcsCore {
     pub async fn gcs_get_object_metadata(
         &self,
         path: &str,
-        if_match: Option<&str>,
-        if_none_match: Option<&str>,
+        args: &OpStat,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_head_object_request(path, if_match, if_none_match)?;
+        let mut req = self.gcs_head_object_request(path, args)?;
 
         self.sign(&mut req).await?;
 
@@ -546,21 +541,11 @@ impl GcsCore {
         location: &str,
         size: u64,
         written: u64,
-        is_last_part: bool,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let mut req = Request::put(location);
 
-        let range_header = if is_last_part {
-            format!(
-                "bytes {}-{}/{}",
-                written,
-                written + size - 1,
-                written + size
-            )
-        } else {
-            format!("bytes {}-{}/*", written, written + size - 1)
-        };
+        let range_header = format!("bytes {}-{}/*", written, written + size - 1);
 
         req = req
             .header(CONTENT_LENGTH, size)
@@ -575,22 +560,22 @@ impl GcsCore {
     pub async fn gcs_complete_resumable_upload(
         &self,
         location: &str,
-        written_bytes: u64,
-        bs: Bytes,
+        written: u64,
+        size: u64,
+        body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let size = bs.len() as u64;
         let mut req = Request::post(location)
             .header(CONTENT_LENGTH, size)
             .header(
                 CONTENT_RANGE,
                 format!(
                     "bytes {}-{}/{}",
-                    written_bytes,
-                    written_bytes + size - 1,
-                    written_bytes + size
+                    written,
+                    written + size - 1,
+                    written + size
                 ),
             )
-            .body(AsyncBody::Bytes(bs))
+            .body(body)
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

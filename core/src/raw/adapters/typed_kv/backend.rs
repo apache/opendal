@@ -16,13 +16,17 @@
 // under the License.
 
 use std::sync::Arc;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 
 use super::Adapter;
 use super::Value;
-use crate::raw::oio::VectorCursor;
 use crate::raw::*;
 use crate::*;
 
@@ -67,8 +71,9 @@ impl<S: Adapter> Accessor for Backend<S> {
         am.set_root(&self.root);
         am.set_scheme(kv_info.scheme());
         am.set_name(kv_info.name());
+
         let kv_cap = kv_info.capabilities();
-        let cap = am.full_capability_mut();
+        let mut cap = Capability::default();
         if kv_cap.get {
             cap.read = true;
             cap.read_can_seek = true;
@@ -79,6 +84,7 @@ impl<S: Adapter> Accessor for Backend<S> {
 
         if kv_cap.set {
             cap.write = true;
+            cap.write_can_empty = true;
             cap.create_dir = true;
         }
 
@@ -98,8 +104,9 @@ impl<S: Adapter> Accessor for Backend<S> {
         if cap.read && cap.write && cap.delete {
             cap.rename = true;
         }
-
         cap.blocking = true;
+
+        am.set_native_capability(cap);
 
         am
     }
@@ -361,8 +368,15 @@ pub struct KvWriter<S> {
     path: String,
 
     op: OpWrite,
-    buf: VectorCursor,
+    buf: Option<Vec<u8>>,
+    value: Option<Value>,
+    future: Option<BoxFuture<'static, Result<()>>>,
 }
+
+/// # Safety
+///
+/// We will only take `&mut Self` reference for KvWriter.
+unsafe impl<S: Adapter> Sync for KvWriter<S> {}
 
 impl<S> KvWriter<S> {
     fn new(kv: Arc<S>, path: String, op: OpWrite) -> Self {
@@ -370,12 +384,18 @@ impl<S> KvWriter<S> {
             kv,
             path,
             op,
-            buf: VectorCursor::new(),
+            buf: None,
+            value: None,
+            future: None,
         }
     }
 
-    fn build(&self) -> Value {
+    fn build(&mut self) -> Value {
+        let value = self.buf.take().map(Bytes::from).unwrap_or_default();
+
         let mut metadata = Metadata::new(EntryMode::FILE);
+        metadata.set_content_length(value.len() as u64);
+
         if let Some(v) = self.op.cache_control() {
             metadata.set_cache_control(v);
         }
@@ -385,57 +405,97 @@ impl<S> KvWriter<S> {
         if let Some(v) = self.op.content_type() {
             metadata.set_content_type(v);
         }
-        if let Some(v) = self.op.content_length() {
-            metadata.set_content_length(v);
-        } else {
-            metadata.set_content_length(self.buf.len() as u64);
-        }
 
-        Value {
-            metadata,
-            value: self.buf.peak_all(),
-        }
+        Value { metadata, value }
     }
 }
 
 #[async_trait]
 impl<S: Adapter> oio::Write for KvWriter<S> {
-    // TODO: we need to support append in the future.
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf.push(bs);
+    fn poll_write(&mut self, _: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
+        }
 
-        Ok(())
+        let size = bs.chunk().len();
+
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
+        buf.extend_from_slice(bs.chunk());
+
+        self.buf = Some(buf);
+
+        Poll::Ready(Ok(size))
     }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            match self.future.as_mut() {
+                Some(fut) => {
+                    let res = ready!(fut.poll_unpin(cx));
+                    self.future = None;
+                    return Poll::Ready(res);
+                }
+                None => {
+                    let kv = self.kv.clone();
+                    let path = self.path.clone();
+                    let value = match &self.value {
+                        Some(value) => value.clone(),
+                        None => {
+                            let value = self.build();
+                            self.value = Some(value.clone());
+                            value
+                        }
+                    };
+
+                    let fut = async move { kv.set(&path, value).await };
+                    self.future = Some(Box::pin(fut));
+                }
+            }
+        }
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.buf.clear();
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<Result<()>> {
+        if self.future.is_some() {
+            self.future = None;
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "there is a future on going, it's maybe a bug to go into this case",
+            )));
+        }
 
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.kv.set(&self.path, self.build()).await?;
-        Ok(())
+        self.buf = None;
+        Poll::Ready(Ok(()))
     }
 }
 
 impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.buf.push(bs);
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let size = bs.chunk().len();
 
-        Ok(())
+        let mut buf = self.buf.take().unwrap_or_else(|| Vec::with_capacity(size));
+        buf.extend_from_slice(bs.chunk());
+
+        self.buf = Some(buf);
+
+        Ok(size)
     }
 
     fn close(&mut self) -> Result<()> {
-        self.kv.blocking_set(&self.path, self.build())?;
+        let kv = self.kv.clone();
+        let value = match &self.value {
+            Some(value) => value.clone(),
+            None => {
+                let value = self.build();
+                self.value = Some(value.clone());
+                value
+            }
+        };
 
+        kv.blocking_set(&self.path, value)?;
         Ok(())
     }
 }

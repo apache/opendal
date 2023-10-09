@@ -97,13 +97,13 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
         self.inner
             .read(path, args)
-            .map_ok(|(rp, os)| {
+            .map_ok(|(rp, r)| {
                 (
                     rp,
                     ErrorContextWrapper {
                         scheme: self.meta.scheme(),
                         path: path.to_string(),
-                        inner: os,
+                        inner: r,
                     },
                 )
             })
@@ -119,13 +119,13 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
-            .map_ok(|(rp, os)| {
+            .map_ok(|(rp, w)| {
                 (
                     rp,
                     ErrorContextWrapper {
                         scheme: self.meta.scheme(),
                         path: path.to_string(),
-                        inner: os,
+                        inner: w,
                     },
                 )
             })
@@ -186,13 +186,13 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
-            .map_ok(|(rp, os)| {
+            .map_ok(|(rp, p)| {
                 (
                     rp,
                     ErrorContextWrapper {
                         scheme: self.meta.scheme(),
                         path: path.to_string(),
-                        inner: os,
+                        inner: p,
                     },
                 )
             })
@@ -202,14 +202,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                     .with_context("path", path)
             })
             .await
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args).await.map_err(|err| {
-            err.with_operation(Operation::Presign)
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
     }
 
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
@@ -236,6 +228,14 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                     .with_context("service", self.meta.scheme())
             })
             .await
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        self.inner.presign(path, args).await.map_err(|err| {
+            err.with_operation(Operation::Presign)
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
     }
 
     fn blocking_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
@@ -353,6 +353,7 @@ impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
             err.with_operation(ReadOperation::Read)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
+                .with_context("read_buf", buf.len().to_string())
         })
     }
 
@@ -379,6 +380,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
             err.with_operation(ReadOperation::BlockingRead)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
+                .with_context("read_buf", buf.len().to_string())
         })
     }
 
@@ -387,6 +389,7 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
             err.with_operation(ReadOperation::BlockingSeek)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
+                .with_context("seek", format!("{pos:?}"))
         })
     }
 
@@ -403,33 +406,26 @@ impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
 
 #[async_trait::async_trait]
 impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.write(bs).await.map_err(|err| {
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        self.inner.poll_write(cx, bs).map_err(|err| {
             err.with_operation(WriteOperation::Write)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
+                .with_context("write_buf", bs.remaining().to_string())
         })
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await.map_err(|err| {
-            err.with_operation(WriteOperation::Abort)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-        })
-    }
-
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.sink(size, s).await.map_err(|err| {
-            err.with_operation(WriteOperation::Sink)
-                .with_context("service", self.scheme)
-                .with_context("path", &self.path)
-        })
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await.map_err(|err| {
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_close(cx).map_err(|err| {
             err.with_operation(WriteOperation::Close)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_abort(cx).map_err(|err| {
+            err.with_operation(WriteOperation::Abort)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })
@@ -437,11 +433,12 @@ impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner.write(bs).map_err(|err| {
             err.with_operation(WriteOperation::BlockingWrite)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
+                .with_context("write_buf", bs.remaining().to_string())
         })
     }
 

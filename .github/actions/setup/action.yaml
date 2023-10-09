@@ -82,7 +82,7 @@ runs:
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       with:
         path: /tmp/rocksdb
-        key: r1-rocksdb-8.1.1
+        key: r2-rocksdb-8.1.1
 
     - name: Build rocksdb if not cached
       if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'
@@ -96,7 +96,7 @@ runs:
         cd rocksdb-8.1.1
 
         mkdir /tmp/rocksdb
-        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb
+        cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb -DPORTABLE=1
         make -j$(nproc)
         make install
 

@@ -16,7 +16,6 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Buf;
 use bytes::Bytes;
 use http::StatusCode;
 
@@ -24,6 +23,7 @@ use super::backend::OnedriveBackend;
 use super::error::parse_error;
 use super::graph_model::OneDriveUploadSessionCreationRequestBody;
 use super::graph_model::OneDriveUploadSessionCreationResponseBody;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -45,43 +45,26 @@ impl OneDriveWriter {
 }
 
 #[async_trait]
-impl oio::Write for OneDriveWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for OneDriveWriter {
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = bs.bytes(bs.remaining());
         let size = bs.len();
 
         if size <= Self::MAX_SIMPLE_SIZE {
-            self.write_simple(bs).await
+            self.write_simple(bs).await?;
         } else {
-            self.write_chunked(bs).await
+            self.write_chunked(bs).await?;
         }
-    }
 
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
         Ok(())
     }
 }
 
 impl OneDriveWriter {
-    async fn write_simple(&mut self, bs: Bytes) -> Result<()> {
+    async fn write_simple(&self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend
-            .onedrive_upload_simple(
-                &self.path,
-                Some(bs.len()),
-                self.op.content_type(),
-                AsyncBody::Bytes(bs),
-            )
+            .onedrive_upload_simple(&self.path, Some(bs.len()), &self.op, AsyncBody::Bytes(bs))
             .await?;
 
         let status = resp.status();
@@ -121,7 +104,7 @@ impl OneDriveWriter {
                 .backend
                 .onedrive_chunked_upload(
                     &session_response.upload_url,
-                    None,
+                    &OpWrite::default(),
                     offset,
                     chunk_end,
                     total_len,
@@ -172,7 +155,7 @@ impl OneDriveWriter {
             StatusCode::OK => {
                 let bs = resp.into_body().bytes().await?;
                 let result: OneDriveUploadSessionCreationResponseBody =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
                 Ok(result)
             }
             _ => Err(parse_error(resp).await?),

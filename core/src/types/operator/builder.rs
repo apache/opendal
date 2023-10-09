@@ -153,10 +153,12 @@ impl Operator {
     /// ```
     pub fn via_map(scheme: Scheme, map: HashMap<String, String>) -> Result<Operator> {
         let op = match scheme {
+            #[cfg(feature = "services-atomicserver")]
+            Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
-            #[cfg(feature = "services-azdfs")]
-            Scheme::Azdfs => Self::from_map::<services::Azdfs>(map)?.finish(),
+            #[cfg(feature = "services-Azdls")]
+            Scheme::Azdls => Self::from_map::<services::Azdls>(map)?.finish(),
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
             #[cfg(feature = "services-cos")]

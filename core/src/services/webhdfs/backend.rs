@@ -201,7 +201,7 @@ impl WebhdfsBackend {
         &self,
         path: &str,
         size: Option<usize>,
-        content_type: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -230,7 +230,7 @@ impl WebhdfsBackend {
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size.to_string());
         }
-        if let Some(content_type) = content_type {
+        if let Some(content_type) = args.content_type() {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
@@ -296,12 +296,12 @@ impl WebhdfsBackend {
     pub(super) fn webhdfs_list_status_batch_request(
         &self,
         path: &str,
-        start_after: &Option<String>,
+        args: &OpList,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         // if it's not the first time to call LISTSTATUS_BATCH, we will add &startAfter=<CHILD>
-        let start_after_param = match start_after {
+        let start_after_param = match args.start_after() {
             Some(sa) if sa.is_empty() => String::new(),
             Some(sa) => format!("&startAfter={}", sa),
             None => String::new(),
@@ -399,7 +399,7 @@ impl WebhdfsBackend {
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WebhdfsWriter;
+    type Writer = oio::OneShotWriter<WebhdfsWriter>;
     type BlockingWriter = ();
     type Pager = WebhdfsPager;
     type BlockingPager = ();
@@ -408,7 +408,7 @@ impl Accessor for WebhdfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Webhdfs)
             .set_root(&self.root)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,
@@ -430,7 +430,7 @@ impl Accessor for WebhdfsBackend {
     /// Create a file or directory
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let req = self
-            .webhdfs_create_object_request(path, Some(0), None, AsyncBody::Empty)
+            .webhdfs_create_object_request(path, Some(0), &OpWrite::default(), AsyncBody::Empty)
             .await?;
 
         let resp = self.client.send(req).await?;
@@ -474,16 +474,9 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
-            WebhdfsWriter::new(self.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(WebhdfsWriter::new(self.clone(), args, path.to_string())),
         ))
     }
 
@@ -542,7 +535,7 @@ impl Accessor for WebhdfsBackend {
         let path = path.trim_end_matches('/');
 
         if !self.disable_list_batch {
-            let req = self.webhdfs_list_status_batch_request(path, &None)?;
+            let req = self.webhdfs_list_status_batch_request(path, &OpList::default())?;
             let resp = self.client.send(req).await?;
             match resp.status() {
                 StatusCode::OK => {

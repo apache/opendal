@@ -24,10 +24,10 @@ mod azblob;
 #[cfg(feature = "services-azblob")]
 pub use azblob::Azblob;
 
-#[cfg(feature = "services-azdfs")]
-mod azdfs;
-#[cfg(feature = "services-azdfs")]
-pub use azdfs::Azdfs;
+#[cfg(feature = "services-azdls")]
+mod azdls;
+#[cfg(feature = "services-azdls")]
+pub use azdls::Azdls;
 
 #[cfg(feature = "services-cos")]
 mod cos;
@@ -208,3 +208,18 @@ pub use self::foundationdb::Foundationdb;
 mod postgresql;
 #[cfg(feature = "services-postgresql")]
 pub use self::postgresql::Postgresql;
+
+#[cfg(feature = "services-atomicserver")]
+mod atomicserver;
+#[cfg(feature = "services-atomicserver")]
+pub use self::atomicserver::Atomicserver;
+
+#[cfg(feature = "services-mysql")]
+mod mysql;
+#[cfg(feature = "services-mysql")]
+pub use self::mysql::Mysql;
+
+#[cfg(feature = "services-sqlite")]
+mod sqlite;
+#[cfg(feature = "services-sqlite")]
+pub use self::sqlite::Sqlite;

@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use opendal::raw::oio;
-use opendal::raw::oio::Streamer;
 use rand::prelude::ThreadRng;
 use rand::RngCore;
 
@@ -27,20 +29,20 @@ pub struct BlackHoleWriter;
 
 #[async_trait]
 impl oio::Write for BlackHoleWriter {
-    async fn write(&mut self, _: Bytes) -> opendal::Result<()> {
-        Ok(())
+    fn poll_write(
+        &mut self,
+        _: &mut Context<'_>,
+        bs: &dyn oio::WriteBuf,
+    ) -> Poll<opendal::Result<usize>> {
+        Poll::Ready(Ok(bs.remaining()))
     }
 
-    async fn sink(&mut self, _: u64, _: Streamer) -> opendal::Result<()> {
-        Ok(())
+    fn poll_abort(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
-    async fn abort(&mut self) -> opendal::Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> opendal::Result<()> {
-        Ok(())
+    fn poll_close(&mut self, _: &mut Context<'_>) -> Poll<opendal::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 

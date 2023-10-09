@@ -16,11 +16,11 @@
 // under the License.
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::WebhdfsBackend;
 use super::error::parse_error;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -38,14 +38,17 @@ impl WebhdfsWriter {
 }
 
 #[async_trait]
-impl oio::Write for WebhdfsWriter {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
+impl oio::OneShotWrite for WebhdfsWriter {
+    /// Using `bytes` instead of `vectored_bytes` to allow request to be redirected.
+    async fn write_once(&self, bs: &dyn WriteBuf) -> Result<()> {
+        let bs = bs.bytes(bs.remaining());
+
         let req = self
             .backend
             .webhdfs_create_object_request(
                 &self.path,
                 Some(bs.len()),
-                self.op.content_type(),
+                &self.op,
                 AsyncBody::Bytes(bs),
             )
             .await?;
@@ -60,20 +63,5 @@ impl oio::Write for WebhdfsWriter {
             }
             _ => Err(parse_error(resp).await?),
         }
-    }
-
-    async fn sink(&mut self, _size: u64, _s: oio::Streamer) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "Write::sink is not supported",
-        ))
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        Ok(())
     }
 }

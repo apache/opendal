@@ -15,15 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Seek;
-use std::io::SeekFrom;
 use std::io::Write;
 use std::path::PathBuf;
+use std::pin::Pin;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use futures::StreamExt;
-use tokio::io::AsyncSeekExt;
+use futures::future::BoxFuture;
+use futures::FutureExt;
+use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 
 use super::error::parse_io_error;
@@ -33,8 +35,9 @@ use crate::*;
 pub struct FsWriter<F> {
     target_path: PathBuf,
     tmp_path: Option<PathBuf>,
-    f: F,
-    pos: u64,
+
+    f: Option<F>,
+    fut: Option<BoxFuture<'static, Result<()>>>,
 }
 
 impl<F> FsWriter<F> {
@@ -42,83 +45,95 @@ impl<F> FsWriter<F> {
         Self {
             target_path,
             tmp_path,
-            f,
-            pos: 0,
+
+            f: Some(f),
+            fut: None,
         }
     }
 }
 
+/// # Safety
+///
+/// We will only take `&mut Self` reference for FsWriter.
+unsafe impl<F> Sync for FsWriter<F> {}
+
 #[async_trait]
 impl oio::Write for FsWriter<tokio::fs::File> {
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f
-            .seek(SeekFrom::Start(self.pos))
-            .await
-            .map_err(parse_io_error)?;
-        self.f.write_all(&bs).await.map_err(parse_io_error)?;
-        self.pos += bs.len() as u64;
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        Ok(())
+        Pin::new(f)
+            .poll_write_vectored(cx, &bs.vectored_chunk())
+            .map_err(parse_io_error)
     }
 
-    async fn sink(&mut self, _size: u64, mut s: oio::Streamer) -> Result<()> {
-        while let Some(bs) = s.next().await {
-            let bs = bs?;
-            self.f
-                .seek(SeekFrom::Start(self.pos))
-                .await
-                .map_err(parse_io_error)?;
-            self.f.write_all(&bs).await.map_err(parse_io_error)?;
-            self.pos += bs.len() as u64;
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            if let Some(fut) = self.fut.as_mut() {
+                let res = ready!(fut.poll_unpin(cx));
+                self.fut = None;
+                return Poll::Ready(res);
+            }
+
+            let mut f = self.f.take().expect("FsWriter must be initialized");
+            let tmp_path = self.tmp_path.clone();
+            let target_path = self.target_path.clone();
+            self.fut = Some(Box::pin(async move {
+                f.flush().await.map_err(parse_io_error)?;
+                f.sync_all().await.map_err(parse_io_error)?;
+
+                if let Some(tmp_path) = &tmp_path {
+                    tokio::fs::rename(tmp_path, &target_path)
+                        .await
+                        .map_err(parse_io_error)?;
+                }
+
+                Ok(())
+            }));
         }
-
-        Ok(())
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support abort",
-        ))
-    }
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        loop {
+            if let Some(fut) = self.fut.as_mut() {
+                let res = ready!(fut.poll_unpin(cx));
+                self.fut = None;
+                return Poll::Ready(res);
+            }
 
-    async fn close(&mut self) -> Result<()> {
-        self.f.sync_all().await.map_err(parse_io_error)?;
-
-        if let Some(tmp_path) = &self.tmp_path {
-            tokio::fs::rename(tmp_path, &self.target_path)
-                .await
-                .map_err(parse_io_error)?;
+            let _ = self.f.take().expect("FsWriter must be initialized");
+            let tmp_path = self.tmp_path.clone();
+            self.fut = Some(Box::pin(async move {
+                if let Some(tmp_path) = &tmp_path {
+                    tokio::fs::remove_file(tmp_path)
+                        .await
+                        .map_err(parse_io_error)
+                } else {
+                    Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "Fs doesn't support abort if atomic_write_dir is not set",
+                    ))
+                }
+            }));
         }
-
-        Ok(())
     }
 }
 
 impl oio::BlockingWrite for FsWriter<std::fs::File> {
-    /// # Notes
-    ///
-    /// File could be partial written, so we will seek to start to make sure
-    /// we write the same content.
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f
-            .seek(SeekFrom::Start(self.pos))
-            .map_err(parse_io_error)?;
-        self.f.write_all(&bs).map_err(parse_io_error)?;
-        self.pos += bs.len() as u64;
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let f = self.f.as_mut().expect("FsWriter must be initialized");
 
-        Ok(())
+        f.write_vectored(&bs.vectored_chunk())
+            .map_err(parse_io_error)
     }
 
     fn close(&mut self) -> Result<()> {
-        self.f.sync_all().map_err(parse_io_error)?;
+        if let Some(f) = self.f.take() {
+            f.sync_all().map_err(parse_io_error)?;
 
-        if let Some(tmp_path) = &self.tmp_path {
-            std::fs::rename(tmp_path, &self.target_path).map_err(parse_io_error)?;
+            if let Some(tmp_path) = &self.tmp_path {
+                std::fs::rename(tmp_path, &self.target_path).map_err(parse_io_error)?;
+            }
         }
 
         Ok(())

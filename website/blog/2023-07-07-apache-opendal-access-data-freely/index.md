@@ -53,7 +53,7 @@ OpenDAL supports dozens of storage services, covering a wide range of scenarios 
 
 - Standard Storage Protocols: FTP, HTTP, SFTP, WebDAV, etc.
 - Object Storage Services: azblob, gcs, obs, oss, s3, etc.
-- File Storage Services: fs, azdfs, hdfs, webhdfs, ipfs, etc.
+- File Storage Services: fs, azdls, hdfs, webhdfs, ipfs, etc.
 - Consumer Cloud Storage Service: Google Drive, OneDrive, Dropbox, etc.
 - Key-Value Storage Service: Memory, Redis, Rocksdb, etc.
 - Cache Storage Service: Ghac, Memcached, etc.

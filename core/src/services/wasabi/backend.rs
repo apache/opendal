@@ -670,7 +670,7 @@ pub struct WasabiBackend {
 impl Accessor for WasabiBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = WasabiWriter;
+    type Writer = oio::OneShotWriter<WasabiWriter>;
     type BlockingWriter = ();
     type Pager = WasabiPager;
     type BlockingPager = ();
@@ -680,7 +680,7 @@ impl Accessor for WasabiBackend {
         am.set_scheme(Scheme::Wasabi)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -715,7 +715,7 @@ impl Accessor for WasabiBackend {
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let mut req =
             self.core
-                .put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+                .put_object_request(path, Some(0), &OpWrite::default(), AsyncBody::Empty)?;
 
         self.core.sign(&mut req).await?;
 
@@ -733,10 +733,7 @@ impl Accessor for WasabiBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .get_object(path, args.range(), args.if_none_match())
-            .await?;
+        let resp = self.core.get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -750,16 +747,9 @@ impl Accessor for WasabiBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
-            WasabiWriter::new(self.core.clone(), args, path.to_string()),
+            oio::OneShotWriter::new(WasabiWriter::new(self.core.clone(), args, path.to_string())),
         ))
     }
 
@@ -821,16 +811,10 @@ impl Accessor for WasabiBackend {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Stat(v) => self.core.head_object_request(path, v)?,
-            PresignOperation::Read(v) => self.core.get_object_request(
-                path,
-                v.range(),
-                v.override_content_disposition(),
-                v.override_cache_control(),
-                v.if_none_match(),
-            )?,
+            PresignOperation::Read(v) => self.core.get_object_request(path, v)?,
             PresignOperation::Write(_) => {
                 self.core
-                    .put_object_request(path, None, None, None, None, AsyncBody::Empty)?
+                    .put_object_request(path, None, &OpWrite::default(), AsyncBody::Empty)?
             }
         };
 

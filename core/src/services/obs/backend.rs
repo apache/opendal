@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -35,11 +34,6 @@ use super::writer::ObsWriter;
 use crate::raw::*;
 use crate::services::obs::writer::ObsWriters;
 use crate::*;
-
-/// The minimum multipart size of OBS is 5 MiB.
-///
-/// ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-const MINIMUM_MULTIPART_SIZE: usize = 5 * 1024 * 1024;
 
 /// Huawei-Cloud Object Storage Service (OBS) support
 #[doc = include_str!("docs.md")]
@@ -256,7 +250,7 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<ObsWriters, oio::AtLeastBufWriter<ObsWriters>>;
+    type Writer = ObsWriters;
     type BlockingWriter = ();
     type Pager = ObsPager;
     type BlockingPager = ();
@@ -266,7 +260,7 @@ impl Accessor for ObsBackend {
         am.set_scheme(Scheme::Obs)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -278,11 +272,23 @@ impl Accessor for ObsBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_append: true,
-                write_can_sink: true,
+                write_can_multi: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
-                write_without_content_length: true,
+                // The min multipart size of OBS is 5 MiB.
+                //
+                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                write_multi_min_size: Some(5 * 1024 * 1024),
+                // The max multipart size of OBS is 5 GiB.
+                //
+                // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 delete: true,
                 create_dir: true,
@@ -305,23 +311,12 @@ impl Accessor for ObsBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
+            PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.obs_get_object_request(path, v)?,
+            PresignOperation::Write(v) => {
                 self.core
-                    .obs_head_object_request(path, v.if_match(), v.if_none_match())?
+                    .obs_put_object_request(path, None, v, AsyncBody::Empty)?
             }
-            PresignOperation::Read(v) => self.core.obs_get_object_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
-            PresignOperation::Write(v) => self.core.obs_put_object_request(
-                path,
-                None,
-                v.content_type(),
-                v.cache_control(),
-                AsyncBody::Empty,
-            )?,
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 
@@ -336,9 +331,12 @@ impl Accessor for ObsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .obs_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
+        let mut req = self.core.obs_put_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -356,10 +354,7 @@ impl Accessor for ObsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .obs_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.obs_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -376,22 +371,9 @@ impl Accessor for ObsBackend {
         let writer = ObsWriter::new(self.core.clone(), path, args.clone());
 
         let w = if args.append() {
-            ObsWriters::Three(oio::AppendObjectWriter::new(writer))
-        } else if args.content_length().is_some() {
-            ObsWriters::One(oio::OneShotWriter::new(writer))
+            ObsWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            ObsWriters::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
+            ObsWriters::One(oio::MultipartUploadWriter::new(writer))
         };
 
         Ok((RpWrite::default(), w))
@@ -417,10 +399,7 @@ impl Accessor for ObsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .obs_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.obs_head_object(path, &args).await?;
 
         let status = resp.status();
 

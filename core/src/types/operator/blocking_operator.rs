@@ -20,6 +20,7 @@ use std::io::Read;
 use bytes::Bytes;
 
 use super::operator_functions::*;
+use crate::raw::oio::WriteBuf;
 use crate::raw::*;
 use crate::*;
 
@@ -29,6 +30,8 @@ use crate::*;
 ///
 /// # Examples
 ///
+/// ## Init backends
+///
 /// Read more backend init examples in [`services`]
 ///
 /// ```
@@ -36,8 +39,8 @@ use crate::*;
 /// use opendal::services::Fs;
 /// use opendal::BlockingOperator;
 /// use opendal::Operator;
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
+///
+/// fn main() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let mut builder = Fs::default();
 ///     // Set the root for fs, all operations will happen under this root.
@@ -47,6 +50,35 @@ use crate::*;
 ///
 ///     // Build an `BlockingOperator` to start operating the storage.
 ///     let _: BlockingOperator = Operator::new(builder)?.finish().blocking();
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Init backends with blocking layer
+///
+/// Some services like s3, gcs doesn't have native blocking supports, we can use [`layers::BlockingLayer`]
+/// to wrap the async operator to make it blocking.
+///
+/// ```rust
+/// # use anyhow::Result;
+/// use opendal::layers::BlockingLayer;
+/// use opendal::services::S3;
+/// use opendal::BlockingOperator;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Create fs backend builder.
+///     let mut builder = S3::default();
+///     builder.bucket("test");
+///     builder.region("us-east-1");
+///
+///     // Build an `BlockingOperator` with blocking layer to start operating the storage.
+///     let _: BlockingOperator = Operator::new(builder)?
+///         .layer(BlockingLayer::create()?)
+///         .finish()
+///         .blocking();
 ///
 ///     Ok(())
 /// }
@@ -549,8 +581,8 @@ impl BlockingOperator {
         FunctionWrite(OperatorFunction::new(
             self.inner().clone(),
             path,
-            (OpWrite::default().with_content_length(bs.len() as u64), bs),
-            |inner, path, (args, bs)| {
+            (OpWrite::default(), bs),
+            |inner, path, (args, mut bs)| {
                 if !validate_path(&path, EntryMode::FILE) {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "write path is a directory")
@@ -561,7 +593,10 @@ impl BlockingOperator {
                 }
 
                 let (_, mut w) = inner.blocking_write(&path, args)?;
-                w.write(bs)?;
+                while bs.remaining() > 0 {
+                    let n = w.write(&bs)?;
+                    bs.advance(n);
+                }
                 w.close()?;
 
                 Ok(())
@@ -937,8 +972,7 @@ impl BlockingOperator {
                     .with_context("path", &path));
                 }
 
-                let (_, pager) = inner.blocking_list(&path, args)?;
-                let lister = BlockingLister::new(pager);
+                let lister = BlockingLister::create(inner, &path, args)?;
 
                 lister.collect()
             },
@@ -1112,9 +1146,7 @@ impl BlockingOperator {
                     .with_context("path", &path));
                 }
 
-                let (_, pager) = inner.blocking_list(&path, args)?;
-
-                Ok(BlockingLister::new(pager))
+                BlockingLister::create(inner, &path, args)
             },
         ))
     }

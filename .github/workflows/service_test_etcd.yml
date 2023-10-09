@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/etcd/**"
       - ".github/workflows/service_test_etcd.yml"
+      - "fixtures/etcd/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -54,7 +55,7 @@ jobs:
                 ETCD_MAX_REQUEST_BYTES: 10485760
 
     steps:
-        - uses: actions/checkout@v3
+        - uses: actions/checkout@v4
         - name: Setup Rust toolchain
           uses: ./.github/actions/setup
           with:
@@ -123,7 +124,7 @@ jobs:
               ETCD_MAX_REQUEST_BYTES: 10485760
 
     steps:
-        - uses: actions/checkout@v3
+        - uses: actions/checkout@v4
         - name: Setup Rust toolchain
           uses: ./.github/actions/setup
           with:
@@ -141,14 +142,14 @@ jobs:
   etcd-cluster-tls:
     runs-on: ubuntu-latest
     steps:
-        - uses: actions/checkout@v3
+        - uses: actions/checkout@v4
 
         - name: Copy Etcd Certificate Files
           shell: bash
-          working-directory: core
+          working-directory: fixtures
           run: |
             mkdir -p /tmp/etcd
-            cp -r `pwd`/src/services/etcd/fixtures/* /tmp/etcd
+            cp -r `pwd`/etcd/* /tmp/etcd
 
         - name: Configure Etcd Service With TLS
           # ETCD will use ports: 23790,23791,23792,23800,23801,23802

@@ -1,14 +1,84 @@
-# Unreleased
+# Upgrade to v0.41
+
+There is no public API and raw API changes.
+
+# Upgrade to v0.40
 
 ## Public API
 
+### RFC-2578 Merge Append Into Write
+
+[RFC-2578](crate::docs::rfcs::rfc_2578_merge_append_into_write) merges `append` into `write` and removes `append` API.
+
+- For writing a file at once, please use `op.write()` for convenience.
+- For appending a file, please use `op.write_with().append(true)` instead of `op.append()`.
+
+The same rule applies to `writer()` and `writer_with()`.
+
 ### RFC-2774 Lister API
 
-RFC-2774 proposes a new `lister` API to replace current `list` and `scan`. And we add a new API `list` to return entries directly.
+[RFC-2774](crate::docs::rfcs::rfc_2774_lister_api) proposes a new `lister` API to replace current `list` and `scan`. And we add a new API `list` to return entries directly.
 
 - For listing a directory at once, please use `list()` for convenience.
 - For listing a directory recursively, please use `list_with().delimiter("")` or `lister_with().delimiter("")` instead of `scan()`.
 - For listing in streaming, please use `lister()` or `lister_with()` instead.
+
+### RFC-2779 List With Metakey
+
+[RFC-2779](crate::docs::rfcs::rfc_2779_list_with_metakey) proposes a new `op.list_with().metakey()` API to allow list with metakey and removes `op.metadata(&entry)` API.
+
+Please use `op.list_with().metakey()` instead of `op.metadata(&entry)`, for example:
+
+```rust
+// Before
+let entries: Vec<Entry> = op.list("dir/").await?;
+for entry in entris {
+  let meta = op.metadata(&entry, Metakey::ContentLength | Metakey::ContentType).await?;
+  println!("{} {}", entry.name(), entry.metadata().content_length());
+}
+
+// After
+let entries: Vec<Entry> = op
+  .list_with("dir/")
+  .metakey(Metakey::ContentLength | Metakey::ContentType).await?;
+for entry in entris {
+  println!("{} {}", entry.name(), entry.metadata().content_length());
+}
+```
+
+### RFC-2852: Native Capability
+
+[RFC-2852](crate::docs::rfcs::rfc_2852_native_capability) proposes new `native_capability` and `full_capability` API to allow users to check if the underlying service supports a capability natively.
+
+- `native_capability` returns `true` if the capability is supported natively.
+- `full_capability` returns `true` if the capability is supported, maybe via a layer.
+
+Most of time, you can use `full_capability` to replace `capability` call. But if to check if the capability is supported natively for better performance design, please use `native_capability` instead.
+
+### Buffered Writer
+
+OpenDAL v0.40 added buffered writer support!
+
+Users don't need to specify the `content_length()` for writer anymore!
+
+```diff
+- let mut w = op.writer_with("path/to/file").content_length(1024).await?;
++ let mut w = op.writer_with("path/to/file").await?;
+```
+
+Users can specify the `buffer()` to control the size we call underlying storage:
+
+```rust
+let mut w = op.writer_with("path/to/file").buffer(8 * 1024 * 1024).await?;
+```
+
+If buffer is not specified, we will call underlying storage everytime we call `write`. Otherwise, we will make sure to call underlying storage when buffer is full or `close` is called.
+
+## Raw API
+
+### RFC-3017 Remove Write Copy From
+
+[RFC-3017](opendal::docs::rfcs::rfc_3017_remove_write_copy_from) removes `copy_from` API from the `oio::Write` trait. Users who implements services and layers by hand should remove this API.
 
 # Upgrade to v0.39
 

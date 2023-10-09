@@ -31,6 +31,7 @@ on:
       - "!core/src/services/**"
       - "core/src/services/http/**"
       - ".github/workflows/service_test_http.yml"
+      - "fixtures/http/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -40,7 +41,7 @@ jobs:
   nginx:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Start nginx
         shell: bash
@@ -48,7 +49,8 @@ jobs:
         run: |
           mkdir /tmp/static
           cp -r tests/data/* /tmp/static
-          nginx -c `pwd`/src/services/http/fixtures/nginx.conf
+          cd ..
+          nginx -c `pwd`/fixtures/http/nginx.conf
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -71,7 +73,7 @@ jobs:
         os:
           - ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # caddy 2.5.2 can't pass our test cases for https://github.com/caddyserver/caddy/issues/4923
       # Use the latest beta version instead

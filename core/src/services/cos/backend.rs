@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -35,11 +34,6 @@ use super::writer::CosWriter;
 use crate::raw::*;
 use crate::services::cos::writer::CosWriters;
 use crate::*;
-
-/// The minimum multipart size of COS is 1 MiB.
-///
-/// ref: <https://www.tencentcloud.com/document/product/436/14112>
-const MINIMUM_MULTIPART_SIZE: usize = 1024 * 1024;
 
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
@@ -249,7 +243,7 @@ pub struct CosBackend {
 impl Accessor for CosBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = oio::TwoWaysWriter<CosWriters, oio::AtLeastBufWriter<CosWriters>>;
+    type Writer = CosWriters;
     type BlockingWriter = ();
     type Pager = CosPager;
     type BlockingPager = ();
@@ -259,7 +253,7 @@ impl Accessor for CosBackend {
         am.set_scheme(Scheme::Cos)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
@@ -271,12 +265,24 @@ impl Accessor for CosBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_append: true,
-                write_can_sink: true,
+                write_can_multi: true,
                 write_with_content_type: true,
                 write_with_cache_control: true,
                 write_with_content_disposition: true,
-                write_without_content_length: true,
+                // The min multipart size of COS is 1 MiB.
+                //
+                // ref: <https://www.tencentcloud.com/document/product/436/14112>
+                write_multi_min_size: Some(1024 * 1024),
+                // The max multipart size of COS is 5 GiB.
+                //
+                // ref: <https://www.tencentcloud.com/document/product/436/14112>
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 delete: true,
                 create_dir: true,
@@ -298,9 +304,12 @@ impl Accessor for CosBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let mut req =
-            self.core
-                .cos_put_object_request(path, Some(0), None, None, None, AsyncBody::Empty)?;
+        let mut req = self.core.cos_put_object_request(
+            path,
+            Some(0),
+            &OpWrite::default(),
+            AsyncBody::Empty,
+        )?;
 
         self.core.sign(&mut req).await?;
 
@@ -318,10 +327,7 @@ impl Accessor for CosBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self
-            .core
-            .cos_get_object(path, args.range(), args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.cos_get_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -338,22 +344,9 @@ impl Accessor for CosBackend {
         let writer = CosWriter::new(self.core.clone(), path, args.clone());
 
         let w = if args.append() {
-            CosWriters::Three(oio::AppendObjectWriter::new(writer))
-        } else if args.content_length().is_some() {
-            CosWriters::One(oio::OneShotWriter::new(writer))
+            CosWriters::Two(oio::AppendObjectWriter::new(writer))
         } else {
-            CosWriters::Two(oio::MultipartUploadWriter::new(writer))
-        };
-
-        let w = if let Some(buffer_size) = args.buffer_size() {
-            let buffer_size = max(MINIMUM_MULTIPART_SIZE, buffer_size);
-
-            let w =
-                oio::AtLeastBufWriter::new(w, buffer_size).with_total_size(args.content_length());
-
-            oio::TwoWaysWriter::Two(w)
-        } else {
-            oio::TwoWaysWriter::One(w)
+            CosWriters::One(oio::MultipartUploadWriter::new(writer))
         };
 
         Ok((RpWrite::default(), w))
@@ -379,10 +372,7 @@ impl Accessor for CosBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self
-            .core
-            .cos_head_object(path, args.if_match(), args.if_none_match())
-            .await?;
+        let resp = self.core.cos_head_object(path, &args).await?;
 
         let status = resp.status();
 
@@ -411,24 +401,12 @@ impl Accessor for CosBackend {
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let mut req = match args.operation() {
-            PresignOperation::Stat(v) => {
+            PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v)?,
+            PresignOperation::Read(v) => self.core.cos_get_object_request(path, v)?,
+            PresignOperation::Write(v) => {
                 self.core
-                    .cos_head_object_request(path, v.if_match(), v.if_none_match())?
+                    .cos_put_object_request(path, None, v, AsyncBody::Empty)?
             }
-            PresignOperation::Read(v) => self.core.cos_get_object_request(
-                path,
-                v.range(),
-                v.if_match(),
-                v.if_none_match(),
-            )?,
-            PresignOperation::Write(v) => self.core.cos_put_object_request(
-                path,
-                None,
-                v.content_type(),
-                v.content_disposition(),
-                v.cache_control(),
-                AsyncBody::Empty,
-            )?,
         };
         self.core.sign_query(&mut req, args.expire()).await?;
 

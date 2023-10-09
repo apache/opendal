@@ -34,7 +34,6 @@ use backon::Retryable;
 use bytes::Bytes;
 use futures::FutureExt;
 use log::warn;
-use tokio::sync::Mutex;
 
 use crate::raw::oio::PageOperation;
 use crate::raw::oio::ReadOperation;
@@ -873,148 +872,148 @@ impl<R: oio::BlockingRead, I: RetryInterceptor> oio::BlockingRead for RetryWrapp
 
 #[async_trait]
 impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let mut backoff = self.builder.build();
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        if let Some(sleep) = self.sleep.as_mut() {
+            ready!(sleep.poll_unpin(cx));
+            self.sleep = None;
+        }
 
-        loop {
-            match self.inner.write(bs.clone()).await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
+        match ready!(self.inner.poll_write(cx, bs)) {
+            Ok(v) => {
+                self.current_backoff = None;
+                Poll::Ready(Ok(v))
+            }
+            Err(err) if !err.is_temporary() => {
+                self.current_backoff = None;
+                Poll::Ready(Err(err))
+            }
+            Err(err) => {
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(backoff) => backoff,
+                    None => {
+                        self.current_backoff = Some(self.builder.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+
+                match backoff.next() {
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         self.notify.intercept(
-                            &e,
+                            &err,
                             dur,
                             &[
                                 ("operation", WriteOperation::Write.into_static()),
                                 ("path", &self.path),
                             ],
                         );
-                        tokio::time::sleep(dur).await;
-                        continue;
+                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                        self.poll_write(cx, bs)
                     }
-                },
+                }
             }
         }
     }
 
-    /// > Ooooooooooops, are you crazy!? Why we need to do `Arc<Mutex<S>>` here? Adding a lock has
-    /// a lot overhead!
-    ///
-    /// Yes, you are right. But we have no choice. This is the only safe way for us to add retry
-    /// support for stream.
-    ///
-    /// And the overhead is acceptable. Based on our benchmark, adding a lock
-    /// that has no conflicts will only cost 5ns.
-    ///
-    /// ```shell
-    /// stream/without_arc_mutex
-    ///                         time:   [10.715 ns 10.729 ns 10.744 ns]
-    ///                         thrpt:  [ 90896 GiB/s  91019 GiB/s  91139 GiB/s]
-    /// stream/with_arc_mutex   time:   [14.891 ns 14.905 ns 14.928 ns]
-    ///                         thrpt:  [ 65418 GiB/s  65517 GiB/s  65581 GiB/s]
-    /// ```
-    ///
-    /// The overhead is constant, which means the overhead will not increase with the size of
-    /// stream. For example, if every `next` call cost 1ms, then the overhead will only take 0.005%
-    /// which is acceptable.
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        let s = Arc::new(Mutex::new(s));
-
-        let mut backoff = self.builder.build();
-
-        loop {
-            match self.inner.sink(size, Box::new(s.clone())).await {
-                Ok(_) => return Ok(()),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
-                    Some(dur) => {
-                        {
-                            use oio::StreamExt;
-
-                            let mut stream = s.lock().await;
-                            // Try to reset this stream.
-                            //
-                            // If error happened, we will return the sink error directly and stop retry.
-                            if stream.reset().await.is_err() {
-                                return Err(e);
-                            }
-                        }
-
-                        self.notify.intercept(
-                            &e,
-                            dur,
-                            &[
-                                ("operation", WriteOperation::Sink.into_static()),
-                                ("path", &self.path),
-                            ],
-                        );
-                        tokio::time::sleep(dur).await;
-                        continue;
-                    }
-                },
-            }
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        if let Some(sleep) = self.sleep.as_mut() {
+            ready!(sleep.poll_unpin(cx));
+            self.sleep = None;
         }
-    }
 
-    async fn abort(&mut self) -> Result<()> {
-        let mut backoff = self.builder.build();
+        match ready!(self.inner.poll_abort(cx)) {
+            Ok(v) => {
+                self.current_backoff = None;
+                Poll::Ready(Ok(v))
+            }
+            Err(err) if !err.is_temporary() => {
+                self.current_backoff = None;
+                Poll::Ready(Err(err))
+            }
+            Err(err) => {
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(backoff) => backoff,
+                    None => {
+                        self.current_backoff = Some(self.builder.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
 
-        loop {
-            match self.inner.abort().await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
+                match backoff.next() {
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         self.notify.intercept(
-                            &e,
+                            &err,
                             dur,
                             &[
                                 ("operation", WriteOperation::Abort.into_static()),
                                 ("path", &self.path),
                             ],
                         );
-                        tokio::time::sleep(dur).await;
-                        continue;
+                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                        self.poll_abort(cx)
                     }
-                },
+                }
             }
         }
     }
 
-    async fn close(&mut self) -> Result<()> {
-        let mut backoff = self.builder.build();
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        if let Some(sleep) = self.sleep.as_mut() {
+            ready!(sleep.poll_unpin(cx));
+            self.sleep = None;
+        }
 
-        loop {
-            match self.inner.close().await {
-                Ok(v) => return Ok(v),
-                Err(e) if !e.is_temporary() => return Err(e),
-                Err(e) => match backoff.next() {
-                    None => return Err(e),
+        match ready!(self.inner.poll_close(cx)) {
+            Ok(v) => {
+                self.current_backoff = None;
+                Poll::Ready(Ok(v))
+            }
+            Err(err) if !err.is_temporary() => {
+                self.current_backoff = None;
+                Poll::Ready(Err(err))
+            }
+            Err(err) => {
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(backoff) => backoff,
+                    None => {
+                        self.current_backoff = Some(self.builder.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+
+                match backoff.next() {
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         self.notify.intercept(
-                            &e,
+                            &err,
                             dur,
                             &[
                                 ("operation", WriteOperation::Close.into_static()),
                                 ("path", &self.path),
                             ],
                         );
-                        tokio::time::sleep(dur).await;
-                        continue;
+                        self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                        self.poll_close(cx)
                     }
-                },
+                }
             }
         }
     }
 }
 
 impl<R: oio::BlockingWrite, I: RetryInterceptor> oio::BlockingWrite for RetryWrapper<R, I> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        { || self.inner.write(bs.clone()) }
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        { || self.inner.write(bs) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -1151,7 +1150,7 @@ mod tests {
 
         fn info(&self) -> AccessorInfo {
             let mut am = AccessorInfo::default();
-            am.set_full_capability(Capability {
+            am.set_native_capability(Capability {
                 read: true,
                 list: true,
                 list_with_delimiter_slash: true,
@@ -1284,7 +1283,7 @@ mod tests {
         fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
             let mut bs = vec![0; 1];
             match ready!(self.poll_read(cx, &mut bs)) {
-                Ok(v) if v == 0 => Poll::Ready(None),
+                Ok(0) => Poll::Ready(None),
                 Ok(v) => Poll::Ready(Some(Ok(Bytes::from(bs[..v].to_vec())))),
                 Err(err) => Poll::Ready(Some(Err(err))),
             }

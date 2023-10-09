@@ -33,7 +33,6 @@ use governor::NegativeMultiDecision;
 use governor::Quota;
 use governor::RateLimiter;
 
-use crate::raw::oio::Streamer;
 use crate::raw::*;
 use crate::*;
 
@@ -217,47 +216,45 @@ impl<R: oio::BlockingRead> oio::BlockingRead for ThrottleWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        let buf_length = NonZeroU32::new(bs.remaining() as u32).unwrap();
 
         loop {
             match self.limiter.check_n(buf_length) {
-                Ok(_) => return self.inner.write(bs).await,
+                Ok(_) => return self.inner.poll_write(cx, bs),
                 Err(negative) => match negative {
                     // the query is valid but the Decider can not accommodate them.
                     NegativeMultiDecision::BatchNonConforming(_, not_until) => {
-                        let wait_time = not_until.wait_time_from(DefaultClock::default().now());
+                        let _ = not_until.wait_time_from(DefaultClock::default().now());
                         // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
-                        tokio::time::sleep(wait_time).await;
+
+                        // FIXME: we should sleep here.
+                        // tokio::time::sleep(wait_time).await;
                     }
                     // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
                     NegativeMultiDecision::InsufficientCapacity(_) => {
-                        return Err(Error::new(
+                        return Poll::Ready(Err(Error::new(
                             ErrorKind::RateLimited,
                             "InsufficientCapacity due to burst size being smaller than the request size",
-                        ))
+                        )))
                     }
                 },
             }
         }
     }
 
-    async fn sink(&mut self, size: u64, s: Streamer) -> Result<()> {
-        self.inner.sink(size, s).await
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_abort(cx)
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_close(cx)
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for ThrottleWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
-        let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
+        let buf_length = NonZeroU32::new(bs.remaining() as u32).unwrap();
 
         loop {
             match self.limiter.check_n(buf_length) {

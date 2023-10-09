@@ -40,6 +40,9 @@ use crate::*;
 
 /// SFTP services support. (only works on unix)
 ///
+/// If you are interested in working on windows, please refer to [this](https://github.com/apache/incubator-opendal/issues/2963) issue.
+/// Welcome to leave your comments or make contributions.
+///
 /// Warning: Maximum number of file holdings is depending on the remote system configuration.
 ///
 /// For example, the default value is 255 in macOS, and 1024 in linux. If you want to open
@@ -232,7 +235,7 @@ impl Accessor for SftpBackend {
         let mut am = AccessorInfo::default();
         am.set_root(self.root.as_str())
             .set_scheme(Scheme::Sftp)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,
@@ -240,7 +243,8 @@ impl Accessor for SftpBackend {
                 read_can_seek: true,
 
                 write: true,
-                write_without_content_length: true,
+                write_can_multi: true,
+
                 create_dir: true,
                 delete: true,
 

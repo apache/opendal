@@ -41,8 +41,11 @@ pub async fn test_list_only(op: Operator) -> Result<()> {
         entries.insert(de.path().to_string(), op.stat(de.path()).await?.mode());
     }
 
-    assert_eq!(entries["normal_file"], EntryMode::FILE);
-    assert_eq!(entries["special_file  !@#$%^&()_+-=;',"], EntryMode::FILE);
+    assert_eq!(entries["normal_file.txt"], EntryMode::FILE);
+    assert_eq!(
+        entries["special_file  !@#$%^&()_+-=;',.txt"],
+        EntryMode::FILE
+    );
 
     assert_eq!(entries["normal_dir/"], EntryMode::DIR);
     assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], EntryMode::DIR);

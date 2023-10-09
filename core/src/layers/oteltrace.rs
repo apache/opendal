@@ -16,7 +16,8 @@
 // under the License.
 
 use std::io;
-use std::task;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -27,7 +28,7 @@ use opentelemetry::trace::FutureExt as TraceFutureExt;
 use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
-use opentelemetry::Context;
+use opentelemetry::Context as TraceContext;
 use opentelemetry::KeyValue;
 
 use crate::raw::*;
@@ -89,7 +90,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("create");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner.create_dir(path, args).with_context(cx).await
     }
 
@@ -121,7 +122,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().copy(from, to, args).with_context(cx).await
     }
 
@@ -131,7 +132,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().rename(from, to, args).with_context(cx).await
     }
 
@@ -140,7 +141,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("stat");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().stat(path, args).with_context(cx).await
     }
 
@@ -149,7 +150,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("delete");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().delete(path, args).with_context(cx).await
     }
 
@@ -168,7 +169,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("batch");
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().batch(args).with_context(cx).await
     }
 
@@ -177,7 +178,7 @@ impl<A: Accessor> LayeredAccessor for OtelTraceAccessor<A> {
         let mut span = tracer.start("presign");
         span.set_attribute(KeyValue::new("path", path.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
-        let cx = Context::current_with_span(span);
+        let cx = TraceContext::current_with_span(span);
         self.inner().presign(path, args).with_context(cx).await
     }
 
@@ -276,23 +277,15 @@ impl<R> OtelTraceWrapper<R> {
 }
 
 impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
-    fn poll_read(
-        &mut self,
-        cx: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> task::Poll<Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf)
     }
 
-    fn poll_seek(
-        &mut self,
-        cx: &mut task::Context<'_>,
-        pos: io::SeekFrom,
-    ) -> task::Poll<Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         self.inner.poll_seek(cx, pos)
     }
 
-    fn poll_next(&mut self, cx: &mut task::Context<'_>) -> task::Poll<Option<Result<Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         self.inner.poll_next(cx)
     }
 }
@@ -313,25 +306,21 @@ impl<R: oio::BlockingRead> oio::BlockingRead for OtelTraceWrapper<R> {
 
 #[async_trait]
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
-    async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.write(bs).await
+    fn poll_write(&mut self, cx: &mut Context<'_>, bs: &dyn oio::WriteBuf) -> Poll<Result<usize>> {
+        self.inner.poll_write(cx, bs)
     }
 
-    async fn sink(&mut self, size: u64, s: oio::Streamer) -> Result<()> {
-        self.inner.sink(size, s).await
+    fn poll_abort(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_abort(cx)
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        self.inner.close().await
+    fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        self.inner.poll_close(cx)
     }
 }
 
 impl<R: oio::BlockingWrite> oio::BlockingWrite for OtelTraceWrapper<R> {
-    fn write(&mut self, bs: Bytes) -> Result<()> {
+    fn write(&mut self, bs: &dyn oio::WriteBuf) -> Result<usize> {
         self.inner.write(bs)
     }
 

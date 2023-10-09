@@ -158,7 +158,7 @@ pub struct SupabaseBackend {
 impl Accessor for SupabaseBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = SupabaseWriter;
+    type Writer = oio::OneShotWriter<SupabaseWriter>;
     type BlockingWriter = ();
     // todo: implement Pager to support list and scan
     type Pager = ();
@@ -169,7 +169,7 @@ impl Accessor for SupabaseBackend {
         am.set_scheme(Scheme::Supabase)
             .set_root(&self.core.root)
             .set_name(&self.core.bucket)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,
@@ -224,16 +224,9 @@ impl Accessor for SupabaseBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         Ok((
             RpWrite::default(),
-            SupabaseWriter::new(self.core.clone(), path, args),
+            oio::OneShotWriter::new(SupabaseWriter::new(self.core.clone(), path, args)),
         ))
     }
 

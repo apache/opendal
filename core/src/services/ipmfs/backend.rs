@@ -21,7 +21,6 @@ use std::str;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -65,7 +64,7 @@ impl IpmfsBackend {
 impl Accessor for IpmfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = IpmfsWriter;
+    type Writer = oio::OneShotWriter<IpmfsWriter>;
     type BlockingWriter = ();
     type Pager = IpmfsPager;
     type BlockingPager = ();
@@ -74,7 +73,7 @@ impl Accessor for IpmfsBackend {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Ipmfs)
             .set_root(&self.root)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 stat: true,
 
                 read: true,
@@ -121,17 +120,10 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            IpmfsWriter::new(self.clone(), path.to_string()),
+            oio::OneShotWriter::new(IpmfsWriter::new(self.clone(), path.to_string())),
         ))
     }
 
@@ -290,7 +282,7 @@ impl IpmfsBackend {
     pub async fn ipmfs_write(
         &self,
         path: &str,
-        body: Bytes,
+        body: oio::ChunkedBytes,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -300,7 +292,8 @@ impl IpmfsBackend {
             percent_encode_path(&p)
         );
 
-        let multipart = Multipart::new().part(FormDataPart::new("data").content(body));
+        let multipart = Multipart::new()
+            .part(FormDataPart::new("data").stream(body.len() as u64, Box::new(body)));
 
         let req: http::request::Builder = Request::post(url);
         let req = multipart.apply(req)?;

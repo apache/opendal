@@ -64,7 +64,7 @@ impl Debug for OnedriveBackend {
 impl Accessor for OnedriveBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Writer = OneDriveWriter;
+    type Writer = oio::OneShotWriter<OneDriveWriter>;
     type BlockingWriter = ();
     type Pager = OnedrivePager;
     type BlockingPager = ();
@@ -73,7 +73,7 @@ impl Accessor for OnedriveBackend {
         let mut ma = AccessorInfo::default();
         ma.set_scheme(Scheme::Onedrive)
             .set_root(&self.root)
-            .set_full_capability(Capability {
+            .set_native_capability(Capability {
                 read: true,
                 write: true,
                 stat: true,
@@ -103,18 +103,11 @@ impl Accessor for OnedriveBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if args.content_length().is_none() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "write without content length is not supported",
-            ));
-        }
-
         let path = build_rooted_abs_path(&self.root, path);
 
         Ok((
             RpWrite::default(),
-            OneDriveWriter::new(self.clone(), args, path),
+            oio::OneShotWriter::new(OneDriveWriter::new(self.clone(), args, path)),
         ))
     }
 
@@ -264,7 +257,7 @@ impl OnedriveBackend {
         &self,
         path: &str,
         size: Option<usize>,
-        content_type: Option<&str>,
+        args: &OpWrite,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let url = format!(
@@ -281,7 +274,7 @@ impl OnedriveBackend {
             req = req.header(header::CONTENT_LENGTH, size)
         }
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 
@@ -293,7 +286,7 @@ impl OnedriveBackend {
     pub(crate) async fn onedrive_chunked_upload(
         &self,
         url: &str,
-        content_type: Option<&str>,
+        args: &OpWrite,
         offset: usize,
         chunk_end: usize,
         total_len: usize,
@@ -310,7 +303,7 @@ impl OnedriveBackend {
         let size = chunk_end - offset + 1;
         req = req.header(header::CONTENT_LENGTH, size.to_string());
 
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
         }
 

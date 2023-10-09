@@ -34,56 +34,8 @@ use crate::Scheme;
 use crate::*;
 
 /// [GoogleDrive](https://drive.google.com/) backend support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] read
-/// - [x] write
-/// - [x] delete
-/// - [ ] copy
-/// - [ ] create
-/// - [ ] list
-/// - [ ] rename
-///
-/// # Notes
-///
-///
-/// # Configuration
-///
-/// - `access_token`: set the access_token for google drive api
-/// - `root`: Set the work directory for backend
-///
-/// You can refer to [`GdriveBuilder`]'s docs for more information
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal::services::Gdrive;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // create backend builder
-///     let mut builder = Gdrive::default();
-///
-///     builder.access_token("xxx").root("/path/to/root");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     let write = op.write("abc.txt", "who are you").await?;
-///     let read = op.read("abc.txt").await?;
-///     let s = String::from_utf8(read).unwrap();
-///     println!("{}", s);
-///     let delete = op.delete("abc.txt").await?;
-///     Ok(())
-/// }
-/// ```
 #[derive(Default)]
+#[doc = include_str!("docs.md")]
 pub struct GdriveBuilder {
     root: Option<String>,
 

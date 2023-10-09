@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 from uuid import uuid4
 
 import opendal
@@ -23,7 +24,7 @@ import pytest
 
 def test_sync_read(operator: opendal.Operator):
     filename = f'random_file_{str(uuid4())}'
-    content = b'w' * 1024
+    content = os.urandom(1024)
     operator.write(filename, content)
 
     read_content = operator.read(filename)
@@ -33,7 +34,7 @@ def test_sync_read(operator: opendal.Operator):
 
 def test_sync_read_stat(operator: opendal.Operator):
     filename = f'random_file_{str(uuid4())}'
-    content = b'w' * 1024
+    content = os.urandom(1024)
     operator.write(filename, content)
 
     metadata = operator.stat(filename)

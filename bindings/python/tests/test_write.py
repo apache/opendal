@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 from uuid import uuid4
 
 import opendal
@@ -23,7 +24,7 @@ import pytest
 
 def test_sync_write(operator: opendal.Operator):
     filename = f'test_file_{str(uuid4())}.txt'
-    content = b'Hello, world!'
+    content = os.urandom(1024)
     size = len(content)
     try:
         operator.write(filename, content)
@@ -39,7 +40,7 @@ def test_sync_write(operator: opendal.Operator):
 
 def test_sync_write_with_non_ascii_name(operator: opendal.Operator):
     filename = '❌😱中文.test'
-    content = b'Hello, world!'
+    content = os.urandom(1024)
     size = len(content)
     try:
         operator.write(filename, content)
@@ -68,7 +69,7 @@ def test_sync_create_dir(operator: opendal.Operator):
 
 def test_sync_delete(operator: opendal.Operator):
     filename = f'test_file_{str(uuid4())}.txt'
-    content = b'Hello, world!'
+    content = os.urandom(1024)
     size = len(content)
     operator.write(filename, content)
     try:

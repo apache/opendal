@@ -223,3 +223,8 @@ pub use self::mysql::Mysql;
 mod sqlite;
 #[cfg(feature = "services-sqlite")]
 pub use self::sqlite::Sqlite;
+
+#[cfg(feature = "services-zookeeper")]
+mod zookeeper;
+#[cfg(feature = "services-zookeeper")]
+pub use self::zookeeper::Zookeeper;

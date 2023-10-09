@@ -192,24 +192,6 @@ typedef struct opendal_operator_ptr {
 } opendal_operator_ptr;
 
 /**
- * \brief The configuration for the initialization of opendal_operator_ptr.
- *
- * \note This is also a heap-allocated struct, please free it after you use it
- *
- * @see opendal_operator_new has an example of using opendal_operator_options
- * @see opendal_operator_options_new This function construct the operator
- * @see opendal_operator_options_free This function frees the heap memory of the operator
- * @see opendal_operator_options_set This function allow you to set the options
- */
-typedef struct opendal_operator_options {
-  /**
-   * The pointer to the Rust HashMap<String, String>
-   * Only touch this on judging whether it is NULL.
-   */
-  struct HashMap_String__String *inner;
-} opendal_operator_options;
-
-/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -252,6 +234,29 @@ typedef struct opendal_error {
   enum opendal_code code;
   struct opendal_bytes message;
 } opendal_error;
+
+typedef struct opendal_result_operator_new {
+  struct opendal_operator_ptr *operator_ptr;
+  struct opendal_error *error;
+} opendal_result_operator_new;
+
+/**
+ * \brief The configuration for the initialization of opendal_operator_ptr.
+ *
+ * \note This is also a heap-allocated struct, please free it after you use it
+ *
+ * @see opendal_operator_new has an example of using opendal_operator_options
+ * @see opendal_operator_options_new This function construct the operator
+ * @see opendal_operator_options_free This function frees the heap memory of the operator
+ * @see opendal_operator_options_set This function allow you to set the options
+ */
+typedef struct opendal_operator_options {
+  /**
+   * The pointer to the Rust HashMap<String, String>
+   * Only touch this on judging whether it is NULL.
+   */
+  struct HashMap_String__String *inner;
+} opendal_operator_options;
 
 /**
  * \brief The result type returned by opendal's read operation.
@@ -419,7 +424,7 @@ extern "C" {
  *   the string.
  * * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
  */
-const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
+struct opendal_result_operator_new opendal_operator_new(const char *scheme,
                                                         const struct opendal_operator_options *options);
 
 /**

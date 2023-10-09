@@ -74,18 +74,18 @@ impl opendal_internal_error {
 
 /// \brief The opendal error type for C binding, containing an error code and corresponding error
 /// message.
-/// 
+///
 /// The normal operations returns a pointer to the opendal_error, and the **nullptr normally
 /// represents no error has taken placed**. If any error has taken place, the caller should check
 /// the error code and print the error message.
-/// 
+///
 /// The error code is represented in opendal_code, which is a enum on different type of errors.
 /// The error messages is represented in opendal_bytes, which is a non-null terminated byte array.
-/// 
+///
 /// \note 1. The error message is on heap, so the error needs to be freed by the caller, by calling
 ///       opendal_error_free. 2. The error message is not null terminated, so the caller should
 ///       never use "%s" to print the error message.
-/// 
+///
 /// @see opendal_code
 /// @see opendal_bytes
 /// @see opendal_error_free
@@ -103,6 +103,12 @@ impl opendal_error {
         let code = error.error_code();
         let c_str = format!("{}", error.0);
         let message = opendal_bytes::new(c_str.into_bytes());
+        opendal_error { code, message }
+    }
+
+    pub(crate) fn manual_error(code: opendal_code, message: impl Into<String>) -> Self {
+        let message_str = message.into();
+        let message = opendal_bytes::new(message_str.into_bytes());
         opendal_error { code, message }
     }
 

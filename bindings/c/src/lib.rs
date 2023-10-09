@@ -36,6 +36,7 @@ use std::str::FromStr;
 use ::opendal as od;
 use error::opendal_error;
 use result::opendal_result_list;
+use result::opendal_result_operator_new;
 use types::opendal_blocking_lister;
 
 use crate::result::opendal_result_is_exist;
@@ -91,16 +92,29 @@ use crate::types::opendal_operator_ptr;
 pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,
     options: *const opendal_operator_options,
-) -> *const opendal_operator_ptr {
+) -> opendal_result_operator_new {
     if scheme.is_null() {
-        return std::ptr::null();
+        let error = opendal_error::manual_error(
+            error::opendal_code::OPENDAL_CONFIG_INVALID,
+            "The scheme given is pointing at NULL",
+        );
+        let result = opendal_result_operator_new {
+            operator_ptr: std::ptr::null_mut(),
+            error: Box::into_raw(Box::new(error)),
+        };
+        return result;
     }
 
     let scheme_str = unsafe { std::ffi::CStr::from_ptr(scheme).to_str().unwrap() };
     let scheme = match od::Scheme::from_str(scheme_str) {
         Ok(s) => s,
-        Err(_) => {
-            return std::ptr::null();
+        Err(e) => {
+            let e = opendal_error::from_opendal_error(e);
+            let result = opendal_result_operator_new {
+                operator_ptr: std::ptr::null_mut(),
+                error: Box::into_raw(Box::new(e)),
+            };
+            return result;
         }
     };
 
@@ -113,15 +127,22 @@ pub unsafe extern "C" fn opendal_operator_new(
 
     let op = match od::Operator::via_map(scheme, map) {
         Ok(o) => o.blocking(),
-        Err(_) => {
-            return std::ptr::null();
+        Err(e) => {
+            let e = opendal_error::from_opendal_error(e);
+            let result = opendal_result_operator_new {
+                operator_ptr: std::ptr::null_mut(),
+                error: Box::into_raw(Box::new(e)),
+            };
+            return result;
         }
     };
 
     // this prevents the operator memory from being dropped by the Box
     let op = opendal_operator_ptr::from(Box::into_raw(Box::new(op)));
-
-    Box::into_raw(Box::new(op))
+    opendal_result_operator_new {
+        operator_ptr: Box::into_raw(Box::new(op)),
+        error: std::ptr::null_mut(),
+    }
 }
 
 /// \brief Blockingly write raw bytes to `path`.

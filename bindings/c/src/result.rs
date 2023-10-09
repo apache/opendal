@@ -24,6 +24,13 @@ use crate::error::opendal_error;
 use crate::types::opendal_blocking_lister;
 use crate::types::opendal_bytes;
 use crate::types::opendal_metadata;
+use crate::types::opendal_operator_ptr;
+
+#[repr(C)]
+pub struct opendal_result_operator_new {
+    pub operator_ptr: *mut opendal_operator_ptr,
+    pub error: *mut opendal_error,
+}
 
 /// \brief The result type returned by opendal's read operation.
 ///

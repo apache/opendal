@@ -1,6 +1,8 @@
 build/
+docs/
 
-# Ignore everything under 'examples'
+*.o
+
 examples/*
 !examples/
 !examples/*.h

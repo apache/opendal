@@ -21,27 +21,24 @@ import opendal
 import pytest
 
 
-@pytest.fixture
-def random_file(operator: opendal.Operator) -> dict:
+def test_sync_read(operator: opendal.Operator):
     filename = f'random_file_{str(uuid4())}'
     content = b'w' * 1024
     operator.write(filename, content)
-    return {
-        'filename': filename,
-        'content': content,
-    }
+
+    read_content = operator.read(filename)
+    assert read_content is not None
+    assert read_content == content
 
 
-def test_sync_read(operator: opendal.Operator, random_file: dict):
-    content = operator.read(random_file['filename'])
-    assert content is not None
-    assert content == random_file['content']
+def test_sync_read_stat(operator: opendal.Operator):
+    filename = f'random_file_{str(uuid4())}'
+    content = b'w' * 1024
+    operator.write(filename, content)
 
-
-def test_sync_read_stat(operator: opendal.Operator, random_file: dict):
-    metadata = operator.stat(random_file['filename'])
+    metadata = operator.stat(filename)
     assert metadata is not None
-    assert metadata.content_length == len(random_file['content'])
+    assert metadata.content_length == len(content)
     assert metadata.mode.is_file()
 
 

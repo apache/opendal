@@ -124,12 +124,15 @@ struct PrometheusClientMetrics {
     request_duration_seconds: Family<OperationLabels, Histogram>,
     /// The histogram of bytes
     bytes_histogram: Family<OperationLabels, Histogram>,
+    /// The counter of bytes
+    bytes_total: Family<OperationLabels, Counter>,
 }
 
 impl PrometheusClientMetrics {
     pub fn register(registry: &mut Registry) -> Self {
         let requests_total = Family::default();
         let errors_total = Family::default();
+        let bytes_total = Family::default();
         let request_duration_seconds = Family::<OperationLabels, _>::new_with_constructor(|| {
             let buckets = histogram::exponential_buckets(0.01, 2.0, 16);
             Histogram::new(buckets)
@@ -139,19 +142,21 @@ impl PrometheusClientMetrics {
             Histogram::new(buckets)
         });
 
-        registry.register("opendal_requests_total", "", requests_total.clone());
-        registry.register("opendal_errors_total", "", errors_total.clone());
+        registry.register("opendal_requests", "", requests_total.clone());
+        registry.register("opendal_errors", "", errors_total.clone());
         registry.register(
             "opendal_request_duration_seconds",
             "",
             request_duration_seconds.clone(),
         );
         registry.register("opendal_bytes_histogram", "", bytes_histogram.clone());
+        registry.register("opendal_bytes", "", bytes_total.clone());
         Self {
             requests_total,
             errors_total,
             request_duration_seconds,
             bytes_histogram,
+            bytes_total,
         }
     }
 
@@ -174,6 +179,7 @@ impl PrometheusClientMetrics {
         self.bytes_histogram
             .get_or_create(&labels)
             .observe(bytes as f64);
+        self.bytes_total.get_or_create(&labels).inc_by(bytes as u64);
     }
 
     fn observe_request_duration(&self, scheme: Scheme, op: Operation, duration: Duration) {

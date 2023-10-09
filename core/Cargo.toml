@@ -50,6 +50,7 @@ default = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
+  "services-d1",
 ]
 
 # Build docs or not.
@@ -120,6 +121,7 @@ services-cos = [
   "reqsign?/services-tencent",
   "reqsign?/reqwest_request",
 ]
+services-d1 = []
 services-dashmap = ["dep:dashmap"]
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]

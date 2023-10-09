@@ -185,6 +185,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Mysql>());
     #[cfg(feature = "services-sqlite")]
     tests.extend(behavior_test::<services::Sqlite>());
+    #[cfg(feature = "services-d1")]
+    tests.extend(behavior_test::<services::D1>());
 
     // Don't init logging while building operator which may break cargo
     // nextest output

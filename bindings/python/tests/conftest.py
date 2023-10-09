@@ -16,6 +16,7 @@
 # under the License.
 
 import os
+import re
 
 import opendal
 import pytest
@@ -24,19 +25,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Define the regex pattern to match "OPENDAL_XXX_TEST"
+pattern = r'^OPENDAL_(\w+)_TEST$'
+regex = re.compile(pattern)
+
 
 @pytest.fixture
 def operator() -> opendal.Operator:
     # Get current service name from envs.
-    service_name = os.environ.get('TEST_SERVICE_NAME')
+    service_name = ''
+    keys = list(os.environ.keys())
+    for key in keys:
+        match = regex.match(key)
+        if match and os.environ.get(key) in ('on', 'true'):
+            service_name = match.group(1).lower()
     if not service_name:
-        raise ValueError('TEST_SERVICE_NAME is not provided.')
-    service_name = service_name.lower()
+        raise ValueError('OPENDAL_XXX_TEST is not founded.')
 
     # Read arguments from envs.
     prefix = f'opendal_{service_name}_'
     config = {}
-    for key in os.environ.keys():
+    for key in keys:
         if key.lower().startswith(prefix):
             config[key[len(prefix):].lower()] = os.environ.get(key)
     

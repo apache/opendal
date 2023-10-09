@@ -303,7 +303,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/python
-        run: TEST_SERVICE_NAME=s3 pytest
+        run: pytest
         env:
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test

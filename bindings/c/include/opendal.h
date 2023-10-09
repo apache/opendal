@@ -229,6 +229,25 @@ typedef struct opendal_bytes {
   uintptr_t len;
 } opendal_bytes;
 
+/**
+ * \brief The opendal error type for C binding, containing an error code and corresponding error
+ * message.
+ *
+ * The normal operations returns a pointer to the opendal_error, and the **nullptr normally
+ * represents no error has taken placed**. If any error has taken place, the caller should check
+ * the error code and print the error message.
+ *
+ * The error code is represented in opendal_code, which is a enum on different type of errors.
+ * The error messages is represented in opendal_bytes, which is a non-null terminated byte array.
+ *
+ * \note 1. The error message is on heap, so the error needs to be freed by the caller, by calling
+ *       opendal_error_free. 2. The error message is not null terminated, so the caller should
+ *       never use "%s" to print the error message.
+ *
+ * @see opendal_code
+ * @see opendal_bytes
+ * @see opendal_error_free
+ */
 typedef struct opendal_error {
   enum opendal_code code;
   struct opendal_bytes message;
@@ -409,7 +428,7 @@ const struct opendal_operator_ptr *opendal_operator_new(const char *scheme,
  * Write the `bytes` into the `path` blockingly by `op_ptr`.
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
- * @NOTE It is important to notice that the `bytes` that is passes in will be consumed by this
+ * \note It is important to notice that the `bytes` that is passes in will be consumed by this
  *       function. Therefore, you should not use the `bytes` after this function returns.
  *
  * @param ptr The opendal_operator_ptr created previously
@@ -678,7 +697,7 @@ struct opendal_result_list opendal_operator_blocking_list(const struct opendal_o
                                                           const char *path);
 
 /**
- * \brief Frees the opendal_error
+ * \brief Frees the opendal_error, ok to call on NULL
  */
 void opendal_error_free(struct opendal_error *ptr);
 
@@ -820,7 +839,7 @@ void opendal_lister_free(const struct opendal_blocking_lister *p);
  *
  * Path is relative to operator's root. Only valid in current operator.
  *
- * @NOTE To free the string, you can directly call free()
+ * \note To free the string, you can directly call free()
  */
 char *opendal_list_entry_path(const struct opendal_list_entry *self);
 
@@ -831,7 +850,7 @@ char *opendal_list_entry_path(const struct opendal_list_entry *self);
  * If this entry is a dir, `Name` MUST endswith `/`
  * Otherwise, `Name` MUST NOT endswith `/`.
  *
- * @NOTE To free the string, you can directly call free()
+ * \note To free the string, you can directly call free()
  */
 char *opendal_list_entry_name(const struct opendal_list_entry *self);
 

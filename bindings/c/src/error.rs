@@ -72,13 +72,29 @@ impl opendal_internal_error {
     }
 }
 
+/// \brief The opendal error type for C binding, containing an error code and corresponding error
+/// message.
+/// 
+/// The normal operations returns a pointer to the opendal_error, and the **nullptr normally
+/// represents no error has taken placed**. If any error has taken place, the caller should check
+/// the error code and print the error message.
+/// 
+/// The error code is represented in opendal_code, which is a enum on different type of errors.
+/// The error messages is represented in opendal_bytes, which is a non-null terminated byte array.
+/// 
+/// \note 1. The error message is on heap, so the error needs to be freed by the caller, by calling
+///       opendal_error_free. 2. The error message is not null terminated, so the caller should
+///       never use "%s" to print the error message.
+/// 
+/// @see opendal_code
+/// @see opendal_bytes
+/// @see opendal_error_free
 #[repr(C)]
 pub struct opendal_error {
     code: opendal_code,
     message: opendal_bytes,
 }
 
-// todo: add free
 impl opendal_error {
     // The caller should sink the error to heap memory and return the pointer
     // that will not be freed by rustc
@@ -90,7 +106,7 @@ impl opendal_error {
         opendal_error { code, message }
     }
 
-    /// \brief Frees the opendal_error
+    /// \brief Frees the opendal_error, ok to call on NULL
     #[no_mangle]
     pub unsafe extern "C" fn opendal_error_free(ptr: *mut opendal_error) {
         if !ptr.is_null() {

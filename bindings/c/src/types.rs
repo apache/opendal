@@ -377,7 +377,7 @@ impl opendal_list_entry {
     ///
     /// Path is relative to operator's root. Only valid in current operator.
     ///
-    /// @NOTE To free the string, you can directly call free()
+    /// \note To free the string, you can directly call free()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_path(&self) -> *mut c_char {
         let s = (*self.inner).path();
@@ -391,7 +391,7 @@ impl opendal_list_entry {
     /// If this entry is a dir, `Name` MUST endswith `/`
     /// Otherwise, `Name` MUST NOT endswith `/`.
     ///
-    /// @NOTE To free the string, you can directly call free()
+    /// \note To free the string, you can directly call free()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_list_entry_name(&self) -> *mut c_char {
         let s = (*self.inner).name();

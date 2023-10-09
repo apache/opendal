@@ -129,7 +129,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// Write the `bytes` into the `path` blockingly by `op_ptr`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @NOTE It is important to notice that the `bytes` that is passes in will be consumed by this
+/// \note It is important to notice that the `bytes` that is passes in will be consumed by this
 ///       function. Therefore, you should not use the `bytes` after this function returns.
 ///
 /// @param ptr The opendal_operator_ptr created previously

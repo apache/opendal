@@ -53,6 +53,7 @@ test:
 memory_leak:
 	$(VALGRIND) $(OBJ_DIR)/bdd
 	$(VALGRIND) $(OBJ_DIR)/list
+	$(VALGRIND) $(OBJ_DIR)/error_msg
 
 .PHONY: doc
 doc:

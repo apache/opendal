@@ -155,8 +155,13 @@ impl Builder for SqliteBuilder {
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );
+        let mgr = SqliteConnectionManager { connection_string };
+        let pool = r2d2::Pool::new(mgr).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "sqlite pool init failed").set_source(err)
+        })?;
+
         Ok(SqliteBackend::new(Adapter {
-            connection_string,
+            pool,
             table,
             key_field,
             value_field,
@@ -165,11 +170,33 @@ impl Builder for SqliteBuilder {
     }
 }
 
+struct SqliteConnectionManager {
+    connection_string: String,
+}
+
+impl r2d2::ManageConnection for SqliteConnectionManager {
+    type Connection = Connection;
+    type Error = Error;
+
+    fn connect(&self) -> Result<Connection> {
+        Connection::open(&self.connection_string)
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "sqlite open error").set_source(err))
+    }
+
+    fn is_valid(&self, conn: &mut Connection) -> Result<()> {
+        conn.execute_batch("").map_err(parse_rusqlite_error)
+    }
+
+    fn has_broken(&self, _: &mut Connection) -> bool {
+        false
+    }
+}
+
 pub type SqliteBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    connection_string: String,
+    pool: r2d2::Pool<SqliteConnectionManager>,
 
     table: String,
     key_field: String,
@@ -179,7 +206,6 @@ pub struct Adapter {
 impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("SqliteAdapter");
-        ds.field("connection_string", &self.connection_string);
         ds.field("table", &self.table);
         ds.field("key_field", &self.key_field);
         ds.field("value_field", &self.value_field);
@@ -198,93 +224,85 @@ impl kv::Adapter for Adapter {
                 write: true,
                 create_dir: true,
                 delete: true,
+                blocking: true,
                 ..Default::default()
             },
         )
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let cloned_path = path.to_string();
-        let cloned_self = self.clone();
+        let this = self.clone();
+        let path = path.to_string();
 
-        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
+        task::spawn_blocking(move || this.blocking_get(&path))
             .await
-            .map_err(Error::from)
-            .and_then(|inner_result| inner_result)
+            .map_err(new_task_join_error)?
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        let conn = self.pool.get().map_err(parse_r2d2_error)?;
+
         let query = format!(
             "SELECT {} FROM {} WHERE `{}` = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let conn = Connection::open(self.connection_string.clone()).map_err(Error::from)?;
-        let mut statement = conn.prepare(&query).map_err(Error::from)?;
+        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
         let result = statement.query_row([path], |row| row.get(0));
         match result {
             Ok(v) => Ok(Some(v)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(err) => Err(Error::from(err)),
+            Err(err) => Err(parse_rusqlite_error(err)),
         }
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let cloned_path = path.to_string();
-        let cloned_value = value.to_vec();
-        let cloned_self = self.clone();
+        let this = self.clone();
+        let path = path.to_string();
+        // FIXME: can we avoid this copy?
+        let value = value.to_vec();
 
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
+        task::spawn_blocking(move || this.blocking_set(&path, &value))
             .await
-            .map_err(Error::from)
-            .and_then(|inner_result| inner_result)
+            .map_err(new_task_join_error)?
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+        let conn = self.pool.get().map_err(parse_r2d2_error)?;
+
         let query = format!(
             "INSERT OR REPLACE INTO `{}` (`{}`, `{}`) VALUES ($1, $2)",
             self.table, self.key_field, self.value_field
         );
-        let conn = Connection::open(self.connection_string.clone()).map_err(Error::from)?;
-        let mut statement = conn.prepare(&query).map_err(Error::from)?;
+        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
         statement
             .execute(params![path, value])
-            .map_err(Error::from)?;
+            .map_err(parse_rusqlite_error)?;
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let cloned_path = path.to_string();
-        let cloned_self = self.clone();
+        let this = self.clone();
+        let path = path.to_string();
 
-        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
+        task::spawn_blocking(move || this.blocking_delete(&path))
             .await
-            .map_err(Error::from)
-            .and_then(|inner_result| inner_result)
+            .map_err(new_task_join_error)?
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        let conn = Connection::open(self.connection_string.clone()).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "Sqlite open error").set_source(err)
-        })?;
+        let conn = self.pool.get().map_err(parse_r2d2_error)?;
+
         let query = format!("DELETE FROM {} WHERE `{}` = $1", self.table, self.key_field);
-        let mut statement = conn.prepare(&query).map_err(Error::from)?;
-        statement.execute([path]).map_err(Error::from)?;
+        let mut statement = conn.prepare(&query).map_err(parse_rusqlite_error)?;
+        statement.execute([path]).map_err(parse_rusqlite_error)?;
         Ok(())
     }
 }
 
-impl From<rusqlite::Error> for Error {
-    fn from(value: rusqlite::Error) -> Error {
-        Error::new(ErrorKind::Unexpected, "unhandled error from sqlite").set_source(value)
-    }
+fn parse_rusqlite_error(err: rusqlite::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "unhandled error from sqlite").set_source(err)
 }
 
-impl From<task::JoinError> for Error {
-    fn from(value: task::JoinError) -> Error {
-        Error::new(
-            ErrorKind::Unexpected,
-            "unhandled error from sqlite when spawning task",
-        )
-        .set_source(value)
-    }
+fn parse_r2d2_error(err: r2d2::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "unhandled error from r2d2").set_source(err)
 }

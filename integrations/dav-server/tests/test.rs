@@ -15,40 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fs;
-use std::process::Command;
-
 use anyhow::Result;
-use assert_cmd::prelude::*;
+use dav_server::davpath::DavPath;
+use dav_server::fs::DavFileSystem;
+use dav_server_opendalfs::OpendalFs;
+use opendal::services::Fs;
+use opendal::Operator;
 
 #[tokio::test]
-async fn test_basic_rm() -> Result<()> {
-    let dir = tempfile::tempdir()?;
-    let dst_path = dir.path().join("dst.txt");
-    let expect = "hello";
-    fs::write(&dst_path, expect)?;
+async fn test() -> Result<()> {
+    let mut builder = Fs::default();
+    builder.root("/tmp");
 
-    let mut cmd = Command::cargo_bin("oli")?;
+    let op = Operator::new(builder)?.finish();
 
-    cmd.arg("rm").arg(dst_path.as_os_str());
-    cmd.assert().success();
+    let webdavfs = OpendalFs::new(op);
 
-    assert!(fs::read_to_string(&dst_path).is_err());
-    Ok(())
-}
+    let metadata = webdavfs
+        .metadata(&DavPath::new("/").unwrap())
+        .await
+        .unwrap();
+    println!("{}", metadata.is_dir());
 
-#[tokio::test]
-async fn test_rm_for_path_in_current_dir() -> Result<()> {
-    let dir = tempfile::tempdir()?;
-    let dst_path = dir.path().join("dst.txt");
-    let expect = "hello";
-    fs::write(&dst_path, expect)?;
-
-    let mut cmd = Command::cargo_bin("oli")?;
-
-    cmd.arg("rm").arg("dst.txt").current_dir(dir.path());
-    cmd.assert().success();
-
-    assert!(fs::read_to_string(&dst_path).is_err());
     Ok(())
 }

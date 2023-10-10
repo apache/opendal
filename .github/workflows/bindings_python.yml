@@ -54,8 +54,10 @@ jobs:
           python -m pip install -e .[test]
       - name: Run behave
         working-directory: "bindings/python"
+        env:
+          OPENDAL_MEMORY_TEST: on
         run: |
-          python -m behave tests
+          pytest -vk TestMemory
 
   linux:
     runs-on: ubuntu-latest
@@ -111,15 +113,14 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
+    permissions:
+      contents: read
+      id-token: write
     needs: [macos, linux, windows]
     steps:
       - uses: actions/download-artifact@v3
         with:
           name: wheels
-      - name: Publish to PyPI
-        uses: PyO3/maturin-action@v1
-        env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      - uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          command: upload
-          args: --skip-existing *
+          skip-existing: true

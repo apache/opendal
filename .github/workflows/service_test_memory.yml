@@ -51,3 +51,26 @@ jobs:
         run: cargo nextest run memory
         env:
           OPENDAL_MEMORY_TEST: on
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Build with maturin
+        working-directory: "bindings/python"
+        run: |
+          python -m pip install -e .[test]
+
+      - name: Test
+        shell: bash
+        working-directory: bindings/python
+        run: pytest -vk TestMemory
+        env:
+          OPENDAL_MEMORY_TEST: on

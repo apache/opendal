@@ -49,7 +49,7 @@ The change lists about this release:
 
 https://github.com/apache/incubator-opendal/compare/v0.39.0...main
 
-Please leave your comments here about this release plan. We will bump the version in repo and start the release process after the discussion.
+Please leave your comments here about this release plan. We will bump the version in the repo and start the release process after the discussion.
 
 Thanks
 
@@ -58,7 +58,7 @@ ${name}
 
 ## Start tracking issues about the next release
 
-Start a tracking issue on Github for the upcoming release to track all tasks that need to be completed.
+Start a tracking issue on GitHub for the upcoming release to track all tasks that need to be completed.
 
 Title:
 
@@ -109,14 +109,15 @@ This issue is used to track tasks of the opendal ${opendal_version} release.
 - [ ] Release Maven artifacts
 - [ ] Send the announcement
 
-For details of each steps, please refer to: https://opendal.apache.org/docs/contributing/release
+For details of each step, please refer to: https://opendal.apache.org/docs/contributing/release
 ```
 
 ## GitHub Side
 
 ### Bump version in project
 
-Bump all version in the project to the new opendal version. Please note that this version is the exact version of the release, not the release candidate version.
+Bump all parts' version in the project to the new opendal version.
+Please note that this version is the exact version of the release, not the release candidate version.
 
 - rust core: bump version in `Cargo.toml`
 - cpp binding: bump version in `bindings/cpp/CMakeLists.txt`
@@ -228,10 +229,11 @@ If the vote failed, click "Drop" to drop the staging Maven artifacts.
 
 :::
 
-### Rescure
+### Rescue
 
 If you accidentally published wrong or unexpected artifacts, like wrong signature files, wrong sha256 files,
-please cancel the release for the current `release_version`, _increase th RC counting_ and reinitiate a release with the new `release_version`.
+please cancel the release for the current `release_version`,
+_increase th RC counting_ and re-initiate a release with the new `release_version`.
 
 ## Voting
 
@@ -304,6 +306,10 @@ https://github.com/apache/incubator-opendal/tree/main/scripts
 To compile from source, please refer to:
 https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md
 
+Here is python script in release to help you verify the release candidate:
+
+./scripts/verify.py
+
 Thanks
 
 ${name}
@@ -311,7 +317,7 @@ ${name}
 
 Example: <https://lists.apache.org/thread/c211gqq2yl15jbxqk4rcnq1bdqltjm5l>
 
-After at least 3 +1 binding vote (from OpenDAL Podling PMC member and committers) and no veto, claim the vote result:
+After at least 3 `+1` binding vote (from OpenDAL Podling PMC member and committers) and no veto, claim the vote result:
 
 Title:
 
@@ -414,6 +420,10 @@ https://github.com/apache/incubator-opendal/tree/main/scripts
 
 To compile from source, please refer to:
 https://github.com/apache/incubator-opendal/blob/main/CONTRIBUTING.md
+
+Here is python script in release to help you verify the release candidate:
+
+./scripts/verify.py
 
 Thanks
 

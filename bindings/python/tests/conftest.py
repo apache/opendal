@@ -15,44 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[workspace]
-default-members = ["core"]
-exclude = ["examples"]
-members = [
-  "core",
-  "core/fuzz",
+from dotenv import load_dotenv
+import pytest
 
-  "bindings/c",
-  "bindings/nodejs",
-  "bindings/python",
-  "bindings/ruby",
-  "bindings/java",
-  "bindings/haskell",
-  "bindings/lua",
-  "bindings/dotnet",
-  "bindings/ocaml",
-  "bindings/php",
-  "bindings/cpp",
 
-  "bin/oli",
-  "bin/oay",
-
-  "integrations/object_store",
-  "integrations/dav-server",
-]
-resolver = "2"
-
-[workspace.package]
-authors = ["OpenDAL Contributors <dev@opendal.apache.org>"]
-edition = "2021"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/incubator-opendal"
-rust-version = "1.65"
-version = "0.41.0"
-
-[workspace.dependencies]
-opendal = { version = "0.41", path = "core" }
-
-[profile.bench]
-debug = true
+load_dotenv()
+pytest_plugins = ("pytest_asyncio",)

@@ -66,7 +66,7 @@ Run some tests:
 
 ```shell
 maturin develop -E test
-behave tests
+OPENDAL_MEMORY_TEST=on pytest -vk TestMemory
 ```
 
 Build API docs:

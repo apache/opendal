@@ -1557,6 +1557,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dav-server-opendalfs"
+version = "0.41.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "chrono",
+ "dav-server",
+ "dirs 5.0.1",
+ "futures",
+ "futures-util",
+ "opendal",
+ "quick-xml 0.29.0",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "deadpool"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3816,7 +3833,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -3872,7 +3889,7 @@ dependencies = [
 
 [[package]]
 name = "object_store_opendal"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3956,7 +3973,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -3988,7 +4005,7 @@ checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 
 [[package]]
 name = "opendal"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "async-backtrace",
@@ -4043,6 +4060,7 @@ dependencies = [
  "prometheus-client",
  "prost",
  "quick-xml 0.30.0",
+ "r2d2",
  "rand 0.8.5",
  "redb",
  "redis",
@@ -4068,7 +4086,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-c"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "bytes",
  "cbindgen",
@@ -4077,7 +4095,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-cpp"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4111,7 +4129,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-hs"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "chrono",
  "log",
@@ -4120,7 +4138,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-java"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "anyhow",
  "jni",
@@ -4140,7 +4158,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-nodejs"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "futures",
  "napi",
@@ -4151,7 +4169,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-ocaml"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "ocaml",
  "ocaml-build",
@@ -4168,7 +4186,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-python"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "futures",
  "opendal",
@@ -5246,6 +5264,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "573015e8ab27661678357f27dc26460738fd2b6c86e46f386fde94cb5d913105"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "r2d2"
+version = "0.8.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51de85fb3fb6524929c8a2eb85e6b6d363de4e8c48f9e2c2eac4944abc181c93"
+dependencies = [
+ "log",
+ "parking_lot 0.12.1",
+ "scheduled-thread-pool",
 ]
 
 [[package]]

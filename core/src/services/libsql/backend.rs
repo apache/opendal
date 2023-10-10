@@ -17,14 +17,23 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::str;
 
 use async_trait::async_trait;
-use libsql_client::{args, Config, Statement, SyncClient, Value};
-use tokio::task;
+use bytes::Bytes;
+use hrana_client_proto::pipeline::{
+    ClientMsg, Response, ServerMsg, StreamExecuteReq, StreamExecuteResult, StreamRequest,
+    StreamResponse, StreamResponseError, StreamResponseOk,
+};
+use hrana_client_proto::Error as PipelineError;
+use hrana_client_proto::{Stmt, StmtResult, Value};
+use http::{Request, Uri};
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
+
+use super::error::parse_error;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -143,15 +152,7 @@ impl Builder for LibsqlBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let conn = match self.connection_string.clone() {
-            Some(v) => v,
-            None => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
-                        .with_context("service", Scheme::Libsql),
-                )
-            }
-        };
+        let conn = self.get_connection_string()?;
 
         let table = match self.table.clone() {
             Some(v) => v,
@@ -175,7 +176,13 @@ impl Builder for LibsqlBuilder {
                 .as_str(),
         );
 
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", Scheme::Libsql)
+        })?;
+
         Ok(LibsqlBackend::new(Adapter {
+            client,
             connection_string: conn,
             auth_token: self.auth_token.clone(),
             table,
@@ -186,11 +193,41 @@ impl Builder for LibsqlBuilder {
     }
 }
 
+impl LibsqlBuilder {
+    fn get_connection_string(&self) -> Result<String> {
+        let connection_string = self
+            .connection_string
+            .clone()
+            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "connection_string is empty"))?;
+
+        let ep_url = connection_string
+            .replace("libsql://", "https://")
+            .parse::<Uri>()
+            .map_err(|e| {
+                Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
+                    .with_context("service", Scheme::Libsql)
+                    .with_context("connection_string", connection_string)
+                    .set_source(e)
+            })?;
+
+        match ep_url.scheme_str() {
+            None => Ok(format!("https://{ep_url}/")),
+            Some("http") | Some("https") => Ok(ep_url.to_string()),
+            Some(s) => Err(
+                Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
+                    .with_context("service", Scheme::Libsql)
+                    .with_context("scheme", s),
+            ),
+        }
+    }
+}
+
 /// Backend for libsql service
 pub type LibsqlBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
+    client: HttpClient,
     connection_string: String,
     auth_token: Option<String>,
 
@@ -216,16 +253,63 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    fn get_config(&self) -> Result<Config> {
-        let mut config = Config::new(self.connection_string.clone().as_str()).map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
+    async fn execute(&self, sql: String, args: Vec<Value>) -> Result<ServerMsg> {
+        let url = format!("{}v2/pipeline", self.connection_string);
+
+        let mut req = Request::post(&url);
+
+        if let Some(auth_token) = self.auth_token.clone() {
+            req = req.header("Authorization", auth_token);
+        }
+
+        let msg = ClientMsg {
+            baton: None,
+            requests: vec![StreamRequest::Execute(StreamExecuteReq {
+                stmt: Stmt {
+                    sql,
+                    args,
+                    named_args: vec![],
+                    want_rows: true,
+                },
+            })],
+        };
+        let body = serde_json::to_string(&msg).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to serialize request")
                 .with_context("service", Scheme::Libsql)
                 .set_source(err)
         })?;
-        if let Some(auth_token) = self.auth_token.clone() {
-            config = config.with_auth_token(auth_token);
+
+        let req = req
+            .body(AsyncBody::Bytes(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+
+        let resp = self.client.send(req).await?;
+
+        if resp.status() != http::StatusCode::OK {
+            return Err(parse_error(resp).await?);
         }
-        Ok(config)
+
+        let bs = resp.into_body().bytes().await?;
+
+        let resp: ServerMsg = serde_json::from_slice(&bs).map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "deserialize json from response").set_source(e)
+        })?;
+
+        if resp.results.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "Unexpected empty response from server",
+            ));
+        }
+
+        if resp.results.len() > 1 {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "Unexpected multiple response from server",
+            ));
+        }
+
+        Ok(resp)
     }
 }
 
@@ -246,100 +330,73 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let cloned_path = path.to_string();
-        let cloned_self = self.clone();
-
-        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
-            .await
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "unhandled error from libsql when spawning task",
-                )
-                .set_source(err)
-            })
-            .and_then(|inner_result| inner_result)
-    }
-
-    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
         let query = format!(
             "SELECT {} FROM {} WHERE `{}` = ? LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let client = SyncClient::from_config(self.get_config()?).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
-        })?;
-        let rs = client
-            .execute(Statement::with_args(query, args!(path)))
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "get failed").set_source(err))?;
-        let val = rs.rows.first().map(|row| row.values.get(0));
-        match val {
-            Some(Some(v)) => match v {
-                Value::Null => Ok(None),
-                Value::Blob { value } => Ok(Some(value.to_owned())),
-                _ => Err(Error::new(ErrorKind::Unexpected, "invalid value type")),
-            },
-            _ => Ok(None),
+        let mut resp = self.execute(query, vec![Value::from(path)]).await?;
+
+        match resp.results.swap_remove(0) {
+            Response::Ok(StreamResponseOk {
+                response:
+                    StreamResponse::Execute(StreamExecuteResult {
+                        result: StmtResult { cols: _, rows, .. },
+                    }),
+            }) => {
+                if rows.is_empty() || rows[0].is_empty() {
+                    return Ok(None);
+                } else {
+                    let val = &rows[0][0];
+                    match val {
+                        Value::Null => Ok(None),
+                        Value::Blob { value } => Ok(Some(value.to_owned())),
+                        _ => Err(Error::new(ErrorKind::Unexpected, "invalid value type")),
+                    }
+                }
+            }
+            Response::Ok(_) => Err(Error::new(
+                ErrorKind::Unexpected,
+                "Unexpected response from server",
+            )),
+            Response::Error(StreamResponseError {
+                error: PipelineError { message },
+            }) => Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("get failed: {}", message).as_str(),
+            )),
         }
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let cloned_path = path.to_string();
-        let cloned_value = value.to_vec();
-        let cloned_self = self.clone();
-
-        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
-            .await
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "unhandled error from libsql when spawning task",
-                )
-                .set_source(err)
-            })
-            .and_then(|inner_result| inner_result)
-    }
-
-    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
         let query = format!(
             "INSERT OR REPLACE INTO `{}` (`{}`, `{}`) VALUES (?, ?)",
             self.table, self.key_field, self.value_field
         );
-        let client = SyncClient::from_config(self.get_config()?).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
-        })?;
-
-        client
-            .execute(Statement::with_args(query, args!(path, value.to_vec())))
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "set failed").set_source(err))?;
-        Ok(())
+        let mut resp = self
+            .execute(query, vec![Value::from(path), Value::from(value.to_vec())])
+            .await?;
+        match resp.results.swap_remove(0) {
+            Response::Ok(_) => Ok(()),
+            Response::Error(StreamResponseError {
+                error: PipelineError { message },
+            }) => Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("set failed: {}", message).as_str(),
+            )),
+        }
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let cloned_path = path.to_string();
-        let cloned_self = self.clone();
-
-        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
-            .await
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "unhandled error from libsql when spawning task",
-                )
-                .set_source(err)
-            })
-            .and_then(|inner_result| inner_result)
-    }
-
-    fn blocking_delete(&self, path: &str) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE `{}` = ?", self.table, self.key_field);
-
-        let client = SyncClient::from_config(self.get_config()?).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
-        })?;
-        client
-            .execute(Statement::with_args(query, args!(path)))
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "delete failed").set_source(err))?;
-        Ok(())
+        let mut resp = self.execute(query, vec![Value::from(path)]).await?;
+        match resp.results.swap_remove(0) {
+            Response::Ok(_) => Ok(()),
+            Response::Error(StreamResponseError {
+                error: PipelineError { message },
+            }) => Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("delete failed: {}", message).as_str(),
+            )),
+        }
     }
 }

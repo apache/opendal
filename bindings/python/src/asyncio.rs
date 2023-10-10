@@ -104,20 +104,20 @@ impl AsyncOperator {
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
             let mut write = this.write_with(&path, bs);
-            if append.is_some() {
-                write = write.append(append.unwrap());
+            if let Some(append) = append {
+                write = write.append(append);
             }
-            if buffer.is_some() {
-                write = write.buffer(buffer.unwrap());
+            if let Some(buffer) = buffer {
+                write = write.buffer(buffer);
             }
-            if content_type.is_some() {
-                write = write.content_type(content_type.unwrap().as_str());
+            if let Some(content_type) = content_type {
+                write = write.content_type(content_type.as_str());
             }
-            if content_disposition.is_some() {
-                write = write.content_disposition(content_disposition.unwrap().as_str());
+            if let Some(content_disposition) = content_disposition {
+                write = write.content_disposition(content_disposition.as_str());
             }
-            if cache_control.is_some() {
-                write = write.cache_control(cache_control.unwrap().as_str());
+            if let Some(cache_control) = cache_control {
+                write = write.cache_control(cache_control.as_str());
             }
             write.await.map_err(format_pyerr)
         })

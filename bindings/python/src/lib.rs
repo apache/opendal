@@ -134,20 +134,20 @@ impl Operator {
     ) -> PyResult<()> {
         let mut write = self.0.write_with(path, bs);
 
-        if append.is_some() {
-            write = write.append(append.unwrap())
+        if let Some(append) = append {
+            write = write.append(append)
         }
-        if buffer.is_some() {
-            write = write.buffer(buffer.unwrap())
+        if let Some(buffer) = buffer {
+            write = write.buffer(buffer)
         }
-        if content_type.is_some() {
-            write = write.content_type(content_type.unwrap())
+        if let Some(content_type) = content_type {
+            write = write.content_type(content_type)
         }
-        if content_disposition.is_some() {
-            write = write.content_disposition(content_disposition.unwrap())
+        if let Some(content_disposition) = content_disposition {
+            write = write.content_disposition(content_disposition)
         }
-        if cache_control.is_some() {
-            write = write.cache_control(cache_control.unwrap())
+        if let Some(cache_control) = cache_control {
+            write = write.cache_control(cache_control)
         }
 
         write.call().map_err(format_pyerr)

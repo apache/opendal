@@ -54,8 +54,10 @@ jobs:
           python -m pip install -e .[test]
       - name: Run behave
         working-directory: "bindings/python"
+        env:
+          OPENDAL_MEMORY_TEST: on
         run: |
-          python -m behave tests
+          pytest -vk TestMemory
 
   linux:
     runs-on: ubuntu-latest

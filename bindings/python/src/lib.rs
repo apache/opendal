@@ -120,8 +120,31 @@ impl Operator {
     }
 
     /// Write bytes into given path.
-    pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
-        self.0.write(path, bs).map_err(format_pyerr)
+    #[pyo3(signature = (path, bs, append=None, buffer=None,
+                        content_type=None, content_disposition=None, cache_control=None))]
+    pub fn write(&self, path: &str, bs: Vec<u8>,
+                 append: Option<bool>, buffer: Option<usize>,
+                 content_type: Option<&str>, content_disposition: Option<&str>,
+                 cache_control: Option<&str>) -> PyResult<()> {
+        let mut write = self.0.write_with(path, bs);
+
+        if append.is_some() {
+            write = write.append(append.unwrap())
+        }
+        if buffer.is_some() {
+            write = write.buffer(buffer.unwrap())
+        }
+        if content_type.is_some() {
+            write = write.content_type(content_type.unwrap())
+        }
+        if content_disposition.is_some() {
+            write = write.content_disposition(content_disposition.unwrap())
+        }
+        if cache_control.is_some() {
+            write = write.cache_control(cache_control.unwrap())
+        }
+
+        write.call().map_err(format_pyerr)
     }
 
     /// Get current path's metadata **without cache** directly.

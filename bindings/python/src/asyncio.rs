@@ -87,11 +87,32 @@ impl AsyncOperator {
     }
 
     /// Write bytes into given path.
-    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: &PyBytes) -> PyResult<&'p PyAny> {
+    #[pyo3(signature = (path, bs, append=None, buffer=None,
+                        content_type=None, content_disposition=None, cache_control=None))]
+    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: &PyBytes,
+                     append: Option<bool>, buffer: Option<usize>,
+                     content_type: Option<String>, content_disposition: Option<String>,
+                     cache_control: Option<String>) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            this.write(&path, bs).await.map_err(format_pyerr)
+            let mut write = this.write_with(&path, bs);
+            if append.is_some() {
+                write = write.append(append.unwrap());
+            }
+            if buffer.is_some() {
+                write = write.buffer(buffer.unwrap());
+            }
+            if content_type.is_some() {
+                write = write.content_type(content_type.unwrap().as_str());
+            }
+            if content_disposition.is_some() {
+                write = write.content_disposition(content_disposition.unwrap().as_str());
+            }
+            if cache_control.is_some() {
+                write = write.cache_control(cache_control.unwrap().as_str());
+            }
+            write.await.map_err(format_pyerr)
         })
     }
 

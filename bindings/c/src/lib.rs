@@ -92,7 +92,7 @@ pub unsafe extern "C" fn opendal_operator_new(
     if scheme.is_null() {
         let error = opendal_error::manual_error(
             error::opendal_code::OPENDAL_CONFIG_INVALID,
-            "The scheme given is pointing at NULL",
+            "The scheme given is pointing at NULL".into(),
         );
         let result = opendal_result_operator_new {
             operator_ptr: std::ptr::null_mut(),

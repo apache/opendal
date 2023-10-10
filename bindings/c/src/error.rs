@@ -19,9 +19,11 @@ use ::opendal as od;
 
 use crate::types::opendal_bytes;
 
-/// The wrapper type for opendal's error, wrapped because of the
-/// orphan rule
-struct opendal_internal_error(od::Error);
+/// \brief The wrapper type for opendal's Rust core error, wrapped because of the
+/// orphan rule.
+/// 
+/// \note User should never use this type directly, use [`opendal_error`] instead.
+struct raw_error(od::Error);
 
 /// \brief The error code for all opendal APIs in C binding.
 /// \todo The error handling is not complete, the error with error message will be
@@ -50,7 +52,7 @@ pub(crate) enum opendal_code {
     OPENDAL_IS_SAME_FILE,
 }
 
-impl opendal_internal_error {
+impl raw_error {
     /// Convert the [`od::ErrorKind`] of [`od::Error`] to [`opendal_code`]
     pub(crate) fn error_code(&self) -> opendal_code {
         let e = &self.0;
@@ -99,16 +101,15 @@ impl opendal_error {
     // The caller should sink the error to heap memory and return the pointer
     // that will not be freed by rustc
     pub(crate) fn from_opendal_error(error: od::Error) -> Self {
-        let error = opendal_internal_error(error);
+        let error = raw_error(error);
         let code = error.error_code();
         let c_str = format!("{}", error.0);
         let message = opendal_bytes::new(c_str.into_bytes());
         opendal_error { code, message }
     }
 
-    pub(crate) fn manual_error(code: opendal_code, message: impl Into<String>) -> Self {
-        let message_str = message.into();
-        let message = opendal_bytes::new(message_str.into_bytes());
+    pub(crate) fn manual_error(code: opendal_code, message: String) -> Self {
+        let message = opendal_bytes::new(message.into_bytes());
         opendal_error { code, message }
     }
 

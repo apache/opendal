@@ -22,7 +22,7 @@ extern "C" {
 #include "opendal.h"
 }
 
-class OpendalErrorMsgTest : public ::testing::Test {
+class OpendalErrorTest : public ::testing::Test {
 protected:
     const opendal_operator_ptr* p;
 
@@ -45,12 +45,13 @@ protected:
 };
 
 // Test no memory leak of error message
-TEST_F(OpendalErrorMsgTest, ErrorReadTest)
+TEST_F(OpendalErrorTest, ErrorReadTest)
 {
     // Initialize a operator for "memory" backend, with no options
     // The read is supposed to fail
     opendal_result_read r = opendal_operator_blocking_read(this->p, "/testpath");
     ASSERT_NE(r.error, nullptr);
+    ASSERT_EQ(r.error->code, OPENDAL_NOT_FOUND);
 
     // Lets check the error message out
     struct opendal_bytes* error_msg = &r.error->message;

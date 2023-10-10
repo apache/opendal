@@ -34,6 +34,7 @@ int main()
     /* The read is supposed to fail */
     opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
     assert(r.error != NULL);
+    assert(r.error->code == OPENDAL_NOT_FOUND);
 
     /* Lets print the error message out */
     struct opendal_bytes* error_msg = &r.error->message;
@@ -41,7 +42,7 @@ int main()
         printf("%c", error_msg->data[i]);
     }
 
-    /* free the error */
+    /* free the error since the error is not NULL */
     opendal_error_free(r.error);
 
     /* the operator_ptr is also heap allocated */

@@ -55,7 +55,7 @@ jobs:
       - name: Run behave
         working-directory: "bindings/python"
         run: |
-          python -m behave tests
+          pytest -vk TestMemory
 
   linux:
     runs-on: ubuntu-latest

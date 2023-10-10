@@ -40,44 +40,93 @@ jobs:
   libsql:
     runs-on: ubuntu-latest
 
-    services:
-      libsql:
-        image: ghcr.io/libsql/sqld:latest
-        ports:
-          - "8080:8080"
-        env:
-          SQLD_MAX_RESPONSE_SIZE: 20971520
-          SQLD_MAX_TOTAL_RESPONSE_SIZE: 209715200
-
     steps:
       - uses: actions/checkout@v4
-      - name: Create table
+      - name: Setup libsql Server
         shell: bash
-        working-directory: core
-        run: |
-            curl --location '127.0.0.1:8080/' \
-            --header 'Content-Type: application/json' \
-            --data '{
-                "statements": [
-                    {"q": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);"}
-                ]
-            }'
+        working-directory: fixtures/libsql
+        run: docker-compose -f docker-compose.yml up -d
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           need-nextest: true
 
+      - name: Create table
+        shell: bash
+        working-directory: core
+        run: |
+            curl --location '127.0.0.1:8080/v2/pipeline' \
+            --header 'Content-Type: application/json' \
+            --data '{
+                "baton": null,
+                "requests": [
+                    {
+                        "type": "execute",
+                        "stmt": {
+                            "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
+                            "args": [],
+                            "want_rows": true
+                        }
+                    }
+                ]
+            }'
+
       - name: Test
         shell: bash
         working-directory: core
-        # The sqld service allows a maximum of 128 connections. If all connections are in use, new connections will be queued and wait for up to 1 second before becoming available. 
-        # And that these connection settings are hard-coded.
-        # See: https://github.com/libsql/sqld/pull/383
-        run: NEXTEST_TEST_THREADS=1 cargo nextest run libsql --features services-libsql
+        run: cargo nextest run libsql --features services-libsql
         env:
           OPENDAL_LIBSQL_TEST: on
           OPENDAL_LIBSQL_CONNECTION_STRING: http://127.0.0.1:8080
           OPENDAL_LIBSQL_TABLE: data
           OPENDAL_LIBSQL_KEY_FIELD: key
           OPENDAL_LIBSQL_VALUE_FIELD: data
+
+  libsql-auth:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup libsql-auth Server
+        shell: bash
+        working-directory: fixtures/libsql
+        run: docker-compose -f docker-compose-auth.yml up -d
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+
+      - name: Create table
+        shell: bash
+        working-directory: core
+        run: |
+            curl --location '127.0.0.1:8080/v2/pipeline' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Bearer eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ' \
+            --data '{
+                "baton": null,
+                "requests": [
+                    {
+                        "type": "execute",
+                        "stmt": {
+                            "sql": "CREATE TABLE IF NOT EXISTS `data` (`key` TEXT PRIMARY KEY NOT NULL CHECK(length(key) <= 255),`data` BLOB);",
+                            "args": [],
+                            "want_rows": true
+                        }
+                    }
+                ]
+            }'
+
+      - name: Test
+        shell: bash
+        working-directory: core
+        run: cargo nextest run libsql --features services-libsql
+        env:
+            OPENDAL_LIBSQL_TEST: on
+            OPENDAL_LIBSQL_CONNECTION_STRING: http://127.0.0.1:8080
+            OPENDAL_LIBSQL_AUTH_TOKEN: eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ
+            OPENDAL_LIBSQL_TABLE: data
+            OPENDAL_LIBSQL_KEY_FIELD: key
+            OPENDAL_LIBSQL_VALUE_FIELD: data

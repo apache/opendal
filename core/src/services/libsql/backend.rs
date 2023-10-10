@@ -259,7 +259,7 @@ impl Adapter {
         let mut req = Request::post(&url);
 
         if let Some(auth_token) = self.auth_token.clone() {
-            req = req.header("Authorization", auth_token);
+            req = req.header("Authorization", format!("Bearer {}", auth_token));
         }
 
         let msg = ClientMsg {

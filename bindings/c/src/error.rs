@@ -21,7 +21,7 @@ use crate::types::opendal_bytes;
 
 /// \brief The wrapper type for opendal's Rust core error, wrapped because of the
 /// orphan rule.
-/// 
+///
 /// \note User should never use this type directly, use [`opendal_error`] instead.
 struct raw_error(od::Error);
 

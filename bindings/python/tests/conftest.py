@@ -16,6 +16,8 @@
 # under the License.
 
 from dotenv import load_dotenv
+import pytest
 
 
 load_dotenv()
+pytest_plugins = ("pytest_asyncio",)

@@ -41,6 +41,7 @@ class AbstractTestSuite(ABC):
             raise ValueError(f"Service {self.service_name} test is not enabled.")
 
         self.operator = opendal.Operator(self.service_name, **self.config)
+        self.async_operator = opendal.AsyncOperator(self.service_name, **self.config)
 
     def test_sync_read(self):
         size = randint(1, 1024)
@@ -51,6 +52,21 @@ class AbstractTestSuite(ABC):
         read_content = self.operator.read(filename)
         assert read_content is not None
         assert read_content == content
+
+        self.operator.delete(filename)
+
+    @pytest.mark.asyncio
+    async def test_async_read(self):
+        size = randint(1, 1024)
+        filename = f"random_file_{str(uuid4())}"
+        content = os.urandom(size)
+        await self.async_operator.write(filename, content)
+
+        read_content = await self.async_operator.read(filename)
+        assert read_content is not None
+        assert read_content == content
+
+        await self.async_operator.delete(filename)
 
     def test_sync_read_stat(self):
         size = randint(1, 1024)
@@ -63,9 +79,32 @@ class AbstractTestSuite(ABC):
         assert metadata.content_length == len(content)
         assert metadata.mode.is_file()
 
+        self.operator.delete(filename)
+
+    @pytest.mark.asyncio
+    async def test_async_read_stat(self):
+        size = randint(1, 1024)
+        filename = f"random_file_{str(uuid4())}"
+        content = os.urandom(size)
+        await self.async_operator.write(filename, content)
+
+        metadata = await self.async_operator.stat(filename)
+        assert metadata is not None
+        assert metadata.content_length == len(content)
+        assert metadata.mode.is_file()
+
+        await self.async_operator.delete(filename)
+
+        self.operator.delete(filename)
+
     def test_sync_read_not_exists(self):
         with pytest.raises(FileNotFoundError):
             self.operator.read(str(uuid4()))
+
+    @pytest.mark.asyncio
+    async def test_async_read_not_exists(self):
+        with pytest.raises(FileNotFoundError):
+            await self.async_operator.read(str(uuid4()))
 
     def test_sync_write(self):
         size = randint(1, 1024)
@@ -80,6 +119,20 @@ class AbstractTestSuite(ABC):
 
         self.operator.delete(filename)
 
+    @pytest.mark.asyncio
+    async def test_async_write(self):
+        size = randint(1, 1024)
+        filename = f"test_file_{str(uuid4())}.txt"
+        content = os.urandom(size)
+        size = len(content)
+        await self.async_operator.write(filename, content)
+        metadata = await self.async_operator.stat(filename)
+        assert metadata is not None
+        assert metadata.mode.is_file()
+        assert metadata.content_length == size
+
+        await self.async_operator.delete(filename)
+
     def test_sync_write_with_non_ascii_name(self):
         size = randint(1, 1024)
         filename = f"❌😱中文_{str(uuid4())}.test"
@@ -93,6 +146,20 @@ class AbstractTestSuite(ABC):
 
         self.operator.delete(filename)
 
+    @pytest.mark.asyncio
+    async def test_async_write_with_non_ascii_name(self):
+        size = randint(1, 1024)
+        filename = f"❌😱中文_{str(uuid4())}.test"
+        content = os.urandom(size)
+        size = len(content)
+        await self.async_operator.write(filename, content)
+        metadata = await self.async_operator.stat(filename)
+        assert metadata is not None
+        assert metadata.mode.is_file()
+        assert metadata.content_length == size
+
+        await self.async_operator.delete(filename)
+
     def test_sync_create_dir(self):
         path = f"test_dir_{str(uuid4())}/"
         self.operator.create_dir(path)
@@ -101,6 +168,16 @@ class AbstractTestSuite(ABC):
         assert metadata.mode.is_dir()
 
         self.operator.delete(path)
+
+    @pytest.mark.asyncio
+    async def test_async_create_dir(self):
+        path = f"test_dir_{str(uuid4())}/"
+        await self.async_operator.create_dir(path)
+        metadata = await self.async_operator.stat(path)
+        assert metadata is not None
+        assert metadata.mode.is_dir()
+
+        await self.async_operator.delete(path)
 
     def test_sync_delete(self):
         size = randint(1, 1024)
@@ -111,6 +188,17 @@ class AbstractTestSuite(ABC):
         self.operator.delete(filename)
         with pytest.raises(FileNotFoundError):
             self.operator.stat(filename)
+
+    @pytest.mark.asyncio
+    async def test_async_delete(self):
+        size = randint(1, 1024)
+        filename = f"test_file_{str(uuid4())}.txt"
+        content = os.urandom(size)
+        size = len(content)
+        await self.async_operator.write(filename, content)
+        await self.async_operator.delete(filename)
+        with pytest.raises(FileNotFoundError):
+            await self.operator.stat(filename)
 
 
 class TestS3(AbstractTestSuite):

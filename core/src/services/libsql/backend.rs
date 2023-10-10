@@ -72,13 +72,11 @@ impl LibsqlBuilder {
     ///
     /// This format resembles the url format of the libsql client.
     ///
-    /// for a local database stored in a file:
-    ///
-    /// - `file://data.db`
-    ///
     /// for a remote database connection:
     ///
+    /// - `http://example.com/db`
     /// - `https://example.com/db`
+    /// - `libsql://example.com/db`
     pub fn connection_string(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.connection_string = Some(v.to_string());

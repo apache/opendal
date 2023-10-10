@@ -122,10 +122,16 @@ impl Operator {
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, append=None, buffer=None,
                         content_type=None, content_disposition=None, cache_control=None))]
-    pub fn write(&self, path: &str, bs: Vec<u8>,
-                 append: Option<bool>, buffer: Option<usize>,
-                 content_type: Option<&str>, content_disposition: Option<&str>,
-                 cache_control: Option<&str>) -> PyResult<()> {
+    pub fn write(
+        &self,
+        path: &str,
+        bs: Vec<u8>,
+        append: Option<bool>,
+        buffer: Option<usize>,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        cache_control: Option<&str>,
+    ) -> PyResult<()> {
         let mut write = self.0.write_with(path, bs);
 
         if append.is_some() {

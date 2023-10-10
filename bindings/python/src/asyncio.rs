@@ -89,10 +89,17 @@ impl AsyncOperator {
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, append=None, buffer=None,
                         content_type=None, content_disposition=None, cache_control=None))]
-    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: &PyBytes,
-                     append: Option<bool>, buffer: Option<usize>,
-                     content_type: Option<String>, content_disposition: Option<String>,
-                     cache_control: Option<String>) -> PyResult<&'p PyAny> {
+    pub fn write<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        bs: &PyBytes,
+        append: Option<bool>,
+        buffer: Option<usize>,
+        content_type: Option<String>,
+        content_disposition: Option<String>,
+        cache_control: Option<String>,
+    ) -> PyResult<&'p PyAny> {
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {

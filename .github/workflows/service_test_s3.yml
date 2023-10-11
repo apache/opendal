@@ -33,6 +33,7 @@ on:
       - "bindings/java/**"
       - ".github/workflows/service_test_s3.yml"
       - "fixtures/s3/**"
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

@@ -440,64 +440,50 @@ fn format_pyerr(err: od::Error) -> PyErr {
 /// recognize OpWrite-equivalent options passed as python dict
 pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<od::raw::OpWrite> {
     use od::raw::OpWrite;
-    let buffer = kwargs
-        .and_then(|dict| dict.get_item("buffer"))
-        .map(|v| {
-            v.extract::<usize>()
-                .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))
-        })
-        .transpose()?;
+    let mut op = OpWrite::new();
 
-    let append = kwargs
-        .and_then(|dict| dict.get_item("append"))
-        .map(|v| {
-            v.extract::<bool>()
-                .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))
-        })
-        .transpose()?;
+    let dict = if let Some(kwargs) = kwargs {
+        kwargs
+    } else {
+        return Ok(op);
+    };
 
-    let content_type = kwargs
-        .and_then(|dict| dict.get_item("content_type"))
-        .map(|v| {
-            v.extract::<String>().map_err(|err| {
-                PyValueError::new_err(format!("content_type must be str, got {}", err))
-            })
-        })
-        .transpose()?;
-
-    let content_disposition = kwargs
-        .and_then(|dict| dict.get_item("content_disposition"))
-        .map(|v| {
-            v.extract::<String>().map_err(|err| {
-                PyValueError::new_err(format!("content_disposition must be str, got {}", err))
-            })
-        })
-        .transpose()?;
-
-    let cache_control = kwargs
-        .and_then(|dict| dict.get_item("cache_control"))
-        .map(|v| {
-            v.extract::<String>().map_err(|err| {
-                PyValueError::new_err(format!("cache_control must be str, got {}", err))
-            })
-        })
-        .transpose()?;
-
-    let mut result = OpWrite::new().with_append(append.unwrap_or(false));
-    if let Some(buffer) = buffer {
-        result = result.with_buffer(buffer);
-    }
-    if let Some(content_type) = content_type {
-        result = result.with_content_type(content_type.as_str());
-    }
-    if let Some(content_disposition) = content_disposition {
-        result = result.with_content_disposition(content_disposition.as_str());
-    }
-    if let Some(cache_control) = cache_control {
-        result = result.with_cache_control(cache_control.as_str());
+    if let Some(append) = dict.get_item("append") {
+        let v = append
+            .extract::<bool>()
+            .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
+        op = op.with_append(v);
     }
 
-    Ok(result)
+    if let Some(buffer) = dict.get_item("buffer") {
+        let v = buffer
+            .extract::<usize>()
+            .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))?;
+        op = op.with_buffer(v);
+    }
+
+    if let Some(content_type) = dict.get_item("content_type") {
+        let v = content_type.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_type must be str, got {}", err))
+        })?;
+        op = op.with_content_type(v.as_str());
+    }
+
+    if let Some(content_disposition) = dict.get_item("content_disposition") {
+        let v = content_disposition.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_disposition must be str, got {}", err))
+        })?;
+        op = op.with_content_disposition(v.as_str());
+    }
+
+    if let Some(cache_control) = dict.get_item("cache_control") {
+        let v = cache_control.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("cache_control must be str, got {}", err))
+        })?;
+        op = op.with_cache_control(v.as_str());
+    }
+
+    Ok(op)
 }
 
 /// OpenDAL Python binding

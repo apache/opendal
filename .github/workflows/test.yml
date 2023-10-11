@@ -59,3 +59,8 @@ jobs:
     needs: [plan]
     if: fromJson(needs.plan.outputs.plan).fs
     uses: ./.github/workflows/service_test_fs.yml
+
+  s3:
+    needs: [plan]
+    if: fromJson(needs.plan.outputs.plan).s3
+    uses: ./.github/workflows/service_test_s3.yml

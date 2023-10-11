@@ -33,9 +33,9 @@ on:
 #      - ".github/workflows/service_test_fs.yml"
   workflow_call:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+#concurrency:
+#  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+#  cancel-in-progress: true
 
 jobs:
   local_fs:

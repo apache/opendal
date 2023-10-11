@@ -87,6 +87,16 @@ TEST_F(OpendalBddTest, FeatureTest)
         EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
     }
 
+    // The blocking file "test" must have content "Hello, World!" and read into buffer
+    int length = this->content.length();
+    unsigned char buffer[this->content.length()];
+    code = opendal_operator_blocking_read_with_buffer(this->p, this->path.c_str(),
+                                                      buffer, length);
+    EXPECT_EQ(code, OPENDAL_OK);
+    for (int i = 0; i < this->content.length(); i++) {
+        EXPECT_EQ(this->content[i], buffer[i]);
+    }
+
     // The blocking file should be deleted
     error = opendal_operator_blocking_delete(this->p, this->path.c_str());
     EXPECT_EQ(error, nullptr);

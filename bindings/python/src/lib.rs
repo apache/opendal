@@ -120,34 +120,49 @@ impl Operator {
     }
 
     /// Write bytes into given path.
-    #[pyo3(signature = (path, bs, append=None, buffer=None,
-                        content_type=None, content_disposition=None, cache_control=None))]
-    pub fn write(
-        &self,
-        path: &str,
-        bs: Vec<u8>,
-        append: Option<bool>,
-        buffer: Option<usize>,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-    ) -> PyResult<()> {
+    #[pyo3(signature = (path, bs, **kwargs))]
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
         let mut write = self.0.write_with(path, bs);
 
-        if let Some(append) = append {
-            write = write.append(append)
-        }
-        if let Some(buffer) = buffer {
-            write = write.buffer(buffer)
-        }
-        if let Some(content_type) = content_type {
-            write = write.content_type(content_type)
-        }
-        if let Some(content_disposition) = content_disposition {
-            write = write.content_disposition(content_disposition)
-        }
-        if let Some(cache_control) = cache_control {
-            write = write.cache_control(cache_control)
+        if let Some(kwargs) = kwargs {
+            if let Some(append) = kwargs.get_item("append") {
+                let append = append.extract::<bool>().map_err(|err| {
+                    PyValueError::new_err(format!("append must be bool, got {}", err))
+                })?;
+                write = write.append(append)
+            }
+
+            if let Some(buffer) = kwargs.get_item("buffer") {
+                let buffer = buffer.extract::<usize>().map_err(|err| {
+                    PyValueError::new_err(format!("buffer must be int, got {}", err))
+                })?;
+                write = write.buffer(buffer)
+            }
+
+            if let Some(content_type) = kwargs.get_item("content_type") {
+                let content_type = content_type.extract::<String>().map_err(|err| {
+                    PyValueError::new_err(format!("content_type must be str, got {}", err))
+                })?;
+                write = write.content_type(content_type.as_str())
+            }
+
+            if let Some(content_disposition) = kwargs.get_item("content_disposition") {
+                let content_disposition =
+                    content_disposition.extract::<String>().map_err(|err| {
+                        PyValueError::new_err(format!(
+                            "content_disposition must be str, got {}",
+                            err
+                        ))
+                    })?;
+                write = write.content_disposition(content_disposition.as_str())
+            }
+
+            if let Some(cache_control) = kwargs.get_item("cache_control") {
+                let cache_control = cache_control.extract::<String>().map_err(|err| {
+                    PyValueError::new_err(format!("cache_control must be str, got {}", err))
+                })?;
+                write = write.cache_control(cache_control.as_str())
+            }
         }
 
         write.call().map_err(format_pyerr)

@@ -17,10 +17,13 @@ This service can be used to:
 ## Configuration
 
 - `root`: Set the working directory of `OpenDAL`
-- `connection_string`: Set the connection string of postgres server
-- `table`: Set the table of sqlite
-- `key_field`: Set the key field of sqlite
-- `value_field`: Set the value field of sqlite
+- `token`: Set the token of cloudflare api
+- `account_identifier`: Set the account identifier of d1
+- `database_identifier`: Set the database identifier of d1
+- `endpoint`: Set the endpoint of d1 service
+- `table`: Set the table name of the d1 service to read/write
+- `key_field`: Set the key field of d1
+- `value_field`: Set the value field of d1
 
 ## Example
 
@@ -28,21 +31,31 @@ This service can be used to:
 
 ```rust
 use anyhow::Result;
-use opendal::services::Sqlite;
+use opendal::services::D1;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Sqlite::default();
-    builder.root("/");
-    builder.connection_string("file//abc.db");
-    builder.table("your_table");
-    // key field type in the table should be compatible with Rust's &str like text
-    builder.key_field("key");
-    // value field type in the table should be compatible with Rust's Vec<u8> like bytea
-    builder.value_field("value");
+    let mut builder = D1::default();
+    builder
+        .token("token")
+        .account_identifier("account_identifier")
+        .database_identifier("database_identifier")
+        .table("table")
+        .key_field("key_field")
+        .value_field("value_field");
 
     let op = Operator::new(builder)?.finish();
+    let source_path = "ALFKI";
+    // set value to d1 "opendal test value" as Vec<u8>
+    let value = "opendal test value".as_bytes();
+    // write value to d1, the key is source_path
+    op.write(source_path, value).await?;
+    // read value from d1, the key is source_path
+    let v = op.read(source_path).await?;
+    assert_eq!(v, value);
+    // delete value from d1, the key is source_path
+    op.delete(source_path).await?;
     Ok(())
 }
 ```

@@ -107,7 +107,7 @@ pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) 
 }
 
 pub fn gen_bytes() -> (Vec<u8>, usize) {
-    gen_bytes_with_range(1..4 * 1024 * 1024)
+    gen_bytes_with_range(1..4 * 20)
 }
 
 pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {

@@ -132,6 +132,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Ipfs>());
     #[cfg(feature = "services-ipmfs")]
     tests.extend(behavior_test::<services::Ipmfs>());
+    #[cfg(feature = "services-libsql")]
+    tests.extend(behavior_test::<services::Libsql>());
     #[cfg(feature = "services-memcached")]
     tests.extend(behavior_test::<services::Memcached>());
     #[cfg(feature = "services-memory")]

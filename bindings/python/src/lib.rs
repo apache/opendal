@@ -122,22 +122,19 @@ impl Operator {
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
-        let write_options = WriteOptions::from_kwargs(kwargs)?;
-        let mut write = self.0.write_with(path, bs);
-        if let Some(append) = write_options.append {
-            write = write.append(append);
-        }
-        if let Some(buffer) = write_options.buffer {
+        let opwrite = build_opwrite(kwargs)?;
+        let mut write = self.0.write_with(path, bs).append(opwrite.append());
+        if let Some(buffer) = opwrite.buffer() {
             write = write.buffer(buffer);
         }
-        if let Some(content_type) = write_options.content_type {
-            write = write.content_type(content_type.as_str());
+        if let Some(content_type) = opwrite.content_type() {
+            write = write.content_type(content_type);
         }
-        if let Some(content_disposition) = write_options.content_disposition {
-            write = write.content_disposition(content_disposition.as_str());
+        if let Some(content_disposition) = opwrite.content_disposition() {
+            write = write.content_disposition(content_disposition);
         }
-        if let Some(cache_control) = write_options.cache_control {
-            write = write.cache_control(cache_control.as_str());
+        if let Some(cache_control) = opwrite.cache_control() {
+            write = write.cache_control(cache_control);
         }
 
         write.call().map_err(format_pyerr)
@@ -440,70 +437,67 @@ fn format_pyerr(err: od::Error) -> PyErr {
     }
 }
 
-/// options in a write operation, shared by Operator.write() and AsyncOperator.write()
-struct WriteOptions {
-    append: Option<bool>,
-    buffer: Option<usize>,
-    content_type: Option<String>,
-    content_disposition: Option<String>,
-    cache_control: Option<String>,
-}
-
-impl WriteOptions {
-    pub fn from_kwargs(kwargs: Option<&PyDict>) -> PyResult<WriteOptions> {
-        let buffer = kwargs
-            .and_then(|dict| dict.get_item("buffer"))
-            .map(|v| {
-                v.extract::<usize>().map_err(|err| {
-                    PyValueError::new_err(format!("buffer must be usize, got {}", err))
-                })
-            })
-            .transpose()?;
-
-        let append = kwargs
-            .and_then(|dict| dict.get_item("append"))
-            .map(|v| {
-                v.extract::<bool>().map_err(|err| {
-                    PyValueError::new_err(format!("append must be bool, got {}", err))
-                })
-            })
-            .transpose()?;
-
-        let content_type = kwargs
-            .and_then(|dict| dict.get_item("content_type"))
-            .map(|v| {
-                v.extract::<String>().map_err(|err| {
-                    PyValueError::new_err(format!("content_type must be str, got {}", err))
-                })
-            })
-            .transpose()?;
-
-        let content_disposition = kwargs
-            .and_then(|dict| dict.get_item("content_disposition"))
-            .map(|v| {
-                v.extract::<String>().map_err(|err| {
-                    PyValueError::new_err(format!("content_disposition must be str, got {}", err))
-                })
-            })
-            .transpose()?;
-
-        let cache_control = kwargs
-            .and_then(|dict| dict.get_item("cache_control"))
-            .map(|v| {
-                v.extract::<String>().map_err(|err| {
-                    PyValueError::new_err(format!("cache_control must be str, got {}", err))
-                })
-            })
-            .transpose()?;
-
-        Ok(WriteOptions {
-            buffer,
-            append,
-            content_type,
-            content_disposition,
-            cache_control,
+/// recognize OpWrite-equivalent options passed as python dict
+pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<od::raw::OpWrite> {
+    use od::raw::OpWrite;
+    let buffer = kwargs
+        .and_then(|dict| dict.get_item("buffer"))
+        .map(|v| {
+            v.extract::<usize>()
+                .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))
         })
+        .transpose()?;
+
+    let append = kwargs
+        .and_then(|dict| dict.get_item("append"))
+        .map(|v| {
+            v.extract::<bool>()
+                .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))
+        })
+        .transpose()?;
+
+    let content_type = kwargs
+        .and_then(|dict| dict.get_item("content_type"))
+        .map(|v| {
+            v.extract::<String>().map_err(|err| {
+                PyValueError::new_err(format!("content_type must be str, got {}", err))
+            })
+        })
+        .transpose()?;
+
+    let content_disposition = kwargs
+        .and_then(|dict| dict.get_item("content_disposition"))
+        .map(|v| {
+            v.extract::<String>().map_err(|err| {
+                PyValueError::new_err(format!("content_disposition must be str, got {}", err))
+            })
+        })
+        .transpose()?;
+
+    let cache_control = kwargs
+        .and_then(|dict| dict.get_item("cache_control"))
+        .map(|v| {
+            v.extract::<String>().map_err(|err| {
+                PyValueError::new_err(format!("cache_control must be str, got {}", err))
+            })
+        })
+        .transpose()?;
+
+    let mut result = OpWrite::new().with_append(append.unwrap_or(false));
+    if let Some(buffer) = buffer {
+        result = result.with_buffer(buffer);
     }
+    if let Some(content_type) = content_type {
+        result = result.with_content_type(content_type.as_str());
+    }
+    if let Some(content_disposition) = content_disposition {
+        result = result.with_content_disposition(content_disposition.as_str());
+    }
+    if let Some(cache_control) = cache_control {
+        result = result.with_cache_control(cache_control.as_str());
+    }
+
+    Ok(result)
 }
 
 /// OpenDAL Python binding

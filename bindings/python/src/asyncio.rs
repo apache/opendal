@@ -36,12 +36,12 @@ use tokio::io::AsyncSeekExt;
 use tokio::sync::Mutex;
 
 use crate::build_operator;
+use crate::build_opwrite;
 use crate::format_pyerr;
 use crate::layers;
 use crate::Entry;
 use crate::Metadata;
 use crate::PresignedRequest;
-use crate::WriteOptions;
 
 /// `AsyncOperator` is the entry for all public async APIs
 ///
@@ -96,25 +96,22 @@ impl AsyncOperator {
         bs: &PyBytes,
         kwargs: Option<&PyDict>,
     ) -> PyResult<&'p PyAny> {
-        let write_options = WriteOptions::from_kwargs(kwargs)?;
+        let opwrite = build_opwrite(kwargs)?;
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            let mut write = this.write_with(&path, bs);
-            if let Some(append) = write_options.append {
-                write = write.append(append);
-            }
-            if let Some(buffer) = write_options.buffer {
+            let mut write = this.write_with(&path, bs).append(opwrite.append());
+            if let Some(buffer) = opwrite.buffer() {
                 write = write.buffer(buffer);
             }
-            if let Some(content_type) = write_options.content_type {
-                write = write.content_type(content_type.as_str());
+            if let Some(content_type) = opwrite.content_type() {
+                write = write.content_type(content_type);
             }
-            if let Some(content_disposition) = write_options.content_disposition {
-                write = write.content_disposition(content_disposition.as_str());
+            if let Some(content_disposition) = opwrite.content_disposition() {
+                write = write.content_disposition(content_disposition);
             }
-            if let Some(cache_control) = write_options.cache_control {
-                write = write.cache_control(cache_control.as_str());
+            if let Some(cache_control) = opwrite.cache_control() {
+                write = write.cache_control(cache_control);
             }
             write.await.map_err(format_pyerr)
         })

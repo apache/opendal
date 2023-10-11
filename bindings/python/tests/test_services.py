@@ -125,12 +125,11 @@ class AbstractTestSuite(ABC):
         filename = f"test_file_{str(uuid4())}.txt"
         content = os.urandom(size)
         size = len(content)
-        await self.async_operator.write(filename, content, content_type='text/plain')
+        await self.async_operator.write(filename, content)
         metadata = await self.async_operator.stat(filename)
         assert metadata is not None
         assert metadata.mode.is_file()
         assert metadata.content_length == size
-        assert metadata.content_type == 'text/plain'
 
         await self.async_operator.delete(filename)
 

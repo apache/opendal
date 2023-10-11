@@ -122,47 +122,22 @@ impl Operator {
     /// Write bytes into given path.
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
+        let write_options = WriteOptions::from_kwargs(kwargs)?;
         let mut write = self.0.write_with(path, bs);
-
-        if let Some(kwargs) = kwargs {
-            if let Some(append) = kwargs.get_item("append") {
-                let append = append.extract::<bool>().map_err(|err| {
-                    PyValueError::new_err(format!("append must be bool, got {}", err))
-                })?;
-                write = write.append(append)
-            }
-
-            if let Some(buffer) = kwargs.get_item("buffer") {
-                let buffer = buffer.extract::<usize>().map_err(|err| {
-                    PyValueError::new_err(format!("buffer must be int, got {}", err))
-                })?;
-                write = write.buffer(buffer)
-            }
-
-            if let Some(content_type) = kwargs.get_item("content_type") {
-                let content_type = content_type.extract::<String>().map_err(|err| {
-                    PyValueError::new_err(format!("content_type must be str, got {}", err))
-                })?;
-                write = write.content_type(content_type.as_str())
-            }
-
-            if let Some(content_disposition) = kwargs.get_item("content_disposition") {
-                let content_disposition =
-                    content_disposition.extract::<String>().map_err(|err| {
-                        PyValueError::new_err(format!(
-                            "content_disposition must be str, got {}",
-                            err
-                        ))
-                    })?;
-                write = write.content_disposition(content_disposition.as_str())
-            }
-
-            if let Some(cache_control) = kwargs.get_item("cache_control") {
-                let cache_control = cache_control.extract::<String>().map_err(|err| {
-                    PyValueError::new_err(format!("cache_control must be str, got {}", err))
-                })?;
-                write = write.cache_control(cache_control.as_str())
-            }
+        if let Some(append) = write_options.append {
+            write = write.append(append);
+        }
+        if let Some(buffer) = write_options.buffer {
+            write = write.buffer(buffer);
+        }
+        if let Some(content_type) = write_options.content_type {
+            write = write.content_type(content_type.as_str());
+        }
+        if let Some(content_disposition) = write_options.content_disposition {
+            write = write.content_disposition(content_disposition.as_str());
+        }
+        if let Some(cache_control) = write_options.cache_control {
+            write = write.cache_control(cache_control.as_str());
         }
 
         write.call().map_err(format_pyerr)
@@ -462,6 +437,72 @@ fn format_pyerr(err: od::Error) -> PyErr {
         PermissionDenied => PyPermissionError::new_err(err.to_string()),
         Unsupported => PyNotImplementedError::new_err(err.to_string()),
         _ => Error::new_err(err.to_string()),
+    }
+}
+
+/// options in a write operation, shared by Operator.write() and AsyncOperator.write()
+struct WriteOptions {
+    append: Option<bool>,
+    buffer: Option<usize>,
+    content_type: Option<String>,
+    content_disposition: Option<String>,
+    cache_control: Option<String>,
+}
+
+impl WriteOptions {
+    pub fn from_kwargs(kwargs: Option<&PyDict>) -> PyResult<WriteOptions> {
+        let buffer = kwargs
+            .and_then(|dict| dict.get_item("buffer"))
+            .map(|v| {
+                v.extract::<usize>().map_err(|err| {
+                    PyValueError::new_err(format!("buffer must be usize, got {}", err))
+                })
+            })
+            .transpose()?;
+
+        let append = kwargs
+            .and_then(|dict| dict.get_item("append"))
+            .map(|v| {
+                v.extract::<bool>().map_err(|err| {
+                    PyValueError::new_err(format!("append must be bool, got {}", err))
+                })
+            })
+            .transpose()?;
+
+        let content_type = kwargs
+            .and_then(|dict| dict.get_item("content_type"))
+            .map(|v| {
+                v.extract::<String>().map_err(|err| {
+                    PyValueError::new_err(format!("content_type must be str, got {}", err))
+                })
+            })
+            .transpose()?;
+
+        let content_disposition = kwargs
+            .and_then(|dict| dict.get_item("content_disposition"))
+            .map(|v| {
+                v.extract::<String>().map_err(|err| {
+                    PyValueError::new_err(format!("content_disposition must be str, got {}", err))
+                })
+            })
+            .transpose()?;
+
+        let cache_control = kwargs
+            .and_then(|dict| dict.get_item("cache_control"))
+            .map(|v| {
+                v.extract::<String>().map_err(|err| {
+                    PyValueError::new_err(format!("cache_control must be str, got {}", err))
+                })
+            })
+            .transpose()?;
+
+        Ok(WriteOptions {
+            buffer,
+            append,
+            content_type,
+            content_disposition,
+            cache_control,
+        })
     }
 }
 

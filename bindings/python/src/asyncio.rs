@@ -41,6 +41,7 @@ use crate::layers;
 use crate::Entry;
 use crate::Metadata;
 use crate::PresignedRequest;
+use crate::WriteOptions;
 
 /// `AsyncOperator` is the entry for all public async APIs
 ///
@@ -87,36 +88,32 @@ impl AsyncOperator {
     }
 
     /// Write bytes into given path.
-    #[pyo3(signature = (path, bs, append=None, buffer=None,
-                        content_type=None, content_disposition=None, cache_control=None))]
+    #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write<'p>(
         &'p self,
         py: Python<'p>,
         path: String,
         bs: &PyBytes,
-        append: Option<bool>,
-        buffer: Option<usize>,
-        content_type: Option<String>,
-        content_disposition: Option<String>,
-        cache_control: Option<String>,
+        kwargs: Option<&PyDict>,
     ) -> PyResult<&'p PyAny> {
+        let write_options = WriteOptions::from_kwargs(kwargs)?;
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
             let mut write = this.write_with(&path, bs);
-            if let Some(append) = append {
+            if let Some(append) = write_options.append {
                 write = write.append(append);
             }
-            if let Some(buffer) = buffer {
+            if let Some(buffer) = write_options.buffer {
                 write = write.buffer(buffer);
             }
-            if let Some(content_type) = content_type {
+            if let Some(content_type) = write_options.content_type {
                 write = write.content_type(content_type.as_str());
             }
-            if let Some(content_disposition) = content_disposition {
+            if let Some(content_disposition) = write_options.content_disposition {
                 write = write.content_disposition(content_disposition.as_str());
             }
-            if let Some(cache_control) = cache_control {
+            if let Some(cache_control) = write_options.cache_control {
                 write = write.cache_control(cache_control.as_str());
             }
             write.await.map_err(format_pyerr)

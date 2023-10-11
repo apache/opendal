@@ -333,8 +333,8 @@ pub unsafe extern "C" fn opendal_operator_blocking_read_with_buffer(
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.reader(path) {
         Ok(mut reader) => {
-            let mut buf = unsafe { slice::from_raw_parts_mut(buffer, buffer_len) };
-            match reader.read(&mut buf) {
+            let buf = unsafe { slice::from_raw_parts_mut(buffer, buffer_len) };
+            match reader.read(buf) {
                 Ok(_) => opendal_code::OPENDAL_OK,
                 Err(_) => opendal_code::OPENDAL_UNEXPECTED,
             }

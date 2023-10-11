@@ -15,44 +15,47 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Fs
+name: Test
 
 on:
-#  push:
-#    branches:
-#      - main
-#  pull_request:
-#    branches:
-#      - main
-#    paths:
-#      - "core/src/**"
-#      - "core/tests/**"
-#      - "!core/src/docs/**"
-#      - "!core/src/services/**"
-#      - "core/src/services/fs/**"
-#      - ".github/workflows/service_test_fs.yml"
-  workflow_call:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
-  local_fs:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      plan: ${{ steps.get-changes.outputs.plan }}
+
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo test services_fs
-        env:
-          OPENDAL_FS_TEST: on
-          OPENDAL_FS_ROOT: ${{ runner.temp }}/
+        with:
+          # fetch depth set to 0 to make sure we have correct diff result.
+          fetch-depth: 0
+
+      - name: Get Changes
+        id: get-changes  # ID is set so we can reference outputs in this step
+        run: |
+          git fetch origin main:main
+          FILES_CHANGED=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
+          echo "Files changed:"
+          echo "$FILES_CHANGED"
+
+          PLAN=$(./scripts/workflow_planner.py $FILES_CHANGED)
+          echo "Plan:"
+          echo "$PLAN"
+
+          echo "::set-output name=plan::$PLAN"
+
+  fs:
+    needs: [plan]
+    if: fromJson(needs.plan.outputs.plan).fs
+    uses: ./.github/workflows/service_test_fs.yml

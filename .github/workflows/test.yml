@@ -53,7 +53,7 @@ jobs:
           echo "Plan:"
           echo "$PLAN"
 
-          echo "::set-output name=plan::$PLAN"
+          echo "plan=$PLAN" >> $GITHUB_OUTPUT
 
   fs:
     needs: [plan]

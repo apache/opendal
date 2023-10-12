@@ -25,12 +25,12 @@ use persy;
 use tokio::task;
 
 use crate::raw::adapters::kv;
+use crate::raw::*;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
-use crate::raw::*;
 
 /// persy service support.
 #[doc = include_str!("docs.md")]

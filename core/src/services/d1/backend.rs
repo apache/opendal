@@ -304,31 +304,34 @@ impl kv::Adapter for Adapter {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let body = resp.into_body().bytes().await?;
-                let body = de::from_slice::<D1Response>(&body);
-                if let Ok(body) = body {
-                    if body.success {
-                        if let Some(result) = body.result.get(0) {
-                            if let Some(value) = result.results.get(0) {
-                                match value {
-                                    Value::Object(s) => {
-                                        let value = s.get(&self.value_field);
-                                        match value {
-                                            Some(Value::Array(s)) => {
-                                                let mut v = Vec::new();
-                                                for i in s {
-                                                    if let Value::Number(n) = i {
-                                                        v.push(n.as_u64().unwrap() as u8);
-                                                    }
-                                                }
-                                                return Ok(Some(v));
-                                            }
-                                            _ => return Ok(None),
+                if let Ok(body) = de::from_slice::<D1Response>(&body) {
+                    if !body.success {
+                        return Ok(None);
+                    }
+                    let Some(result) = body.result.get(0) else {
+                        return Ok(None);
+                    };
+                    let Some(value) = result.results.get(0) else {
+                        return Ok(None);
+                    };
+
+                    match value {
+                        Value::Object(s) => {
+                            let value = s.get(&self.value_field);
+                            match value {
+                                Some(Value::Array(s)) => {
+                                    let mut v = Vec::new();
+                                    for i in s {
+                                        if let Value::Number(n) = i {
+                                            v.push(n.as_u64().unwrap() as u8);
                                         }
                                     }
-                                    _ => return Ok(None),
+                                    return Ok(Some(v));
                                 }
+                                _ => return Ok(None),
                             }
                         }
+                        _ => return Ok(None),
                     }
                 }
                 Ok(None)
@@ -369,35 +372,5 @@ impl kv::Adapter for Adapter {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_something_async() -> Result<()> {
-        let mut builder = D1Builder::default();
-        builder
-            .token("AvVw_T7HbYZz-tWpVV7ytwQqFkD0IPv60grGLA_v")
-            .account_identifier("b386f5d906b87949002b545dec889cd5")
-            .database_identifier("16aba954-2a17-4dd5-94bc-bbea9232a889")
-            .table("Customers")
-            .key_field("CustomerID")
-            .value_field("CompanyName");
-
-        let op = Operator::new(builder)?.finish();
-        let source_path = "ALFKI";
-        // set value to d1 "opendal test value" as Vec<u8>
-        let value = "opendal test value".as_bytes();
-        // write value to d1, the key is source_path
-        op.write(source_path, value).await?;
-        // read value from d1, the key is source_path
-        let v = op.read(source_path).await?;
-        assert_eq!(v, value);
-        // delete value from d1, the key is source_path
-        op.delete(source_path).await?;
-        Ok(())
     }
 }

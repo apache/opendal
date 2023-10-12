@@ -231,4 +231,5 @@ pub use self::sqlite::Sqlite;
 
 #[cfg(feature = "services-d1")]
 mod d1;
+#[cfg(feature = "services-d1")]
 pub use self::d1::D1;

@@ -55,12 +55,15 @@ jobs:
 
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
 
-  fs:
-    needs: [plan]
-    if: fromJson(needs.plan.outputs.plan).fs
-    uses: ./.github/workflows/service_test_fs.yml
+#  build_core:
+#    needs: [plan]
+#    if: fromJson(needs.plan.outputs.plan).components.core
+#    uses: ./.github/workflows/service_test_fs.yml
 
-  s3:
+  test_core:
     needs: [plan]
-    if: fromJson(needs.plan.outputs.plan).s3
-    uses: ./.github/workflows/service_test_s3.yml
+    if: fromJson(needs.plan.outputs.plan).components.core
+    secrets: inherit
+    uses: ./.github/workflows/test_core.yml
+    with:
+      plan: needs.plan.outputs.plan

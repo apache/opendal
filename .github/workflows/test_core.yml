@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,33 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-import json
+name: Test Core
 
-def plan(changed_files):
-    jobs = {
-        "components": {
-            "core": True
-        },
-        "services": {
-            "fs": True,
-        },
-        "cases": [
-            {
-                "os": "ubuntu-latest",
-                "setup": "local-fs",
-                "service": "fs"
-            },
-            {
-                "os": "windows-latest",
-                "setup": "local-fs",
-                "service": "fs"
-            }
-        ]
-    }
-    return json.dumps(jobs)
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
 
-if __name__ == '__main__':
-    changed_files = sys.argv[1:]
-    result = plan(changed_files)
-    print(result)
+jobs:
+  test_core:
+    runs-on: ${{ matrix.cases.os }}
+    strategy:
+      matrix:
+        cases: ${{ fromJson(inputs.plan).cases }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - name: Test Core
+        uses: ./.github/actions/test_core
+        with:
+            setup: ${{ matrix.cases.setup }}
+            service: ${{ matrix.cases.service }}

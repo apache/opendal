@@ -48,7 +48,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          cargo nextest archive --all-features --archive-file ./target/core-test.tar.zst
+          cargo nextest archive --features ${{ fromJson(inputs.plan).features }} --archive-file ./target/core-test.tar.zst
 
       - name: Upload
         uses: actions/upload-artifact@v2

@@ -38,6 +38,7 @@ jobs:
         with:
           need-nextest: true
           need-protoc: true
+          need-rocksdb: true
 
       - name: Download
         uses: actions/download-artifact@v2

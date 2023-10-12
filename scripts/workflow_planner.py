@@ -27,7 +27,7 @@ def plan(changed_files):
         "services": {
             "fs": True,
         },
-        "features": "",
+        "features": "services-fs,services-s3",
         "os": [
           "ubuntu-latest",
           "windows-latest"

@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).core }}
-    uses: ./.github/workflows/core.test.yml
+    uses: ./.github/workflows/core_test.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ matrix.cases }}

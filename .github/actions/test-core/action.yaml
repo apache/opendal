@@ -38,7 +38,8 @@ runs:
                 uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
               - name: Run Test Core
                 shell: bash
-                run: cargo nextest run services_${{ inputs.service }} --archive-file=./target/core-test.tar.zst
+                working-directory: core
+                run: cargo nextest run services_${{ inputs.service }} --archive-file=./core-test.tar.zst
             EOF
       - name: Run
         id: run

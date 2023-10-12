@@ -48,11 +48,12 @@ jobs:
 
       - name: Build
         shell: bash
+        working-directory: core
         run: |
-          cargo nextest archive --features ${{ matrix.features }} --archive-file ./target/core-test.tar.zst
+          cargo nextest archive --features ${{ matrix.features }} --archive-file ./core-test.tar.zst
 
       - name: Upload
         uses: actions/upload-artifact@v2
         with:
           name: core-test
-          path: ./target/core-test.tar.zst
+          path: ./core/core-test.tar.zst

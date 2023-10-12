@@ -44,7 +44,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: core-test
-          path: ./target/core-test.tar.zst
+          path: ./core/core-test.tar.zst
 
       - name: Test Core
         uses: ./.github/actions/test-core

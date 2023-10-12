@@ -145,6 +145,12 @@ typedef struct BlockingLister BlockingLister;
 typedef struct BlockingOperator BlockingOperator;
 
 /**
+ * BlockingReader is designed to read data from given path in an blocking
+ * manner.
+ */
+typedef struct BlockingReader BlockingReader;
+
+/**
  * Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
  *
  * # Notes
@@ -319,6 +325,21 @@ typedef struct opendal_result_read {
    */
   struct opendal_error *error;
 } opendal_result_read;
+
+typedef struct opendal_reader {
+  struct BlockingReader *ptr;
+} opendal_reader;
+
+/**
+ * \brief The result type returned by opendal_operator_reader().
+ * The result type for opendal_operator_reader(), the field `reader` contains the reader
+ * of the path, which is an iterator of the objects under the path. the field `code` represents
+ * whether the stat operation is successful.
+ */
+typedef struct opendal_result_reader {
+  struct opendal_reader *reader;
+  enum opendal_code code;
+} opendal_result_reader;
 
 /**
  * \brief The result type returned by opendal_operator_is_exist().
@@ -602,10 +623,8 @@ struct opendal_result_read opendal_operator_blocking_read(const struct opendal_o
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-enum opendal_code opendal_operator_blocking_read_with_buffer(const struct opendal_operator_ptr *ptr,
-                                                             const char *path,
-                                                             uint8_t *buffer,
-                                                             uintptr_t buffer_len);
+struct opendal_result_reader opendal_operator_blocking_reader(const struct opendal_operator_ptr *ptr,
+                                                              const char *path);
 
 /**
  * \brief Blockingly delete the object in `path`.
@@ -950,6 +969,8 @@ char *opendal_list_entry_name(const struct opendal_list_entry *self);
  * \brief Frees the heap memory used by the opendal_list_entry
  */
 void opendal_list_entry_free(struct opendal_list_entry *ptr);
+
+intptr_t opendal_reader_read(const struct opendal_reader *self, uint8_t *buf, uintptr_t len);
 
 #ifdef __cplusplus
 } // extern "C"

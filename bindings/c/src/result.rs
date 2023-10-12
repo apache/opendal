@@ -41,6 +41,9 @@ pub struct opendal_result_operator_new {
     pub operator_ptr: *mut opendal_operator_ptr,
     pub error: *mut opendal_error,
 }
+=======
+use crate::types::opendal_reader;
+>>>>>>> 86ecc6f48 (Add opendal_operator_blocking_reader)
 
 /// \brief The result type returned by opendal's read operation.
 ///
@@ -96,4 +99,14 @@ pub struct opendal_result_list {
     pub lister: *mut opendal_blocking_lister,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
+}
+
+/// \brief The result type returned by opendal_operator_reader().
+/// The result type for opendal_operator_reader(), the field `reader` contains the reader
+/// of the path, which is an iterator of the objects under the path. the field `code` represents
+/// whether the stat operation is successful.
+#[repr(C)]
+pub struct opendal_result_reader {
+    pub reader: *mut opendal_reader,
+    pub code: opendal_code,
 }

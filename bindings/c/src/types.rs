@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::ffi::CString;
+use std::io::Read;
 use std::os::raw::c_char;
 
 use ::opendal as od;
@@ -405,6 +406,32 @@ impl opendal_list_entry {
         if !ptr.is_null() {
             let _ = unsafe { Box::from_raw((*ptr).inner) };
             let _ = unsafe { Box::from_raw(ptr) };
+        }
+    }
+}
+
+#[repr(C)]
+pub struct opendal_reader {
+    ptr: *mut od::BlockingReader,
+}
+
+impl opendal_reader {
+    pub(crate) fn new(reader: od::BlockingReader) -> Self {
+        Self {
+            ptr: Box::into_raw(Box::new(reader)),
+        }
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_read(&self, buf: *mut u8, len: usize) -> isize {
+        if buf.is_null() {
+            panic!("The buffer given is pointing at NULL");
+        }
+        let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
+        let r = (*self.ptr).read(buf);
+        match r {
+            Ok(n) => n as isize,
+            Err(_) => -1,
         }
     }
 }

@@ -29,9 +29,7 @@ mod error;
 mod result;
 mod types;
 
-use core::slice;
 use std::collections::HashMap;
-use std::io::Read;
 use std::os::raw::c_char;
 use std::str::FromStr;
 
@@ -39,7 +37,9 @@ use ::opendal as od;
 use error::opendal_error;
 use result::opendal_result_list;
 use result::opendal_result_operator_new;
+use result::opendal_result_reader;
 use types::opendal_blocking_lister;
+use types::opendal_reader;
 
 use crate::result::opendal_result_is_exist;
 use crate::result::opendal_result_read;
@@ -317,29 +317,24 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_blocking_read_with_buffer(
+pub unsafe extern "C" fn opendal_operator_blocking_reader(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
-    buffer: *mut u8,
-    buffer_len: usize,
-) -> opendal_code {
+) -> opendal_result_reader {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
-    }
-    if buffer.is_null() {
-        panic!("The buffer given is pointing at NULL");
     }
     let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.reader(path) {
-        Ok(mut reader) => {
-            let buf = unsafe { slice::from_raw_parts_mut(buffer, buffer_len) };
-            match reader.read(buf) {
-                Ok(_) => opendal_code::OPENDAL_OK,
-                Err(_) => opendal_code::OPENDAL_UNEXPECTED,
-            }
-        }
-        Err(e) => opendal_code::from_opendal_error(e),
+        Ok(reader) => opendal_result_reader {
+            reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
+            code: opendal_code::OPENDAL_OK,
+        },
+        Err(e) => opendal_result_reader {
+            reader: std::ptr::null_mut(),
+            code: opendal_code::from_opendal_error(e),
+        },
     }
 }
 

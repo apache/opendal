@@ -70,8 +70,7 @@ jobs:
           echo "Cflags: -I\${includedir}" >> opendal_c.pc
 
           echo "PKG_CONFIG_PATH=$(pwd)" >> $GITHUB_ENV
-
-          cat opendal_c.pc
+          echo "LD_LIBRARY_PATH=$(pwd)" >> $GITHUB_ENV
 
       - name: Run tests
         working-directory: bindings/go

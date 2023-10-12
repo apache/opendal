@@ -26,7 +26,7 @@ on:
 
 jobs:
   core:
-    name: ${{ matrix.cases.service }} on ${{ matrix.cases.setup }}
+    name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     runs-on: ${{ matrix.cases.os }}
     strategy:
       matrix:

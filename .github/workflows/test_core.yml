@@ -35,7 +35,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Test Core
-        uses: ./.github/actions/test_core
+        uses: ./.github/actions/test-core
         with:
             setup: ${{ matrix.cases.setup }}
             service: ${{ matrix.cases.service }}

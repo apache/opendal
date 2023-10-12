@@ -329,12 +329,15 @@ pub unsafe extern "C" fn opendal_operator_blocking_reader(
     match op.reader(path) {
         Ok(reader) => opendal_result_reader {
             reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
-            code: opendal_code::OPENDAL_OK,
+            error: std::ptr::null_mut(),
         },
-        Err(e) => opendal_result_reader {
-            reader: std::ptr::null_mut(),
-            code: opendal_code::from_opendal_error(e),
-        },
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            opendal_result_reader {
+                reader: std::ptr::null_mut(),
+                error: Box::into_raw(e),
+            }
+        }
     }
 }
 

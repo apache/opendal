@@ -327,7 +327,7 @@ typedef struct opendal_result_read {
 } opendal_result_read;
 
 typedef struct opendal_reader {
-  struct BlockingReader *ptr;
+  struct BlockingReader *inner;
 } opendal_reader;
 
 /**
@@ -338,7 +338,7 @@ typedef struct opendal_reader {
  */
 typedef struct opendal_result_reader {
   struct opendal_reader *reader;
-  enum opendal_code code;
+  struct opendal_error *error;
 } opendal_result_reader;
 
 /**
@@ -441,6 +441,11 @@ typedef struct opendal_result_list {
 typedef struct opendal_list_entry {
   struct Entry *inner;
 } opendal_list_entry;
+
+typedef struct opendal_result_reader_read {
+  uintptr_t size;
+  struct opendal_error *error;
+} opendal_result_reader_read;
 
 #ifdef __cplusplus
 extern "C" {
@@ -970,7 +975,11 @@ char *opendal_list_entry_name(const struct opendal_list_entry *self);
  */
 void opendal_list_entry_free(struct opendal_list_entry *ptr);
 
-intptr_t opendal_reader_read(const struct opendal_reader *self, uint8_t *buf, uintptr_t len);
+struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *self,
+                                                      uint8_t *buf,
+                                                      uintptr_t len);
+
+void opendal_reader_free(struct opendal_reader *ptr);
 
 #ifdef __cplusplus
 } // extern "C"

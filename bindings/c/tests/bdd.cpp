@@ -91,12 +91,13 @@ TEST_F(OpendalBddTest, FeatureTest)
     int length = this->content.length();
     unsigned char buffer[this->content.length()];
     opendal_result_reader reader = opendal_operator_blocking_reader(this->p, this->path.c_str());
-    EXPECT_EQ(reader.code, OPENDAL_OK);
-    long size = opendal_reader_read(reader.reader, buffer, length);
-    EXPECT_EQ(size, length);
+    EXPECT_EQ(reader.error, nullptr);
+    auto rst = opendal_reader_read(reader.reader, buffer, length);
+    EXPECT_EQ(rst.size, length);
     for (int i = 0; i < this->content.length(); i++) {
         EXPECT_EQ(this->content[i], buffer[i]);
     }
+    opendal_reader_free(reader.reader);
 
     // The blocking file should be deleted
     error = opendal_operator_blocking_delete(this->p, this->path.c_str());

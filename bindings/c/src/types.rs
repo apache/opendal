@@ -22,6 +22,9 @@ use std::os::raw::c_char;
 
 use ::opendal as od;
 
+use crate::error::opendal_code;
+use crate::error::opendal_error;
+
 /// \brief Used to access almost all OpenDAL APIs. It represents a
 /// operator that provides the unified interfaces provided by OpenDAL.
 ///
@@ -412,26 +415,56 @@ impl opendal_list_entry {
 
 #[repr(C)]
 pub struct opendal_reader {
-    ptr: *mut od::BlockingReader,
+    inner: *mut od::BlockingReader,
+}
+
+#[repr(C)]
+pub struct opendal_result_reader_read {
+    pub size: usize,
+    pub error: *mut opendal_error,
 }
 
 impl opendal_reader {
     pub(crate) fn new(reader: od::BlockingReader) -> Self {
         Self {
-            ptr: Box::into_raw(Box::new(reader)),
+            inner: Box::into_raw(Box::new(reader)),
         }
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_reader_read(&self, buf: *mut u8, len: usize) -> isize {
+    pub unsafe extern "C" fn opendal_reader_read(
+        &self,
+        buf: *mut u8,
+        len: usize,
+    ) -> opendal_result_reader_read {
         if buf.is_null() {
             panic!("The buffer given is pointing at NULL");
         }
         let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
-        let r = (*self.ptr).read(buf);
+        let r = (*self.inner).read(buf);
         match r {
-            Ok(n) => n as isize,
-            Err(_) => -1,
+            Ok(n) => opendal_result_reader_read {
+                size: n,
+                error: std::ptr::null_mut(),
+            },
+            Err(e) => {
+                let e = Box::new(opendal_error::manual_error(
+                    opendal_code::OPENDAL_UNEXPECTED,
+                    e.to_string(),
+                ));
+                opendal_result_reader_read {
+                    size: 0,
+                    error: Box::into_raw(e),
+                }
+            }
+        }
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_free(ptr: *mut opendal_reader) {
+        if !ptr.is_null() {
+            let _ = unsafe { Box::from_raw((*ptr).inner) };
+            let _ = unsafe { Box::from_raw(ptr) };
         }
     }
 }

@@ -32,6 +32,7 @@ on:
 
 jobs:
   build:
+    name: build
     runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v4
@@ -62,7 +63,7 @@ jobs:
           name: ${{ inputs.os }}-core-test
           path: ./core/core-test.tar.zst
 
-  core:
+  test:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     needs: [build]
     runs-on: ${{ inputs.os }}

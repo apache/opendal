@@ -49,7 +49,9 @@ jobs:
           echo "Files changed:"
           echo "$FILES_CHANGED"
 
-          PLAN=$(./scripts/workflow_planner.py $FILES_CHANGED)
+          GITHUB_CONTEXT=${{ toJson(github) }}
+
+          PLAN=$(./scripts/workflow_planner.py $GITHUB_CONTEXT $FILES_CHANGED)
           echo "Plan:"
           echo "$PLAN"
 

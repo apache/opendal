@@ -15,20 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
+name: Core
+
 on:
   workflow_call:
     inputs:
-      plan:
+      os:
+        required: true
+        type: string
+      cases:
+        required: true
+        type: string
+      features:
         required: true
         type: string
 
 jobs:
   build:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include: ${{ fromJson(inputs.plan).matrix }}
+    name: ${{ inputs.os }}
+    runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,10 +55,38 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo nextest archive --features ${{ matrix.features }} --archive-file ./core-test.tar.zst
+          cargo nextest archive --features ${{ inputs.features }} --archive-file ./core-test.tar.zst
 
       - name: Upload
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
-          name: core-test
+          name: ${{ inputs.os }}-core-test
+          path: ./core/${{ inputs.os }}-core-test.tar.zst
+
+  core:
+    name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
+    needs: [build]
+    runs-on: ${{ inputs.os }}
+    strategy:
+      matrix:
+        cases: ${{ fromJson(inputs.cases) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+          need-protoc: true
+          need-rocksdb: true
+
+      - name: Download
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ inputs.os }}-core-test
           path: ./core/core-test.tar.zst
+
+      - name: Test Core
+        uses: ./.github/actions/test-core
+        with:
+            setup: ${{ matrix.cases.setup }}
+            service: ${{ matrix.cases.service }}

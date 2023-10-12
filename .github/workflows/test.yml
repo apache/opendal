@@ -55,19 +55,15 @@ jobs:
 
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
 
-  core_build:
-    name: core build
-    needs: [plan]
-    if: fromJson(needs.plan.outputs.plan).components.core
-    uses: ./.github/workflows/core.build.yml
-    with:
-      plan: ${{ needs.plan.outputs.plan }}
-
   core_test:
     name: core
-    needs: [plan, core_build]
+    needs: [plan]
     if: fromJson(needs.plan.outputs.plan).components.core
-    secrets: inherit
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).core }}
     uses: ./.github/workflows/core.test.yml
     with:
-      plan: ${{ needs.plan.outputs.plan }}
+      os: ${{ matrix.os }}
+      cases: ${{ matrix.cases }}
+      features: ${{ matrix.features }}

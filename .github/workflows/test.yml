@@ -66,4 +66,4 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/test_core.yml
     with:
-      plan: needs.plan.outputs.plan
+      plan: ${{ needs.plan.outputs.plan }}

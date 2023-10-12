@@ -33,7 +33,7 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      plan: ${{ steps.get-changes.outputs.plan }}
+      plan: ${{ steps.plan.outputs.plan }}
 
     steps:
       - uses: actions/checkout@v4
@@ -41,17 +41,28 @@ jobs:
           # fetch depth set to 0 to make sure we have correct diff result.
           fetch-depth: 0
 
-      - name: Get Changes
-        id: get-changes
+      - name: Plan
+        id: plan
         run: |
           git fetch origin main:main
           FILES_CHANGED=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
           echo "Files changed:"
           echo "$FILES_CHANGED"
 
-          GITHUB_CONTEXT=${{ toJson(github) }}
+          event_name="${{ github.event_name }}"
+          repository="${{ github.repository }}"
+          pr_head_full_name="${{ github.event.pull_request.head.full_name }}"
+          pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
 
-          PLAN=$(./scripts/workflow_planner.py $GITHUB_CONTEXT $FILES_CHANGED)
+          has_secrets="False"
+          if [ "$event_name" == "push" ] && [ "$repository" == "apache/incubator-opendal" ]; then
+            has_secrets="True"
+          elif [ "$event_name" == "pull_request" ] && [ "$pr_head_repo_fork" != "true" ]; then
+            has_secrets="True"
+          fi
+          export GITHUB_HAS_SECRETS=$has_secrets
+
+          PLAN=$(./scripts/workflow_planner.py $FILES_CHANGED)
           echo "Plan:"
           echo "$PLAN"
 

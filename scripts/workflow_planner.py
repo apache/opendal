@@ -39,7 +39,7 @@ def check_secrets(github):
     return False
 
 
-def get_provided_cases(github):
+def get_provided_cases():
     root_dir = ".github/services"
 
     cases = [
@@ -57,7 +57,7 @@ def get_provided_cases(github):
     # Check if this workflow needs to read secrets.
     #
     # We will check if pattern `secrets.XXX` exist in content.
-    if not check_secrets(github):
+    if not bool(os.getenv("GITHUB_HAS_SECRETS")):
         cases[:] = [v for v in cases if "secrets." in v["content"]]
 
     return cases
@@ -88,10 +88,10 @@ def calculate_core_cases(cases, changed_files):
 
 
 # Context is the github context: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
-def plan(github, changed_files):
+def plan(changed_files):
     # TODO: add bindings/java, bindings/python in the future.
     components = ["core"]
-    cases = get_provided_cases(github)
+    cases = get_provided_cases()
 
     core_cases = calculate_core_cases(cases, changed_files)
 
@@ -118,9 +118,8 @@ def plan(github, changed_files):
 
 # For quick test:
 #
-# `./scripts/workflow_planner.py '{"event_name": "push", "repository": "apache/incubator-opendal"}' PATH`
+# ./scripts/workflow_planner.py PATH
 if __name__ == "__main__":
-    github = json.loads(sys.argv[1])
-    changed_files = sys.argv[2:]
-    result = plan(github, changed_files)
+    changed_files = sys.argv[1:]
+    result = plan(changed_files)
     print(result)

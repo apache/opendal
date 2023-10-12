@@ -90,3 +90,4 @@ jobs:
         with:
             setup: ${{ matrix.cases.setup }}
             service: ${{ matrix.cases.service }}
+            secrets: ${{ toJson(secrets) }}

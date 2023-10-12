@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Get Changes
-        id: get-changes  # ID is set so we can reference outputs in this step
+        id: get-changes
         run: |
           git fetch origin main:main
           FILES_CHANGED=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
@@ -55,16 +55,19 @@ jobs:
 
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
 
-#  build_core:
-#    needs: [plan]
-#    if: fromJson(needs.plan.outputs.plan).components.core
-#    uses: ./.github/workflows/service_test_fs.yml
-
-  test_core:
-    name: core
+  core_build:
+    name: core build
     needs: [plan]
     if: fromJson(needs.plan.outputs.plan).components.core
+    uses: ./.github/workflows/core.build.yml
+    with:
+      plan: ${{ needs.plan.outputs.plan }}
+
+  core_test:
+    name: core
+    needs: [plan, build_core]
+    if: fromJson(needs.plan.outputs.plan).components.core
     secrets: inherit
-    uses: ./.github/workflows/test_core.yml
+    uses: ./.github/workflows/core.test.yml
     with:
       plan: ${{ needs.plan.outputs.plan }}

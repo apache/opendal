@@ -39,7 +39,7 @@ runs:
               - name: Run Test Core
                 shell: bash
                 working-directory: core
-                run: cargo test services_${{ inputs.service }}
+                run: cargo nextest run services_${{ inputs.service }} --archive-file=./target/core-test.tar.zst
             EOF
       - name: Run
         id: run

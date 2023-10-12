@@ -27,6 +27,11 @@ def plan(changed_files):
         "services": {
             "fs": True,
         },
+        "features": "",
+        "os": [
+          "ubuntu-latest",
+          "windows-latest"
+        ],
         "cases": [
             {
                 "os": "ubuntu-latest",

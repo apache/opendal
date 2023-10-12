@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Core
-
 on:
   workflow_call:
     inputs:
@@ -25,18 +23,35 @@ on:
         type: string
 
 jobs:
-  core:
-    name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
-    runs-on: ${{ matrix.cases.os }}
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        cases: ${{ fromJson(inputs.plan).cases }}
+        os: ${{ fromJson(inputs.plan).os }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - name: Test Core
-        uses: ./.github/actions/test-core
         with:
-            setup: ${{ matrix.cases.setup }}
-            service: ${{ matrix.cases.service }}
+          need-nextest: true
+          need-protoc: true
+
+      # Required by hdfs
+      - name: Setup java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+
+      - name: Build
+        shell: bash
+        run: |
+          cargo nextest archive --all-features --archive-file ./target/core-test.tar.zst
+
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: core-test
+          path: ./target/core-test.tar.zst

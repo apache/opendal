@@ -23,6 +23,7 @@ inputs:
     description: "The secrets for test"
     default: "{}"
 
+# TODO: we should migrate to 1password instead.
 runs:
   using: "composite"
   steps:

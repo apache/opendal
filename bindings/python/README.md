@@ -66,7 +66,7 @@ Run some tests:
 
 ```shell
 maturin develop -E test
-OPENDAL_MEMORY_TEST=on pytest -vk TestMemory
+OPENDAL_MEMORY_TEST=on pytest --service_type=service_memory -v ./tests
 ```
 
 Build API docs:

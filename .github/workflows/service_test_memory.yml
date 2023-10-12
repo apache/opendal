@@ -71,6 +71,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/python
-        run: pytest -vk TestMemory
+        run: pytest --service_type=service_memory -v ./tests
         env:
           OPENDAL_MEMORY_TEST: on

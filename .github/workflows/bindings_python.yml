@@ -57,7 +57,7 @@ jobs:
         env:
           OPENDAL_MEMORY_TEST: on
         run: |
-          pytest -vk TestMemory
+          pytest --service_type=service_memory -v ./tests
 
   linux:
     runs-on: ubuntu-latest

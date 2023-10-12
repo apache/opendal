@@ -21,3 +21,7 @@ import pytest
 
 load_dotenv()
 pytest_plugins = ("pytest_asyncio",)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--service_type", action="store", default="")

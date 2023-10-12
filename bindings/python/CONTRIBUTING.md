@@ -71,7 +71,7 @@ OpenDAL adopts `pytest` for behavior tests:
 
 ```shell
 maturin develop -E test
-OPENDAL_MEMORY_TEST=on pytest -vk TestMemory
+OPENDAL_MEMORY_TEST=on pytest --service_type=service_memory -v ./tests
 ```
 
 ## Docs

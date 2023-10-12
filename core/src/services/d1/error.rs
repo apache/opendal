@@ -23,6 +23,10 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
+use serde_json::de;
+
+use super::model::D1Response;
+
 /// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
@@ -41,8 +45,16 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = String::from_utf8_lossy(&bs);
+    let message = "failed to parse error response";
+    let Ok(body) = de::from_slice::<D1Response>(&bs) else {
+        return Ok(Error::new(kind, &message));
+    };
 
+    let message = body.errors.get(0).map_or(message.to_string(), |e| {
+        e.get("message").map_or(message.to_string(), |m| {
+            m.as_str().unwrap_or(message).to_string()
+        })
+    });
     let mut err = Error::new(kind, &message);
 
     err = with_error_response_context(err, parts);
@@ -52,4 +64,15 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     }
 
     Ok(err)
+}
+
+/// Parse error D1Response into Error.
+pub async fn parse_d1_error(resp: &D1Response) -> Result<Error> {
+    let message = "failed to parse error response";
+    let message = resp.errors.get(0).map_or(message.to_string(), |e| {
+        e.get("message").map_or(message.to_string(), |m| {
+            m.as_str().unwrap_or(message).to_string()
+        })
+    });
+    Ok(Error::new(ErrorKind::Unexpected, &message))
 }

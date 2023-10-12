@@ -16,7 +16,7 @@
 // under the License.
 
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::fmt::Debug;
 
 /// response data from d1
@@ -24,12 +24,14 @@ use std::fmt::Debug;
 pub struct D1Response {
     pub result: Vec<D1Result>,
     pub success: bool,
+    pub errors: Vec<Map<String, Value>>,
+    pub messages: Vec<Map<String, Value>>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct D1Result {
     pub meta: Meta,
-    pub results: Vec<Value>,
+    pub results: Vec<Map<String, Value>>,
     pub success: bool,
 }
 

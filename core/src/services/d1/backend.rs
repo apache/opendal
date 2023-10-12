@@ -27,19 +27,19 @@ use serde_json::{de, Value};
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::ErrorKind;
 use crate::*;
 
-use super::error::parse_error;
+use super::error::{parse_d1_error, parse_error};
 use super::model::D1Response;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct D1Builder {
     token: Option<String>,
-    account_identifier: Option<String>,
-    database_identifier: Option<String>,
+    account_id: Option<String>,
+    database_id: Option<String>,
 
-    endpoint: Option<String>,
     http_client: Option<HttpClient>,
     root: Option<String>,
 
@@ -51,7 +51,6 @@ pub struct D1Builder {
 impl Debug for D1Builder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("D1Builder");
-        ds.field("endpoint", &self.endpoint);
         ds.field("root", &self.root);
         ds.field("table", &self.table);
         ds.field("key_field", &self.key_field);
@@ -74,10 +73,10 @@ impl D1Builder {
     /// Set the account identifier for the cloudflare d1 service.
     ///
     /// get the account identifier from Workers & Pages -> Overview -> Account ID
-    /// default: "account-identifier"
-    pub fn account_identifier(&mut self, account_identifier: &str) -> &mut Self {
-        if !account_identifier.is_empty() {
-            self.account_identifier = Some(account_identifier.to_string());
+    /// If not specified, it will return an error when building.
+    pub fn account_id(&mut self, account_id: &str) -> &mut Self {
+        if !account_id.is_empty() {
+            self.account_id = Some(account_id.to_string());
         }
         self
     }
@@ -85,21 +84,10 @@ impl D1Builder {
     /// Set the database identifier for the cloudflare d1 service.
     ///
     /// get the database identifier from Workers & Pages -> D1 -> [Your Database] -> Database ID
-    /// default: "database-identifier"
-    pub fn database_identifier(&mut self, database_identifier: &str) -> &mut Self {
-        if !database_identifier.is_empty() {
-            self.database_identifier = Some(database_identifier.to_string());
-        }
-        self
-    }
-
-    /// Set endpoint for http backend.
-    ///
-    /// For more information, please refer to [D1 Database API](https://developers.cloudflare.com/api/operations/cloudflare-d1-query-database)
-    /// default: "https://api.cloudflare.com/client/v4"
-    pub fn endpoint(&mut self, v: &str) -> &mut Self {
-        if !v.is_empty() {
-            self.endpoint = Some(v.to_string());
+    /// If not specified, it will return an error when building.
+    pub fn database_id(&mut self, database_id: &str) -> &mut Self {
+        if !database_id.is_empty() {
+            self.database_id = Some(database_id.to_string());
         }
         self
     }
@@ -116,7 +104,7 @@ impl D1Builder {
 
     /// Set the table name of the d1 service to read/write.
     ///
-    /// Default to `kv` if not specified.
+    /// If not specified, it will return an error when building.
     pub fn table(&mut self, table: &str) -> &mut Self {
         if !table.is_empty() {
             self.table = Some(table.to_owned());
@@ -152,14 +140,10 @@ impl Builder for D1Builder {
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = D1Builder::default();
         map.get("token").map(|v| builder.token(v));
-        map.get("account_identifier")
-            .map(|v| builder.account_identifier(v));
-        map.get("database_identifier")
-            .map(|v| builder.database_identifier(v));
+        map.get("account_id").map(|v| builder.account_id(v));
+        map.get("database_id").map(|v| builder.database_id(v));
 
-        map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("root").map(|v| builder.root(v));
-
         map.get("table").map(|v| builder.table(v));
         map.get("key_field").map(|v| builder.key_field(v));
         map.get("value_field").map(|v| builder.value_field(v));
@@ -172,20 +156,19 @@ impl Builder for D1Builder {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
 
-        let account_identifier = self
-            .account_identifier
-            .clone()
-            .unwrap_or_else(|| "account-identifier".to_string());
+        let Some(account_id) = self.account_id.clone() else {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "account_id is required",
+            ));
+        };
 
-        let database_identifier = self
-            .database_identifier
-            .clone()
-            .unwrap_or_else(|| "database-identifier".to_string());
-
-        let endpoint = self
-            .endpoint
-            .clone()
-            .unwrap_or_else(|| "https://api.cloudflare.com/client/v4".to_string());
+        let Some(database_id) = self.database_id.clone() else {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "database_id is required",
+            ));
+        };
 
         let client = if let Some(client) = self.http_client.take() {
             client
@@ -196,7 +179,9 @@ impl Builder for D1Builder {
             })?
         };
 
-        let table = self.table.clone().unwrap_or_else(|| "kv".to_string());
+        let Some(table) = self.table.clone() else {
+            return Err(Error::new(ErrorKind::ConfigInvalid, "table is required"));
+        };
 
         let key_field = self.key_field.clone().unwrap_or_else(|| "key".to_string());
 
@@ -213,9 +198,8 @@ impl Builder for D1Builder {
         );
         Ok(D1Backend::new(Adapter {
             authorization,
-            account_identifier,
-            database_identifier,
-            endpoint,
+            account_id,
+            database_id,
             client,
             table,
             key_field,
@@ -230,12 +214,10 @@ pub type D1Backend = kv::Backend<Adapter>;
 #[derive(Clone)]
 pub struct Adapter {
     authorization: Option<String>,
-    account_identifier: String,
-    database_identifier: String,
+    account_id: String,
+    database_id: String,
 
-    endpoint: String,
     client: HttpClient,
-
     table: String,
     key_field: String,
     value_field: String,
@@ -244,7 +226,6 @@ pub struct Adapter {
 impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("D1Adapter");
-        ds.field("endpoint", &self.endpoint);
         ds.field("table", &self.table);
         ds.field("key_field", &self.key_field);
         ds.field("value_field", &self.value_field);
@@ -256,9 +237,13 @@ impl Adapter {
     fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<AsyncBody>> {
         let p = format!(
             "/accounts/{}/d1/database/{}/query",
-            self.account_identifier, self.database_identifier
+            self.account_id, self.database_id
         );
-        let url: String = format!("{}{}", self.endpoint, percent_encode_path(&p));
+        let url: String = format!(
+            "{}{}",
+            "https://api.cloudflare.com/client/v4",
+            percent_encode_path(&p)
+        );
 
         let mut req = Request::post(&url);
         if let Some(auth) = &self.authorization {
@@ -271,9 +256,8 @@ impl Adapter {
             "params": params,
         });
 
-        let body_string = serde_json::to_string(&json).map_err(new_json_serialize_error)?;
-        let body_bytes = body_string.as_bytes().to_owned();
-        req.body(AsyncBody::Bytes(body_bytes.into()))
+        let body = serde_json::to_vec(&json).map_err(new_json_serialize_error)?;
+        req.body(AsyncBody::Bytes(body.into()))
             .map_err(new_request_build_error)
     }
 }
@@ -304,37 +288,40 @@ impl kv::Adapter for Adapter {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let body = resp.into_body().bytes().await?;
-                if let Ok(body) = de::from_slice::<D1Response>(&body) {
-                    if !body.success {
-                        return Ok(None);
-                    }
-                    let Some(result) = body.result.get(0) else {
-                        return Ok(None);
-                    };
-                    let Some(value) = result.results.get(0) else {
-                        return Ok(None);
-                    };
+                let Ok(body) = de::from_slice::<D1Response>(&body) else {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "failed to parse response",
+                    ));
+                };
+                if !body.success {
+                    return Err(parse_d1_error(&body).await?);
+                }
+                let Some(result) = body.result.get(0) else {
+                    return Ok(None);
+                };
+                let Some(value) = result.results.get(0) else {
+                    return Ok(None);
+                };
 
-                    match value {
-                        Value::Object(s) => {
-                            let value = s.get(&self.value_field);
-                            match value {
-                                Some(Value::Array(s)) => {
-                                    let mut v = Vec::new();
-                                    for i in s {
-                                        if let Value::Number(n) = i {
-                                            v.push(n.as_u64().unwrap() as u8);
-                                        }
-                                    }
-                                    return Ok(Some(v));
-                                }
-                                _ => return Ok(None),
+                let value = value.get(&self.value_field);
+                match value {
+                    Some(Value::Array(s)) => {
+                        let mut v = Vec::new();
+                        for i in s {
+                            if let Value::Number(n) = i {
+                                v.push(n.as_u64().unwrap() as u8);
                             }
                         }
-                        _ => return Ok(None),
+                        return Ok(Some(v));
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "failed to parse response",
+                        ))
                     }
                 }
-                Ok(None)
             }
             _ => Err(parse_error(resp).await?),
         }

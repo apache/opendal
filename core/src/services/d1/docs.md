@@ -39,8 +39,8 @@ async fn main() -> Result<()> {
     let mut builder = D1::default();
     builder
         .token("token")
-        .account_identifier("account_identifier")
-        .database_identifier("database_identifier")
+        .account_id("account_id")
+        .database_id("database_id")
         .table("table")
         .key_field("key_field")
         .value_field("value_field");

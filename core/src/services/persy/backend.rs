@@ -22,6 +22,7 @@ use std::str;
 
 use async_trait::async_trait;
 use persy;
+use tokio::task;
 
 use crate::raw::adapters::kv;
 use crate::Builder;
@@ -175,7 +176,12 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        self.blocking_get(path)
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
+            .await
+            .map_err(Error::from)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
@@ -192,7 +198,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.blocking_set(path, value)
+        let cloned_path = path.to_string();
+        let cloned_value = value.to_vec();
+        let cloned_self = self.clone();
+
+        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
+            .await
+            .map_err(Error::from)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -208,7 +221,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        self.blocking_delete(path)
+        let cloned_path = path.to_string();
+        let cloned_self = self.clone();
+
+        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
+            .await
+            .map_err(Error::from)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {

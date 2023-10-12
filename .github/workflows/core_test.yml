@@ -61,7 +61,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ inputs.os }}-core-test
-          path: ./core/${{ inputs.os }}-core-test.tar.zst
+          path: ./core/core-test.tar.zst
 
   core:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}

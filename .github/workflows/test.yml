@@ -65,5 +65,5 @@ jobs:
     uses: ./.github/workflows/core_test.yml
     with:
       os: ${{ matrix.os }}
-      cases: ${{ matrix.cases }}
+      cases: ${{ toJson(matrix.cases) }}
       features: ${{ matrix.features }}

@@ -97,21 +97,29 @@ def plan(changed_files):
 
     jobs = {}
 
-    if len(core_cases)> 0:
+    if len(core_cases) > 0:
         jobs["components"] = {"core": True}
         jobs["core"] = [
             {
                 "os": "ubuntu-latest",
-                "features": ",".join(set([f"services-{v['service']}" for v in core_cases])),
-                "cases": [{"setup": v["setup"], 'service': v['service']} for v in core_cases],
+                "features": ",".join(
+                    set([f"services-{v['service']}" for v in core_cases])
+                ),
+                "cases": [
+                    {"setup": v["setup"], "service": v["service"]} for v in core_cases
+                ],
             },
-            # fs is the only services need to run upon windows, let's hard code it here.
-            {
-                "os": "windows-latest",
-                "features": "services-fs",
-                "cases": [{"setup": "local-fs", "service": "fs"}],
-            }
         ]
+
+        # fs is the only services need to run upon windows, let's hard code it here.
+        if "fs" in [v["service"] for v in core_cases]:
+            jobs["core"].append(
+                {
+                    "os": "windows-latest",
+                    "features": "services-fs",
+                    "cases": [{"setup": "local-fs", "service": "fs"}],
+                }
+            )
 
     return json.dumps(jobs)
 

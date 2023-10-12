@@ -56,7 +56,7 @@ jobs:
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
 
   core_test:
-    name: core
+    name: core / ${{ matrix.os }}
     needs: [plan]
     if: fromJson(needs.plan.outputs.plan).components.core
     strategy:

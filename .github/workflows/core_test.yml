@@ -32,7 +32,6 @@ on:
 
 jobs:
   build:
-    name: ${{ inputs.os }}
     runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v4

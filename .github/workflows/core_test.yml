@@ -82,7 +82,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ${{ inputs.os }}-core-test
-          path: ./core/core-test.tar.zst
+          path: ./core
 
       - name: Test Core
         uses: ./.github/actions/test-core

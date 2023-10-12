@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Test Core
+name: Core
 
 on:
   workflow_call:
@@ -25,7 +25,8 @@ on:
         type: string
 
 jobs:
-  test_core:
+  core:
+    name: ${{ matrix.cases.service }} on ${{ matrix.cases.setup }}
     runs-on: ${{ matrix.cases.os }}
     strategy:
       matrix:

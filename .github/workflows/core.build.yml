@@ -25,10 +25,10 @@ on:
 jobs:
   build:
     name: ${{ matrix.os }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: ${{ fromJson(inputs.plan).os }}
+        include: ${{ fromJson(inputs.plan).matrix }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,6 +37,7 @@ jobs:
         with:
           need-nextest: true
           need-protoc: true
+          need-rocksdb: true
 
       # Required by hdfs
       - name: Setup java env
@@ -48,7 +49,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          cargo nextest archive --features ${{ fromJson(inputs.plan).features }} --archive-file ./target/core-test.tar.zst
+          cargo nextest archive --features ${{ matrix.features }} --archive-file ./target/core-test.tar.zst
 
       - name: Upload
         uses: actions/upload-artifact@v2

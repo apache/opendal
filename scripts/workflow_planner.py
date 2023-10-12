@@ -27,10 +27,15 @@ def plan(changed_files):
         "services": {
             "fs": True,
         },
-        "features": "services-fs,services-s3",
-        "os": [
-          "ubuntu-latest",
-          "windows-latest"
+        "matrix": [
+            {
+                "os": "ubuntu-latest",
+                "features": "services-fs,services-s3",
+            },
+            {
+                "os": "windows-latest",
+                "features": "services-fs,services-s3",
+            }
         ],
         "cases": [
             {

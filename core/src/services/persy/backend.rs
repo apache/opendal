@@ -30,6 +30,7 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
 use crate::*;
+use crate::raw::*;
 
 /// persy service support.
 #[doc = include_str!("docs.md")]
@@ -180,7 +181,7 @@ impl kv::Adapter for Adapter {
         let cloned_path = path.to_string();
         task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
             .await
-            .map_err(Error::from)
+            .map_err(new_task_join_error)
             .and_then(|inner_result| inner_result)
     }
 
@@ -204,7 +205,7 @@ impl kv::Adapter for Adapter {
 
         task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
             .await
-            .map_err(Error::from)
+            .map_err(new_task_join_error)
             .and_then(|inner_result| inner_result)
     }
 
@@ -226,7 +227,7 @@ impl kv::Adapter for Adapter {
 
         task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
             .await
-            .map_err(Error::from)
+            .map_err(new_task_join_error)
             .and_then(|inner_result| inner_result)
     }
 

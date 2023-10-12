@@ -40,7 +40,7 @@ runs:
               - name: Setup Test Core
                 uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
                 with:
-                  secrets: ${{ inputs.secrets }}
+                  secrets: ${{ toJson(inputs.secrets) }}
               - name: Run Test Core
                 shell: bash
                 working-directory: core

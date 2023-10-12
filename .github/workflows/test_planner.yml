@@ -64,7 +64,7 @@ jobs:
 
           PLAN=$(./scripts/workflow_planner.py $FILES_CHANGED)
           echo "Plan:"
-          echo "$PLAN"
+          echo "$PLAN" | jq .
 
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
 

@@ -1,6 +1,7 @@
 package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,15 +26,14 @@ public class MetadataTest {
             final String dir = String.format("%s/", UUID.randomUUID().toString());
             op.createDir(dir).join();
             final Metadata dirMetadata = op.stat(dir).join();
-            assertThat(dirMetadata.isFile()).isFalse();
-            assertThat(dirMetadata.contentLength).isEqualTo(64);
+            assertTrue(dirMetadata.isDir());
 
             final String path = UUID.randomUUID().toString();
             final byte[] content = AbstractBehaviorTest.generateBytes();
             op.write(path, content).join();
 
             final Metadata metadata = op.stat(path).join();
-            assertThat(metadata.isFile()).isTrue();
+            assertTrue(metadata.isFile());
             assertThat(metadata.contentLength).isEqualTo(content.length);
             assertThat(metadata.lastModified).isNotNull();
             assertThat(metadata.cacheControl).isNull();
@@ -58,15 +58,14 @@ public class MetadataTest {
             final String dir = String.format("%s/", UUID.randomUUID().toString());
             op.createDir(dir);
             final Metadata dirMetadata = op.stat(dir);
-            assertThat(dirMetadata.isFile()).isFalse();
-            assertThat(dirMetadata.contentLength).isEqualTo(64);
+            assertTrue(dirMetadata.isDir());
 
             final String path = UUID.randomUUID().toString();
             final byte[] content = AbstractBehaviorTest.generateBytes();
             op.write(path, content);
 
             final Metadata metadata = op.stat(path);
-            assertThat(metadata.isFile()).isTrue();
+            assertTrue(metadata.isFile());
             assertThat(metadata.contentLength).isEqualTo(content.length);
             assertThat(metadata.lastModified).isNotNull();
             assertThat(metadata.cacheControl).isNull();

@@ -15,20 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Fs write full disk
+name: Edge Test
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/src/**"
+      - "!core/src/docs/**"
+      - "!core/src/services/**"
+      - "core/src/services/fs/**"
+      - ".github/workflows/edge_test.yml"
 
 jobs:
-  test:
+  test_file_write_on_full_disk:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Create disk image
         run: |
@@ -37,16 +46,15 @@ jobs:
 
       - name: Mount disk image
         run: |
-          mkdir ./td
-          sudo mount -o loop disk.img ./td
+          mkdir /tmp/test_dir
+          sudo mount -o loop disk.img /tmp/test_dir
 
       - name: Set permissions
-        run: chmod a+wr ./td
+        run: sudo chmod a+wr /tmp/test_dir
 
-      # Add more steps for testing as needed
+      - name: Test
+        working-directory: core/edge/file_write_on_full_disk
+        run: cargo run
+        env:
+          OPENDAL_FS_ROOT: /tmp/test_dir
 
-      - name: Clean up
-        run: |
-          sudo umount ./td
-          rm -rf ./td
-          rm disk.img

@@ -1772,6 +1772,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcbb2bf8e87535c23f7a8a321e364ce21462d0ff10cb6407820e8e96dfff6653"
 
 [[package]]
+name = "edge_test_file_write_on_full_disk"
+version = "0.0.0"
+dependencies = [
+ "futures",
+ "opendal",
+ "rand 0.8.5",
+ "tokio",
+]
+
+[[package]]
 name = "either"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

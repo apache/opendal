@@ -35,6 +35,7 @@ use std::str::FromStr;
 
 use ::opendal as od;
 use error::opendal_error;
+use once_cell::sync::Lazy;
 use result::opendal_result_list;
 use result::opendal_result_operator_new;
 use result::opendal_result_reader;
@@ -49,6 +50,26 @@ use crate::types::opendal_metadata;
 use crate::types::opendal_operator_options;
 use crate::types::opendal_operator_ptr;
 
+static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+});
+
+fn build_operator(schema: od::Scheme, map: HashMap<String, String>) -> od::Result<od::Operator> {
+    let mut op = match od::Operator::via_map(schema, map) {
+        Ok(o) => o,
+        Err(e) => return Err(e),
+    };
+    if !op.info().full_capability().blocking {
+        let runtime =
+            tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
+        let _guard = runtime.enter();
+        op = op.layer(od::layers::BlockingLayer::create().expect("blocking layer must be created"));
+    }
+    Ok(op)
+}
 /// \brief Construct an operator based on `scheme` and `options`
 ///
 /// Uses an array of key-value pairs to initialize the operator based on provided `scheme`
@@ -123,23 +144,21 @@ pub unsafe extern "C" fn opendal_operator_new(
         }
     }
 
-    let op = match od::Operator::via_map(scheme, map) {
-        Ok(o) => o.blocking(),
+    match build_operator(scheme, map) {
+        Ok(op) => {
+            let op = opendal_operator_ptr::from(Box::into_raw(Box::new(op.blocking())));
+            opendal_result_operator_new {
+                operator_ptr: Box::into_raw(Box::new(op)),
+                error: std::ptr::null_mut(),
+            }
+        }
         Err(e) => {
             let e = opendal_error::from_opendal_error(e);
-            let result = opendal_result_operator_new {
+            opendal_result_operator_new {
                 operator_ptr: std::ptr::null_mut(),
                 error: Box::into_raw(Box::new(e)),
-            };
-            return result;
+            }
         }
-    };
-
-    // this prevents the operator memory from being dropped by the Box
-    let op = opendal_operator_ptr::from(Box::into_raw(Box::new(op)));
-    opendal_result_operator_new {
-        operator_ptr: Box::into_raw(Box::new(op)),
-        error: std::ptr::null_mut(),
     }
 }
 

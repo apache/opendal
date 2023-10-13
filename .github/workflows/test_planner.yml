@@ -44,8 +44,6 @@ jobs:
       - name: Plan
         id: plan
         run: |
-          git fetch origin main:main
-
           event_name="${{ github.event_name }}"
           repository="${{ github.repository }}"
           files_changed=""
@@ -64,6 +62,7 @@ jobs:
               has_secrets="True"
             fi
 
+            git fetch origin main:main
             files_changed=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
             echo "Files changed:"
             echo "$FILES_CHANGED"

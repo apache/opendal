@@ -45,27 +45,38 @@ jobs:
         id: plan
         run: |
           git fetch origin main:main
-          FILES_CHANGED=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
-          echo "Files changed:"
-          echo "$FILES_CHANGED"
 
           event_name="${{ github.event_name }}"
           repository="${{ github.repository }}"
-          pr_head_full_name="${{ github.event.pull_request.head.full_name }}"
-          pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
-
+          files_changed=""
           has_secrets="False"
-          if [ "$event_name" == "push" ] && [ "$repository" == "apache/incubator-opendal" ]; then
-            has_secrets="True"
-          elif [ "$event_name" == "pull_request" ] && [ "$pr_head_repo_fork" != "true" ]; then
-            has_secrets="True"
-          fi
-          export GITHUB_HAS_SECRETS=$has_secrets
+          is_push="False"
 
-          PLAN=$(./scripts/workflow_planner.py $FILES_CHANGED)
+          # Handle event-specific logic
+          if [ "$event_name" == "push" ]; then
+            if [ "$repository" == "apache/incubator-opendal" ]; then
+              is_push="True"
+              has_secrets="True"
+            fi
+          elif [ "$event_name" == "pull_request" ]; then
+            pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
+            if [ "$pr_head_repo_fork" != "true" ]; then
+              has_secrets="True"
+            fi
+
+            files_changed=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
+            echo "Files changed:"
+            echo "$FILES_CHANGED"
+          fi
+
+          # Export variables
+          export GITHUB_HAS_SECRETS=$has_secrets
+          export GITHUB_IS_PUSH=$is_push
+
+          # Run the workflow planner script
+          PLAN=$(./scripts/workflow_planner.py $files_changed)
           echo "Plan:"
           echo "$PLAN" | jq .
-
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
 
   core_test:

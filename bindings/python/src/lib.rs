@@ -120,8 +120,24 @@ impl Operator {
     }
 
     /// Write bytes into given path.
-    pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
-        self.0.write(path, bs).map_err(format_pyerr)
+    #[pyo3(signature = (path, bs, **kwargs))]
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
+        let opwrite = build_opwrite(kwargs)?;
+        let mut write = self.0.write_with(path, bs).append(opwrite.append());
+        if let Some(buffer) = opwrite.buffer() {
+            write = write.buffer(buffer);
+        }
+        if let Some(content_type) = opwrite.content_type() {
+            write = write.content_type(content_type);
+        }
+        if let Some(content_disposition) = opwrite.content_disposition() {
+            write = write.content_disposition(content_disposition);
+        }
+        if let Some(cache_control) = opwrite.cache_control() {
+            write = write.cache_control(cache_control);
+        }
+
+        write.call().map_err(format_pyerr)
     }
 
     /// Get current path's metadata **without cache** directly.
@@ -419,6 +435,55 @@ fn format_pyerr(err: od::Error) -> PyErr {
         Unsupported => PyNotImplementedError::new_err(err.to_string()),
         _ => Error::new_err(err.to_string()),
     }
+}
+
+/// recognize OpWrite-equivalent options passed as python dict
+pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<od::raw::OpWrite> {
+    use od::raw::OpWrite;
+    let mut op = OpWrite::new();
+
+    let dict = if let Some(kwargs) = kwargs {
+        kwargs
+    } else {
+        return Ok(op);
+    };
+
+    if let Some(append) = dict.get_item("append") {
+        let v = append
+            .extract::<bool>()
+            .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
+        op = op.with_append(v);
+    }
+
+    if let Some(buffer) = dict.get_item("buffer") {
+        let v = buffer
+            .extract::<usize>()
+            .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))?;
+        op = op.with_buffer(v);
+    }
+
+    if let Some(content_type) = dict.get_item("content_type") {
+        let v = content_type.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_type must be str, got {}", err))
+        })?;
+        op = op.with_content_type(v.as_str());
+    }
+
+    if let Some(content_disposition) = dict.get_item("content_disposition") {
+        let v = content_disposition.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_disposition must be str, got {}", err))
+        })?;
+        op = op.with_content_disposition(v.as_str());
+    }
+
+    if let Some(cache_control) = dict.get_item("cache_control") {
+        let v = cache_control.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("cache_control must be str, got {}", err))
+        })?;
+        op = op.with_cache_control(v.as_str());
+    }
+
+    Ok(op)
 }
 
 /// OpenDAL Python binding

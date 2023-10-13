@@ -15,9 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from dotenv import load_dotenv
-import pytest
+name: local_fs
+description: "Setup local fs"
 
-
-load_dotenv()
-pytest_plugins = ("pytest_asyncio",)
+runs:
+    using: "composite"
+    steps:
+        - name: Setup
+          shell: bash
+          run: |
+              echo "OPENDAL_FS_TEST=on" >> $GITHUB_ENV
+              echo "OPENDAL_FS_ROOT=${{ runner.temp }}/" >> $GITHUB_ENV

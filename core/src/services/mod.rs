@@ -84,6 +84,11 @@ mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::Ipmfs;
 
+#[cfg(feature = "services-libsql")]
+mod libsql;
+#[cfg(feature = "services-libsql")]
+pub use libsql::Libsql;
+
 #[cfg(feature = "services-memcached")]
 mod memcached;
 #[cfg(feature = "services-memcached")]
@@ -223,3 +228,8 @@ pub use self::mysql::Mysql;
 mod sqlite;
 #[cfg(feature = "services-sqlite")]
 pub use self::sqlite::Sqlite;
+
+#[cfg(feature = "services-d1")]
+mod d1;
+#[cfg(feature = "services-d1")]
+pub use self::d1::D1;

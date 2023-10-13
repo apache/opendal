@@ -36,6 +36,7 @@ use tokio::io::AsyncSeekExt;
 use tokio::sync::Mutex;
 
 use crate::build_operator;
+use crate::build_opwrite;
 use crate::format_pyerr;
 use crate::layers;
 use crate::Entry;
@@ -87,11 +88,32 @@ impl AsyncOperator {
     }
 
     /// Write bytes into given path.
-    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: &PyBytes) -> PyResult<&'p PyAny> {
+    #[pyo3(signature = (path, bs, **kwargs))]
+    pub fn write<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        bs: &PyBytes,
+        kwargs: Option<&PyDict>,
+    ) -> PyResult<&'p PyAny> {
+        let opwrite = build_opwrite(kwargs)?;
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            this.write(&path, bs).await.map_err(format_pyerr)
+            let mut write = this.write_with(&path, bs).append(opwrite.append());
+            if let Some(buffer) = opwrite.buffer() {
+                write = write.buffer(buffer);
+            }
+            if let Some(content_type) = opwrite.content_type() {
+                write = write.content_type(content_type);
+            }
+            if let Some(content_disposition) = opwrite.content_disposition() {
+                write = write.content_disposition(content_disposition);
+            }
+            if let Some(cache_control) = opwrite.cache_control() {
+                write = write.cache_control(cache_control);
+            }
+            write.await.map_err(format_pyerr)
         })
     }
 

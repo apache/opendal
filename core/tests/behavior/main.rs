@@ -48,6 +48,7 @@ mod blocking_list;
 mod blocking_read_only;
 mod blocking_rename;
 mod blocking_write;
+mod file_write_full_disk;
 
 use blocking_append::behavior_blocking_append_tests;
 use blocking_copy::behavior_blocking_copy_tests;
@@ -132,6 +133,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Ipfs>());
     #[cfg(feature = "services-ipmfs")]
     tests.extend(behavior_test::<services::Ipmfs>());
+    #[cfg(feature = "services-libsql")]
+    tests.extend(behavior_test::<services::Libsql>());
     #[cfg(feature = "services-memcached")]
     tests.extend(behavior_test::<services::Memcached>());
     #[cfg(feature = "services-memory")]
@@ -182,6 +185,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Mysql>());
     #[cfg(feature = "services-sqlite")]
     tests.extend(behavior_test::<services::Sqlite>());
+    #[cfg(feature = "services-d1")]
+    tests.extend(behavior_test::<services::D1>());
 
     // Don't init logging while building operator which may break cargo
     // nextest output

@@ -222,12 +222,12 @@ impl kv::Adapter for Adapter {
             "SELECT `{}` FROM `{}` WHERE `{}` = :path LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
-        })?;
-        let statement = conn.prep(query).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "prepare statement failed").set_source(err)
-        })?;
+        let mut conn = self
+            .connection_pool
+            .get_conn()
+            .await
+            .map_err(parse_mysql_error)?;
+        let statement = conn.prep(query).await.map_err(parse_mysql_error)?;
         let result: Option<Vec<u8>> = conn
             .exec_first(
                 statement,
@@ -236,7 +236,7 @@ impl kv::Adapter for Adapter {
                 },
             )
             .await
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "delete failed").set_source(err))?;
+            .map_err(parse_mysql_error)?;
         match result {
             Some(v) => Ok(Some(v)),
             None => Ok(None),
@@ -250,12 +250,12 @@ impl kv::Adapter for Adapter {
             ON DUPLICATE KEY UPDATE `{}` = VALUES({})",
             self.table, self.key_field, self.value_field, self.value_field, self.value_field
         );
-        let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
-        })?;
-        let statement = conn.prep(query).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "prepare statement failed").set_source(err)
-        })?;
+        let mut conn = self
+            .connection_pool
+            .get_conn()
+            .await
+            .map_err(parse_mysql_error)?;
+        let statement = conn.prep(query).await.map_err(parse_mysql_error)?;
 
         conn.exec_drop(
             statement,
@@ -265,7 +265,7 @@ impl kv::Adapter for Adapter {
             },
         )
         .await
-        .map_err(|err| Error::new(ErrorKind::Unexpected, "set failed").set_source(err))?;
+        .map_err(parse_mysql_error)?;
         Ok(())
     }
 
@@ -274,12 +274,12 @@ impl kv::Adapter for Adapter {
             "DELETE FROM `{}` WHERE `{}` = :path",
             self.table, self.key_field
         );
-        let mut conn = self.connection_pool.get_conn().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "connection failed").set_source(err)
-        })?;
-        let statement = conn.prep(query).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "prepare statement failed").set_source(err)
-        })?;
+        let mut conn = self
+            .connection_pool
+            .get_conn()
+            .await
+            .map_err(parse_mysql_error)?;
+        let statement = conn.prep(query).await.map_err(parse_mysql_error)?;
 
         conn.exec_drop(
             statement,
@@ -288,7 +288,11 @@ impl kv::Adapter for Adapter {
             },
         )
         .await
-        .map_err(|err| Error::new(ErrorKind::Unexpected, "delete failed").set_source(err))?;
+        .map_err(parse_mysql_error)?;
         Ok(())
     }
+}
+
+fn parse_mysql_error(err: mysql_async::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "unhandled error from mysql").set_source(err)
 }

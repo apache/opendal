@@ -15,9 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from dotenv import load_dotenv
-import pytest
+version: '3.8'
 
-
-load_dotenv()
-pytest_plugins = ("pytest_asyncio",)
+services:
+  libsql:
+    image: ghcr.io/libsql/sqld:v0.21.9
+    ports:
+      - '8080:8080'
+    environment:
+      - 'SQLD_MAX_RESPONSE_SIZE=20971520'
+      - 'SQLD_MAX_TOTAL_RESPONSE_SIZE=209715200'
+      - 'SQLD_AUTH_JWT_KEY=zaMv-aFGmB7PXkjM4IrMdF6B5zCYEiEGXW3RgMjNAtc'

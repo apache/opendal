@@ -120,6 +120,7 @@ services-cos = [
   "reqsign?/services-tencent",
   "reqsign?/reqwest_request",
 ]
+services-d1 = []
 services-dashmap = ["dep:dashmap"]
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:bb8"]
@@ -137,6 +138,7 @@ services-hdfs = ["dep:hdrs"]
 services-http = []
 services-ipfs = ["dep:prost"]
 services-ipmfs = []
+services-libsql = ["dep:hrana-client-proto"]
 services-memcached = ["dep:bb8"]
 services-memory = []
 services-mini-moka = ["dep:mini-moka"]
@@ -228,6 +230,7 @@ governor = { version = "0.5", optional = true, features = ["std"] }
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }
 http = "0.2.9"
 hyper = "0.14"
+hrana-client-proto = { version = "0.2.1", optional = true }
 lazy-regex = { version = "3.0.1", optional = true }
 log = "0.4"
 madsim = { version = "0.2.21", optional = true }

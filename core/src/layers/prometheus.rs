@@ -88,12 +88,62 @@ use crate::*;
 #[derive(Default, Debug, Clone)]
 pub struct PrometheusLayer {
     registry: Registry,
+    requests_duration_seconds_buckets: Vec<f64>,
+    bytes_total_buckets: Vec<f64>,
 }
 
 impl PrometheusLayer {
     /// create PrometheusLayer by incoming registry.
+    /// For promtheus layer, we will use default buckets for HistogramMetric.
+    /// Be careful, if you want to use custom buckets, please use [`PrometheusLayer::with_registry_and_custom_metric_bucket`].
+    /// Or set buckets directly by [`PrometheusLayer::requests_duration_seconds_buckets`] and [`PrometheusLayer::bytes_total_buckets`] if you need it.
     pub fn with_registry(registry: Registry) -> Self {
-        Self { registry }
+        let mut result = Self {
+            registry,
+            ..Default::default()
+        };
+        result.requests_duration_seconds_buckets = exponential_buckets(0.01, 2.0, 16).unwrap();
+        result.bytes_total_buckets = exponential_buckets(0.01, 2.0, 16).unwrap();
+        result
+    }
+
+    /// create PrometheusLayer by incoming registry and custom buckets.
+    pub fn with_registry_and_custom_metric_bucket(
+        registry: Registry,
+        requests_duration_seconds_buckets: Vec<f64>,
+        bytes_total_buckets: Vec<f64>,
+    ) -> Self {
+        let mut result = Self {
+            registry,
+            ..Default::default()
+        };
+        result.requests_duration_seconds_buckets = if requests_duration_seconds_buckets.is_empty() {
+            exponential_buckets(0.01, 2.0, 16).unwrap()
+        } else {
+            requests_duration_seconds_buckets
+        };
+        result.bytes_total_buckets = if bytes_total_buckets.is_empty() {
+            exponential_buckets(0.01, 2.0, 16).unwrap()
+        } else {
+            bytes_total_buckets
+        };
+        result
+    }
+
+    /// set buckets for requests_duration_seconds
+    pub fn requests_duration_seconds_buckets(&mut self, buckets: Vec<f64>) -> &mut Self {
+        if !buckets.is_empty() {
+            self.requests_duration_seconds_buckets = buckets;
+        }
+        self
+    }
+
+    /// set buckets for bytes_total
+    pub fn bytes_total_buckets(&mut self, buckets: Vec<f64>) -> &mut Self {
+        if !buckets.is_empty() {
+            self.bytes_total_buckets = buckets;
+        }
+        self
     }
 }
 
@@ -106,7 +156,11 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
 
         PrometheusAccessor {
             inner,
-            stats: Arc::new(PrometheusMetrics::new(self.registry.clone())),
+            stats: Arc::new(PrometheusMetrics::new(
+                self.registry.clone(),
+                self.requests_duration_seconds_buckets.clone(),
+                self.bytes_total_buckets.clone(),
+            )),
             scheme: scheme.to_string(),
         }
     }
@@ -124,7 +178,11 @@ pub struct PrometheusMetrics {
 
 impl PrometheusMetrics {
     /// new with prometheus register.
-    pub fn new(registry: Registry) -> Self {
+    pub fn new(
+        registry: Registry,
+        requests_duration_seconds_buckets: Vec<f64>,
+        bytes_total_buckets: Vec<f64>,
+    ) -> Self {
         let requests_total = register_int_counter_vec_with_registry!(
             "requests_total",
             "Total times of create be called",
@@ -135,18 +193,14 @@ impl PrometheusMetrics {
         let opts = histogram_opts!(
             "requests_duration_seconds",
             "Histogram of the time spent on specific operation",
-            exponential_buckets(0.01, 2.0, 16).unwrap()
+            requests_duration_seconds_buckets
         );
 
         let requests_duration_seconds =
             register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
                 .unwrap();
 
-        let opts = histogram_opts!(
-            "bytes_total",
-            "Total size of ",
-            exponential_buckets(0.01, 2.0, 16).unwrap()
-        );
+        let opts = histogram_opts!("bytes_total", "Total size of ", bytes_total_buckets);
         let bytes_total =
             register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
                 .unwrap();

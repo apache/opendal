@@ -126,8 +126,20 @@ You can run service tests of enabled with the following command:
 ./mvnw test -Dtest=org.apache.opendal.behavior.FsTest # replace with the certain service tests
 ```
 
+Or:
+
+```shell
+./mvnw test -Dgroups="services-fs" # replace with the certain service tests
+```
+
 Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
 
 ```shell
 ./mvnw test -Dtest=org.apache.opendal.behavior.RedisTest -Dcargo-build.features=services-redis
+```
+
+Or:
+
+```shell
+./mvnw test -Dgroups="services-redis" -Dcargo-build.features=services-redis
 ```

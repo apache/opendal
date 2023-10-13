@@ -241,7 +241,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dtest=org.apache.opendal.test.behavior.S3Test
+        run: ./mvnw test -Dgroups="services-s3"
         env:
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test

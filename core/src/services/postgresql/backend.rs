@@ -225,7 +225,7 @@ impl Adapter {
                 let pool = Pool::builder()
                     .build(manager)
                     .await
-                    .map_err(parse_tokio_postgres_error)?;
+                    .map_err(parse_postgre_error)?;
                 Ok(Arc::new(pool))
             })
             .await
@@ -261,11 +261,11 @@ impl kv::Adapter for Adapter {
         let statement = connection
             .prepare(&query)
             .await
-            .map_err(parse_tokio_postgres_error)?;
+            .map_err(parse_postgre_error)?;
         let rows = connection
             .query(&statement, &[&path])
             .await
-            .map_err(parse_tokio_postgres_error)?;
+            .map_err(parse_postgre_error)?;
         if rows.is_empty() {
             return Ok(None);
         }
@@ -292,11 +292,11 @@ impl kv::Adapter for Adapter {
         let statement = connection
             .prepare(&query)
             .await
-            .map_err(parse_tokio_postgres_error)?;
+            .map_err(parse_postgre_error)?;
         let _ = connection
             .query(&statement, &[&path, &value])
             .await
-            .map_err(parse_tokio_postgres_error)?;
+            .map_err(parse_postgre_error)?;
         Ok(())
     }
 
@@ -311,12 +311,12 @@ impl kv::Adapter for Adapter {
         let statement = connection
             .prepare(&query)
             .await
-            .map_err(parse_tokio_postgres_error)?;
+            .map_err(parse_postgre_error)?;
 
         let _ = connection
             .query(&statement, &[&path])
             .await
-            .map_err(parse_tokio_postgres_error)?;
+            .map_err(parse_postgre_error)?;
         Ok(())
     }
 }
@@ -325,6 +325,6 @@ fn parse_bb8_error(err: bb8::RunError<tokio_postgres::Error>) -> Error {
     Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
 }
 
-fn parse_tokio_postgres_error(err: tokio_postgres::Error) -> Error {
+fn parse_postgre_error(err: tokio_postgres::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
 }

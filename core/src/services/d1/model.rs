@@ -42,33 +42,31 @@ impl D1Response {
         if !response.success {
             return Err(Error::new(
                 crate::ErrorKind::Unexpected,
-                &String::from_utf8_lossy(&bs).into_owned(),
+                &String::from_utf8_lossy(bs),
             ));
         }
         Ok(response)
     }
 
-    pub fn get_result(&self, path: &str) -> Option<Vec<u8>> {
-        if self.result.len() > 0 {
-            let result = &self.result[0];
-            if result.results.len() > 0 {
-                let result = &result.results[0];
-                let value = result.get(path);
-                match value {
-                    Some(Value::Array(s)) => {
-                        let mut v = Vec::new();
-                        for i in s {
-                            if let Value::Number(n) = i {
-                                v.push(n.as_u64().unwrap() as u8);
-                            }
-                        }
-                        return Some(v);
-                    }
-                    _ => return None,
-                }
-            }
+    pub fn get_result(&self, key: &str) -> Option<Vec<u8>> {
+        if self.result.is_empty() || self.result[0].results.is_empty() {
+            return None;
         }
-        None
+        let result = &self.result[0].results[0];
+        let value = result.get(key);
+
+        match value {
+            Some(Value::Array(s)) => {
+                let mut v = Vec::new();
+                for i in s {
+                    if let Value::Number(n) = i {
+                        v.push(n.as_u64().unwrap() as u8);
+                    }
+                }
+                return Some(v);
+            }
+            _ => return None,
+        }
     }
 }
 

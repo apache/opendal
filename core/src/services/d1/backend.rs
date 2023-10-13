@@ -23,14 +23,14 @@ use async_trait::async_trait;
 use http::header;
 use http::Request;
 use http::StatusCode;
-use serde_json::{de, Value};
+use serde_json::Value;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::ErrorKind;
 use crate::*;
 
-use super::error::{parse_d1_error, parse_error};
+use super::error::parse_error;
 use super::model::D1Response;
 
 #[doc = include_str!("docs.md")]
@@ -288,40 +288,8 @@ impl kv::Adapter for Adapter {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let body = resp.into_body().bytes().await?;
-                let Ok(body) = de::from_slice::<D1Response>(&body) else {
-                    return Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "failed to parse response",
-                    ));
-                };
-                if !body.success {
-                    return Err(parse_d1_error(&body).await?);
-                }
-                let Some(result) = body.result.get(0) else {
-                    return Ok(None);
-                };
-                let Some(value) = result.results.get(0) else {
-                    return Ok(None);
-                };
-
-                let value = value.get(&self.value_field);
-                match value {
-                    Some(Value::Array(s)) => {
-                        let mut v = Vec::new();
-                        for i in s {
-                            if let Value::Number(n) = i {
-                                v.push(n.as_u64().unwrap() as u8);
-                            }
-                        }
-                        return Ok(Some(v));
-                    }
-                    _ => {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            "failed to parse response",
-                        ))
-                    }
-                }
+                let d1_response = D1Response::parse(&body)?;
+                Ok(d1_response.get_result(&self.value_field))
             }
             _ => Err(parse_error(resp).await?),
         }

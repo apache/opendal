@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 
@@ -25,6 +26,7 @@ use crate::Result;
 
 use serde_json::de;
 
+use super::model::D1Error;
 use super::model::D1Response;
 
 /// Parse error response into Error.
@@ -32,7 +34,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
-    let (kind, retryable) = match parts.status {
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         // Some services (like owncloud) return 403 while file locked.
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
@@ -45,16 +47,14 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = "failed to parse error response";
-    let Ok(body) = de::from_slice::<D1Response>(&bs) else {
-        return Ok(Error::new(kind, &message));
-    };
+    let (message, d1_err) = de::from_reader::<_, D1Response>(bs.clone().reader())
+        .map(|d1_err| (format!("{d1_err:?}"), Some(d1_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    let message = body.errors.get(0).map_or(message.to_string(), |e| {
-        e.get("message").map_or(message.to_string(), |m| {
-            m.as_str().unwrap_or(message).to_string()
-        })
-    });
+    if let Some(d1_err) = d1_err {
+        (kind, retryable) = parse_d1_error_code(d1_err.errors).unwrap_or((kind, retryable));
+    }
+
     let mut err = Error::new(kind, &message);
 
     err = with_error_response_context(err, parts);
@@ -66,13 +66,18 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     Ok(err)
 }
 
-/// Parse error D1Response into Error.
-pub async fn parse_d1_error(resp: &D1Response) -> Result<Error> {
-    let message = "failed to parse error response";
-    let message = resp.errors.get(0).map_or(message.to_string(), |e| {
-        e.get("message").map_or(message.to_string(), |m| {
-            m.as_str().unwrap_or(message).to_string()
-        })
-    });
-    Ok(Error::new(ErrorKind::Unexpected, &message))
+pub fn parse_d1_error_code(errors: Vec<D1Error>) -> Option<(ErrorKind, bool)> {
+    if errors.is_empty() {
+        return None;
+    }
+
+    match errors[0].code {
+        // The request is malformed: failed to decode id.
+        7400 => Some((ErrorKind::Unexpected, false)),
+        // no such column: Xxxx.
+        7500 => Some((ErrorKind::NotFound, false)),
+        // Authentication error.
+        10000 => Some((ErrorKind::PermissionDenied, false)),
+        _ => None,
+    }
 }

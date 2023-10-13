@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::Deserialize;
+use crate::Error;
+use bytes::Bytes;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fmt::Debug;
 
@@ -24,8 +26,50 @@ use std::fmt::Debug;
 pub struct D1Response {
     pub result: Vec<D1Result>,
     pub success: bool,
-    pub errors: Vec<Map<String, Value>>,
-    pub messages: Vec<Map<String, Value>>,
+    pub errors: Vec<D1Error>,
+    pub messages: Vec<D1Message>,
+}
+
+impl D1Response {
+    pub fn parse(bs: &Bytes) -> Result<D1Response, Error> {
+        let response: D1Response = serde_json::from_slice(bs).map_err(|e| {
+            Error::new(
+                crate::ErrorKind::Unexpected,
+                &format!("failed to parse error response: {}", e),
+            )
+        })?;
+
+        if !response.success {
+            return Err(Error::new(
+                crate::ErrorKind::Unexpected,
+                &String::from_utf8_lossy(&bs).into_owned(),
+            ));
+        }
+        Ok(response)
+    }
+
+    pub fn get_result(&self, path: &str) -> Option<Vec<u8>> {
+        if self.result.len() > 0 {
+            let result = &self.result[0];
+            if result.results.len() > 0 {
+                let result = &result.results[0];
+                let value = result.get(path);
+                match value {
+                    Some(Value::Array(s)) => {
+                        let mut v = Vec::new();
+                        for i in s {
+                            if let Value::Number(n) = i {
+                                v.push(n.as_u64().unwrap() as u8);
+                            }
+                        }
+                        return Some(v);
+                    }
+                    _ => return None,
+                }
+            }
+        }
+        None
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -45,6 +89,18 @@ pub struct Meta {
     pub size_after: i32,
     pub rows_read: i32,
     pub rows_written: i32,
+}
+
+#[derive(Clone, Deserialize, Debug, Serialize)]
+pub struct D1Error {
+    pub message: String,
+    pub code: i32,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct D1Message {
+    pub message: String,
+    pub code: i32,
 }
 
 #[cfg(test)]

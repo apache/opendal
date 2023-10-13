@@ -222,7 +222,10 @@ impl Adapter {
                 // TODO: add tls support.
                 let manager =
                     PostgresConnectionManager::new(self.config.clone(), tokio_postgres::NoTls);
-                let pool = Pool::builder().build(manager).await?;
+                let pool = Pool::builder()
+                    .build(manager)
+                    .await
+                    .map_err(parse_postgre_error)?;
                 Ok(Arc::new(pool))
             })
             .await
@@ -249,11 +252,20 @@ impl kv::Adapter for Adapter {
             "SELECT {} FROM {} WHERE {} = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let connection = self.get_client().await?.get().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
-        })?;
-        let statement = connection.prepare(&query).await?;
-        let rows = connection.query(&statement, &[&path]).await?;
+        let connection = self
+            .get_client()
+            .await?
+            .get()
+            .await
+            .map_err(parse_bb8_error)?;
+        let statement = connection
+            .prepare(&query)
+            .await
+            .map_err(parse_postgre_error)?;
+        let rows = connection
+            .query(&statement, &[&path])
+            .await
+            .map_err(parse_postgre_error)?;
         if rows.is_empty() {
             return Ok(None);
         }
@@ -271,28 +283,48 @@ impl kv::Adapter for Adapter {
                 ON CONFLICT ({key_field}) \
                     DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         );
-        let connection = self.get_client().await?.get().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
-        })?;
-        let statement = connection.prepare(&query).await?;
-        let _ = connection.query(&statement, &[&path, &value]).await?;
+        let connection = self
+            .get_client()
+            .await?
+            .get()
+            .await
+            .map_err(parse_bb8_error)?;
+        let statement = connection
+            .prepare(&query)
+            .await
+            .map_err(parse_postgre_error)?;
+        let _ = connection
+            .query(&statement, &[&path, &value])
+            .await
+            .map_err(parse_postgre_error)?;
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE {} = $1", self.table, self.key_field);
-        let connection = self.get_client().await?.get().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
-        })?;
-        let statement = connection.prepare(&query).await?;
+        let connection = self
+            .get_client()
+            .await?
+            .get()
+            .await
+            .map_err(parse_bb8_error)?;
+        let statement = connection
+            .prepare(&query)
+            .await
+            .map_err(parse_postgre_error)?;
 
-        let _ = connection.query(&statement, &[&path]).await?;
+        let _ = connection
+            .query(&statement, &[&path])
+            .await
+            .map_err(parse_postgre_error)?;
         Ok(())
     }
 }
 
-impl From<tokio_postgres::Error> for Error {
-    fn from(value: tokio_postgres::Error) -> Error {
-        Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(value)
-    }
+fn parse_bb8_error(err: bb8::RunError<tokio_postgres::Error>) -> Error {
+    Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
+}
+
+fn parse_postgre_error(err: tokio_postgres::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
 }

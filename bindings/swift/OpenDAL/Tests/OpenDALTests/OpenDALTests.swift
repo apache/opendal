@@ -23,19 +23,16 @@ final class OpenDALTests: XCTestCase {
         let op = try Operator(scheme: "memory", options: [
             "root": "/myroot"
         ])
-        
+
         let testContents = Data([1, 2, 3, 4])
         try op.blockingWrite(testContents, to: "test")
-        
-        guard let readContents = try op.blockingRead("test") else {
-            XCTFail("Expected a `Data`")
-            return
-        }
-        
+
+        let readContents = try op.blockingRead("test")
+
         for (testByte, readByte) in zip(testContents, readContents) {
             XCTAssertEqual(testByte, readByte)
         }
-        
+
         XCTAssertThrowsError(try op.blockingRead("test_not_exists"))
     }
 }

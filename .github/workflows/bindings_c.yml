@@ -64,6 +64,10 @@ jobs:
       - name: Check diff
         run: git diff --exit-code
 
-      - name: Build and Run BDD tests
+      - name: Build and Run tests
         working-directory: "bindings/c"
         run: make test
+
+      - name: Build and Run memory-leak tests
+        working-directory: "bindings/c"
+        run: make memory_leak

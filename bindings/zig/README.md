@@ -16,7 +16,7 @@ To compile OpenDAL from source code, you need:
 # build libopendal_c (underneath call make -C ../c)
 zig build libopendal_c
 # build and run unit tests
-zig build test -fsummary
+zig build test --summary all
 ```
 
 ## License

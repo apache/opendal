@@ -34,10 +34,11 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use ::opendal as od;
+use error::opendal_error;
 use result::opendal_result_list;
+use result::opendal_result_operator_new;
 use types::opendal_blocking_lister;
 
-use crate::error::opendal_code;
 use crate::result::opendal_result_is_exist;
 use crate::result::opendal_result_read;
 use crate::result::opendal_result_stat;
@@ -57,10 +58,9 @@ use crate::types::opendal_operator_ptr;
 /// @param options the pointer to the options for this operators, it could be NULL, which means no
 /// option is set
 /// @see opendal_operator_options
-/// @return A valid opendal_operator_ptr setup with the `scheme` and `options` is the construction
-/// succeeds. A null opendal_operator_ptr if any error happens.
-///
-/// \remark You may use the `ptr` field of opendal_operator_ptr to check if it is NULL.
+/// @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
+/// succeeds. On success the operator_ptr field is a valid pointer to a newly allocated opendal_operator_ptr,
+/// and the error field is NULL. Otherwise, the operator_ptr field is a NULL pointer and the error field.
 ///
 /// # Example
 ///
@@ -72,7 +72,8 @@ use crate::types::opendal_operator_ptr;
 /// opendal_operator_options_set(options, "root", "/myroot");
 ///
 /// // Construct the operator based on the options and scheme
-/// const opendal_operator_ptr *ptr = opendal_operator_new("memory", options);
+/// opendal_result_operator_new result = opendal_operator_new("memory", options);
+/// opendal_operator_ptr* op = result.operator_ptr;
 ///
 /// // you could free the options right away since the options is not used afterwards
 /// opendal_operator_options_free(options);
@@ -82,24 +83,34 @@ use crate::types::opendal_operator_ptr;
 ///
 /// # Safety
 ///
-/// It is **safe** under two cases below
-/// * The memory pointed to by `scheme` contain a valid nul terminator at the end of
-///   the string.
-/// * The `scheme` points to NULL, this function simply returns you a null opendal_operator_ptr.
+/// The only unsafe case is passing a invalid c string pointer to the `scheme` argument.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_new(
     scheme: *const c_char,
     options: *const opendal_operator_options,
-) -> *const opendal_operator_ptr {
+) -> opendal_result_operator_new {
     if scheme.is_null() {
-        return std::ptr::null();
+        let error = opendal_error::manual_error(
+            error::opendal_code::OPENDAL_CONFIG_INVALID,
+            "The scheme given is pointing at NULL".into(),
+        );
+        let result = opendal_result_operator_new {
+            operator_ptr: std::ptr::null_mut(),
+            error: Box::into_raw(Box::new(error)),
+        };
+        return result;
     }
 
     let scheme_str = unsafe { std::ffi::CStr::from_ptr(scheme).to_str().unwrap() };
     let scheme = match od::Scheme::from_str(scheme_str) {
         Ok(s) => s,
-        Err(_) => {
-            return std::ptr::null();
+        Err(e) => {
+            let e = opendal_error::from_opendal_error(e);
+            let result = opendal_result_operator_new {
+                operator_ptr: std::ptr::null_mut(),
+                error: Box::into_raw(Box::new(e)),
+            };
+            return result;
         }
     };
 
@@ -112,32 +123,39 @@ pub unsafe extern "C" fn opendal_operator_new(
 
     let op = match od::Operator::via_map(scheme, map) {
         Ok(o) => o.blocking(),
-        Err(_) => {
-            return std::ptr::null();
+        Err(e) => {
+            let e = opendal_error::from_opendal_error(e);
+            let result = opendal_result_operator_new {
+                operator_ptr: std::ptr::null_mut(),
+                error: Box::into_raw(Box::new(e)),
+            };
+            return result;
         }
     };
 
     // this prevents the operator memory from being dropped by the Box
     let op = opendal_operator_ptr::from(Box::into_raw(Box::new(op)));
-
-    Box::into_raw(Box::new(op))
+    opendal_result_operator_new {
+        operator_ptr: Box::into_raw(Box::new(op)),
+        error: std::ptr::null_mut(),
+    }
 }
 
 /// \brief Blockingly write raw bytes to `path`.
 ///
-/// Write the `bytes` into the `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
-/// if succeeds, others otherwise.
+/// Write the `bytes` into the `path` blockingly by `op_ptr`.
+/// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @NOTE It is important to notice that the `bytes` that is passes in will be consumed by this
-///       function.
+/// \note It is important to notice that the `bytes` that is passes in will be consumed by this
+///       function. Therefore, you should not use the `bytes` after this function returns.
 ///
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The designated path you want to write your bytes in
 /// @param bytes The opendal_byte typed bytes to be written
 /// @see opendal_operator_ptr
 /// @see opendal_bytes
-/// @see opendal_code
-/// @return OPENDAL_OK if succeeds others otherwise
+/// @see opendal_error
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
 ///
 /// # Example
 ///
@@ -150,10 +168,10 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
 ///
 /// // now you can write!
-/// opendal_code code = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+/// opendal_error *err = opendal_operator_blocking_write(ptr, "/testpath", bytes);
 ///
 /// // Assert that this succeeds
-/// assert(code == OPENDAL_OK)
+/// assert(err == NULL);
 /// ```
 ///
 /// # Safety
@@ -172,7 +190,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
     bytes: opendal_bytes,
-) -> opendal_code {
+) -> *mut opendal_error {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
@@ -180,24 +198,26 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
     let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.write(path, bytes) {
-        Ok(_) => opendal_code::OPENDAL_OK,
-        Err(e) => opendal_code::from_opendal_error(e),
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            Box::into_raw(e)
+        }
     }
 }
 
 /// \brief Blockingly read the data from `path`.
 ///
-/// Read the data out from `path` blockingly by operator, returns
-/// an opendal_result_read with error code.
+/// Read the data out from `path` blockingly by operator.
 ///
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The path you want to read the data out
 /// @see opendal_operator_ptr
 /// @see opendal_result_read
-/// @see opendal_code
+/// @see opendal_error
 /// @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
-/// opendal_bytes, the `code` field contains the error code. If the `code` is not OPENDAL_OK,
-/// the `data` field points to NULL.
+/// opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+/// the operation failed and the `data` field is a nullptr.
 ///
 /// \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
 /// After your usage of that, please call opendal_bytes_free() to free the space.
@@ -209,7 +229,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
 /// // ... you have write "Hello, World!" to path "/testpath"
 ///
 /// opendal_result_read r = opendal_operator_blocking_read(ptr, "testpath");
-/// assert(r.code == OPENDAL_OK);
+/// assert(r.error == NULL);
 ///
 /// opendal_bytes *bytes = r.data;
 /// assert(bytes->len == 13);
@@ -241,26 +261,29 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
             let v = Box::new(opendal_bytes::new(d));
             opendal_result_read {
                 data: Box::into_raw(v),
-                code: opendal_code::OPENDAL_OK,
+                error: std::ptr::null_mut(),
             }
         }
-        Err(e) => opendal_result_read {
-            data: std::ptr::null_mut(),
-            code: opendal_code::from_opendal_error(e),
-        },
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            opendal_result_read {
+                data: std::ptr::null_mut(),
+                error: Box::into_raw(e),
+            }
+        }
     }
 }
 
 /// \brief Blockingly delete the object in `path`.
 ///
-/// Delete the object in `path` blockingly by `op_ptr`, returns the opendal_code OPENDAL_OK
-/// if succeeds, others otherwise
+/// Delete the object in `path` blockingly by `op_ptr`.
+/// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The designated path you want to delete
 /// @see opendal_operator_ptr
-/// @see opendal_code
-/// @return OPENDAL_OK if succeeds others otherwise
+/// @see opendal_error
+/// @return NULL if succeeds, otherwise it contains the error code and error message.
 ///
 /// # Example
 ///
@@ -271,13 +294,15 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
 /// // prepare your data
 /// char* data = "Hello, World!";
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
-/// opendal_code code = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+/// opendal_error *error = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+///
+/// assert(error == NULL);
 ///
 /// // now you can delete!
-/// opendal_code code = opendal_operator_blocking_delete(ptr, "/testpath");
+/// opendal_error *error = opendal_operator_blocking_delete(ptr, "/testpath");
 ///
 /// // Assert that this succeeds
-/// assert(code == OPENDAL_OK)
+/// assert(error == NULL);
 /// ```
 ///
 /// # Safety
@@ -293,7 +318,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
 pub unsafe extern "C" fn opendal_operator_blocking_delete(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
-) -> opendal_code {
+) -> *mut opendal_error {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
@@ -301,38 +326,39 @@ pub unsafe extern "C" fn opendal_operator_blocking_delete(
     let op = (*ptr).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.delete(path) {
-        Ok(_) => opendal_code::OPENDAL_OK,
-        Err(e) => opendal_code::from_opendal_error(e),
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            Box::into_raw(e)
+        }
     }
 }
 
 /// \brief Check whether the path exists.
 ///
 /// If the operation succeeds, no matter the path exists or not,
-/// the error code should be opendal_code::OPENDAL_OK. Otherwise,
-/// the field `is_exist` is filled with false, and the error code
-/// is set correspondingly.
+/// the error should be a nullptr. Otherwise, the field `is_exist`
+/// is filled with false, and the error is set
 ///
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The path you want to check existence
 /// @see opendal_operator_ptr
 /// @see opendal_result_is_exist
-/// @see opendal_code
+/// @see opendal_error
 /// @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
-/// However, it the operation fails, the `is_exist` will contains false and the error code will be
-/// stored in the `code` field.
+/// However, it the operation fails, the `is_exist` will contains false and the error will be set.
 ///
 /// # Example
 ///
 /// ```C
 /// // .. you previously wrote some data to path "/mytest/obj"
 /// opendal_result_is_exist e = opendal_operator_is_exist(ptr, "/mytest/obj");
-/// assert(e.code == OPENDAL_OK);
+/// assert(e.error == NULL);
 /// assert(e.is_exist);
 ///
 /// // but you previously did **not** write any data to path "/yourtest/obj"
-/// opendal_result_is_exist e = opendal_operator_is_exist(ptr, "yourtest/obj");
-/// assert(e.code == OPENDAL_OK);
+/// opendal_result_is_exist e = opendal_operator_is_exist(ptr, "/yourtest/obj");
+/// assert(e.error == NULL);
 /// assert(!e.is_exist);
 /// ```
 ///
@@ -359,37 +385,38 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
     match op.is_exist(path) {
         Ok(e) => opendal_result_is_exist {
             is_exist: e,
-            code: opendal_code::OPENDAL_OK,
+            error: std::ptr::null_mut(),
         },
-        Err(err) => opendal_result_is_exist {
-            is_exist: false,
-            code: opendal_code::from_opendal_error(err),
-        },
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            opendal_result_is_exist {
+                is_exist: false,
+                error: Box::into_raw(e),
+            }
+        }
     }
 }
 
 /// \brief Stat the path, return its metadata.
 ///
-/// If the operation succeeds, the error code should be
-/// OPENDAL_OK. Otherwise, the field `meta` is filled with
-/// a NULL pointer, and the error code is set correspondingly.
+/// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The path you want to stat
 /// @see opendal_operator_ptr
 /// @see opendal_result_stat
 /// @see opendal_metadata
-/// @return Returns opendal_result_stat, containing a metadata and a opendal_code.
+/// @return Returns opendal_result_stat, containing a metadata and an opendal_error.
 /// If the operation succeeds, the `meta` field would holds a valid metadata and
-/// the `code` field should hold OPENDAL_OK. Otherwise the metadata will contain a
-/// NULL pointer, i.e. invalid, and the `code` will be set correspondingly.
+/// the `error` field should hold nullptr. Otherwise the metadata will contain a
+/// NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
 ///
 /// # Example
 ///
 /// ```C
 /// // ... previously you wrote "Hello, World!" to path "/testpath"
 /// opendal_result_stat s = opendal_operator_stat(ptr, "/testpath");
-/// assert(s.code == OPENDAL_OK);
+/// assert(s.error == NULL);
 ///
 /// const opendal_metadata *meta = s.meta;
 ///
@@ -420,12 +447,15 @@ pub unsafe extern "C" fn opendal_operator_stat(
     match op.stat(path) {
         Ok(m) => opendal_result_stat {
             meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
-            code: opendal_code::OPENDAL_OK,
+            error: std::ptr::null_mut(),
         },
-        Err(err) => opendal_result_stat {
-            meta: std::ptr::null_mut(),
-            code: opendal_code::from_opendal_error(err),
-        },
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            opendal_result_stat {
+                meta: std::ptr::null_mut(),
+                error: Box::into_raw(e),
+            }
+        }
     }
 }
 
@@ -438,7 +468,10 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The designated path you want to delete
 /// @see opendal_blocking_lister
-/// @return
+/// @return Returns opendal_result_list, containing a lister and an opendal_error.
+/// If the operation succeeds, the `lister` field would holds a valid lister and
+/// the `error` field should hold nullptr. Otherwise the `lister`` will contain a
+/// NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
 ///
 /// # Example
 ///
@@ -447,7 +480,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// // You have written some data into some files path "root/dir1"
 /// // Your opendal_operator_ptr was called ptr
 /// opendal_result_list l = opendal_operator_blocking_list(ptr, "root/dir1");
-/// assert(l.code == OPENDAL_OK);
+/// assert(l.error == ERROR);
 ///
 /// opendal_blocking_lister *lister = l.lister;
 /// opendal_list_entry *entry;
@@ -488,12 +521,15 @@ pub unsafe extern "C" fn opendal_operator_blocking_list(
     match op.lister(path) {
         Ok(lister) => opendal_result_list {
             lister: Box::into_raw(Box::new(opendal_blocking_lister::new(lister))),
-            code: opendal_code::OPENDAL_OK,
+            error: std::ptr::null_mut(),
         },
 
-        Err(e) => opendal_result_list {
-            lister: std::ptr::null_mut(),
-            code: opendal_code::from_opendal_error(e),
-        },
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            opendal_result_list {
+                lister: std::ptr::null_mut(),
+                error: Box::into_raw(e),
+            }
+        }
     }
 }

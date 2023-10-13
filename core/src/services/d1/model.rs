@@ -63,9 +63,9 @@ impl D1Response {
                         v.push(n.as_u64().unwrap() as u8);
                     }
                 }
-                return Some(v);
+                Some(v)
             }
-            _ => return None,
+            _ => None,
         }
     }
 }

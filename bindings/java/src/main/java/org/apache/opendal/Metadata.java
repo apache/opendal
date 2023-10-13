@@ -19,26 +19,98 @@
 
 package org.apache.opendal;
 
+import java.util.Date;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+
 /**
  * Metadata carries all metadata associated with a path.
  */
-public class Metadata extends NativeObject {
-    protected Metadata(long nativeHandle) {
-        super(nativeHandle);
+@ToString
+@EqualsAndHashCode
+public class Metadata {
+    public final EntryMode mode;
+    public final long contentLength;
+    public final String contentDisposition;
+    public final BytesContentRange contentRange;
+    public final String contentMd5;
+    public final String contentType;
+    public final String cacheControl;
+    public final String etag;
+    public final Date lastModified;
+    public final String version;
+
+    public Metadata(
+            int mode,
+            long contentLength,
+            String contentDisposition,
+            BytesContentRange contentRange,
+            String contentMd5,
+            String contentType,
+            String cacheControl,
+            String etag,
+            Date lastModified,
+            String version) {
+        this.mode = EntryMode.of(mode);
+        this.contentLength = contentLength;
+        this.contentDisposition = contentDisposition;
+        this.contentRange = contentRange;
+        this.contentMd5 = contentMd5;
+        this.contentType = contentType;
+        this.cacheControl = cacheControl;
+        this.etag = etag;
+        this.lastModified = lastModified;
+        this.version = version;
     }
 
     public boolean isFile() {
-        return isFile(nativeHandle);
+        return mode == EntryMode.FILE;
     }
 
-    public long getContentLength() {
-        return getContentLength(nativeHandle);
+    public boolean isDir() {
+        return mode == EntryMode.DIR;
     }
 
-    @Override
-    protected native void disposeInternal(long handle);
+    public enum EntryMode {
+        /// FILE means the path has data to read.
+        FILE,
+        /// DIR means the path can be listed.
+        DIR,
+        /// Unknown means we don't know what we can do on this path.
+        UNKNOWN;
 
-    private static native boolean isFile(long nativeHandle);
+        public static EntryMode of(int mode) {
+            switch (mode) {
+                case 0:
+                    return EntryMode.FILE;
+                case 1:
+                    return EntryMode.DIR;
+                default:
+                    return EntryMode.UNKNOWN;
+            }
+        }
+    }
 
-    private static native long getContentLength(long nativeHandle);
+    @ToString
+    @EqualsAndHashCode
+    public static class BytesContentRange {
+        /**
+         * Start position of the range. `-1` means unknown.
+         */
+        public final long start;
+        /**
+         * End position of the range. `-1` means unknown.
+         */
+        public final long end;
+        /**
+         * Size of the whole content. `-1` means unknown.
+         */
+        public final long size;
+
+        public BytesContentRange(long start, long end, long size) {
+            this.start = start;
+            this.end = end;
+            this.size = size;
+        }
+    }
 }

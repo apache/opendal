@@ -129,10 +129,10 @@ public abstract class AbstractBehaviorTest {
             final String path = UUID.randomUUID().toString();
             final byte[] content = generateBytes();
             operator.write(path, content).join();
-            try (final Metadata meta = operator.stat(path).join()) {
-                assertThat(meta.isFile()).isTrue();
-                assertThat(meta.getContentLength()).isEqualTo(content.length);
-            }
+            final Metadata meta = operator.stat(path).join();
+            assertThat(meta.isFile()).isTrue();
+            assertThat(meta.contentLength).isEqualTo(content.length);
+
             operator.delete(path).join();
         }
 
@@ -144,10 +144,10 @@ public abstract class AbstractBehaviorTest {
             final String path = "❌😱中文.test";
             final byte[] content = generateBytes();
             operator.write(path, content).join();
-            try (final Metadata meta = operator.stat(path).join()) {
-                assertThat(meta.isFile()).isTrue();
-                assertThat(meta.getContentLength()).isEqualTo(content.length);
-            }
+            final Metadata meta = operator.stat(path).join();
+            assertThat(meta.isFile()).isTrue();
+            assertThat(meta.contentLength).isEqualTo(content.length);
+
             operator.delete(path).join();
         }
     }
@@ -197,9 +197,9 @@ public abstract class AbstractBehaviorTest {
             final String path = String.format("%s/", UUID.randomUUID().toString());
             operator.createDir(path).join();
 
-            try (final Metadata meta = operator.stat(path).join()) {
-                assertThat(meta.isFile()).isFalse();
-            }
+            final Metadata meta = operator.stat(path).join();
+            assertThat(meta.isFile()).isFalse();
+
             operator.delete(path).join();
         }
 
@@ -212,9 +212,9 @@ public abstract class AbstractBehaviorTest {
             operator.createDir(path).join();
             operator.createDir(path).join();
 
-            try (final Metadata meta = operator.stat(path).join()) {
-                assertThat(meta.isFile()).isFalse();
-            }
+            final Metadata meta = operator.stat(path).join();
+            assertThat(meta.isFile()).isFalse();
+
             operator.delete(path).join();
         }
     }
@@ -567,10 +567,11 @@ public abstract class AbstractBehaviorTest {
             final String path = UUID.randomUUID().toString();
             final byte[] content = generateBytes();
             blockingOperator.write(path, content);
-            try (final Metadata meta = blockingOperator.stat(path)) {
-                assertThat(meta.isFile()).isTrue();
-                assertThat(meta.getContentLength()).isEqualTo(content.length);
-            }
+
+            final Metadata meta = blockingOperator.stat(path);
+            assertThat(meta.isFile()).isTrue();
+            assertThat(meta.contentLength).isEqualTo(content.length);
+
             blockingOperator.delete(path);
         }
     }
@@ -592,9 +593,9 @@ public abstract class AbstractBehaviorTest {
             final String path = String.format("%s/", UUID.randomUUID().toString());
             blockingOperator.createDir(path);
 
-            try (final Metadata meta = blockingOperator.stat(path)) {
-                assertThat(meta.isFile()).isFalse();
-            }
+            final Metadata meta = blockingOperator.stat(path);
+            assertThat(meta.isFile()).isFalse();
+
             blockingOperator.delete(path);
         }
 
@@ -607,9 +608,9 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.createDir(path);
             blockingOperator.createDir(path);
 
-            try (final Metadata meta = blockingOperator.stat(path)) {
-                assertThat(meta.isFile()).isFalse();
-            }
+            final Metadata meta = blockingOperator.stat(path);
+            assertThat(meta.isFile()).isFalse();
+
             blockingOperator.delete(path);
         }
     }
@@ -783,7 +784,7 @@ public abstract class AbstractBehaviorTest {
             assertThatThrownBy(() -> blockingOperator.stat(sourcePath))
                     .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
 
-            assertThat(blockingOperator.stat(targetPath).getContentLength()).isEqualTo(sourceContent.length);
+            assertThat(blockingOperator.stat(targetPath).contentLength).isEqualTo(sourceContent.length);
 
             blockingOperator.delete(sourcePath);
             blockingOperator.delete(targetPath);

@@ -32,13 +32,14 @@ use jni::JavaVM;
 use once_cell::sync::OnceCell;
 use opendal::raw::PresignedRequest;
 use opendal::Capability;
+use opendal::EntryMode;
+use opendal::Metadata;
 use opendal::OperatorInfo;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
 
 mod blocking_operator;
 mod error;
-mod metadata;
 mod operator;
 
 pub(crate) type Result<T> = std::result::Result<T, error::Error>;
@@ -220,6 +221,76 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
         ],
     )?;
     Ok(capability)
+}
+
+fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject<'a>> {
+    let mode = match metadata.mode() {
+        EntryMode::FILE => 0,
+        EntryMode::DIR => 1,
+        EntryMode::Unknown => 2,
+    };
+
+    let last_modified = metadata.last_modified().map_or_else(
+        || Ok::<JObject<'_>, Error>(JObject::null()),
+        |v| {
+            Ok(env.new_object(
+                "java/util/Date",
+                "(J)V",
+                &[JValue::Long(v.timestamp_millis())],
+            )?)
+        },
+    )?;
+
+    let content_range = metadata.content_range().map_or_else(
+        || Ok::<JObject<'_>, Error>(JObject::null()),
+        |v| {
+            let size = v.size().map_or(-1, |v| v as i64);
+            let mut start = -1;
+            let mut end = -1;
+            if let Some(range) = v.to_bytes_range() {
+                start = range.offset().map_or(-1, |v| v as i64);
+                end = range.size().map_or(-1, |v| v as i64);
+            }
+
+            Ok(env.new_object(
+                "org/apache/opendal/Metadata$BytesContentRange",
+                "(JJJ)V",
+                &[JValue::Long(start), JValue::Long(end), JValue::Long(size)],
+            )?)
+        },
+    )?;
+    let cache_control = string_to_jstring(env, metadata.cache_control())?;
+    let content_disposition = string_to_jstring(env, metadata.content_disposition())?;
+    let content_md5 = string_to_jstring(env, metadata.content_md5())?;
+    let content_type = string_to_jstring(env, metadata.content_type())?;
+    let etag = string_to_jstring(env, metadata.etag())?;
+    let version = string_to_jstring(env, metadata.version())?;
+
+    let result = env
+        .new_object(
+            "org/apache/opendal/Metadata",
+            "(IJLjava/lang/String;Lorg/apache/opendal/Metadata$BytesContentRange;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/lang/String;)V",
+            &[
+                JValue::Int(mode as jint),
+                JValue::Long(metadata.content_length() as jlong),
+                JValue::Object(&content_disposition),
+                JValue::Object(&content_range),
+                JValue::Object(&content_md5),
+                JValue::Object(&content_type),
+                JValue::Object(&cache_control),
+                JValue::Object(&etag),
+                JValue::Object(&last_modified),
+                JValue::Object(&version),
+            ],
+        )?;
+    Ok(result)
+}
+
+fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>> {
+    s.map_or_else(
+        || Ok(JObject::null()),
+        |v| Ok(env.new_string(v.to_string())?.into()),
+    )
 }
 
 /// # Safety

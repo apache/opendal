@@ -245,12 +245,14 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
         || Ok::<JObject<'_>, Error>(JObject::null()),
         |v| {
             let size = v.size().map_or(-1, |v| v as i64);
-            let mut start = -1;
-            let mut end = -1;
-            if let Some(range) = v.to_bytes_range() {
-                start = range.offset().map_or(-1, |v| v as i64);
-                end = range.size().map_or(-1, |v| v as i64);
-            }
+            let (start, end) = match v.to_bytes_range() {
+                Some(range) => {
+                    let start = range.offset().map_or(-1, |v| v as i64);
+                    let end = range.size().map_or(-1, |v| v as i64);
+                    (start, end)
+                }
+                None => (-1, -1),
+            };
 
             Ok(env.new_object(
                 "org/apache/opendal/Metadata$BytesContentRange",

@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     // Write file with size > 512KB should fail
     assert!(
         result.is_err(),
-        "wirte file on full disk should return error"
+        "write file on full disk should return error"
     );
 
     Ok(())

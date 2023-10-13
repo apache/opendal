@@ -43,6 +43,7 @@ jobs:
           need-nextest: true
           need-protoc: true
           need-rocksdb: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Required by hdfs
       - name: Setup java env

@@ -16,13 +16,17 @@
 // under the License.
 
 import XCTest
+
 @testable import OpenDAL
 
 final class OpenDALTests: XCTestCase {
     func testSimple() throws {
-        let op = try Operator(scheme: "memory", options: [
-            "root": "/myroot"
-        ])
+        let op = try Operator(
+            scheme: "memory",
+            options: [
+                "root": "/myroot"
+            ]
+        )
 
         let testContents = Data([1, 2, 3, 4])
         try op.blockingWrite(testContents, to: "test")

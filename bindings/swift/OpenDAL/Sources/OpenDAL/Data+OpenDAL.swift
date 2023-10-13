@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import Foundation
 import COpenDAL
+import Foundation
 
 extension Data {
     /// Creates a new data by managing `opendal_bytes` as its
@@ -26,12 +26,14 @@ extension Data {
     /// The underlying buffer will be freed when the data gets
     /// deallocated.
     init(openDALBytes: UnsafeMutablePointer<opendal_bytes>) {
-let address = UnsafeRawPointer(openDALBytes.pointee.data)!
-    let length = Int(openDALBytes.pointee.len)
-    self.init(bytesNoCopy: .init(mutating: address),
-              count: length,
-              deallocator: .custom({ _, _ in
-                  opendal_bytes_free(openDALBytes)
-              }))
+        let address = UnsafeRawPointer(openDALBytes.pointee.data)!
+        let length = Int(openDALBytes.pointee.len)
+        self.init(
+            bytesNoCopy: .init(mutating: address),
+            count: length,
+            deallocator: .custom({ _, _ in
+                opendal_bytes_free(openDALBytes)
+            })
+        )
     }
 }

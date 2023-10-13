@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import Foundation
 import COpenDAL
+import Foundation
 
 public struct OperatorError: Error {
     let code: UInt32
@@ -48,8 +48,10 @@ public class Operator {
             let immutableErr = err.pointee
             let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
             let messageLength = Int(immutableErr.message.len)
-            throw OperatorError(code: immutableErr.code.rawValue,
-                                message: Data(bytes: messagePointer, count: messageLength))
+            throw OperatorError(
+                code: immutableErr.code.rawValue,
+                message: Data(bytes: messagePointer, count: messageLength)
+            )
         }
 
         self.nativeOp = UnsafePointer(ret.operator_ptr)!
@@ -69,8 +71,10 @@ public class Operator {
             let immutableErr = err.pointee
             let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
             let messageLength = Int(immutableErr.message.len)
-            throw OperatorError(code: immutableErr.code.rawValue,
-                                message: Data(bytes: messagePointer, count: messageLength))
+            throw OperatorError(
+                code: immutableErr.code.rawValue,
+                message: Data(bytes: messagePointer, count: messageLength)
+            )
         }
     }
 
@@ -83,8 +87,10 @@ public class Operator {
             let immutableErr = err.pointee
             let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
             let messageLength = Int(immutableErr.message.len)
-            throw OperatorError(code: immutableErr.code.rawValue,
-                                message: Data(bytes: messagePointer, count: messageLength))
+            throw OperatorError(
+                code: immutableErr.code.rawValue,
+                message: Data(bytes: messagePointer, count: messageLength)
+            )
         }
 
         return Data(openDALBytes: ret.data)

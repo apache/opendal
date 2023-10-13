@@ -22,23 +22,6 @@ import os
 from pathlib import Path
 
 
-# Check if we can access secrets based on github context.
-def check_secrets(github):
-    if (
-        github["event_name"] == "push"
-        and github["repository"] == "apache/incubator-opendal"
-    ):
-        return True
-    if (
-        github["event_name"] == "pull_request"
-        and github["event"]["pull_request"]["head"]["full_name"]
-        == "apache/incubator-opendal"
-        and not github["event"]["pull_request"]["head"]["repo"]["fork"]
-    ):
-        return True
-    return False
-
-
 def get_provided_cases():
     root_dir = ".github/services"
 

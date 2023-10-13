@@ -15,13 +15,63 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
+import pytest
+import os
+
+import opendal
 import pytest
 
 
-load_dotenv()
+# load_dotenv()
 pytest_plugins = ("pytest_asyncio",)
+
+SERVICE_TYPE_INDEX = {
+    "service_memory": "memory",
+    "service_s3": "s3",
+    "service_fs": "fs",
+}
 
 
 def pytest_addoption(parser):
     parser.addoption("--service_type", action="store", default="")
+
+
+def setup_config(service_name):
+    prefix = f"opendal_{service_name}_"
+    config = {}
+    for key in os.environ.keys():
+        if key.lower().startswith(prefix):
+            config[key[len(prefix) :].lower()] = os.environ.get(key)
+
+    # Check if current test be enabled.
+    test_flag = config.get("test", "")
+    if test_flag != "on" and test_flag != "true":
+        raise ValueError(f"Service {service_name} test is not enabled.")
+    return config
+
+
+def operator(service_name, setup_config):
+    return opendal.Operator(service_name, **setup_config)
+
+
+def async_operator(service_name, setup_config):
+    return opendal.AsyncOperator(service_name, **setup_config)
+
+
+def pytest_generate_tests(metafunc):
+    service_types = metafunc.config.getoption("service_type").split(",")
+    fixtures = []
+    for service_type in service_types:
+        service_name = SERVICE_TYPE_INDEX.get(service_type)
+        if service_name is None:
+            raise ValueError(f"Service {service_type} is not supported.")
+        config = setup_config(service_name)
+        fixtures.append(
+            (
+                service_name,
+                operator(service_name, config),
+                async_operator(service_name, config),
+            )
+        )
+    metafunc.parametrize("service_name, operator, async_operator", fixtures)

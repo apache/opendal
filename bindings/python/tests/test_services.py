@@ -16,52 +16,13 @@
 # under the License.
 
 import os
-from abc import ABC
 from uuid import uuid4
 from random import randint
 
-import opendal
 import pytest
 
-RENAME_MAP = {
-    "service_memory": "memory",
-    "service_s3": "s3",
-    "service_fs": "fs",
-}
 
-
-@pytest.fixture()
-def service_name(request):
-    service_type = request.config.getoption("--service_type")
-    return RENAME_MAP.get(service_type, "")
-
-
-@pytest.fixture()
-def setup_config(service_name):
-    prefix = f"opendal_{service_name}_"
-    config = {}
-    for key in os.environ.keys():
-        if key.lower().startswith(prefix):
-            config[key[len(prefix) :].lower()] = os.environ.get(key)
-
-    # Check if current test be enabled.
-    test_flag = config.get("test", "")
-    if test_flag != "on" and test_flag != "true":
-        raise ValueError(f"Service {service_name} test is not enabled.")
-    return config
-
-
-@pytest.fixture()
-def operator(service_name, setup_config):
-    return opendal.Operator(service_name, **setup_config)
-
-
-@pytest.fixture()
-def async_operator(service_name, setup_config):
-    return opendal.AsyncOperator(service_name, **setup_config)
-
-
-def test_sync_read(operator, async_operator):
+def test_sync_read(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
@@ -75,7 +36,7 @@ def test_sync_read(operator, async_operator):
 
 
 @pytest.mark.asyncio
-async def test_async_read(operator, async_operator):
+async def test_async_read(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
@@ -88,7 +49,7 @@ async def test_async_read(operator, async_operator):
     await async_operator.delete(filename)
 
 
-def test_sync_read_stat(operator, async_operator):
+def test_sync_read_stat(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
@@ -103,7 +64,7 @@ def test_sync_read_stat(operator, async_operator):
 
 
 @pytest.mark.asyncio
-async def test_async_read_stat(operator, async_operator):
+async def test_async_read_stat(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
@@ -119,19 +80,18 @@ async def test_async_read_stat(operator, async_operator):
     operator.delete(filename)
 
 
-@pytest.fixture()
-def test_sync_read_not_exists(operator, async_operator):
+def test_sync_read_not_exists(service_name, operator, async_operator):
     with pytest.raises(FileNotFoundError):
         operator.read(str(uuid4()))
 
 
 @pytest.mark.asyncio
-async def test_async_read_not_exists(operator, async_operator):
+async def test_async_read_not_exists(service_name, operator, async_operator):
     with pytest.raises(FileNotFoundError):
         await async_operator.read(str(uuid4()))
 
 
-def test_sync_write(operator, async_operator):
+def test_sync_write(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
@@ -146,7 +106,7 @@ def test_sync_write(operator, async_operator):
 
 
 @pytest.mark.asyncio
-async def test_async_write(operator, async_operator):
+async def test_async_write(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
@@ -160,7 +120,7 @@ async def test_async_write(operator, async_operator):
     await async_operator.delete(filename)
 
 
-def test_sync_write_with_non_ascii_name(operator, async_operator):
+def test_sync_write_with_non_ascii_name(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"❌😱中文_{str(uuid4())}.test"
     content = os.urandom(size)
@@ -175,7 +135,7 @@ def test_sync_write_with_non_ascii_name(operator, async_operator):
 
 
 @pytest.mark.asyncio
-async def test_async_write_with_non_ascii_name(operator, async_operator):
+async def test_async_write_with_non_ascii_name(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"❌😱中文_{str(uuid4())}.test"
     content = os.urandom(size)
@@ -189,7 +149,7 @@ async def test_async_write_with_non_ascii_name(operator, async_operator):
     await async_operator.delete(filename)
 
 
-def test_sync_create_dir(operator, async_operator):
+def test_sync_create_dir(service_name, operator, async_operator):
     path = f"test_dir_{str(uuid4())}/"
     operator.create_dir(path)
     metadata = operator.stat(path)
@@ -200,7 +160,7 @@ def test_sync_create_dir(operator, async_operator):
 
 
 @pytest.mark.asyncio
-async def test_async_create_dir(operator, async_operator):
+async def test_async_create_dir(service_name, operator, async_operator):
     path = f"test_dir_{str(uuid4())}/"
     await async_operator.create_dir(path)
     metadata = await async_operator.stat(path)
@@ -210,7 +170,7 @@ async def test_async_create_dir(operator, async_operator):
     await async_operator.delete(path)
 
 
-def test_sync_delete(operator, async_operator):
+def test_sync_delete(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
@@ -222,7 +182,7 @@ def test_sync_delete(operator, async_operator):
 
 
 @pytest.mark.asyncio
-async def test_async_delete(operator, async_operator):
+async def test_async_delete(service_name, operator, async_operator):
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)

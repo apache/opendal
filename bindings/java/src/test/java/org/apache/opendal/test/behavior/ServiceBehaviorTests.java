@@ -26,7 +26,7 @@ import org.assertj.core.util.Files;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-@Tag("services-memory")
+@Tag("services_memory")
 @Slf4j
 class MemoryTest extends AbstractBehaviorTest {
     public MemoryTest() {
@@ -45,7 +45,7 @@ class MemoryTest extends AbstractBehaviorTest {
     }
 }
 
-@Tag("services-fs")
+@Tag("services_fs")
 @Slf4j
 class FsTest extends AbstractBehaviorTest {
     public FsTest() {
@@ -67,7 +67,7 @@ class FsTest extends AbstractBehaviorTest {
     }
 }
 
-@Tag("services-redis")
+@Tag("services_redis")
 @EnabledIf("enabled")
 class RedisTest extends AbstractBehaviorTest {
     public RedisTest() {
@@ -79,7 +79,7 @@ class RedisTest extends AbstractBehaviorTest {
     }
 }
 
-@Tag("services-s3")
+@Tag("services_s3")
 @EnabledIf("enabled")
 class S3Test extends AbstractBehaviorTest {
     public S3Test() {

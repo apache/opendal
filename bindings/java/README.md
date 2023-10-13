@@ -129,7 +129,7 @@ You can run service tests of enabled with the following command:
 Or:
 
 ```shell
-./mvnw test -Dgroups="services-fs" # replace with the certain service tests
+./mvnw test -Dgroups="services_fs" # replace with the certain service tests
 ```
 
 Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
@@ -141,5 +141,5 @@ Remember to enable the necessary features via `-Dcargo-build.features=services-x
 Or:
 
 ```shell
-./mvnw test -Dgroups="services-redis" -Dcargo-build.features=services-redis
+./mvnw test -Dgroups="services_redis" -Dcargo-build.features=services-redis
 ```

@@ -241,7 +241,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dgroups="services-s3"
+        run: ./mvnw test -Dgroups="services_s3"
         env:
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test

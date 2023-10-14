@@ -21,11 +21,13 @@ package org.apache.opendal;
 
 import java.util.Date;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.ToString;
 
 /**
  * Metadata carries all metadata associated with a path.
  */
+@Getter
 @ToString
 @EqualsAndHashCode
 public class Metadata {

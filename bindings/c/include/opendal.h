@@ -145,6 +145,12 @@ typedef struct BlockingLister BlockingLister;
 typedef struct BlockingOperator BlockingOperator;
 
 /**
+ * BlockingReader is designed to read data from given path in an blocking
+ * manner.
+ */
+typedef struct BlockingReader BlockingReader;
+
+/**
  * Entry returned by [`Lister`] or [`BlockingLister`] to represent a path and it's relative metadata.
  *
  * # Notes
@@ -320,6 +326,21 @@ typedef struct opendal_result_read {
   struct opendal_error *error;
 } opendal_result_read;
 
+typedef struct opendal_reader {
+  struct BlockingReader *inner;
+} opendal_reader;
+
+/**
+ * \brief The result type returned by opendal_operator_reader().
+ * The result type for opendal_operator_reader(), the field `reader` contains the reader
+ * of the path, which is an iterator of the objects under the path. the field `code` represents
+ * whether the stat operation is successful.
+ */
+typedef struct opendal_result_reader {
+  struct opendal_reader *reader;
+  struct opendal_error *error;
+} opendal_result_reader;
+
 /**
  * \brief The result type returned by opendal_operator_is_exist().
  *
@@ -420,6 +441,11 @@ typedef struct opendal_result_list {
 typedef struct opendal_list_entry {
   struct Entry *inner;
 } opendal_list_entry;
+
+typedef struct opendal_result_reader_read {
+  uintptr_t size;
+  struct opendal_error *error;
+} opendal_result_reader_read;
 
 #ifdef __cplusplus
 extern "C" {
@@ -559,6 +585,51 @@ struct opendal_error *opendal_operator_blocking_write(const struct opendal_opera
  */
 struct opendal_result_read opendal_operator_blocking_read(const struct opendal_operator_ptr *ptr,
                                                           const char *path);
+
+/**
+ * \brief Blockingly read the data from `path`.
+ *
+ * Read the data out from `path` blockingly by operator, returns
+ * an opendal_result_read with error code.
+ *
+ * @param ptr The opendal_operator_ptr created previously
+ * @param path The path you want to read the data out
+ * @param buffer The buffer you want to read the data into
+ * @param buffer_len The length of the buffer
+ * @see opendal_operator_ptr
+ * @see opendal_result_read
+ * @see opendal_code
+ * @return Returns opendal_code
+ *
+ * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * // ... you have write "Hello, World!" to path "/testpath"
+ *
+ * int length = 13;
+ * unsigned char buffer[length];
+ * opendal_code r = opendal_operator_blocking_read_with_buffer(ptr, "testpath", buffer, length);
+ * assert(r == OPENDAL_OK);
+ * // assert buffer == "Hello, World!"
+ *
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_reader opendal_operator_blocking_reader(const struct opendal_operator_ptr *ptr,
+                                                              const char *path);
 
 /**
  * \brief Blockingly delete the object in `path`.
@@ -903,6 +974,12 @@ char *opendal_list_entry_name(const struct opendal_list_entry *self);
  * \brief Frees the heap memory used by the opendal_list_entry
  */
 void opendal_list_entry_free(struct opendal_list_entry *ptr);
+
+struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *self,
+                                                      uint8_t *buf,
+                                                      uintptr_t len);
+
+void opendal_reader_free(struct opendal_reader *ptr);
 
 #ifdef __cplusplus
 } // extern "C"

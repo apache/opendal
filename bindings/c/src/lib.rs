@@ -38,7 +38,9 @@ use error::opendal_error;
 use once_cell::sync::Lazy;
 use result::opendal_result_list;
 use result::opendal_result_operator_new;
+use result::opendal_result_reader;
 use types::opendal_blocking_lister;
+use types::opendal_reader;
 
 use crate::result::opendal_result_is_exist;
 use crate::result::opendal_result_read;
@@ -287,6 +289,71 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
             let e = Box::new(opendal_error::from_opendal_error(e));
             opendal_result_read {
                 data: std::ptr::null_mut(),
+                error: Box::into_raw(e),
+            }
+        }
+    }
+}
+
+/// \brief Blockingly read the data from `path`.
+///
+/// Read the data out from `path` blockingly by operator, returns
+/// an opendal_result_read with error code.
+///
+/// @param ptr The opendal_operator_ptr created previously
+/// @param path The path you want to read the data out
+/// @param buffer The buffer you want to read the data into
+/// @param buffer_len The length of the buffer
+/// @see opendal_operator_ptr
+/// @see opendal_result_read
+/// @see opendal_code
+/// @return Returns opendal_code
+///
+/// \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+/// After your usage of that, please call opendal_bytes_free() to free the space.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// // ... you have write "Hello, World!" to path "/testpath"
+///
+/// int length = 13;
+/// unsigned char buffer[length];
+/// opendal_code r = opendal_operator_blocking_read_with_buffer(ptr, "testpath", buffer, length);
+/// assert(r == OPENDAL_OK);
+/// // assert buffer == "Hello, World!"
+///
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_blocking_reader(
+    ptr: *const opendal_operator_ptr,
+    path: *const c_char,
+) -> opendal_result_reader {
+    if path.is_null() {
+        panic!("The path given is pointing at NULL");
+    }
+    let op = (*ptr).as_ref();
+    let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
+    match op.reader(path) {
+        Ok(reader) => opendal_result_reader {
+            reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => {
+            let e = Box::new(opendal_error::from_opendal_error(e));
+            opendal_result_reader {
+                reader: std::ptr::null_mut(),
                 error: Box::into_raw(e),
             }
         }

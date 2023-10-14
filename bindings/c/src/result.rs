@@ -25,6 +25,7 @@ use crate::types::opendal_blocking_lister;
 use crate::types::opendal_bytes;
 use crate::types::opendal_metadata;
 use crate::types::opendal_operator_ptr;
+use crate::types::opendal_reader;
 
 /// \brief The result type returned by opendal_operator_new() operation.
 ///
@@ -95,5 +96,15 @@ pub struct opendal_result_list {
     /// The lister, used for further listing operations
     pub lister: *mut opendal_blocking_lister,
     /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
+/// \brief The result type returned by opendal_operator_reader().
+/// The result type for opendal_operator_reader(), the field `reader` contains the reader
+/// of the path, which is an iterator of the objects under the path. the field `code` represents
+/// whether the stat operation is successful.
+#[repr(C)]
+pub struct opendal_result_reader {
+    pub reader: *mut opendal_reader,
     pub error: *mut opendal_error,
 }

@@ -189,7 +189,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
 ///
 /// // now you can write!
-/// opendal_error *err = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+/// opendal_error *err = opendal_operator_write(ptr, "/testpath", bytes);
 ///
 /// // Assert that this succeeds
 /// assert(err == NULL);
@@ -207,7 +207,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_blocking_write(
+pub unsafe extern "C" fn opendal_operator_write(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
     bytes: opendal_bytes,
@@ -249,7 +249,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
 /// ```C
 /// // ... you have write "Hello, World!" to path "/testpath"
 ///
-/// opendal_result_read r = opendal_operator_blocking_read(ptr, "testpath");
+/// opendal_result_read r = opendal_operator_read(ptr, "testpath");
 /// assert(r.error == NULL);
 ///
 /// opendal_bytes *bytes = r.data;
@@ -266,7 +266,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_write(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_blocking_read(
+pub unsafe extern "C" fn opendal_operator_read(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_read {
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
 ///
 /// int length = 13;
 /// unsigned char buffer[length];
-/// opendal_code r = opendal_operator_blocking_read_with_buffer(ptr, "testpath", buffer, length);
+/// opendal_code r = opendal_operator_read_with_buffer(ptr, "testpath", buffer, length);
 /// assert(r == OPENDAL_OK);
 /// // assert buffer == "Hello, World!"
 ///
@@ -336,7 +336,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_read(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_blocking_reader(
+pub unsafe extern "C" fn opendal_operator_reader(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_reader {
@@ -380,12 +380,12 @@ pub unsafe extern "C" fn opendal_operator_blocking_reader(
 /// // prepare your data
 /// char* data = "Hello, World!";
 /// opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
-/// opendal_error *error = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+/// opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
 ///
 /// assert(error == NULL);
 ///
 /// // now you can delete!
-/// opendal_error *error = opendal_operator_blocking_delete(ptr, "/testpath");
+/// opendal_error *error = opendal_operator_delete(ptr, "/testpath");
 ///
 /// // Assert that this succeeds
 /// assert(error == NULL);
@@ -401,7 +401,7 @@ pub unsafe extern "C" fn opendal_operator_blocking_reader(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_blocking_delete(
+pub unsafe extern "C" fn opendal_operator_delete(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> *mut opendal_error {
@@ -565,7 +565,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// ```C
 /// // You have written some data into some files path "root/dir1"
 /// // Your opendal_operator_ptr was called ptr
-/// opendal_result_list l = opendal_operator_blocking_list(ptr, "root/dir1");
+/// opendal_result_list l = opendal_operator_list(ptr, "root/dir1");
 /// assert(l.error == ERROR);
 ///
 /// opendal_blocking_lister *lister = l.lister;
@@ -594,7 +594,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-pub unsafe extern "C" fn opendal_operator_blocking_list(
+pub unsafe extern "C" fn opendal_operator_list(
     ptr: *const opendal_operator_ptr,
     path: *const c_char,
 ) -> opendal_result_list {

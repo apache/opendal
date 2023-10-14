@@ -405,17 +405,17 @@ typedef struct opendal_result_stat {
  *
  * Users can construct Lister by `blocking_list` or `blocking_scan`(currently not supported in C binding)
  *
- * For examples, please see the comment section of opendal_operator_blocking_list()
- * @see opendal_operator_blocking_list()
+ * For examples, please see the comment section of opendal_operator_list()
+ * @see opendal_operator_list()
  */
 typedef struct opendal_blocking_lister {
   struct BlockingLister *inner;
 } opendal_blocking_lister;
 
 /**
- * \brief The result type returned by opendal_operator_blocking_list().
+ * \brief The result type returned by opendal_operator_list().
  *
- * The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
+ * The result type for opendal_operator_list(), the field `lister` contains the lister
  * of the path, which is an iterator of the objects under the path. the field `error` represents
  * whether the stat operation is successful. If successful, the `error` field is null.
  */
@@ -433,8 +433,8 @@ typedef struct opendal_result_list {
 /**
  * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_blocking_lister
  *
- * For examples, please see the comment section of opendal_operator_blocking_list()
- * @see opendal_operator_blocking_list()
+ * For examples, please see the comment section of opendal_operator_list()
+ * @see opendal_operator_list()
  * @see opendal_list_entry_path()
  * @see opendal_list_entry_name()
  */
@@ -521,7 +521,7 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
  * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
  *
  * // now you can write!
- * opendal_error *err = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+ * opendal_error *err = opendal_operator_write(ptr, "/testpath", bytes);
  *
  * // Assert that this succeeds
  * assert(err == NULL);
@@ -539,9 +539,9 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_error *opendal_operator_blocking_write(const struct opendal_operator_ptr *ptr,
-                                                      const char *path,
-                                                      struct opendal_bytes bytes);
+struct opendal_error *opendal_operator_write(const struct opendal_operator_ptr *ptr,
+                                             const char *path,
+                                             struct opendal_bytes bytes);
 
 /**
  * \brief Blockingly read the data from `path`.
@@ -566,7 +566,7 @@ struct opendal_error *opendal_operator_blocking_write(const struct opendal_opera
  * ```C
  * // ... you have write "Hello, World!" to path "/testpath"
  *
- * opendal_result_read r = opendal_operator_blocking_read(ptr, "testpath");
+ * opendal_result_read r = opendal_operator_read(ptr, "testpath");
  * assert(r.error == NULL);
  *
  * opendal_bytes *bytes = r.data;
@@ -583,8 +583,8 @@ struct opendal_error *opendal_operator_blocking_write(const struct opendal_opera
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_read opendal_operator_blocking_read(const struct opendal_operator_ptr *ptr,
-                                                          const char *path);
+struct opendal_result_read opendal_operator_read(const struct opendal_operator_ptr *ptr,
+                                                 const char *path);
 
 /**
  * \brief Blockingly read the data from `path`.
@@ -612,7 +612,7 @@ struct opendal_result_read opendal_operator_blocking_read(const struct opendal_o
  *
  * int length = 13;
  * unsigned char buffer[length];
- * opendal_code r = opendal_operator_blocking_read_with_buffer(ptr, "testpath", buffer, length);
+ * opendal_code r = opendal_operator_read_with_buffer(ptr, "testpath", buffer, length);
  * assert(r == OPENDAL_OK);
  * // assert buffer == "Hello, World!"
  *
@@ -628,8 +628,8 @@ struct opendal_result_read opendal_operator_blocking_read(const struct opendal_o
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_reader opendal_operator_blocking_reader(const struct opendal_operator_ptr *ptr,
-                                                              const char *path);
+struct opendal_result_reader opendal_operator_reader(const struct opendal_operator_ptr *ptr,
+                                                     const char *path);
 
 /**
  * \brief Blockingly delete the object in `path`.
@@ -652,12 +652,12 @@ struct opendal_result_reader opendal_operator_blocking_reader(const struct opend
  * // prepare your data
  * char* data = "Hello, World!";
  * opendal_bytes bytes = opendal_bytes { .data = (uint8_t*)data, .len = 13 };
- * opendal_error *error = opendal_operator_blocking_write(ptr, "/testpath", bytes);
+ * opendal_error *error = opendal_operator_write(ptr, "/testpath", bytes);
  *
  * assert(error == NULL);
  *
  * // now you can delete!
- * opendal_error *error = opendal_operator_blocking_delete(ptr, "/testpath");
+ * opendal_error *error = opendal_operator_delete(ptr, "/testpath");
  *
  * // Assert that this succeeds
  * assert(error == NULL);
@@ -673,8 +673,8 @@ struct opendal_result_reader opendal_operator_blocking_reader(const struct opend
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_error *opendal_operator_blocking_delete(const struct opendal_operator_ptr *ptr,
-                                                       const char *path);
+struct opendal_error *opendal_operator_delete(const struct opendal_operator_ptr *ptr,
+                                              const char *path);
 
 /**
  * \brief Check whether the path exists.
@@ -780,7 +780,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * ```C
  * // You have written some data into some files path "root/dir1"
  * // Your opendal_operator_ptr was called ptr
- * opendal_result_list l = opendal_operator_blocking_list(ptr, "root/dir1");
+ * opendal_result_list l = opendal_operator_list(ptr, "root/dir1");
  * assert(l.error == ERROR);
  *
  * opendal_blocking_lister *lister = l.lister;
@@ -809,8 +809,8 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_list opendal_operator_blocking_list(const struct opendal_operator_ptr *ptr,
-                                                          const char *path);
+struct opendal_result_list opendal_operator_list(const struct opendal_operator_ptr *ptr,
+                                                 const char *path);
 
 /**
  * \brief Frees the opendal_error, ok to call on NULL
@@ -940,8 +940,8 @@ void opendal_operator_options_free(const struct opendal_operator_options *option
  * Lister is an iterator of the objects under its path, this method is the same as
  * calling next() on the iterator
  *
- * For examples, please see the comment section of opendal_operator_blocking_list()
- * @see opendal_operator_blocking_list()
+ * For examples, please see the comment section of opendal_operator_list()
+ * @see opendal_operator_list()
  */
 struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lister *self);
 
@@ -975,7 +975,7 @@ char *opendal_list_entry_name(const struct opendal_list_entry *self);
  */
 void opendal_list_entry_free(struct opendal_list_entry *ptr);
 
-struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *self,
+struct opendal_result_reader_read opendal_reader_read(const struct opendal_reader *reader,
                                                       uint8_t *buf,
                                                       uintptr_t len);
 

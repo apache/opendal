@@ -314,8 +314,8 @@ impl opendal_operator_options {
 ///
 /// Users can construct Lister by `blocking_list` or `blocking_scan`(currently not supported in C binding)
 ///
-/// For examples, please see the comment section of opendal_operator_blocking_list()
-/// @see opendal_operator_blocking_list()
+/// For examples, please see the comment section of opendal_operator_list()
+/// @see opendal_operator_list()
 #[repr(C)]
 pub struct opendal_blocking_lister {
     inner: *mut od::BlockingLister,
@@ -333,8 +333,8 @@ impl opendal_blocking_lister {
     /// Lister is an iterator of the objects under its path, this method is the same as
     /// calling next() on the iterator
     ///
-    /// For examples, please see the comment section of opendal_operator_blocking_list()
-    /// @see opendal_operator_blocking_list()
+    /// For examples, please see the comment section of opendal_operator_list()
+    /// @see opendal_operator_list()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_lister_next(&self) -> *mut opendal_list_entry {
         let e = (*self.inner).next();
@@ -360,8 +360,8 @@ impl opendal_blocking_lister {
 
 /// \brief opendal_list_entry is the entry under a path, which is listed from the opendal_blocking_lister
 ///
-/// For examples, please see the comment section of opendal_operator_blocking_list()
-/// @see opendal_operator_blocking_list()
+/// For examples, please see the comment section of opendal_operator_list()
+/// @see opendal_operator_list()
 /// @see opendal_list_entry_path()
 /// @see opendal_list_entry_name()
 #[repr(C)]
@@ -433,15 +433,18 @@ impl opendal_reader {
 
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_read(
-        &self,
+        reader: *const Self,
         buf: *mut u8,
         len: usize,
     ) -> opendal_result_reader_read {
         if buf.is_null() {
             panic!("The buffer given is pointing at NULL");
         }
+
         let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
-        let r = (*self.inner).read(buf);
+
+        let inner = unsafe { &mut *(*reader).inner };
+        let r = inner.read(buf);
         match r {
             Ok(n) => opendal_result_reader_read {
                 size: n,

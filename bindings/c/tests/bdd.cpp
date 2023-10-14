@@ -61,7 +61,7 @@ TEST_F(OpendalBddTest, FeatureTest)
         .data = (uint8_t*)this->content.c_str(),
         .len = this->content.length(),
     };
-    opendal_error* error = opendal_operator_blocking_write(this->p, this->path.c_str(), data);
+    opendal_error* error = opendal_operator_write(this->p, this->path.c_str(), data);
     EXPECT_EQ(error, nullptr);
 
     // The blocking file "test" should exist
@@ -80,7 +80,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_metadata_free(meta);
 
     // The blocking file "test" must have content "Hello, World!"
-    struct opendal_result_read r = opendal_operator_blocking_read(this->p, this->path.c_str());
+    struct opendal_result_read r = opendal_operator_read(this->p, this->path.c_str());
     EXPECT_EQ(r.error, nullptr);
     EXPECT_EQ(r.data->len, this->content.length());
     for (int i = 0; i < r.data->len; i++) {
@@ -90,7 +90,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     // The blocking file "test" must have content "Hello, World!" and read into buffer
     int length = this->content.length();
     unsigned char buffer[this->content.length()];
-    opendal_result_reader reader = opendal_operator_blocking_reader(this->p, this->path.c_str());
+    opendal_result_reader reader = opendal_operator_reader(this->p, this->path.c_str());
     EXPECT_EQ(reader.error, nullptr);
     auto rst = opendal_reader_read(reader.reader, buffer, length);
     EXPECT_EQ(rst.size, length);
@@ -100,14 +100,14 @@ TEST_F(OpendalBddTest, FeatureTest)
     opendal_reader_free(reader.reader);
 
     // The blocking file should be deleted
-    error = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    error = opendal_operator_delete(this->p, this->path.c_str());
     EXPECT_EQ(error, nullptr);
     e = opendal_operator_is_exist(this->p, this->path.c_str());
     EXPECT_EQ(e.error, nullptr);
     EXPECT_FALSE(e.is_exist);
 
     // The deletion operation should be idempotent
-    error = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    error = opendal_operator_delete(this->p, this->path.c_str());
     EXPECT_EQ(error, nullptr);
 
     opendal_bytes_free(r.data);

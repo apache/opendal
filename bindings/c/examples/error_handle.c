@@ -32,7 +32,7 @@ int main()
     opendal_operator_ptr* op = result.operator_ptr;
 
     /* The read is supposed to fail */
-    opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
+    opendal_result_read r = opendal_operator_read(op, "/testpath");
     assert(r.error != NULL);
     assert(r.error->code == OPENDAL_NOT_FOUND);
 

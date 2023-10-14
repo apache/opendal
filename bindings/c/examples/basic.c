@@ -37,11 +37,11 @@ int main()
     };
 
     /* Write this into path "/testpath" */
-    opendal_error* error = opendal_operator_blocking_write(op, "/testpath", data);
+    opendal_error* error = opendal_operator_write(op, "/testpath", data);
     assert(error == NULL);
 
     /* We can read it out, make sure the data is the same */
-    opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
+    opendal_result_read r = opendal_operator_read(op, "/testpath");
     opendal_bytes* read_bytes = r.data;
     assert(r.error == NULL);
     assert(read_bytes->len == 24);

@@ -86,9 +86,9 @@ pub struct opendal_result_stat {
     pub error: *mut opendal_error,
 }
 
-/// \brief The result type returned by opendal_operator_blocking_list().
+/// \brief The result type returned by opendal_operator_list().
 ///
-/// The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
+/// The result type for opendal_operator_list(), the field `lister` contains the lister
 /// of the path, which is an iterator of the objects under the path. the field `error` represents
 /// whether the stat operation is successful. If successful, the `error` field is null.
 #[repr(C)]

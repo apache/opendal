@@ -241,26 +241,6 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
         },
     )?;
 
-    let content_range = metadata.content_range().map_or_else(
-        || Ok::<JObject<'_>, Error>(JObject::null()),
-        |v| {
-            let size = v.size().map_or(-1, |v| v as i64);
-            let (start, end) = match v.to_bytes_range() {
-                Some(range) => {
-                    let start = range.offset().map_or(-1, |v| v as i64);
-                    let end = range.size().map_or(-1, |v| v as i64);
-                    (start, end)
-                }
-                None => (-1, -1),
-            };
-
-            Ok(env.new_object(
-                "org/apache/opendal/Metadata$BytesContentRange",
-                "(JJJ)V",
-                &[JValue::Long(start), JValue::Long(end), JValue::Long(size)],
-            )?)
-        },
-    )?;
     let cache_control = string_to_jstring(env, metadata.cache_control())?;
     let content_disposition = string_to_jstring(env, metadata.content_disposition())?;
     let content_md5 = string_to_jstring(env, metadata.content_md5())?;
@@ -271,12 +251,11 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
     let result = env
         .new_object(
             "org/apache/opendal/Metadata",
-            "(IJLjava/lang/String;Lorg/apache/opendal/Metadata$BytesContentRange;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/lang/String;)V",
+            "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/lang/String;)V",
             &[
                 JValue::Int(mode as jint),
                 JValue::Long(metadata.content_length() as jlong),
                 JValue::Object(&content_disposition),
-                JValue::Object(&content_range),
                 JValue::Object(&content_md5),
                 JValue::Object(&content_type),
                 JValue::Object(&cache_control),

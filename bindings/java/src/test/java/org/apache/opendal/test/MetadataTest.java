@@ -58,7 +58,6 @@ public class MetadataTest {
             assertThat(metadata.cacheControl).isNull();
             assertThat(metadata.contentDisposition).isNull();
             assertThat(metadata.contentMd5).isNull();
-            assertThat(metadata.contentRange).isNull();
             assertThat(metadata.contentType).isNull();
             assertThat(metadata.etag).isNull();
             assertThat(metadata.version).isNull();
@@ -90,7 +89,6 @@ public class MetadataTest {
             assertThat(metadata.cacheControl).isNull();
             assertThat(metadata.contentDisposition).isNull();
             assertThat(metadata.contentMd5).isNull();
-            assertThat(metadata.contentRange).isNull();
             assertThat(metadata.contentType).isNull();
             assertThat(metadata.etag).isNull();
             assertThat(metadata.version).isNull();

@@ -34,7 +34,6 @@ public class Metadata {
     public final EntryMode mode;
     public final long contentLength;
     public final String contentDisposition;
-    public final BytesContentRange contentRange;
     public final String contentMd5;
     public final String contentType;
     public final String cacheControl;
@@ -46,7 +45,6 @@ public class Metadata {
             int mode,
             long contentLength,
             String contentDisposition,
-            BytesContentRange contentRange,
             String contentMd5,
             String contentType,
             String cacheControl,
@@ -56,7 +54,6 @@ public class Metadata {
         this.mode = EntryMode.of(mode);
         this.contentLength = contentLength;
         this.contentDisposition = contentDisposition;
-        this.contentRange = contentRange;
         this.contentMd5 = contentMd5;
         this.contentType = contentType;
         this.cacheControl = cacheControl;
@@ -90,29 +87,6 @@ public class Metadata {
                 default:
                     return EntryMode.UNKNOWN;
             }
-        }
-    }
-
-    @ToString
-    @EqualsAndHashCode
-    public static class BytesContentRange {
-        /**
-         * Start position of the range. `-1` means unknown.
-         */
-        public final long start;
-        /**
-         * End position of the range. `-1` means unknown.
-         */
-        public final long end;
-        /**
-         * Size of the whole content. `-1` means unknown.
-         */
-        public final long size;
-
-        public BytesContentRange(long start, long end, long size) {
-            this.start = start;
-            this.end = end;
-            this.size = size;
         }
     }
 }

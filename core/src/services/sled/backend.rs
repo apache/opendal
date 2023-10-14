@@ -152,8 +152,7 @@ impl kv::Adapter for Adapter {
 
         task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
             .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
+            .map_err(new_task_join_error)?
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {

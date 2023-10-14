@@ -22,8 +22,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use rocksdb::DB;
+use tokio::task;
 
 use crate::raw::adapters::kv;
+use crate::raw::*;
 use crate::Result;
 use crate::*;
 
@@ -118,7 +120,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        self.blocking_get(path)
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+
+        task::spawn_blocking(move || cloned_self.blocking_get(cloned_path.as_str()))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
@@ -126,7 +134,14 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.blocking_set(path, value)
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+        let cloned_value = value.to_vec();
+
+        task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -134,7 +149,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        self.blocking_delete(path)
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+
+        task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
@@ -142,7 +163,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        self.blocking_scan(path)
+        let cloned_self = self.clone();
+        let cloned_path = path.to_string();
+
+        task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
+            .await
+            .map_err(new_task_join_error)
+            .and_then(|inner_result| inner_result)
     }
 
     /// TODO: we only need key here.

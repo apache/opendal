@@ -139,8 +139,7 @@ impl kv::Adapter for Adapter {
 
         task::spawn_blocking(move || cloned_self.blocking_set(cloned_path.as_str(), &cloned_value))
             .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
+            .map_err(new_task_join_error)?
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -153,8 +152,7 @@ impl kv::Adapter for Adapter {
 
         task::spawn_blocking(move || cloned_self.blocking_delete(cloned_path.as_str()))
             .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
+            .map_err(new_task_join_error)?
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
@@ -167,8 +165,7 @@ impl kv::Adapter for Adapter {
 
         task::spawn_blocking(move || cloned_self.blocking_scan(cloned_path.as_str()))
             .await
-            .map_err(new_task_join_error)
-            .and_then(|inner_result| inner_result)
+            .map_err(new_task_join_error)?
     }
 
     /// TODO: we only need key here.

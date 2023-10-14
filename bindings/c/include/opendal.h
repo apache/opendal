@@ -408,9 +408,9 @@ typedef struct opendal_result_stat {
  * For examples, please see the comment section of opendal_operator_list()
  * @see opendal_operator_list()
  */
-typedef struct opendal_blocking_lister {
+typedef struct opendal_lister {
   struct BlockingLister *inner;
-} opendal_blocking_lister;
+} opendal_lister;
 
 /**
  * \brief The result type returned by opendal_operator_list().
@@ -423,7 +423,7 @@ typedef struct opendal_result_list {
   /**
    * The lister, used for further listing operations
    */
-  struct opendal_blocking_lister *lister;
+  struct opendal_lister *lister;
   /**
    * The error, if ok, it is null
    */
@@ -431,7 +431,7 @@ typedef struct opendal_result_list {
 } opendal_result_list;
 
 /**
- * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_blocking_lister
+ * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_lister
  *
  * For examples, please see the comment section of opendal_operator_list()
  * @see opendal_operator_list()
@@ -763,12 +763,12 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * \brief Blockingly list the objects in `path`.
  *
  * List the object in `path` blockingly by `op_ptr`, return a result with a
- * opendal_blocking_lister. Users should call opendal_lister_next() on the
+ * opendal_lister. Users should call opendal_lister_next() on the
  * lister.
  *
  * @param ptr The opendal_operator_ptr created previously
  * @param path The designated path you want to delete
- * @see opendal_blocking_lister
+ * @see opendal_lister
  * @return Returns opendal_result_list, containing a lister and an opendal_error.
  * If the operation succeeds, the `lister` field would holds a valid lister and
  * the `error` field should hold nullptr. Otherwise the `lister`` will contain a
@@ -783,7 +783,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * opendal_result_list l = opendal_operator_list(ptr, "root/dir1");
  * assert(l.error == ERROR);
  *
- * opendal_blocking_lister *lister = l.lister;
+ * opendal_lister *lister = l.lister;
  * opendal_list_entry *entry;
  *
  * while ((entry = opendal_lister_next(lister)) != NULL) {
@@ -943,12 +943,12 @@ void opendal_operator_options_free(const struct opendal_operator_options *option
  * For examples, please see the comment section of opendal_operator_list()
  * @see opendal_operator_list()
  */
-struct opendal_list_entry *opendal_lister_next(const struct opendal_blocking_lister *self);
+struct opendal_list_entry *opendal_lister_next(const struct opendal_lister *self);
 
 /**
- * \brief Free the heap-allocated metadata used by opendal_blocking_lister
+ * \brief Free the heap-allocated metadata used by opendal_lister
  */
-void opendal_lister_free(const struct opendal_blocking_lister *p);
+void opendal_lister_free(const struct opendal_lister *p);
 
 /**
  * \brief Path of entry.

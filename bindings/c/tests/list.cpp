@@ -72,7 +72,7 @@ TEST_F(OpendalListTest, ListDirTest)
     opendal_result_list l = opendal_operator_list(this->p, (dname + "/").c_str());
     EXPECT_EQ(l.error, nullptr);
 
-    opendal_blocking_lister* lister = l.lister;
+    opendal_lister* lister = l.lister;
 
     // start checking the lister's result
     bool found = false;

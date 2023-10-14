@@ -21,8 +21,8 @@
 //! we are defining all Result types here
 
 use crate::error::opendal_error;
-use crate::types::opendal_blocking_lister;
 use crate::types::opendal_bytes;
+use crate::types::opendal_lister;
 use crate::types::opendal_metadata;
 use crate::types::opendal_operator_ptr;
 use crate::types::opendal_reader;
@@ -94,7 +94,7 @@ pub struct opendal_result_stat {
 #[repr(C)]
 pub struct opendal_result_list {
     /// The lister, used for further listing operations
-    pub lister: *mut opendal_blocking_lister,
+    pub lister: *mut opendal_lister,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }

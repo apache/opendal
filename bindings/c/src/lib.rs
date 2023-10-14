@@ -39,7 +39,7 @@ use once_cell::sync::Lazy;
 use result::opendal_result_list;
 use result::opendal_result_operator_new;
 use result::opendal_result_reader;
-use types::opendal_blocking_lister;
+use types::opendal_lister;
 use types::opendal_reader;
 
 use crate::result::opendal_result_is_exist;
@@ -548,12 +548,12 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// \brief Blockingly list the objects in `path`.
 ///
 /// List the object in `path` blockingly by `op_ptr`, return a result with a
-/// opendal_blocking_lister. Users should call opendal_lister_next() on the
+/// opendal_lister. Users should call opendal_lister_next() on the
 /// lister.
 ///
 /// @param ptr The opendal_operator_ptr created previously
 /// @param path The designated path you want to delete
-/// @see opendal_blocking_lister
+/// @see opendal_lister
 /// @return Returns opendal_result_list, containing a lister and an opendal_error.
 /// If the operation succeeds, the `lister` field would holds a valid lister and
 /// the `error` field should hold nullptr. Otherwise the `lister`` will contain a
@@ -568,7 +568,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// opendal_result_list l = opendal_operator_list(ptr, "root/dir1");
 /// assert(l.error == ERROR);
 ///
-/// opendal_blocking_lister *lister = l.lister;
+/// opendal_lister *lister = l.lister;
 /// opendal_list_entry *entry;
 ///
 /// while ((entry = opendal_lister_next(lister)) != NULL) {
@@ -606,7 +606,7 @@ pub unsafe extern "C" fn opendal_operator_list(
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.lister(path) {
         Ok(lister) => opendal_result_list {
-            lister: Box::into_raw(Box::new(opendal_blocking_lister::new(lister))),
+            lister: Box::into_raw(Box::new(opendal_lister::new(lister))),
             error: std::ptr::null_mut(),
         },
 

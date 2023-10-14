@@ -317,11 +317,11 @@ impl opendal_operator_options {
 /// For examples, please see the comment section of opendal_operator_list()
 /// @see opendal_operator_list()
 #[repr(C)]
-pub struct opendal_blocking_lister {
+pub struct opendal_lister {
     inner: *mut od::BlockingLister,
 }
 
-impl opendal_blocking_lister {
+impl opendal_lister {
     pub(crate) fn new(lister: od::BlockingLister) -> Self {
         Self {
             inner: Box::into_raw(Box::new(lister)),
@@ -348,17 +348,17 @@ impl opendal_blocking_lister {
         }
     }
 
-    /// \brief Free the heap-allocated metadata used by opendal_blocking_lister
+    /// \brief Free the heap-allocated metadata used by opendal_lister
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_lister_free(p: *const opendal_blocking_lister) {
+    pub unsafe extern "C" fn opendal_lister_free(p: *const opendal_lister) {
         unsafe {
             let _ = Box::from_raw((*p).inner);
-            let _ = Box::from_raw(p as *mut opendal_blocking_lister);
+            let _ = Box::from_raw(p as *mut opendal_lister);
         }
     }
 }
 
-/// \brief opendal_list_entry is the entry under a path, which is listed from the opendal_blocking_lister
+/// \brief opendal_list_entry is the entry under a path, which is listed from the opendal_lister
 ///
 /// For examples, please see the comment section of opendal_operator_list()
 /// @see opendal_operator_list()

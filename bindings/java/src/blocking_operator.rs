@@ -19,12 +19,14 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::sys::{jbyteArray, jlong};
+use jni::sys::jbyteArray;
+use jni::sys::jobject;
 use jni::JNIEnv;
 
 use opendal::BlockingOperator;
 
 use crate::jstring_to_string;
+use crate::make_metadata;
 use crate::Result;
 
 /// # Safety
@@ -98,17 +100,17 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
-) -> jlong {
+) -> jobject {
     intern_stat(&mut env, &mut *op, path).unwrap_or_else(|e| {
         e.throw(&mut env);
-        0
+        JObject::default().into_raw()
     })
 }
 
-fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jlong> {
+fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobject> {
     let path = jstring_to_string(env, &path)?;
     let metadata = op.stat(&path)?;
-    Ok(Box::into_raw(Box::new(metadata)) as jlong)
+    Ok(make_metadata(env, metadata)?.into_raw())
 }
 
 /// # Safety

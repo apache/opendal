@@ -178,7 +178,8 @@ fn main() -> anyhow::Result<()> {
     tests.extend(behavior_test::<services::Redb>());
     #[cfg(feature = "services-tikv")]
     tests.extend(behavior_test::<services::Tikv>());
-
+    #[cfg(feature = "services-azfile")]
+    tests.extend(behavior_test::<services::Azfile>());
     // Don't init logging while building operator which may break cargo
     // nextest output
     let _ = tracing_subscriber::fmt()

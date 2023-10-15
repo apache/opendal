@@ -213,3 +213,8 @@ pub use self::postgresql::Postgresql;
 mod atomicserver;
 #[cfg(feature = "services-atomicserver")]
 pub use self::atomicserver::Atomicserver;
+
+#[cfg(feature = "services-azfile")]
+mod azfile;
+#[cfg(feature = "services-azfile")]
+pub use self::azfile::Azfile;

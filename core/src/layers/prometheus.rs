@@ -104,7 +104,7 @@ impl PrometheusLayer {
 
 
     /// set buckets for requests_duration_seconds
-    pub fn requests_duration_seconds_buckets(&mut self, buckets: Vec<f64>) -> &Self {
+    pub fn requests_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
             self.requests_duration_seconds_buckets = buckets;
         }

@@ -33,7 +33,7 @@ version.workspace = true
 default = ["frontends-webdav", "frontends-s3"]
 
 frontends-s3 = []
-frontends-webdav = ["dep:dav-server", "dep:bytes", "dep:futures-util"]
+frontends-webdav = ["dep:dav-server", "dep:dav-server-opendalfs", "dep:bytes", "dep:futures-util"]
 
 [dependencies]
 anyhow = "1"
@@ -42,6 +42,7 @@ bytes = { version = "1.4.0", optional = true }
 chrono = "0.4.28"
 clap = { version = "4", features = ["cargo", "string"] }
 dav-server = { version = "0.5.5", optional = true }
+dav-server-opendalfs = { path = "../../integrations/dav-server", optional = true }
 dirs = "5.0.0"
 futures = "0.3"
 futures-util = { version = "0.3.16", optional = true }

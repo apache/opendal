@@ -68,7 +68,7 @@ impl Error {
             ErrorKind::InvalidInput => "InvalidInput",
             _ => "Unexpected",
         })?;
-        let message = env.new_string(self.inner.to_string())?;
+        let message = env.new_string(format!("{:?}", self.inner))?;
         let exception = env.new_object(
             class,
             "(Ljava/lang/String;Ljava/lang/String;)V",

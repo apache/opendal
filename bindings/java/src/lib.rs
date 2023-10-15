@@ -135,7 +135,9 @@ fn make_presigned_request<'a>(env: &mut JNIEnv<'a>, req: PresignedRequest) -> Re
         let mut map = HashMap::new();
         for (k, v) in req.header().iter() {
             let key = k.to_string();
-            let value = v.to_str().map_err(Error::unexpected)?;
+            let value = v.to_str().map_err(|err| {
+                opendal::Error::new(opendal::ErrorKind::Unexpected, &err.to_string())
+            })?;
             map.insert(key, value.to_owned());
         }
         map

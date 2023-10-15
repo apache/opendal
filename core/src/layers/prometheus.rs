@@ -112,7 +112,7 @@ impl PrometheusLayer {
     }
 
     /// set buckets for bytes_total
-    pub fn bytes_total_buckets(&mut self, buckets: Vec<f64>) -> &Self {
+    pub fn bytes_total_buckets(mut self, buckets: Vec<f64>) -> Self {
         if !buckets.is_empty() {
             self.bytes_total_buckets = buckets;
         }

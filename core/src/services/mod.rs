@@ -29,6 +29,11 @@ mod azdls;
 #[cfg(feature = "services-azdls")]
 pub use azdls::Azdls;
 
+#[cfg(feature = "services-cloudflare-kv")]
+mod cloudflare_kv;
+#[cfg(feature = "services-cloudflare-kv")]
+pub use self::cloudflare_kv::CloudflareKv;
+
 #[cfg(feature = "services-cos")]
 mod cos;
 #[cfg(feature = "services-cos")]

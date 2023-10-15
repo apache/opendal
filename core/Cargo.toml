@@ -116,6 +116,7 @@ services-azdls = [
   "reqsign?/reqwest_request",
 ]
 services-cacache = ["dep:cacache"]
+services-cloudflare-kv = []
 services-cos = [
   "dep:reqsign",
   "reqsign?/services-tencent",
@@ -230,9 +231,9 @@ foundationdb = { version = "0.8.0", features = [
 futures = { version = "0.3", default-features = false, features = ["std"] }
 governor = { version = "0.5", optional = true, features = ["std"] }
 hdrs = { version = "0.3.0", optional = true, features = ["async_file"] }
+hrana-client-proto = { version = "0.2.1", optional = true }
 http = "0.2.9"
 hyper = "0.14"
-hrana-client-proto = { version = "0.2.1", optional = true }
 lazy-regex = { version = "3.0.1", optional = true }
 log = "0.4"
 madsim = { version = "0.2.21", optional = true }

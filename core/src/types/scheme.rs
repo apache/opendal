@@ -40,6 +40,8 @@ pub enum Scheme {
     Azdls,
     /// [cacache][crate::services::Cacache]: cacache backend support.
     Cacache,
+	/// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
+	CloudflareKv, 
     /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
     Cos,
     /// [d1][crate::services::D1]: D1 services
@@ -267,6 +269,7 @@ impl FromStr for Scheme {
             // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "cacache" => Ok(Scheme::Cacache),
+			"cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
             "d1" => Ok(Scheme::D1),
             "dashmap" => Ok(Scheme::Dashmap),
@@ -318,6 +321,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::Cacache => "cacache",
+			Scheme::CloudflareKv => "cloudflare_kv",
             Scheme::Cos => "cos",
             Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",

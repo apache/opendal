@@ -40,22 +40,22 @@ use crate::raw::Accessor;
 use crate::raw::*;
 use crate::*;
 /// Add [prometheus](https://docs.rs/prometheus) for every operations.
-/// 
+///
 /// # Prometheus Metrics
-/// 
+///
 /// In this section, we will introduce three metrics that are currently being exported by our project. These metrics are essential for understanding the behavior and performance of our applications.
-/// 
-/// 
+///
+///
 /// | Metric Name             | Type     | Description                                       | Labels              |
 /// |-------------------------|----------|---------------------------------------------------|---------------------|
 /// | requests_total          | Counter  | Total times of 'create' operation being called   | scheme, operation   |
 /// | requests_duration_seconds | Histogram | Histogram of the time spent on specific operation | scheme, operation   |
 /// | bytes_total             | Histogram | Total size                                        | scheme, operation   |
-/// 
+///
 /// For a more detailed explanation of these metrics and how they are used, please refer to the [Prometheus documentation](https://prometheus.io/docs/introduction/overview/).
-/// 
+///
 /// # Histogram Configuration
-/// 
+///
 /// The metric buckets for these histograms are automatically generated based on the `exponential_buckets(0.01, 2.0, 16)` configuration.
 ///
 /// # Examples
@@ -118,7 +118,6 @@ impl PrometheusLayer {
             bytes_total_buckets: exponential_buckets(0.01, 2.0, 16).unwrap(),
         }
     }
-
 
     /// set buckets for requests_duration_seconds
     pub fn requests_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {

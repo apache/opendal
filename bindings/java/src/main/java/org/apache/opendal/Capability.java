@@ -19,11 +19,9 @@
 
 package org.apache.opendal;
 
-import lombok.EqualsAndHashCode;
-import lombok.ToString;
+import lombok.Data;
 
-@ToString
-@EqualsAndHashCode
+@Data
 public class Capability {
     /**
      *  If operator supports stat.

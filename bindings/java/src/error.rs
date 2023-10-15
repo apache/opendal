@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::backtrace::{Backtrace, BacktraceStatus};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -22,17 +23,24 @@ use std::fmt::Formatter;
 use jni::objects::JThrowable;
 use jni::objects::JValue;
 use jni::JNIEnv;
+
 use opendal::ErrorKind;
 
 pub(crate) struct Error {
     inner: opendal::Error,
+    backtrace: Backtrace,
 }
 
 impl Error {
-    pub(crate) fn unexpected(err: impl Into<anyhow::Error> + Display) -> Error {
+    pub(crate) fn new(inner: opendal::Error) -> Error {
         Error {
-            inner: opendal::Error::new(ErrorKind::Unexpected, &err.to_string()).set_source(err),
+            inner,
+            backtrace: Backtrace::capture(),
         }
+    }
+
+    pub(crate) fn unexpected(err: impl Into<anyhow::Error> + Display) -> Error {
+        Self::new(opendal::Error::new(ErrorKind::Unexpected, &err.to_string()).set_source(err))
     }
 
     pub(crate) fn throw(&self, env: &mut JNIEnv) {
@@ -68,7 +76,8 @@ impl Error {
             ErrorKind::InvalidInput => "InvalidInput",
             _ => "Unexpected",
         })?;
-        let message = env.new_string(self.inner.to_string())?;
+
+        let message = env.new_string(self.to_string())?;
         let exception = env.new_object(
             class,
             "(Ljava/lang/String;Ljava/lang/String;)V",
@@ -85,7 +94,7 @@ impl Error {
 
 impl From<opendal::Error> for Error {
     fn from(error: opendal::Error) -> Self {
-        Self { inner: error }
+        Self::new(error)
     }
 }
 
@@ -115,7 +124,13 @@ impl Debug for Error {
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self.inner, f)
+        Display::fmt(&self.inner, f)?;
+        if self.backtrace.status() == BacktraceStatus::Captured {
+            writeln!(f)?;
+            writeln!(f, "Backtrace:")?;
+            writeln!(f, "{}", self.backtrace)?;
+        }
+        Ok(())
     }
 }
 

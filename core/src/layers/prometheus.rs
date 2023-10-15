@@ -94,44 +94,17 @@ pub struct PrometheusLayer {
 
 impl PrometheusLayer {
     /// create PrometheusLayer by incoming registry.
-    /// For promtheus layer, we will use default buckets for HistogramMetric.
-    /// Be careful, if you want to use custom buckets, please use [`PrometheusLayer::with_registry_and_custom_metric_bucket`].
-    /// Or set buckets directly by [`PrometheusLayer::requests_duration_seconds_buckets`] and [`PrometheusLayer::bytes_total_buckets`] if you need it.
     pub fn with_registry(registry: Registry) -> Self {
-        let mut result = Self {
+        Self {
             registry,
-            ..Default::default()
-        };
-        result.requests_duration_seconds_buckets = exponential_buckets(0.01, 2.0, 16).unwrap();
-        result.bytes_total_buckets = exponential_buckets(0.01, 2.0, 16).unwrap();
-        result
+            requests_duration_seconds_buckets: exponential_buckets(0.01, 2.0, 16).unwrap(),
+            bytes_total_buckets: exponential_buckets(0.01, 2.0, 16).unwrap(),
+        }
     }
 
-    /// create PrometheusLayer by incoming registry and custom buckets.
-    pub fn with_registry_and_custom_metric_bucket(
-        registry: Registry,
-        requests_duration_seconds_buckets: Vec<f64>,
-        bytes_total_buckets: Vec<f64>,
-    ) -> Self {
-        let mut result = Self {
-            registry,
-            ..Default::default()
-        };
-        result.requests_duration_seconds_buckets = if requests_duration_seconds_buckets.is_empty() {
-            exponential_buckets(0.01, 2.0, 16).unwrap()
-        } else {
-            requests_duration_seconds_buckets
-        };
-        result.bytes_total_buckets = if bytes_total_buckets.is_empty() {
-            exponential_buckets(0.01, 2.0, 16).unwrap()
-        } else {
-            bytes_total_buckets
-        };
-        result
-    }
 
     /// set buckets for requests_duration_seconds
-    pub fn requests_duration_seconds_buckets(&mut self, buckets: Vec<f64>) -> &mut Self {
+    pub fn requests_duration_seconds_buckets(&mut self, buckets: Vec<f64>) -> &Self {
         if !buckets.is_empty() {
             self.requests_duration_seconds_buckets = buckets;
         }
@@ -139,7 +112,7 @@ impl PrometheusLayer {
     }
 
     /// set buckets for bytes_total
-    pub fn bytes_total_buckets(&mut self, buckets: Vec<f64>) -> &mut Self {
+    pub fn bytes_total_buckets(&mut self, buckets: Vec<f64>) -> &Self {
         if !buckets.is_empty() {
             self.bytes_total_buckets = buckets;
         }

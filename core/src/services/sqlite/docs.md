@@ -17,7 +17,7 @@ This service can be used to:
 ## Configuration
 
 - `root`: Set the working directory of `OpenDAL`
-- `connection_string`: Set the connection string of postgres server
+- `connection_string`: Set the connection string of sqlite database
 - `table`: Set the table of sqlite
 - `key_field`: Set the key field of sqlite
 - `value_field`: Set the value field of sqlite

@@ -31,7 +31,6 @@ use super::pager::GdrivePager;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::services::gdrive::core::GdriveFile;
-use crate::services::gdrive::core::GdriveFileList;
 use crate::types::Result;
 use crate::*;
 
@@ -100,50 +99,22 @@ impl Accessor for GdriveBackend {
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let parent = self.core.ensure_parent_path(path).await?;
 
-        let path = path.split('/').filter(|&x| !x.is_empty()).last().unwrap();
+        // Make sure `/` has been trimmed.
+        let path = get_basename(path).trim_end_matches('/');
 
         // As Google Drive allows files have the same name, we need to check if the folder exists.
-        let resp = self.core.gdrive_search_folder(path, &parent).await?;
-        let status = resp.status();
+        let folder_id = self.core.gdrive_search_folder(&parent, path).await?;
 
-        match status {
-            StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
-                let meta = serde_json::from_slice::<GdriveFileList>(&body)
-                    .map_err(new_json_deserialize_error)?;
+        let id = if let Some(id) = folder_id {
+            id
+        } else {
+            self.core.gdrive_create_folder(&parent, path).await?
+        };
 
-                if !meta.files.is_empty() {
-                    let mut cache = self.core.path_cache.lock().await;
+        let mut cache = self.core.path_cache.lock().await;
+        cache.insert(build_abs_path(&self.core.root, path), id);
 
-                    cache.insert(
-                        build_abs_path(&self.core.root, path),
-                        meta.files[0].id.clone(),
-                    );
-
-                    return Ok(RpCreateDir::default());
-                }
-            }
-            _ => return Err(parse_error(resp).await?),
-        }
-
-        let resp = self.core.gdrive_create_folder(path, Some(parent)).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
-                let meta = serde_json::from_slice::<GdriveFile>(&body)
-                    .map_err(new_json_deserialize_error)?;
-
-                let mut cache = self.core.path_cache.lock().await;
-
-                cache.insert(build_abs_path(&self.core.root, path), meta.id.clone());
-
-                Ok(RpCreateDir::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok(RpCreateDir::default())
     }
 
     async fn read(&self, path: &str, _args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -233,7 +204,7 @@ impl Accessor for GdriveBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::NO_CONTENT => {
+                StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
                     let mut cache = self.core.path_cache.lock().await;
 
                     cache.remove(&build_abs_path(&self.core.root, path));

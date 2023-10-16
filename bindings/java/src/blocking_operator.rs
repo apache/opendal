@@ -20,12 +20,15 @@ use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::sys::jbyteArray;
+use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::JNIEnv;
 
 use opendal::BlockingOperator;
+use opendal::Metakey;
 
 use crate::jstring_to_string;
+use crate::make_entry;
 use crate::make_metadata;
 use crate::Result;
 
@@ -207,4 +210,56 @@ fn intern_rename(
     let target_path = jstring_to_string(env, &target_path)?;
 
     Ok(op.rename(&source_path, &target_path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_listWith(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    path: JString,
+    limit: jlong,
+    start_after: JString,
+    delimiter: JString,
+) -> jobject {
+    intern_list_with(&mut env, &mut *op, path, limit, start_after, delimiter).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        JObject::default().into_raw()
+    })
+}
+
+fn intern_list_with(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    path: JString,
+    limit: jlong,
+    start_after: JString,
+    delimiter: JString,
+) -> Result<jobject> {
+    let path = jstring_to_string(env, &path)?;
+    let mut op = op.list_with(&path).metakey(Metakey::Complete);
+    if limit > 0 {
+        op = op.limit(limit as usize);
+    }
+    if !start_after.is_null() {
+        op = op.start_after(jstring_to_string(env, &start_after)?.as_str());
+    }
+    if !delimiter.is_null() {
+        op = op.delimiter(jstring_to_string(env, &delimiter)?.as_str());
+    }
+
+    let list = env.new_object("java/util/ArrayList", "()V", &[])?;
+    let jmap = env.get_list(&list)?;
+
+    let obs = op.call()?;
+
+    for entry in obs {
+        let entry = make_entry(env, entry)?;
+        jmap.add(env, &entry)?;
+    }
+
+    Ok(list.into_raw())
 }

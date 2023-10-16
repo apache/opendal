@@ -20,6 +20,7 @@
 package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -82,6 +83,14 @@ public class BlockingOperator extends NativeObject {
         rename(nativeHandle, sourcePath, targetPath);
     }
 
+    public List<Entry> list(String path) {
+        return listWith(path, -1, null, null);
+    }
+
+    public List<Entry> listWith(String path, long limit, String startAfter, String delimiter) {
+        return listWith(nativeHandle, path, limit, startAfter, delimiter);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -98,4 +107,7 @@ public class BlockingOperator extends NativeObject {
     private static native long copy(long nativeHandle, String sourcePath, String targetPath);
 
     private static native long rename(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native List<Entry> listWith(
+            long nativeHandle, String path, long limit, String startAfter, String delimiter);
 }

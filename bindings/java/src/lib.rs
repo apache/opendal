@@ -32,6 +32,7 @@ use jni::JavaVM;
 use once_cell::sync::OnceCell;
 use opendal::raw::PresignedRequest;
 use opendal::Capability;
+use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
 use opendal::OperatorInfo;
@@ -267,6 +268,17 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
             ],
         )?;
     Ok(result)
+}
+
+fn make_entry<'a>(env: &mut JNIEnv<'a>, entry: Entry) -> Result<JObject<'a>> {
+    let path = env.new_string(entry.path())?;
+    let metadata = make_metadata(env, entry.metadata().to_owned())?;
+
+    Ok(env.new_object(
+        "org/apache/opendal/Entry",
+        "(Ljava/lang/String;Lorg/apache/opendal/Metadata;)V",
+        &[JValue::Object(&path), JValue::Object(&metadata)],
+    )?)
 }
 
 fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>> {

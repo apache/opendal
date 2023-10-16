@@ -203,7 +203,7 @@ impl Accessor for GdriveBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::NO_CONTENT => {
+                StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
                     let mut cache = self.core.path_cache.lock().await;
 
                     cache.remove(&build_abs_path(&self.core.root, path));

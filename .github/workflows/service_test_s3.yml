@@ -322,6 +322,7 @@ jobs:
         run: yarn install --immutable
 
       - name: Check format
+        working-directory: bindings/nodejs
         run: yarn run prettier --check .
 
       - name: Build

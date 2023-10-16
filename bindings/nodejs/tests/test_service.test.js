@@ -20,21 +20,15 @@
 import { expect, test } from 'vitest'
 import { Operator } from '../index.js'
 
-// Config will be loaded from `../.env.test` file
-const config = {
-  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
-  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-  AWS_S3_REGION: process.env.AWS_S3_REGION,
-  AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
-  AWS_BUCKET: process.env.AWS_BUCKET,
-}
+const operator = new Operator('memory', { root: '/tmp' })
+const encoder = new TextEncoder()
+const content = 'Hello, World!'
+const encodeContent = encoder.encode(content)
 
 test('sync IO test case', () => {
-  const operator = new Operator('memory', { root: '/tmp', ...config })
   const filename = `random_file_${Math.floor(Math.random() * 10) + 1}`
-  const content = 'Hello, World!'
 
-  operator.writeSync(filename, content)
+  operator.writeSync(filename, encodeContent)
 
   const bufContent = operator.readSync(filename)
   const stringContent = bufContent.toString()
@@ -46,11 +40,9 @@ test('sync IO test case', () => {
 })
 
 test('async IO test case', async () => {
-  const operator = new Operator('memory', { root: '/tmp', ...config })
   const filename = `random_file_${Math.floor(Math.random() * 10) + 1}`
-  const content = 'Hello, World!'
 
-  await operator.write(filename, content)
+  await operator.write(filename, encodeContent)
 
   const bufContent = await operator.read(filename)
   const stringContent = bufContent.toString()
@@ -62,13 +54,11 @@ test('async IO test case', async () => {
 })
 
 test('isFile() should be return true', async () => {
-  const operator = new Operator('memory', { root: '/tmp', ...config })
   const filename = `random_file_${Math.floor(Math.random() * 10) + 1}`
-  const content = 'Hello, World!'
 
-  await operator.write(filename, content)
+  await operator.write(filename, encodeContent)
 
-  let meta = await operator.stat(filename)
+  const meta = await operator.stat(filename)
   expect(meta.isFile()).toBeTruthy()
   expect(meta.contentLength).toEqual(BigInt(content.length))
 

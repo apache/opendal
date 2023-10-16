@@ -19,17 +19,7 @@
 
 /// <reference types="node" />
 
-const { existsSync } = require('fs')
+require('dotenv').config()
 const { Operator } = require('./generated.js')
-
-process.env.NODE_ENV = process.env.NODE_ENV || 'development'
-
-require("dotenv").config({
-  path: process.env.NODE_ENV === 'production'
-    ? '.env'
-    : existsSync(`.env.${process.env.NODE_ENV}.local`)
-      ? `.env.${process.env.NODE_ENV}.local`
-      : `.env.${process.env.NODE_ENV}`
-})
 
 module.exports.Operator = Operator

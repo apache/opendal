@@ -18,12 +18,11 @@ This service can be used to:
 
 - `root`: Set the working directory of `OpenDAL`
 - `token`: Set the token of cloudflare api
-- `account_identifier`: Set the account identifier of d1
-- `database_identifier`: Set the database identifier of d1
-- `endpoint`: Set the endpoint of d1 service
-- `table`: Set the table name of the d1 service to read/write
-- `key_field`: Set the key field of d1
-- `value_field`: Set the value field of d1
+- `account_id`: Set the account id of cloudflare api
+- `database_id`: Set the database id of cloudflare api
+- `table`: Set the table of D1 Database
+- `key_field`: Set the key field of D1 Database
+- `value_field`: Set the value field of D1 Database
 
 ## Example
 

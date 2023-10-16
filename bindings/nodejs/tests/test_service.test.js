@@ -17,46 +17,46 @@
  * under the License.
  */
 
+import { randomUUID } from 'node:crypto'
 import { expect, test } from 'vitest'
 import { Operator } from '../index.js'
+import { generateBytes } from './utils.js'
 
 const operator = new Operator('memory', { root: '/tmp' })
-const encoder = new TextEncoder()
-const content = 'Hello, World!'
-const encodeContent = encoder.encode(content)
 
 test('sync IO test case', () => {
-  const filename = `random_file_${Math.floor(Math.random() * 10) + 1}`
+  const filename = `random_file_${randomUUID()}`
+  const content = generateBytes()
 
-  operator.writeSync(filename, encodeContent)
+  operator.writeSync(filename, content)
 
   const bufContent = operator.readSync(filename)
-  const stringContent = bufContent.toString()
 
-  expect(stringContent).not.toBeNull()
-  expect(stringContent).toEqual(content)
+  expect(bufContent).not.toBeNull()
+  expect(bufContent).toEqual(content)
 
   operator.deleteSync(filename)
 })
 
 test('async IO test case', async () => {
-  const filename = `random_file_${Math.floor(Math.random() * 10) + 1}`
+  const filename = `random_file_${randomUUID()}`
+  const content = generateBytes()
 
-  await operator.write(filename, encodeContent)
+  await operator.write(filename, content)
 
   const bufContent = await operator.read(filename)
-  const stringContent = bufContent.toString()
 
-  expect(stringContent).not.toBeNull()
-  expect(stringContent).toEqual(content)
+  expect(bufContent).not.toBeNull()
+  expect(bufContent).toEqual(content)
 
   await operator.delete(filename)
 })
 
 test('isFile() should be return true', async () => {
-  const filename = `random_file_${Math.floor(Math.random() * 10) + 1}`
+  const filename = `random_file_${randomUUID()}`
+  const content = generateBytes()
 
-  await operator.write(filename, encodeContent)
+  await operator.write(filename, content)
 
   const meta = await operator.stat(filename)
   expect(meta.isFile()).toBeTruthy()

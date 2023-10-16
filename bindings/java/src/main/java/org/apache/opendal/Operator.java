@@ -21,6 +21,7 @@ package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -191,6 +192,20 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<Void> removeAll(String path) {
+        final long requestId = removeAll(nativeHandle, path);
+        return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<List<Entry>> list(String path) {
+        return listWith(path, -1, null, null);
+    }
+
+    public CompletableFuture<List<Entry>> listWith(String path, long limit, String startAfter, String delimiter) {
+        final long requestId = listWith(nativeHandle, path, limit, startAfter, delimiter);
+        return AsyncRegistry.take(requestId);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -221,4 +236,9 @@ public class Operator extends NativeObject {
     private static native long copy(long nativeHandle, String sourcePath, String targetPath);
 
     private static native long rename(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native long removeAll(long nativeHandle, String path);
+
+    private static native long listWith(
+            long nativeHandle, String path, long limit, String startAfter, String delimiter);
 }

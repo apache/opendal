@@ -83,6 +83,10 @@ public class BlockingOperator extends NativeObject {
         rename(nativeHandle, sourcePath, targetPath);
     }
 
+    public void removeAll(String path) {
+        removeAll(nativeHandle, path);
+    }
+
     public List<Entry> list(String path) {
         return listWith(path, -1, null, null);
     }
@@ -107,6 +111,8 @@ public class BlockingOperator extends NativeObject {
     private static native long copy(long nativeHandle, String sourcePath, String targetPath);
 
     private static native long rename(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native void removeAll(long nativeHandle, String path);
 
     private static native List<Entry> listWith(
             long nativeHandle, String path, long limit, String startAfter, String delimiter);

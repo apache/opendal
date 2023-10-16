@@ -216,6 +216,27 @@ fn intern_rename(
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_removeAll(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    path: JString,
+) {
+    intern_remove_all(&mut env, &mut *op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_remove_all(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+    let path = jstring_to_string(env, &path)?;
+
+    Ok(op.remove_all(&path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_listWith(
     mut env: JNIEnv,
     _: JClass,
@@ -241,7 +262,7 @@ fn intern_list_with(
 ) -> Result<jobject> {
     let path = jstring_to_string(env, &path)?;
     let mut op = op.list_with(&path).metakey(Metakey::Complete);
-    if limit > 0 {
+    if limit >= 0 {
         op = op.limit(limit as usize);
     }
     if !start_after.is_null() {
@@ -252,13 +273,12 @@ fn intern_list_with(
     }
 
     let list = env.new_object("java/util/ArrayList", "()V", &[])?;
-    let jmap = env.get_list(&list)?;
+    let jlist = env.get_list(&list)?;
 
     let obs = op.call()?;
-
     for entry in obs {
         let entry = make_entry(env, entry)?;
-        jmap.add(env, &entry)?;
+        jlist.add(env, &entry)?;
     }
 
     Ok(list.into_raw())

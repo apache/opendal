@@ -17,6 +17,7 @@
 
 use std::str::FromStr;
 use std::time::Duration;
+use std::usize;
 
 use jni::objects::JByteArray;
 use jni::objects::JClass;
@@ -28,6 +29,7 @@ use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
 use opendal::raw::PresignedRequest;
+use opendal::Metakey;
 use opendal::Operator;
 use opendal::Scheme;
 
@@ -35,6 +37,7 @@ use crate::get_current_env;
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
 use crate::jstring_to_string;
+use crate::make_entry;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
@@ -413,6 +416,127 @@ fn intern_rename(
 
 async fn do_rename(op: &mut Operator, source_path: String, target_path: String) -> Result<()> {
     Ok(op.rename(&source_path, &target_path).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+) -> jlong {
+    intern_remove_all(&mut env, op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_remove_all(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = jstring_to_string(env, &path)?;
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_remove_all(op, path).await;
+        complete_future(id, result.map(|_| JValueOwned::Void))
+    });
+
+    Ok(id)
+}
+
+async fn do_remove_all(op: &mut Operator, path: String) -> Result<()> {
+    Ok(op.remove_all(&path).await?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_listWith(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    path: JString,
+    limit: jlong,
+    start_after: JString,
+    delimiter: JString,
+) -> jlong {
+    intern_list_with(&mut env, op, path, limit, start_after, delimiter).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_list_with(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    path: JString,
+    limit: jlong,
+    start_after: JString,
+    delimiter: JString,
+) -> Result<jlong> {
+    let op = unsafe { &mut *op };
+    let id = request_id(env)?;
+
+    let path = jstring_to_string(env, &path)?;
+    let limit = if limit < 0 {
+        None
+    } else {
+        Some(limit as usize)
+    };
+    let start_after = if start_after.is_null() {
+        None
+    } else {
+        Some(jstring_to_string(env, &start_after)?)
+    };
+    let delimiter = if delimiter.is_null() {
+        None
+    } else {
+        Some(jstring_to_string(env, &delimiter)?)
+    };
+
+    unsafe { get_global_runtime() }.spawn(async move {
+        let result = do_list_with(op, path, limit, start_after, delimiter).await;
+        complete_future(id, result.map(JValueOwned::Object))
+    });
+
+    Ok(id)
+}
+
+async fn do_list_with<'local>(
+    op: &mut Operator,
+    path: String,
+    limit: Option<usize>,
+    start_after: Option<String>,
+    delimiter: Option<String>,
+) -> Result<JObject<'local>> {
+    let mut op = op.list_with(&path).metakey(Metakey::Complete);
+    if let Some(limit) = limit {
+        op = op.limit(limit);
+    }
+    if let Some(start_after) = start_after {
+        op = op.start_after(start_after.as_str());
+    }
+    if let Some(delimiter) = delimiter {
+        op = op.delimiter(delimiter.as_str());
+    }
+    let obs = op.await?;
+
+    let mut env = unsafe { get_current_env() };
+
+    let list = env.new_object("java/util/ArrayList", "()V", &[])?;
+    let jlist = env.get_list(&list)?;
+
+    for entry in obs {
+        let entry = make_entry(&mut env, entry)?;
+        jlist.add(&mut env, &entry)?;
+    }
+
+    Ok(list)
 }
 
 /// # Safety

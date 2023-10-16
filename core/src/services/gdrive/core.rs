@@ -96,52 +96,24 @@ impl GdriveCore {
                 continue;
             }
 
-            let mut query = format!(
-                "name = \"{}\" and \"{}\" in parents and trashed = false",
-                item, parent_id
-            );
-            if i != file_path_items.len() - 1 || path.ends_with('/') {
-                query += " and mimeType = 'application/vnd.google-apps.folder'";
-            }
+            let id = if i != file_path_items.len() - 1 || path.ends_with('/') {
+                self.gdrive_search_folder(&parent_id, item).await?
+            } else {
+                self.gdrive_search_file(&parent_id, item)
+                    .await?
+                    .map(|v| v.id)
+            };
 
-            let mut req = Request::get(format!(
-                "https://www.googleapis.com/drive/v3/files?q={}",
-                percent_encode_path(&query)
-            ))
-            .body(AsyncBody::default())
-            .map_err(new_request_build_error)?;
-
-            self.sign(&mut req).await?;
-
-            let resp = self.client.send(req).await?;
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => {
-                    let resp_body = &resp.into_body().bytes().await?;
-
-                    let gdrive_file_list: GdriveFileList =
-                        serde_json::from_slice(resp_body).map_err(new_json_deserialize_error)?;
-
-                    if gdrive_file_list.files.is_empty() {
-                        return Err(Error::new(
-                            ErrorKind::NotFound,
-                            &format!("path not found: {}", item),
-                        ));
-                    }
-
-                    if gdrive_file_list.files.len() > 1 {
-                        return Err(Error::new(ErrorKind::Unexpected, &format!("please ensure that the file corresponding to the path exists and is unique. the response body is {}", String::from_utf8_lossy(resp_body))));
-                    }
-
-                    parent_id = gdrive_file_list.files[0].id.clone();
-
-                    cache.insert(path_part, parent_id.clone());
-                }
-                _ => {
-                    return Err(parse_error(resp).await?);
-                }
-            }
+            if let Some(id) = id {
+                parent_id = id;
+                cache.insert(path_part, parent_id.clone());
+            } else {
+                // TODO: return None instead of error.
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    &format!("path not found: {}", item),
+                ));
+            };
         }
 
         Ok(parent_id)
@@ -182,6 +154,46 @@ impl GdriveCore {
         }
 
         Ok(parent.to_owned())
+    }
+
+    /// Search a folder by name
+    ///
+    /// returns it's file id if exists, otherwise returns `None`.
+    pub async fn gdrive_search_file(
+        &self,
+        parent: &str,
+        basename: &str,
+    ) -> Result<Option<GdriveFile>> {
+        let query = format!("name = '{basename}' and '{parent}' in parents and trashed = false",);
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files?q={}",
+            percent_encode_path(&query)
+        );
+
+        let mut req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        let resp = self.client.send(req).await?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(parse_error(resp).await?);
+        }
+
+        let body = resp.into_body().bytes().await?;
+        let mut file_list: GdriveFileList =
+            serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+
+        if file_list.files.len() > 1 {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "please ensure that the file corresponding to the path is unique.",
+            ));
+        }
+
+        Ok(file_list.files.pop())
     }
 
     /// Search a folder by name

@@ -90,7 +90,7 @@ TEST_F(OpendalBddTest, FeatureTest)
     // The blocking file "test" must have content "Hello, World!" and read into buffer
     int length = this->content.length();
     unsigned char buffer[this->content.length()];
-    opendal_result_reader reader = opendal_operator_reader(this->p, this->path.c_str());
+    opendal_result_operator_reader reader = opendal_operator_reader(this->p, this->path.c_str());
     EXPECT_EQ(reader.error, nullptr);
     auto rst = opendal_reader_read(reader.reader, buffer, length);
     EXPECT_EQ(rst.size, length);

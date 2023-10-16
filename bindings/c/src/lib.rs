@@ -38,7 +38,7 @@ use error::opendal_error;
 use once_cell::sync::Lazy;
 use result::opendal_result_list;
 use result::opendal_result_operator_new;
-use result::opendal_result_reader;
+use result::opendal_result_operator_reader;
 use types::opendal_lister;
 use types::opendal_reader;
 
@@ -318,7 +318,7 @@ pub unsafe extern "C" fn opendal_operator_read(
 /// ```C
 /// // ... you have created an operator named op
 ///
-/// opendal_result_reader result = opendal_operator_reader(op, "/testpath");
+/// opendal_result_operator_reader result = opendal_operator_reader(op, "/testpath");
 /// assert(result.error == NULL);
 /// // The reader is in result.reader
 /// opendal_reader *reader = result.reader;
@@ -337,20 +337,20 @@ pub unsafe extern "C" fn opendal_operator_read(
 pub unsafe extern "C" fn opendal_operator_reader(
     op: *const opendal_operator,
     path: *const c_char,
-) -> opendal_result_reader {
+) -> opendal_result_operator_reader {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
     let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.reader(path) {
-        Ok(reader) => opendal_result_reader {
+        Ok(reader) => opendal_result_operator_reader {
             reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
             error: std::ptr::null_mut(),
         },
         Err(e) => {
             let e = Box::new(opendal_error::from_opendal_error(e));
-            opendal_result_reader {
+            opendal_result_operator_reader {
                 reader: std::ptr::null_mut(),
                 error: Box::into_raw(e),
             }

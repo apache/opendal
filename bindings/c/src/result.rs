@@ -118,7 +118,7 @@ pub struct opendal_result_lister_next {
 /// of the path, which is an iterator of the objects under the path. the field `code` represents
 /// whether the stat operation is successful.
 #[repr(C)]
-pub struct opendal_result_reader {
+pub struct opendal_result_operator_reader {
     pub reader: *mut opendal_reader,
     pub error: *mut opendal_error,
 }

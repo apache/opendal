@@ -336,10 +336,10 @@ typedef struct opendal_reader {
  * of the path, which is an iterator of the objects under the path. the field `code` represents
  * whether the stat operation is successful.
  */
-typedef struct opendal_result_reader {
+typedef struct opendal_result_operator_reader {
   struct opendal_reader *reader;
   struct opendal_error *error;
-} opendal_result_reader;
+} opendal_result_operator_reader;
 
 /**
  * \brief The result type returned by opendal_operator_is_exist().
@@ -633,7 +633,7 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
  * ```C
  * // ... you have created an operator named op
  *
- * opendal_result_reader result = opendal_operator_reader(op, "/testpath");
+ * opendal_result_operator_reader result = opendal_operator_reader(op, "/testpath");
  * assert(result.error == NULL);
  * // The reader is in result.reader
  * opendal_reader *reader = result.reader;
@@ -649,8 +649,8 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_reader opendal_operator_reader(const struct opendal_operator *op,
-                                                     const char *path);
+struct opendal_result_operator_reader opendal_operator_reader(const struct opendal_operator *op,
+                                                              const char *path);
 
 /**
  * \brief Blockingly delete the object in `path`.

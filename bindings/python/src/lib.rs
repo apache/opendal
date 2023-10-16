@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use std::os::raw::c_int;
 use std::str::FromStr;
 
 use ::opendal as od;
@@ -33,9 +34,10 @@ use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyPermissionError;
 use pyo3::exceptions::PyValueError;
+use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
+use pyo3::AsPyPointer;
 
 mod asyncio;
 mod layers;
@@ -43,6 +45,41 @@ mod layers;
 use crate::asyncio::*;
 
 create_exception!(opendal, Error, PyException, "OpenDAL related errors");
+
+/// A bytes-like object that implements buffer protocol.
+#[pyclass(module = "opendal")]
+struct Buffer {
+    inner: Vec<u8>,
+}
+
+#[pymethods]
+impl Buffer {
+    unsafe fn __getbuffer__(
+        slf: PyRefMut<Self>,
+        view: *mut ffi::Py_buffer,
+        flags: c_int,
+    ) -> PyResult<()> {
+        let bytes = slf.inner.as_slice();
+        let ret = ffi::PyBuffer_FillInfo(
+            view,
+            slf.as_ptr() as *mut _,
+            bytes.as_ptr() as *mut _,
+            bytes.len().try_into().unwrap(),
+            1, // read only
+            flags,
+        );
+        if ret == -1 {
+            return Err(PyErr::fetch(slf.py()));
+        }
+        Ok(())
+    }
+}
+
+impl From<Vec<u8>> for Buffer {
+    fn from(inner: Vec<u8>) -> Self {
+        Self { inner }
+    }
+}
 
 fn add_layers(mut op: od::Operator, layers: Vec<layers::Layer>) -> PyResult<od::Operator> {
     for layer in layers {
@@ -105,10 +142,15 @@ impl Operator {
 
     /// Read the whole path into bytes.
     pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
-        self.0
+        let buffer = self
+            .0
             .read(path)
             .map_err(format_pyerr)
-            .map(|res| PyBytes::new(py, &res).into())
+            .map(Buffer::from)?
+            .into_py(py);
+        let memoryview =
+            unsafe { py.from_owned_ptr_or_err(ffi::PyMemoryView_FromObject(buffer.as_ptr()))? };
+        Ok(memoryview)
     }
 
     /// Open a file-like reader for the given path.
@@ -238,7 +280,10 @@ impl Reader {
                 buffer
             }
         };
-        Ok(PyBytes::new(py, &buffer).into())
+        let buffer = Buffer::from(buffer).into_py(py);
+        let memoryview =
+            unsafe { py.from_owned_ptr_or_err(ffi::PyMemoryView_FromObject(buffer.as_ptr()))? };
+        Ok(memoryview)
     }
 
     /// `Reader` doesn't support write.

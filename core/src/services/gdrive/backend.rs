@@ -107,7 +107,7 @@ impl Accessor for GdriveBackend {
         let id = if let Some(id) = folder_id {
             id
         } else {
-            self.core.gdrive_create_folder(Some(&parent), path).await?
+            self.core.gdrive_create_folder(&parent, path).await?
         };
 
         let mut cache = self.core.path_cache.lock().await;

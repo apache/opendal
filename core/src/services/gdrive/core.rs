@@ -146,7 +146,7 @@ impl GdriveCore {
             let folder_id = if let Some(id) = folder_id {
                 id
             } else {
-                self.gdrive_create_folder(Some(&parent), item).await?
+                self.gdrive_create_folder(&parent, item).await?
             };
 
             parent = folder_id;
@@ -243,23 +243,19 @@ impl GdriveCore {
     ///
     /// # Input
     ///
-    /// `parent_id` is the parent folder id. Using `root` is it's `None`.
+    /// `parent_id` is the parent folder id.
     ///
     /// # Output
     ///
     /// Returns created folder's id while success, otherwise returns an error.
-    pub async fn gdrive_create_folder(
-        &self,
-        parent_id: Option<&str>,
-        name: &str,
-    ) -> Result<String> {
+    pub async fn gdrive_create_folder(&self, parent_id: &str, name: &str) -> Result<String> {
         let url = "https://www.googleapis.com/drive/v3/files";
 
         let content = serde_json::to_vec(&json!({
             "name": name,
             "mimeType": "application/vnd.google-apps.folder",
             // If the parent is not provided, the folder will be created in the root folder.
-            "parents": [parent_id.unwrap_or("root")],
+            "parents": [parent_id],
         }))
         .map_err(new_json_serialize_error)?;
 

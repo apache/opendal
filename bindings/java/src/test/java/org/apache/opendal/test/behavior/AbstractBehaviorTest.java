@@ -22,16 +22,23 @@ package org.apache.opendal.test.behavior;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import io.github.cdimascio.dotenv.Dotenv;
 import io.github.cdimascio.dotenv.DotenvEntry;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.opendal.BlockingOperator;
 import org.apache.opendal.Capability;
+import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
@@ -529,6 +536,282 @@ public abstract class AbstractBehaviorTest {
 
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     @Nested
+    class AsyncListTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = operator.info.fullCapability;
+            assumeTrue(capability.read && capability.write && capability.list);
+        }
+
+        /**
+         * List dir should return newly created file.
+         */
+        @Test
+        public void testListDir() {
+            final String parent = UUID.randomUUID().toString();
+            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final byte[] content = generateBytes();
+
+            operator.write(path, content).join();
+
+            final List<Entry> entries = operator.list(parent + "/").join();
+            boolean found = false;
+            for (Entry entry : entries) {
+                if (entry.getPath().equals(path)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertTrue(metadata.isFile());
+                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
+
+                    found = true;
+                }
+            }
+            assertTrue(found);
+            operator.delete(path).join();
+        }
+
+        /**
+         * List dir with metakey
+         */
+        @Test
+        public void testListDirWithMetakey() {
+            final String parent = UUID.randomUUID().toString();
+            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final byte[] content = generateBytes();
+
+            operator.write(path, content).join();
+
+            final List<Entry> entries = operator.list(parent + "/").join();
+            boolean found = false;
+            for (Entry entry : entries) {
+                if (entry.getPath().equals(path)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertTrue(metadata.isFile());
+                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
+
+                    metadata.getCacheControl();
+                    metadata.getContentDisposition();
+                    metadata.getContentMd5();
+                    metadata.getContentType();
+                    metadata.getEtag();
+                    metadata.getVersion();
+                    metadata.getLastModified();
+                    found = true;
+                }
+            }
+            assertTrue(found);
+            operator.delete(path).join();
+        }
+
+        /**
+         * listing a directory, which contains more objects than a single page can take.
+         */
+        @Test
+        public void testListRichDir() {
+            final String parent = "test_list_rich_dir";
+            operator.createDir(parent + "/").join();
+            final List<String> expected = new ArrayList<>();
+            for (int i = 0; i < 100; i++) {
+                expected.add(String.format("%s/file-%d", parent, i));
+            }
+
+            for (String path : expected) {
+                operator.write(path, parent).join();
+            }
+
+            final List<Entry> entries = operator.list(parent + "/").join();
+            final List<String> actual =
+                    entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
+
+            Collections.sort(expected);
+            assertThat(actual).isEqualTo(expected);
+            operator.removeAll(parent + "/").join();
+        }
+
+        /**
+         * List empty dir should return nothing.
+         */
+        @Test
+        public void testListEmptyDir() {
+            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            operator.createDir(dir).join();
+
+            final List<Entry> entries = operator.list(dir).join();
+            assertThat(entries).isEmpty();
+
+            operator.delete(dir).join();
+        }
+
+        /**
+         * List non exist dir should return nothing.
+         */
+        @Test
+        public void testListNotExistDir() {
+            final String dir = String.format("%s/", UUID.randomUUID().toString());
+
+            final List<Entry> entries = operator.list(dir).join();
+            assertThat(entries).isEmpty();
+        }
+
+        /**
+         * List dir should return correct sub dir.
+         */
+        @Test
+        public void testListSubDir() {
+            final String path = String.format("%s/", UUID.randomUUID().toString());
+            operator.createDir(path).join();
+
+            final List<Entry> entries = operator.list("/").join();
+            boolean found = false;
+            for (Entry entry : entries) {
+                if (entry.getPath().equals(path)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertTrue(metadata.isDir());
+                    found = true;
+                }
+            }
+            assertTrue(found);
+
+            operator.delete(path).join();
+        }
+
+        /**
+         * List dir should also to list nested dir.
+         */
+        @Test
+        public void testListNestedDir() {
+            final String dir = String.format(
+                    "%s/%s/", UUID.randomUUID().toString(), UUID.randomUUID().toString());
+            final String fileName = UUID.randomUUID().toString();
+            final String filePath = String.format("%s/%s", dir, fileName);
+            final String dirName = String.format("%s/", UUID.randomUUID().toString());
+            final String dirPath = String.format("%s/%s", dir, dirName);
+            final String content = "test_list_nested_dir";
+
+            operator.createDir(dir).join();
+            operator.write(filePath, content).join();
+            operator.createDir(dirPath).join();
+
+            final List<Entry> entries = operator.list(dir).join();
+            assertThat(entries).hasSize(2);
+
+            for (Entry entry : entries) {
+                // check file
+                if (entry.getPath().equals(filePath)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertTrue(metadata.isFile());
+                    assertThat(metadata.getContentLength()).isEqualTo(content.length());
+                    // check dir
+                } else if (entry.getPath().equals(dirPath)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertTrue(metadata.isDir());
+                }
+            }
+
+            operator.removeAll(dir).join();
+        }
+
+        /**
+         * List with start after should start listing after the specified key
+         */
+        @Test
+        public void testListWithStartAfter() {
+            if (!operator.info.fullCapability.listWithStartAfter) {
+                return;
+            }
+            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            operator.createDir(dir).join();
+
+            final String[] given = new String[] {
+                String.format("%s%s-0", dir, UUID.randomUUID().toString()),
+                String.format("%s%s-1", dir, UUID.randomUUID().toString()),
+                String.format("%s%s-2", dir, UUID.randomUUID().toString()),
+                String.format("%s%s-3", dir, UUID.randomUUID().toString()),
+                String.format("%s%s-4", dir, UUID.randomUUID().toString()),
+                String.format("%s%s-5", dir, UUID.randomUUID().toString()),
+            };
+
+            for (String path : given) {
+                operator.write(path, "content").join();
+            }
+
+            final List<Entry> entries =
+                    operator.listWith(dir, -1, given[2], null).join();
+            final List<String> expected = entries.stream().map(Entry::getPath).collect(Collectors.toList());
+
+            assertThat(expected).isEqualTo(Arrays.asList(given[3], given[4], given[5]));
+
+            operator.removeAll(dir).join();
+        }
+
+        @Test
+        public void testScanRoot() {
+            final List<Entry> entries = blockingOperator.listWith("", -1, null, "");
+            final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
+
+            assertTrue(!actual.contains("/"), "empty root shouldn't return itself");
+            assertTrue(!actual.contains(""), "empty root shouldn't return empty");
+        }
+
+        /**
+         * Walk top down should output as expected
+         */
+        @Test
+        public void testScan() {
+            final String parent = UUID.randomUUID().toString();
+            final String[] expected = new String[] {
+                "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+            };
+            for (String path : expected) {
+                if (path.endsWith("/")) {
+                    operator.createDir(String.format("%s/%s", parent, path)).join();
+                } else {
+                    operator.write(String.format("%s/%s", parent, path), "test_scan")
+                            .join();
+                }
+            }
+            final List<Entry> entries = operator.listWith(String.format("%s/x/", parent), -1, null, "")
+                    .join();
+            final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
+
+            assertThat(actual).contains(parent + "/x/y", parent + "/x/x/y", parent + "/x/x/x/y");
+
+            operator.removeAll(parent + "/").join();
+        }
+
+        /**
+         * Remove all should remove all in this path.
+         */
+        @Test
+        public void testRemoveAll() {
+            final String parent = UUID.randomUUID().toString();
+            final String[] expected = new String[] {
+                "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+            };
+            for (String path : expected) {
+                if (path.endsWith("/")) {
+                    operator.createDir(String.format("%s/%s", parent, path));
+                } else {
+                    operator.write(String.format("%s/%s", parent, path), "test_scan");
+                }
+            }
+
+            operator.removeAll(parent + "/x/").join();
+
+            for (String path : expected) {
+                if (path.endsWith("/")) {
+                    continue;
+                }
+                assertThatThrownBy(() -> operator.stat(String.format("%s/%s", parent, path))
+                                .join())
+                        .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+            }
+
+            operator.removeAll(parent + "/").join();
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
     class BlockingWriteTest {
         @BeforeAll
         public void precondition() {
@@ -666,7 +949,7 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.createDir(sourcePath);
 
             assertThatThrownBy(() -> blockingOperator.copy(sourcePath, targetPath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
 
             blockingOperator.delete(sourcePath);
         }
@@ -685,8 +968,8 @@ public abstract class AbstractBehaviorTest {
 
             blockingOperator.createDir(targetPath);
 
-            assertThatThrownBy(() -> operator.copy(sourcePath, targetPath).join())
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+            assertThatThrownBy(() -> blockingOperator.copy(sourcePath, targetPath))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
 
             blockingOperator.delete(sourcePath);
             blockingOperator.delete(targetPath);
@@ -703,7 +986,7 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.write(sourcePath, sourceContent);
 
             assertThatThrownBy(() -> blockingOperator.copy(sourcePath, sourcePath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsSameFile));
 
             blockingOperator.delete(sourcePath);
         }
@@ -781,7 +1064,7 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.rename(sourcePath, targetPath);
 
             assertThatThrownBy(() -> blockingOperator.stat(sourcePath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
             assertThat(blockingOperator.stat(targetPath).getContentLength()).isEqualTo(sourceContent.length);
 
@@ -798,7 +1081,7 @@ public abstract class AbstractBehaviorTest {
             final String targetPath = UUID.randomUUID().toString();
 
             assertThatThrownBy(() -> blockingOperator.rename(sourcePath, targetPath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
         }
 
         /**
@@ -812,7 +1095,7 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.createDir(sourcePath);
 
             assertThatThrownBy(() -> blockingOperator.rename(sourcePath, targetPath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
         }
 
         /**
@@ -830,7 +1113,7 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.createDir(targetPath);
 
             assertThatThrownBy(() -> blockingOperator.rename(sourcePath, targetPath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsADirectory));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsADirectory));
 
             blockingOperator.delete(sourcePath);
             blockingOperator.delete(targetPath);
@@ -847,7 +1130,7 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.write(sourcePath, sourceContent);
 
             assertThatThrownBy(() -> blockingOperator.rename(sourcePath, sourcePath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.IsSameFile));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.IsSameFile));
 
             blockingOperator.delete(sourcePath);
         }
@@ -871,7 +1154,7 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.rename(sourcePath, targetPath);
 
             assertThatThrownBy(() -> blockingOperator.stat(sourcePath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
             assertThat(blockingOperator.read(targetPath)).isEqualTo(sourceContent);
 
@@ -899,12 +1182,144 @@ public abstract class AbstractBehaviorTest {
             blockingOperator.rename(sourcePath, targetPath);
 
             assertThatThrownBy(() -> blockingOperator.stat(sourcePath))
-                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
 
             assertThat(blockingOperator.read(targetPath)).isEqualTo(sourceContent);
 
             blockingOperator.delete(sourcePath);
             blockingOperator.delete(targetPath);
+        }
+    }
+
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    @Nested
+    class BlockingListTest {
+        @BeforeAll
+        public void precondition() {
+            final Capability capability = blockingOperator.info.fullCapability;
+            assumeTrue(
+                    capability.read && capability.write && capability.copy && capability.blocking && capability.list);
+        }
+
+        @Test
+        public void testBlockingListDir() {
+            final String parent = UUID.randomUUID().toString();
+            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final byte[] content = generateBytes();
+
+            blockingOperator.write(path, content);
+
+            final List<Entry> list = blockingOperator.list(parent + "/");
+            boolean found = false;
+            for (Entry entry : list) {
+                if (entry.getPath().equals(path)) {
+                    Metadata metadata = entry.getMetadata();
+                    found = true;
+
+                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
+                    assertTrue(metadata.isFile());
+                }
+            }
+            assertTrue(found);
+
+            blockingOperator.delete(path);
+        }
+
+        @Test
+        public void testBlockingListDirWithMetakey() {
+            final String parent = UUID.randomUUID().toString();
+            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final byte[] content = generateBytes();
+
+            blockingOperator.write(path, content);
+
+            final List<Entry> list = blockingOperator.list(parent + "/");
+            boolean found = false;
+            for (Entry entry : list) {
+                if (entry.getPath().equals(path)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
+                    assertTrue(metadata.isFile());
+
+                    // We don't care about the value, we just to check there is no panic.
+                    metadata.getCacheControl();
+                    metadata.getContentDisposition();
+                    metadata.getContentMd5();
+                    metadata.getContentType();
+                    metadata.getEtag();
+                    metadata.getVersion();
+                    metadata.getLastModified();
+                    found = true;
+                }
+            }
+
+            assertTrue(found);
+            blockingOperator.delete(path);
+        }
+
+        @Test
+        public void testBlockingListNonExistDir() {
+            final String dir = String.format("%s/", UUID.randomUUID().toString());
+
+            final List<Entry> list = blockingOperator.list(dir);
+            assertTrue(list.isEmpty());
+        }
+
+        @Test
+        public void testBlockingScan() {
+            final String parent = UUID.randomUUID().toString();
+
+            final String[] expected = new String[] {
+                "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+            };
+
+            for (String path : expected) {
+                final byte[] content = generateBytes();
+                if (path.endsWith("/")) {
+                    blockingOperator.createDir(String.format("%s/%s", parent, path));
+                } else {
+                    blockingOperator.write(String.format("%s/%s", parent, path), content);
+                }
+            }
+
+            final List<Entry> list = blockingOperator.listWith(String.format("%s/x/", parent), -1, null, "");
+            final Set<String> paths = list.stream().map(Entry::getPath).collect(Collectors.toSet());
+
+            assertTrue(paths.contains(parent + "/x/y"));
+            assertTrue(paths.contains(parent + "/x/x/y"));
+            assertTrue(paths.contains(parent + "/x/x/x/y"));
+
+            blockingOperator.removeAll(parent + "/");
+        }
+
+        /**
+         * Remove all should remove all in this path.
+         */
+        @Test
+        public void testBlockingRemoveAll() {
+            final String parent = UUID.randomUUID().toString();
+            final String[] expected = new String[] {
+                "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+            };
+            for (String path : expected) {
+                if (path.endsWith("/")) {
+                    blockingOperator.createDir(String.format("%s/%s", parent, path));
+                } else {
+                    blockingOperator.write(String.format("%s/%s", parent, path), "test_scan");
+                }
+            }
+
+            blockingOperator.removeAll(parent + "/x/");
+
+            for (String path : expected) {
+                if (path.endsWith("/")) {
+                    continue;
+                }
+                assertThatThrownBy(() -> blockingOperator.stat(String.format("%s/%s", parent, path)))
+                        .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+            }
+
+            blockingOperator.removeAll(parent + "/");
         }
     }
 

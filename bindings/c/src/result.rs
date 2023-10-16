@@ -17,14 +17,15 @@
 
 //! This is for better naming in C header file. If we use generics for Result type,
 //! it will no doubt work find. However, the generics will lead to naming like
-//! "opendal_result_opendal_operator_ptr", which is unacceptable. Therefore,
+//! "opendal_result_opendal_operator", which is unacceptable. Therefore,
 //! we are defining all Result types here
 
 use crate::error::opendal_error;
 use crate::types::opendal_bytes;
+use crate::types::opendal_list_entry;
 use crate::types::opendal_lister;
 use crate::types::opendal_metadata;
-use crate::types::opendal_operator_ptr;
+use crate::types::opendal_operator;
 use crate::types::opendal_reader;
 
 /// \brief The result type returned by opendal_operator_new() operation.
@@ -35,11 +36,11 @@ use crate::types::opendal_reader;
 /// valid pointer with error code and error message.
 ///
 /// @see opendal_operator_new()
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_error
 #[repr(C)]
 pub struct opendal_result_operator_new {
-    pub operator_ptr: *mut opendal_operator_ptr,
+    pub operator_ptr: *mut opendal_operator,
     pub error: *mut opendal_error,
 }
 
@@ -99,6 +100,19 @@ pub struct opendal_result_list {
     pub error: *mut opendal_error,
 }
 
+/// \brief The result type returned by opendal_lister_next().
+/// The list entry is the list result of the list operation, the error field is the error code and error message.
+/// If the operation succeeds, the error should be NULL.
+///
+/// \note Please notice if the lister reaches the end, both the list_entry and error will be NULL.
+#[repr(C)]
+pub struct opendal_result_lister_next {
+    /// The next object name
+    pub entry: *mut opendal_list_entry,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
 /// \brief The result type returned by opendal_operator_reader().
 /// The result type for opendal_operator_reader(), the field `reader` contains the reader
 /// of the path, which is an iterator of the objects under the path. the field `code` represents
@@ -106,5 +120,14 @@ pub struct opendal_result_list {
 #[repr(C)]
 pub struct opendal_result_reader {
     pub reader: *mut opendal_reader,
+    pub error: *mut opendal_error,
+}
+
+/// \brief The is the result type returned by opendal_reader_read().
+/// The result type contains a size field, which is the size of the data read,
+/// which is zero on error. The error field is the error code and error message.
+#[repr(C)]
+pub struct opendal_result_reader_read {
+    pub size: usize,
     pub error: *mut opendal_error,
 }

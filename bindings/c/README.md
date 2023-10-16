@@ -14,8 +14,9 @@ A simple read and write example
 int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
-    opendal_operator_ptr op = opendal_operator_new("memory", 0);
-    assert(op.ptr != NULL);
+    opendal_result_operator_new result = opendal_operator_new("memory", 0);
+    assert(result.operator_ptr != NULL);
+    assert(result.error == NULL);
 
     /* Prepare some data to be written */
     opendal_bytes data = {

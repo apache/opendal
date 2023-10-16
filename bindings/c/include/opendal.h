@@ -214,19 +214,19 @@ typedef struct Metadata Metadata;
  * @see opendal_operator_new This function construct the operator
  * @see opendal_operator_free This function frees the heap memory of the operator
  *
- * \note The opendal_operator_ptr actually owns a pointer to
+ * \note The opendal_operator actually owns a pointer to
  * a opendal::BlockingOperator, which is inside the Rust core code.
  *
  * \remark You may use the field `ptr` to check whether this is a NULL
  * operator.
  */
-typedef struct opendal_operator_ptr {
+typedef struct opendal_operator {
   /**
    * The pointer to the opendal::BlockingOperator in the Rust code.
    * Only touch this on judging whether it is NULL.
    */
   const struct BlockingOperator *ptr;
-} opendal_operator_ptr;
+} opendal_operator;
 
 /**
  * \brief opendal_bytes carries raw-bytes with its length
@@ -281,16 +281,16 @@ typedef struct opendal_error {
  * valid pointer with error code and error message.
  *
  * @see opendal_operator_new()
- * @see opendal_operator_ptr
+ * @see opendal_operator
  * @see opendal_error
  */
 typedef struct opendal_result_operator_new {
-  struct opendal_operator_ptr *operator_ptr;
+  struct opendal_operator *operator_ptr;
   struct opendal_error *error;
 } opendal_result_operator_new;
 
 /**
- * \brief The configuration for the initialization of opendal_operator_ptr.
+ * \brief The configuration for the initialization of opendal_operator.
  *
  * \note This is also a heap-allocated struct, please free it after you use it
  *
@@ -442,6 +442,29 @@ typedef struct opendal_list_entry {
   struct Entry *inner;
 } opendal_list_entry;
 
+/**
+ * \brief The result type returned by opendal_lister_next().
+ * The list entry is the list result of the list operation, the error field is the error code and error message.
+ * If the operation succeeds, the error should be NULL.
+ *
+ * \note Please notice if the lister reaches the end, both the list_entry and error will be NULL.
+ */
+typedef struct opendal_result_lister_next {
+  /**
+   * The next object name
+   */
+  struct opendal_list_entry *entry;
+  /**
+   * The error, if ok, it is null
+   */
+  struct opendal_error *error;
+} opendal_result_lister_next;
+
+/**
+ * \brief The is the result type returned by opendal_reader_read().
+ * The result type contains a size field, which is the size of the data read,
+ * which is zero on error. The error field is the error code and error message.
+ */
 typedef struct opendal_result_reader_read {
   uintptr_t size;
   struct opendal_error *error;
@@ -464,7 +487,7 @@ extern "C" {
  * option is set
  * @see opendal_operator_options
  * @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
- * succeeds. On success the operator_ptr field is a valid pointer to a newly allocated opendal_operator_ptr,
+ * succeeds. On success the operator_ptr field is a valid pointer to a newly allocated opendal_operator,
  * and the error field is NULL. Otherwise, the operator_ptr field is a NULL pointer and the error field.
  *
  * # Example
@@ -478,7 +501,7 @@ extern "C" {
  *
  * // Construct the operator based on the options and scheme
  * opendal_result_operator_new result = opendal_operator_new("memory", options);
- * opendal_operator_ptr* op = result.operator_ptr;
+ * opendal_operator* op = result.operator_ptr;
  *
  * // you could free the options right away since the options is not used afterwards
  * opendal_operator_options_free(options);
@@ -502,10 +525,10 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
  * \note It is important to notice that the `bytes` that is passes in will be consumed by this
  *       function. Therefore, you should not use the `bytes` after this function returns.
  *
- * @param ptr The opendal_operator_ptr created previously
+ * @param ptr The opendal_operator created previously
  * @param path The designated path you want to write your bytes in
  * @param bytes The opendal_byte typed bytes to be written
- * @see opendal_operator_ptr
+ * @see opendal_operator
  * @see opendal_bytes
  * @see opendal_error
  * @return NULL if succeeds, otherwise it contains the error code and error message.
@@ -514,7 +537,7 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
  *
  * Following is an example
  * ```C
- * //...prepare your opendal_operator_ptr, named ptr for example
+ * //...prepare your opendal_operator, named ptr for example
  *
  * // prepare your data
  * char* data = "Hello, World!";
@@ -539,7 +562,7 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_error *opendal_operator_write(const struct opendal_operator_ptr *ptr,
+struct opendal_error *opendal_operator_write(const struct opendal_operator *op,
                                              const char *path,
                                              struct opendal_bytes bytes);
 
@@ -548,9 +571,9 @@ struct opendal_error *opendal_operator_write(const struct opendal_operator_ptr *
  *
  * Read the data out from `path` blockingly by operator.
  *
- * @param ptr The opendal_operator_ptr created previously
+ * @param ptr The opendal_operator created previously
  * @param path The path you want to read the data out
- * @see opendal_operator_ptr
+ * @see opendal_operator
  * @see opendal_result_read
  * @see opendal_error
  * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
@@ -583,7 +606,7 @@ struct opendal_error *opendal_operator_write(const struct opendal_operator_ptr *
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_read opendal_operator_read(const struct opendal_operator_ptr *ptr,
+struct opendal_result_read opendal_operator_read(const struct opendal_operator *op,
                                                  const char *path);
 
 /**
@@ -592,11 +615,11 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator_p
  * Read the data out from `path` blockingly by operator, returns
  * an opendal_result_read with error code.
  *
- * @param ptr The opendal_operator_ptr created previously
+ * @param ptr The opendal_operator created previously
  * @param path The path you want to read the data out
  * @param buffer The buffer you want to read the data into
  * @param buffer_len The length of the buffer
- * @see opendal_operator_ptr
+ * @see opendal_operator
  * @see opendal_result_read
  * @see opendal_code
  * @return Returns opendal_code
@@ -608,14 +631,12 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator_p
  *
  * Following is an example
  * ```C
- * // ... you have write "Hello, World!" to path "/testpath"
+ * // ... you have created an operator named op
  *
- * int length = 13;
- * unsigned char buffer[length];
- * opendal_code r = opendal_operator_read_with_buffer(ptr, "testpath", buffer, length);
- * assert(r == OPENDAL_OK);
- * // assert buffer == "Hello, World!"
- *
+ * opendal_result_reader result = opendal_operator_reader(op, "/testpath");
+ * assert(result.error == NULL);
+ * // The reader is in result.reader
+ * opendal_reader *reader = result.reader;
  * ```
  *
  * # Safety
@@ -628,7 +649,7 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator_p
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_reader opendal_operator_reader(const struct opendal_operator_ptr *ptr,
+struct opendal_result_reader opendal_operator_reader(const struct opendal_operator *op,
                                                      const char *path);
 
 /**
@@ -637,9 +658,9 @@ struct opendal_result_reader opendal_operator_reader(const struct opendal_operat
  * Delete the object in `path` blockingly by `op_ptr`.
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
- * @param ptr The opendal_operator_ptr created previously
+ * @param ptr The opendal_operator created previously
  * @param path The designated path you want to delete
- * @see opendal_operator_ptr
+ * @see opendal_operator
  * @see opendal_error
  * @return NULL if succeeds, otherwise it contains the error code and error message.
  *
@@ -647,7 +668,7 @@ struct opendal_result_reader opendal_operator_reader(const struct opendal_operat
  *
  * Following is an example
  * ```C
- * //...prepare your opendal_operator_ptr, named ptr for example
+ * //...prepare your opendal_operator, named ptr for example
  *
  * // prepare your data
  * char* data = "Hello, World!";
@@ -673,8 +694,7 @@ struct opendal_result_reader opendal_operator_reader(const struct opendal_operat
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_error *opendal_operator_delete(const struct opendal_operator_ptr *ptr,
-                                              const char *path);
+struct opendal_error *opendal_operator_delete(const struct opendal_operator *op, const char *path);
 
 /**
  * \brief Check whether the path exists.
@@ -683,9 +703,9 @@ struct opendal_error *opendal_operator_delete(const struct opendal_operator_ptr 
  * the error should be a nullptr. Otherwise, the field `is_exist`
  * is filled with false, and the error is set
  *
- * @param ptr The opendal_operator_ptr created previously
+ * @param ptr The opendal_operator created previously
  * @param path The path you want to check existence
- * @see opendal_operator_ptr
+ * @see opendal_operator
  * @see opendal_result_is_exist
  * @see opendal_error
  * @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
@@ -715,7 +735,7 @@ struct opendal_error *opendal_operator_delete(const struct opendal_operator_ptr 
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator_ptr *ptr,
+struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator *op,
                                                          const char *path);
 
 /**
@@ -723,9 +743,9 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  *
  * Error is NULL if successful, otherwise it contains the error code and error message.
  *
- * @param ptr The opendal_operator_ptr created previously
+ * @param ptr The opendal_operator created previously
  * @param path The path you want to stat
- * @see opendal_operator_ptr
+ * @see opendal_operator
  * @see opendal_result_stat
  * @see opendal_metadata
  * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
@@ -756,7 +776,7 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_ptr *ptr,
+struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *op,
                                                  const char *path);
 
 /**
@@ -766,7 +786,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * opendal_lister. Users should call opendal_lister_next() on the
  * lister.
  *
- * @param ptr The opendal_operator_ptr created previously
+ * @param ptr The opendal_operator created previously
  * @param path The designated path you want to delete
  * @see opendal_lister
  * @return Returns opendal_result_list, containing a lister and an opendal_error.
@@ -779,7 +799,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  * Following is an example
  * ```C
  * // You have written some data into some files path "root/dir1"
- * // Your opendal_operator_ptr was called ptr
+ * // Your opendal_operator was called ptr
  * opendal_result_list l = opendal_operator_list(ptr, "root/dir1");
  * assert(l.error == ERROR);
  *
@@ -809,7 +829,7 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator_p
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_list opendal_operator_list(const struct opendal_operator_ptr *ptr,
+struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
                                                  const char *path);
 
 /**
@@ -818,23 +838,23 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator_p
 void opendal_error_free(struct opendal_error *ptr);
 
 /**
- * \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
+ * \brief Free the heap-allocated operator pointed by opendal_operator.
  *
- * Please only use this for a pointer pointing at a valid opendal_operator_ptr.
+ * Please only use this for a pointer pointing at a valid opendal_operator.
  * Calling this function on NULL does nothing, but calling this function on pointers
  * of other type will lead to segfault.
  *
  * # Example
  *
  * ```C
- * opendal_operator_ptr *ptr = opendal_operator_new("fs", NULL);
+ * opendal_operator *ptr = opendal_operator_new("fs", NULL);
  * // ... use this ptr, maybe some reads and writes
  *
  * // free this operator
  * opendal_operator_free(ptr);
  * ```
  */
-void opendal_operator_free(const struct opendal_operator_ptr *op);
+void opendal_operator_free(const struct opendal_operator *op);
 
 /**
  * \brief Frees the heap memory used by the opendal_bytes
@@ -943,7 +963,7 @@ void opendal_operator_options_free(const struct opendal_operator_options *option
  * For examples, please see the comment section of opendal_operator_list()
  * @see opendal_operator_list()
  */
-struct opendal_list_entry *opendal_lister_next(const struct opendal_lister *self);
+struct opendal_result_lister_next opendal_lister_next(const struct opendal_lister *self);
 
 /**
  * \brief Free the heap-allocated metadata used by opendal_lister

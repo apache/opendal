@@ -28,7 +28,7 @@ int main()
     assert(result.operator_ptr != NULL);
     assert(result.error == NULL);
 
-    opendal_operator_ptr* op = result.operator_ptr;
+    opendal_operator* op = result.operator_ptr;
 
     /* Prepare some data to be written */
     opendal_bytes data = {

@@ -24,7 +24,7 @@ extern "C" {
 
 class OpendalErrorTest : public ::testing::Test {
 protected:
-    const opendal_operator_ptr* p;
+    const opendal_operator* p;
 
     // set up a brand new operator
     void SetUp() override

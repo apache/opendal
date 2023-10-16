@@ -27,7 +27,7 @@ extern "C" {
 
 class OpendalListTest : public ::testing::Test {
 protected:
-    const opendal_operator_ptr* p;
+    const opendal_operator* p;
 
     // set up a brand new operator
     void SetUp() override
@@ -77,7 +77,9 @@ TEST_F(OpendalListTest, ListDirTest)
     // start checking the lister's result
     bool found = false;
 
-    opendal_list_entry* entry = opendal_lister_next(lister);
+    opendal_result_lister_next result = opendal_lister_next(lister);
+    EXPECT_EQ(result.error, nullptr);
+    opendal_list_entry* entry = result.entry;
     while (entry) {
         char* de_path = opendal_list_entry_path(entry);
 
@@ -97,7 +99,9 @@ TEST_F(OpendalListTest, ListDirTest)
         opendal_metadata_free(s.meta);
         opendal_list_entry_free(entry);
 
-        entry = opendal_lister_next(lister);
+        result = opendal_lister_next(lister);
+        EXPECT_EQ(result.error, nullptr);
+        entry = result.entry;
     }
 
     // we must have found the file we wrote

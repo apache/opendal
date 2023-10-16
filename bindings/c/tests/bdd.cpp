@@ -25,7 +25,7 @@ extern "C" {
 
 class OpendalBddTest : public ::testing::Test {
 protected:
-    const opendal_operator_ptr* p;
+    const opendal_operator* p;
 
     std::string scheme;
     std::string path;

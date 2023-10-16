@@ -24,6 +24,8 @@ use ::opendal as od;
 
 use crate::error::opendal_code;
 use crate::error::opendal_error;
+use crate::result::opendal_result_lister_next;
+use crate::result::opendal_result_reader_read;
 
 /// \brief Used to access almost all OpenDAL APIs. It represents a
 /// operator that provides the unified interfaces provided by OpenDAL.
@@ -31,42 +33,42 @@ use crate::error::opendal_error;
 /// @see opendal_operator_new This function construct the operator
 /// @see opendal_operator_free This function frees the heap memory of the operator
 ///
-/// \note The opendal_operator_ptr actually owns a pointer to
+/// \note The opendal_operator actually owns a pointer to
 /// a opendal::BlockingOperator, which is inside the Rust core code.
 ///
 /// \remark You may use the field `ptr` to check whether this is a NULL
 /// operator.
 #[repr(C)]
-pub struct opendal_operator_ptr {
+pub struct opendal_operator {
     /// The pointer to the opendal::BlockingOperator in the Rust code.
     /// Only touch this on judging whether it is NULL.
     ptr: *const od::BlockingOperator,
 }
 
-impl opendal_operator_ptr {
-    /// \brief Free the heap-allocated operator pointed by opendal_operator_ptr.
+impl opendal_operator {
+    /// \brief Free the heap-allocated operator pointed by opendal_operator.
     ///
-    /// Please only use this for a pointer pointing at a valid opendal_operator_ptr.
+    /// Please only use this for a pointer pointing at a valid opendal_operator.
     /// Calling this function on NULL does nothing, but calling this function on pointers
     /// of other type will lead to segfault.
     ///
     /// # Example
     ///
     /// ```C
-    /// opendal_operator_ptr *ptr = opendal_operator_new("fs", NULL);
+    /// opendal_operator *ptr = opendal_operator_new("fs", NULL);
     /// // ... use this ptr, maybe some reads and writes
     ///
     /// // free this operator
     /// opendal_operator_free(ptr);
     /// ```
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_free(op: *const opendal_operator_ptr) {
+    pub unsafe extern "C" fn opendal_operator_free(op: *const opendal_operator) {
         let _ = unsafe { Box::from_raw((*op).ptr as *mut od::BlockingOperator) };
-        let _ = unsafe { Box::from_raw(op as *mut opendal_operator_ptr) };
+        let _ = unsafe { Box::from_raw(op as *mut opendal_operator) };
     }
 }
 
-impl opendal_operator_ptr {
+impl opendal_operator {
     /// Returns a reference to the underlying [`od::BlockingOperator`]
     pub(crate) fn as_ref(&self) -> &od::BlockingOperator {
         unsafe { &*(self.ptr) }
@@ -74,14 +76,14 @@ impl opendal_operator_ptr {
 }
 
 #[allow(clippy::from_over_into)]
-impl From<*const od::BlockingOperator> for opendal_operator_ptr {
+impl From<*const od::BlockingOperator> for opendal_operator {
     fn from(value: *const od::BlockingOperator) -> Self {
         Self { ptr: value }
     }
 }
 
 #[allow(clippy::from_over_into)]
-impl From<*mut od::BlockingOperator> for opendal_operator_ptr {
+impl From<*mut od::BlockingOperator> for opendal_operator {
     fn from(value: *mut od::BlockingOperator) -> Self {
         Self { ptr: value }
     }
@@ -228,7 +230,7 @@ impl opendal_metadata {
     }
 }
 
-/// \brief The configuration for the initialization of opendal_operator_ptr.
+/// \brief The configuration for the initialization of opendal_operator.
 ///
 /// \note This is also a heap-allocated struct, please free it after you use it
 ///
@@ -336,15 +338,30 @@ impl opendal_lister {
     /// For examples, please see the comment section of opendal_operator_list()
     /// @see opendal_operator_list()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_lister_next(&self) -> *mut opendal_list_entry {
+    pub unsafe extern "C" fn opendal_lister_next(&self) -> opendal_result_lister_next {
         let e = (*self.inner).next();
         if e.is_none() {
-            return std::ptr::null_mut();
+            return opendal_result_lister_next {
+                entry: std::ptr::null_mut(),
+                error: std::ptr::null_mut(),
+            };
         }
 
         match e.unwrap() {
-            Ok(e) => Box::into_raw(Box::new(opendal_list_entry::new(e))),
-            Err(_) => std::ptr::null_mut(),
+            Ok(e) => {
+                let ent = Box::into_raw(Box::new(opendal_list_entry::new(e)));
+                opendal_result_lister_next {
+                    entry: ent,
+                    error: std::ptr::null_mut(),
+                }
+            }
+            Err(e) => {
+                let e = Box::new(opendal_error::from_opendal_error(e));
+                opendal_result_lister_next {
+                    entry: std::ptr::null_mut(),
+                    error: Box::into_raw(e),
+                }
+            }
         }
     }
 
@@ -416,12 +433,6 @@ impl opendal_list_entry {
 #[repr(C)]
 pub struct opendal_reader {
     inner: *mut od::BlockingReader,
-}
-
-#[repr(C)]
-pub struct opendal_result_reader_read {
-    pub size: usize,
-    pub error: *mut opendal_error,
 }
 
 impl opendal_reader {

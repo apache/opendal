@@ -29,7 +29,7 @@ int main()
     assert(result.operator_ptr != NULL);
     assert(result.error == NULL);
 
-    opendal_operator_ptr* op = result.operator_ptr;
+    opendal_operator* op = result.operator_ptr;
 
     /* The read is supposed to fail */
     opendal_result_read r = opendal_operator_read(op, "/testpath");

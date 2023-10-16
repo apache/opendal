@@ -47,8 +47,8 @@ use crate::result::opendal_result_read;
 use crate::result::opendal_result_stat;
 use crate::types::opendal_bytes;
 use crate::types::opendal_metadata;
+use crate::types::opendal_operator;
 use crate::types::opendal_operator_options;
-use crate::types::opendal_operator_ptr;
 
 static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
     tokio::runtime::Builder::new_multi_thread()
@@ -82,7 +82,7 @@ fn build_operator(schema: od::Scheme, map: HashMap<String, String>) -> od::Resul
 /// option is set
 /// @see opendal_operator_options
 /// @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
-/// succeeds. On success the operator_ptr field is a valid pointer to a newly allocated opendal_operator_ptr,
+/// succeeds. On success the operator_ptr field is a valid pointer to a newly allocated opendal_operator,
 /// and the error field is NULL. Otherwise, the operator_ptr field is a NULL pointer and the error field.
 ///
 /// # Example
@@ -96,7 +96,7 @@ fn build_operator(schema: od::Scheme, map: HashMap<String, String>) -> od::Resul
 ///
 /// // Construct the operator based on the options and scheme
 /// opendal_result_operator_new result = opendal_operator_new("memory", options);
-/// opendal_operator_ptr* op = result.operator_ptr;
+/// opendal_operator* op = result.operator_ptr;
 ///
 /// // you could free the options right away since the options is not used afterwards
 /// opendal_operator_options_free(options);
@@ -146,7 +146,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 
     match build_operator(scheme, map) {
         Ok(op) => {
-            let op = opendal_operator_ptr::from(Box::into_raw(Box::new(op.blocking())));
+            let op = opendal_operator::from(Box::into_raw(Box::new(op.blocking())));
             opendal_result_operator_new {
                 operator_ptr: Box::into_raw(Box::new(op)),
                 error: std::ptr::null_mut(),
@@ -170,10 +170,10 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// \note It is important to notice that the `bytes` that is passes in will be consumed by this
 ///       function. Therefore, you should not use the `bytes` after this function returns.
 ///
-/// @param ptr The opendal_operator_ptr created previously
+/// @param ptr The opendal_operator created previously
 /// @param path The designated path you want to write your bytes in
 /// @param bytes The opendal_byte typed bytes to be written
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_bytes
 /// @see opendal_error
 /// @return NULL if succeeds, otherwise it contains the error code and error message.
@@ -182,7 +182,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 ///
 /// Following is an example
 /// ```C
-/// //...prepare your opendal_operator_ptr, named ptr for example
+/// //...prepare your opendal_operator, named ptr for example
 ///
 /// // prepare your data
 /// char* data = "Hello, World!";
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn opendal_operator_new(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_write(
-    ptr: *const opendal_operator_ptr,
+    op: *const opendal_operator,
     path: *const c_char,
     bytes: opendal_bytes,
 ) -> *mut opendal_error {
@@ -216,7 +216,7 @@ pub unsafe extern "C" fn opendal_operator_write(
         panic!("The path given is pointing at NULL");
     }
 
-    let op = (*ptr).as_ref();
+    let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.write(path, bytes) {
         Ok(_) => std::ptr::null_mut(),
@@ -231,9 +231,9 @@ pub unsafe extern "C" fn opendal_operator_write(
 ///
 /// Read the data out from `path` blockingly by operator.
 ///
-/// @param ptr The opendal_operator_ptr created previously
+/// @param ptr The opendal_operator created previously
 /// @param path The path you want to read the data out
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_result_read
 /// @see opendal_error
 /// @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
@@ -267,14 +267,14 @@ pub unsafe extern "C" fn opendal_operator_write(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_read(
-    ptr: *const opendal_operator_ptr,
+    op: *const opendal_operator,
     path: *const c_char,
 ) -> opendal_result_read {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = (*ptr).as_ref();
+    let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     let data = op.read(path);
     match data {
@@ -300,11 +300,11 @@ pub unsafe extern "C" fn opendal_operator_read(
 /// Read the data out from `path` blockingly by operator, returns
 /// an opendal_result_read with error code.
 ///
-/// @param ptr The opendal_operator_ptr created previously
+/// @param ptr The opendal_operator created previously
 /// @param path The path you want to read the data out
 /// @param buffer The buffer you want to read the data into
 /// @param buffer_len The length of the buffer
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_result_read
 /// @see opendal_code
 /// @return Returns opendal_code
@@ -316,14 +316,12 @@ pub unsafe extern "C" fn opendal_operator_read(
 ///
 /// Following is an example
 /// ```C
-/// // ... you have write "Hello, World!" to path "/testpath"
+/// // ... you have created an operator named op
 ///
-/// int length = 13;
-/// unsigned char buffer[length];
-/// opendal_code r = opendal_operator_read_with_buffer(ptr, "testpath", buffer, length);
-/// assert(r == OPENDAL_OK);
-/// // assert buffer == "Hello, World!"
-///
+/// opendal_result_reader result = opendal_operator_reader(op, "/testpath");
+/// assert(result.error == NULL);
+/// // The reader is in result.reader
+/// opendal_reader *reader = result.reader;
 /// ```
 ///
 /// # Safety
@@ -337,13 +335,13 @@ pub unsafe extern "C" fn opendal_operator_read(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_reader(
-    ptr: *const opendal_operator_ptr,
+    op: *const opendal_operator,
     path: *const c_char,
 ) -> opendal_result_reader {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
-    let op = (*ptr).as_ref();
+    let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.reader(path) {
         Ok(reader) => opendal_result_reader {
@@ -365,9 +363,9 @@ pub unsafe extern "C" fn opendal_operator_reader(
 /// Delete the object in `path` blockingly by `op_ptr`.
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @param ptr The opendal_operator_ptr created previously
+/// @param ptr The opendal_operator created previously
 /// @param path The designated path you want to delete
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_error
 /// @return NULL if succeeds, otherwise it contains the error code and error message.
 ///
@@ -375,7 +373,7 @@ pub unsafe extern "C" fn opendal_operator_reader(
 ///
 /// Following is an example
 /// ```C
-/// //...prepare your opendal_operator_ptr, named ptr for example
+/// //...prepare your opendal_operator, named ptr for example
 ///
 /// // prepare your data
 /// char* data = "Hello, World!";
@@ -402,14 +400,14 @@ pub unsafe extern "C" fn opendal_operator_reader(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_delete(
-    ptr: *const opendal_operator_ptr,
+    op: *const opendal_operator,
     path: *const c_char,
 ) -> *mut opendal_error {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = (*ptr).as_ref();
+    let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.delete(path) {
         Ok(_) => std::ptr::null_mut(),
@@ -426,9 +424,9 @@ pub unsafe extern "C" fn opendal_operator_delete(
 /// the error should be a nullptr. Otherwise, the field `is_exist`
 /// is filled with false, and the error is set
 ///
-/// @param ptr The opendal_operator_ptr created previously
+/// @param ptr The opendal_operator created previously
 /// @param path The path you want to check existence
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_result_is_exist
 /// @see opendal_error
 /// @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
@@ -459,14 +457,14 @@ pub unsafe extern "C" fn opendal_operator_delete(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_is_exist(
-    ptr: *const opendal_operator_ptr,
+    op: *const opendal_operator,
     path: *const c_char,
 ) -> opendal_result_is_exist {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = (*ptr).as_ref();
+    let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.is_exist(path) {
         Ok(e) => opendal_result_is_exist {
@@ -487,9 +485,9 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
 ///
 /// Error is NULL if successful, otherwise it contains the error code and error message.
 ///
-/// @param ptr The opendal_operator_ptr created previously
+/// @param ptr The opendal_operator created previously
 /// @param path The path you want to stat
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_result_stat
 /// @see opendal_metadata
 /// @return Returns opendal_result_stat, containing a metadata and an opendal_error.
@@ -521,14 +519,14 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_stat(
-    ptr: *const opendal_operator_ptr,
+    op: *const opendal_operator,
     path: *const c_char,
 ) -> opendal_result_stat {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = (*ptr).as_ref();
+    let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.stat(path) {
         Ok(m) => opendal_result_stat {
@@ -551,7 +549,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// opendal_lister. Users should call opendal_lister_next() on the
 /// lister.
 ///
-/// @param ptr The opendal_operator_ptr created previously
+/// @param ptr The opendal_operator created previously
 /// @param path The designated path you want to delete
 /// @see opendal_lister
 /// @return Returns opendal_result_list, containing a lister and an opendal_error.
@@ -564,7 +562,7 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// Following is an example
 /// ```C
 /// // You have written some data into some files path "root/dir1"
-/// // Your opendal_operator_ptr was called ptr
+/// // Your opendal_operator was called ptr
 /// opendal_result_list l = opendal_operator_list(ptr, "root/dir1");
 /// assert(l.error == ERROR);
 ///
@@ -595,14 +593,14 @@ pub unsafe extern "C" fn opendal_operator_stat(
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_list(
-    ptr: *const opendal_operator_ptr,
+    op: *const opendal_operator,
     path: *const c_char,
 ) -> opendal_result_list {
     if path.is_null() {
         panic!("The path given is pointing at NULL");
     }
 
-    let op = (*ptr).as_ref();
+    let op = (*op).as_ref();
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.lister(path) {
         Ok(lister) => opendal_result_list {

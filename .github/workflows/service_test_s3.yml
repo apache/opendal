@@ -292,6 +292,10 @@ jobs:
 
   nodejs:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
@@ -322,7 +326,6 @@ jobs:
         run: yarn install --immutable
 
       - name: Check format
-        working-directory: bindings/nodejs
         run: yarn run prettier --check .
 
       - name: Build
@@ -330,7 +333,6 @@ jobs:
 
       - name: Test
         shell: bash
-        working-directory: bindings/nodejs
         run: yarn test
         env:
           OPENDAL_S3_TEST: on

@@ -28,7 +28,6 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-
 /// AzfileError is the error returned by azure file service.
 #[derive(Default, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]

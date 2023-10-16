@@ -15,20 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
-use log::debug;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
+
 use async_trait::async_trait;
-use http::{HeaderValue, StatusCode};
-use reqsign::{AzureStorageConfig, AzureStorageLoader, AzureStorageSigner};
+use http::StatusCode;
+use log::debug;
+use reqsign::AzureStorageConfig;
+use reqsign::AzureStorageLoader;
+use reqsign::AzureStorageSigner;
+
+use crate::raw::*;
 use crate::services::azfile::pager::AzfilePager;
-use super::writer::{AzfileWriter, AzfileWriters};
+use crate::*;
+
 use super::core::AzfileCore;
 use super::error::parse_error;
+use super::writer::AzfileWriter;
+use super::writer::AzfileWriters;
 
+/// Default endpoint of Azure File services.
 const DEFAULT_AZFILE_ENDPOINT: &str = "file.core.windows.net";
 
 /// Azure File services support.
@@ -194,10 +202,8 @@ impl Builder for AzfileBuilder {
                 share_name: self.share_name.clone(),
             }),
         })
-
     }
 }
-
 
 fn infer_account_name_from_endpoint(endpoint: &str) -> Option<String> {
     let endpoint: &str = endpoint
@@ -213,14 +219,12 @@ fn infer_account_name_from_endpoint(endpoint: &str) -> Option<String> {
         .trim_end_matches('/')
         .to_lowercase();
 
-    if endpoint_suffix == DEFAULT_AZFILE_ENDPOINT
-    {
+    if endpoint_suffix == DEFAULT_AZFILE_ENDPOINT {
         account_name.map(|s| s.to_string())
     } else {
         None
     }
 }
-
 
 /// Backend for azfile services.
 #[derive(Debug, Clone)]
@@ -229,7 +233,7 @@ pub struct AzfileBackend {
 }
 
 #[async_trait]
-impl Accessor for AzfileBackend{
+impl Accessor for AzfileBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
     type Writer = AzfileWriters;
@@ -253,8 +257,8 @@ impl Accessor for AzfileBackend{
                 delete: true,
                 rename: true,
 
-                // list: true,
-                // list_with_delimiter_slash: true,
+                list: true,
+                list_with_delimiter_slash: true,
 
                 ..Default::default()
             });
@@ -262,7 +266,7 @@ impl Accessor for AzfileBackend{
         am
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         let resp = self.core.azfile_create_dir(path).await?;
         let status = resp.status();
 
@@ -270,16 +274,20 @@ impl Accessor for AzfileBackend{
             StatusCode::CREATED => {
                 resp.into_body().consume().await?;
                 Ok(RpCreateDir::default())
-            },
+            }
             _ => {
-                if resp.headers().get("x-ms-error-code")
+                if resp
+                    .headers()
+                    .get("x-ms-error-code")
                     .map(|value| value.to_str().unwrap_or(""))
-                    .unwrap_or_else(|| "")== "ResourceAlreadyExists" {
+                    .unwrap_or_else(|| "")
+                    == "ResourceAlreadyExists"
+                {
                     Ok(RpCreateDir::default())
-                }else {
+                } else {
                     Err(parse_error(resp).await?)
                 }
-            },
+            }
         }
     }
 
@@ -298,13 +306,13 @@ impl Accessor for AzfileBackend{
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = AzfileWriter::new(self.core.clone(),args.clone(), path.to_string() );
+        let w = AzfileWriter::new(self.core.clone(), args.clone(), path.to_string());
         let w = if args.append() {
             AzfileWriters::Two(oio::AppendObjectWriter::new(w))
-        }else {
+        } else {
             AzfileWriters::One(oio::OneShotWriter::new(w))
         };
-        return Ok((RpWrite::default(), w))
+        return Ok((RpWrite::default(), w));
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -323,7 +331,7 @@ impl Accessor for AzfileBackend{
                 }
                 _ => Err(parse_error(resp).await?),
             }
-        }else{
+        } else {
             let resp = self.core.azfile_get_file_properties(path).await?;
             let status = resp.status();
             match status {
@@ -336,23 +344,22 @@ impl Accessor for AzfileBackend{
         }
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
         let resp = self.core.azfile_rename(from, to).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
                 Ok(RpRename::default())
-            },
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = if path.ends_with('/') {
             self.core.azfile_delete_dir(path).await?
-        }
-        else {
+        } else {
             self.core.azfile_delete_file(path).await?
         };
 
@@ -361,7 +368,7 @@ impl Accessor for AzfileBackend{
             StatusCode::ACCEPTED => {
                 resp.into_body().consume().await?;
                 Ok(RpDelete::default())
-            },
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -373,3 +380,44 @@ impl Accessor for AzfileBackend{
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::services::azfile::backend::infer_account_name_from_endpoint;
+    use crate::Builder;
+
+    use super::AzfileBuilder;
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint() {
+        let endpoint = "https://account.file.core.windows.net";
+        let storage_name = infer_account_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
+
+    #[test]
+    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
+        let endpoint = "https://account.file.core.windows.net/";
+        let storage_name = infer_account_name_from_endpoint(endpoint);
+        assert_eq!(storage_name, Some("account".to_string()));
+    }
+
+    #[test]
+    fn test_builder_from_endpoint_and_key_infer_account_name() {
+        let mut azfile_builder = AzfileBuilder::default();
+        azfile_builder.endpoint("https://account.file.core.windows.net/");
+        azfile_builder.account_key("account-key");
+        let azfile = azfile_builder
+            .build()
+            .expect("build Azdls should be succeeded.");
+
+        assert_eq!(
+            azfile.core.endpoint,
+            "https://account.file.core.windows.net"
+        );
+
+        assert_eq!(
+            azfile_builder.account_key.unwrap(),
+            "account-key".to_string()
+        );
+    }
+}

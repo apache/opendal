@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+pub use backend::AzfileBuilder as Azfile;
+
 mod backend;
 mod core;
 mod error;
-mod writer;
 mod pager;
-
-pub use backend::AzfileBuilder as Azfile;
+mod writer;

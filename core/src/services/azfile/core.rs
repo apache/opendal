@@ -15,22 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
 
-use std::fmt::{Debug, Formatter};
-use http::{HeaderName, HeaderValue, Request, Response};
-use reqsign::{AzureStorageCredential, AzureStorageLoader, AzureStorageSigner};
-use http::header::{CONTENT_DISPOSITION, RANGE};
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::RANGE;
+use http::HeaderName;
+use http::HeaderValue;
+use http::Request;
+use http::Response;
+use reqsign::AzureStorageCredential;
+use reqsign::AzureStorageLoader;
+use reqsign::AzureStorageSigner;
+
 use crate::raw::*;
 use crate::*;
 
 const X_MS_VERSION: &str = "x-ms-version";
 const X_MS_WRITE: &str = "x-ms-write";
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
-const X_MS_CONTENT_LENGTH: &str  = "x-ms-content-length";
-const X_MS_TYPE :&str = "x-ms-type";
-pub struct AzfileCore{
+const X_MS_CONTENT_LENGTH: &str = "x-ms-content-length";
+const X_MS_TYPE: &str = "x-ms-type";
+
+pub struct AzfileCore {
     pub root: String,
     pub endpoint: String,
     pub share_name: String,
@@ -49,7 +59,7 @@ impl Debug for AzfileCore {
     }
 }
 
-impl AzfileCore{
+impl AzfileCore {
     async fn load_credential(&self) -> Result<AzureStorageCredential> {
         let cred = self
             .loader
@@ -83,12 +93,11 @@ impl AzfileCore{
         self.client.send(req).await
     }
 
-
     pub async fn azfile_read(
         &self,
         path: &str,
         range: BytesRange,
-    )-> Result<Response<IncomingAsyncBody>>{
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -103,8 +112,8 @@ impl AzfileCore{
         req = req.header(RANGE, range.to_header());
 
         let mut req = req
-           .body(AsyncBody::Empty)
-           .map_err(new_request_build_error)?;
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
     }
@@ -175,13 +184,13 @@ impl AzfileCore{
 
         req = req.header(X_MS_WRITE, "update");
 
-        req = req.header(RANGE, BytesRange::from(
-            position..position + size
-        ).to_header());
+        req = req.header(
+            RANGE,
+            BytesRange::from(position..position + size).to_header(),
+        );
 
         let mut req = req.body(body).map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
-        println!("req: {:?}", req.headers());
         self.send(req).await
     }
 
@@ -200,7 +209,7 @@ impl AzfileCore{
             percent_encode_path(&p)
         );
 
-        let mut req = Request::head(&url);
+        let req = Request::head(&url);
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -224,7 +233,7 @@ impl AzfileCore{
             percent_encode_path(&p)
         );
 
-        let mut req = Request::head(&url);
+        let req = Request::head(&url);
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -269,7 +278,6 @@ impl AzfileCore{
 
         req = req.header(X_MS_RENAME_SOURCE, percent_encode_path(&new_p));
 
-
         let mut req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -277,10 +285,7 @@ impl AzfileCore{
         self.send(req).await
     }
 
-    pub async fn azfile_create_dir(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_create_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -303,10 +308,7 @@ impl AzfileCore{
         self.send(req).await
     }
 
-    pub async fn azfile_delete_file(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_delete_file(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -318,7 +320,7 @@ impl AzfileCore{
             percent_encode_path(&p)
         );
 
-        let mut req = Request::delete(&url);
+        let req = Request::delete(&url);
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -327,10 +329,7 @@ impl AzfileCore{
         self.send(req).await
     }
 
-    pub async fn azfile_delete_dir(
-        &self,
-        path: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn azfile_delete_dir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -342,7 +341,7 @@ impl AzfileCore{
             percent_encode_path(&p)
         );
 
-        let mut req = Request::delete(&url);
+        let req = Request::delete(&url);
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -351,4 +350,37 @@ impl AzfileCore{
         self.send(req).await
     }
 
+    pub async fn azfile_list(
+        &self,
+        path: &str,
+        limit: Option<usize>,
+        continuation: &String,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path)
+            .trim_start_matches('/')
+            .to_string();
+
+        let mut url = format!(
+            "{}/{}/{}?restype=directory&comp=list&include=Timestamps,ETag",
+            self.endpoint,
+            self.share_name,
+            percent_encode_path(&p),
+        );
+
+        if !continuation.is_empty() {
+            write!(url, "&marker={}", &continuation).expect("write into string must succeed");
+        }
+
+        if let Some(limit) = limit {
+            write!(url, "&maxresults={}", limit).expect("write into string must succeed");
+        }
+
+        let req = Request::get(&url);
+
+        let mut req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
 }

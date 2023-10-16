@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Service Test Fs
+name: Edge Test
 
 on:
   push:
@@ -26,32 +26,35 @@ on:
       - main
     paths:
       - "core/src/**"
-      - "core/tests/**"
       - "!core/src/docs/**"
       - "!core/src/services/**"
       - "core/src/services/fs/**"
-      - ".github/workflows/service_test_fs.yml"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+      - ".github/workflows/edge_test.yml"
 
 jobs:
-  local_fs:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+  test_file_write_on_full_disk:
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create disk image
+        run: |
+          fallocate -l 512K disk.img
+          mkfs disk.img
+
+      - name: Mount disk image
+        run: |
+          mkdir /tmp/test_dir
+          sudo mount -o loop disk.img /tmp/test_dir
+
+      - name: Set permissions
+        run: sudo chmod a+wr /tmp/test_dir
+
       - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo test services_fs
+        working-directory: core/edge/file_write_on_full_disk
+        run: cargo run
         env:
-          OPENDAL_FS_TEST: on
-          OPENDAL_FS_ROOT: ${{ runner.temp }}/
+          OPENDAL_FS_ROOT: /tmp/test_dir
+

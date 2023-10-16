@@ -21,36 +21,29 @@
 #include "opendal.h"
 #include "stdio.h"
 
+// this example shows how to get error message from opendal_error
 int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
-    const opendal_operator_ptr *op = opendal_operator_new("memory", 0);
-    assert(op->ptr != NULL);
+    opendal_result_operator_new result = opendal_operator_new("memory", 0);
+    assert(result.operator_ptr != NULL);
+    assert(result.error == NULL);
 
-    /* Prepare some data to be written */
-    opendal_bytes data = {
-        .data = (uint8_t*)"this_string_length_is_24",
-        .len = 24,
-    };
+    opendal_operator_ptr* op = result.operator_ptr;
 
-    /* Write this into path "/testpath" */
-    opendal_code code = opendal_operator_blocking_write(op, "/testpath", data);
-    assert(code == OPENDAL_OK);
-
-    /* We can read it out, make sure the data is the same */
+    /* The read is supposed to fail */
     opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
-    opendal_bytes* read_bytes = r.data;
-    assert(r.code == OPENDAL_OK);
-    assert(read_bytes->len == 24);
+    assert(r.error != NULL);
+    assert(r.error->code == OPENDAL_NOT_FOUND);
 
-    /* Lets print it out */
-    for (int i = 0; i < 24; ++i) {
-        printf("%c", read_bytes->data[i]);
+    /* Lets print the error message out */
+    struct opendal_bytes* error_msg = &r.error->message;
+    for (int i = 0; i < error_msg->len; ++i) {
+        printf("%c", error_msg->data[i]);
     }
-    printf("\n");
 
-    /* the opendal_bytes read is heap allocated, please free it */
-    opendal_bytes_free(read_bytes);
+    /* free the error since the error is not NULL */
+    opendal_error_free(r.error);
 
     /* the operator_ptr is also heap allocated */
     opendal_operator_free(op);

@@ -148,8 +148,7 @@ public class Operator extends NativeObject {
 
     public CompletableFuture<Metadata> stat(String path) {
         final long requestId = stat(nativeHandle, path);
-        final CompletableFuture<Long> f = AsyncRegistry.take(requestId);
-        return f.thenApply(Metadata::new);
+        return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<byte[]> read(String path) {

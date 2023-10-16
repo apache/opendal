@@ -38,7 +38,7 @@ func TestOperations(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Hello World from OpenDAL CGO!", string(value))
 
-    println(string(value))
+	println(string(value))
 }
 
 func BenchmarkOperator_Write(b *testing.B) {
@@ -50,7 +50,7 @@ func BenchmarkOperator_Write(b *testing.B) {
 	bs := bytes.Repeat([]byte("a"), 1024*1024)
 	op.Write("test", bs)
 
-    b.SetBytes(1024*1024)
+	b.SetBytes(1024 * 1024)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		op.Read("test")

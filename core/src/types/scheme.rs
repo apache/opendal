@@ -41,6 +41,8 @@ pub enum Scheme {
     Cacache,
     /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
     Cos,
+    /// [d1][crate::services::D1]: D1 services
+    D1,
     /// [dashmap][crate::services::Dashmap]: dashmap backend support.
     Dashmap,
     /// [etcd][crate::services::Etcd]: Etcd Services
@@ -159,6 +161,7 @@ impl FromStr for Scheme {
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "cacache" => Ok(Scheme::Cacache),
             "cos" => Ok(Scheme::Cos),
+            "d1" => Ok(Scheme::D1),
             "dashmap" => Ok(Scheme::Dashmap),
             "dropbox" => Ok(Scheme::Dropbox),
             "etcd" => Ok(Scheme::Etcd),
@@ -208,6 +211,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azdls => "Azdls",
             Scheme::Cacache => "cacache",
             Scheme::Cos => "cos",
+            Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
             Scheme::Etcd => "etcd",
             Scheme::Fs => "fs",

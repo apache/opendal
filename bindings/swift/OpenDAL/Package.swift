@@ -27,7 +27,8 @@ let package = Package(
     products: [
         .library(
             name: "OpenDAL",
-            targets: ["OpenDAL"]),
+            targets: ["OpenDAL"]
+        )
     ],
     targets: [
         .systemLibrary(name: "COpenDAL"),
@@ -35,10 +36,12 @@ let package = Package(
             name: "OpenDAL",
             dependencies: ["COpenDAL"],
             linkerSettings: [
-                .unsafeFlags(["-L\(packageRoot)/Sources/COpenDAL/lib"]),
-            ]),
+                .unsafeFlags(["-L\(packageRoot)/Sources/COpenDAL/lib"])
+            ]
+        ),
         .testTarget(
             name: "OpenDALTests",
-            dependencies: ["OpenDAL"]),
+            dependencies: ["OpenDAL"]
+        ),
     ]
 )

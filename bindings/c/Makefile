@@ -44,8 +44,16 @@ build:
 test:
 	$(CXX) tests/bdd.cpp -o $(OBJ_DIR)/bdd $(CXXFLAGS) $(LDFLAGS) $(LIBS)
 	$(CXX) tests/list.cpp -o $(OBJ_DIR)/list $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(CXX) tests/error_msg.cpp -o $(OBJ_DIR)/error_msg $(CXXFLAGS) $(LDFLAGS) $(LIBS)
+	$(OBJ_DIR)/bdd
+	$(OBJ_DIR)/list
+	$(OBJ_DIR)/error_msg
+
+.PHONY: test_memory_leak
+memory_leak:
 	$(VALGRIND) $(OBJ_DIR)/bdd
 	$(VALGRIND) $(OBJ_DIR)/list
+	$(VALGRIND) $(OBJ_DIR)/error_msg
 
 .PHONY: doc
 doc:

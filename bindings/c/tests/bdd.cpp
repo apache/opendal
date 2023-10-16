@@ -41,8 +41,11 @@ protected:
         opendal_operator_options_set(options, "root", "/myroot");
 
         // Given A new OpenDAL Blocking Operator
-        this->p = opendal_operator_new(scheme.c_str(), options);
-        EXPECT_TRUE(this->p->ptr);
+        opendal_result_operator_new result = opendal_operator_new(scheme.c_str(), options);
+        EXPECT_TRUE(result.error == nullptr);
+
+        this->p = result.operator_ptr;
+        EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
     }
@@ -58,17 +61,17 @@ TEST_F(OpendalBddTest, FeatureTest)
         .data = (uint8_t*)this->content.c_str(),
         .len = this->content.length(),
     };
-    opendal_code code = opendal_operator_blocking_write(this->p, this->path.c_str(), data);
-    EXPECT_EQ(code, OPENDAL_OK);
+    opendal_error* error = opendal_operator_blocking_write(this->p, this->path.c_str(), data);
+    EXPECT_EQ(error, nullptr);
 
     // The blocking file "test" should exist
     opendal_result_is_exist e = opendal_operator_is_exist(this->p, this->path.c_str());
-    EXPECT_EQ(e.code, OPENDAL_OK);
+    EXPECT_EQ(e.error, nullptr);
     EXPECT_TRUE(e.is_exist);
 
     // The blocking file "test" entry mode must be file
     opendal_result_stat s = opendal_operator_stat(this->p, this->path.c_str());
-    EXPECT_EQ(s.code, OPENDAL_OK);
+    EXPECT_EQ(s.error, nullptr);
     opendal_metadata* meta = s.meta;
     EXPECT_TRUE(opendal_metadata_is_file(meta));
 
@@ -78,22 +81,34 @@ TEST_F(OpendalBddTest, FeatureTest)
 
     // The blocking file "test" must have content "Hello, World!"
     struct opendal_result_read r = opendal_operator_blocking_read(this->p, this->path.c_str());
-    EXPECT_EQ(r.code, OPENDAL_OK);
+    EXPECT_EQ(r.error, nullptr);
     EXPECT_EQ(r.data->len, this->content.length());
     for (int i = 0; i < r.data->len; i++) {
         EXPECT_EQ(this->content[i], (char)(r.data->data[i]));
     }
 
+    // The blocking file "test" must have content "Hello, World!" and read into buffer
+    int length = this->content.length();
+    unsigned char buffer[this->content.length()];
+    opendal_result_reader reader = opendal_operator_blocking_reader(this->p, this->path.c_str());
+    EXPECT_EQ(reader.error, nullptr);
+    auto rst = opendal_reader_read(reader.reader, buffer, length);
+    EXPECT_EQ(rst.size, length);
+    for (int i = 0; i < this->content.length(); i++) {
+        EXPECT_EQ(this->content[i], buffer[i]);
+    }
+    opendal_reader_free(reader.reader);
+
     // The blocking file should be deleted
-    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
-    EXPECT_EQ(code, OPENDAL_OK);
+    error = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(error, nullptr);
     e = opendal_operator_is_exist(this->p, this->path.c_str());
-    EXPECT_EQ(e.code, OPENDAL_OK);
+    EXPECT_EQ(e.error, nullptr);
     EXPECT_FALSE(e.is_exist);
 
     // The deletion operation should be idempotent
-    code = opendal_operator_blocking_delete(this->p, this->path.c_str());
-    EXPECT_EQ(code, OPENDAL_OK);
+    error = opendal_operator_blocking_delete(this->p, this->path.c_str());
+    EXPECT_EQ(error, nullptr);
 
     opendal_bytes_free(r.data);
 }

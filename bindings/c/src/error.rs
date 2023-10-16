@@ -17,20 +17,19 @@
 
 use ::opendal as od;
 
-/// The wrapper type for opendal's error, wrapped because of the
-/// orphan rule
-struct opendal_error(od::Error);
+use crate::types::opendal_bytes;
+
+/// \brief The wrapper type for opendal's Rust core error, wrapped because of the
+/// orphan rule.
+///
+/// \note User should never use this type directly, use [`opendal_error`] instead.
+struct raw_error(od::Error);
 
 /// \brief The error code for all opendal APIs in C binding.
 /// \todo The error handling is not complete, the error with error message will be
 /// added in the future.
 #[repr(C)]
-pub enum opendal_code {
-    /// All is well
-    OPENDAL_OK,
-    /// General error
-    // \todo: make details in the `opendal_error *`
-    OPENDAL_ERROR,
+pub(crate) enum opendal_code {
     /// returning it back. For example, s3 returns an internal service error.
     OPENDAL_UNEXPECTED,
     /// Underlying service doesn't support this operation.
@@ -53,14 +52,7 @@ pub enum opendal_code {
     OPENDAL_IS_SAME_FILE,
 }
 
-impl opendal_code {
-    pub(crate) fn from_opendal_error(e: od::Error) -> Self {
-        let error = opendal_error(e);
-        error.error_code()
-    }
-}
-
-impl opendal_error {
+impl raw_error {
     /// Convert the [`od::ErrorKind`] of [`od::Error`] to [`opendal_code`]
     pub(crate) fn error_code(&self) -> opendal_code {
         let e = &self.0;
@@ -78,6 +70,63 @@ impl opendal_error {
             // if this is triggered, check the [`core`] crate and add a
             // new error code accordingly
             _ => panic!("The newly added ErrorKind in core crate is not handled in C bindings"),
+        }
+    }
+}
+
+/// \brief The opendal error type for C binding, containing an error code and corresponding error
+/// message.
+///
+/// The normal operations returns a pointer to the opendal_error, and the **nullptr normally
+/// represents no error has taken placed**. If any error has taken place, the caller should check
+/// the error code and print the error message.
+///
+/// The error code is represented in opendal_code, which is a enum on different type of errors.
+/// The error messages is represented in opendal_bytes, which is a non-null terminated byte array.
+///
+/// \note 1. The error message is on heap, so the error needs to be freed by the caller, by calling
+///       opendal_error_free. 2. The error message is not null terminated, so the caller should
+///       never use "%s" to print the error message.
+///
+/// @see opendal_code
+/// @see opendal_bytes
+/// @see opendal_error_free
+#[repr(C)]
+pub struct opendal_error {
+    code: opendal_code,
+    message: opendal_bytes,
+}
+
+impl opendal_error {
+    // The caller should sink the error to heap memory and return the pointer
+    // that will not be freed by rustc
+    pub(crate) fn from_opendal_error(error: od::Error) -> Self {
+        let error = raw_error(error);
+        let code = error.error_code();
+        let c_str = format!("{}", error.0);
+        let message = opendal_bytes::new(c_str.into_bytes());
+        opendal_error { code, message }
+    }
+
+    pub(crate) fn manual_error(code: opendal_code, message: String) -> Self {
+        let message = opendal_bytes::new(message.into_bytes());
+        opendal_error { code, message }
+    }
+
+    /// \brief Frees the opendal_error, ok to call on NULL
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_error_free(ptr: *mut opendal_error) {
+        if !ptr.is_null() {
+            let message_ptr = &(*ptr).message as *const opendal_bytes as *mut opendal_bytes;
+            if !message_ptr.is_null() {
+                let data_mut = unsafe { (*message_ptr).data as *mut u8 };
+                let _ = unsafe {
+                    Vec::from_raw_parts(data_mut, (*message_ptr).len, (*message_ptr).len)
+                };
+            }
+
+            // free the pointer
+            let _ = unsafe { Box::from_raw(ptr) };
         }
     }
 }

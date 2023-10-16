@@ -2,3 +2,10 @@ build/
 docs/
 
 *.o
+
+examples/*
+!examples/
+!examples/*.h
+!examples/*.c
+!examples/*.cc
+!examples/*.cpp

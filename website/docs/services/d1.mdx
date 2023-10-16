@@ -1,0 +1,81 @@
+---
+title: D1
+---
+
+[D1](https://developers.cloudflare.com/d1/) services support.
+
+import Docs from '../../../core/src/services/d1/docs.md'
+
+<Docs components={props.components} />
+
+### Via Config
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+  <TabItem value="rust" label="Rust" default>
+
+```rust
+use anyhow::Result;
+use opendal::services::D1;
+use opendal::Operator;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    
+    let mut map = HashMap::new();
+    map.insert("root".to_string(), "your_root_directory".to_string());
+    map.insert("token".to_string(), "your_token".to_string());
+    map.insert("account_identifier".to_string(), "your_account_identifier".to_string());
+    map.insert("database_identifier".to_string(), "your_database_identifier".to_string());
+    map.insert("endpoint".to_string(), "your_endpoint".to_string());
+    map.insert("table".to_string(), "your_table".to_string());
+    map.insert("key_field".to_string(), "your_key_field".to_string());
+    map.insert("value_field".to_string(), "your_value_field".to_string());
+
+    let op: Operator = Operator::via_map(Scheme::D1, map)?;
+    Ok(())
+}
+```
+
+  </TabItem>
+  <TabItem value="node.js" label="Node.js">
+
+```javascript
+import { Operator } from  require('opendal');
+
+async function main() {
+    const op = new Operator("d1", {
+        root: 'your_root_directory',
+        token: 'your_token',
+        account_identifier: 'your_account_identifier',
+        database_identifier: 'your_database_identifier',
+        endpoint: 'your_endpoint',
+        table: 'your_table',
+        key_field: 'your_key_field',
+        value_field: 'your_value_field'
+    });
+}
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python
+import opendal
+
+op = opendal.Operator("d1", {
+    "root": "your_root_directory",
+    "token": "your_token",
+    "account_identifier": "your_account_identifier",
+    "database_identifier": "your_database_identifier",
+    "endpoint": "your_endpoint",
+    "table": "your_table",
+    "key_field": "your_key_field",
+    "value_field": "your_value_field"
+})
+```
+
+  </TabItem>
+</Tabs>

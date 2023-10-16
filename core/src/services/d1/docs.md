@@ -46,16 +46,6 @@ async fn main() -> Result<()> {
         .value_field("value_field");
 
     let op = Operator::new(builder)?.finish();
-    let source_path = "ALFKI";
-    // set value to d1 "opendal test value" as Vec<u8>
-    let value = "opendal test value".as_bytes();
-    // write value to d1, the key is source_path
-    op.write(source_path, value).await?;
-    // read value from d1, the key is source_path
-    let v = op.read(source_path).await?;
-    assert_eq!(v, value);
-    // delete value from d1, the key is source_path
-    op.delete(source_path).await?;
     Ok(())
 }
 ```

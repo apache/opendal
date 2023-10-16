@@ -170,84 +170,31 @@ impl GdriveCore {
                 continue;
             }
 
-            let query = format!(
-                "name = \"{}\" and \"{}\" in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
-                item, parent
-            );
+            let folder_id = self.gdrive_search_folder(&parent, item).await?;
+            let folder_id = if let Some(id) = folder_id {
+                id
+            } else {
+                self.gdrive_create_folder(Some(&parent), item).await?
+            };
 
-            let mut req = Request::get(format!(
-                "https://www.googleapis.com/drive/v3/files?q={}",
-                percent_encode_path(&query)
-            ))
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-            self.sign(&mut req).await?;
-
-            let resp = self.client.send(req).await?;
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => {
-                    let resp_body = &resp.into_body().bytes().await?;
-
-                    let gdrive_file_list: GdriveFileList =
-                        serde_json::from_slice(resp_body).map_err(new_json_deserialize_error)?;
-
-                    if gdrive_file_list.files.len() != 1 {
-                        let parent_name = file_path_items[i];
-                        let resp_body = self
-                            .gdrive_create_folder(parent_name, Some(parent.to_owned()))
-                            .await?
-                            .into_body()
-                            .bytes()
-                            .await?;
-                        let parent_meta: GdriveFile = serde_json::from_slice(&resp_body)
-                            .map_err(new_json_deserialize_error)?;
-
-                        parent = parent_meta.id;
-                    } else {
-                        parent = gdrive_file_list.files[0].id.clone();
-                    }
-
-                    cache.insert(path_part, parent.clone());
-                }
-                StatusCode::NOT_FOUND => {
-                    let parent_name = file_path_items[i];
-                    let res = self
-                        .gdrive_create_folder(parent_name, Some(parent.to_owned()))
-                        .await?;
-
-                    let status = res.status();
-
-                    match status {
-                        StatusCode::OK => {
-                            let parent_id = res.into_body().bytes().await?;
-                            parent = String::from_utf8_lossy(&parent_id).to_string();
-
-                            cache.insert(path_part, parent.clone());
-                        }
-                        _ => {
-                            return Err(parse_error(res).await?);
-                        }
-                    }
-                }
-                _ => {
-                    return Err(parse_error(resp).await?);
-                }
-            }
+            parent = folder_id;
+            cache.insert(path_part, parent.clone());
         }
 
         Ok(parent.to_owned())
     }
 
+    /// Search a folder by name
+    ///
+    /// returns it's file id if exists, otherwise returns `None`.
     pub async fn gdrive_search_folder(
         &self,
-        target: &str,
         parent: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
+        basename: &str,
+    ) -> Result<Option<String>> {
         let query = format!(
             "name = '{}' and '{}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
-            target, parent
+            basename, parent
         );
         let url = format!(
             "https://www.googleapis.com/drive/v3/files?q={}",
@@ -260,40 +207,64 @@ impl GdriveCore {
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let resp = self.client.send(req).await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let body = resp.into_body().bytes().await?;
+                let meta: GdriveFileList =
+                    serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+
+                if let Some(f) = meta.files.first() {
+                    Ok(Some(f.id.clone()))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     /// Create a folder.
-    /// Should provide the parent folder id.
-    /// Or will create the folder in the root folder.
+    ///
+    /// # Input
+    ///
+    /// `parent_id` is the parent folder id. Using `root` is it's `None`.
+    ///
+    /// # Output
+    ///
+    /// Returns created folder's id while success, otherwise returns an error.
     pub async fn gdrive_create_folder(
         &self,
+        parent_id: Option<&str>,
         name: &str,
-        parent: Option<String>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    ) -> Result<String> {
         let url = "https://www.googleapis.com/drive/v3/files";
+
+        let content = serde_json::to_vec(&json!({
+            "name": name,
+            "mimeType": "application/vnd.google-apps.folder",
+            // If the parent is not provided, the folder will be created in the root folder.
+            "parents": [parent_id.unwrap_or("root")],
+        }))
+        .map_err(new_json_serialize_error)?;
 
         let mut req = Request::post(url)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(AsyncBody::Bytes(bytes::Bytes::from(
-                serde_json::to_vec(&json!({
-                    "name": name,
-                    "mimeType": "application/vnd.google-apps.folder",
-                    // If the parent is not provided, the folder will be created in the root folder.
-                    "parents": [parent.unwrap_or("root".to_owned())],
-                }))
-                .map_err(|e| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        &format!("failed to serialize json(create folder result): {}", e),
-                    )
-                })?,
-            )))
+            .body(AsyncBody::Bytes(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 
-        self.client.send(req).await
+        let resp = self.client.send(req).await?;
+        if !resp.status().is_success() {
+            return Err(parse_error(resp).await?);
+        }
+        let body = resp.into_body().bytes().await?;
+        let file: GdriveFile = serde_json::from_slice(&body).map_err(new_json_deserialize_error)?;
+
+        Ok(file.id)
     }
 
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {

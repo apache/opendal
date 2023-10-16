@@ -164,7 +164,8 @@ impl GdriveCore {
         parent: &str,
         basename: &str,
     ) -> Result<Option<GdriveFile>> {
-        let query = format!("name = '{basename}' and '{parent}' in parents and trashed = false",);
+        let query =
+            format!("name = \"{basename}\" and \"{parent}\" in parents and trashed = false");
         let url = format!(
             "https://www.googleapis.com/drive/v3/files?q={}",
             percent_encode_path(&query)
@@ -205,7 +206,7 @@ impl GdriveCore {
         basename: &str,
     ) -> Result<Option<String>> {
         let query = format!(
-            "name = '{}' and '{}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
+            "name = \"{}\" and \"{}\" in parents and trashed = false and mimeType = 'application/vnd.google-apps.folder'",
             basename, parent
         );
         let url = format!(

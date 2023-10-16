@@ -320,7 +320,7 @@ jobs:
         with:
           node-version: '18'
           cache: yarn
-          cache-dependency-path: "yarn.lock"
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
 
       - name: Setup MinIO Server
         shell: bash

@@ -110,7 +110,12 @@ pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) 
 }
 
 pub fn gen_bytes() -> (Vec<u8>, usize) {
-    gen_bytes_with_range(1..4 * 1024 * 1024)
+    let max_size = env::var("OPENDAL_BEHAVIOR_TEST_MAX_SIZE")
+        .unwrap_or_default()
+        .parse::<usize>()
+        .unwrap_or(4 * 1024 * 1024);
+
+    gen_bytes_with_range(1..max_size)
 }
 
 pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {

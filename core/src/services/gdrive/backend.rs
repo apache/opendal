@@ -99,7 +99,8 @@ impl Accessor for GdriveBackend {
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let parent = self.core.ensure_parent_path(path).await?;
 
-        let path = get_basename(path);
+        // Make sure `/` has been trimmed.
+        let path = get_basename(path).trim_end_matches('/');
 
         // As Google Drive allows files have the same name, we need to check if the folder exists.
         let folder_id = self.core.gdrive_search_folder(&parent, path).await?;

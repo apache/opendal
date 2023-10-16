@@ -29,12 +29,6 @@ pub(crate) struct Error {
 }
 
 impl Error {
-    pub(crate) fn unexpected(err: impl Into<anyhow::Error> + Display) -> Error {
-        Error {
-            inner: opendal::Error::new(ErrorKind::Unexpected, &err.to_string()).set_source(err),
-        }
-    }
-
     pub(crate) fn throw(&self, env: &mut JNIEnv) {
         if let Err(err) = self.do_throw(env) {
             match err {
@@ -68,7 +62,7 @@ impl Error {
             ErrorKind::InvalidInput => "InvalidInput",
             _ => "Unexpected",
         })?;
-        let message = env.new_string(self.inner.to_string())?;
+        let message = env.new_string(format!("{:?}", self.inner))?;
         let exception = env.new_object(
             class,
             "(Ljava/lang/String;Ljava/lang/String;)V",
@@ -84,26 +78,14 @@ impl Error {
 }
 
 impl From<opendal::Error> for Error {
-    fn from(error: opendal::Error) -> Self {
-        Self { inner: error }
+    fn from(err: opendal::Error) -> Self {
+        Self { inner: err }
     }
 }
 
 impl From<jni::errors::Error> for Error {
-    fn from(error: jni::errors::Error) -> Self {
-        Error::unexpected(error)
-    }
-}
-
-impl From<std::str::Utf8Error> for Error {
-    fn from(error: std::str::Utf8Error) -> Self {
-        Error::unexpected(error)
-    }
-}
-
-impl From<std::string::FromUtf8Error> for Error {
-    fn from(error: std::string::FromUtf8Error) -> Self {
-        Error::unexpected(error)
+    fn from(err: jni::errors::Error) -> Self {
+        opendal::Error::new(ErrorKind::Unexpected, &err.to_string()).into()
     }
 }
 

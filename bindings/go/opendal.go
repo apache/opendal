@@ -49,9 +49,14 @@ func NewOperator(scheme string, opt Options) (*Operator, error) {
 	for k, v := range opt {
 		C.opendal_operator_options_set(opts, C.CString(k), C.CString(v))
 	}
-	op := C.opendal_operator_new(C.CString(scheme), opts)
+	ret := C.opendal_operator_new(C.CString(scheme), opts)
+	if ret.error != nil {
+		defer C.opendal_error_free(ret.error)
+		code, message := parseError(ret.error)
+		return nil, errors.New(fmt.Sprintf("create operator failed, error code: %d, error message: %s", code, message))
+	}
 	return &Operator{
-		inner: op,
+		inner: ret.operator_ptr,
 	}, nil
 }
 
@@ -61,22 +66,36 @@ func (o *Operator) Write(key string, value []byte) error {
 	}
 	bytes := C.opendal_bytes{data: (*C.uchar)(unsafe.Pointer(&value[0])), len: C.ulong(len(value))}
 	ret := C.opendal_operator_blocking_write(o.inner, C.CString(key), bytes)
-	if ret != 0 {
-		return errors.New(fmt.Sprintf("write failed, error code: %d", ret))
+	if ret != nil {
+		defer C.opendal_error_free(ret)
+		code, message := parseError(ret)
+		return errors.New(fmt.Sprintf("write failed, error code: %d, error message: %s", code, message))
 	}
 	return nil
 }
 
 func (o *Operator) Read(key string) ([]byte, error) {
-	result := C.opendal_operator_blocking_read(o.inner, C.CString(key))
-	ret := int(result.code)
-	if ret != 0 {
-		return nil, errors.New(fmt.Sprintf("write failed, error code: %d", ret))
+	ret := C.opendal_operator_blocking_read(o.inner, C.CString(key))
+	if ret.error != nil {
+		defer C.opendal_error_free(ret.error)
+		code, message := parseError(ret.error)
+		return nil, errors.New(fmt.Sprintf("read failed, error code: %d, error message: %s", code, message))
 	}
-	return C.GoBytes(unsafe.Pointer(result.data.data), C.int(result.data.len)), nil
+	return C.GoBytes(unsafe.Pointer(ret.data.data), C.int(ret.data.len)), nil
 }
 
 func (o *Operator) Close() error {
 	C.opendal_operator_free(o.inner)
 	return nil
+}
+
+func decodeBytes(bs C.opendal_bytes) []byte {
+	return C.GoBytes(unsafe.Pointer(bs.data), C.int(bs.len))
+}
+
+func parseError(err *C.opendal_error) (int, string) {
+	code := int(err.code)
+	message := string(decodeBytes(err.message))
+
+	return code, message
 }

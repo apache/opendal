@@ -19,8 +19,6 @@ pub const c = @cImport(@cInclude("opendal.h"));
 
 // Zig code get values C code
 pub const Code = enum(c.opendal_code) {
-    OK = c.OPENDAL_OK,
-    ERROR = c.OPENDAL_ERROR,
     UNEXPECTED = c.OPENDAL_UNEXPECTED,
     UNSUPPORTED = c.OPENDAL_UNSUPPORTED,
     CONFIG_INVALID = c.OPENDAL_CONFIG_INVALID,
@@ -58,7 +56,6 @@ pub fn codeToError(code: c.opendal_code) OpendalError!c.opendal_code {
         c.OPENDAL_ALREADY_EXISTS => error.AlreadyExists,
         c.OPENDAL_RATE_LIMITED => error.RateLimited,
         c.OPENDAL_IS_SAME_FILE => error.IsSameFile,
-        else => c.OPENDAL_ERROR,
     };
 }
 pub fn errorToCode(err: OpendalError) c_int {

@@ -21,6 +21,7 @@ exclude = ["examples"]
 members = [
   "core",
   "core/fuzz",
+  "core/edge/*",
 
   "bindings/c",
   "bindings/nodejs",

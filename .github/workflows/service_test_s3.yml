@@ -39,28 +39,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  aws_s3:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo nextest run s3
-        env:
-          OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
-          OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
-          OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
-          OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
-          OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
-          OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
-          OPENDAL_S3_REGION: ap-northeast-1
-
   aws_s3_with_virtual_host:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
@@ -263,7 +241,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dtest=org.apache.opendal.test.behavior.S3Test
+        run: ./mvnw test -Dgroups="services_s3"
         env:
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test

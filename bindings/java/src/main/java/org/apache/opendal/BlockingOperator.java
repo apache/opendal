@@ -67,7 +67,7 @@ public class BlockingOperator extends NativeObject {
     }
 
     public Metadata stat(String path) {
-        return new Metadata(stat(nativeHandle, path));
+        return stat(nativeHandle, path);
     }
 
     public void createDir(String path) {
@@ -91,7 +91,7 @@ public class BlockingOperator extends NativeObject {
 
     private static native void delete(long nativeHandle, String path);
 
-    private static native long stat(long nativeHandle, String path);
+    private static native Metadata stat(long nativeHandle, String path);
 
     private static native long createDir(long nativeHandle, String path);
 

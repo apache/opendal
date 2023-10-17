@@ -225,6 +225,8 @@ impl Operator {
             Scheme::Sqlite => Self::from_map::<services::Sqlite>(map)?.finish(),
             #[cfg(feature = "services-supabase")]
             Scheme::Supabase => Self::from_map::<services::Supabase>(map)?.finish(),
+            #[cfg(feature = "services-tikv")]
+            Scheme::Tikv => Self::from_map::<services::Tikv>(map)?.finish(),
             #[cfg(feature = "services-vercel-artifacts")]
             Scheme::VercelArtifacts => Self::from_map::<services::VercelArtifacts>(map)?.finish(),
             #[cfg(feature = "services-wasabi")]

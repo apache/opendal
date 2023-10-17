@@ -238,9 +238,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dgroups="services_s3"
+        run: ./mvnw test -Dtest=ServiceBehaviorTest
         env:
-          OPENDAL_S3_TEST: on
+          OPENDAL_TEST: s3
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin

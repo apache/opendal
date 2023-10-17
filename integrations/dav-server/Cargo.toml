@@ -36,7 +36,7 @@ dav-server = { version = "0.5.5" }
 futures = "0.3"
 futures-util = { version = "0.3.16" }
 opendal.workspace = true
-quick-xml = { version = "0.29", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.30", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.27", features = [
   "fs",

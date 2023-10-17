@@ -1,3 +1,11 @@
+# Unreleased
+
+## Public API
+
+### MSRV Changed
+
+OpenDAL bumps it's MSRV to 1.67.0.
+
 # Upgrade to v0.41
 
 There is no public API and raw API changes.

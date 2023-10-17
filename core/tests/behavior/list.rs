@@ -239,12 +239,13 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
 /// List dir should return correct sub dir.
 pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
-
+    debug!("Generate a random dir: {}", &path);
     op.create_dir(&path).await.expect("creat must succeed");
 
     let mut obs = op.lister("/").await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
+        debug!("got object: {:?}", de);
         if de.path() == path {
             let meta = op.stat(&path).await?;
             assert_eq!(meta.mode(), EntryMode::DIR);

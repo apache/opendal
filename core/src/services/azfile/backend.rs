@@ -267,6 +267,7 @@ impl Accessor for AzfileBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        self.core.ensure_parent_dir_exists(path).await?;
         let resp = self.core.azfile_create_dir(path).await?;
         let status = resp.status();
 
@@ -306,6 +307,7 @@ impl Accessor for AzfileBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.core.ensure_parent_dir_exists(path).await?;
         let w = AzfileWriter::new(self.core.clone(), args.clone(), path.to_string());
         let w = if args.append() {
             AzfileWriters::Two(oio::AppendObjectWriter::new(w))
@@ -345,6 +347,7 @@ impl Accessor for AzfileBackend {
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
+        self.core.ensure_parent_dir_exists(to).await?;
         let resp = self.core.azfile_rename(from, to).await?;
         let status = resp.status();
         match status {

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -27,6 +28,7 @@ use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -245,7 +247,6 @@ impl AzfileCore {
     pub async fn azfile_rename(
         &self,
         path: &str,
-
         new_path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
@@ -353,7 +354,7 @@ impl AzfileCore {
     pub async fn azfile_list(
         &self,
         path: &str,
-        limit: Option<usize>,
+        limit: &Option<usize>,
         continuation: &String,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
@@ -382,5 +383,36 @@ impl AzfileCore {
             .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
         self.send(req).await
+    }
+
+    pub async fn ensure_parent_dir_exists(&self, path: &str) -> Result<()> {
+        let mut dirs = VecDeque::default();
+        // azure file service does not support recursive directory creation
+        let mut p = path.clone();
+        while p != "/" {
+            p = get_parent(p);
+            dirs.push_front(p.clone());
+        }
+        for dir in dirs {
+            let resp = self.azfile_create_dir(dir).await?;
+
+            if resp.status() != StatusCode::CREATED {
+                if resp
+                    .headers()
+                    .get("x-ms-error-code")
+                    .map(|value| value.to_str().unwrap_or(""))
+                    .unwrap_or_else(|| "")
+                    == "ResourceAlreadyExists"
+                {
+                    continue;
+                }
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    format!("failed to create directory: {}", dir).as_str(),
+                ));
+            }
+        }
+
+        Ok(())
     }
 }

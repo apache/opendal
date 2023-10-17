@@ -57,12 +57,15 @@ impl oio::Page for AzfilePager {
 
         let resp = self
             .core
-            .azfile_list(&self.path, self.limit, &self.continuation)
+            .azfile_list(&self.path, &self.limit, &self.continuation)
             .await?;
 
         let status = resp.status();
 
         if status != StatusCode::OK {
+            if status == StatusCode::NOT_FOUND {
+                return Ok(None);
+            }
             return Err(parse_error(resp).await?);
         }
 
@@ -81,7 +84,7 @@ impl oio::Page for AzfilePager {
                 .with_etag(file.properties.etag)
                 .with_content_length(file.properties.content_length.unwrap_or(0))
                 .with_last_modified(parse_datetime_from_rfc2822(&file.properties.last_modified)?);
-            let path = self.path.clone() + &file.name;
+            let path = self.path.clone().trim_start_matches('/').to_string() + &file.name;
             entries.push(oio::Entry::new(&path, meta));
         }
 
@@ -89,17 +92,21 @@ impl oio::Page for AzfilePager {
             let meta = Metadata::new(EntryMode::DIR)
                 .with_etag(dir.properties.etag)
                 .with_last_modified(parse_datetime_from_rfc2822(&dir.properties.last_modified)?);
-            let path = self.path.clone() + &dir.name + "/";
+            let path = self.path.clone().trim_start_matches('/').to_string() + &dir.name + "/";
             entries.push(oio::Entry::new(&path, meta));
         }
 
-        if let Some(next_marker) = results.next_marker {
-            self.continuation = next_marker;
-        } else {
+        if results.next_marker.is_empty() {
             self.done = true;
+        } else {
+            self.continuation = results.next_marker;
         }
 
-        Ok(Some(entries))
+        if entries.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(entries))
+        }
     }
 }
 
@@ -111,13 +118,16 @@ struct EnumerationResults {
     max_results: Option<u32>,
     directory_id: Option<String>,
     entries: Entries,
-    next_marker: Option<String>,
+    #[serde(default)]
+    next_marker: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 struct Entries {
+    #[serde(default)]
     file: Vec<File>,
+    #[serde(default)]
     directory: Vec<Directory>,
 }
 

@@ -211,7 +211,7 @@ impl From<Scheme> for &'static str {
         match v {
             Scheme::Atomicserver => "atomicserver",
             Scheme::Azblob => "azblob",
-            Scheme::Azdls => "Azdls",
+            Scheme::Azdls => "azdls",
             Scheme::Cacache => "cacache",
             Scheme::Cos => "cos",
             Scheme::D1 => "d1",

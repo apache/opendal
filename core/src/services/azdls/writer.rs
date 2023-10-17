@@ -106,6 +106,28 @@ impl oio::AppendObjectWrite for AzdlsWriter {
     }
 
     async fn append(&self, offset: u64, size: u64, body: AsyncBody) -> Result<()> {
+        if offset == 0 {
+            let mut req =
+                self.core
+                    .azdls_create_request(&self.path, "file", &self.op, AsyncBody::Empty)?;
+
+            self.core.sign(&mut req).await?;
+
+            let resp = self.core.send(req).await?;
+
+            let status = resp.status();
+            match status {
+                StatusCode::CREATED | StatusCode::OK => {
+                    resp.into_body().consume().await?;
+                }
+                _ => {
+                    return Err(parse_error(resp)
+                        .await?
+                        .with_operation("Backend::azdls_create_request"));
+                }
+            }
+        }
+
         let mut req = self
             .core
             .azdls_update_request(&self.path, Some(size), offset, body)?;

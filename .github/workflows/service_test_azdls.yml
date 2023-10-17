@@ -46,13 +46,22 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-nextest: true
+
+      - name: Load secret
+        id: op-load-secret
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OPENDAL_AZDLS_FILESYSTEM: op://services/azdls/filesystem
+          OPENDAL_AZDLS_ENDPOINT: op://services/azdls/endpoint
+          OPENDAL_AZDLS_ACCOUNT_NAME: op://services/azdls/account_name
+          OPENDAL_AZDLS_ACCOUNT_KEY: op://services/azdls/account_key
+
       - name: Test
         shell: bash
         working-directory: core
         run: cargo nextest run behavior
         env:
           OPENDAL_TEST: azdls
-          OPENDAL_AZDLS_FILESYSTEM: ${{ secrets.OPENDAL_AZDLS_FILESYSTEM }}
-          OPENDAL_AZDLS_ENDPOINT: ${{ secrets.OPENDAL_AZDLS_ENDPOINT }}
-          OPENDAL_AZDLS_ACCOUNT_NAME: ${{ secrets.OPENDAL_AZDLS_ACCOUNT_NAME }}
-          OPENDAL_AZDLS_ACCOUNT_KEY: ${{ secrets.OPENDAL_AZDLS_ACCOUNT_KEY }}

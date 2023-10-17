@@ -203,6 +203,8 @@ impl Operator {
             Scheme::Obs => Self::from_map::<services::Obs>(map)?.finish(),
             #[cfg(feature = "services-onedrive")]
             Scheme::Onedrive => Self::from_map::<services::Onedrive>(map)?.finish(),
+            #[cfg(feature = "services-postgresql")]
+            Scheme::Postgresql => Self::from_map::<services::Postgresql>(map)?.finish(),
             #[cfg(feature = "services-gdrive")]
             Scheme::Gdrive => Self::from_map::<services::Gdrive>(map)?.finish(),
             #[cfg(feature = "services-oss")]
@@ -219,6 +221,8 @@ impl Operator {
             Scheme::Sftp => Self::from_map::<services::Sftp>(map)?.finish(),
             #[cfg(feature = "services-sled")]
             Scheme::Sled => Self::from_map::<services::Sled>(map)?.finish(),
+            #[cfg(feature = "services-sqlite")]
+            Scheme::Sqlite => Self::from_map::<services::Sqlite>(map)?.finish(),
             #[cfg(feature = "services-supabase")]
             Scheme::Supabase => Self::from_map::<services::Supabase>(map)?.finish(),
             #[cfg(feature = "services-vercel-artifacts")]

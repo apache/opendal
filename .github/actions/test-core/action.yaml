@@ -45,6 +45,8 @@ runs:
                 shell: bash
                 working-directory: core
                 run: cargo nextest run behavior --archive-file=./core-test.tar.zst
+                env:
+                  OPENDAL_TEST: ${{ inputs.service }}
             EOF
       - name: Run
         id: run

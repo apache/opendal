@@ -24,5 +24,4 @@ runs:
         - name: Setup
           shell: bash
           run: |
-              echo "OPENDAL_TEST=fs" >> $GITHUB_ENV
               echo "OPENDAL_FS_ROOT=${{ runner.temp }}/" >> $GITHUB_ENV

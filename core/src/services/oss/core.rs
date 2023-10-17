@@ -57,6 +57,7 @@ pub struct OssCore {
     pub host: String,
     pub endpoint: String,
     pub presign_endpoint: String,
+    pub allow_anonymous: bool,
 
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
@@ -88,8 +89,16 @@ impl OssCore {
 
         if let Some(cred) = cred {
             Ok(Some(cred))
-        } else {
+        } else if self.allow_anonymous {
+            // If allow_anonymous has been set, we will not sign the request.
             Ok(None)
+        } else {
+            // Mark this error as temporary since it could be caused by Aliyun STS.
+            Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "no valid credential found, please check configuration or try again",
+            )
+            .set_temporary())
         }
     }
 

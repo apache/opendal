@@ -62,8 +62,8 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run memcached --features services-memcached
+        run: cargo nextest run behavior --features services-memcached
         env:
-          OPENDAL_MEMCACHED_TEST: on
+          OPENDAL_TEST: memcached
           OPENDAL_MEMCACHED_ENDPOINT: tcp://127.0.0.1:11211
           OPENDAL_MEMCACHED_ROOT: /

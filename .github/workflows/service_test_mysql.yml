@@ -56,9 +56,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run mysql --features services-mysql
+        run: cargo nextest run behavior --features services-mysql
         env:
-          OPENDAL_MYSQL_TEST: on
+          OPENDAL_TEST: mysql
           OPENDAL_MYSQL_CONNECTION_STRING: mysql://root:password@localhost:3306/testdb
           OPENDAL_MYSQL_TABLE: data
           OPENDAL_MYSQL_KEY_FIELD: key

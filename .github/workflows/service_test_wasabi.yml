@@ -54,7 +54,6 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_WASABI_TEST: op://services/wasabi/test
           OPENDAL_WASABI_REGION: op://services/wasabi/region
           OPENDAL_WASABI_BUCKET: op://services/wasabi/bucket
           OPENDAL_WASABI_ENDPOINT: op://services/wasabi/endpoint
@@ -64,4 +63,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run wasabi --features=services-wasabi
+        run: cargo nextest run behavior --features=services-wasabi
+        env:
+          OPENDAL_TEST: wasabi

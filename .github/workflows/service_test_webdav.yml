@@ -55,9 +55,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run webdav
+        run: cargo nextest run behavior
         env:
-          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_TEST: webdav
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
 
   nginx_with_password:
@@ -77,9 +77,9 @@ jobs:
       - name: Test with password
         shell: bash
         working-directory: core
-        run: cargo nextest run webdav
+        run: cargo nextest run behavior
         env:
-          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_TEST: webdav
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_WEBDAV_USERNAME: bar
           OPENDAL_WEBDAV_PASSWORD: bar
@@ -101,9 +101,9 @@ jobs:
       - name: Test empty password
         shell: bash
         working-directory: core
-        run: cargo nextest run webdav
+        run: cargo nextest run behavior
         env:
-          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_TEST: webdav
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_WEBDAV_USERNAME: foo
 
@@ -125,9 +125,9 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo nextest run webdav
+          cargo nextest run behavior
         env:
-          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_TEST: webdav
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8081
 
   nextcloud:
@@ -168,9 +168,9 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test webdav -j=1
+          cargo test behavior -j=1
         env:
-          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_TEST: webdav
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/
           OPENDAL_WEBDAV_USERNAME: admin
           OPENDAL_WEBDAV_PASSWORD: admin
@@ -216,9 +216,9 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test webdav -j=1
+          cargo test behavior -j=1
         env:
-          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_TEST: webdav
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080/remote.php/webdav/
           OPENDAL_WEBDAV_USERNAME: admin
           OPENDAL_WEBDAV_PASSWORD: admin

@@ -49,9 +49,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run oss
+        run: cargo nextest run behavior
         env:
-          OPENDAL_OSS_TEST: ${{ secrets.OPENDAL_OSS_TEST }}
+          OPENDAL_TEST: oss
           OPENDAL_OSS_BUCKET: ${{ secrets.OPENDAL_OSS_BUCKET }}
           OPENDAL_OSS_ENDPOINT: ${{ secrets.OPENDAL_OSS_ENDPOINT }}
           OPENDAL_OSS_ACCESS_KEY_ID: ${{ secrets.OPENDAL_OSS_ACCESS_KEY_ID }}

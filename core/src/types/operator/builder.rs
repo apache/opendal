@@ -157,7 +157,7 @@ impl Operator {
             Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
-            #[cfg(feature = "services-Azdls")]
+            #[cfg(feature = "services-azdls")]
             Scheme::Azdls => Self::from_map::<services::Azdls>(map)?.finish(),
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
@@ -185,6 +185,8 @@ impl Operator {
             Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs => Self::from_map::<services::Ipmfs>(map)?.finish(),
+            #[cfg(feature = "services-libsql")]
+            Scheme::Libsql => Self::from_map::<services::Libsql>(map)?.finish(),
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached => Self::from_map::<services::Memcached>(map)?.finish(),
             #[cfg(feature = "services-memory")]

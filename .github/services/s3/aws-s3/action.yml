@@ -30,7 +30,7 @@ runs:
     - name: Setup
       shell: bash
       run: |
-        echo "OPENDAL_S3_TEST=${{ fromJson(inputs.secrets).OPENDAL_S3_TEST }}" >> $GITHUB_ENV
+        echo "OPENDAL_TEST=s3" >> $GITHUB_ENV
         echo "OPENDAL_S3_ROOT=${{ fromJson(inputs.secrets).OPENDAL_S3_ROOT }}" >> $GITHUB_ENV
         echo "OPENDAL_S3_BUCKET=${{ fromJson(inputs.secrets).OPENDAL_S3_BUCKET }}" >> $GITHUB_ENV
         echo "OPENDAL_S3_ENDPOINT=${{ fromJson(inputs.secrets).OPENDAL_S3_ENDPOINT }}" >> $GITHUB_ENV

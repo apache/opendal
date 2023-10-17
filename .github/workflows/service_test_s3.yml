@@ -218,9 +218,6 @@ jobs:
           # This is the R2's limitation
           # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
           OPENDAL_S3_BATCH_MAX_OPERATIONS: 700
-          # This is the R2's limitation
-          # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
-          OPENDAL_S3_ENABLE_EXACT_BUF_WRITE: true
 
   java:
     runs-on: ubuntu-latest

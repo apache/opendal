@@ -50,17 +50,16 @@ pub struct OssBuilder {
     presign_endpoint: Option<String>,
     bucket: String,
 
-    // sse options
+    // OSS features
     server_side_encryption: Option<String>,
     server_side_encryption_key_id: Option<String>,
+    allow_anonymous: bool,
 
     // authenticate options
     access_key_id: Option<String>,
     access_key_secret: Option<String>,
 
     http_client: Option<HttpClient>,
-    /// the size of each part, and the range is 5MB ~ 5 GB.
-    write_min_size: Option<usize>,
     /// batch_max_operations
     batch_max_operations: Option<usize>,
 }
@@ -70,7 +69,8 @@ impl Debug for OssBuilder {
         let mut d = f.debug_struct("Builder");
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint);
+            .field("endpoint", &self.endpoint)
+            .field("allow_anonymous", &self.allow_anonymous);
 
         d.finish_non_exhaustive()
     }
@@ -233,18 +233,17 @@ impl OssBuilder {
         self
     }
 
-    /// set the minimum size of unsized write, it should be greater than 5 MB.
-    /// Reference: [OSS Multipart upload](https://www.alibabacloud.com/help/en/object-storage-service/latest/multipart-upload-6)
-    pub fn write_min_size(&mut self, write_min_size: usize) -> &mut Self {
-        self.write_min_size = Some(write_min_size);
-
-        self
-    }
-
     /// Set maximum batch operations of this backend.
     pub fn batch_max_operations(&mut self, batch_max_operations: usize) -> &mut Self {
         self.batch_max_operations = Some(batch_max_operations);
 
+        self
+    }
+
+    /// Allow anonymous will allow opendal to send request without signing
+    /// when credential is not loaded.
+    pub fn allow_anonymous(&mut self) -> &mut Self {
+        self.allow_anonymous = true;
         self
     }
 }
@@ -268,10 +267,12 @@ impl Builder for OssBuilder {
             .map(|v| builder.server_side_encryption(v));
         map.get("server_side_encryption_key_id")
             .map(|v| builder.server_side_encryption_key_id(v));
-        map.get("write_min_size")
-            .map(|v| builder.write_min_size(v.parse::<usize>().unwrap()));
         map.get("batch_max_operations")
             .map(|v| builder.batch_max_operations(v.parse::<usize>().unwrap()));
+        map.get("allow_anonymous")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.allow_anonymous());
+
         builder
     }
 
@@ -355,6 +356,7 @@ impl Builder for OssBuilder {
                 endpoint,
                 host,
                 presign_endpoint,
+                allow_anonymous: self.allow_anonymous,
                 signer,
                 loader,
                 client,

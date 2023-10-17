@@ -22,7 +22,7 @@ import { expect, test } from 'vitest'
 import { Operator } from '../index.js'
 import { generateBytes } from './utils.js'
 
-const operator = new Operator('memory', { root: '/tmp' })
+const operator = new Operator(process.env.SCHEME, { root: '/tmp' })
 
 test('sync IO test case', () => {
   const filename = `random_file_${randomUUID()}`

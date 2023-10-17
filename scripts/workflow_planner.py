@@ -40,8 +40,8 @@ def get_provided_cases():
     # Check if this workflow needs to read secrets.
     #
     # We will check if pattern `secrets.XXX` exist in content.
-    if not bool(os.getenv("GITHUB_HAS_SECRETS")):
-        cases[:] = [v for v in cases if "secrets." not in v["content"]]
+    if not os.getenv("GITHUB_HAS_SECRETS") == "true":
+        cases[:] = [v for v in cases if "secrets" not in v["content"]]
 
     return cases
 

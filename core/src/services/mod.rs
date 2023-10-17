@@ -233,3 +233,8 @@ pub use self::sqlite::Sqlite;
 mod d1;
 #[cfg(feature = "services-d1")]
 pub use self::d1::D1;
+
+#[cfg(feature = "services-azfile")]
+mod azfile;
+#[cfg(feature = "services-azfile")]
+pub use self::azfile::Azfile;

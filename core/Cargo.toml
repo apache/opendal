@@ -50,6 +50,7 @@ default = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
+  "services-azfile",
 ]
 
 # Build docs or not.
@@ -180,6 +181,7 @@ services-wasabi = [
 ]
 services-webdav = []
 services-webhdfs = []
+services-azfile = []
 
 [lib]
 bench = false

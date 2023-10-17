@@ -197,6 +197,8 @@ impl Operator {
             Scheme::MiniMoka => Self::from_map::<services::MiniMoka>(map)?.finish(),
             #[cfg(feature = "services-moka")]
             Scheme::Moka => Self::from_map::<services::Moka>(map)?.finish(),
+            #[cfg(feature = "services-mysql")]
+            Scheme::Mysql => Self::from_map::<services::Mysql>(map)?.finish(),
             #[cfg(feature = "services-obs")]
             Scheme::Obs => Self::from_map::<services::Obs>(map)?.finish(),
             #[cfg(feature = "services-onedrive")]

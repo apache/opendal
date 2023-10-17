@@ -22,6 +22,8 @@ package org.apache.opendal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import org.apache.opendal.args.OpList;
+import org.apache.opendal.args.OpList.OpListBuilder;
 
 /**
  * BlockingOperator represents an underneath OpenDAL operator that
@@ -88,11 +90,20 @@ public class BlockingOperator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return listWith(path, -1, null, null);
+        return listWith(path).build().call();
     }
 
-    public List<Entry> listWith(String path, long limit, String startAfter, String delimiter) {
-        return listWith(nativeHandle, path, limit, startAfter, delimiter);
+    public OpListBuilder<List<Entry>> listWith(String path) {
+        return OpList.builder(path, this::internListWith);
+    }
+
+    private List<Entry> internListWith(OpList<List<Entry>> opList) {
+        return listWith(
+                nativeHandle,
+                opList.getPath(),
+                opList.getLimit(),
+                opList.getStartAfter().orElse(null),
+                opList.getDelimiter().orElse(null));
     }
 
     @Override

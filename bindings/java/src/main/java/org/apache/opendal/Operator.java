@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.opendal.args.OpList;
+import org.apache.opendal.args.OpList.OpListBuilder;
 
 /**
  * Operator represents an underneath OpenDAL operator that
@@ -198,11 +200,20 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<List<Entry>> list(String path) {
-        return listWith(path, -1, null, null);
+        return listWith(path).build().call();
     }
 
-    public CompletableFuture<List<Entry>> listWith(String path, long limit, String startAfter, String delimiter) {
-        final long requestId = listWith(nativeHandle, path, limit, startAfter, delimiter);
+    public OpListBuilder<CompletableFuture<List<Entry>>> listWith(String path) {
+        return OpList.builder(path, this::internListWith);
+    }
+
+    private CompletableFuture<List<Entry>> internListWith(OpList<CompletableFuture<List<Entry>>> opList) {
+        final long requestId = listWith(
+                nativeHandle,
+                opList.getPath(),
+                opList.getLimit(),
+                opList.getStartAfter().orElse(null),
+                opList.getDelimiter().orElse(null));
         return AsyncRegistry.take(requestId);
     }
 

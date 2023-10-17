@@ -735,7 +735,7 @@ public abstract class AbstractBehaviorTest {
             }
 
             final List<Entry> entries =
-                    operator.listWith(dir, -1, given[2], null).join();
+                    operator.listWith(dir).startAfter(given[2]).build().call().join();
             final List<String> expected = entries.stream().map(Entry::getPath).collect(Collectors.toList());
 
             assertThat(expected).isEqualTo(Arrays.asList(given[3], given[4], given[5]));
@@ -745,7 +745,8 @@ public abstract class AbstractBehaviorTest {
 
         @Test
         public void testScanRoot() {
-            final List<Entry> entries = blockingOperator.listWith("", -1, null, "");
+            final List<Entry> entries =
+                    operator.listWith("").delimiter("").build().call().join();
             final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
 
             assertTrue(!actual.contains("/"), "empty root shouldn't return itself");
@@ -769,7 +770,10 @@ public abstract class AbstractBehaviorTest {
                             .join();
                 }
             }
-            final List<Entry> entries = operator.listWith(String.format("%s/x/", parent), -1, null, "")
+            final List<Entry> entries = operator.listWith(String.format("%s/x/", parent))
+                    .delimiter("")
+                    .build()
+                    .call()
                     .join();
             final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
 
@@ -1282,7 +1286,11 @@ public abstract class AbstractBehaviorTest {
                 }
             }
 
-            final List<Entry> list = blockingOperator.listWith(String.format("%s/x/", parent), -1, null, "");
+            final List<Entry> list = blockingOperator
+                    .listWith(String.format("%s/x/", parent))
+                    .delimiter("")
+                    .build()
+                    .call();
             final Set<String> paths = list.stream().map(Entry::getPath).collect(Collectors.toSet());
 
             assertTrue(paths.contains(parent + "/x/y"));

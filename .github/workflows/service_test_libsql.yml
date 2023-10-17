@@ -75,9 +75,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run libsql --features services-libsql
+        run: cargo nextest run behavior --features services-libsql
         env:
-          OPENDAL_LIBSQL_TEST: on
+          OPENDAL_TEST: libsql
           OPENDAL_LIBSQL_CONNECTION_STRING: http://127.0.0.1:8080
           OPENDAL_LIBSQL_TABLE: data
           OPENDAL_LIBSQL_KEY_FIELD: key
@@ -122,9 +122,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run libsql --features services-libsql
+        run: cargo nextest run behavior --features services-libsql
         env:
-            OPENDAL_LIBSQL_TEST: on
+            OPENDAL_TEST: libsql
             OPENDAL_LIBSQL_CONNECTION_STRING: http://127.0.0.1:8080
             OPENDAL_LIBSQL_AUTH_TOKEN: eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJleHAiOjc5ODg0ODM4Mjd9.MatB2aLnPFusagqH2RMoVExP37o2GFLmaJbmd52OdLtAehRNeqeJZPrefP1t2GBFidApUTLlaBRL6poKq_s3CQ
             OPENDAL_LIBSQL_TABLE: data

@@ -51,9 +51,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run s3
+        run: cargo nextest run behavior
         env:
-          OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
+          OPENDAL_TEST: s3
           OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
           OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
           OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
@@ -74,9 +74,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run s3
+        run: cargo nextest run behavior
         env:
-          OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
+          OPENDAL_TEST: s3
           OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
           OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
           OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
@@ -109,11 +109,11 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run s3
+        run: cargo nextest run behavior
         env:
           AWS_WEB_IDENTITY_TOKEN_FILE: tests/data/web_identity_token
           AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
-          OPENDAL_S3_TEST: on
+          OPENDAL_TEST: s3
           OPENDAL_S3_ROOT: CI/
           OPENDAL_S3_BUCKET: opendal-testing
           OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
@@ -140,9 +140,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run s3
+        run: cargo nextest run behavior
         env:
-          OPENDAL_S3_TEST: on
+          OPENDAL_TEST: s3
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
@@ -178,9 +178,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run s3
+        run: cargo nextest run behavior
         env:
-          OPENDAL_S3_TEST: on
+          OPENDAL_TEST: s3
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ALLOW_ANONYMOUS: on
@@ -203,7 +203,6 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_S3_TEST: op://services/r2/test
           OPENDAL_S3_BUCKET: op://services/r2/bucket
           OPENDAL_S3_ENDPOINT: op://services/r2/endpoint
           OPENDAL_S3_ACCESS_KEY_ID: op://services/r2/access_key_id
@@ -212,8 +211,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run s3
+        run: cargo nextest run behavior
         env:
+          OPENDAL_TEST: s3
           OPENDAL_S3_REGION: auto
           # This is the R2's limitation
           # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information

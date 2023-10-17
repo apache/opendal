@@ -54,7 +54,6 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_COS_TEST: op://services/cos/test
           OPENDAL_COS_BUCKET: op://services/cos/bucket
           OPENDAL_COS_ENDPOINT: op://services/cos/endpoint
           OPENDAL_COS_SECRET_ID: op://services/cos/secret_id
@@ -63,4 +62,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run cos
+        run: cargo nextest run behavior
+        env:
+          OPENDAL_TEST: cos

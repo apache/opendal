@@ -54,7 +54,6 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_OBS_TEST: op://services/obs/test
           OPENDAL_OBS_BUCKET: op://services/obs/bucket
           OPENDAL_OBS_ENDPOINT: op://services/obs/endpoint
           OPENDAL_OBS_ACCESS_KEY_ID: op://services/obs/access_key_id
@@ -63,4 +62,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run obs
+        run: cargo nextest run behavior
+        env:
+          OPENDAL_TEST: obs

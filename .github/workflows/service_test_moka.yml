@@ -48,6 +48,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run moka --features services-moka
+        run: cargo nextest run behavior --features services-moka
         env:
-          OPENDAL_MOKA_TEST: on
+          OPENDAL_TEST: moka

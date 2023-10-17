@@ -52,7 +52,6 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_GDRIVE_TEST: op://services/gdrive/test
           OPENDAL_GDRIVE_ROOT: op://services/gdrive/root
           OPENDAL_GDRIVE_REFRESH_TOKEN: op://services/gdrive/refresh_token
           OPENDAL_GDRIVE_CLIENT_ID: op://services/gdrive/client_id
@@ -61,4 +60,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test gdrive --features=services-gdrive
+        run: cargo test behavior --features=services-gdrive
+        env:
+          OPENDAL_TEST: gdrive

@@ -46,11 +46,11 @@ jobs:
       - name: Test sled
         shell: bash
         working-directory: core
-        run: cargo test sled --features services-sled -j=1
+        run: cargo test behavior --features services-sled -j=1
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_SLED_TEST: on
+          OPENDAL_TEST: sled
           OPENDAL_SLED_ROOT: /
           OPENDAL_SLED_DATADIR: /tmp/opendal/sled/
   sled-with-tree:
@@ -62,11 +62,11 @@ jobs:
       - name: Test sled with tree
         shell: bash
         working-directory: core
-        run: cargo test sled --features services-sled -j=1
+        run: cargo test behavior --features services-sled -j=1
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_SLED_TEST: on
+          OPENDAL_TEST: sled
           OPENDAL_SLED_ROOT: /
           OPENDAL_SLED_DATADIR: /tmp/opendal/sled/
           OPENDAL_SLED_TREE: sled-tree

@@ -46,9 +46,9 @@ jobs:
       - name: Test cacache
         shell: bash
         working-directory: core
-        run: cargo test cacache --features services-cacache -j=1
+        run: cargo test behavior --features services-cacache -j=1
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_CACACHE_TEST: on
+          OPENDAL_TEST: cacache
           OPENDAL_CACACHE_DATADIR: /tmp/opendal/cacache/

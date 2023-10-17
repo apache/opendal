@@ -46,10 +46,9 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo test atomicserver --features services-atomicserver -j=1
+          cargo test behavior --features services-atomicserver -j=1
         env:
           RUST_BACKTRACE: full
-          OPENDAL_ATOMICSERVER_TEST: off
           OPENDAL_ATOMICSERVER_ROOT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ROOT }}
           OPENDAL_ATOMICSERVER_ENDPOINT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ENDPOINT }}
           OPENDAL_ATOMICSERVER_PRIVATE_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PRIVATE_KEY }}

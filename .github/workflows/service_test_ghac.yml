@@ -57,8 +57,8 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run ghac
+        run: cargo nextest run behavior
         env:
-          OPENDAL_GHAC_TEST: ${{ secrets.OPENDAL_GHAC_TEST }}
+          OPENDAL_TEST: ghac
           OPENDAL_GHAC_ENABLE_CREATE_SIMULATION: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -60,9 +60,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run http
+        run: cargo nextest run behavior
         env:
-          OPENDAL_HTTP_TEST: on
+          OPENDAL_TEST: http
           OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_DISABLE_RANDOM_ROOT: true
 
@@ -97,8 +97,8 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run http
+        run: cargo nextest run behavior
         env:
-          OPENDAL_HTTP_TEST: on
+          OPENDAL_TEST: http
           OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080
           OPENDAL_DISABLE_RANDOM_ROOT: true

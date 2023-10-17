@@ -56,9 +56,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run postgresql --features services-postgresql
+        run: cargo nextest run behavior --features services-postgresql
         env:
-          OPENDAL_POSTGRESQL_TEST: on
+          OPENDAL_TEST: postgresql
           OPENDAL_POSTGRESQL_CONNECTION_STRING: postgresql://user:password@localhost:5432/testdb
           OPENDAL_POSTGRESQL_TABLE: data
           OPENDAL_POSTGRESQL_KEY_FIELD: key

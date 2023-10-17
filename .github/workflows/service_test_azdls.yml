@@ -49,9 +49,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run azdls
+        run: cargo nextest run behavior
         env:
-          OPENDAL_AZDLS_TEST: ${{ secrets.OPENDAL_AZDLS_TEST }}
+          OPENDAL_TEST: azdls
           OPENDAL_AZDLS_FILESYSTEM: ${{ secrets.OPENDAL_AZDLS_FILESYSTEM }}
           OPENDAL_AZDLS_ENDPOINT: ${{ secrets.OPENDAL_AZDLS_ENDPOINT }}
           OPENDAL_AZDLS_ACCOUNT_NAME: ${{ secrets.OPENDAL_AZDLS_ACCOUNT_NAME }}

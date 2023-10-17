@@ -52,7 +52,6 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_DROPBOX_TEST: op://services/dropbox/test
           OPENDAL_DROPBOX_ROOT: op://services/dropbox/root
           OPENDAL_DROPBOX_REFRESH_TOKEN: op://services/dropbox/refresh_token
           OPENDAL_DROPBOX_CLIENT_ID: op://services/dropbox/client_id
@@ -63,4 +62,6 @@ jobs:
         working-directory: core
         # It's easily for dropbox to trigger too_many_write_operations error.
         # So we run tests one by one.
-        run: cargo test dropbox --features=services-dropbox -- --test-threads=1
+        run: cargo test behavior --features=services-dropbox -- --test-threads=1
+        env:
+          OPENDAL_TEST: dropbox

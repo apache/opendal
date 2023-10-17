@@ -64,10 +64,10 @@ jobs:
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
           export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
 
-          cargo test services_hdfs --features services-hdfs
+          cargo test behavior --features services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
-          OPENDAL_HDFS_TEST: on
+          OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: default
 
@@ -122,9 +122,9 @@ jobs:
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
           export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
 
-          cargo test services_hdfs --features services-hdfs
+          cargo test behavior --features services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.2.4"
-          OPENDAL_HDFS_TEST: on
+          OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020

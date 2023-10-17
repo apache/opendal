@@ -48,7 +48,8 @@ jobs:
         run: |
           cargo test behavior --features services-atomicserver -j=1
         env:
-          RUST_BACKTRACE: full
+          # TODO: enable test when we are ready.
+          # OPENDAL_TEST: atomicserver
           OPENDAL_ATOMICSERVER_ROOT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ROOT }}
           OPENDAL_ATOMICSERVER_ENDPOINT: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_ENDPOINT }}
           OPENDAL_ATOMICSERVER_PRIVATE_KEY: TODO - ${{ secrets.OPENDAL_ATOMICSERVER_PRIVATE_KEY }}

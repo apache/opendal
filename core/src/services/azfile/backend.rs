@@ -37,7 +37,7 @@ use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 
 /// Default endpoint of Azure File services.
-const DEFAULT_AZFILE_ENDPOINT: &str = "file.core.windows.net";
+const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
 
 /// Azure File services support.
 #[doc = include_str!("docs.md")]
@@ -118,6 +118,8 @@ impl AzfileBuilder {
 
     /// Set file share name of this backend.
     ///
+    /// # Notes
+    /// You can find more about from: https://learn.microsoft.com/en-us/rest/api/storageservices/operations-on-shares--file-service
     pub fn share_name(&mut self, share_name: &str) -> &mut Self {
         if !share_name.is_empty() {
             self.share_name = share_name.to_string();
@@ -177,12 +179,22 @@ impl Builder for AzfileBuilder {
             })?
         };
 
+        let account_name_option = self
+            .account_name
+            .clone()
+            .or_else(|| infer_account_name_from_endpoint(endpoint.as_str()));
+
+        let account_name = match account_name_option {
+            Some(account_name) => Ok(account_name),
+            None => Err(
+                Error::new(ErrorKind::ConfigInvalid, "account_name is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::Azfile),
+            ),
+        }?;
+
         let config_loader = AzureStorageConfig {
-            account_name: self
-                .account_name
-                .clone()
-                .or_else(|| infer_account_name_from_endpoint(endpoint.as_str())),
-            account_key: self.account_key.clone(),
+            account_name: Some(account_name),
             sas_token: self.sas_token.clone(),
             ..Default::default()
         };
@@ -219,7 +231,7 @@ fn infer_account_name_from_endpoint(endpoint: &str) -> Option<String> {
         .trim_end_matches('/')
         .to_lowercase();
 
-    if endpoint_suffix == DEFAULT_AZFILE_ENDPOINT {
+    if endpoint_suffix == DEFAULT_AZFILE_ENDPOINT_SUFFIX {
         account_name.map(|s| s.to_string())
     } else {
         None
@@ -385,23 +397,27 @@ impl Accessor for AzfileBackend {
 
 #[cfg(test)]
 mod tests {
-    use crate::services::azfile::backend::infer_account_name_from_endpoint;
+    use super::*;
     use crate::Builder;
-
-    use super::AzfileBuilder;
 
     #[test]
     fn test_infer_storage_name_from_endpoint() {
-        let endpoint = "https://account.file.core.windows.net";
-        let storage_name = infer_account_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
-        let endpoint = "https://account.file.core.windows.net/";
-        let storage_name = infer_account_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
+        let cases = vec![
+            (
+                "test infer account name from endpoint",
+                "https://account.file.core.windows.net",
+                "account",
+            ),
+            (
+                "test infer account name from endpoint with trailing slash",
+                "https://account.file.core.windows.net/",
+                "account",
+            ),
+        ];
+        for (desc, endpoint, expected) in cases {
+            let account_name = infer_account_name_from_endpoint(endpoint);
+            assert_eq!(account_name, Some(expected.to_string()), "{}", desc);
+        }
     }
 
     #[test]

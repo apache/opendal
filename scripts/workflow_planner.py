@@ -57,7 +57,7 @@ def calculate_core_cases(cases, changed_files):
             return cases
 
     # Always run all tests if it is a push event.
-    if bool(os.getenv("GITHUB_IS_PUSH")):
+    if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 
     # If any of the core files changed, we will run all cases.

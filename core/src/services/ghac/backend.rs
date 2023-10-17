@@ -60,97 +60,35 @@ const GITHUB_REPOSITORY: &str = "GITHUB_REPOSITORY";
 /// The github API version that used by OpenDAL.
 const GITHUB_API_VERSION: &str = "2022-11-28";
 
+fn value_or_env(
+    explicit_value: Option<String>,
+    env_var_name: &str,
+    operation: &'static str,
+) -> Result<String> {
+    if let Some(value) = explicit_value {
+        return Ok(value);
+    }
+
+    env::var(env_var_name).map_err(|err| {
+        let text = format!(
+            "{} not found, maybe not in github action environment?",
+            env_var_name
+        );
+        Error::new(ErrorKind::ConfigInvalid, &text)
+            .with_operation(operation)
+            .set_source(err)
+    })
+}
+
 /// GitHub Action Cache Services support.
-///
-/// # Capabilities
-///
-/// This service can be used to:
-///
-/// - [x] stat
-/// - [x] read
-/// - [x] write
-/// - [x] create_dir
-/// - [x] delete
-/// - [x] copy
-/// - [ ] rename
-/// - [ ] list
-/// - [ ] scan
-/// - [ ] presign
-/// - [ ] blocking
-/// # Notes
-///
-/// This service is mainly provided by github actions.
-///
-/// Refer to [Caching dependencies to speed up workflows](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) for more information.
-///
-/// To make this service work as expected, please make sure the following
-/// environment has been setup correctly:
-///
-/// - `ACTIONS_CACHE_URL`
-/// - `ACTIONS_RUNTIME_TOKEN`
-///
-/// They can be exposed by following action:
-///
-/// ```yaml
-/// - name: Configure Cache Env
-///   uses: actions/github-script@v6
-///   with:
-///     script: |
-///       core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-///       core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-/// ```
-///
-/// To make `delete` work as expected, `GITHUB_TOKEN` should also be set via:
-///
-/// ```yaml
-/// env:
-///   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-/// ```
-///
-/// # Limitations
-///
-/// Unlike other services, ghac doesn't support create empty files.
-/// We provide a `enable_create_simulation()` to support this operation but may result unexpected side effects.
-///
-/// Also, `ghac` is a cache service which means the data store inside could
-/// be automatically evicted at any time.
-///
-/// # Configuration
-///
-/// - `root`: Set the work dir for backend.
-///
-/// Refer to [`GhacBuilder`]'s public API docs for more information.
-///
-/// # Example
-///
-/// ## Via Builder
-///
-/// ```no_run
-/// use std::sync::Arc;
-///
-/// use anyhow::Result;
-/// use opendal::services::Ghac;
-/// use opendal::Operator;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     // Create ghac backend builder.
-///     let mut builder = Ghac::default();
-///     // Set the root for ghac, all operations will happen under this root.
-///     //
-///     // NOTE: the root must be absolute path.
-///     builder.root("/path/to/dir");
-///
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
+#[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct GhacBuilder {
     root: Option<String>,
     version: Option<String>,
     enable_create_simulation: bool,
+    endpoint: Option<String>,
+    runtime_token: Option<String>,
 
     http_client: Option<HttpClient>,
 }
@@ -188,6 +126,31 @@ impl GhacBuilder {
     /// As a side effect, we can't create file with only 1 byte anymore.
     pub fn enable_create_simulation(&mut self) -> &mut Self {
         self.enable_create_simulation = true;
+        self
+    }
+
+    /// Set the endpoint for ghac service.
+    ///
+    /// For example, this is provided as the `ACTIONS_CACHE_URL` environment variable by the GHA runner.
+    ///
+    /// Default: the value of the `ACTIONS_CACHE_URL` environment variable.
+    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+        if !endpoint.is_empty() {
+            self.endpoint = Some(endpoint.to_string())
+        }
+        self
+    }
+
+    /// Set the runtime token for ghac service.
+    ///
+    /// For example, this is provided as the `ACTIONS_RUNTIME_TOKEN` environment variable by the GHA
+    /// runner.
+    ///
+    /// Default: the value of the `ACTIONS_RUNTIME_TOKEN` environment variable.
+    pub fn runtime_token(&mut self, runtime_token: &str) -> &mut Self {
+        if !runtime_token.is_empty() {
+            self.runtime_token = Some(runtime_token.to_string())
+        }
         self
     }
 
@@ -238,22 +201,12 @@ impl Builder for GhacBuilder {
             root,
             enable_create_simulation: self.enable_create_simulation,
 
-            cache_url: env::var(ACTIONS_CACHE_URL).map_err(|err| {
-                Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "ACTIONS_CACHE_URL not found, maybe not in github action environment?",
-                )
-                .with_operation("Builder::build")
-                .set_source(err)
-            })?,
-            catch_token: env::var(ACTIONS_RUNTIME_TOKEN).map_err(|err| {
-                Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "ACTIONS_RUNTIME_TOKEN not found, maybe not in github action environment?",
-                )
-                .with_operation("Builder::build")
-                .set_source(err)
-            })?,
+            cache_url: value_or_env(self.endpoint.take(), ACTIONS_CACHE_URL, "Builder::build")?,
+            catch_token: value_or_env(
+                self.runtime_token.take(),
+                ACTIONS_RUNTIME_TOKEN,
+                "Builder::build",
+            )?,
             version: self
                 .version
                 .clone()

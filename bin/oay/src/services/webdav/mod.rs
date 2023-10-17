@@ -16,8 +16,4 @@
 // under the License.
 
 mod service;
-mod webdav_dir_entry;
-mod webdav_file;
-mod webdav_metadata;
-pub mod webdavfs;
-pub use service::*;
+pub use service::WebdavService;

@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.41.0] - 2023-10-08
+
+### Added
+* feat: allow using `prometheus-client` crate with PrometheusClientLayer by @flaneur2020 in https://github.com/apache/incubator-opendal/pull/3134
+* feat(binding/java): support info ops by @G-XD in https://github.com/apache/incubator-opendal/pull/3154
+* test(binding/java): add behavior test framework by @G-XD in https://github.com/apache/incubator-opendal/pull/3129
+* feat: Include starting offset for GHAC upload Content-Range by @huonw in https://github.com/apache/incubator-opendal/pull/3163
+* feat(bindings/cpp): make ReaderStream manage the lifetime of Reader by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3164
+* feat: Enable multi write for ghac by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3165
+* feat: Add mysql support for OpenDAL by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3170
+* feat(service/postgresql): support connection pool by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3176
+* feat(services/ghac): Allow explicitly setting ghac endpoint/token, not just env vars by @huonw in https://github.com/apache/incubator-opendal/pull/3177
+* feat(service/azdls): add append support for azdls by @dqhl76 in https://github.com/apache/incubator-opendal/pull/3186
+* feat(bindings/python): Enable `BlockingLayer` for non-blocking services that don't support blocking by @messense in https://github.com/apache/incubator-opendal/pull/3198
+* feat: Add write_can_empty in Capability and related tests by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3200
+* feat: Add basic support for bindings/go using CGO by @jiaoew1991 in https://github.com/apache/incubator-opendal/pull/3204
+* feat(binding/java): add `copy` test by @G-XD in https://github.com/apache/incubator-opendal/pull/3207
+* feat(service/sqlite): Support sqlite for opendal by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3212
+* feat(services/sqlite): Support blocking_get/set/delete in sqlite service by @Zheaoli in https://github.com/apache/incubator-opendal/pull/3218
+* feat(oay): port `WebdavFs` to dav-server-fs-opendal by @Young-Flash in https://github.com/apache/incubator-opendal/pull/3119
+### Changed
+* refactor(services/dropbox): Use OpWrite instead of passing all args as parameters by @ImSingee in https://github.com/apache/incubator-opendal/pull/3126
+* refactor(binding/java): read should return bytes by @tisonkun in https://github.com/apache/incubator-opendal/pull/3153
+* refactor(bindings/java)!: operator jni calls by @tisonkun in https://github.com/apache/incubator-opendal/pull/3166
+* refactor(tests): reuse function to remove duplicate code by @zhao-gang in https://github.com/apache/incubator-opendal/pull/3219
+### Fixed
+* fix(tests): Create test files one by one instead of concurrently by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3132
+* chore(ci): fix web identity token path for aws s3 assume role test by @everpcpc in https://github.com/apache/incubator-opendal/pull/3141
+* fix(services/s3): Detect region returned too early when header is empty by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3187
+* fix: making OpenDAL compilable on 32hf platforms by @ClSlaid in https://github.com/apache/incubator-opendal/pull/3188
+* fix(binding/java): decode Java’s modified UTF-8 format by @G-XD in https://github.com/apache/incubator-opendal/pull/3195
+### Docs
+* docs(release): describe how to close the Nexus staging repo by @tisonkun in https://github.com/apache/incubator-opendal/pull/3125
+* docs: update release docs for cpp and haskell bindings by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3130
+* docs: Polish VISION to make it more clear by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3135
+* docs: Add start tracking issues about the next release by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3145
+* docs: Add download link for 0.40.0 by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3149
+* docs(bindings/cpp): add more using details about cmake by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3155
+* docs(bindings/java): Added an example of adding dependencies using Gradle by @eastack in https://github.com/apache/incubator-opendal/pull/3158
+* docs: include disclaimer in announcement template by @Venderbad in https://github.com/apache/incubator-opendal/pull/3172
+* docs: Add pants as a user by @huonw in https://github.com/apache/incubator-opendal/pull/3180
+* docs: Add basic readme for go binding by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3206
+* docs: add multilingual getting started  by @tisonkun in https://github.com/apache/incubator-opendal/pull/3214
+* docs: multiple improvements by @tisonkun in https://github.com/apache/incubator-opendal/pull/3215
+* docs: Add verify script by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3239
+### CI
+* ci: Align tags with semver specs by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3136
+* ci: Migrate obs to databend labs sponsored bucket by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3137
+* build(bindings/java): support develop with JDK 21 by @tisonkun in https://github.com/apache/incubator-opendal/pull/3140
+* ci: Migrate GCS to Databend Labs sponsored bucket by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3142
+* build(bindings/java): upgrade maven wrapper version by @tisonkun in https://github.com/apache/incubator-opendal/pull/3167
+* build(bindings/java): support explicit cargo build target by @tisonkun in https://github.com/apache/incubator-opendal/pull/3168
+* ci: Pin Kvrocks docker image to 2.5.1 to avoid test failure by @git-hulk in https://github.com/apache/incubator-opendal/pull/3192
+* ci(bindings/ocaml): add doc by @Ranxy in https://github.com/apache/incubator-opendal/pull/3208
+* build(deps): bump actions/checkout from 3 to 4 by @dependabot in https://github.com/apache/incubator-opendal/pull/3222
+* build(deps): bump korandoru/hawkeye from 3.3.0 to 3.4.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/3223
+* build(deps): bump rusqlite from 0.25.4 to 0.29.0 by @dependabot in https://github.com/apache/incubator-opendal/pull/3226
+### Chore
+* chore(bindings/haskell): add rpath to haskell linker option by @silver-ymz in https://github.com/apache/incubator-opendal/pull/3128
+* chore(ci): add test for aws s3 assume role by @everpcpc in https://github.com/apache/incubator-opendal/pull/3139
+* chore: Incorrect debug information by @OmAximani0 in https://github.com/apache/incubator-opendal/pull/3183
+* chore: bump quick-xml version to 0.30 by @Venderbad in https://github.com/apache/incubator-opendal/pull/3190
+* chore: Let's welcome the contributors from hacktoberfest! by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3193
+* chore(bindings/java): simplify library path resolution by @tisonkun in https://github.com/apache/incubator-opendal/pull/3196
+* chore: Make clippy happy by @Xuanwo in https://github.com/apache/incubator-opendal/pull/3229
+
+
 ## [v0.40.0] - 2023-09-18
 
 ### Added
@@ -2764,6 +2831,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.41.0]: https://github.com/apache/incubator-opendal/compare/v0.40.0...v0.41.0
 [v0.40.0]: https://github.com/apache/incubator-opendal/compare/v0.39.1...v0.40.0
 [v0.39.0]: https://github.com/apache/incubator-opendal/compare/v0.38.1...v0.39.0
 [v0.38.1]: https://github.com/apache/incubator-opendal/compare/v0.38.0...v0.38.1

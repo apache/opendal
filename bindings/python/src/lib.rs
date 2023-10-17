@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use std::os::raw::c_int;
 use std::str::FromStr;
 
 use ::opendal as od;
@@ -33,9 +34,10 @@ use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyPermissionError;
 use pyo3::exceptions::PyValueError;
+use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
+use pyo3::AsPyPointer;
 
 mod asyncio;
 mod layers;
@@ -43,6 +45,41 @@ mod layers;
 use crate::asyncio::*;
 
 create_exception!(opendal, Error, PyException, "OpenDAL related errors");
+
+/// A bytes-like object that implements buffer protocol.
+#[pyclass(module = "opendal")]
+struct Buffer {
+    inner: Vec<u8>,
+}
+
+#[pymethods]
+impl Buffer {
+    unsafe fn __getbuffer__(
+        slf: PyRefMut<Self>,
+        view: *mut ffi::Py_buffer,
+        flags: c_int,
+    ) -> PyResult<()> {
+        let bytes = slf.inner.as_slice();
+        let ret = ffi::PyBuffer_FillInfo(
+            view,
+            slf.as_ptr() as *mut _,
+            bytes.as_ptr() as *mut _,
+            bytes.len().try_into().unwrap(),
+            1, // read only
+            flags,
+        );
+        if ret == -1 {
+            return Err(PyErr::fetch(slf.py()));
+        }
+        Ok(())
+    }
+}
+
+impl From<Vec<u8>> for Buffer {
+    fn from(inner: Vec<u8>) -> Self {
+        Self { inner }
+    }
+}
 
 fn add_layers(mut op: od::Operator, layers: Vec<layers::Layer>) -> PyResult<od::Operator> {
     for layer in layers {
@@ -63,8 +100,14 @@ fn build_operator(
     scheme: od::Scheme,
     map: HashMap<String, String>,
     layers: Vec<layers::Layer>,
+    blocking: bool,
 ) -> PyResult<od::Operator> {
-    let op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    let mut op = od::Operator::via_map(scheme, map).map_err(format_pyerr)?;
+    if blocking && !op.info().full_capability().blocking {
+        let runtime = pyo3_asyncio::tokio::get_runtime();
+        let _guard = runtime.enter();
+        op = op.layer(od::layers::BlockingLayer::create().expect("blocking layer must be created"));
+    }
 
     add_layers(op, layers)
 }
@@ -92,15 +135,22 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator(build_operator(scheme, map, layers)?.blocking()))
+        Ok(Operator(
+            build_operator(scheme, map, layers, true)?.blocking(),
+        ))
     }
 
     /// Read the whole path into bytes.
     pub fn read<'p>(&'p self, py: Python<'p>, path: &str) -> PyResult<&'p PyAny> {
-        self.0
+        let buffer = self
+            .0
             .read(path)
             .map_err(format_pyerr)
-            .map(|res| PyBytes::new(py, &res).into())
+            .map(Buffer::from)?
+            .into_py(py);
+        let memoryview =
+            unsafe { py.from_owned_ptr_or_err(ffi::PyMemoryView_FromObject(buffer.as_ptr()))? };
+        Ok(memoryview)
     }
 
     /// Open a file-like reader for the given path.
@@ -112,8 +162,24 @@ impl Operator {
     }
 
     /// Write bytes into given path.
-    pub fn write(&self, path: &str, bs: Vec<u8>) -> PyResult<()> {
-        self.0.write(path, bs).map_err(format_pyerr)
+    #[pyo3(signature = (path, bs, **kwargs))]
+    pub fn write(&self, path: &str, bs: Vec<u8>, kwargs: Option<&PyDict>) -> PyResult<()> {
+        let opwrite = build_opwrite(kwargs)?;
+        let mut write = self.0.write_with(path, bs).append(opwrite.append());
+        if let Some(buffer) = opwrite.buffer() {
+            write = write.buffer(buffer);
+        }
+        if let Some(content_type) = opwrite.content_type() {
+            write = write.content_type(content_type);
+        }
+        if let Some(content_disposition) = opwrite.content_disposition() {
+            write = write.content_disposition(content_disposition);
+        }
+        if let Some(cache_control) = opwrite.cache_control() {
+            write = write.cache_control(cache_control);
+        }
+
+        write.call().map_err(format_pyerr)
     }
 
     /// Get current path's metadata **without cache** directly.
@@ -214,7 +280,10 @@ impl Reader {
                 buffer
             }
         };
-        Ok(PyBytes::new(py, &buffer).into())
+        let buffer = Buffer::from(buffer).into_py(py);
+        let memoryview =
+            unsafe { py.from_owned_ptr_or_err(ffi::PyMemoryView_FromObject(buffer.as_ptr()))? };
+        Ok(memoryview)
     }
 
     /// `Reader` doesn't support write.
@@ -411,6 +480,55 @@ fn format_pyerr(err: od::Error) -> PyErr {
         Unsupported => PyNotImplementedError::new_err(err.to_string()),
         _ => Error::new_err(err.to_string()),
     }
+}
+
+/// recognize OpWrite-equivalent options passed as python dict
+pub(crate) fn build_opwrite(kwargs: Option<&PyDict>) -> PyResult<od::raw::OpWrite> {
+    use od::raw::OpWrite;
+    let mut op = OpWrite::new();
+
+    let dict = if let Some(kwargs) = kwargs {
+        kwargs
+    } else {
+        return Ok(op);
+    };
+
+    if let Some(append) = dict.get_item("append") {
+        let v = append
+            .extract::<bool>()
+            .map_err(|err| PyValueError::new_err(format!("append must be bool, got {}", err)))?;
+        op = op.with_append(v);
+    }
+
+    if let Some(buffer) = dict.get_item("buffer") {
+        let v = buffer
+            .extract::<usize>()
+            .map_err(|err| PyValueError::new_err(format!("buffer must be usize, got {}", err)))?;
+        op = op.with_buffer(v);
+    }
+
+    if let Some(content_type) = dict.get_item("content_type") {
+        let v = content_type.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_type must be str, got {}", err))
+        })?;
+        op = op.with_content_type(v.as_str());
+    }
+
+    if let Some(content_disposition) = dict.get_item("content_disposition") {
+        let v = content_disposition.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("content_disposition must be str, got {}", err))
+        })?;
+        op = op.with_content_disposition(v.as_str());
+    }
+
+    if let Some(cache_control) = dict.get_item("cache_control") {
+        let v = cache_control.extract::<String>().map_err(|err| {
+            PyValueError::new_err(format!("cache_control must be str, got {}", err))
+        })?;
+        op = op.with_cache_control(v.as_str());
+    }
+
+    Ok(op)
 }
 
 /// OpenDAL Python binding

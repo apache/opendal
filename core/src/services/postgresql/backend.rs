@@ -22,10 +22,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bb8::Pool;
+use bb8_postgres::PostgresConnectionManager;
 use tokio::sync::OnceCell;
-use tokio_postgres::Client;
 use tokio_postgres::Config;
-use tokio_postgres::Statement;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
@@ -185,15 +185,11 @@ impl Builder for PostgresqlBuilder {
         );
 
         Ok(PostgresqlBackend::new(Adapter {
-            client: OnceCell::new(),
+            pool: OnceCell::new(),
             config,
             table,
             key_field,
             value_field,
-
-            statement_get: OnceCell::new(),
-            statement_set: OnceCell::new(),
-            statement_del: OnceCell::new(),
         })
         .with_root(&root))
     }
@@ -204,17 +200,12 @@ pub type PostgresqlBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    client: OnceCell<Arc<Client>>,
+    pool: OnceCell<Arc<Pool<PostgresConnectionManager<tokio_postgres::NoTls>>>>,
     config: Config,
 
     table: String,
     key_field: String,
     value_field: String,
-
-    /// Prepared statements for get/put/delete.
-    statement_get: OnceCell<Statement>,
-    statement_set: OnceCell<Statement>,
-    statement_del: OnceCell<Statement>,
 }
 
 impl Debug for Adapter {
@@ -225,21 +216,17 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    async fn get_client(&self) -> Result<&Client> {
-        self.client
+    async fn get_client(&self) -> Result<&Pool<PostgresConnectionManager<tokio_postgres::NoTls>>> {
+        self.pool
             .get_or_try_init(|| async {
                 // TODO: add tls support.
-                let (client, conn) = self.config.connect(tokio_postgres::NoTls).await?;
-
-                // The connection object performs the actual communication with the database,
-                // so spawn it off to run on its own.
-                tokio::spawn(async move {
-                    if let Err(e) = conn.await {
-                        eprintln!("postgresql connection error: {}", e);
-                    }
-                });
-
-                Ok(Arc::new(client))
+                let manager =
+                    PostgresConnectionManager::new(self.config.clone(), tokio_postgres::NoTls);
+                let pool = Pool::builder()
+                    .build(manager)
+                    .await
+                    .map_err(parse_postgre_error)?;
+                Ok(Arc::new(pool))
             })
             .await
             .map(|v| v.as_ref())
@@ -265,18 +252,20 @@ impl kv::Adapter for Adapter {
             "SELECT {} FROM {} WHERE {} = $1 LIMIT 1",
             self.value_field, self.table, self.key_field
         );
-        let statement = self
-            .statement_get
-            .get_or_try_init(|| async {
-                self.get_client()
-                    .await?
-                    .prepare(&query)
-                    .await
-                    .map_err(Error::from)
-            })
-            .await?;
-
-        let rows = self.get_client().await?.query(statement, &[&path]).await?;
+        let connection = self
+            .get_client()
+            .await?
+            .get()
+            .await
+            .map_err(parse_bb8_error)?;
+        let statement = connection
+            .prepare(&query)
+            .await
+            .map_err(parse_postgre_error)?;
+        let rows = connection
+            .query(&statement, &[&path])
+            .await
+            .map_err(parse_postgre_error)?;
         if rows.is_empty() {
             return Ok(None);
         }
@@ -294,45 +283,48 @@ impl kv::Adapter for Adapter {
                 ON CONFLICT ({key_field}) \
                     DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         );
-        let statement = self
-            .statement_set
-            .get_or_try_init(|| async {
-                self.get_client()
-                    .await?
-                    .prepare(&query)
-                    .await
-                    .map_err(Error::from)
-            })
-            .await?;
-
-        let _ = self
+        let connection = self
             .get_client()
             .await?
-            .query(statement, &[&path, &value])
-            .await?;
+            .get()
+            .await
+            .map_err(parse_bb8_error)?;
+        let statement = connection
+            .prepare(&query)
+            .await
+            .map_err(parse_postgre_error)?;
+        let _ = connection
+            .query(&statement, &[&path, &value])
+            .await
+            .map_err(parse_postgre_error)?;
         Ok(())
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
         let query = format!("DELETE FROM {} WHERE {} = $1", self.table, self.key_field);
-        let statement = self
-            .statement_del
-            .get_or_try_init(|| async {
-                self.get_client()
-                    .await?
-                    .prepare(&query)
-                    .await
-                    .map_err(Error::from)
-            })
-            .await?;
+        let connection = self
+            .get_client()
+            .await?
+            .get()
+            .await
+            .map_err(parse_bb8_error)?;
+        let statement = connection
+            .prepare(&query)
+            .await
+            .map_err(parse_postgre_error)?;
 
-        let _ = self.get_client().await?.query(statement, &[&path]).await?;
+        let _ = connection
+            .query(&statement, &[&path])
+            .await
+            .map_err(parse_postgre_error)?;
         Ok(())
     }
 }
 
-impl From<tokio_postgres::Error> for Error {
-    fn from(value: tokio_postgres::Error) -> Error {
-        Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(value)
-    }
+fn parse_bb8_error(err: bb8::RunError<tokio_postgres::Error>) -> Error {
+    Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
+}
+
+fn parse_postgre_error(err: tokio_postgres::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
 }

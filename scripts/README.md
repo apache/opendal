@@ -53,3 +53,9 @@ Please decide how far you trust this user to correctly verify other users' keys
 Your decision? 5 #choose 5
 Do you really want to set this key to ultimate trust? (y/N) y  #choose y
 ```
+
+## Verify
+
+```shell
+./scripts/verify.py
+```

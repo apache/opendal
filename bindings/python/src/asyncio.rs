@@ -27,17 +27,21 @@ use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyNotImplementedError;
 use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::exceptions::PyValueError;
+use pyo3::ffi;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
+use pyo3::AsPyPointer;
 use pyo3_asyncio::tokio::future_into_py;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::Mutex;
 
 use crate::build_operator;
+use crate::build_opwrite;
 use crate::format_pyerr;
 use crate::layers;
+use crate::Buffer;
 use crate::Entry;
 use crate::Metadata;
 use crate::PresignedRequest;
@@ -65,7 +69,7 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator(build_operator(scheme, map, layers)?))
+        Ok(AsyncOperator(build_operator(scheme, map, layers, false)?))
     }
 
     /// Read the whole path into bytes.
@@ -73,8 +77,15 @@ impl AsyncOperator {
         let this = self.0.clone();
         future_into_py(py, async move {
             let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?;
-            let pybytes: PyObject = Python::with_gil(|py| PyBytes::new(py, &res).into());
-            Ok(pybytes)
+            Python::with_gil(|py| {
+                let buffer = Buffer::from(res).into_py(py);
+                unsafe {
+                    PyObject::from_owned_ptr_or_err(
+                        py,
+                        ffi::PyMemoryView_FromObject(buffer.as_ptr()),
+                    )
+                }
+            })
         })
     }
 
@@ -87,11 +98,32 @@ impl AsyncOperator {
     }
 
     /// Write bytes into given path.
-    pub fn write<'p>(&'p self, py: Python<'p>, path: String, bs: &PyBytes) -> PyResult<&'p PyAny> {
+    #[pyo3(signature = (path, bs, **kwargs))]
+    pub fn write<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: String,
+        bs: &PyBytes,
+        kwargs: Option<&PyDict>,
+    ) -> PyResult<&'p PyAny> {
+        let opwrite = build_opwrite(kwargs)?;
         let this = self.0.clone();
         let bs = bs.as_bytes().to_vec();
         future_into_py(py, async move {
-            this.write(&path, bs).await.map_err(format_pyerr)
+            let mut write = this.write_with(&path, bs).append(opwrite.append());
+            if let Some(buffer) = opwrite.buffer() {
+                write = write.buffer(buffer);
+            }
+            if let Some(content_type) = opwrite.content_type() {
+                write = write.content_type(content_type);
+            }
+            if let Some(content_disposition) = opwrite.content_disposition() {
+                write = write.content_disposition(content_disposition);
+            }
+            if let Some(cache_control) = opwrite.cache_control() {
+                write = write.cache_control(cache_control);
+            }
+            write.await.map_err(format_pyerr)
         })
     }
 
@@ -308,8 +340,15 @@ impl AsyncReader {
                     buffer
                 }
             };
-            let pybytes: PyObject = Python::with_gil(|py| PyBytes::new(py, &buffer).into());
-            Ok(pybytes)
+            Python::with_gil(|py| {
+                let buffer = Buffer::from(buffer).into_py(py);
+                unsafe {
+                    PyObject::from_owned_ptr_or_err(
+                        py,
+                        ffi::PyMemoryView_FromObject(buffer.as_ptr()),
+                    )
+                }
+            })
         })
     }
 

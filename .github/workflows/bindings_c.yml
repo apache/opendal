@@ -42,7 +42,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install gtest manually
         run: |
           sudo apt-get update
@@ -64,6 +64,10 @@ jobs:
       - name: Check diff
         run: git diff --exit-code
 
-      - name: Build and Run BDD tests
+      - name: Build and Run tests
         working-directory: "bindings/c"
         run: make test
+
+      - name: Build and Run memory-leak tests
+        working-directory: "bindings/c"
+        run: make memory_leak

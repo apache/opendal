@@ -19,11 +19,14 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::sys::{jbyteArray, jlong};
+use jni::sys::jbyteArray;
+use jni::sys::jobject;
 use jni::JNIEnv;
 
 use opendal::BlockingOperator;
 
+use crate::jstring_to_string;
+use crate::make_metadata;
 use crate::Result;
 
 /// # Safety
@@ -55,8 +58,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_read(
 }
 
 fn intern_read(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jbyteArray> {
-    let path = env.get_string(&path)?;
-    let content = op.read(path.to_str()?)?;
+    let path = jstring_to_string(env, &path)?;
+    let content = op.read(&path)?;
     let result = env.byte_array_from_slice(content.as_slice())?;
     Ok(result.into_raw())
 }
@@ -83,9 +86,9 @@ fn intern_write(
     path: JString,
     content: JByteArray,
 ) -> Result<()> {
-    let path = env.get_string(&path)?;
+    let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
-    Ok(op.write(path.to_str()?, content)?)
+    Ok(op.write(&path, content)?)
 }
 
 /// # Safety
@@ -97,17 +100,17 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
-) -> jlong {
+) -> jobject {
     intern_stat(&mut env, &mut *op, path).unwrap_or_else(|e| {
         e.throw(&mut env);
-        0
+        JObject::default().into_raw()
     })
 }
 
-fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jlong> {
-    let path = env.get_string(&path)?;
-    let metadata = op.stat(path.to_str()?)?;
-    Ok(Box::into_raw(Box::new(metadata)) as jlong)
+fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobject> {
+    let path = jstring_to_string(env, &path)?;
+    let metadata = op.stat(&path)?;
+    Ok(make_metadata(env, metadata)?.into_raw())
 }
 
 /// # Safety
@@ -126,6 +129,82 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_delete(
 }
 
 fn intern_delete(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
-    let path = env.get_string(&path)?;
-    Ok(op.delete(path.to_str()?)?)
+    let path = jstring_to_string(env, &path)?;
+    Ok(op.delete(&path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_createDir(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    path: JString,
+) {
+    intern_create_dir(&mut env, &mut *op, path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_create_dir(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<()> {
+    let path = jstring_to_string(env, &path)?;
+    Ok(op.create_dir(&path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_copy(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) {
+    intern_copy(&mut env, &mut *op, source_path, target_path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_copy(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) -> Result<()> {
+    let source_path = jstring_to_string(env, &source_path)?;
+    let target_path = jstring_to_string(env, &target_path)?;
+
+    Ok(op.copy(&source_path, &target_path)?)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_rename(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) {
+    intern_rename(&mut env, &mut *op, source_path, target_path).unwrap_or_else(|e| {
+        e.throw(&mut env);
+    })
+}
+
+fn intern_rename(
+    env: &mut JNIEnv,
+    op: &mut BlockingOperator,
+    source_path: JString,
+    target_path: JString,
+) -> Result<()> {
+    let source_path = jstring_to_string(env, &source_path)?;
+    let target_path = jstring_to_string(env, &target_path)?;
+
+    Ok(op.rename(&source_path, &target_path)?)
 }

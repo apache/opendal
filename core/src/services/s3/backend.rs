@@ -563,6 +563,10 @@ impl S3Builder {
     ///
     /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
     pub async fn detect_region(endpoint: &str, bucket: &str) -> Option<String> {
+        // Remove the possible trailing `/` in endpoint.
+        let endpoint = endpoint.trim_end_matches('/');
+
+        // Make sure the endpoint contains the scheme.
         let mut endpoint = if endpoint.starts_with("http") {
             endpoint.to_string()
         } else {
@@ -623,9 +627,10 @@ impl S3Builder {
         );
 
         // Get region from response header no matter status code.
-        let region = res.headers().get("x-amz-bucket-region")?;
-        if let Ok(regin) = region.to_str() {
-            return Some(regin.to_string());
+        if let Some(header) = res.headers().get("x-amz-bucket-region") {
+            if let Ok(regin) = header.to_str() {
+                return Some(regin.to_string());
+            }
         }
 
         // Status code is 403 or 200 means we already visit the correct
@@ -908,6 +913,7 @@ impl Accessor for S3Backend {
                 read_with_override_content_type: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_multi: true,
                 write_with_cache_control: true,
                 write_with_content_type: true,
@@ -918,7 +924,11 @@ impl Accessor for S3Backend {
                 // The max multipart size of S3 is 5 GiB.
                 //
                 // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                    Some(5 * 1024 * 1024 * 1024)
+                } else {
+                    Some(usize::MAX)
+                },
 
                 create_dir: true,
                 delete: true,

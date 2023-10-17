@@ -67,7 +67,19 @@ public class BlockingOperator extends NativeObject {
     }
 
     public Metadata stat(String path) {
-        return new Metadata(stat(nativeHandle, path));
+        return stat(nativeHandle, path);
+    }
+
+    public void createDir(String path) {
+        createDir(nativeHandle, path);
+    }
+
+    public void copy(String sourcePath, String targetPath) {
+        copy(nativeHandle, sourcePath, targetPath);
+    }
+
+    public void rename(String sourcePath, String targetPath) {
+        rename(nativeHandle, sourcePath, targetPath);
     }
 
     @Override
@@ -79,5 +91,11 @@ public class BlockingOperator extends NativeObject {
 
     private static native void delete(long nativeHandle, String path);
 
-    private static native long stat(long nativeHandle, String path);
+    private static native Metadata stat(long nativeHandle, String path);
+
+    private static native long createDir(long nativeHandle, String path);
+
+    private static native long copy(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native long rename(long nativeHandle, String sourcePath, String targetPath);
 }

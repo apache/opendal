@@ -21,6 +21,7 @@ exclude = ["examples"]
 members = [
   "core",
   "core/fuzz",
+  "core/edge/*",
 
   "bindings/c",
   "bindings/nodejs",
@@ -38,6 +39,7 @@ members = [
   "bin/oay",
 
   "integrations/object_store",
+  "integrations/dav-server",
 ]
 resolver = "2"
 
@@ -48,10 +50,10 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/incubator-opendal"
 rust-version = "1.65"
-version = "0.40.0"
+version = "0.41.0"
 
 [workspace.dependencies]
-opendal = { version = "0.40", path = "core" }
+opendal = { version = "0.41", path = "core" }
 
 [profile.bench]
 debug = true

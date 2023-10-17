@@ -334,6 +334,7 @@ impl Accessor for GcsBackend {
                 read_with_if_none_match: true,
 
                 write: true,
+                write_can_empty: true,
                 write_can_multi: true,
                 write_with_content_type: true,
                 // The buffer size should be a multiple of 256 KiB (256 x 1024 bytes), unless it's the last chunk that completes the upload.

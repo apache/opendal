@@ -148,8 +148,7 @@ public class Operator extends NativeObject {
 
     public CompletableFuture<Metadata> stat(String path) {
         final long requestId = stat(nativeHandle, path);
-        final CompletableFuture<Long> f = AsyncRegistry.take(requestId);
-        return f.thenApply(Metadata::new);
+        return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<byte[]> read(String path) {
@@ -177,6 +176,21 @@ public class Operator extends NativeObject {
         return AsyncRegistry.take(requestId);
     }
 
+    public CompletableFuture<Void> createDir(String path) {
+        final long requestId = createDir(nativeHandle, path);
+        return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<Void> copy(String sourcePath, String targetPath) {
+        final long requestId = copy(nativeHandle, sourcePath, targetPath);
+        return AsyncRegistry.take(requestId);
+    }
+
+    public CompletableFuture<Void> rename(String sourcePath, String targetPath) {
+        final long requestId = rename(nativeHandle, sourcePath, targetPath);
+        return AsyncRegistry.take(requestId);
+    }
+
     @Override
     protected native void disposeInternal(long handle);
 
@@ -201,4 +215,10 @@ public class Operator extends NativeObject {
     private static native OperatorInfo makeOperatorInfo(long nativeHandle);
 
     private static native long makeBlockingOp(long nativeHandle);
+
+    private static native long createDir(long nativeHandle, String path);
+
+    private static native long copy(long nativeHandle, String sourcePath, String targetPath);
+
+    private static native long rename(long nativeHandle, String sourcePath, String targetPath);
 }

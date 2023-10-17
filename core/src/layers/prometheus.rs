@@ -41,6 +41,23 @@ use crate::raw::*;
 use crate::*;
 /// Add [prometheus](https://docs.rs/prometheus) for every operations.
 ///
+/// # Prometheus Metrics
+///
+/// In this section, we will introduce three metrics that are currently being exported by our project. These metrics are essential for understanding the behavior and performance of our applications.
+///
+///
+/// | Metric Name             | Type     | Description                                       | Labels              |
+/// |-------------------------|----------|---------------------------------------------------|---------------------|
+/// | requests_total          | Counter  | Total times of 'create' operation being called   | scheme, operation   |
+/// | requests_duration_seconds | Histogram | Histogram of the time spent on specific operation | scheme, operation   |
+/// | bytes_total             | Histogram | Total size                                        | scheme, operation   |
+///
+/// For a more detailed explanation of these metrics and how they are used, please refer to the [Prometheus documentation](https://prometheus.io/docs/introduction/overview/).
+///
+/// # Histogram Configuration
+///
+/// The metric buckets for these histograms are automatically generated based on the `exponential_buckets(0.01, 2.0, 16)` configuration.
+///
 /// # Examples
 ///
 /// ```
@@ -88,12 +105,34 @@ use crate::*;
 #[derive(Default, Debug, Clone)]
 pub struct PrometheusLayer {
     registry: Registry,
+    requests_duration_seconds_buckets: Vec<f64>,
+    bytes_total_buckets: Vec<f64>,
 }
 
 impl PrometheusLayer {
     /// create PrometheusLayer by incoming registry.
     pub fn with_registry(registry: Registry) -> Self {
-        Self { registry }
+        Self {
+            registry,
+            requests_duration_seconds_buckets: exponential_buckets(0.01, 2.0, 16).unwrap(),
+            bytes_total_buckets: exponential_buckets(0.01, 2.0, 16).unwrap(),
+        }
+    }
+
+    /// set buckets for requests_duration_seconds
+    pub fn requests_duration_seconds_buckets(mut self, buckets: Vec<f64>) -> Self {
+        if !buckets.is_empty() {
+            self.requests_duration_seconds_buckets = buckets;
+        }
+        self
+    }
+
+    /// set buckets for bytes_total
+    pub fn bytes_total_buckets(mut self, buckets: Vec<f64>) -> Self {
+        if !buckets.is_empty() {
+            self.bytes_total_buckets = buckets;
+        }
+        self
     }
 }
 
@@ -106,7 +145,11 @@ impl<A: Accessor> Layer<A> for PrometheusLayer {
 
         PrometheusAccessor {
             inner,
-            stats: Arc::new(PrometheusMetrics::new(self.registry.clone())),
+            stats: Arc::new(PrometheusMetrics::new(
+                self.registry.clone(),
+                self.requests_duration_seconds_buckets.clone(),
+                self.bytes_total_buckets.clone(),
+            )),
             scheme: scheme.to_string(),
         }
     }
@@ -124,7 +167,11 @@ pub struct PrometheusMetrics {
 
 impl PrometheusMetrics {
     /// new with prometheus register.
-    pub fn new(registry: Registry) -> Self {
+    pub fn new(
+        registry: Registry,
+        requests_duration_seconds_buckets: Vec<f64>,
+        bytes_total_buckets: Vec<f64>,
+    ) -> Self {
         let requests_total = register_int_counter_vec_with_registry!(
             "requests_total",
             "Total times of create be called",
@@ -135,18 +182,14 @@ impl PrometheusMetrics {
         let opts = histogram_opts!(
             "requests_duration_seconds",
             "Histogram of the time spent on specific operation",
-            exponential_buckets(0.01, 2.0, 16).unwrap()
+            requests_duration_seconds_buckets
         );
 
         let requests_duration_seconds =
             register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
                 .unwrap();
 
-        let opts = histogram_opts!(
-            "bytes_total",
-            "Total size of ",
-            exponential_buckets(0.01, 2.0, 16).unwrap()
-        );
+        let opts = histogram_opts!("bytes_total", "Total size of ", bytes_total_buckets);
         let bytes_total =
             register_histogram_vec_with_registry!(opts, &["scheme", "operation"], registry)
                 .unwrap();

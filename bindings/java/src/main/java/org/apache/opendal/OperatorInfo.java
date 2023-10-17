@@ -19,10 +19,10 @@
 
 package org.apache.opendal;
 
+import lombok.Data;
 import lombok.NonNull;
-import lombok.ToString;
 
-@ToString
+@Data
 public class OperatorInfo {
     public final String scheme;
     public final String root;

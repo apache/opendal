@@ -67,11 +67,11 @@ Note: `maturin develop` will be faster, but doesn't support all the features. In
 
 ## Test
 
-OpenDAL adopts `behave` for behavior tests:
+OpenDAL adopts `pytest` for behavior tests:
 
 ```shell
 maturin develop -E test
-behave tests
+OPENDAL_MEMORY_TEST=on pytest -vk TestMemory
 ```
 
 ## Docs

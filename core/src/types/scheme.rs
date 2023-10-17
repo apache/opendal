@@ -41,6 +41,8 @@ pub enum Scheme {
     Cacache,
     /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
     Cos,
+    /// [d1][crate::services::D1]: D1 services
+    D1,
     /// [dashmap][crate::services::Dashmap]: dashmap backend support.
     Dashmap,
     /// [etcd][crate::services::Etcd]: Etcd Services
@@ -88,6 +90,12 @@ pub enum Scheme {
     Redis,
     /// [postgresql][crate::services::Postgresql]: Postgresql services
     Postgresql,
+    /// [libsql][crate::services::Libsql]: Libsql services
+    Libsql,
+    /// [mysql][crate::services::Mysql]: Mysql services
+    Mysql,
+    /// [sqlite][crate::services::Sqlite]: Sqlite services
+    Sqlite,
     /// [rocksdb][crate::services::Rocksdb]: RocksDB services
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
@@ -155,6 +163,7 @@ impl FromStr for Scheme {
             "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
             "cacache" => Ok(Scheme::Cacache),
             "cos" => Ok(Scheme::Cos),
+            "d1" => Ok(Scheme::D1),
             "dashmap" => Ok(Scheme::Dashmap),
             "dropbox" => Ok(Scheme::Dropbox),
             "etcd" => Ok(Scheme::Etcd),
@@ -167,8 +176,11 @@ impl FromStr for Scheme {
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
+            "libsql" => Ok(Scheme::Libsql),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
+            "mysql" => Ok(Scheme::Mysql),
+            "sqlite" => Ok(Scheme::Sqlite),
             "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
@@ -202,6 +214,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azdls => "Azdls",
             Scheme::Cacache => "cacache",
             Scheme::Cos => "cos",
+            Scheme::D1 => "d1",
             Scheme::Dashmap => "dashmap",
             Scheme::Etcd => "etcd",
             Scheme::Fs => "fs",
@@ -213,6 +226,7 @@ impl From<Scheme> for &'static str {
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
+            Scheme::Libsql => "libsql",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
             Scheme::MiniMoka => "mini_moka",
@@ -221,6 +235,7 @@ impl From<Scheme> for &'static str {
             Scheme::Onedrive => "onedrive",
             Scheme::Persy => "persy",
             Scheme::Postgresql => "postgresql",
+            Scheme::Mysql => "mysql",
             Scheme::Gdrive => "gdrive",
             Scheme::Dropbox => "dropbox",
             Scheme::Redis => "redis",
@@ -237,6 +252,7 @@ impl From<Scheme> for &'static str {
             Scheme::Redb => "redb",
             Scheme::Tikv => "tikv",
             Scheme::Azfile => "azfile",
+            Scheme::Sqlite => "sqlite",
             Scheme::Custom(v) => v,
         }
     }

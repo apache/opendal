@@ -47,19 +47,19 @@ jobs:
           event_name="${{ github.event_name }}"
           repository="${{ github.repository }}"
           files_changed=""
-          has_secrets="False"
-          is_push="False"
+          has_secrets="false"
+          is_push="false"
 
           # Handle event-specific logic
           if [ "$event_name" == "push" ]; then
             if [ "$repository" == "apache/incubator-opendal" ]; then
-              is_push="True"
-              has_secrets="True"
+              is_push="true"
+              has_secrets="true"
             fi
           elif [ "$event_name" == "pull_request" ]; then
             pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
             if [ "$pr_head_repo_fork" != "true" ]; then
-              has_secrets="True"
+              has_secrets="true"
             fi
 
             git fetch origin main:main

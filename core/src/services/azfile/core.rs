@@ -388,10 +388,10 @@ impl AzfileCore {
     pub async fn ensure_parent_dir_exists(&self, path: &str) -> Result<()> {
         let mut dirs = VecDeque::default();
         // azure file service does not support recursive directory creation
-        let mut p = path.clone();
+        let mut p = path;
         while p != "/" {
             p = get_parent(p);
-            dirs.push_front(p.clone());
+            dirs.push_front(p);
         }
         for dir in dirs {
             let resp = self.azfile_create_dir(dir).await?;

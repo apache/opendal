@@ -26,7 +26,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 import org.apache.opendal.args.OpList;
+import org.apache.opendal.args.OpList.Metakey;
 import org.apache.opendal.args.OpList.OpListBuilder;
 
 /**
@@ -213,7 +215,8 @@ public class Operator extends NativeObject {
                 opList.getPath(),
                 opList.getLimit(),
                 opList.getStartAfter().orElse(null),
-                opList.getDelimiter().orElse(null));
+                opList.getDelimiter().orElse(null),
+                Stream.of(opList.getMetakeys()).mapToInt(Metakey::getId).toArray());
         return AsyncRegistry.take(requestId);
     }
 
@@ -251,5 +254,5 @@ public class Operator extends NativeObject {
     private static native long removeAll(long nativeHandle, String path);
 
     private static native long listWith(
-            long nativeHandle, String path, long limit, String startAfter, String delimiter);
+            long nativeHandle, String path, long limit, String startAfter, String delimiter, int... metakeys);
 }

@@ -42,6 +42,7 @@ import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
+import org.apache.opendal.args.OpList.Metakey;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -558,9 +559,9 @@ public abstract class AbstractBehaviorTest {
             boolean found = false;
             for (Entry entry : entries) {
                 if (entry.getPath().equals(path)) {
-                    Metadata metadata = entry.getMetadata();
-                    assertTrue(metadata.isFile());
-                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
+                    Metadata meta = operator.stat(path).join();
+                    assertTrue(meta.isFile());
+                    assertThat(meta.getContentLength()).isEqualTo(content.length);
 
                     found = true;
                 }
@@ -580,14 +581,64 @@ public abstract class AbstractBehaviorTest {
 
             operator.write(path, content).join();
 
-            final List<Entry> entries = operator.list(parent + "/").join();
+            final List<Entry> entries = operator.listWith(parent + "/")
+                    .metakeys(
+                            Metakey.Mode,
+                            Metakey.CacheControl,
+                            Metakey.ContentDisposition,
+                            Metakey.ContentLength,
+                            Metakey.ContentMd5,
+                            Metakey.ContentType,
+                            Metakey.Etag,
+                            Metakey.Version,
+                            Metakey.LastModified)
+                    .build()
+                    .call()
+                    .join();
             boolean found = false;
             for (Entry entry : entries) {
                 if (entry.getPath().equals(path)) {
                     Metadata metadata = entry.getMetadata();
                     assertTrue(metadata.isFile());
                     assertThat(metadata.getContentLength()).isEqualTo(content.length);
+                    // We don't care about the value, we just to check there is no panic.
+                    metadata.getCacheControl();
+                    metadata.getContentDisposition();
+                    metadata.getContentMd5();
+                    metadata.getContentType();
+                    metadata.getEtag();
+                    metadata.getVersion();
+                    metadata.getLastModified();
+                    found = true;
+                }
+            }
+            assertTrue(found);
+            operator.delete(path).join();
+        }
 
+        /**
+         * List dir with metakey complete
+         */
+        @Test
+        public void testListDirWithMetakeyComplete() {
+            final String parent = UUID.randomUUID().toString();
+            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final byte[] content = generateBytes();
+
+            operator.write(path, content).join();
+
+            final List<Entry> entries = operator.listWith(parent + "/")
+                    .metakeys(Metakey.Complete)
+                    .build()
+                    .call()
+                    .join();
+            boolean found = false;
+            for (Entry entry : entries) {
+                if (entry.getPath().equals(path)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertTrue(metadata.isFile());
+                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
+                    // We don't care about the value, we just to check there is no panic.
                     metadata.getCacheControl();
                     metadata.getContentDisposition();
                     metadata.getContentMd5();
@@ -722,12 +773,12 @@ public abstract class AbstractBehaviorTest {
             operator.createDir(dir).join();
 
             final String[] given = new String[] {
-                String.format("%s%s-0", dir, UUID.randomUUID().toString()),
-                String.format("%s%s-1", dir, UUID.randomUUID().toString()),
-                String.format("%s%s-2", dir, UUID.randomUUID().toString()),
-                String.format("%s%s-3", dir, UUID.randomUUID().toString()),
-                String.format("%s%s-4", dir, UUID.randomUUID().toString()),
-                String.format("%s%s-5", dir, UUID.randomUUID().toString()),
+                String.format("%sfile-0", dir),
+                String.format("%sfile-1", dir),
+                String.format("%sfile-2", dir),
+                String.format("%sfile-3", dir),
+                String.format("%sfile-4", dir),
+                String.format("%sfile-5", dir),
             };
 
             for (String path : given) {
@@ -1217,11 +1268,11 @@ public abstract class AbstractBehaviorTest {
             boolean found = false;
             for (Entry entry : list) {
                 if (entry.getPath().equals(path)) {
-                    Metadata metadata = entry.getMetadata();
-                    found = true;
+                    Metadata meta = blockingOperator.stat(path);
+                    assertTrue(meta.isFile());
+                    assertThat(meta.getContentLength()).isEqualTo(content.length);
 
-                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
-                    assertTrue(metadata.isFile());
+                    found = true;
                 }
             }
             assertTrue(found);
@@ -1237,7 +1288,58 @@ public abstract class AbstractBehaviorTest {
 
             blockingOperator.write(path, content);
 
-            final List<Entry> list = blockingOperator.list(parent + "/");
+            final List<Entry> list = blockingOperator
+                    .listWith(parent + "/")
+                    .metakeys(
+                            Metakey.Mode,
+                            Metakey.CacheControl,
+                            Metakey.ContentDisposition,
+                            Metakey.ContentLength,
+                            Metakey.ContentMd5,
+                            Metakey.ContentType,
+                            Metakey.Etag,
+                            Metakey.Version,
+                            Metakey.LastModified)
+                    .build()
+                    .call();
+            boolean found = false;
+            for (Entry entry : list) {
+                if (entry.getPath().equals(path)) {
+                    Metadata metadata = entry.getMetadata();
+                    assertThat(metadata.getContentLength()).isEqualTo(content.length);
+                    assertTrue(metadata.isFile());
+
+                    // We don't care about the value, we just to check there is no panic.
+                    metadata.getCacheControl();
+                    metadata.getContentDisposition();
+                    metadata.getContentMd5();
+                    metadata.getContentType();
+                    metadata.getEtag();
+                    metadata.getVersion();
+                    metadata.getLastModified();
+                    found = true;
+                }
+            }
+
+            assertTrue(found);
+            blockingOperator.delete(path);
+        }
+
+        /**
+         * List dir with metakey complete
+         */
+        public void testBlockingListDirWithMetakeyComplete() {
+            final String parent = UUID.randomUUID().toString();
+            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final byte[] content = generateBytes();
+
+            blockingOperator.write(path, content);
+
+            final List<Entry> list = blockingOperator
+                    .listWith(parent + "/")
+                    .metakeys(Metakey.Complete)
+                    .build()
+                    .call();
             boolean found = false;
             for (Entry entry : list) {
                 if (entry.getPath().equals(path)) {

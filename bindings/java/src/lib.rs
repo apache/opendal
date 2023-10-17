@@ -20,11 +20,14 @@ use std::collections::HashMap;
 use std::ffi::c_void;
 
 use crate::error::Error;
+use flagset::FlagSet;
 use jni::objects::JObject;
+use jni::objects::JPrimitiveArray;
 use jni::objects::JString;
 use jni::objects::{JMap, JValue};
 use jni::sys::jboolean;
 use jni::sys::jint;
+use jni::sys::jintArray;
 use jni::sys::jlong;
 use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
@@ -35,6 +38,7 @@ use opendal::Capability;
 use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
+use opendal::Metakey;
 use opendal::OperatorInfo;
 use tokio::runtime::Builder;
 use tokio::runtime::Runtime;
@@ -226,30 +230,73 @@ fn make_capability<'a>(env: &mut JNIEnv<'a>, cap: Capability) -> Result<JObject<
     Ok(capability)
 }
 
-fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject<'a>> {
+fn make_metadata<'a>(
+    env: &mut JNIEnv<'a>,
+    metadata: Metadata,
+    metakey: FlagSet<Metakey>,
+) -> Result<JObject<'a>> {
     let mode = match metadata.mode() {
         EntryMode::FILE => 0,
         EntryMode::DIR => 1,
         EntryMode::Unknown => 2,
     };
 
-    let last_modified = metadata.last_modified().map_or_else(
-        || Ok::<JObject<'_>, Error>(JObject::null()),
-        |v| {
-            Ok(env.new_object(
-                "java/util/Date",
-                "(J)V",
-                &[JValue::Long(v.timestamp_millis())],
-            )?)
-        },
-    )?;
+    let last_modified =
+        if metakey.contains(Metakey::LastModified) || metakey.contains(Metakey::Complete) {
+            metadata.last_modified().map_or_else(
+                || Ok::<JObject<'_>, Error>(JObject::null()),
+                |v| {
+                    Ok(env.new_object(
+                        "java/util/Date",
+                        "(J)V",
+                        &[JValue::Long(v.timestamp_millis())],
+                    )?)
+                },
+            )?
+        } else {
+            JObject::null()
+        };
 
-    let cache_control = string_to_jstring(env, metadata.cache_control())?;
-    let content_disposition = string_to_jstring(env, metadata.content_disposition())?;
-    let content_md5 = string_to_jstring(env, metadata.content_md5())?;
-    let content_type = string_to_jstring(env, metadata.content_type())?;
-    let etag = string_to_jstring(env, metadata.etag())?;
-    let version = string_to_jstring(env, metadata.version())?;
+    let cache_control =
+        if metakey.contains(Metakey::CacheControl) || metakey.contains(Metakey::Complete) {
+            string_to_jstring(env, metadata.cache_control())?
+        } else {
+            JObject::null()
+        };
+    let content_disposition =
+        if metakey.contains(Metakey::ContentDisposition) || metakey.contains(Metakey::Complete) {
+            string_to_jstring(env, metadata.content_disposition())?
+        } else {
+            JObject::null()
+        };
+    let content_md5 =
+        if metakey.contains(Metakey::ContentMd5) || metakey.contains(Metakey::Complete) {
+            string_to_jstring(env, metadata.content_md5())?
+        } else {
+            JObject::null()
+        };
+    let content_type =
+        if metakey.contains(Metakey::ContentType) || metakey.contains(Metakey::Complete) {
+            string_to_jstring(env, metadata.content_type())?
+        } else {
+            JObject::null()
+        };
+    let etag = if metakey.contains(Metakey::Etag) || metakey.contains(Metakey::Complete) {
+        string_to_jstring(env, metadata.etag())?
+    } else {
+        JObject::null()
+    };
+    let version = if metakey.contains(Metakey::Version) || metakey.contains(Metakey::Complete) {
+        string_to_jstring(env, metadata.version())?
+    } else {
+        JObject::null()
+    };
+    let content_length =
+        if metakey.contains(Metakey::ContentLength) || metakey.contains(Metakey::Complete) {
+            metadata.content_length() as jlong
+        } else {
+            -1
+        };
 
     let result = env
         .new_object(
@@ -257,7 +304,7 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
             "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Date;Ljava/lang/String;)V",
             &[
                 JValue::Int(mode as jint),
-                JValue::Long(metadata.content_length() as jlong),
+                JValue::Long(content_length),
                 JValue::Object(&content_disposition),
                 JValue::Object(&content_md5),
                 JValue::Object(&content_type),
@@ -270,9 +317,13 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
     Ok(result)
 }
 
-fn make_entry<'a>(env: &mut JNIEnv<'a>, entry: Entry) -> Result<JObject<'a>> {
+fn make_entry<'a>(
+    env: &mut JNIEnv<'a>,
+    entry: Entry,
+    metakey: FlagSet<Metakey>,
+) -> Result<JObject<'a>> {
     let path = env.new_string(entry.path())?;
-    let metadata = make_metadata(env, entry.metadata().to_owned())?;
+    let metadata = make_metadata(env, entry.metadata().to_owned(), metakey)?;
 
     Ok(env.new_object(
         "org/apache/opendal/Entry",
@@ -295,4 +346,37 @@ fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObjec
 fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
     let res = unsafe { env.get_string_unchecked(s)? };
     Ok(res.into())
+}
+
+fn metakey_to_flagset(env: &mut JNIEnv, metakeys: jintArray) -> Result<Option<FlagSet<Metakey>>> {
+    let metakeys = unsafe { JPrimitiveArray::from_raw(metakeys) };
+    let len = env.get_array_length(&metakeys)?;
+    let mut buf: Vec<jint> = vec![0; len as usize];
+    env.get_int_array_region(metakeys, 0, &mut buf)?;
+
+    let mut metakey: Option<FlagSet<Metakey>> = None;
+    for key in buf {
+        let m = match key {
+            0 => Metakey::Complete,
+            1 => Metakey::Mode,
+            2 => Metakey::CacheControl,
+            3 => Metakey::ContentDisposition,
+            4 => Metakey::ContentLength,
+            5 => Metakey::ContentMd5,
+            6 => Metakey::ContentRange,
+            7 => Metakey::ContentType,
+            8 => Metakey::Etag,
+            9 => Metakey::LastModified,
+            10 => Metakey::Version,
+            _ => Err(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                "Invalid metakey",
+            ))?,
+        };
+        metakey = match metakey {
+            None => Some(m.into()),
+            Some(metakey) => Some(metakey | m),
+        }
+    }
+    Ok(metakey)
 }

@@ -20,6 +20,7 @@ use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::sys::jbyteArray;
+use jni::sys::jintArray;
 use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::JNIEnv;
@@ -30,6 +31,7 @@ use opendal::Metakey;
 use crate::jstring_to_string;
 use crate::make_entry;
 use crate::make_metadata;
+use crate::metakey_to_flagset;
 use crate::Result;
 
 /// # Safety
@@ -113,7 +115,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_stat(
 fn intern_stat(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobject> {
     let path = jstring_to_string(env, &path)?;
     let metadata = op.stat(&path)?;
-    Ok(make_metadata(env, metadata)?.into_raw())
+    Ok(make_metadata(env, metadata, Metakey::Complete.into())?.into_raw())
 }
 
 /// # Safety
@@ -245,8 +247,18 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_listWith(
     limit: jlong,
     start_after: JString,
     delimiter: JString,
+    metakeys: jintArray,
 ) -> jobject {
-    intern_list_with(&mut env, &mut *op, path, limit, start_after, delimiter).unwrap_or_else(|e| {
+    intern_list_with(
+        &mut env,
+        &mut *op,
+        path,
+        limit,
+        start_after,
+        delimiter,
+        metakeys,
+    )
+    .unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
@@ -259,9 +271,10 @@ fn intern_list_with(
     limit: jlong,
     start_after: JString,
     delimiter: JString,
+    metakeys: jintArray,
 ) -> Result<jobject> {
     let path = jstring_to_string(env, &path)?;
-    let mut op = op.list_with(&path).metakey(Metakey::Complete);
+    let mut op = op.list_with(&path);
     if limit >= 0 {
         op = op.limit(limit as usize);
     }
@@ -272,12 +285,17 @@ fn intern_list_with(
         op = op.delimiter(jstring_to_string(env, &delimiter)?.as_str());
     }
 
+    let metakey = metakey_to_flagset(env, metakeys)?;
+    if let Some(metakey) = metakey {
+        op = op.metakey(metakey);
+    }
+
     let list = env.new_object("java/util/ArrayList", "()V", &[])?;
     let jlist = env.get_list(&list)?;
 
     let obs = op.call()?;
     for entry in obs {
-        let entry = make_entry(env, entry)?;
+        let entry = make_entry(env, entry, metakey.unwrap_or(Metakey::Mode.into()))?;
         jlist.add(env, &entry)?;
     }
 

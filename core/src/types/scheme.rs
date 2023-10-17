@@ -118,6 +118,8 @@ pub enum Scheme {
     Redb,
     /// [tikv][crate::services::tikv]: Tikv Services
     Tikv,
+    /// [azfile][crate::services::azfile]: Azfile Services
+    Azfile,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -198,6 +200,7 @@ impl FromStr for Scheme {
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
             "tikv" => Ok(Scheme::Tikv),
+            "azfile" => Ok(Scheme::Azfile),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -248,6 +251,7 @@ impl From<Scheme> for &'static str {
             Scheme::Webhdfs => "webhdfs",
             Scheme::Redb => "redb",
             Scheme::Tikv => "tikv",
+            Scheme::Azfile => "azfile",
             Scheme::Sqlite => "sqlite",
             Scheme::Custom(v) => v,
         }

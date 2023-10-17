@@ -28,10 +28,10 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-/// AzdlsError is the error returned by azure dfs service.
+/// AzfileError is the error returned by azure file service.
 #[derive(Default, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-struct AzdlsError {
+struct AzfileError {
     code: String,
     message: String,
     query_parameter_name: String,
@@ -39,9 +39,9 @@ struct AzdlsError {
     reason: String,
 }
 
-impl Debug for AzdlsError {
+impl Debug for AzfileError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("AzdlsError");
+        let mut de = f.debug_struct("AzfileError");
         de.field("code", &self.code);
         // replace `\n` to ` ` for better reading.
         de.field("message", &self.message.replace('\n', " "));
@@ -68,7 +68,9 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -76,17 +78,18 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut message = match de::from_reader::<_, AzdlsError>(bs.clone().reader()) {
-        Ok(azdls_err) => format!("{azdls_err:?}"),
+    let mut message = match de::from_reader::<_, AzfileError>(bs.clone().reader()) {
+        Ok(azfile_err) => format!("{azfile_err:?}"),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
+
     // If there is no body here, fill with error code.
     if message.is_empty() {
         if let Some(v) = parts.headers.get("x-ms-error-code") {
             if let Ok(code) = v.to_str() {
                 message = format!(
                     "{:?}",
-                    AzdlsError {
+                    AzfileError {
                         code: code.to_string(),
                         ..Default::default()
                     }

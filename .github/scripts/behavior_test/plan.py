@@ -106,12 +106,14 @@ def calculate_hint(changed_files):
         match = re.search(service_pattern, p)
         if match:
             hint.core = True
+            hint.binding_java = True
             hint.services.add(match.group(1))
 
         # core test affected
         match = re.search(test_pattern, p)
         if match:
             hint.core = True
+            hint.binding_java = True
             hint.services.add(match.group(1))
 
     return hint

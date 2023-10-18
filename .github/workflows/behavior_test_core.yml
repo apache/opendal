@@ -33,7 +33,6 @@ on:
 jobs:
   test:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
-    needs: [build]
     runs-on: ${{ inputs.os }}
     strategy:
       matrix:

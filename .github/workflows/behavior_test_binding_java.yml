@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Behavior Test Core
+name: Behavior Test Binding Java
 
 on:
   workflow_call:
@@ -53,7 +53,7 @@ jobs:
         run: echo "OP_SERVICE_ACCOUNT_TOKEN=${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}" >> $GITHUB_ENV
 
       - name: Test Core
-        uses: ./.github/actions/behavior_test_core
+        uses: ./.github/actions/behavior_test_binding_java
         with:
             setup: ${{ matrix.cases.setup }}
             service: ${{ matrix.cases.service }}

@@ -22,7 +22,10 @@ from plan import plan
 class BehaviorTestPlan(unittest.TestCase):
     def test_empty(self):
         result = plan([])
-        self.assertEqual(result, {})
+        self.assertEqual(result["components"]["core"], False)
+        self.assertEqual(result["components"]["binding_java"], False)
+        self.assertEqual(len(result["core"]), 0)
+        self.assertEqual(len(result["binding_java"]), 0)
 
     def test_core_cargo_toml(self):
         result = plan(["core/Cargo.toml"])
@@ -38,6 +41,13 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertTrue("fs" in cases)
         # Should not contain s3
         self.assertFalse("s3" in cases)
+
+    def test_binding_java(self):
+        result = plan(["bindings/java/pom.xml"])
+        self.assertFalse(result["components"]["core"])
+        self.assertTrue(len(result["core"]) == 0)
+        self.assertTrue(result["components"]["binding_java"])
+        self.assertTrue(len(result["binding_java"]) > 0)
 
 
 if __name__ == "__main__":

@@ -15,35 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Test Core
-description: 'Test Core with given setup and service'
-inputs:
-  setup:
-    description: "The setup action for test"
-  service:
-    description: "The service to test"
-  feature:
-    description: "The feature to test"
+name: redis_with_cluster
+description: 'Behavior test for redis with cluster'
 
 runs:
-  using: "composite"
-  steps:
+    using: "composite"
+    steps:
+      - name: Setup Redis Cluster
+        shell: bash
+        working-directory: fixtures/redis
+        run: docker-compose -f docker-compose-redis-cluster.yml up -d
       - name: Setup
         shell: bash
         run: |
-            mkdir -p ./dynamic_test_core &&
-            cat <<EOF >./dynamic_test_core/action.yml
-            runs:
-              using: composite
-              steps:
-              - name: Setup Test Core
-                uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-              - name: Run Test Core
-                shell: bash
-                working-directory: core
-                run: cargo nextest run behavior --features ${{ inputs.feature }}
-                env:
-                  OPENDAL_TEST: ${{ inputs.service }}
+            cat << EOF >> $GITHUB_ENV
+            OPENDAL_REDIS_CLUSTER_ENDPOINTS=redis://127.0.0.1:6380/,redis://127.0.0.1:6381/,redis://127.0.0.1:6382/,redis://127.0.0.1:6383/,redis://127.0.0.1:6384/,redis://127.0.0.1:6385/
+            OPENDAL_REDIS_ROOT=/test/opendal
+            OPENDAL_REDIS_DB=0
             EOF
-      - name: Run
-        uses: ./dynamic_test_core

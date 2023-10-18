@@ -89,3 +89,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+
+  test_binding_java:
+    name: binding_java / ${{ matrix.os }}
+    needs: [plan]
+    if: fromJson(needs.plan.outputs.plan).components.binding_java
+    secrets: inherit
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).binding_java }}
+    uses: ./.github/workflows/behavior_test_binding_java.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}

@@ -62,8 +62,7 @@ jobs:
               has_secrets="true"
             fi
 
-            git fetch origin main:main
-            files_changed=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
+            files_changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
             echo "Files changed:"
             echo "$files_changed"
           fi

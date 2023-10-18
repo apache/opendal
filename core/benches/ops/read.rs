@@ -25,17 +25,10 @@ use size::Size;
 use super::utils::*;
 
 pub fn bench(c: &mut Criterion) {
-    for case in services() {
-        if case.1.is_none() {
-            println!("{} not set, ignore", case.0);
-            continue;
-        }
-
-        let op = case.1.unwrap();
-
-        bench_read_full(c, case.0, op.clone());
-        bench_read_part(c, case.0, op.clone());
-        bench_read_parallel(c, case.0, op.clone());
+    if let Some(op) = init_service() {
+        bench_read_full(c, op.info().scheme().into_static(), op.clone());
+        bench_read_part(c, op.info().scheme().into_static(), op.clone());
+        bench_read_parallel(c, op.info().scheme().into_static(), op.clone());
     }
 }
 

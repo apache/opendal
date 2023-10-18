@@ -257,7 +257,7 @@ fuzz_target!(|input: FuzzInput| {
 
     let runtime = tokio::runtime::Runtime::new().expect("init runtime must succeed");
 
-    for op in utils::init_services() {
+    if let Some(op) = utils::init_service() {
         runtime.block_on(async {
             fuzz_reader(op, input.clone())
                 .await

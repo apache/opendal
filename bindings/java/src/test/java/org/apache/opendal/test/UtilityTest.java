@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.apache.opendal.test.behavior;
+package org.apache.opendal.test;
 
-import java.io.File;
-import java.util.Collections;
-import java.util.Map;
-import org.assertj.core.util.Files;
+import static org.assertj.core.api.Assertions.assertThat;
+import java.util.Collection;
+import org.apache.opendal.OpenDAL;
+import org.junit.jupiter.api.Test;
 
-class FsBehaviorTest extends AbstractBehaviorTest {
-    protected FsBehaviorTest() {
-        super("fs", createSchemeConfig());
-    }
-
-    private static Map<String, String> createSchemeConfig() {
-        final File tempDir = Files.newTemporaryFolder();
-        tempDir.deleteOnExit();
-        return Collections.singletonMap("root", tempDir.getAbsolutePath());
+public class UtilityTest {
+    @Test
+    public void testLoadEnabledServices() {
+        final Collection<String> enabledServices = OpenDAL.enabledServices();
+        assertThat(enabledServices).isNotEmpty();
     }
 }

@@ -16,6 +16,7 @@
 // under the License.
 
 use std::env;
+use std::str::FromStr;
 
 use bytes::Bytes;
 use once_cell::sync::Lazy;
@@ -25,13 +26,15 @@ use rand::prelude::*;
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
-fn service<AB: Builder>() -> Option<Operator> {
-    let test_key = format!("opendal_{}_test", AB::SCHEME).to_uppercase();
-    if env::var(test_key).unwrap_or_default() != "on" {
+pub fn init_service() -> Option<Operator> {
+    let scheme = if let Ok(v) = env::var("OPENDAL_TEST") {
+        v
+    } else {
         return None;
-    }
+    };
+    let scheme = Scheme::from_str(&scheme).unwrap();
 
-    let prefix = format!("opendal_{}_", AB::SCHEME);
+    let prefix = format!("opendal_{scheme}_");
     let envs = env::vars()
         .filter_map(move |(k, v)| {
             k.to_lowercase()
@@ -40,27 +43,7 @@ fn service<AB: Builder>() -> Option<Operator> {
         })
         .collect();
 
-    Some(
-        Operator::from_map::<AB>(envs)
-            .unwrap_or_else(|_| panic!("init {} must succeed", AB::SCHEME))
-            .finish(),
-    )
-}
-
-pub fn services() -> Vec<(&'static str, Option<Operator>)> {
-    let _ = dotenvy::dotenv();
-
-    vec![
-        ("fs", service::<services::Fs>()),
-        ("s3", service::<services::S3>()),
-        ("memory", service::<services::Memory>()),
-        #[cfg(feature = "services-mini-moka")]
-        ("mini-moka", service::<services::MiniMoka>()),
-        #[cfg(feature = "services-moka")]
-        ("moka", service::<services::Moka>()),
-        #[cfg(feature = "services-redis")]
-        ("redis", service::<services::Redis>()),
-    ]
+    Some(Operator::via_map(scheme, envs).unwrap_or_else(|_| panic!("init {scheme} must succeed")))
 }
 
 pub fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Bytes {

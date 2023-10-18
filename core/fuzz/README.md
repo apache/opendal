@@ -11,14 +11,14 @@ To run the fuzz tests, please copy the `.env.example`, which is at project root,
 Take `fs` for example, we need to change to enable fuzz test on `fs` on `/tmp`.
 
 ```dotenv
-OPENDAL_FS_TEST=false
+OPENDAL_TEST=fs
 OPENDAL_FS_ROOT=/path/to/dir
 ```
 
 into
 
 ```dotenv
-OPENDAL_FS_TEST=on
+OPENDAL_TEST=fs
 OPENDAL_FS_ROOT=/tmp
 ```
 

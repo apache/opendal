@@ -16,21 +16,23 @@
 // under the License.
 
 use std::env;
+use std::str::FromStr;
 
 use opendal::Operator;
 use opendal::Scheme;
 
-fn service(scheme: Scheme) -> Option<Operator> {
-    let test_key = format!("opendal_{}_test", scheme).to_uppercase();
+pub fn init_service() -> Option<Operator> {
+    let scheme = if let Ok(v) = env::var("OPENDAL_TEST") {
+        v
+    } else {
+        return None;
+    };
+    let scheme = Scheme::from_str(&scheme).unwrap();
 
     let args: Vec<String> = env::args().collect();
     if args[0].ends_with(&scheme.to_string()) {
         // if not exist, fallback to .env
         let _ = dotenvy::from_filename_override(format!(".{scheme}.env"));
-    }
-
-    if env::var(test_key).unwrap_or_default() != "on" {
-        return None;
     }
 
     let prefix = format!("opendal_{}_", scheme);
@@ -43,14 +45,4 @@ fn service(scheme: Scheme) -> Option<Operator> {
         .collect();
 
     Some(Operator::via_map(scheme, envs).unwrap_or_else(|_| panic!("init {} must succeed", scheme)))
-}
-
-pub fn init_services() -> Vec<Operator> {
-    let ops = vec![
-        service(Scheme::Memory),
-        service(Scheme::Fs),
-        service(Scheme::S3),
-    ];
-
-    ops.into_iter().flatten().collect()
 }

@@ -210,7 +210,7 @@ jobs:
       - name: Test
         shell: bash
         working-directory: bindings/java
-        run: ./mvnw test -Dtest=ServiceBehaviorTest -Dcargo-build.features=services-redis
+        run: ./mvnw test -Dtest="behavior.*Test"  -Dcargo-build.features=services-redis
         env:
           OPENDAL_TEST: redis
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379

@@ -19,6 +19,7 @@
 
 package org.apache.opendal.test;
 
+import static org.apache.opendal.test.behavior.BehaviorTestBase.generateBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Path;
@@ -28,7 +29,6 @@ import java.util.UUID;
 import org.apache.opendal.BlockingOperator;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.Operator;
-import org.apache.opendal.test.behavior.AbstractBehaviorTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -42,13 +42,13 @@ public class MetadataTest {
         conf.put("root", tempDir.toString());
 
         try (final Operator op = Operator.of("fs", conf)) {
-            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            final String dir = UUID.randomUUID() + "/";
             op.createDir(dir).join();
             final Metadata dirMetadata = op.stat(dir).join();
             assertTrue(dirMetadata.isDir());
 
             final String path = UUID.randomUUID().toString();
-            final byte[] content = AbstractBehaviorTest.generateBytes();
+            final byte[] content = generateBytes();
             op.write(path, content).join();
 
             final Metadata metadata = op.stat(path).join();
@@ -73,13 +73,13 @@ public class MetadataTest {
         conf.put("root", tempDir.toString());
 
         try (final BlockingOperator op = BlockingOperator.of("fs", conf)) {
-            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            final String dir = UUID.randomUUID() + "/";
             op.createDir(dir);
             final Metadata dirMetadata = op.stat(dir);
             assertTrue(dirMetadata.isDir());
 
             final String path = UUID.randomUUID().toString();
-            final byte[] content = AbstractBehaviorTest.generateBytes();
+            final byte[] content = generateBytes();
             op.write(path, content);
 
             final Metadata metadata = op.stat(path);

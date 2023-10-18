@@ -311,7 +311,16 @@ mod tests {
 
         assert_eq!(meta.size, 13);
 
-        assert_eq!(object_store.get(&path).await.unwrap().bytes().await.unwrap(), bytes);
+        assert_eq!(
+            object_store
+                .get(&path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap(),
+            bytes
+        );
     }
 
     #[tokio::test]
@@ -331,7 +340,10 @@ mod tests {
             .collect::<Vec<_>>();
 
         let expected_files = vec![
-            ("data/nested/test.txt", Bytes::from_static(b"hello, world! I am nested.")),
+            (
+                "data/nested/test.txt",
+                Bytes::from_static(b"hello, world! I am nested."),
+            ),
             ("data/test.txt", Bytes::from_static(b"hello, world!")),
         ];
 
@@ -342,7 +354,16 @@ mod tests {
 
         for (location, bytes) in expected_files {
             let path: Path = location.try_into().unwrap();
-            assert_eq!(object_store.get(&path).await.unwrap().bytes().await.unwrap(), bytes);
+            assert_eq!(
+                object_store
+                    .get(&path)
+                    .await
+                    .unwrap()
+                    .bytes()
+                    .await
+                    .unwrap(),
+                bytes
+            );
         }
     }
 

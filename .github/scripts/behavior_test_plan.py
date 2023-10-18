@@ -21,9 +21,21 @@ import json
 import os
 from pathlib import Path
 
+# The path for current script.
+SCRIPT_PATH = Path(__file__).parent.absolute()
+print(f"SCRIPT_PATH: {SCRIPT_PATH}")
+
+# The path for `.github` dir.
+GITHUB_DIR = SCRIPT_PATH.parent
+print(f"GITHUB_DIR: {GITHUB_DIR}")
+
+# The project dir for opendal.
+PROJECT_DIR = GITHUB_DIR.parent
+print(f"PROJECT_DIR: {PROJECT_DIR}")
+
 
 def get_provided_cases():
-    root_dir = ".github/services"
+    root_dir = f"{GITHUB_DIR}/services"
 
     cases = [
         {
@@ -62,7 +74,9 @@ def calculate_core_cases(cases, changed_files):
 
     # If any of the core files changed, we will run all cases.
     if any(
-        p.startswith("core/src/") and not p.startswith("core/src/services")
+        p.startswith("core/")
+        and not p.startswith("core/src/services/")
+        and not p.endswith(".md")
         for p in changed_files
     ):
         return cases
@@ -108,7 +122,7 @@ def plan(changed_files):
                 }
             )
 
-    return json.dumps(jobs)
+    return jobs
 
 
 # For quick test:
@@ -117,4 +131,4 @@ def plan(changed_files):
 if __name__ == "__main__":
     changed_files = sys.argv[1:]
     result = plan(changed_files)
-    print(result)
+    print(json.dumps(result))

@@ -42,7 +42,7 @@ runs:
     - name: Setup
       shell: bash
       run: |
-        cat << EOF >> /tmp/x
+        cat << EOF >> $GITHUB_ENV
         OPENDAL_S3_BUCKET=test
         OPENDAL_S3_ENDPOINT="http://127.0.0.1:9000"
         OPENDAL_S3_REGION=us-east-1

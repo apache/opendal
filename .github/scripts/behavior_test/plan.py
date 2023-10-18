@@ -26,7 +26,7 @@ SCRIPT_PATH = Path(__file__).parent.absolute()
 print(f"SCRIPT_PATH: {SCRIPT_PATH}")
 
 # The path for `.github` dir.
-GITHUB_DIR = SCRIPT_PATH.parent
+GITHUB_DIR = SCRIPT_PATH.parent.parent
 print(f"GITHUB_DIR: {GITHUB_DIR}")
 
 # The project dir for opendal.

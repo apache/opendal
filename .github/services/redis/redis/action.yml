@@ -21,20 +21,15 @@ description: 'Behavior test for redis'
 runs:
     using: "composite"
     steps:
-        - name: Setup Redis with TLS
-          shell: bash
-          working-directory: fixtures/redis
-          run: |
-              # Install the CA in the system
-              sudo cp ssl/ca.crt /usr/local/share/ca-certificates
-              sudo update-ca-certificates
-
-              docker-compose -f docker-compose-redis-tls.yml up -d
+        -   name: Setup Redis Server
+            shell: bash
+            working-directory: fixtures/redis
+            run: docker-compose -f docker-compose-redis.yml up -d
         - name: Setup
           shell: bash
           run: |
               cat << EOF >> $GITHUB_ENV
-              OPENDAL_REDIS_ENDPOINT=rediss://localhost:6379
+              OPENDAL_REDIS_ENDPOINT=tcp://127.0.0.1:6379
               OPENDAL_REDIS_ROOT=/
               OPENDAL_REDIS_DB=0
               EOF

@@ -23,15 +23,10 @@ from pathlib import Path
 
 # The path for current script.
 SCRIPT_PATH = Path(__file__).parent.absolute()
-print(f"SCRIPT_PATH: {SCRIPT_PATH}")
-
 # The path for `.github` dir.
 GITHUB_DIR = SCRIPT_PATH.parent.parent
-print(f"GITHUB_DIR: {GITHUB_DIR}")
-
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
-print(f"PROJECT_DIR: {PROJECT_DIR}")
 
 
 def get_provided_cases():

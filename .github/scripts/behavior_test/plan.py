@@ -19,7 +19,9 @@
 import sys
 import json
 import os
+import re
 from pathlib import Path
+from dataclasses import dataclass, field
 
 # The path for current script.
 SCRIPT_PATH = Path(__file__).parent.absolute()
@@ -29,13 +31,14 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 PROJECT_DIR = GITHUB_DIR.parent
 
 
-def get_provided_cases():
+def provided_cases():
     root_dir = f"{GITHUB_DIR}/services"
 
     cases = [
         {
             "service": service,
             "setup": setup,
+            "feature": "services-{}".format(service.replace("_", "-")),
             "content": Path(
                 os.path.join(root_dir, service, setup, "action.yml")
             ).read_text(),
@@ -50,64 +53,138 @@ def get_provided_cases():
     if not os.getenv("GITHUB_HAS_SECRETS") == "true":
         cases[:] = [v for v in cases if "secrets" not in v["content"]]
 
+    # Remove content from cases.
+    return [
+        {
+            "setup": v["setup"],
+            "service": v["service"],
+            "feature": v["feature"],
+        }
+        for v in cases
+    ]
+
+
+@dataclass
+class Hint:
+    # Is core affected?
+    core: bool = field(default=False, init=False)
+    # Is binding java affected?
+    binding_java: bool = field(default=False, init=False)
+
+    # Should we run all services test?
+    all_service: bool = field(default=False, init=False)
+    # affected services set.
+    services: set = field(default_factory=set, init=False)
+
+
+def calculate_hint(changed_files):
+    hint = Hint()
+
+    # Remove all files that ends with `.md`
+    changed_files = [f for f in changed_files if not f.endswith(".md")]
+
+    service_pattern = r"core/src/services/([^/]+)/"
+    test_pattern = r".github/services/[^/]+/"
+
+    for p in changed_files:
+        # core affected
+        if p.startswith("core/") and not p.startswith("core/src/services/"):
+            hint.core = True
+            hint.binding_java = True
+            hint.all_service = True
+
+        # binding java affected.
+        if p.startswith("bindings/java/"):
+            hint.binding_java = True
+            hint.all_service = True
+
+        # core service affected
+        match = re.search(service_pattern, p)
+        if match:
+            hint.core = True
+            hint.services.add(match.group(1))
+
+        # core test affected
+        match = re.search(test_pattern, p)
+        if match:
+            hint.core = True
+            hint.services.add(match.group(1))
+
+    return hint
+
+
+# unique_cases is used to only one setup for each service.
+#
+# We need this because we have multiple setup for each service and they have already been
+# tested by `core` workflow. So we can only test unique setup for each service for bindings.
+def unique_cases(cases):
+    ucases = {}
+    for case in cases:
+        service = case["service"]
+        if service not in ucases:
+            ucases[service] = case
+
+    # Convert the dictionary back to a list if needed
+    return list(ucases.values())
+
+
+def generate_core_cases(cases, hint):
+    # Always run all tests if it is a push event.
+    if os.getenv("GITHUB_IS_PUSH") == "true":
+        return cases
+
+    # Return empty if core is False
+    if not hint.core:
+        return []
+
+    # Return all services if all_service is True
+    if hint.all_service:
+        return cases
+
+    # Filter all cases that not shown un in changed files
+    cases = [v for v in cases if v["service"] in hint.services]
     return cases
 
 
-def calculate_core_cases(cases, changed_files):
-    # If any of the core workflow changed, we will run all cases.
-    for p in [
-        ".github/workflows/core_test.yml",
-        ".github/workflows/test_planner.yml",
-        ".github/actions/test-core",
-    ]:
-        if p in changed_files:
-            return cases
+def generate_binding_java_cases(cases, hint):
+    cases = unique_cases(cases)
 
     # Always run all tests if it is a push event.
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 
-    # If any of the core files changed, we will run all cases.
-    if any(
-        p.startswith("core/")
-        and not p.startswith("core/src/services/")
-        and not p.endswith(".md")
-        for p in changed_files
-    ):
-        return cases
-    if any(p.startswith("core/tests/") for p in changed_files):
+    # Return empty if core is False
+    if not hint.binding_java:
+        return []
+
+    # Return all services if all_service is True
+    if hint.all_service:
         return cases
 
     # Filter all cases that not shown un in changed files
-    cases = [v for v in cases if any(v["service"] in p for p in changed_files)]
+    cases = [v for v in cases if v["service"] in hint.services]
     return cases
 
 
-# Context is the github context: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
 def plan(changed_files):
-    # TODO: add bindings/java, bindings/python in the future.
-    components = ["core"]
-    cases = get_provided_cases()
+    cases = provided_cases()
+    hint = calculate_hint(changed_files)
 
-    core_cases = calculate_core_cases(cases, changed_files)
+    core_cases = generate_core_cases(cases, hint)
+    binding_java_cases = generate_binding_java_cases(cases, hint)
 
-    jobs = {}
+    jobs = {
+        "components": {
+            "core": False,
+            "binding_java": False,
+        },
+        "core": [],
+        "binding_java": [],
+    }
 
     if len(core_cases) > 0:
-        jobs["components"] = {"core": True}
-        jobs["core"] = [
-            {
-                "os": "ubuntu-latest",
-                "cases": [
-                    {
-                        "setup": v["setup"],
-                        "service": v["service"],
-                        "feature": "services-{}".format(v["service"].replace("_", "-")),
-                    }
-                    for v in core_cases
-                ],
-            },
-        ]
+        jobs["components"]["core"] = True
+        jobs["core"].append({"os": "ubuntu-latest", "cases": core_cases})
 
         # fs is the only services need to run upon windows, let's hard code it here.
         if "fs" in [v["service"] for v in core_cases]:
@@ -120,12 +197,15 @@ def plan(changed_files):
                 }
             )
 
+    if len(binding_java_cases) > 0:
+        jobs["components"]["binding_java"] = True
+        jobs["binding_java"].append(
+            {"os": "ubuntu-latest", "cases": binding_java_cases}
+        )
+
     return jobs
 
 
-# For quick test:
-#
-# ./scripts/workflow_planner.py PATH
 if __name__ == "__main__":
     changed_files = sys.argv[1:]
     result = plan(changed_files)

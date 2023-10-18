@@ -31,19 +31,19 @@ runs:
       - name: Setup
         shell: bash
         run: |
-            mkdir -p ./dynamic_test_core &&
-            cat <<EOF >./dynamic_test_core/action.yml
+            mkdir -p ./dynamic_test_binding_java &&
+            cat <<EOF >./dynamic_test_binding_java/action.yml
             runs:
               using: composite
               steps:
-              - name: Setup Test Core
+              - name: Setup Test
                 uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-              - name: Run Test Core
+              - name: Run Test Binding Java
                 shell: bash
-                working-directory: core
-                run: cargo nextest run behavior --features ${{ inputs.feature }}
+                working-directory: bindings/java
+                run: ./mvnw test -Dtest="behavior.*Test"  -Dcargo-build.features=${{ inputs.feature }}
                 env:
                   OPENDAL_TEST: ${{ inputs.service }}
             EOF
       - name: Run
-        uses: ./dynamic_test_core
+        uses: ./dynamic_test_binding_java

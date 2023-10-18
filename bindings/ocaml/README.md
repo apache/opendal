@@ -1,5 +1,7 @@
 # OpenDAL OCaml Binding (WIP)
 
+![](https://img.shields.io/badge/status-unreleased-red)
+
 ## Requirements
 
 * OCaml version > 4.03 and < 5.0.0

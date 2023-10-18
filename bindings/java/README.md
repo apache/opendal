@@ -124,7 +124,7 @@ OPENDAL_FS_ROOT=/tmp
 You can run service behavior tests of enabled with the following command:
 
 ```shell
-./mvnw test  -Dtest="behavior.*Test"
+./mvnw test -Dtest="behavior.*Test"
 ```
 
 Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:

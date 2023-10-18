@@ -54,7 +54,7 @@ def provided_cases():
         cases[:] = [v for v in cases if "secrets" not in v["content"]]
 
     # Remove content from cases.
-    return [
+    cases = [
         {
             "setup": v["setup"],
             "service": v["service"],
@@ -62,6 +62,10 @@ def provided_cases():
         }
         for v in cases
     ]
+
+    # Make sure the order is stable.
+    sorted_cases = sorted(cases, key=lambda x: (x["service"], x["setup"]))
+    return sorted_cases
 
 
 @dataclass
@@ -117,6 +121,8 @@ def calculate_hint(changed_files):
 #
 # We need this because we have multiple setup for each service and they have already been
 # tested by `core` workflow. So we can only test unique setup for each service for bindings.
+#
+# We make sure that we return the first setup for each service in alphabet order.
 def unique_cases(cases):
     ucases = {}
     for case in cases:

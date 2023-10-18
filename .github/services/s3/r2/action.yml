@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: aws_s3_with_sse_c
-description: 'Behavior test for AWS S3 with SSE-C. This service is sponsored by @datafuse_labs.'
+name: r2
+description: 'Behavior test for Cloudflare R2. This service is sponsored by @Xuanwo.'
 
 runs:
   using: "composite"
@@ -26,18 +26,17 @@ runs:
       with:
         export-env: true
       env:
-        OPENDAL_S3_ROOT: op://services/s3/root
-        OPENDAL_S3_BUCKET: op://services/s3/bucket
-        OPENDAL_S3_ENDPOINT: op://services/s3/endpoint
-        OPENDAL_S3_ACCESS_KEY_ID: op://services/s3/access_key_id
-        OPENDAL_S3_SECRET_ACCESS_KEY: op://services/s3/secret_access_key
-        OPENDAL_S3_REGION: op://services/s3/region
+        OPENDAL_S3_BUCKET: op://services/r2/bucket
+        OPENDAL_S3_ENDPOINT: op://services/r2/endpoint
+        OPENDAL_S3_ACCESS_KEY_ID: op://services/r2/access_key_id
+        OPENDAL_S3_SECRET_ACCESS_KEY: op://services/r2/secret_access_key
 
+    # OPENDAL_S3_BATCH_MAX_OPERATIONS is the R2's limitation
+    # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
     - name: Add extra settings
       shell: bash
       run:
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM=AES256
-        OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
-        OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5=zZ5FnqcIqUjVwvWmyog4zw==
+        OPENDAL_S3_REGION=auto
+        OPENDAL_S3_BATCH_MAX_OPERATIONS=700
         EOF

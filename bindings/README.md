@@ -36,10 +36,6 @@ You can find the `README.md` file for each binding in the corresponding folder.
 
 Please refer to the bindings listed above or which are already released for more details.
 
-## Testing
-
-We are maintaining a test suite for all bindings. Please refer to [TESTING.md](TESTING.md) for the testing guidelines.
-
 ## Contributing
 
 We welcome contributions to OpenDAL. Please refer to [CONTRIBUTING.md](../../CONTRIBUTING.md) for the contributing guidelines.

@@ -73,7 +73,7 @@ jobs:
           export GITHUB_IS_PUSH=$is_push
 
           # Run the workflow planner script
-          PLAN=$(./.github/scripts/behavior_test_plan.py $files_changed)
+          PLAN=$(./.github/scripts/behavior_test/plan.py $files_changed)
           echo "Plan:"
           echo "$PLAN" | jq .
           echo "plan=$PLAN" >> $GITHUB_OUTPUT

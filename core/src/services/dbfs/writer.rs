@@ -30,7 +30,7 @@ pub struct DbfsWriter {
 }
 
 impl DbfsWriter {
-    const MAX_SIMPLE_SIZE: usize = 1 * 1024 * 1024;
+    const MAX_SIMPLE_SIZE: usize = 1024 * 1024;
 
     pub fn new(backend: DbfsBackend, _op: OpWrite, path: String) -> Self {
         DbfsWriter { backend, path }

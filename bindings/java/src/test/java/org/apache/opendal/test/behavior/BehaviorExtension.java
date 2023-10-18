@@ -21,6 +21,8 @@ package org.apache.opendal.test.behavior;
 
 import io.github.cdimascio.dotenv.Dotenv;
 import io.github.cdimascio.dotenv.DotenvEntry;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +31,12 @@ import org.apache.opendal.Operator;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestWatcher;
 
 @Slf4j
-public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback {
+public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, TestWatcher {
+    private String testName;
+
     public Operator operator;
     public BlockingOperator blockingOperator;
 
@@ -50,6 +55,13 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback {
             }
             this.operator = Operator.of(scheme, config);
             this.blockingOperator = BlockingOperator.of(scheme, config);
+
+            this.testName = String.format("%s(%s)", context.getDisplayName(), scheme);
+            log.info(
+                    "\n================================================================================"
+                            + "\nTest {} is running."
+                            + "\n--------------------------------------------------------------------------------",
+                    testName);
         }
     }
 
@@ -63,6 +75,45 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback {
         if (blockingOperator != null) {
             blockingOperator.close();
             blockingOperator = null;
+        }
+
+        this.testName = null;
+    }
+
+    @Override
+    public void testSuccessful(ExtensionContext context) {
+        log.info(
+                "\n================================================================================"
+                        + "\nTest {}.{} successfully run."
+                        + "\n--------------------------------------------------------------------------------",
+                testName,
+                context.getDisplayName());
+    }
+
+    @Override
+    public void testFailed(ExtensionContext context, Throwable cause) {
+        log.error(
+                "\n================================================================================"
+                        + "\nTest {}.{} failed with:\n{}"
+                        + "\n--------------------------------------------------------------------------------",
+                testName,
+                context.getDisplayName(),
+                exceptionToString(cause));
+    }
+
+    private static String exceptionToString(Throwable t) {
+        if (t == null) {
+            return "(null)";
+        }
+
+        try {
+            StringWriter stm = new StringWriter();
+            PrintWriter wrt = new PrintWriter(stm);
+            t.printStackTrace(wrt);
+            wrt.close();
+            return stm.toString();
+        } catch (Throwable ignored) {
+            return t.getClass().getName() + " (error while printing stack trace)";
         }
     }
 }

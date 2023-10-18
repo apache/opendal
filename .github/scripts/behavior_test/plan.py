@@ -88,7 +88,7 @@ def calculate_hint(changed_files):
     changed_files = [f for f in changed_files if not f.endswith(".md")]
 
     service_pattern = r"core/src/services/([^/]+)/"
-    test_pattern = r".github/services/[^/]+/"
+    test_pattern = r".github/services/([^/]+)/"
 
     for p in changed_files:
         # core affected

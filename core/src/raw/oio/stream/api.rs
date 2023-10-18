@@ -188,7 +188,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         let this = self.project();
-        Pin::new(this.inner).poll_next(cx)
+        Pin::new(this.inner).get_mut().poll_next(cx)
     }
 }
 
@@ -206,7 +206,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.project();
-        Pin::new(this.inner).poll_reset(cx)
+        Pin::new(this.inner).get_mut().poll_reset(cx)
     }
 }
 

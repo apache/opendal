@@ -170,7 +170,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
         let this = self.project();
-        Pin::new(this.writer).poll_write(cx, *this.buf)
+        Pin::new(this.writer).get_mut().poll_write(cx, *this.buf)
     }
 }
 
@@ -188,7 +188,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.project();
-        Pin::new(this.writer).poll_abort(cx)
+        Pin::new(this.writer).get_mut().poll_abort(cx)
     }
 }
 
@@ -206,7 +206,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.project();
-        Pin::new(this.writer).poll_close(cx)
+        Pin::new(this.writer).get_mut().poll_close(cx)
     }
 }
 

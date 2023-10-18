@@ -215,7 +215,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<usize>> {
         let this = self.project();
-        Pin::new(this.reader).poll_read(cx, this.buf)
+        Pin::new(this.reader).get_mut().poll_read(cx, this.buf)
     }
 }
 
@@ -234,7 +234,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<u64>> {
         let this = self.project();
-        Pin::new(this.reader).poll_seek(cx, *this.pos)
+        Pin::new(this.reader).get_mut().poll_seek(cx, *this.pos)
     }
 }
 
@@ -252,7 +252,7 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         let this = self.project();
-        Pin::new(this.reader).poll_next(cx)
+        Pin::new(this.reader).get_mut().poll_next(cx)
     }
 }
 

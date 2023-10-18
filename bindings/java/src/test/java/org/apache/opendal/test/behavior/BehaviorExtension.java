@@ -23,36 +23,46 @@ import io.github.cdimascio.dotenv.Dotenv;
 import io.github.cdimascio.dotenv.DotenvEntry;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.jupiter.api.condition.EnabledIf;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.opendal.BlockingOperator;
+import org.apache.opendal.Operator;
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
-@EnabledIf("enabled")
-class ServiceBehaviorTest extends AbstractBehaviorTest {
-    protected ServiceBehaviorTest() {
-        super(lookupScheme(), createSchemeConfig());
-    }
+@Slf4j
+public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback {
+    public Operator operator;
+    public BlockingOperator blockingOperator;
 
-    private static boolean enabled() {
-        return lookupScheme() != null;
-    }
-
-    private static String lookupScheme() {
+    @Override
+    public void beforeAll(ExtensionContext context) {
         final Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
-        return dotenv.get("OPENDAL_TEST");
-    }
-
-    private static Map<String, String> createSchemeConfig() {
-        final String scheme = lookupScheme();
-        final Map<String, String> config = new HashMap<>();
+        final String scheme = dotenv.get("OPENDAL_TEST");
         if (scheme != null) {
+            final Map<String, String> config = new HashMap<>();
             final String prefix = "opendal_" + scheme.toLowerCase() + "_";
-            final Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
             for (DotenvEntry entry : dotenv.entries()) {
                 final String key = entry.getKey().toLowerCase();
                 if (key.startsWith(prefix)) {
                     config.put(key.substring(prefix.length()), entry.getValue());
                 }
             }
+            this.operator = Operator.of(scheme, config);
+            this.blockingOperator = BlockingOperator.of(scheme, config);
         }
-        return config;
+    }
+
+    @Override
+    public void afterAll(ExtensionContext context) {
+        if (operator != null) {
+            operator.close();
+            operator = null;
+        }
+
+        if (blockingOperator != null) {
+            blockingOperator.close();
+            blockingOperator = null;
+        }
     }
 }

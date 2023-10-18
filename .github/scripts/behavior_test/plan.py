@@ -91,6 +91,18 @@ def calculate_hint(changed_files):
     test_pattern = r".github/services/([^/]+)/"
 
     for p in changed_files:
+        # workflow behavior tests affected
+        if p == ".github/workflows/behavior_test.yml":
+            hint.core = True
+            hint.binding_java = True
+            hint.all_service = True
+        if p == ".github/workflows/behavior_test_core.yml":
+            hint.core = True
+            hint.all_service = True
+        if p == ".github/workflows/behavior_test_binding_java.yml":
+            hint.binding_java = True
+            hint.all_service = True
+
         # core affected
         if p.startswith("core/") and not p.startswith("core/src/services/"):
             hint.core = True

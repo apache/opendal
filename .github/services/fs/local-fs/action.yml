@@ -16,7 +16,7 @@
 # under the License.
 
 name: local_fs
-description: "Setup local fs"
+description: 'Behavior test for local fs'
 
 runs:
     using: "composite"

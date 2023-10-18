@@ -16,23 +16,19 @@
 # under the License.
 
 name: aws_s3
-description: "Setup AWS S3"
+description: 'Behavior test for AWS S3. This service is sponsored by @datafuse_labs.'
 
-inputs:
-  secrets:
-    description: "The secrets for test"
-    default: "{}"
-
-# TODO: we should migrate to 1password instead.
 runs:
   using: "composite"
   steps:
     - name: Setup
-      shell: bash
-      run: |
-        echo "OPENDAL_S3_ROOT=${{ fromJson(inputs.secrets).OPENDAL_S3_ROOT }}" >> $GITHUB_ENV
-        echo "OPENDAL_S3_BUCKET=${{ fromJson(inputs.secrets).OPENDAL_S3_BUCKET }}" >> $GITHUB_ENV
-        echo "OPENDAL_S3_ENDPOINT=${{ fromJson(inputs.secrets).OPENDAL_S3_ENDPOINT }}" >> $GITHUB_ENV
-        echo "OPENDAL_S3_ACCESS_KEY_ID=${{ fromJson(inputs.secrets).OPENDAL_S3_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-        echo "OPENDAL_S3_SECRET_ACCESS_KEY=${{ fromJson(inputs.secrets).OPENDAL_S3_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-        echo "OPENDAL_S3_REGION=ap-northeast-1" >> $GITHUB_ENV
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_S3_ROOT: op://services/s3/root
+        OPENDAL_S3_BUCKET: op://services/s3/bucket
+        OPENDAL_S3_ENDPOINT: op://services/s3/endpoint
+        OPENDAL_S3_ACCESS_KEY_ID: op://services/s3/access_key_id
+        OPENDAL_S3_SECRET_ACCESS_KEY: op://services/s3/secret_access_key
+        OPENDAL_S3_REGION: op://services/s3/region

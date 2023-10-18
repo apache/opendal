@@ -197,7 +197,6 @@ jobs:
           need-nextest: true
 
       - name: Load secret
-        id: op-load-secret
         uses: 1password/load-secrets-action@v1
         with:
           export-env: true

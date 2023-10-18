@@ -24,14 +24,11 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NonNull;
 import lombok.ToString;
 
-@Getter
-@ToString
-@EqualsAndHashCode
+@Data
 public class OpList<T> {
     private final String path;
     /**

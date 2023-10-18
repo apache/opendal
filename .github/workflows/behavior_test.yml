@@ -89,4 +89,3 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
-      features: ${{ matrix.features }}

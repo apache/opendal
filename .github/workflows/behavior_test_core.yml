@@ -26,9 +26,6 @@ on:
       cases:
         required: true
         type: string
-      features:
-        required: true
-        type: string
 
 jobs:
   test:

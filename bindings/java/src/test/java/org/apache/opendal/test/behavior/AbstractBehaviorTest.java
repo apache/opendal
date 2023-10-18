@@ -844,9 +844,10 @@ public abstract class AbstractBehaviorTest {
             };
             for (String path : expected) {
                 if (path.endsWith("/")) {
-                    operator.createDir(String.format("%s/%s", parent, path));
+                    operator.createDir(String.format("%s/%s", parent, path)).join();
                 } else {
-                    operator.write(String.format("%s/%s", parent, path), "test_scan");
+                    operator.write(String.format("%s/%s", parent, path), "test_scan")
+                            .join();
                 }
             }
 

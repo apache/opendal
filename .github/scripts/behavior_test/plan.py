@@ -104,7 +104,13 @@ def calculate_hint(changed_files):
             hint.all_service = True
 
         # core affected
-        if p.startswith("core/") and not p.startswith("core/src/services/"):
+        if (
+            p.startswith("core/")
+            and not p.startswith("core/benches/")
+            and not p.startswith("core/edge/")
+            and not p.startswith("core/fuzz/")
+            and not p.startswith("core/src/services/")
+        ):
             hint.core = True
             hint.binding_java = True
             hint.all_service = True

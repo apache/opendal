@@ -24,9 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -70,6 +70,7 @@ public abstract class AbstractBehaviorTest {
                         + "\n--------------------------------------------------------------------------------",
                 getClass().getCanonicalName(),
                 scheme);
+        config.entrySet().forEach(e -> log.info("{}: {}", e.getKey(), e.getValue()));
         this.operator = Operator.of(scheme, config);
         this.blockingOperator = BlockingOperator.of(scheme, config);
     }
@@ -543,7 +544,7 @@ public abstract class AbstractBehaviorTest {
         @Test
         public void testListDir() {
             final String parent = UUID.randomUUID().toString();
-            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final String path = String.format("%s/%s", parent, UUID.randomUUID());
             final byte[] content = generateBytes();
 
             operator.write(path, content).join();
@@ -569,7 +570,7 @@ public abstract class AbstractBehaviorTest {
         @Test
         public void testListDirWithMetakey() {
             final String parent = UUID.randomUUID().toString();
-            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final String path = String.format("%s/%s", parent, UUID.randomUUID());
             final byte[] content = generateBytes();
 
             operator.write(path, content).join();
@@ -615,7 +616,7 @@ public abstract class AbstractBehaviorTest {
         @Test
         public void testListDirWithMetakeyComplete() {
             final String parent = UUID.randomUUID().toString();
-            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final String path = String.format("%s/%s", parent, UUID.randomUUID());
             final byte[] content = generateBytes();
 
             operator.write(path, content).join();
@@ -676,7 +677,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testListEmptyDir() {
-            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            final String dir = String.format("%s/", UUID.randomUUID());
             operator.createDir(dir).join();
 
             final List<Entry> entries = operator.list(dir).join();
@@ -690,7 +691,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testListNotExistDir() {
-            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            final String dir = String.format("%s/", UUID.randomUUID());
 
             final List<Entry> entries = operator.list(dir).join();
             assertThat(entries).isEmpty();
@@ -701,7 +702,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testListSubDir() {
-            final String path = String.format("%s/", UUID.randomUUID().toString());
+            final String path = String.format("%s/", UUID.randomUUID());
             operator.createDir(path).join();
 
             final List<Entry> entries = operator.list("/").join();
@@ -723,11 +724,10 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testListNestedDir() {
-            final String dir = String.format(
-                    "%s/%s/", UUID.randomUUID().toString(), UUID.randomUUID().toString());
+            final String dir = String.format("%s/%s/", UUID.randomUUID(), UUID.randomUUID());
             final String fileName = UUID.randomUUID().toString();
             final String filePath = String.format("%s/%s", dir, fileName);
-            final String dirName = String.format("%s/", UUID.randomUUID().toString());
+            final String dirName = String.format("%s/", UUID.randomUUID());
             final String dirPath = String.format("%s/%s", dir, dirName);
             final String content = "test_list_nested_dir";
 
@@ -762,7 +762,7 @@ public abstract class AbstractBehaviorTest {
             if (!operator.info.fullCapability.listWithStartAfter) {
                 return;
             }
-            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            final String dir = String.format("%s/", UUID.randomUUID());
             operator.createDir(dir).join();
 
             final String[] given = new String[] {
@@ -1247,7 +1247,7 @@ public abstract class AbstractBehaviorTest {
         @Test
         public void testBlockingListDir() {
             final String parent = UUID.randomUUID().toString();
-            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final String path = String.format("%s/%s", parent, UUID.randomUUID());
             final byte[] content = generateBytes();
 
             blockingOperator.write(path, content);
@@ -1271,7 +1271,7 @@ public abstract class AbstractBehaviorTest {
         @Test
         public void testBlockingListDirWithMetakey() {
             final String parent = UUID.randomUUID().toString();
-            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final String path = String.format("%s/%s", parent, UUID.randomUUID());
             final byte[] content = generateBytes();
 
             blockingOperator.write(path, content);
@@ -1318,7 +1318,7 @@ public abstract class AbstractBehaviorTest {
          */
         public void testBlockingListDirWithMetakeyComplete() {
             final String parent = UUID.randomUUID().toString();
-            final String path = String.format("%s/%s", parent, UUID.randomUUID().toString());
+            final String path = String.format("%s/%s", parent, UUID.randomUUID());
             final byte[] content = generateBytes();
 
             blockingOperator.write(path, content);
@@ -1353,7 +1353,7 @@ public abstract class AbstractBehaviorTest {
 
         @Test
         public void testBlockingListNonExistDir() {
-            final String dir = String.format("%s/", UUID.randomUUID().toString());
+            final String dir = String.format("%s/", UUID.randomUUID());
 
             final List<Entry> list = blockingOperator.list(dir);
             assertTrue(list.isEmpty());

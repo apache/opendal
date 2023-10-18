@@ -34,7 +34,7 @@ runs:
       run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
     - name: Setup
       shell: bash
-      run:
+      run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_S3_BUCKET=test
         OPENDAL_S3_ENDPOINT="http://127.0.0.1:9000"

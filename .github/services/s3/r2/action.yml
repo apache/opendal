@@ -35,7 +35,7 @@ runs:
     # Refer to https://opendal.apache.org/docs/services/s3#compatible-services for more information
     - name: Add extra settings
       shell: bash
-      run:
+      run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_S3_REGION=auto
         OPENDAL_S3_BATCH_MAX_OPERATIONS=700

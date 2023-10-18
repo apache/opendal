@@ -35,7 +35,7 @@ runs:
 
     - name: Add extra settings
       shell: bash
-      run:
+      run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM=AES256
         OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY=MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=

@@ -41,8 +41,8 @@ runs:
         ./mc anonymous set public local/test
     - name: Setup
       shell: bash
-      run:
-        cat << EOF >> $GITHUB_ENV
+      run: |
+        cat << EOF >> /tmp/x
         OPENDAL_S3_BUCKET=test
         OPENDAL_S3_ENDPOINT="http://127.0.0.1:9000"
         OPENDAL_S3_REGION=us-east-1

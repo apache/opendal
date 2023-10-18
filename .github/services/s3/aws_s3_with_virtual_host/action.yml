@@ -35,5 +35,5 @@ runs:
 
     - name: Add extra settings
       shell: bash
-      run:
+      run: |
         echo "OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE=on" >> $GITHUB_ENV

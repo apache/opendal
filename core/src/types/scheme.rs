@@ -140,6 +140,17 @@ impl Scheme {
     ///
     /// OpenDAL could be compiled with different features, which will enable different schemes.
     /// This function returns all enabled schemes so users can make decisions based on it.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opendal::Scheme;
+    ///
+    /// let enabled_schemes = Scheme::enabled();
+    /// if !enabled_schemes.contains(&Scheme::Memory) {
+    ///    panic!("s3 support is not enabled")
+    /// }
+    /// ```
     pub fn enabled() -> HashSet<Scheme> {
         HashSet::from([
             #[cfg(feature = "services-atomicserver")]

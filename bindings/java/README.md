@@ -108,9 +108,9 @@ You can apply the code style with the following command::
 ./mvnw spotless:apply
 ```
 
-## Run Service Tests
+## Run behavior tests
 
-Services tests read necessary configs from env vars or the `.env` file.
+Services behavior tests read necessary configs from env vars or the `.env` file.
 
 You can copy [.env.example](/.env.example) to `${project.rootdir}/.env` and change the values on need, or directly set env vars with `export KEY=VALUE`.
 
@@ -121,10 +121,10 @@ OPENDAL_TEST=fs
 OPENDAL_FS_ROOT=/tmp
 ```
 
-You can run service tests of enabled with the following command:
+You can run service behavior tests of enabled with the following command:
 
 ```shell
-./mvnw test -Dtest=ServiceBehaviorTest
+./mvnw test  -Dtest="behavior.*Test"
 ```
 
 Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
@@ -134,5 +134,5 @@ export OPENDAL_TEST=redis
 export OPENDAL_REDIS_ENDPOINT=tcp://127.0.0.1:6379
 export OPENDAL_REDIS_ROOT=/
 export OPENDAL_REDIS_DB=0
-./mvnw test -Dtest=ServiceBehaviorTest -Dcargo-build.features=services-redis
+./mvnw test -Dtest="behavior.*Test" -Dcargo-build.features=services-redis
 ```

@@ -305,11 +305,22 @@ mod tests {
         let path: Path = "data/test.txt".try_into().unwrap();
 
         let bytes = Bytes::from_static(b"hello, world!");
-        object_store.put(&path, bytes).await.unwrap();
+        object_store.put(&path, bytes.clone()).await.unwrap();
 
         let meta = object_store.head(&path).await.unwrap();
 
-        assert_eq!(meta.size, 13)
+        assert_eq!(meta.size, 13);
+
+        assert_eq!(
+            object_store
+                .get(&path)
+                .await
+                .unwrap()
+                .bytes()
+                .await
+                .unwrap(),
+            bytes
+        );
     }
 
     #[tokio::test]
@@ -327,8 +338,33 @@ mod tests {
             .iter()
             .map(|x| x.as_ref().unwrap().location.as_ref())
             .collect::<Vec<_>>();
+
+        let expected_files = vec![
+            (
+                "data/nested/test.txt",
+                Bytes::from_static(b"hello, world! I am nested."),
+            ),
+            ("data/test.txt", Bytes::from_static(b"hello, world!")),
+        ];
+
+        let expected_locations = expected_files.iter().map(|x| x.0).collect::<Vec<&str>>();
+
         locations.sort();
-        assert_eq!(locations, &["data/nested/test.txt", "data/test.txt"]);
+        assert_eq!(locations, expected_locations);
+
+        for (location, bytes) in expected_files {
+            let path: Path = location.try_into().unwrap();
+            assert_eq!(
+                object_store
+                    .get(&path)
+                    .await
+                    .unwrap()
+                    .bytes()
+                    .await
+                    .unwrap(),
+                bytes
+            );
+        }
     }
 
     #[tokio::test]

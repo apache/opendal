@@ -115,7 +115,7 @@ def plan(changed_files):
                 {
                     "os": "windows-latest",
                     "cases": [
-                        {"setup": "local-fs", "service": "fs", "feature": "services-fs"}
+                        {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
                     ],
                 }
             )

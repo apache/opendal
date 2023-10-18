@@ -15,13 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: local_fs
-description: "Setup local fs"
+import unittest
+from plan import plan
 
-runs:
-    using: "composite"
-    steps:
-        - name: Setup
-          shell: bash
-          run: |
-              echo "OPENDAL_FS_ROOT=${{ runner.temp }}/" >> $GITHUB_ENV
+
+class BehaviorTestPlan(unittest.TestCase):
+    def test_empty(self):
+        result = plan([])
+        self.assertEqual(result, {})
+
+    def test_core_cargo_toml(self):
+        result = plan(["core/Cargo.toml"])
+        self.assertTrue(result["components"]["core"])
+
+    def test_core_services_fs(self):
+        result = plan(["core/src/services/fs/mod.rs"])
+        self.assertTrue(result["components"]["core"])
+        self.assertTrue(len(result["core"]) > 0)
+
+        cases = [v["service"] for v in result["core"][0]["cases"]]
+        # Should not contain fs
+        self.assertTrue("fs" in cases)
+        # Should not contain s3
+        self.assertFalse("s3" in cases)
+
+
+if __name__ == "__main__":
+    unittest.main()

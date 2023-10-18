@@ -65,7 +65,7 @@ jobs:
             git fetch origin main:main
             files_changed=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
             echo "Files changed:"
-            echo "$FILES_CHANGED"
+            echo "$files_changed"
           fi
 
           # Export variables

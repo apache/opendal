@@ -56,13 +56,13 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          cargo nextest archive --features ${{ inputs.features }} --archive-file ./core-test.tar.zst
+          cargo nextest archive --features ${{ inputs.features }} --archive-file ./test-core.tar.zst
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ inputs.os }}-core-test
-          path: ./core/core-test.tar.zst
+          name: ${{ inputs.os }}-test-core
+          path: ./core/test-core.tar.zst
 
   test:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
@@ -79,11 +79,12 @@ jobs:
           need-nextest: true
           need-protoc: true
           need-rocksdb: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download
         uses: actions/download-artifact@v3
         with:
-          name: ${{ inputs.os }}-core-test
+          name: ${{ inputs.os }}-test-core
           path: ./core
 
       - name: Test Core

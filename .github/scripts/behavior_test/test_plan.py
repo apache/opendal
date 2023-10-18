@@ -32,10 +32,12 @@ class BehaviorTestPlan(unittest.TestCase):
         result = plan(["core/src/services/fs/mod.rs"])
         self.assertTrue(result["components"]["core"])
         self.assertTrue(len(result["core"]) > 0)
+
+        cases = [v["service"] for v in result["core"][0]["cases"]]
         # Should not contain fs
-        self.assertTrue("services-fs" in result["core"][0]["features"])
+        self.assertTrue("fs" in cases)
         # Should not contain s3
-        self.assertFalse("services-s3" in result["core"][0]["features"])
+        self.assertFalse("s3" in cases)
 
 
 if __name__ == "__main__":

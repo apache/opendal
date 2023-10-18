@@ -98,11 +98,13 @@ def plan(changed_files):
         jobs["core"] = [
             {
                 "os": "ubuntu-latest",
-                "features": ",".join(
-                    set([f"services-{v['service']}" for v in core_cases])
-                ),
                 "cases": [
-                    {"setup": v["setup"], "service": v["service"]} for v in core_cases
+                    {
+                        "setup": v["setup"],
+                        "service": v["service"],
+                        "feature": "services-{}".format(v["service"].replace("_", "-")),
+                    }
+                    for v in core_cases
                 ],
             },
         ]
@@ -112,8 +114,9 @@ def plan(changed_files):
             jobs["core"].append(
                 {
                     "os": "windows-latest",
-                    "features": "services-fs",
-                    "cases": [{"setup": "local-fs", "service": "fs"}],
+                    "cases": [
+                        {"setup": "local-fs", "service": "fs", "feature": "services-fs"}
+                    ],
                 }
             )
 

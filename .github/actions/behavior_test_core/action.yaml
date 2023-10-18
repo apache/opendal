@@ -22,6 +22,8 @@ inputs:
     description: "The setup action for test"
   service:
     description: "The service to test"
+  feature:
+    description: "The feature to test"
 
 runs:
   using: "composite"
@@ -39,7 +41,7 @@ runs:
               - name: Run Test Core
                 shell: bash
                 working-directory: core
-                run: cargo nextest run behavior --archive-file=./test-core.tar.zst
+                run: cargo nextest run behavior --features ${{ inputs.feature }}
                 env:
                   OPENDAL_TEST: ${{ inputs.service }}
             EOF

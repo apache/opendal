@@ -31,39 +31,6 @@ on:
         type: string
 
 jobs:
-  build:
-    name: build
-    runs-on: ${{ inputs.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
-          need-protoc: true
-          need-rocksdb: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      # Required by hdfs
-      - name: Setup java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: "11"
-
-      - name: Build
-        shell: bash
-        working-directory: core
-        run: |
-          cargo nextest archive --features ${{ inputs.features }} --archive-file ./test-core.tar.zst
-
-      - name: Upload
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ inputs.os }}-test-core
-          path: ./core/test-core.tar.zst
-
   test:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     needs: [build]
@@ -81,13 +48,9 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download
-        uses: actions/download-artifact@v3
-        with:
-          name: ${{ inputs.os }}-test-core
-          path: ./core
-
-      # TODO: 1password is only supported on linux, waiting for https://github.com/1Password/load-secrets-action/issues/46
+      # TODO: 1password is only supported on linux
+      #
+      # Waiting for https://github.com/1Password/load-secrets-action/issues/46
       - name: Setup service account token for 1password
         if: runner.os == 'Linux'
         shell: bash
@@ -98,3 +61,4 @@ jobs:
         with:
             setup: ${{ matrix.cases.setup }}
             service: ${{ matrix.cases.service }}
+            feature: ${{ matrix.cases.feature }}

@@ -15,25 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::backend::DbfsBackend;
-use super::error::parse_error;
 use crate::raw::*;
+use crate::services::dbfs::core::DbfsCore;
 use crate::*;
 
+use super::error::parse_error;
+
 pub struct DbfsPager {
-    backend: DbfsBackend,
+    core: Arc<DbfsCore>,
     path: String,
     done: bool,
 }
 
 impl DbfsPager {
-    pub fn new(backend: DbfsBackend, path: String) -> Self {
+    pub fn new(core: Arc<DbfsCore>, path: String) -> Self {
         Self {
-            backend,
+            core,
             path,
             done: false,
         }
@@ -47,7 +50,7 @@ impl oio::Page for DbfsPager {
             return Ok(None);
         }
 
-        let response = self.backend.dbfs_list(&self.path).await?;
+        let response = self.core.dbfs_list(&self.path).await?;
 
         let status_code = response.status();
         if !status_code.is_success() {

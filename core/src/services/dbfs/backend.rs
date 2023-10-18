@@ -18,26 +18,21 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine;
-use bytes::Bytes;
-use http::header;
-use http::Request;
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
-use serde_json::json;
 
-use super::error::parse_dbfs_read_error;
-use super::error::parse_error;
-use super::pager::DbfsPager;
-use super::reader::IncomingDbfsAsyncBody;
-use super::writer::DbfsWriter;
 use crate::raw::*;
 use crate::*;
+
+use super::core::DbfsCore;
+use super::error::parse_error;
+use super::pager::DbfsPager;
+use super::reader::DbfsReader;
+use super::writer::DbfsWriter;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[doc = include_str!("docs.md")]
@@ -138,10 +133,12 @@ impl Builder for DbfsBuilder {
 
         debug!("backend build finished: {:?}", &self);
         Ok(DbfsBackend {
-            root,
-            endpoint: self.endpoint.clone(),
-            token,
-            client,
+            core: Arc::new(DbfsCore {
+                root,
+                endpoint: endpoint.to_string(),
+                token,
+                client,
+            }),
         })
     }
 }
@@ -149,196 +146,12 @@ impl Builder for DbfsBuilder {
 /// Backend for DBFS service
 #[derive(Debug, Clone)]
 pub struct DbfsBackend {
-    root: String,
-    endpoint: String,
-    token: String,
-    pub(super) client: HttpClient,
-}
-
-impl DbfsBackend {
-    fn dbfs_create_dir_request(&self, path: &str) -> Result<Request<AsyncBody>> {
-        let url = format!("{}/api/2.0/dbfs/mkdirs", self.endpoint);
-        let mut req = Request::post(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let req_body = format!("{{\"path\": \"{}\"}}", percent_encode_path(&p));
-        let body = AsyncBody::Bytes(Bytes::from(req_body));
-
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        Ok(req)
-    }
-
-    async fn dbfs_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let url = format!("{}/api/2.0/dbfs/delete", self.endpoint);
-        let mut req = Request::post(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let request_body = &json!({
-            "path": percent_encode_path(&p),
-            // TODO: support recursive toggle, should we add a new field in OpDelete?
-            "recursive": true,
-        });
-
-        let body = AsyncBody::Bytes(Bytes::from(request_body.to_string()));
-
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn dbfs_rename(&self, from: &str, to: &str) -> Result<Response<IncomingAsyncBody>> {
-        let source = build_rooted_abs_path(&self.root, from);
-        let target = build_rooted_abs_path(&self.root, to);
-
-        let url = format!("{}/api/2.0/dbfs/move", self.endpoint);
-        let mut req = Request::post(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req_body = &json!({
-            "source_path": percent_encode_path(&source),
-            "destination_path": percent_encode_path(&target),
-        });
-
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
-
-        let req = req.body(body).map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub async fn dbfs_list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let url = format!(
-            "{}/api/2.0/dbfs/list?path={}",
-            self.endpoint,
-            percent_encode_path(&p)
-        );
-        let mut req = Request::get(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    pub fn dbfs_create_file_request(&self, path: &str, body: Bytes) -> Result<Request<AsyncBody>> {
-        let url = format!("{}/api/2.0/dbfs/put", self.endpoint);
-
-        let contents = BASE64_STANDARD.encode(body);
-        let mut req = Request::post(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req_body = &json!({
-            "path": path,
-            "contents": contents,
-            // TODO: support overwrite toggle, should we add a new field in OpWrite?
-            "overwrite": true,
-        });
-
-        let body = AsyncBody::Bytes(Bytes::from(req_body.to_string()));
-
-        req.body(body).map_err(new_request_build_error)
-    }
-
-    async fn dbfs_read(
-        &self,
-        path: &str,
-        range: BytesRange,
-    ) -> Result<Response<IncomingDbfsAsyncBody>> {
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let mut url = format!(
-            "{}/api/2.0/dbfs/read?path={}",
-            self.endpoint,
-            percent_encode_path(&p)
-        );
-
-        if let Some(offset) = range.offset() {
-            url.push_str(&format!("&offset={}", offset));
-        }
-
-        if let Some(length) = range.size() {
-            url.push_str(&format!("&length={}", length));
-        }
-
-        let mut req = Request::get(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.client.send_dbfs(req).await
-    }
-
-    async fn dbfs_get_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
-
-        let url = format!(
-            "{}/api/2.0/dbfs/get-status?path={}",
-            &self.endpoint,
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::get(&url);
-
-        let auth_header_content = format!("Bearer {}", self.token);
-        req = req.header(header::AUTHORIZATION, auth_header_content);
-
-        let req = req
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.client.send(req).await
-    }
-
-    async fn dbfs_ensure_parent_path(&self, path: &str) -> Result<()> {
-        let resp = self.dbfs_get_properties(path).await?;
-
-        match resp.status() {
-            StatusCode::OK => return Ok(()),
-            StatusCode::NOT_FOUND => {
-                self.create_dir(path, OpCreateDir::default()).await?;
-            }
-            _ => return Err(parse_error(resp).await?),
-        }
-        Ok(())
-    }
+    core: Arc<DbfsCore>,
 }
 
 #[async_trait]
 impl Accessor for DbfsBackend {
-    type Reader = IncomingDbfsAsyncBody;
+    type Reader = DbfsReader;
     type BlockingReader = ();
     type Writer = oio::OneShotWriter<DbfsWriter>;
     type BlockingWriter = ();
@@ -348,7 +161,7 @@ impl Accessor for DbfsBackend {
     fn info(&self) -> AccessorInfo {
         let mut am = AccessorInfo::default();
         am.set_scheme(Scheme::Dbfs)
-            .set_root(&self.root)
+            .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
 
@@ -370,9 +183,7 @@ impl Accessor for DbfsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let req = self.dbfs_create_dir_request(path)?;
-
-        let resp = self.client.send(req).await?;
+        let resp = self.core.dbfs_create_dir(path).await?;
 
         let status = resp.status();
 
@@ -386,57 +197,69 @@ impl Accessor for DbfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.dbfs_read(path, args.range()).await?;
+        let resp = self.core.dbfs_read(path, args.range()).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                // NOTE: If range is not specified, we need to get content length from stat API.
-                if let Some(size) = args.range().size() {
-                    let mut meta = parse_into_metadata(path, resp.headers())?;
-                    meta.set_content_length(size);
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                } else {
-                    let stat_resp = self.dbfs_get_properties(path).await?;
-                    let meta = match stat_resp.status() {
-                        StatusCode::OK => {
-                            let mut meta = parse_into_metadata(path, stat_resp.headers())?;
-                            let bs = stat_resp.into_body().bytes().await?;
-                            let decoded_response = serde_json::from_slice::<DbfsStatus>(&bs)
-                                .map_err(new_json_deserialize_error)?;
-                            meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
-                                decoded_response.modification_time,
-                            )?);
-                            match decoded_response.is_dir {
-                                true => meta.set_mode(EntryMode::DIR),
-                                false => {
-                                    meta.set_mode(EntryMode::FILE);
-                                    meta.set_content_length(decoded_response.file_size as u64)
-                                }
-                            };
-                            meta
-                        }
-                        _ => return Err(parse_error(stat_resp).await?),
-                    };
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-            _ => Err(parse_dbfs_read_error(resp).await?),
+            _ => Err(parse_error(resp).await?),
         }
+
+        // let resp = self.core.dbfs_read(path, args.range()).await?;
+        //
+        // let status = resp.status();
+        //
+        // match status {
+        //     StatusCode::OK => {
+        //         // NOTE: If range is not specified, we need to get content length from stat API.
+        //         if let Some(size) = args.range().size() {
+        //             let mut meta = parse_into_metadata(path, resp.headers())?;
+        //             meta.set_content_length(size);
+        //             Ok((RpRead::with_metadata(meta), resp.into_body()))
+        //         } else {
+        //             let stat_resp = self.core.dbfs_get_status(path).await?;
+        //             let meta = match stat_resp.status() {
+        //                 StatusCode::OK => {
+        //                     let mut meta = parse_into_metadata(path, stat_resp.headers())?;
+        //                     let bs = stat_resp.into_body().bytes().await?;
+        //                     let decoded_response = serde_json::from_slice::<DbfsStatus>(&bs)
+        //                         .map_err(new_json_deserialize_error)?;
+        //                     meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+        //                         decoded_response.modification_time,
+        //                     )?);
+        //                     match decoded_response.is_dir {
+        //                         true => meta.set_mode(EntryMode::DIR),
+        //                         false => {
+        //                             meta.set_mode(EntryMode::FILE);
+        //                             meta.set_content_length(decoded_response.file_size as u64)
+        //                         }
+        //                     };
+        //                     meta
+        //                 }
+        //                 _ => return Err(parse_error(stat_resp).await?),
+        //             };
+        //             Ok((RpRead::with_metadata(meta), resp.into_body()))
+        //         }
+        //     }
+        //     _ => Err(parse_dbfs_read_error(resp).await?),
+        // }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            oio::OneShotWriter::new(DbfsWriter::new(self.clone(), args, path.to_string())),
+            oio::OneShotWriter::new(DbfsWriter::new(self.core.clone(), args, path.to_string())),
         ))
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        self.dbfs_ensure_parent_path(to).await?;
+        self.core.dbfs_ensure_parent_path(to).await?;
 
-        let resp = self.dbfs_rename(from, to).await?;
+        let resp = self.core.dbfs_rename(from, to).await?;
 
         let status = resp.status();
 
@@ -455,7 +278,7 @@ impl Accessor for DbfsBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.dbfs_get_properties(path).await?;
+        let resp = self.core.dbfs_get_status(path).await?;
 
         let status = resp.status();
 
@@ -486,7 +309,7 @@ impl Accessor for DbfsBackend {
 
     /// NOTE: Server will return 200 even if the path doesn't exist.
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.dbfs_delete(path).await?;
+        let resp = self.core.dbfs_delete(path).await?;
 
         let status = resp.status();
 
@@ -503,7 +326,7 @@ impl Accessor for DbfsBackend {
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = DbfsPager::new(self.clone(), path.to_string());
+        let op = DbfsPager::new(self.core.clone(), path.to_string());
 
         Ok((RpList::default(), op))
     }

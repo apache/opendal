@@ -15,25 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use http::StatusCode;
 
-use super::backend::DbfsBackend;
-use super::error::parse_error;
 use crate::raw::oio::WriteBuf;
 use crate::raw::*;
+use crate::services::dbfs::core::DbfsCore;
 use crate::*;
 
+use super::error::parse_error;
+
 pub struct DbfsWriter {
-    backend: DbfsBackend,
+    core: Arc<DbfsCore>,
     path: String,
 }
 
 impl DbfsWriter {
     const MAX_SIMPLE_SIZE: usize = 1024 * 1024;
 
-    pub fn new(backend: DbfsBackend, _op: OpWrite, path: String) -> Self {
-        DbfsWriter { backend, path }
+    pub fn new(core: Arc<DbfsCore>, _op: OpWrite, path: String) -> Self {
+        DbfsWriter { core, path }
     }
 }
 
@@ -51,9 +54,9 @@ impl oio::OneShotWrite for DbfsWriter {
             ));
         }
 
-        let req = self.backend.dbfs_create_file_request(&self.path, bs)?;
+        let req = self.core.dbfs_create_file_request(&self.path, bs)?;
 
-        let resp = self.backend.client.send(req).await?;
+        let resp = self.core.client.send(req).await?;
 
         let status = resp.status();
         match status {

@@ -17,6 +17,8 @@
 
 mod backend;
 pub use backend::DbfsBuilder as Dbfs;
+
+mod core;
 mod error;
 mod pager;
 mod reader;

@@ -1,4 +1,6 @@
-# OpenDAL Ruby Binding
+# OpenDAL Ruby Binding (WIP)
+
+![](https://img.shields.io/badge/status-unreleased-red)
 
 This crate intends to build a native ruby binding.
 

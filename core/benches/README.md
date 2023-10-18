@@ -1,5 +1,11 @@
 # OpenDAL Benchmarks
 
+Running benchmark
+
+```shell
+OPENDAL_TEST=memory cargo bench
+```
+
 Build flamegraph:
 
 ```shell

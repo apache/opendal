@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Test
+name: Behavior Test
 
 on:
   push:
@@ -62,10 +62,9 @@ jobs:
               has_secrets="true"
             fi
 
-            git fetch origin main:main
-            files_changed=$(git diff --name-only main ${{ github.event.pull_request.head.sha }})
+            files_changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
             echo "Files changed:"
-            echo "$FILES_CHANGED"
+            echo "$files_changed"
           fi
 
           # Export variables
@@ -73,12 +72,12 @@ jobs:
           export GITHUB_IS_PUSH=$is_push
 
           # Run the workflow planner script
-          PLAN=$(./scripts/workflow_planner.py $files_changed)
+          PLAN=$(./.github/scripts/behavior_test/plan.py $files_changed)
           echo "Plan:"
           echo "$PLAN" | jq .
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
 
-  core_test:
+  test_core:
     name: core / ${{ matrix.os }}
     needs: [plan]
     if: fromJson(needs.plan.outputs.plan).components.core
@@ -86,8 +85,20 @@ jobs:
     strategy:
       matrix:
         include: ${{ fromJson(needs.plan.outputs.plan).core }}
-    uses: ./.github/workflows/core_test.yml
+    uses: ./.github/workflows/behavior_test_core.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
-      features: ${{ matrix.features }}
+
+  test_binding_java:
+    name: binding_java / ${{ matrix.os }}
+    needs: [plan]
+    if: fromJson(needs.plan.outputs.plan).components.binding_java
+    secrets: inherit
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).binding_java }}
+    uses: ./.github/workflows/behavior_test_binding_java.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}

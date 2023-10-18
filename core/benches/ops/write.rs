@@ -23,15 +23,8 @@ use size::Size;
 use super::utils::*;
 
 pub fn bench(c: &mut Criterion) {
-    for case in services() {
-        if case.1.is_none() {
-            println!("{} not set, ignore", case.0);
-            continue;
-        }
-
-        let op = case.1.unwrap();
-
-        bench_write_once(c, case.0, op.clone());
+    if let Some(op) = init_service() {
+        bench_write_once(c, op.info().scheme().into_static(), op.clone());
     }
 }
 

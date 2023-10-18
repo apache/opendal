@@ -17,17 +17,31 @@
  * under the License.
  */
 
-package org.apache.opendal.test.behavior;
+package org.apache.opendal;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
+import lombok.experimental.UtilityClass;
 
-class MemoryBehaviorTest extends AbstractBehaviorTest {
-    protected MemoryBehaviorTest() {
-        super("memory", createSchemeConfig());
+/**
+ * Utility facade for top-level functions.
+ */
+@UtilityClass
+public class OpenDAL {
+    static {
+        NativeLibrary.loadLibrary();
+        final Set<String> enabledServices = new HashSet<>(Arrays.asList(loadEnabledServices()));
+        ENABLED_SERVICES = Collections.unmodifiableSet(enabledServices);
     }
 
-    private static Map<String, String> createSchemeConfig() {
-        return Collections.singletonMap("root", "/tmp");
+    private static final Set<String> ENABLED_SERVICES;
+
+    public static Collection<String> enabledServices() {
+        return ENABLED_SERVICES;
     }
+
+    private static native String[] loadEnabledServices();
 }

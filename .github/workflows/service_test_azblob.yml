@@ -63,11 +63,11 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run azblob
+        run: cargo nextest run behavior
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_AZBLOB_TEST: on
+          OPENDAL_TEST: azblob
           OPENDAL_AZBLOB_CONTAINER: test
           OPENDAL_AZBLOB_ENDPOINT: "http://127.0.0.1:10000/devstoreaccount1"
           OPENDAL_AZBLOB_ACCOUNT_NAME: devstoreaccount1
@@ -90,7 +90,6 @@ jobs:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          OPENDAL_AZBLOB_TEST: op://services/azblob/test
           OPENDAL_AZBLOB_CONTAINER: op://services/azblob/container
           OPENDAL_AZBLOB_ENDPOINT: op://services/azblob/endpoint
           OPENDAL_AZBLOB_ACCOUNT_NAME: op://services/azblob/account_name
@@ -99,4 +98,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run azblob
+        run: cargo nextest run behavior
+        env:
+          OPENDAL_TEST: azblob

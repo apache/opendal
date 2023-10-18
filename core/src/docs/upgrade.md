@@ -1,3 +1,20 @@
+# Unreleased
+
+## Public API
+
+### MSRV Changed
+
+OpenDAL bumps it's MSRV to 1.67.0.
+
+### S3 Service Configuration
+
+- The `enable_exact_buf_write` option has been deprecated and is superseded by `BufferedWriter`, introduced in version 0.40.
+
+### Oss Service Configuration
+
+- The `write_min_size` option has been deprecated and replaced by `BufferedWriter`, also introduced in version 0.40.
+- A new setting, `allow_anonymous`, has been added. Since v0.41, OSS will now return an error if credential loading fails. Enabling `allow_anonymous` to fallback to request without credentials.
+
 # Upgrade to v0.41
 
 There is no public API and raw API changes.

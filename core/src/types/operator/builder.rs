@@ -157,7 +157,7 @@ impl Operator {
             Scheme::Atomicserver => Self::from_map::<services::Atomicserver>(map)?.finish(),
             #[cfg(feature = "services-azblob")]
             Scheme::Azblob => Self::from_map::<services::Azblob>(map)?.finish(),
-            #[cfg(feature = "services-Azdls")]
+            #[cfg(feature = "services-azdls")]
             Scheme::Azdls => Self::from_map::<services::Azdls>(map)?.finish(),
             #[cfg(feature = "services-cacache")]
             Scheme::Cacache => Self::from_map::<services::Cacache>(map)?.finish(),
@@ -165,6 +165,8 @@ impl Operator {
             Scheme::Cos => Self::from_map::<services::Cos>(map)?.finish(),
             #[cfg(feature = "services-dashmap")]
             Scheme::Dashmap => Self::from_map::<services::Dashmap>(map)?.finish(),
+            #[cfg(feature = "services-dropbox")]
+            Scheme::Dropbox => Self::from_map::<services::Dropbox>(map)?.finish(),
             #[cfg(feature = "services-etcd")]
             Scheme::Etcd => Self::from_map::<services::Etcd>(map)?.finish(),
             #[cfg(feature = "services-foundationdb")]
@@ -185,6 +187,8 @@ impl Operator {
             Scheme::Ipfs => Self::from_map::<services::Ipfs>(map)?.finish(),
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs => Self::from_map::<services::Ipmfs>(map)?.finish(),
+            #[cfg(feature = "services-libsql")]
+            Scheme::Libsql => Self::from_map::<services::Libsql>(map)?.finish(),
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached => Self::from_map::<services::Memcached>(map)?.finish(),
             #[cfg(feature = "services-memory")]
@@ -193,10 +197,14 @@ impl Operator {
             Scheme::MiniMoka => Self::from_map::<services::MiniMoka>(map)?.finish(),
             #[cfg(feature = "services-moka")]
             Scheme::Moka => Self::from_map::<services::Moka>(map)?.finish(),
+            #[cfg(feature = "services-mysql")]
+            Scheme::Mysql => Self::from_map::<services::Mysql>(map)?.finish(),
             #[cfg(feature = "services-obs")]
             Scheme::Obs => Self::from_map::<services::Obs>(map)?.finish(),
             #[cfg(feature = "services-onedrive")]
             Scheme::Onedrive => Self::from_map::<services::Onedrive>(map)?.finish(),
+            #[cfg(feature = "services-postgresql")]
+            Scheme::Postgresql => Self::from_map::<services::Postgresql>(map)?.finish(),
             #[cfg(feature = "services-gdrive")]
             Scheme::Gdrive => Self::from_map::<services::Gdrive>(map)?.finish(),
             #[cfg(feature = "services-oss")]
@@ -213,8 +221,12 @@ impl Operator {
             Scheme::Sftp => Self::from_map::<services::Sftp>(map)?.finish(),
             #[cfg(feature = "services-sled")]
             Scheme::Sled => Self::from_map::<services::Sled>(map)?.finish(),
+            #[cfg(feature = "services-sqlite")]
+            Scheme::Sqlite => Self::from_map::<services::Sqlite>(map)?.finish(),
             #[cfg(feature = "services-supabase")]
             Scheme::Supabase => Self::from_map::<services::Supabase>(map)?.finish(),
+            #[cfg(feature = "services-tikv")]
+            Scheme::Tikv => Self::from_map::<services::Tikv>(map)?.finish(),
             #[cfg(feature = "services-vercel-artifacts")]
             Scheme::VercelArtifacts => Self::from_map::<services::VercelArtifacts>(map)?.finish(),
             #[cfg(feature = "services-wasabi")]

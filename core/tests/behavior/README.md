@@ -11,14 +11,12 @@ To run the behavior tests, please copy the `.env.example`, which is at project r
 Take `fs` for example, we need to change to enable behavior test on `fs` on `/tmp`.
 
 ```dotenv
-OPENDAL_FS_TEST=false
 OPENDAL_FS_ROOT=/path/to/dir
 ```
 
 into
 
 ```dotenv
-OPENDAL_FS_TEST=on
 OPENDAL_FS_ROOT=/tmp
 ```
 
@@ -26,34 +24,26 @@ Notice: If the env variables are not set, all behavior tests will be skipped by 
 
 ## Run
 
-Test all available backends.
+Use `OPENDAL_TEST` to control which service to test:
 
 ```shell
-cargo test
+OPENDAL_TEST=fs cargo test behavior
 ```
 
-Test specific backend(such as `fs`).
+To run certain types of tests(such as `write`), we use `behavior::test_write`.
 
 ```shell
-cargo test services_fs
-```
-
-As `cargo test` only run tests containing the following string in their names, we use `services_fs` to run all tests under `services::fs`.
-
-To run certain types of tests(such as `write`) for `fs`, we use `services_fs::test_write`.
-
-```shell
-cargo test services_fs::test_write
+OPENDAL_TEST=fs cargo test behavior::test_write
 ```
 
 You can also run specific test(such as `test_stat_dir`) for specific backend.
 
 ```shell
-cargo test services_fs::test_stat_dir
+OPENDAL_TEST=fs cargo test behavior::test_stat_dir
 ```
 
 ## Debug
 
-To debug a behavior test, you can use `RUST_LOG=debug RUST_BACKTRACE=full cargo test -- --show-output` to print the log with backtrace.
+To debug a behavior test, you can use `RUST_LOG=debug RUST_BACKTRACE=full cargo test behavior -- --show-output` to print the log with backtrace.
 
 For more details, please visit [cargo test](https://doc.rust-lang.org/cargo/commands/cargo-test.html) or run the command `cargo test --help`.

@@ -66,14 +66,12 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run tikv --features services-tikv
+        run: cargo nextest run behavior --features services-tikv
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
-          OPENDAL_TIKV_TEST: on
+          OPENDAL_TEST: tikv
           OPENDAL_TIKV_ENDPOINTS: "127.0.0.1:2379"
           OPENDAL_TIKV_INSECURE: true
-    
+
   tikv-tls:
     runs-on: ubuntu-latest
     steps:
@@ -129,11 +127,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run tikv --features services-tikv
+        run: cargo nextest run behavior --features services-tikv
         env:
-            RUST_BACKTRACE: full
-            RUST_LOG: debug
-            OPENDAL_TIKV_TEST: on
+            OPENDAL_TEST: tikv
             OPENDAL_TIKV_ENDPOINTS: "https://127.0.0.1:2379"
             OPENDAL_TIKV_INSECURE: false
             OPENDAL_TIKV_CA_PATH: "/tmp/tikv/ssl/ca.pem"

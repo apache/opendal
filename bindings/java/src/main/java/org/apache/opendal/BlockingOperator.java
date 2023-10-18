@@ -54,6 +54,16 @@ public class BlockingOperator extends NativeObject {
         this.info = info;
     }
 
+    /**
+     * @return the cloned blocking operator.
+     *
+     * @see Operator#duplicate()
+     */
+    public BlockingOperator duplicate() {
+        final long nativeHandle = duplicate(this.nativeHandle);
+        return new BlockingOperator(nativeHandle, this.info);
+    }
+
     public void write(String path, String content) {
         write(path, content.getBytes(StandardCharsets.UTF_8));
     }
@@ -110,6 +120,8 @@ public class BlockingOperator extends NativeObject {
 
     @Override
     protected native void disposeInternal(long handle);
+
+    private static native long duplicate(long nativeHandle);
 
     private static native void write(long nativeHandle, String path, byte[] content);
 

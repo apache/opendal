@@ -56,9 +56,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run sqlite --features services-sqlite
+        run: cargo nextest run behavior --features services-sqlite
         env:
-          OPENDAL_SQLITE_TEST: on
+          OPENDAL_TEST: sqlite
           OPENDAL_SQLITE_CONNECTION_STRING: file:///tmp/opendal/test.db
           OPENDAL_SQLITE_TABLE: data
           OPENDAL_SQLITE_KEY_FIELD: key

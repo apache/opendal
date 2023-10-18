@@ -45,9 +45,9 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Create azblob backend builder.
+    // Create azdls backend builder.
     let mut builder = Azdls::default();
-    // Set the root for azblob, all operations will happen under this root.
+    // Set the root for azdls, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.
     builder.root("/path/to/dir");

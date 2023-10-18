@@ -75,6 +75,19 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) -> jlong {
+    let op = &mut *op;
+    Box::into_raw(Box::new(op.clone())) as jlong
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
     _: JNIEnv,
     _: JObject,

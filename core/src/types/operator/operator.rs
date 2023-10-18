@@ -1007,7 +1007,7 @@ impl Operator {
     /// # }
     /// ```
     pub async fn list(&self, path: &str) -> Result<Vec<Entry>> {
-        self.lister_with(path).await?.try_collect().await
+        self.list_with(path).await
     }
 
     /// List entries within a given directory with options.

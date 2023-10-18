@@ -21,6 +21,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::SeekFrom;
+use std::str::FromStr;
 use std::usize;
 
 use bytes::Bytes;
@@ -42,12 +43,20 @@ use crate::RUNTIME;
 
 /// Init a service with given scheme.
 ///
-/// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
+/// - Load scheme from `OPENDAL_TEST`
+/// - Construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
-pub fn init_service<B: Builder>() -> Option<Operator> {
+pub fn init_service() -> anyhow::Result<Option<Operator>> {
     let _ = dotenvy::dotenv();
 
-    let prefix = format!("opendal_{}_", B::SCHEME);
+    let scheme = if let Ok(v) = env::var("OPENDAL_TEST") {
+        v
+    } else {
+        return Ok(None);
+    };
+    let scheme = Scheme::from_str(&scheme).unwrap();
+
+    let prefix = format!("opendal_{scheme}_");
 
     let mut cfg = env::vars()
         .filter_map(|(k, v)| {
@@ -56,12 +65,6 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
                 .map(|k| (k.to_string(), v))
         })
         .collect::<HashMap<String, String>>();
-
-    let turn_on_test = cfg.get("test").cloned().unwrap_or_default();
-
-    if turn_on_test != "on" && turn_on_test != "true" {
-        return None;
-    }
 
     // Use random root unless OPENDAL_DISABLE_RANDOM_ROOT is set to true.
     let disable_random_root = env::var("OPENDAL_DISABLE_RANDOM_ROOT").unwrap_or_default() == "true";
@@ -74,7 +77,7 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
         cfg.insert("root".to_string(), root);
     }
 
-    let op = Operator::from_map::<B>(cfg).expect("must succeed");
+    let op = Operator::via_map(scheme, cfg).expect("must succeed");
 
     #[cfg(feature = "layers-chaos")]
     let op = {
@@ -85,15 +88,15 @@ pub fn init_service<B: Builder>() -> Option<Operator> {
     let mut op = op
         .layer(LoggingLayer::default().with_backtrace_output(true))
         .layer(TimeoutLayer::new())
-        .layer(RetryLayer::new().with_max_times(4))
-        .finish();
+        .layer(RetryLayer::new().with_max_times(4));
 
+    // Enable blocking layer if needed.
     if !op.info().full_capability().blocking {
         let _guard = RUNTIME.enter();
         op = op.layer(BlockingLayer::create().expect("blocking layer must be created"))
     }
 
-    Some(op)
+    Ok(Some(op))
 }
 
 pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
@@ -132,11 +135,10 @@ where
     F: FnOnce(Operator) -> Fut + Send + 'static,
     Fut: Future<Output = anyhow::Result<()>>,
 {
-    let name = format!("services_{}::{}", op.info().scheme(), name);
     let handle = RUNTIME.handle().clone();
     let op = op.clone();
 
-    Trial::test(name, move || {
+    Trial::test(format!("behavior::{name}"), move || {
         handle
             .block_on(f(op))
             .map_err(|err| Failed::from(err.to_string()))
@@ -157,10 +159,9 @@ pub fn build_blocking_trial<F>(name: &str, op: &Operator, f: F) -> Trial
 where
     F: FnOnce(BlockingOperator) -> anyhow::Result<()> + Send + 'static,
 {
-    let name = format!("services_{}::{}", op.info().scheme(), name);
     let op = op.blocking();
 
-    Trial::test(name, move || {
+    Trial::test(format!("behavior::{name}"), move || {
         f(op).map_err(|err| Failed::from(err.to_string()))
     })
 }

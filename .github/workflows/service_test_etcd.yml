@@ -40,7 +40,7 @@ concurrency:
 jobs:
   etcd:
     runs-on: ubuntu-latest
-          
+
     services:
         etcd:
             image: bitnami/etcd:latest
@@ -64,15 +64,15 @@ jobs:
         - name: Test
           shell: bash
           working-directory: core
-          run: cargo nextest run etcd --features services-etcd
+          run: cargo nextest run behavior --features services-etcd
           env:
-            OPENDAL_ETCD_TEST: on
+            OPENDAL_TEST: etcd
             OPENDAL_ETCD_ENDPOINTS: http://127.0.0.1:2379
             OPENDAL_ETCD_ROOT: /tmp/opendal
 
   etcd-cluster:
     runs-on: ubuntu-latest
-        
+
     services:
         etcd1:
           image: bitnami/etcd:latest
@@ -133,9 +133,9 @@ jobs:
         - name: Test
           shell: bash
           working-directory: core
-          run: cargo nextest run etcd --features services-etcd
+          run: cargo nextest run behavior --features services-etcd
           env:
-            OPENDAL_ETCD_TEST: on
+            OPENDAL_TEST: etcd
             OPENDAL_ETCD_ENDPOINTS: http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792
             OPENDAL_ETCD_ROOT: /tmp/opendal
 
@@ -161,7 +161,7 @@ jobs:
             for no in `seq 0 2`; do \
                 num=$((no+1))
                 ip=$((no+2))
-            
+
                 docker run -d \
                 -p 2379${no}:2379 \
                 -p 2380${no}:2380 \
@@ -204,9 +204,9 @@ jobs:
         - name: Test
           shell: bash
           working-directory: core
-          run: cargo nextest run etcd --features services-etcd
+          run: cargo nextest run behavior --features services-etcd
           env:
-            OPENDAL_ETCD_TEST: on
+            OPENDAL_TEST: etcd
             OPENDAL_ETCD_ENDPOINTS: https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792
             OPENDAL_ETCD_ROOT: /tmp/opendal
             OPENDAL_ETCD_USERNAME: root

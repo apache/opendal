@@ -22,7 +22,6 @@ package org.apache.opendal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.apache.opendal.args.OpList;
 import org.apache.opendal.args.OpList.Metakey;
 import org.apache.opendal.args.OpList.OpListBuilder;
@@ -106,7 +105,7 @@ public class BlockingOperator extends NativeObject {
                 opList.getLimit(),
                 opList.getStartAfter().orElse(null),
                 opList.getDelimiter().orElse(null),
-                Stream.of(opList.getMetakeys()).mapToInt(Metakey::getId).toArray());
+                opList.getMetakeys().stream().mapToInt(Metakey::getId).toArray());
     }
 
     @Override

@@ -38,6 +38,7 @@ use opendal::Scheme;
 use crate::get_current_env;
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
+use crate::jstring_to_option_string;
 use crate::jstring_to_string;
 use crate::make_entry;
 use crate::make_metadata;
@@ -495,16 +496,8 @@ fn intern_list_with(
     } else {
         Some(limit as usize)
     };
-    let start_after = if start_after.is_null() {
-        None
-    } else {
-        Some(jstring_to_string(env, &start_after)?)
-    };
-    let delimiter = if delimiter.is_null() {
-        None
-    } else {
-        Some(jstring_to_string(env, &delimiter)?)
-    };
+    let start_after = jstring_to_option_string(env, &start_after)?;
+    let delimiter = jstring_to_option_string(env, &delimiter)?;
     let metakey = metakey_to_flagset(env, metakeys)?;
 
     unsafe { get_global_runtime() }.spawn(async move {

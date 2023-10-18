@@ -28,6 +28,7 @@ use jni::JNIEnv;
 use opendal::BlockingOperator;
 use opendal::Metakey;
 
+use crate::jstring_to_option_string;
 use crate::jstring_to_string;
 use crate::make_entry;
 use crate::make_metadata;
@@ -278,10 +279,10 @@ fn intern_list_with(
     if limit >= 0 {
         op = op.limit(limit as usize);
     }
-    if !start_after.is_null() {
+    if jstring_to_option_string(env, &start_after)?.is_some() {
         op = op.start_after(jstring_to_string(env, &start_after)?.as_str());
     }
-    if !delimiter.is_null() {
+    if jstring_to_option_string(env, &delimiter)?.is_some() {
         op = op.delimiter(jstring_to_string(env, &delimiter)?.as_str());
     }
 

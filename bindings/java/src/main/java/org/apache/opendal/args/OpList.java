@@ -19,7 +19,10 @@
 
 package org.apache.opendal.args;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -46,7 +49,7 @@ public class OpList<T> {
     /**
      * The metakey of the metadata that be queried. Default to be {@link Metakey#Mode}.
      */
-    private final Metakey[] metakeys;
+    private final Set<Metakey> metakeys;
     /**
      * The list function.
      */
@@ -67,7 +70,7 @@ public class OpList<T> {
             long limit,
             Optional<String> startAfter,
             Optional<String> delimiter,
-            Metakey... metakeys) {
+            Set<Metakey> metakeys) {
         this.path = path;
         this.limit = limit;
         this.startAfter = startAfter;
@@ -157,15 +160,15 @@ public class OpList<T> {
         private long limit;
         private Optional<String> startAfter;
         private Optional<String> delimiter;
-        private Metakey[] metakeys;
+        private Set<Metakey> metakeys;
 
         private OpListBuilder(String path, @NonNull Function<OpList<T>, T> listFunc) {
+            this.path = path;
+            this.listFunc = listFunc;
             this.limit = -1L;
             this.startAfter = Optional.empty();
             this.delimiter = Optional.empty();
-            this.metakeys = new Metakey[] {Metakey.Mode};
-            this.path = path;
-            this.listFunc = listFunc;
+            this.metakeys = new HashSet<>();
         }
 
         /**
@@ -206,7 +209,7 @@ public class OpList<T> {
          * @return         the updated {@link OpListBuilder} object
          */
         public OpListBuilder<T> metakeys(Metakey... metakeys) {
-            this.metakeys = metakeys;
+            this.metakeys.addAll(Arrays.asList(metakeys));
             return this;
         }
 

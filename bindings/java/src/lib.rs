@@ -339,6 +339,14 @@ fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObjec
     )
 }
 
+fn jstring_to_option_string(env: &mut JNIEnv, s: &JString) -> Result<Option<String>> {
+    if s.is_null() {
+        Ok(None)
+    } else {
+        Ok(Some(jstring_to_string(env, s)?))
+    }
+}
+
 /// # Safety
 ///
 /// The caller must guarantee that the Object passed in is an instance
@@ -349,6 +357,9 @@ fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
 }
 
 fn metakey_to_flagset(env: &mut JNIEnv, metakeys: jintArray) -> Result<Option<FlagSet<Metakey>>> {
+    if metakeys.is_null() {
+        return Ok(None);
+    }
     let metakeys = unsafe { JPrimitiveArray::from_raw(metakeys) };
     let len = env.get_array_length(&metakeys)?;
     let mut buf: Vec<jint> = vec![0; len as usize];

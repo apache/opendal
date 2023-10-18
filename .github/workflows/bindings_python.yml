@@ -78,10 +78,14 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     if: "startsWith(github.ref, 'refs/tags/')"
+    strategy:
+      matrix:
+        target: [x86_64, aarch64, armv7l]
     steps:
       - uses: actions/checkout@v4
       - uses: PyO3/maturin-action@v1
         with:
+          target: ${{ matrix.target }}
           manylinux: auto
           working-directory: "bindings/python"
           command: build

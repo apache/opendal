@@ -82,9 +82,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run ftp --features services-ftp
+        run: cargo nextest run behavior --features services-ftp
         env:
-          OPENDAL_FTP_TEST: on
+          OPENDAL_TEST: ftp
           OPENDAL_FTP_ENDPOINT: ftp://127.0.0.1:2121
           OPENDAL_FTP_ROOT: /
           OPENDAL_FTP_USER: admin

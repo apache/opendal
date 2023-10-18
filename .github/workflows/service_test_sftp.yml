@@ -58,9 +58,9 @@ jobs:
         shell: bash
         timeout-minutes: 10
         working-directory: core
-        run: cargo nextest run sftp --features services-sftp
+        run: cargo nextest run behavior --features services-sftp
         env:
-          OPENDAL_SFTP_TEST: on
+          OPENDAL_TEST: sftp
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
           OPENDAL_SFTP_ROOT: /upload/sftp_test/
           OPENDAL_SFTP_USER: foo
@@ -92,9 +92,9 @@ jobs:
         shell: bash
         timeout-minutes: 10
         working-directory: core
-        run: cargo nextest run sftp --features services-sftp
+        run: cargo nextest run behavior --features services-sftp
         env:
-          OPENDAL_SFTP_TEST: on
+          OPENDAL_TEST: sftp
           OPENDAL_SFTP_ENDPOINT: ssh://127.0.0.1:2222
           OPENDAL_SFTP_USER: foo
           OPENDAL_SFTP_KEY: ${{ github.workspace }}/target/ssh/id_rsa

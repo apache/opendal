@@ -51,10 +51,9 @@ jobs:
         working-directory: core
         run: |
           sudo service foundationdb start
-          cargo test foundationdb --features services-foundationdb -j=1
+          cargo test behavior --features services-foundationdb -j=1
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
-          OPENDAL_FOUNDATIONDB_TEST: off
+          # TODO: enable test when we are ready.
+          # OPENDAL_TEST: foundationdb
           OPENDAL_FOUNDATIONDB_ROOT: /tmp/opendal
           OPENDAL_FOUNDATIONDB_CONFIG_PATH: /etc/foundationdb/foundationdb.conf

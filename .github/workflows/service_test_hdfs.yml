@@ -61,12 +61,13 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
-          cargo test services_hdfs --features services-hdfs
+          export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+          export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
+
+          cargo test behavior --features services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          OPENDAL_HDFS_TEST: on
+          OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: default
 
@@ -119,11 +120,11 @@ jobs:
         working-directory: core
         run: |
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+          export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
 
-          cargo test services_hdfs --features services-hdfs
+          cargo test behavior --features services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.2.4"
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native:${{ env.LD_LIBRARY_PATH }}
-          OPENDAL_HDFS_TEST: on
+          OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020

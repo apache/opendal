@@ -23,10 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import io.github.cdimascio.dotenv.Dotenv;
-import io.github.cdimascio.dotenv.DotenvEntry;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -41,17 +38,16 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class AbstractBehaviorTest {
+    protected final Logger log = LoggerFactory.getLogger(getClass());
     protected final String scheme;
     protected final Map<String, String> config;
     protected Operator operator;
     protected BlockingOperator blockingOperator;
-
-    protected AbstractBehaviorTest(String scheme) {
-        this(scheme, createSchemeConfig(scheme));
-    }
 
     protected AbstractBehaviorTest(String scheme, Map<String, String> config) {
         this.scheme = scheme;
@@ -60,9 +56,12 @@ public abstract class AbstractBehaviorTest {
 
     @BeforeAll
     public void setup() {
-        assertThat(isSchemeEnabled(config))
-                .describedAs("service test for " + scheme + " is not enabled.")
-                .isTrue();
+        log.info(
+                "\n================================================================================"
+                        + "\nTest {} is running with scheme {}."
+                        + "\n--------------------------------------------------------------------------------",
+                getClass().getCanonicalName(),
+                scheme);
         this.operator = Operator.of(scheme, config);
         this.blockingOperator = BlockingOperator.of(scheme, config);
     }
@@ -194,7 +193,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testCreateDir() {
-            final String path = String.format("%s/", UUID.randomUUID().toString());
+            final String path = UUID.randomUUID() + "/";
             operator.createDir(path).join();
 
             final Metadata meta = operator.stat(path).join();
@@ -208,7 +207,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testCreateDirExisting() {
-            final String path = String.format("%s/", UUID.randomUUID().toString());
+            final String path = UUID.randomUUID() + "/";
             operator.createDir(path).join();
             operator.createDir(path).join();
 
@@ -283,7 +282,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testCopySourceDir() {
-            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String sourcePath = UUID.randomUUID() + "/";
             final String targetPath = UUID.randomUUID().toString();
 
             assertThatThrownBy(() -> operator.copy(sourcePath, targetPath).join())
@@ -300,7 +299,7 @@ public abstract class AbstractBehaviorTest {
 
             operator.write(sourcePath, content).join();
 
-            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID() + "/";
             operator.createDir(targetPath).join();
 
             assertThatThrownBy(() -> operator.copy(sourcePath, targetPath).join())
@@ -336,11 +335,8 @@ public abstract class AbstractBehaviorTest {
 
             operator.write(sourcePath, content).join();
 
-            final String targetPath = String.format(
-                    "%s/%s/%s",
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString());
+            final String targetPath =
+                    String.format("%s/%s/%s", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
             operator.copy(sourcePath, targetPath).join();
 
@@ -351,7 +347,7 @@ public abstract class AbstractBehaviorTest {
         }
 
         /**
-         * Copy to a exist path should overwrite successfully.
+         * Copy to an existing path should overwrite successfully.
          */
         @Test
         public void testCopyOverwrite() {
@@ -424,7 +420,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testRenameSourceDir() {
-            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String sourcePath = UUID.randomUUID() + "/";
             final String targetPath = UUID.randomUUID().toString();
 
             operator.createDir(sourcePath).join();
@@ -445,7 +441,7 @@ public abstract class AbstractBehaviorTest {
 
             operator.write(sourcePath, content).join();
 
-            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID() + "/";
 
             operator.createDir(targetPath).join();
 
@@ -482,11 +478,8 @@ public abstract class AbstractBehaviorTest {
 
             operator.write(sourcePath, content).join();
 
-            final String targetPath = String.format(
-                    "%s/%s/%s",
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString());
+            final String targetPath =
+                    String.format("%s/%s/%s", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
             operator.rename(sourcePath, targetPath).join();
 
@@ -500,7 +493,7 @@ public abstract class AbstractBehaviorTest {
         }
 
         /**
-         * Rename to a exist path should overwrite successfully.
+         * Rename to an existing path should overwrite successfully.
          */
         @Test
         public void testRenameOverwrite() {
@@ -589,7 +582,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testBlockingCreateDir() {
-            final String path = String.format("%s/", UUID.randomUUID().toString());
+            final String path = UUID.randomUUID() + "/";
             blockingOperator.createDir(path);
 
             final Metadata meta = blockingOperator.stat(path);
@@ -603,7 +596,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testBlockingDirExisting() {
-            final String path = String.format("%s/", UUID.randomUUID().toString());
+            final String path = UUID.randomUUID() + "/";
             blockingOperator.createDir(path);
             blockingOperator.createDir(path);
 
@@ -660,7 +653,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testBlockingCopySourceDir() {
-            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String sourcePath = UUID.randomUUID() + "/";
             final String targetPath = UUID.randomUUID().toString();
 
             blockingOperator.createDir(sourcePath);
@@ -681,7 +674,7 @@ public abstract class AbstractBehaviorTest {
 
             blockingOperator.write(sourcePath, sourceContent);
 
-            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID() + "/";
 
             blockingOperator.createDir(targetPath);
 
@@ -718,11 +711,8 @@ public abstract class AbstractBehaviorTest {
 
             blockingOperator.write(sourcePath, content);
 
-            final String targetPath = String.format(
-                    "%s/%s/%s",
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString());
+            final String targetPath =
+                    String.format("%s/%s/%s", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
             blockingOperator.copy(sourcePath, targetPath);
 
@@ -733,7 +723,7 @@ public abstract class AbstractBehaviorTest {
         }
 
         /**
-         * Copy to a exist path should overwrite successfully.
+         * Copy to an existing path should overwrite successfully.
          */
         @Test
         public void testBlockingCopyOverwrite() {
@@ -806,7 +796,7 @@ public abstract class AbstractBehaviorTest {
          */
         @Test
         public void testBlockingRenameSourceDir() {
-            final String sourcePath = String.format("%s/", UUID.randomUUID().toString());
+            final String sourcePath = UUID.randomUUID() + "/";
             final String targetPath = UUID.randomUUID().toString();
 
             blockingOperator.createDir(sourcePath);
@@ -825,7 +815,7 @@ public abstract class AbstractBehaviorTest {
 
             blockingOperator.write(sourcePath, sourceContent);
 
-            final String targetPath = String.format("%s/", UUID.randomUUID().toString());
+            final String targetPath = UUID.randomUUID() + "/";
 
             blockingOperator.createDir(targetPath);
 
@@ -862,11 +852,8 @@ public abstract class AbstractBehaviorTest {
 
             blockingOperator.write(sourcePath, sourceContent);
 
-            final String targetPath = String.format(
-                    "%s/%s/%s",
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString(),
-                    UUID.randomUUID().toString());
+            final String targetPath =
+                    String.format("%s/%s/%s", UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
 
             blockingOperator.rename(sourcePath, targetPath);
 
@@ -880,7 +867,7 @@ public abstract class AbstractBehaviorTest {
         }
 
         /**
-         * Rename to a exist path should overwrite successfully.
+         * Rename to an existing path should overwrite successfully.
          */
         @Test
         public void testBlockingRenameOverwrite() {
@@ -917,23 +904,5 @@ public abstract class AbstractBehaviorTest {
         final byte[] content = new byte[size];
         random.nextBytes(content);
         return content;
-    }
-
-    protected static boolean isSchemeEnabled(Map<String, String> config) {
-        final String turnOn = config.getOrDefault("test", "").toLowerCase();
-        return turnOn.equals("on") || turnOn.equals("true");
-    }
-
-    protected static Map<String, String> createSchemeConfig(String scheme) {
-        final Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
-        final Map<String, String> config = new HashMap<>();
-        final String prefix = "opendal_" + scheme.toLowerCase() + "_";
-        for (DotenvEntry entry : dotenv.entries()) {
-            final String key = entry.getKey().toLowerCase();
-            if (key.startsWith(prefix)) {
-                config.put(key.substring(prefix.length()), entry.getValue());
-            }
-        }
-        return config;
     }
 }

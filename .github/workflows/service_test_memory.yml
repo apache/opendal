@@ -48,9 +48,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run memory
+        run: cargo nextest run behavior
         env:
-          OPENDAL_MEMORY_TEST: on
+          OPENDAL_TEST: memory
 
   python:
     runs-on: ubuntu-latest

@@ -58,9 +58,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run ipfs --features services-ipfs
+        run: cargo nextest run behavior --features services-ipfs
         env:
-          OPENDAL_IPFS_TEST: on
+          OPENDAL_TEST: ipfs
           OPENDAL_IPFS_ROOT: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/
           OPENDAL_IPFS_ENDPOINT: "http://127.0.0.1:8080"
           OPENDAL_DISABLE_RANDOM_ROOT: true
@@ -72,10 +72,10 @@ jobs:
 #      - uses: actions/checkout@v4
 #      - name: Test
 #        shell: bash
-#        run: cargo test ipfs --features services-ipfs -- --show-output
+#        run: cargo test behavior --features services-ipfs -- --show-output
 #        env:
 #          RUST_BACKTRACE: full
 #          RUST_LOG: debug
-#          OPENDAL_IPFS_TEST: on
+#          OPENDAL_TEST: ipfs
 #          OPENDAL_IPFS_ROOT: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/
 #          OPENDAL_IPFS_ENDPOINT: "https://ipfs.io"

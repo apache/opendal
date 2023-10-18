@@ -52,11 +52,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo test redb --features services-redb -j=1
+        run: cargo test behavior --features services-redb -j=1
         env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
-          OPENDAL_REDB_TEST: on
+          OPENDAL_TEST: redb
           OPENDAL_REDB_ROOT: /
           OPENDAL_REDB_DATADIR: /tmp/opendal/redb
           OPENDAL_REDB_TABLE: redb-table

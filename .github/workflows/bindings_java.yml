@@ -90,6 +90,6 @@ jobs:
           ./mvnw test -Dtest="behavior.*Test"
 
           export OPENDAL_TEST=fs
-          export OPENDAL_FS_ROOT=/tmp
+          export OPENDAL_FS_ROOT=${{ runner.temp }}/
           ./mvnw test -Dtest="behavior.*Test"
 

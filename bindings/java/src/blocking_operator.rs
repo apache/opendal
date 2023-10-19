@@ -251,7 +251,7 @@ fn intern_remove_all(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString)
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_listWith(
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_list(
     mut env: JNIEnv,
     _: JClass,
     op: *mut BlockingOperator,
@@ -261,7 +261,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_listWith(
     delimiter: JString,
     metakeys: jintArray,
 ) -> jobject {
-    intern_list_with(
+    intern_list(
         &mut env,
         &mut *op,
         path,
@@ -276,7 +276,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_listWith(
     })
 }
 
-fn intern_list_with(
+fn intern_list(
     env: &mut JNIEnv,
     op: &mut BlockingOperator,
     path: JString,

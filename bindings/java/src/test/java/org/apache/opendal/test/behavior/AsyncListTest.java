@@ -34,7 +34,8 @@ import org.apache.opendal.Capability;
 import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
-import org.apache.opendal.args.OpList.Metakey;
+import org.apache.opendal.args.OpListArgs;
+import org.apache.opendal.args.OpListArgs.Metakey;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -87,20 +88,18 @@ class AsyncListTest extends BehaviorTestBase {
 
         op().write(path, content).join();
 
-        final List<Entry> entries = op().listWith(parent + "/")
-                .metakeys(
-                        Metakey.Mode,
-                        Metakey.CacheControl,
-                        Metakey.ContentDisposition,
-                        Metakey.ContentLength,
-                        Metakey.ContentMd5,
-                        Metakey.ContentType,
-                        Metakey.Etag,
-                        Metakey.Version,
-                        Metakey.LastModified)
-                .build()
-                .call()
-                .join();
+        final OpListArgs args = new OpListArgs(parent + "/");
+        args.setMetakeys(
+                Metakey.Mode,
+                Metakey.CacheControl,
+                Metakey.ContentDisposition,
+                Metakey.ContentLength,
+                Metakey.ContentMd5,
+                Metakey.ContentType,
+                Metakey.Etag,
+                Metakey.Version,
+                Metakey.LastModified);
+        final List<Entry> entries = op().list(args).join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
@@ -133,11 +132,9 @@ class AsyncListTest extends BehaviorTestBase {
 
         op().write(path, content).join();
 
-        final List<Entry> entries = op().listWith(parent + "/")
-                .metakeys(Metakey.Complete)
-                .build()
-                .call()
-                .join();
+        final OpListArgs args = new OpListArgs(parent + "/");
+        args.setMetakeys(Metakey.Complete);
+        final List<Entry> entries = op().list(args).join();
         boolean found = false;
         for (Entry entry : entries) {
             if (entry.getPath().equals(path)) {
@@ -290,8 +287,9 @@ class AsyncListTest extends BehaviorTestBase {
             op().write(path, "content").join();
         }
 
-        final List<Entry> entries =
-                op().listWith(dir).startAfter(given[2]).build().call().join();
+        final OpListArgs args = new OpListArgs(dir);
+        args.setStartAfter(given[2]);
+        final List<Entry> entries = op().list(args).join();
         final List<String> expected = entries.stream().map(Entry::getPath).collect(Collectors.toList());
 
         Assertions.assertThat(expected).isEqualTo(Arrays.asList(given[3], given[4], given[5]));
@@ -301,8 +299,10 @@ class AsyncListTest extends BehaviorTestBase {
 
     @Test
     public void testScanRoot() {
-        final List<Entry> entries =
-                op().listWith("").delimiter("").build().call().join();
+        final OpListArgs args = new OpListArgs("");
+        args.setDelimiter("");
+
+        final List<Entry> entries = op().list(args).join();
         final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
 
         assertTrue(!actual.contains("/"), "empty root shouldn't return itself");
@@ -325,11 +325,9 @@ class AsyncListTest extends BehaviorTestBase {
                 op().write(String.format("%s/%s", parent, path), "test_scan").join();
             }
         }
-        final List<Entry> entries = op().listWith(String.format("%s/x/", parent))
-                .delimiter("")
-                .build()
-                .call()
-                .join();
+        final OpListArgs args = new OpListArgs(parent + "/x/");
+        args.setDelimiter("");
+        final List<Entry> entries = op().list(args).join();
         final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
 
         assertThat(actual).contains(parent + "/x/y", parent + "/x/x/y", parent + "/x/x/x/y");

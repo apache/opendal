@@ -31,7 +31,8 @@ import org.apache.opendal.Capability;
 import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
-import org.apache.opendal.args.OpList.Metakey;
+import org.apache.opendal.args.OpListArgs;
+import org.apache.opendal.args.OpListArgs.Metakey;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -77,20 +78,18 @@ public class BlockingListTest extends BehaviorTestBase {
 
         blockingOp().write(path, content);
 
-        final List<Entry> list = blockingOp()
-                .listWith(parent + "/")
-                .metakeys(
-                        Metakey.Mode,
-                        Metakey.CacheControl,
-                        Metakey.ContentDisposition,
-                        Metakey.ContentLength,
-                        Metakey.ContentMd5,
-                        Metakey.ContentType,
-                        Metakey.Etag,
-                        Metakey.Version,
-                        Metakey.LastModified)
-                .build()
-                .call();
+        final OpListArgs args = new OpListArgs(parent + "/");
+        args.setMetakeys(
+                Metakey.Mode,
+                Metakey.CacheControl,
+                Metakey.ContentDisposition,
+                Metakey.ContentLength,
+                Metakey.ContentMd5,
+                Metakey.ContentType,
+                Metakey.Etag,
+                Metakey.Version,
+                Metakey.LastModified);
+        final List<Entry> list = blockingOp().list(args);
         boolean found = false;
         for (Entry entry : list) {
             if (entry.getPath().equals(path)) {
@@ -124,11 +123,9 @@ public class BlockingListTest extends BehaviorTestBase {
 
         blockingOp().write(path, content);
 
-        final List<Entry> list = blockingOp()
-                .listWith(parent + "/")
-                .metakeys(Metakey.Complete)
-                .build()
-                .call();
+        final OpListArgs args = new OpListArgs(parent + "/");
+        args.setMetakeys(Metakey.Complete);
+        final List<Entry> list = blockingOp().list(args);
         boolean found = false;
         for (Entry entry : list) {
             if (entry.getPath().equals(path)) {
@@ -177,11 +174,9 @@ public class BlockingListTest extends BehaviorTestBase {
             }
         }
 
-        final List<Entry> list = blockingOp()
-                .listWith(String.format("%s/x/", parent))
-                .delimiter("")
-                .build()
-                .call();
+        final OpListArgs args = new OpListArgs(parent + "/x/");
+        args.setDelimiter("");
+        final List<Entry> list = blockingOp().list(args);
         final Set<String> paths = list.stream().map(Entry::getPath).collect(Collectors.toSet());
 
         assertTrue(paths.contains(parent + "/x/y"));

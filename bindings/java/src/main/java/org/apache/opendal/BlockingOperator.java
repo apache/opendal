@@ -22,9 +22,7 @@ package org.apache.opendal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import org.apache.opendal.args.OpList;
-import org.apache.opendal.args.OpList.Metakey;
-import org.apache.opendal.args.OpList.OpListBuilder;
+import org.apache.opendal.args.OpListArgs;
 
 /**
  * BlockingOperator represents an underneath OpenDAL operator that
@@ -101,21 +99,17 @@ public class BlockingOperator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return listWith(path).build().call();
+        return list(new OpListArgs(path));
     }
 
-    public OpListBuilder<List<Entry>> listWith(String path) {
-        return OpList.builder(path, this::internListWith);
-    }
-
-    private List<Entry> internListWith(OpList<List<Entry>> opList) {
-        return listWith(
+    public List<Entry> list(OpListArgs args) {
+        return list(
                 nativeHandle,
-                opList.getPath(),
-                opList.getLimit(),
-                opList.getStartAfter().orElse(null),
-                opList.getDelimiter().orElse(null),
-                opList.getMetakeys().stream().mapToInt(Metakey::getId).toArray());
+                args.getPath(),
+                args.getLimit(),
+                args.getStartAfter(),
+                args.getDelimiter(),
+                args.getMetakeys());
     }
 
     @Override
@@ -139,6 +133,6 @@ public class BlockingOperator extends NativeObject {
 
     private static native void removeAll(long nativeHandle, String path);
 
-    private static native List<Entry> listWith(
+    private static native List<Entry> list(
             long nativeHandle, String path, long limit, String startAfter, String delimiter, int... metakeys);
 }

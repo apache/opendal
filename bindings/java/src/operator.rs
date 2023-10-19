@@ -473,7 +473,7 @@ async fn do_remove_all(op: &mut Operator, path: String) -> Result<()> {
 ///
 /// This function should not be called before the Operator are ready.
 #[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_listWith(
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     mut env: JNIEnv,
     _: JClass,
     op: *mut Operator,
@@ -483,15 +483,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_listWith(
     delimiter: JString,
     metakeys: jintArray,
 ) -> jlong {
-    intern_list_with(&mut env, op, path, limit, start_after, delimiter, metakeys).unwrap_or_else(
-        |e| {
-            e.throw(&mut env);
-            0
-        },
-    )
+    intern_list(&mut env, op, path, limit, start_after, delimiter, metakeys).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
 }
 
-fn intern_list_with(
+fn intern_list(
     env: &mut JNIEnv,
     op: *mut Operator,
     path: JString,
@@ -514,14 +512,14 @@ fn intern_list_with(
     let metakey = metakey_to_flagset(env, metakeys)?;
 
     unsafe { get_global_runtime() }.spawn(async move {
-        let result = do_list_with(op, path, limit, start_after, delimiter, metakey).await;
+        let result = do_list(op, path, limit, start_after, delimiter, metakey).await;
         complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_list_with<'local>(
+async fn do_list<'local>(
     op: &mut Operator,
     path: String,
     limit: Option<usize>,

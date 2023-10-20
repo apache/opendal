@@ -1,4 +1,4 @@
-# Upgrade to v0.41
+# Upgrade to v0.42
 
 The naming convention for C binding has been altered since version 0.41.
 

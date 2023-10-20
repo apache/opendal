@@ -20,19 +20,13 @@
 //! "opendal_result_opendal_operator", which is unacceptable. Therefore,
 //! we are defining all Result types here
 
-use crate::error::opendal_error;
-use crate::types::opendal_bytes;
-use crate::types::opendal_list_entry;
-use crate::types::opendal_lister;
-use crate::types::opendal_metadata;
-use crate::types::opendal_operator;
-use crate::types::opendal_reader;
+use super::*;
 
 /// \brief The result type returned by opendal_operator_new() operation.
 ///
-/// If the init logic is successful, the `operator_ptr` field will be set to a valid
+/// If the init logic is successful, the `op` field will be set to a valid
 /// pointer, and the `error` field will be set to null. If the init logic fails, the
-/// `operator_ptr` field will be set to null, and the `error` field will be set to a
+/// `op` field will be set to null, and the `error` field will be set to a
 /// valid pointer with error code and error message.
 ///
 /// @see opendal_operator_new()
@@ -40,7 +34,9 @@ use crate::types::opendal_reader;
 /// @see opendal_error
 #[repr(C)]
 pub struct opendal_result_operator_new {
-    pub operator_ptr: *mut opendal_operator,
+    /// The pointer for operator.
+    pub op: *mut opendal_operator,
+    /// The error pointer for error.
     pub error: *mut opendal_error,
 }
 
@@ -108,7 +104,7 @@ pub struct opendal_result_list {
 #[repr(C)]
 pub struct opendal_result_lister_next {
     /// The next object name
-    pub entry: *mut opendal_list_entry,
+    pub entry: *mut opendal_entry,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }
@@ -119,7 +115,9 @@ pub struct opendal_result_lister_next {
 /// whether the stat operation is successful.
 #[repr(C)]
 pub struct opendal_result_operator_reader {
+    /// The pointer for opendal_reader
     pub reader: *mut opendal_reader,
+    /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }
 
@@ -128,6 +126,8 @@ pub struct opendal_result_operator_reader {
 /// which is zero on error. The error field is the error code and error message.
 #[repr(C)]
 pub struct opendal_result_reader_read {
+    /// The read size if succeed.
     pub size: usize,
+    /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }

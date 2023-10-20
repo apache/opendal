@@ -38,7 +38,7 @@ protected:
         opendal_result_operator_new result = opendal_operator_new("memory", options);
         EXPECT_TRUE(result.error == nullptr);
 
-        this->p = result.operator_ptr;
+        this->p = result.op;
         EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
@@ -79,9 +79,9 @@ TEST_F(OpendalListTest, ListDirTest)
 
     opendal_result_lister_next result = opendal_lister_next(lister);
     EXPECT_EQ(result.error, nullptr);
-    opendal_list_entry* entry = result.entry;
+    opendal_entry* entry = result.entry;
     while (entry) {
-        char* de_path = opendal_list_entry_path(entry);
+        char* de_path = opendal_entry_path(entry);
 
         // stat must succeed
         opendal_result_stat s = opendal_operator_stat(this->p, de_path);
@@ -97,7 +97,7 @@ TEST_F(OpendalListTest, ListDirTest)
 
         free(de_path);
         opendal_metadata_free(s.meta);
-        opendal_list_entry_free(entry);
+        opendal_entry_free(entry);
 
         result = opendal_lister_next(lister);
         EXPECT_EQ(result.error, nullptr);

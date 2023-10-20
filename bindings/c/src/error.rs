@@ -29,7 +29,7 @@ struct raw_error(od::Error);
 /// \todo The error handling is not complete, the error with error message will be
 /// added in the future.
 #[repr(C)]
-pub(crate) enum opendal_code {
+pub enum opendal_code {
     /// returning it back. For example, s3 returns an internal service error.
     OPENDAL_UNEXPECTED,
     /// Underlying service doesn't support this operation.

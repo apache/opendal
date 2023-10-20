@@ -35,7 +35,7 @@ protected:
         opendal_result_operator_new result = opendal_operator_new("memory", options);
         EXPECT_TRUE(result.error == nullptr);
 
-        this->p = result.operator_ptr;
+        this->p = result.op;
         EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);

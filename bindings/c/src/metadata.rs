@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as od;
+use ::opendal as core;
 
 /// \brief Carries all metadata associated with a path.
 ///
@@ -30,13 +30,13 @@ use ::opendal as od;
 pub struct opendal_metadata {
     /// The pointer to the opendal::Metadata in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    pub inner: *mut od::Metadata,
+    pub inner: *mut core::Metadata,
 }
 
 impl opendal_metadata {
     /// Convert a Rust core [`od::Metadata`] into a heap allocated C-compatible
     /// [`opendal_metadata`]
-    pub(crate) fn new(m: od::Metadata) -> Self {
+    pub(crate) fn new(m: core::Metadata) -> Self {
         Self {
             inner: Box::into_raw(Box::new(m)),
         }

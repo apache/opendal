@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as od;
+use ::opendal as core;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
@@ -27,12 +27,12 @@ use std::os::raw::c_char;
 /// @see opendal_list_entry_name()
 #[repr(C)]
 pub struct opendal_entry {
-    inner: *mut od::Entry,
+    inner: *mut core::Entry,
 }
 
 impl opendal_entry {
     /// Used to convert the Rust type into C type
-    pub(crate) fn new(entry: od::Entry) -> Self {
+    pub(crate) fn new(entry: core::Entry) -> Self {
         Self {
             inner: Box::into_raw(Box::new(entry)),
         }

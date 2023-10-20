@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as od;
+use ::opendal as core;
 
 use super::*;
 
@@ -28,11 +28,11 @@ use super::*;
 /// @see opendal_operator_list()
 #[repr(C)]
 pub struct opendal_lister {
-    inner: *mut od::BlockingLister,
+    inner: *mut core::BlockingLister,
 }
 
 impl opendal_lister {
-    pub(crate) fn new(lister: od::BlockingLister) -> Self {
+    pub(crate) fn new(lister: core::BlockingLister) -> Self {
         Self {
             inner: Box::into_raw(Box::new(lister)),
         }
@@ -63,13 +63,10 @@ impl opendal_lister {
                     error: std::ptr::null_mut(),
                 }
             }
-            Err(e) => {
-                let e = Box::new(opendal_error::from_opendal_error(e));
-                opendal_result_lister_next {
-                    entry: std::ptr::null_mut(),
-                    error: Box::into_raw(e),
-                }
-            }
+            Err(e) => opendal_result_lister_next {
+                entry: std::ptr::null_mut(),
+                error: opendal_error::new(e),
+            },
         }
     }
 

@@ -16,7 +16,7 @@
 // under the License.
 
 use super::*;
-use ::opendal as od;
+use ::opendal as core;
 use std::io::Read;
 
 /// \brief The result type returned by opendal's reader operation.
@@ -25,11 +25,11 @@ use std::io::Read;
 /// a opendal::BlockingReader, which is inside the Rust core code.
 #[repr(C)]
 pub struct opendal_reader {
-    inner: *mut od::BlockingReader,
+    inner: *mut core::BlockingReader,
 }
 
 impl opendal_reader {
-    pub(crate) fn new(reader: od::BlockingReader) -> Self {
+    pub(crate) fn new(reader: core::BlockingReader) -> Self {
         Self {
             inner: Box::into_raw(Box::new(reader)),
         }
@@ -55,16 +55,13 @@ impl opendal_reader {
                 size: n,
                 error: std::ptr::null_mut(),
             },
-            Err(e) => {
-                let e = Box::new(opendal_error::manual_error(
-                    opendal_code::OPENDAL_UNEXPECTED,
-                    e.to_string(),
-                ));
-                opendal_result_reader_read {
-                    size: 0,
-                    error: Box::into_raw(e),
-                }
-            }
+            Err(e) => opendal_result_reader_read {
+                size: 0,
+                error: opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "read failed from reader")
+                        .set_source(e),
+                ),
+            },
         }
     }
 

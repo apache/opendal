@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::os::raw::c_char;
 use std::str::FromStr;
 
-use ::opendal as od;
+use ::opendal as core;
 use once_cell::sync::Lazy;
 
 use super::*;
@@ -46,7 +46,7 @@ static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
 pub struct opendal_operator {
     /// The pointer to the opendal::BlockingOperator in the Rust code.
     /// Only touch this on judging whether it is NULL.
-    ptr: *const od::BlockingOperator,
+    ptr: *const core::BlockingOperator,
 }
 
 impl opendal_operator {
@@ -67,34 +67,42 @@ impl opendal_operator {
     /// ```
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_free(op: *const opendal_operator) {
-        let _ = unsafe { Box::from_raw((*op).ptr as *mut od::BlockingOperator) };
+        let _ = unsafe { Box::from_raw((*op).ptr as *mut core::BlockingOperator) };
         let _ = unsafe { Box::from_raw(op as *mut opendal_operator) };
     }
 }
 
-impl opendal_operator {
-    /// Returns a reference to the underlying [`od::BlockingOperator`]
-    pub(crate) fn as_ref(&self) -> &od::BlockingOperator {
+/// Returns a reference to the underlying [`od::BlockingOperator`]
+///
+/// # Safety
+///
+/// The ptr is a raw pointer to the underlying [`od::BlockingOperator`].
+/// It will only free when opendal_operator_free has been called.
+impl AsRef<core::BlockingOperator> for opendal_operator {
+    fn as_ref(&self) -> &core::BlockingOperator {
         unsafe { &*(self.ptr) }
     }
 }
 
 #[allow(clippy::from_over_into)]
-impl From<*const od::BlockingOperator> for opendal_operator {
-    fn from(value: *const od::BlockingOperator) -> Self {
+impl From<*const core::BlockingOperator> for opendal_operator {
+    fn from(value: *const core::BlockingOperator) -> Self {
         Self { ptr: value }
     }
 }
 
 #[allow(clippy::from_over_into)]
-impl From<*mut od::BlockingOperator> for opendal_operator {
-    fn from(value: *mut od::BlockingOperator) -> Self {
+impl From<*mut core::BlockingOperator> for opendal_operator {
+    fn from(value: *mut core::BlockingOperator) -> Self {
         Self { ptr: value }
     }
 }
 
-fn build_operator(schema: od::Scheme, map: HashMap<String, String>) -> od::Result<od::Operator> {
-    let mut op = match od::Operator::via_map(schema, map) {
+fn build_operator(
+    schema: core::Scheme,
+    map: HashMap<String, String>,
+) -> core::Result<core::Operator> {
+    let mut op = match core::Operator::via_map(schema, map) {
         Ok(o) => o,
         Err(e) => return Err(e),
     };
@@ -102,7 +110,8 @@ fn build_operator(schema: od::Scheme, map: HashMap<String, String>) -> od::Resul
         let runtime =
             tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
         let _guard = runtime.enter();
-        op = op.layer(od::layers::BlockingLayer::create().expect("blocking layer must be created"));
+        op = op
+            .layer(core::layers::BlockingLayer::create().expect("blocking layer must be created"));
     }
     Ok(op)
 }
@@ -150,27 +159,17 @@ pub unsafe extern "C" fn opendal_operator_new(
     options: *const opendal_operator_options,
 ) -> opendal_result_operator_new {
     if scheme.is_null() {
-        let error = opendal_error::manual_error(
-            opendal_code::OPENDAL_CONFIG_INVALID,
-            "The scheme given is pointing at NULL".into(),
-        );
-        let result = opendal_result_operator_new {
-            op: std::ptr::null_mut(),
-            error: Box::into_raw(Box::new(error)),
-        };
-        return result;
+        panic!("The scheme given is pointing at NULL");
     }
 
     let scheme_str = unsafe { std::ffi::CStr::from_ptr(scheme).to_str().unwrap() };
-    let scheme = match od::Scheme::from_str(scheme_str) {
+    let scheme = match core::Scheme::from_str(scheme_str) {
         Ok(s) => s,
         Err(e) => {
-            let e = opendal_error::from_opendal_error(e);
-            let result = opendal_result_operator_new {
+            return opendal_result_operator_new {
                 op: std::ptr::null_mut(),
-                error: Box::into_raw(Box::new(e)),
+                error: opendal_error::new(e),
             };
-            return result;
         }
     };
 
@@ -189,13 +188,10 @@ pub unsafe extern "C" fn opendal_operator_new(
                 error: std::ptr::null_mut(),
             }
         }
-        Err(e) => {
-            let e = opendal_error::from_opendal_error(e);
-            opendal_result_operator_new {
-                op: std::ptr::null_mut(),
-                error: Box::into_raw(Box::new(e)),
-            }
-        }
+        Err(e) => opendal_result_operator_new {
+            op: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
     }
 }
 
@@ -257,10 +253,7 @@ pub unsafe extern "C" fn opendal_operator_write(
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.write(path, bytes) {
         Ok(_) => std::ptr::null_mut(),
-        Err(e) => {
-            let e = Box::new(opendal_error::from_opendal_error(e));
-            Box::into_raw(e)
-        }
+        Err(e) => opendal_error::new(e),
     }
 }
 
@@ -322,13 +315,10 @@ pub unsafe extern "C" fn opendal_operator_read(
                 error: std::ptr::null_mut(),
             }
         }
-        Err(e) => {
-            let e = Box::new(opendal_error::from_opendal_error(e));
-            opendal_result_read {
-                data: std::ptr::null_mut(),
-                error: Box::into_raw(e),
-            }
-        }
+        Err(e) => opendal_result_read {
+            data: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
     }
 }
 
@@ -385,13 +375,10 @@ pub unsafe extern "C" fn opendal_operator_reader(
             reader: Box::into_raw(Box::new(opendal_reader::new(reader))),
             error: std::ptr::null_mut(),
         },
-        Err(e) => {
-            let e = Box::new(opendal_error::from_opendal_error(e));
-            opendal_result_operator_reader {
-                reader: std::ptr::null_mut(),
-                error: Box::into_raw(e),
-            }
-        }
+        Err(e) => opendal_result_operator_reader {
+            reader: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
     }
 }
 
@@ -448,10 +435,7 @@ pub unsafe extern "C" fn opendal_operator_delete(
     let path = unsafe { std::ffi::CStr::from_ptr(path).to_str().unwrap() };
     match op.delete(path) {
         Ok(_) => std::ptr::null_mut(),
-        Err(e) => {
-            let e = Box::new(opendal_error::from_opendal_error(e));
-            Box::into_raw(e)
-        }
+        Err(e) => opendal_error::new(e),
     }
 }
 
@@ -508,13 +492,10 @@ pub unsafe extern "C" fn opendal_operator_is_exist(
             is_exist: e,
             error: std::ptr::null_mut(),
         },
-        Err(e) => {
-            let e = Box::new(opendal_error::from_opendal_error(e));
-            opendal_result_is_exist {
-                is_exist: false,
-                error: Box::into_raw(e),
-            }
-        }
+        Err(e) => opendal_result_is_exist {
+            is_exist: false,
+            error: opendal_error::new(e),
+        },
     }
 }
 
@@ -570,13 +551,10 @@ pub unsafe extern "C" fn opendal_operator_stat(
             meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
             error: std::ptr::null_mut(),
         },
-        Err(e) => {
-            let e = Box::new(opendal_error::from_opendal_error(e));
-            opendal_result_stat {
-                meta: std::ptr::null_mut(),
-                error: Box::into_raw(e),
-            }
-        }
+        Err(e) => opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
     }
 }
 
@@ -644,13 +622,9 @@ pub unsafe extern "C" fn opendal_operator_list(
             lister: Box::into_raw(Box::new(opendal_lister::new(lister))),
             error: std::ptr::null_mut(),
         },
-
-        Err(e) => {
-            let e = Box::new(opendal_error::from_opendal_error(e));
-            opendal_result_list {
-                lister: std::ptr::null_mut(),
-                error: Box::into_raw(e),
-            }
-        }
+        Err(e) => opendal_result_list {
+            lister: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
     }
 }

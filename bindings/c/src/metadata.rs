@@ -44,7 +44,7 @@ impl opendal_metadata {
 
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
-    pub extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
+    pub unsafe extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
         unsafe {
             let _ = Box::from_raw((*ptr).inner);
             let _ = Box::from_raw(ptr);

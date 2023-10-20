@@ -44,7 +44,7 @@ impl opendal_bytes {
 
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
-    pub extern "C" fn opendal_bytes_free(bs: *mut opendal_bytes) {
+    pub unsafe extern "C" fn opendal_bytes_free(bs: *mut opendal_bytes) {
         if !bs.is_null() {
             let data_mut = unsafe { (*bs).data as *mut u8 };
             // free the vector

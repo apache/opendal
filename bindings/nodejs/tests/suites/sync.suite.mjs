@@ -22,7 +22,7 @@ import { expect, test } from 'vitest'
 import { generateBytes } from '../utils.mjs'
 
 export function run(operator) {
-    test('async io test case', () => {
+    test('sync io test case', () => {
         const filename = `random_file_${randomUUID()}`
         const content = generateBytes()
 

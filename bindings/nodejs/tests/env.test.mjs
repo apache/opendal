@@ -20,4 +20,4 @@
 import { runner } from './suites/index.mjs'
 import { loadTestSchemeFromEnv } from './utils.mjs'
 
-runner('OpenDal Test suites when scheme acquire from .env', loadTestSchemeFromEnv())
+runner('OpenDal Test suites when scheme acquires from .env', loadTestSchemeFromEnv())

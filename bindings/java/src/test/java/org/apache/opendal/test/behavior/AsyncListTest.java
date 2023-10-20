@@ -90,15 +90,15 @@ class AsyncListTest extends BehaviorTestBase {
 
         final OpListArgs args = new OpListArgs(parent + "/");
         args.setMetakeys(
-                Metakey.Mode,
-                Metakey.CacheControl,
-                Metakey.ContentDisposition,
-                Metakey.ContentLength,
-                Metakey.ContentMd5,
-                Metakey.ContentType,
-                Metakey.Etag,
-                Metakey.Version,
-                Metakey.LastModified);
+                Metakey.MODE,
+                Metakey.CACHE_CONTROL,
+                Metakey.CONTENT_DISPOSITION,
+                Metakey.CONTENT_LENGTH,
+                Metakey.CONTENT_MD5,
+                Metakey.CONTENT_TYPE,
+                Metakey.ETAG,
+                Metakey.VERSION,
+                Metakey.LAST_MODIFIED);
         final List<Entry> entries = op().list(args).join();
         boolean found = false;
         for (Entry entry : entries) {
@@ -133,7 +133,7 @@ class AsyncListTest extends BehaviorTestBase {
         op().write(path, content).join();
 
         final OpListArgs args = new OpListArgs(parent + "/");
-        args.setMetakeys(Metakey.Complete);
+        args.setMetakeys(Metakey.COMPLETE);
         final List<Entry> entries = op().list(args).join();
         boolean found = false;
         for (Entry entry : entries) {

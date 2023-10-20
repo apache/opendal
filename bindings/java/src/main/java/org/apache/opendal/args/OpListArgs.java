@@ -29,11 +29,13 @@ import lombok.Data;
 public class OpListArgs {
     private String path;
     /**
-     * The limit passed to underlying service to specify the max results that could return.
+     * The limit passed to underlying service to specify the max results that could
+     * return.
      */
     private long limit;
     /**
-     * The start_after passes to underlying service to specify the specified key to start listing from.
+     * The start_after passes to underlying service to specify the specified key to
+     * start listing from.
      */
     private String startAfter;
     /**
@@ -41,7 +43,8 @@ public class OpListArgs {
      */
     private String delimiter;
     /**
-     * The metakey of the metadata that be queried. Default to be {@link Metakey#Mode}.
+     * The metakey of the metadata that be queried. Default to be
+     * {@link Metakey#MODE}.
      */
     private int[] metakeys;
 
@@ -70,48 +73,50 @@ public class OpListArgs {
          * The special metadata key that used to mark this entry
          * already contains all metadata.
          */
-        Complete(0),
+        COMPLETE(0),
         /**
          *
          * Key for mode.
          */
-        Mode(1),
+        MODE(1),
         /**
          * Key for cache control.
          */
-        CacheControl(2),
+        CACHE_CONTROL(2),
         /**
          * Key for content disposition.
          */
-        ContentDisposition(3),
+        CONTENT_DISPOSITION(3),
         /**
          * Key for content length.
          */
-        ContentLength(4),
+        CONTENT_LENGTH(4),
         /**
          * Key for content md5.
          */
-        ContentMd5(5),
+        CONTENT_MD5(5),
         /**
          * Key for content range.
+         *
+         * Note: this is not supported yet.
          */
-        ContentRange(6),
+        CONTENT_RANGE(6),
         /**
          * Key for content type.
          */
-        ContentType(7),
+        CONTENT_TYPE(7),
         /**
          * Key for etag.
          */
-        Etag(8),
+        ETAG(8),
         /**
          * Key for last last modified.
          */
-        LastModified(9),
+        LAST_MODIFIED(9),
         /**
          * Key for version.
          */
-        Version(10),
+        VERSION(10),
         ;
 
         private int id;

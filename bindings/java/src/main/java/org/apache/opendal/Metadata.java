@@ -21,6 +21,7 @@ package org.apache.opendal;
 
 import java.util.Date;
 import lombok.Data;
+import org.apache.opendal.args.OpListArgs.Metakey;
 
 /**
  * Metadata carries all metadata associated with a path.
@@ -28,13 +29,64 @@ import lombok.Data;
 @Data
 public class Metadata {
     public final EntryMode mode;
+    /**
+     * Content Length of the entry.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#CONTENT_LENGTH}, otherwise it will be -1.
+     */
     public final long contentLength;
+    /**
+     * Content-Disposition of the entry.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#CONTENT_DISPOSITION}, otherwise it will be null.
+     */
     public final String contentDisposition;
+    /**
+     * Content MD5 of the entry.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#CONTENT_MD5}, otherwise it will be null.
+     */
     public final String contentMd5;
+    /**
+     * Content Type of the entry.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#CONTENT_TYPE}, otherwise it will be null.
+     */
     public final String contentType;
+    /**
+     * Cache Control of the entry.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#CACHE_CONTROL}, otherwise it will be null.
+     */
     public final String cacheControl;
+    /**
+     * Etag of the entry.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#ETAG}, otherwise it will be null.
+     */
     public final String etag;
+    /**
+     * Last Modified of the entry.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#LAST_MODIFIED}, otherwise it will be null.
+     */
     public final Date lastModified;
+    /**
+     * Version of the entry.
+     * Version is a string that can be used to identify the version of this entry.
+     * This field may come out from the version control system, like object
+     * versioning in AWS S3.
+     *
+     * This value is only available when calling on result of `stat` or `list` with
+     * {@link Metakey#VERSION}, otherwise it will be null.
+     */
     public final String version;
 
     public Metadata(
@@ -67,11 +119,17 @@ public class Metadata {
     }
 
     public enum EntryMode {
-        /// FILE means the path has data to read.
+        /**
+         * FILE means the path has data to read.
+         */
         FILE,
-        /// DIR means the path can be listed.
+        /**
+         * DIR means the path can be listed.
+         */
         DIR,
-        /// Unknown means we don't know what we can do on this path.
+        /**
+         * Unknown means we don't know what we can do on this path.
+         */
         UNKNOWN;
 
         public static EntryMode of(int mode) {

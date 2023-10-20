@@ -620,7 +620,7 @@ void opendal_operator_free(const struct opendal_operator *op);
  *
  * // Construct the operator based on the options and scheme
  * opendal_result_operator_new result = opendal_operator_new("memory", options);
- * opendal_operator* op = result.operator;
+ * opendal_operator* op = result.op;
  *
  * // you could free the options right away since the options is not used afterwards
  * opendal_operator_options_free(options);

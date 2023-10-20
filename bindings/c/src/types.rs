@@ -441,10 +441,11 @@ impl opendal_reader {
             panic!("The buffer given is pointing at NULL");
         }
         let buf = unsafe { std::slice::from_raw_parts_mut(buf, len) };
-        let r = (*self.inner).read(buf);
+        let r = (*self.inner).read_exact(buf);
+
         match r {
-            Ok(n) => opendal_result_reader_read {
-                size: n,
+            Ok(_) => opendal_result_reader_read {
+                size: len,
                 error: std::ptr::null_mut(),
             },
             Err(e) => {

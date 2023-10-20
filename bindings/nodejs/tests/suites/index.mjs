@@ -17,16 +17,21 @@
  * under the License.
  */
 
-import { defineConfig } from 'vitest/config'
-import pkg from './package.json'
+import { describe } from 'vitest'
+import { Operator } from '../../index.js'
+import { loadConfigFromEnv } from '../utils.mjs'
 
-export default defineConfig({
-  test: {
-    name: pkg.name,
-    cache: false,
-    globals: true,
-    environment: 'node',
-    dir: 'tests',
-    reporters: 'basic',
-  },
-})
+import { run as AsyncIOTestRun } from './async.suite.mjs'
+import { run as MetaTestRun } from './meta.suite.mjs'
+import { run as SyncIOTestRun } from './sync.suite.mjs'
+
+export function runner(testName, scheme) {
+    const config = loadConfigFromEnv(scheme)
+    const operator = scheme ? new Operator(scheme, { root: '/tmp', ...config }) : undefined
+
+    describe.skipIf(!operator)(testName, () => {
+        AsyncIOTestRun(operator)
+        MetaTestRun(operator)
+        SyncIOTestRun(operator)
+    })
+}

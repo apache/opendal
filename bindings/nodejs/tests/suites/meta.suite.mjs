@@ -17,16 +17,25 @@
  * under the License.
  */
 
-import { defineConfig } from 'vitest/config'
-import pkg from './package.json'
+import { randomUUID } from 'node:crypto'
+import { expect, test } from 'vitest'
+import { generateBytes } from '../utils.mjs'
 
-export default defineConfig({
-  test: {
-    name: pkg.name,
-    cache: false,
-    globals: true,
-    environment: 'node',
-    dir: 'tests',
-    reporters: 'basic',
-  },
-})
+export function run(operator) {
+    test('meta info properties tests', async () => {
+        const filename = `random_file_${randomUUID()}`
+        const content = generateBytes()
+
+        await operator.write(filename, content)
+
+        const meta = await operator.stat(filename)
+        expect(meta.isFile()).toBeTruthy()
+        expect(meta.contentLength).toEqual(BigInt(content.length))
+        expect(meta.contentDisposition).toBeNull()
+        expect(meta.contentMd5).toBeNull()
+        expect(meta.contentType).toBeNull()
+        expect(meta.etag).toBeNull()
+
+        await operator.delete(filename)
+    })
+}

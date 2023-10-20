@@ -17,16 +17,35 @@
  * under the License.
  */
 
-import { defineConfig } from 'vitest/config'
-import pkg from './package.json'
+import 'dotenv/config'
 
-export default defineConfig({
-  test: {
-    name: pkg.name,
-    cache: false,
-    globals: true,
-    environment: 'node',
-    dir: 'tests',
-    reporters: 'basic',
-  },
-})
+export function generateBytes() {
+    const size = Math.floor(Math.random() * 1024) + 1
+    const content = []
+
+    for (let i = 0; i < size; i++) {
+        content.push(Math.floor(Math.random() * 256))
+    }
+
+    return Buffer.from(content)
+}
+
+export function loadTestSchemeFromEnv() {
+    const OPENDAL_TEST = process.env.OPENDAL_TEST
+    return OPENDAL_TEST
+}
+
+export function loadConfigFromEnv(scheme) {
+    if (!scheme) return {}
+
+    const openDalConfig = {}
+    const prefix = `opendal_${scheme}_`
+
+    for (const key in process.env) {
+        if (key.startsWith(prefix)) {
+            openDalConfig[key] = process.env[key]
+        }
+    }
+
+    return openDalConfig
+}

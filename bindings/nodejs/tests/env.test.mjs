@@ -17,16 +17,7 @@
  * under the License.
  */
 
-import { defineConfig } from 'vitest/config'
-import pkg from './package.json'
+import { runner } from './suites/index.mjs'
+import { loadTestSchemeFromEnv } from './utils.mjs'
 
-export default defineConfig({
-  test: {
-    name: pkg.name,
-    cache: false,
-    globals: true,
-    environment: 'node',
-    dir: 'tests',
-    reporters: 'basic',
-  },
-})
+runner('OpenDal Test suites when scheme acquire from .env', loadTestSchemeFromEnv())

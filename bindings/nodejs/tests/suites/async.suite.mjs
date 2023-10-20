@@ -17,16 +17,22 @@
  * under the License.
  */
 
-import { defineConfig } from 'vitest/config'
-import pkg from './package.json'
+import { randomUUID } from 'node:crypto'
+import { expect, test } from 'vitest'
+import { generateBytes } from '../utils.mjs'
 
-export default defineConfig({
-  test: {
-    name: pkg.name,
-    cache: false,
-    globals: true,
-    environment: 'node',
-    dir: 'tests',
-    reporters: 'basic',
-  },
-})
+export function run(operator) {
+    test('OpenDal async io operation test suites', async () => {
+        const filename = `random_file_${randomUUID()}`
+        const content = generateBytes()
+
+        await operator.write(filename, content)
+
+        const bufContent = await operator.read(filename)
+
+        expect(bufContent).not.toBeNull()
+        expect(bufContent).toEqual(content)
+
+        await operator.delete(filename)
+    })
+}

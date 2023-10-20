@@ -17,13 +17,22 @@
  * under the License.
  */
 
-export function generateBytes() {
-  const size = Math.floor(Math.random() * 1024) + 1
-  const content = []
+import { randomUUID } from 'node:crypto'
+import { expect, test } from 'vitest'
+import { generateBytes } from '../utils.mjs'
 
-  for (let i = 0; i < size; i++) {
-    content.push(Math.floor(Math.random() * 256))
-  }
+export function run(operator) {
+    test('async io test case', () => {
+        const filename = `random_file_${randomUUID()}`
+        const content = generateBytes()
 
-  return Buffer.from(content)
+        operator.writeSync(filename, content)
+
+        const bufContent = operator.readSync(filename)
+
+        expect(bufContent).not.toBeNull()
+        expect(bufContent).toEqual(content)
+
+        operator.deleteSync(filename)
+    })
 }

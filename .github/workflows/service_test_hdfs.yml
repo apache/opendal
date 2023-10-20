@@ -61,12 +61,13 @@ jobs:
         shell: bash
         working-directory: core
         run: |
-          export CLASSPATH=$(find $HADOOP_HOME -iname "*.jar" | xargs echo | tr ' ' ':')
-          cargo test services_hdfs --features services-hdfs
+          export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+          export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
+
+          cargo test behavior --features services-hdfs
         env:
           HADOOP_HOME: "/home/runner/hadoop-3.3.5"
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          OPENDAL_HDFS_TEST: on
+          OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: default
 
@@ -86,7 +87,7 @@ jobs:
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
             -e HDFS_CONF_dfs_permissions_enabled=false \
-            bde2020/hadoop-namenode:2.0.0-hadoop3.1.3-java8
+            bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
 
           docker run -d \
             --name datanode \
@@ -95,7 +96,7 @@ jobs:
             -e WEBHDFS_CONF_dfs_webhdfs_enabled=true \
             -e CORE_CONF_hadoop_http_staticuser_user=root \
             -e HDFS_CONF_dfs_permissions_enabled=false \
-            bde2020/hadoop-datanode:2.0.0-hadoop3.1.3-java8
+            bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
 
           curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:9870
 
@@ -112,18 +113,18 @@ jobs:
       - name: Setup hadoop env
         shell: bash
         run: |
-          curl -LsSf https://archive.apache.org/dist/hadoop/common/hadoop-3.1.3/hadoop-3.1.3.tar.gz | tar zxf - -C /home/runner
+          curl -LsSf https://dlcdn.apache.org/hadoop/common/hadoop-3.2.4/hadoop-3.2.4.tar.gz | tar zxf - -C /home/runner
 
       - name: Test
         shell: bash
         working-directory: core
         run: |
           export CLASSPATH=$(${HADOOP_HOME}/bin/hadoop classpath --glob)
+          export LD_LIBRARY_PATH=${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native
 
-          cargo test services_hdfs --features services-hdfs
+          cargo test behavior --features services-hdfs
         env:
-          HADOOP_HOME: "/home/runner/hadoop-3.1.3"
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.HADOOP_HOME }}/lib/native:${{ env.LD_LIBRARY_PATH }}
-          OPENDAL_HDFS_TEST: on
+          HADOOP_HOME: "/home/runner/hadoop-3.2.4"
+          OPENDAL_TEST: hdfs
           OPENDAL_HDFS_ROOT: /tmp/opendal/
           OPENDAL_HDFS_NAME_NODE: hdfs://localhost:8020

@@ -68,125 +68,33 @@ static RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
         .unwrap()
 });
 
-fn behavior_test<B: Builder>() -> Vec<Trial> {
-    let operator = match init_service::<B>() {
-        Some(op) => op,
-        None => return Vec::new(),
-    };
-
-    let mut trials = vec![];
-    // Blocking tests
-    trials.extend(behavior_blocking_append_tests(&operator));
-    trials.extend(behavior_blocking_copy_tests(&operator));
-    trials.extend(behavior_blocking_list_tests(&operator));
-    trials.extend(behavior_blocking_read_only_tests(&operator));
-    trials.extend(behavior_blocking_rename_tests(&operator));
-    trials.extend(behavior_blocking_write_tests(&operator));
-    // Async tests
-    trials.extend(behavior_append_tests(&operator));
-    trials.extend(behavior_copy_tests(&operator));
-    trials.extend(behavior_list_only_tests(&operator));
-    trials.extend(behavior_list_tests(&operator));
-    trials.extend(behavior_presign_tests(&operator));
-    trials.extend(behavior_read_only_tests(&operator));
-    trials.extend(behavior_rename_tests(&operator));
-    trials.extend(behavior_write_tests(&operator));
-    trials.extend(behavior_fuzz_tests(&operator));
-
-    trials
-}
-
 fn main() -> anyhow::Result<()> {
     let args = Arguments::from_args();
 
-    let mut tests = Vec::new();
+    let op = if let Some(op) = init_service()? {
+        op
+    } else {
+        return Ok(());
+    };
 
-    #[cfg(feature = "services-atomicserver")]
-    tests.extend(behavior_test::<services::Atomicserver>());
-    #[cfg(feature = "services-azblob")]
-    tests.extend(behavior_test::<services::Azblob>());
-    #[cfg(feature = "services-azdls")]
-    tests.extend(behavior_test::<services::Azdls>());
-    #[cfg(feature = "services-cacache")]
-    tests.extend(behavior_test::<services::Cacache>());
-    #[cfg(feature = "services-cos")]
-    tests.extend(behavior_test::<services::Cos>());
-    #[cfg(feature = "services-dashmap")]
-    tests.extend(behavior_test::<services::Dashmap>());
-    #[cfg(feature = "services-etcd")]
-    tests.extend(behavior_test::<services::Etcd>());
-    #[cfg(feature = "services-foundationdb")]
-    tests.extend(behavior_test::<services::Foundationdb>());
-    #[cfg(feature = "services-fs")]
-    tests.extend(behavior_test::<services::Fs>());
-    #[cfg(feature = "services-ftp")]
-    tests.extend(behavior_test::<services::Ftp>());
-    #[cfg(feature = "services-gcs")]
-    tests.extend(behavior_test::<services::Gcs>());
-    #[cfg(feature = "services-ghac")]
-    tests.extend(behavior_test::<services::Ghac>());
-    #[cfg(feature = "services-hdfs")]
-    tests.extend(behavior_test::<services::Hdfs>());
-    #[cfg(feature = "services-http")]
-    tests.extend(behavior_test::<services::Http>());
-    #[cfg(feature = "services-ipfs")]
-    tests.extend(behavior_test::<services::Ipfs>());
-    #[cfg(feature = "services-ipmfs")]
-    tests.extend(behavior_test::<services::Ipmfs>());
-    #[cfg(feature = "services-libsql")]
-    tests.extend(behavior_test::<services::Libsql>());
-    #[cfg(feature = "services-memcached")]
-    tests.extend(behavior_test::<services::Memcached>());
-    #[cfg(feature = "services-memory")]
-    tests.extend(behavior_test::<services::Memory>());
-    #[cfg(feature = "services-mini-moka")]
-    tests.extend(behavior_test::<services::MiniMoka>());
-    #[cfg(feature = "services-moka")]
-    tests.extend(behavior_test::<services::Moka>());
-    #[cfg(feature = "services-obs")]
-    tests.extend(behavior_test::<services::Obs>());
-    #[cfg(feature = "services-onedrive")]
-    tests.extend(behavior_test::<services::Onedrive>());
-    #[cfg(feature = "services-postgresql")]
-    tests.extend(behavior_test::<services::Postgresql>());
-    #[cfg(feature = "services-gdrive")]
-    tests.extend(behavior_test::<services::Gdrive>());
-    #[cfg(feature = "services-dropbox")]
-    tests.extend(behavior_test::<services::Dropbox>());
-    #[cfg(feature = "services-oss")]
-    tests.extend(behavior_test::<services::Oss>());
-    #[cfg(feature = "services-persy")]
-    tests.extend(behavior_test::<services::Persy>());
-    #[cfg(feature = "services-redis")]
-    tests.extend(behavior_test::<services::Redis>());
-    #[cfg(feature = "services-rocksdb")]
-    tests.extend(behavior_test::<services::Rocksdb>());
-    #[cfg(feature = "services-s3")]
-    tests.extend(behavior_test::<services::S3>());
-    #[cfg(feature = "services-sftp")]
-    tests.extend(behavior_test::<services::Sftp>());
-    #[cfg(feature = "services-sled")]
-    tests.extend(behavior_test::<services::Sled>());
-    #[cfg(feature = "services-supabase")]
-    tests.extend(behavior_test::<services::Supabase>());
-    #[cfg(feature = "services-vercel-artifacts")]
-    tests.extend(behavior_test::<services::VercelArtifacts>());
-    #[cfg(feature = "services-wasabi")]
-    tests.extend(behavior_test::<services::Wasabi>());
-    #[cfg(feature = "services-webdav")]
-    tests.extend(behavior_test::<services::Webdav>());
-    #[cfg(feature = "services-webhdfs")]
-    tests.extend(behavior_test::<services::Webhdfs>());
-    #[cfg(feature = "services-redb")]
-    tests.extend(behavior_test::<services::Redb>());
-    #[cfg(feature = "services-tikv")]
-    tests.extend(behavior_test::<services::Tikv>());
-    #[cfg(feature = "services-mysql")]
-    tests.extend(behavior_test::<services::Mysql>());
-    #[cfg(feature = "services-sqlite")]
-    tests.extend(behavior_test::<services::Sqlite>());
-    #[cfg(feature = "services-d1")]
-    tests.extend(behavior_test::<services::D1>());
+    let mut tests = Vec::new();
+    // Blocking tests
+    tests.extend(behavior_blocking_append_tests(&op));
+    tests.extend(behavior_blocking_copy_tests(&op));
+    tests.extend(behavior_blocking_list_tests(&op));
+    tests.extend(behavior_blocking_read_only_tests(&op));
+    tests.extend(behavior_blocking_rename_tests(&op));
+    tests.extend(behavior_blocking_write_tests(&op));
+    // Async tests
+    tests.extend(behavior_append_tests(&op));
+    tests.extend(behavior_copy_tests(&op));
+    tests.extend(behavior_list_only_tests(&op));
+    tests.extend(behavior_list_tests(&op));
+    tests.extend(behavior_presign_tests(&op));
+    tests.extend(behavior_read_only_tests(&op));
+    tests.extend(behavior_rename_tests(&op));
+    tests.extend(behavior_write_tests(&op));
+    tests.extend(behavior_fuzz_tests(&op));
 
     // Don't init logging while building operator which may break cargo
     // nextest output

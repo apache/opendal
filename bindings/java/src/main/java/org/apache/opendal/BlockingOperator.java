@@ -50,6 +50,16 @@ public class BlockingOperator extends NativeObject {
         this.info = info;
     }
 
+    /**
+     * @return the cloned blocking operator.
+     *
+     * @see Operator#duplicate()
+     */
+    public BlockingOperator duplicate() {
+        final long nativeHandle = duplicate(this.nativeHandle);
+        return new BlockingOperator(nativeHandle, this.info);
+    }
+
     public void write(String path, String content) {
         write(path, content.getBytes(StandardCharsets.UTF_8));
     }
@@ -67,7 +77,7 @@ public class BlockingOperator extends NativeObject {
     }
 
     public Metadata stat(String path) {
-        return new Metadata(stat(nativeHandle, path));
+        return stat(nativeHandle, path);
     }
 
     public void createDir(String path) {
@@ -85,13 +95,15 @@ public class BlockingOperator extends NativeObject {
     @Override
     protected native void disposeInternal(long handle);
 
+    private static native long duplicate(long nativeHandle);
+
     private static native void write(long nativeHandle, String path, byte[] content);
 
     private static native byte[] read(long nativeHandle, String path);
 
     private static native void delete(long nativeHandle, String path);
 
-    private static native long stat(long nativeHandle, String path);
+    private static native Metadata stat(long nativeHandle, String path);
 
     private static native long createDir(long nativeHandle, String path);
 

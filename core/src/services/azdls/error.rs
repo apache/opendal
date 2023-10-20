@@ -77,7 +77,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     };
 
     let mut message = match de::from_reader::<_, AzdlsError>(bs.clone().reader()) {
-        Ok(azblob_err) => format!("{azblob_err:?}"),
+        Ok(azdls_err) => format!("{azdls_err:?}"),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
     // If there is no body here, fill with error code.

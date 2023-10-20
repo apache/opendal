@@ -91,7 +91,6 @@ pub struct S3Builder {
     default_storage_class: Option<String>,
     enable_virtual_host_style: bool,
     batch_max_operations: Option<usize>,
-    enable_exact_buf_write: bool,
 
     http_client: Option<HttpClient>,
 }
@@ -135,6 +134,7 @@ impl S3Builder {
     /// Endpoint must be full uri, e.g.
     ///
     /// - AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com`
+    /// - Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
     /// - Aliyun OSS: `https://{region}.aliyuncs.com`
     /// - Tencent COS: `https://cos.{region}.myqcloud.com`
     /// - Minio: `http://127.0.0.1:9000`
@@ -517,16 +517,6 @@ impl S3Builder {
         self
     }
 
-    /// Enable exact buf write so that opendal will write data with exact size.
-    ///
-    /// This option is used for services like R2 which requires all parts must be the same size
-    /// except the last part.
-    pub fn enable_exact_buf_write(&mut self) -> &mut Self {
-        self.enable_exact_buf_write = true;
-
-        self
-    }
-
     /// Detect region of S3 bucket.
     ///
     /// # Args
@@ -686,9 +676,6 @@ impl Builder for S3Builder {
             .map(|v: &String| builder.default_storage_class(v));
         map.get("batch_max_operations")
             .map(|v| builder.batch_max_operations(v.parse().expect("input must be a number")));
-        map.get("enable_exact_buf_write")
-            .filter(|v| *v == "on" || *v == "true")
-            .map(|_| builder.enable_exact_buf_write());
 
         builder
     }
@@ -868,7 +855,6 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 allow_anonymous: self.allow_anonymous,
-                enable_exact_buf_write: self.enable_exact_buf_write,
                 signer,
                 loader,
                 client,

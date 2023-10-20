@@ -39,28 +39,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  redis:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Redis Server
-        shell: bash
-        working-directory: fixtures/redis
-        run: docker-compose -f docker-compose-redis.yml up -d
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo nextest run redis --features services-redis
-        env:
-          OPENDAL_REDIS_TEST: on
-          OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379
-          OPENDAL_REDIS_ROOT: /
-          OPENDAL_REDIS_DB: 0
-
   redis-tls:
     runs-on: ubuntu-latest
     steps:
@@ -84,34 +62,11 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run redis --features services-redis-rustls
+        run: cargo nextest run behavior --features services-redis-rustls
         env:
-          OPENDAL_REDIS_TEST: on
+          OPENDAL_TEST: redis
           OPENDAL_REDIS_ENDPOINT: rediss://localhost:6379
           OPENDAL_REDIS_ROOT: /
-          OPENDAL_REDIS_DB: 0
-
-  redis-cluster:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-nextest: true
-      - name: Setup Redis Cluster
-        shell: bash
-        working-directory: fixtures/redis
-        run: docker-compose -f docker-compose-redis-cluster.yml up -d
-      - name: Test
-        shell: bash
-        working-directory: core
-        run: cargo nextest run redis --features services-redis
-        env:
-          OPENDAL_REDIS_TEST: on
-          OPENDAL_REDIS_CLUSTER_ENDPOINTS: redis://127.0.0.1:6380/,redis://127.0.0.1:6381/,redis://127.0.0.1:6382/,redis://127.0.0.1:6383/,redis://127.0.0.1:6384/,redis://127.0.0.1:6385/
-          OPENDAL_REDIS_ROOT: /test/opendal
           OPENDAL_REDIS_DB: 0
 
   redis-cluster-tls:
@@ -140,9 +95,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run redis --features services-redis-rustls
+        run: cargo nextest run behavior --features services-redis-rustls
         env:
-          OPENDAL_REDIS_TEST: on
+          OPENDAL_TEST: redis
           OPENDAL_REDIS_CLUSTER_ENDPOINTS: rediss://127.0.0.1:6380/,rediss://127.0.0.1:6381/,rediss://127.0.0.1:6382/,rediss://127.0.0.1:6383/,rediss://127.0.0.1:6384/,rediss://127.0.0.1:6385/
           OPENDAL_REDIS_PASSWORD: opendal
           OPENDAL_REDIS_ROOT: /test/opendal
@@ -164,9 +119,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run redis --features services-redis
+        run: cargo nextest run behavior --features services-redis
         env:
-          OPENDAL_REDIS_TEST: on
+          OPENDAL_TEST: redis
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379
           OPENDAL_REDIS_ROOT: /
           OPENDAL_REDIS_DB: 0
@@ -187,32 +142,9 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run redis --features services-redis
+        run: cargo nextest run behavior --features services-redis
         env:
-          OPENDAL_REDIS_TEST: on
-          OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379
-          OPENDAL_REDIS_ROOT: /
-          OPENDAL_REDIS_DB: 0
-
-  java:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup Redis Server
-        shell: bash
-        working-directory: fixtures/redis
-        run: docker-compose -f docker-compose-redis.yml up -d
-
-      - name: Test
-        shell: bash
-        working-directory: bindings/java
-        run: ./mvnw test -Dgroups="services_redis" -Dcargo-build.features=services-redis
-        env:
-          OPENDAL_REDIS_TEST: on
+          OPENDAL_TEST: redis
           OPENDAL_REDIS_ENDPOINT: tcp://127.0.0.1:6379
           OPENDAL_REDIS_ROOT: /
           OPENDAL_REDIS_DB: 0

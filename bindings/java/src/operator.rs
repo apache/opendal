@@ -35,6 +35,7 @@ use crate::get_current_env;
 use crate::get_global_runtime;
 use crate::jmap_to_hashmap;
 use crate::jstring_to_string;
+use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
 use crate::Result;
@@ -61,6 +62,19 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
         op = op.layer(BlockingLayer::create()?);
     }
     Ok(Box::into_raw(Box::new(op)) as jlong)
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) -> jlong {
+    let op = &mut *op;
+    Box::into_raw(Box::new(op.clone())) as jlong
 }
 
 /// # Safety
@@ -181,15 +195,16 @@ fn intern_stat(env: &mut JNIEnv, op: *mut Operator, path: JString) -> Result<jlo
 
     unsafe { get_global_runtime() }.spawn(async move {
         let result = do_stat(op, path).await;
-        complete_future(id, result.map(JValueOwned::Long))
+        complete_future(id, result.map(JValueOwned::Object))
     });
 
     Ok(id)
 }
 
-async fn do_stat(op: &mut Operator, path: String) -> Result<jlong> {
+async fn do_stat<'local>(op: &mut Operator, path: String) -> Result<JObject<'local>> {
     let metadata = op.stat(&path).await?;
-    Ok(Box::into_raw(Box::new(metadata)) as jlong)
+    let mut env = unsafe { get_current_env() };
+    make_metadata(&mut env, metadata)
 }
 
 /// # Safety

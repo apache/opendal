@@ -48,6 +48,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run mini_moka --features services-mini-moka
+        run: cargo nextest run behavior --features services-mini-moka
         env:
-          OPENDAL_MINI_MOKA_TEST: on
+          OPENDAL_TEST: mini_moka

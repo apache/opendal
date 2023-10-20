@@ -122,6 +122,20 @@ public class Operator extends NativeObject {
         this.info = info;
     }
 
+    /**
+     * Clone a new operator that is identical to this one. The new operator has its own lifecycle.
+     *
+     * <p>Since an operator will release all its resource and "flush" on lifecycle end, this method
+     * is suitable to create a narrowed "scope" while avoiding creating a brand-new operator for each
+     * scope.
+     *
+     * @return the cloned operator.
+     */
+    public Operator duplicate() {
+        final long nativeHandle = duplicate(this.nativeHandle);
+        return new Operator(nativeHandle, this.info);
+    }
+
     public BlockingOperator blocking() {
         final long nativeHandle = makeBlockingOp(this.nativeHandle);
         final OperatorInfo info = this.info;
@@ -148,8 +162,7 @@ public class Operator extends NativeObject {
 
     public CompletableFuture<Metadata> stat(String path) {
         final long requestId = stat(nativeHandle, path);
-        final CompletableFuture<Long> f = AsyncRegistry.take(requestId);
-        return f.thenApply(Metadata::new);
+        return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<byte[]> read(String path) {
@@ -194,6 +207,8 @@ public class Operator extends NativeObject {
 
     @Override
     protected native void disposeInternal(long handle);
+
+    private static native long duplicate(long nativeHandle);
 
     private static native long constructor(String schema, Map<String, String> map);
 

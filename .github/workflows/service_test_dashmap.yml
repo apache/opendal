@@ -52,6 +52,6 @@ jobs:
       - name: Test
         shell: bash
         working-directory: core
-        run: cargo nextest run dashmap --features services-dashmap
+        run: cargo nextest run behavior --features services-dashmap
         env:
-          OPENDAL_DASHMAP_TEST: on
+          OPENDAL_TEST: dashmap

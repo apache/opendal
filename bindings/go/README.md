@@ -1,5 +1,7 @@
 # OpenDAL Go Binding (WIP)
 
+![](https://img.shields.io/badge/status-unreleased-red)
+
 opendal-go requires opendal-c to be installed.
 
 ```shell

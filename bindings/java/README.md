@@ -1,5 +1,6 @@
 # OpenDAL Java Bindings
 
+![](https://img.shields.io/badge/status-released-blue)
 [![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal-java&smo=true)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/java/)
 
@@ -107,39 +108,31 @@ You can apply the code style with the following command::
 ./mvnw spotless:apply
 ```
 
-## Run Service Tests
+## Run behavior tests
 
-Services tests read necessary configs from env vars or the `.env` file.
+Services behavior tests read necessary configs from env vars or the `.env` file.
 
 You can copy [.env.example](/.env.example) to `${project.rootdir}/.env` and change the values on need, or directly set env vars with `export KEY=VALUE`.
 
 Take `fs` for example, we need to enable bench on `fs` on `/tmp`:
 
 ```properties
-OPENDAL_FS_TEST=on
-OPENDAL_FS_ROOT=/opendal
+OPENDAL_TEST=fs
+OPENDAL_FS_ROOT=/tmp
 ```
 
-You can run service tests of enabled with the following command:
+You can run service behavior tests of enabled with the following command:
 
 ```shell
-./mvnw test -Dtest=org.apache.opendal.behavior.FsTest # replace with the certain service tests
-```
-
-Or:
-
-```shell
-./mvnw test -Dgroups="services_fs" # replace with the certain service tests
+./mvnw test -Dtest="behavior.*Test"
 ```
 
 Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
 
 ```shell
-./mvnw test -Dtest=org.apache.opendal.behavior.RedisTest -Dcargo-build.features=services-redis
-```
-
-Or:
-
-```shell
-./mvnw test -Dgroups="services_redis" -Dcargo-build.features=services-redis
+export OPENDAL_TEST=redis
+export OPENDAL_REDIS_ENDPOINT=tcp://127.0.0.1:6379
+export OPENDAL_REDIS_ROOT=/
+export OPENDAL_REDIS_DB=0
+./mvnw test -Dtest="behavior.*Test" -Dcargo-build.features=services-redis
 ```

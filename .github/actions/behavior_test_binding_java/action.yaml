@@ -22,9 +22,8 @@ inputs:
     description: "The setup action for test"
   service:
     description: "The service to test"
-  secrets:
-    description: "The secrets for test"
-    default: "{}"
+  feature:
+    description: "The feature to test"
 
 runs:
   using: "composite"
@@ -32,22 +31,19 @@ runs:
       - name: Setup
         shell: bash
         run: |
-            mkdir -p ./dynamic_test_core &&
-            cat <<EOF >./dynamic_test_core/action.yml
+            mkdir -p ./dynamic_test_binding_java &&
+            cat <<EOF >./dynamic_test_binding_java/action.yml
             runs:
               using: composite
               steps:
-              - name: Setup Test Core
+              - name: Setup Test
                 uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
-                with:
-                  secrets: ${{ toJson(inputs.secrets) }}
-              - name: Run Test Core
+              - name: Run Test Binding Java
                 shell: bash
-                working-directory: core
-                run: cargo nextest run behavior --archive-file=./core-test.tar.zst
+                working-directory: bindings/java
+                run: ./mvnw test -Dtest="behavior.*Test"  -Dcargo-build.features=${{ inputs.feature }}
                 env:
                   OPENDAL_TEST: ${{ inputs.service }}
             EOF
       - name: Run
-        id: run
-        uses: ./dynamic_test_core
+        uses: ./dynamic_test_binding_java

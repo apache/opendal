@@ -134,6 +134,7 @@ impl S3Builder {
     /// Endpoint must be full uri, e.g.
     ///
     /// - AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com`
+    /// - Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
     /// - Aliyun OSS: `https://{region}.aliyuncs.com`
     /// - Tencent COS: `https://cos.{region}.myqcloud.com`
     /// - Minio: `http://127.0.0.1:9000`

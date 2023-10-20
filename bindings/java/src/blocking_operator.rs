@@ -19,8 +19,8 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::sys::jbyteArray;
 use jni::sys::jobject;
+use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
 
 use opendal::BlockingOperator;
@@ -39,6 +39,19 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_disposeIn
     op: *mut BlockingOperator,
 ) {
     drop(Box::from_raw(op));
+}
+
+/// # Safety
+///
+/// This function should not be called before the Operator are ready.
+#[no_mangle]
+pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_duplicate(
+    _: JNIEnv,
+    _: JObject,
+    op: *mut BlockingOperator,
+) -> jlong {
+    let op = &mut *op;
+    Box::into_raw(Box::new(op.clone())) as jlong
 }
 
 /// # Safety

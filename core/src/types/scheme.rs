@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str::FromStr;
@@ -133,6 +134,110 @@ impl Scheme {
     /// Convert self into static str.
     pub fn into_static(self) -> &'static str {
         self.into()
+    }
+
+    /// Get all enabled schemes.
+    ///
+    /// OpenDAL could be compiled with different features, which will enable different schemes.
+    /// This function returns all enabled schemes so users can make decisions based on it.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opendal::Scheme;
+    ///
+    /// let enabled_schemes = Scheme::enabled();
+    /// if !enabled_schemes.contains(&Scheme::Memory) {
+    ///    panic!("s3 support is not enabled")
+    /// }
+    /// ```
+    pub fn enabled() -> HashSet<Scheme> {
+        HashSet::from([
+            #[cfg(feature = "services-atomicserver")]
+            Scheme::Atomicserver,
+            #[cfg(feature = "services-azblob")]
+            Scheme::Azblob,
+            #[cfg(feature = "services-azdls")]
+            Scheme::Azdls,
+            #[cfg(feature = "services-cacache")]
+            Scheme::Cacache,
+            #[cfg(feature = "services-cos")]
+            Scheme::Cos,
+            #[cfg(feature = "services-dashmap")]
+            Scheme::Dashmap,
+            #[cfg(feature = "services-dropbox")]
+            Scheme::Dropbox,
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd,
+            #[cfg(feature = "services-foundationdb")]
+            Scheme::Foundationdb,
+            #[cfg(feature = "services-fs")]
+            Scheme::Fs,
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp,
+            #[cfg(feature = "services-gcs")]
+            Scheme::Gcs,
+            #[cfg(feature = "services-ghac")]
+            Scheme::Ghac,
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs,
+            #[cfg(feature = "services-http")]
+            Scheme::Http,
+            #[cfg(feature = "services-ipfs")]
+            Scheme::Ipfs,
+            #[cfg(feature = "services-ipmfs")]
+            Scheme::Ipmfs,
+            #[cfg(feature = "services-libsql")]
+            Scheme::Libsql,
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached,
+            #[cfg(feature = "services-memory")]
+            Scheme::Memory,
+            #[cfg(feature = "services-mini-moka")]
+            Scheme::MiniMoka,
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka,
+            #[cfg(feature = "services-mysql")]
+            Scheme::Mysql,
+            #[cfg(feature = "services-obs")]
+            Scheme::Obs,
+            #[cfg(feature = "services-onedrive")]
+            Scheme::Onedrive,
+            #[cfg(feature = "services-postgresql")]
+            Scheme::Postgresql,
+            #[cfg(feature = "services-gdrive")]
+            Scheme::Gdrive,
+            #[cfg(feature = "services-oss")]
+            Scheme::Oss,
+            #[cfg(feature = "services-persy")]
+            Scheme::Persy,
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis,
+            #[cfg(feature = "services-rocksdb")]
+            Scheme::Rocksdb,
+            #[cfg(feature = "services-s3")]
+            Scheme::S3,
+            #[cfg(feature = "services-sftp")]
+            Scheme::Sftp,
+            #[cfg(feature = "services-sled")]
+            Scheme::Sled,
+            #[cfg(feature = "services-sqlite")]
+            Scheme::Sqlite,
+            #[cfg(feature = "services-supabase")]
+            Scheme::Supabase,
+            #[cfg(feature = "services-tikv")]
+            Scheme::Tikv,
+            #[cfg(feature = "services-vercel-artifacts")]
+            Scheme::VercelArtifacts,
+            #[cfg(feature = "services-wasabi")]
+            Scheme::Wasabi,
+            #[cfg(feature = "services-webdav")]
+            Scheme::Webdav,
+            #[cfg(feature = "services-webhdfs")]
+            Scheme::Webhdfs,
+            #[cfg(feature = "services-redb")]
+            Scheme::Redb,
+        ])
     }
 }
 

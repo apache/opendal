@@ -14,14 +14,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-name: local_fs
-description: "Setup local fs"
-
-runs:
-    using: "composite"
-    steps:
-        - name: Setup
-          shell: bash
-          run: |
-              echo "OPENDAL_FS_ROOT=${{ runner.temp }}/" >> $GITHUB_ENV

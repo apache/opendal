@@ -37,7 +37,7 @@ var (
 type Options map[string]string
 
 type Operator struct {
-	inner *C.opendal_operator_ptr
+	inner *C.opendal_operator
 }
 
 func NewOperator(scheme string, opt Options) (*Operator, error) {
@@ -56,7 +56,7 @@ func NewOperator(scheme string, opt Options) (*Operator, error) {
 		return nil, errors.New(fmt.Sprintf("create operator failed, error code: %d, error message: %s", code, message))
 	}
 	return &Operator{
-		inner: ret.operator_ptr,
+		inner: ret.op,
 	}, nil
 }
 
@@ -65,7 +65,7 @@ func (o *Operator) Write(key string, value []byte) error {
 		return errValueEmpty
 	}
 	bytes := C.opendal_bytes{data: (*C.uchar)(unsafe.Pointer(&value[0])), len: C.ulong(len(value))}
-	ret := C.opendal_operator_blocking_write(o.inner, C.CString(key), bytes)
+	ret := C.opendal_operator_write(o.inner, C.CString(key), bytes)
 	if ret != nil {
 		defer C.opendal_error_free(ret)
 		code, message := parseError(ret)
@@ -75,7 +75,7 @@ func (o *Operator) Write(key string, value []byte) error {
 }
 
 func (o *Operator) Read(key string) ([]byte, error) {
-	ret := C.opendal_operator_blocking_read(o.inner, C.CString(key))
+	ret := C.opendal_operator_read(o.inner, C.CString(key))
 	if ret.error != nil {
 		defer C.opendal_error_free(ret.error)
 		code, message := parseError(ret.error)

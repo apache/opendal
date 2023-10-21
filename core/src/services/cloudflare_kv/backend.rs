@@ -14,7 +14,6 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-#![allow(dead_code)]
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -22,7 +21,6 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 use http::header;
 use http::Request;
-use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
@@ -107,10 +105,10 @@ impl Builder for CloudflareKvBuilder {
     }
 
     fn build(&mut self) -> Result<Self::Accessor> {
-        let mut authorization = None;
-        if let Some(token) = &self.token {
-            authorization = Some(format_authorization_by_bearer(token)?)
-        }
+        let authorization = match &self.token {
+            Some(token) => format_authorization_by_bearer(token)?,
+            None => return Err(Error::new(ErrorKind::ConfigInvalid, "token is required")),
+        };
 
         let Some(account_id) = self.account_id.clone() else {
             return Err(Error::new(
@@ -142,11 +140,17 @@ impl Builder for CloudflareKvBuilder {
                 .as_str(),
         );
 
+        let url_prefix = format!(
+            r"https://api.cloudflare.com/client/v4/accounts/{}/storage/kv/namespaces/{}",
+            account_id, namespace_id
+        );
+
         Ok(kv::Backend::new(Adapter {
             authorization,
             account_id,
             namespace_id,
             client,
+            url_prefix,
         })
         .with_root(&root))
     }
@@ -156,10 +160,11 @@ pub type CloudflareKvBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    authorization: Option<String>,
+    authorization: String,
     account_id: String,
     namespace_id: String,
     client: HttpClient,
+    url_prefix: String,
 }
 
 impl Debug for Adapter {
@@ -172,17 +177,10 @@ impl Debug for Adapter {
 }
 
 impl Adapter {
-    fn load_token<T>(&self, mut req: Request<T>) -> Result<Request<T>> {
-        if let Some(auth) = &self.authorization {
-            req.headers_mut()
-                .insert(header::AUTHORIZATION, auth.parse().unwrap());
-        }
+    fn sign<T>(&self, mut req: Request<T>) -> Result<Request<T>> {
+        req.headers_mut()
+            .insert(header::AUTHORIZATION, self.authorization.parse().unwrap());
         Ok(req)
-    }
-
-    #[inline]
-    pub async fn send(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
-        self.client.send(req).await
     }
 }
 
@@ -203,17 +201,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let url = format!(
-            r"https://api.cloudflare.com/client/v4/accounts/{}/storage/kv/namespaces/{}",
-            self.account_id, self.namespace_id
-        );
-        let url = format!("{}/values/{}", url, path);
+        let url = format!("{}/values/{}", self.url_prefix, path);
         let mut req = Request::get(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
         let mut req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
-        req = self.load_token(req)?;
+        req = self.sign(req)?;
         let resp = self.client.send(req).await?;
         let status = resp.status();
         match status {
@@ -226,84 +220,41 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let url = format!(
-            r"https://api.cloudflare.com/client/v4/accounts/{}/storage/kv/namespaces/{}",
-            self.account_id, self.namespace_id
-        );
-        let url = format!("{}/values/{}", url, path);
-        let mut req = Request::put(&url);
-        req = req.header(header::CONTENT_TYPE, "multipart/form-data");
+        let url = format!("{}/values/{}", self.url_prefix, path);
+        let req = Request::put(&url);
         let multipart = Multipart::new();
         let multipart = multipart
             .part(FormDataPart::new("metadata").content(serde_json::Value::Null.to_string()))
             .part(FormDataPart::new("value").content(value.to_vec()));
         let mut req = multipart.apply(req)?;
-        req = self.load_token(req)?;
+        req = self.sign(req)?;
         let resp = self.client.send(req).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
-                let response: CfKvResponse = serde_json::from_slice(&body).map_err(|e| {
-                    Error::new(
-                        crate::ErrorKind::Unexpected,
-                        &format!("failed to parse error response: {}", e),
-                    )
-                })?;
-                if !response.success {
-                    return Err(Error::new(
-                        crate::ErrorKind::Unexpected,
-                        &String::from_utf8_lossy(&body),
-                    ));
-                }
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
-        let url = format!(
-            r"https://api.cloudflare.com/client/v4/accounts/{}/storage/kv/namespaces/{}",
-            self.account_id, self.namespace_id
-        );
-        let url = format!("{}/values/{}", url, path);
+        let url = format!("{}/values/{}", self.url_prefix, path);
         let mut req = Request::delete(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
         let mut req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
-        req = self.load_token(req)?;
+        req = self.sign(req)?;
         let resp = self.client.send(req).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK => {
-                let body = resp.into_body().bytes().await?;
-                let response: CfKvResponse = serde_json::from_slice(&body).map_err(|e| {
-                    Error::new(
-                        crate::ErrorKind::Unexpected,
-                        &format!("failed to parse error response: {}", e),
-                    )
-                })?;
-                if !response.success {
-                    return Err(Error::new(
-                        crate::ErrorKind::Unexpected,
-                        &String::from_utf8_lossy(&body),
-                    ));
-                }
-                Ok(())
-            }
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp).await?),
         }
     }
 
     async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        let url = format!(
-            r"https://api.cloudflare.com/client/v4/accounts/{}/storage/kv/namespaces/{}",
-            self.account_id, self.namespace_id
-        );
-        let mut url = format!("{}/keys", url);
-        if path.len() > 0 {
+        let mut url = format!("{}/keys", self.url_prefix);
+        if !path.is_empty() {
             url = format!("{}?prefix={}", url, path);
         }
         let mut req = Request::get(&url);
@@ -311,7 +262,7 @@ impl kv::Adapter for Adapter {
         let mut req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
-        req = self.load_token(req)?;
+        req = self.sign(req)?;
         let resp = self.client.send(req).await?;
         let status = resp.status();
         match status {
@@ -323,12 +274,6 @@ impl kv::Adapter for Adapter {
                         &format!("failed to parse error response: {}", e),
                     )
                 })?;
-                if !response.success {
-                    return Err(Error::new(
-                        crate::ErrorKind::Unexpected,
-                        &String::from_utf8_lossy(&body),
-                    ));
-                }
                 Ok(response.result.into_iter().map(|r| r.name).collect())
             }
             _ => Err(parse_error(resp).await?),
@@ -337,33 +282,33 @@ impl kv::Adapter for Adapter {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct CfKvResponse {
-    pub(crate) errors: Vec<CfKvError>,
-    messages: Vec<CfKvMessage>,
-    result: serde_json::Value,
-    success: bool,
+pub struct CfKvResponse {
+    pub errors: Vec<CfKvError>,
+    pub messages: Vec<CfKvMessage>,
+    pub result: serde_json::Value,
+    pub success: bool,
 }
 
 #[derive(Debug, Deserialize)]
-struct CfKvScanResponse {
-    errors: Vec<CfKvError>,
-    messages: Vec<CfKvMessage>,
-    result: Vec<CfKvScanResult>,
-    success: bool,
-    result_info: Option<CfKvResultInfo>,
+pub struct CfKvScanResponse {
+    pub errors: Vec<CfKvError>,
+    pub messages: Vec<CfKvMessage>,
+    pub result: Vec<CfKvScanResult>,
+    pub success: bool,
+    pub result_info: Option<CfKvResultInfo>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CfKvScanResult {
-    expiration: i64,
-    name: String,
-    metadata: serde_json::Value,
+pub struct CfKvScanResult {
+    pub expiration: i64,
+    pub name: String,
+    pub metadata: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize)]
-struct CfKvResultInfo {
-    count: i64,
-    cursor: String,
+pub struct CfKvResultInfo {
+    pub count: i64,
+    pub cursor: String,
 }
 
 #[derive(Debug, Deserialize)]

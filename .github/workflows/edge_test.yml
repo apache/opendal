@@ -31,6 +31,10 @@ on:
       - "core/src/services/fs/**"
       - ".github/workflows/edge_test.yml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   test_file_write_on_full_disk:
     runs-on: ubuntu-latest
@@ -52,9 +56,14 @@ jobs:
       - name: Set permissions
         run: sudo chmod a+wr /tmp/test_dir
 
-      - name: Test
+      - name: Test file write on full disk
         working-directory: core/edge/file_write_on_full_disk
         run: cargo run
         env:
           OPENDAL_FS_ROOT: /tmp/test_dir
 
+      - name: Test layers
+        working-directory: core/edge/layer_test
+        run: cargo run
+        env:
+          OPENDAL_FS_ROOT: /tmp/test_dir

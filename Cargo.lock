@@ -1802,6 +1802,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "edge_test_for_layers"
+version = "0.0.0"
+dependencies = [
+ "futures",
+ "log",
+ "opendal",
+ "prometheus",
+ "rand 0.8.5",
+ "tokio",
+]
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

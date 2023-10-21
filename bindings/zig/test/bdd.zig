@@ -24,7 +24,7 @@ test "Opendal BDD test" {
     const c_str = [*:0]const u8; // define a type for 'const char*' in C
 
     const OpendalBDDTest = struct {
-        p: [*c]const opendal.c.opendal_operator_ptr,
+        p: [*c]const opendal.c.opendal_operator,
         scheme: c_str,
         path: c_str,
         content: c_str,
@@ -42,7 +42,7 @@ test "Opendal BDD test" {
             // Given A new OpenDAL Blocking Operator
             var result = opendal.c.opendal_operator_new(self.scheme, options);
             testing.expectEqual(result.@"error", null) catch unreachable;
-            self.p = result.operator_ptr;
+            self.p = result.op;
 
             return self;
         }
@@ -63,7 +63,7 @@ test "Opendal BDD test" {
         // c_str does not have len field (.* is ptr)
         .len = std.mem.len(testkit.content),
     };
-    const result = opendal.c.opendal_operator_blocking_write(testkit.p, testkit.path, data);
+    const result = opendal.c.opendal_operator_write(testkit.p, testkit.path, data);
     try testing.expectEqual(result, null);
 
     // The blocking file "test" should exist
@@ -82,7 +82,7 @@ test "Opendal BDD test" {
     defer opendal.c.opendal_metadata_free(meta);
 
     // The blocking file "test" must have content "Hello, World!"
-    var r: opendal.c.opendal_result_read = opendal.c.opendal_operator_blocking_read(testkit.p, testkit.path);
+    var r: opendal.c.opendal_result_read = opendal.c.opendal_operator_read(testkit.p, testkit.path);
     defer opendal.c.opendal_bytes_free(r.data);
     try testing.expect(r.@"error" == null);
     try testing.expectEqual(std.mem.len(testkit.content), r.data.*.len);

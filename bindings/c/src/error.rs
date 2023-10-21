@@ -15,21 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as od;
+use ::opendal as core;
 
 use crate::types::opendal_bytes;
-
-/// \brief The wrapper type for opendal's Rust core error, wrapped because of the
-/// orphan rule.
-///
-/// \note User should never use this type directly, use [`opendal_error`] instead.
-struct raw_error(od::Error);
 
 /// \brief The error code for all opendal APIs in C binding.
 /// \todo The error handling is not complete, the error with error message will be
 /// added in the future.
 #[repr(C)]
-pub(crate) enum opendal_code {
+pub enum opendal_code {
     /// returning it back. For example, s3 returns an internal service error.
     OPENDAL_UNEXPECTED,
     /// Underlying service doesn't support this operation.
@@ -52,21 +46,19 @@ pub(crate) enum opendal_code {
     OPENDAL_IS_SAME_FILE,
 }
 
-impl raw_error {
-    /// Convert the [`od::ErrorKind`] of [`od::Error`] to [`opendal_code`]
-    pub(crate) fn error_code(&self) -> opendal_code {
-        let e = &self.0;
-        match e.kind() {
-            od::ErrorKind::Unexpected => opendal_code::OPENDAL_UNEXPECTED,
-            od::ErrorKind::Unsupported => opendal_code::OPENDAL_UNSUPPORTED,
-            od::ErrorKind::ConfigInvalid => opendal_code::OPENDAL_CONFIG_INVALID,
-            od::ErrorKind::NotFound => opendal_code::OPENDAL_NOT_FOUND,
-            od::ErrorKind::PermissionDenied => opendal_code::OPENDAL_PERMISSION_DENIED,
-            od::ErrorKind::IsADirectory => opendal_code::OPENDAL_IS_A_DIRECTORY,
-            od::ErrorKind::NotADirectory => opendal_code::OPENDAL_NOT_A_DIRECTORY,
-            od::ErrorKind::AlreadyExists => opendal_code::OPENDAL_ALREADY_EXISTS,
-            od::ErrorKind::RateLimited => opendal_code::OPENDAL_RATE_LIMITED,
-            od::ErrorKind::IsSameFile => opendal_code::OPENDAL_IS_SAME_FILE,
+impl From<core::ErrorKind> for opendal_code {
+    fn from(value: core::ErrorKind) -> Self {
+        match value {
+            core::ErrorKind::Unexpected => opendal_code::OPENDAL_UNEXPECTED,
+            core::ErrorKind::Unsupported => opendal_code::OPENDAL_UNSUPPORTED,
+            core::ErrorKind::ConfigInvalid => opendal_code::OPENDAL_CONFIG_INVALID,
+            core::ErrorKind::NotFound => opendal_code::OPENDAL_NOT_FOUND,
+            core::ErrorKind::PermissionDenied => opendal_code::OPENDAL_PERMISSION_DENIED,
+            core::ErrorKind::IsADirectory => opendal_code::OPENDAL_IS_A_DIRECTORY,
+            core::ErrorKind::NotADirectory => opendal_code::OPENDAL_NOT_A_DIRECTORY,
+            core::ErrorKind::AlreadyExists => opendal_code::OPENDAL_ALREADY_EXISTS,
+            core::ErrorKind::RateLimited => opendal_code::OPENDAL_RATE_LIMITED,
+            core::ErrorKind::IsSameFile => opendal_code::OPENDAL_IS_SAME_FILE,
             // if this is triggered, check the [`core`] crate and add a
             // new error code accordingly
             _ => panic!("The newly added ErrorKind in core crate is not handled in C bindings"),
@@ -98,19 +90,15 @@ pub struct opendal_error {
 }
 
 impl opendal_error {
-    // The caller should sink the error to heap memory and return the pointer
-    // that will not be freed by rustc
-    pub(crate) fn from_opendal_error(error: od::Error) -> Self {
-        let error = raw_error(error);
-        let code = error.error_code();
-        let c_str = format!("{}", error.0);
-        let message = opendal_bytes::new(c_str.into_bytes());
-        opendal_error { code, message }
-    }
+    /// Create a new opendal error via `core::Error`.
+    ///
+    /// We will call `Box::leak()` to leak this error, so the caller should be responsible for
+    /// free this error.
+    pub fn new(err: core::Error) -> *mut opendal_error {
+        let code = opendal_code::from(err.kind());
+        let message = opendal_bytes::new(err.to_string().into_bytes());
 
-    pub(crate) fn manual_error(code: opendal_code, message: String) -> Self {
-        let message = opendal_bytes::new(message.into_bytes());
-        opendal_error { code, message }
+        Box::into_raw(Box::new(opendal_error { code, message }))
     }
 
     /// \brief Frees the opendal_error, ok to call on NULL

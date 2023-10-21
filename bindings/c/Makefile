@@ -32,6 +32,7 @@ all: build test examples
 
 .PHONY: format
 format:
+	cargo fmt
 	find . -name '*.cpp' -exec clang-format -i --style=WebKit --verbose {} \;
 	find . -name '*.c' -exec clang-format -i --style=WebKit --verbose {} \;
 

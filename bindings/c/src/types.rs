@@ -143,4 +143,3 @@ impl opendal_operator_options {
         let _ = unsafe { Box::from_raw(options as *mut opendal_operator_options) };
     }
 }
-

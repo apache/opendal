@@ -110,6 +110,23 @@ impl<A: Accessor> Layer<A> for PrometheusClientLayer {
     }
 }
 
+
+impl<A: Accessor> Layer<A> for &PrometheusClientLayer {
+    type LayeredAccessor = PrometheusAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        let meta = inner.info();
+        let scheme = meta.scheme();
+
+        let metrics = Arc::new(self.metrics.clone());
+        PrometheusAccessor {
+            inner,
+            metrics,
+            scheme,
+        }
+    }
+}
+
 type OperationLabels = [(&'static str, &'static str); 2];
 type ErrorLabels = [(&'static str, &'static str); 3];
 

@@ -110,7 +110,6 @@ impl<A: Accessor> Layer<A> for PrometheusClientLayer {
     }
 }
 
-
 impl<A: Accessor> Layer<A> for &PrometheusClientLayer {
     type LayeredAccessor = PrometheusAccessor<A>;
 

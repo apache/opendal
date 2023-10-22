@@ -169,3 +169,6 @@ pub mod rfc_3232_align_list_api {}
 
 #[doc = include_str!("3243_list_prefix.md")]
 pub mod rfc_3243_list_prefix {}
+
+#[doc = include_str!("3356_lazy_reader.md")]
+pub mod rfc_3356_lazy_reader {}

@@ -20,7 +20,7 @@ pub fn read_metadata<R: Read + Seek>(reader: &mut R) -> Result<FileMetaData> {
     let file_size = stream_len(reader)?;
     if file_size < HEADER_SIZE + FOOTER_SIZE {
         return Err(Error::oos(
-            "A parquet file must containt a header and footer with at least 12 bytes",
+            "A parquet file must contain a header and footer with at least 12 bytes",
         ));
     }
 

@@ -1,11 +1,11 @@
-- Proposal Name: `lazy_io`
+- Proposal Name: `lazy_reader`
 - Start Date: 2023-10-22
 - RFC PR: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/pull/0000)
 - Tracking Issue: [apache/incubator-opendal#0000](https://github.com/apache/incubator-opendal/issues/0000)
 
 # Summary
 
-Doing IO in a lazy way.
+Doing read IO in a lazy way.
 
 # Motivation
 

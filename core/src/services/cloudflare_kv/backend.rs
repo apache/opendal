@@ -359,14 +359,11 @@ mod test {
             response.result[0].metadata,
             serde_json::json!({"someMetadataKey": "someMetadataValue"})
         );
-        assert_eq!(response.success, true);
+        assert!(response.success);
         assert!(response.result_info.is_some());
-        match response.result_info {
-            Some(result_info) => {
-                assert_eq!(result_info.count, 1);
-                assert_eq!(result_info.cursor, "6Ck1la0VxJ0djhidm1MdX2FyDGxLKVeeHZZmORS_8XeSuhz9SjIJRaSa2lnsF01tQOHrfTGAP3R5X1Kv5iVUuMbNKhWNAXHOl6ePB0TUL8nw");
-            }
-            None => {}
+        if let Some(result_info) = response.result_info {
+            assert_eq!(result_info.count, 1);
+            assert_eq!(result_info.cursor, "6Ck1la0VxJ0djhidm1MdX2FyDGxLKVeeHZZmORS_8XeSuhz9SjIJRaSa2lnsF01tQOHrfTGAP3R5X1Kv5iVUuMbNKhWNAXHOl6ePB0TUL8nw");
         }
     }
 
@@ -384,6 +381,6 @@ mod test {
         assert_eq!(response.errors.len(), 0);
         assert_eq!(response.messages.len(), 0);
         assert_eq!(response.result, serde_json::json!({}));
-        assert_eq!(response.success, true);
+        assert!(response.success);
     }
 }

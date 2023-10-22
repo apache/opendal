@@ -14,6 +14,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -292,7 +293,8 @@ pub struct CfKvResponse {
 #[derive(Debug, Deserialize)]
 pub struct CfKvScanResponse {
     pub errors: Vec<CfKvError>,
-    pub messages: Vec<CfKvMessage>,
+	#[allow(dead_code)]
+    messages: Vec<CfKvMessage>,
     pub result: Vec<CfKvScanResult>,
     pub success: bool,
     pub result_info: Option<CfKvResultInfo>,

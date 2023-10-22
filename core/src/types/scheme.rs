@@ -121,6 +121,8 @@ pub enum Scheme {
     Tikv,
     /// [azfile][crate::services::azfile]: Azfile Services
     Azfile,
+    /// [mongodb](crate::services::mongodb): MongoDB Services
+    Mongodb,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -237,6 +239,8 @@ impl Scheme {
             Scheme::Webhdfs,
             #[cfg(feature = "services-redb")]
             Scheme::Redb,
+            #[cfg(feature = "services-mongodb")]
+            Scheme::Mongodb,
         ])
     }
 }
@@ -306,6 +310,7 @@ impl FromStr for Scheme {
             "webhdfs" => Ok(Scheme::Webhdfs),
             "tikv" => Ok(Scheme::Tikv),
             "azfile" => Ok(Scheme::Azfile),
+            "mongodb" => Ok(Scheme::Mongodb),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -358,6 +363,7 @@ impl From<Scheme> for &'static str {
             Scheme::Tikv => "tikv",
             Scheme::Azfile => "azfile",
             Scheme::Sqlite => "sqlite",
+            Scheme::Mongodb => "mongodb",
             Scheme::Custom(v) => v,
         }
     }

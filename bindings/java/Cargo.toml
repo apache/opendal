@@ -80,6 +80,7 @@ services-all = [
   "services-tikv",
   "services-vercel-artifacts",
   "services-wasabi",
+  "services-mongodb",
 ]
 
 # Default services provided by opendal.
@@ -125,6 +126,7 @@ services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
 services-mysql = ["opendal/services-mysql"]
+services-mongodb = ["opendal/services-mongodb"]
 
 [dependencies]
 anyhow = "1.0.71"

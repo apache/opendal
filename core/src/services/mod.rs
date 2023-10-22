@@ -238,3 +238,8 @@ pub use self::d1::D1;
 mod azfile;
 #[cfg(feature = "services-azfile")]
 pub use self::azfile::Azfile;
+
+#[cfg(feature = "services-mongodb")]
+mod mongodb;
+#[cfg(feature = "services-mongodb")]
+pub use self::mongodb::Mongodb;

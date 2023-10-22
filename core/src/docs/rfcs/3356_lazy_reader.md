@@ -36,6 +36,29 @@ pub fn read_metadata<R: Read + Seek>(reader: &mut R) -> Result<FileMetaData> {
 
 In `read_metadata`, we initiate a seek as soon as the reader is invoked. This action, when performed on non-seekable storage services such as s3, results in an immediate HTTP request and cancellation. By postponing the IO request until the first `read` call, we can significantly reduce the number of IO requests.
 
+The expense of initiating and immediately aborting an HTTP request is significant. Here are the benchmark results, using a stat call as our baseline:
+
+On minio server that setup locally:
+
+```rust
+service_s3_read_stat/4.00 MiB
+                        time:   [315.23 µs 328.23 µs 341.42 µs]
+                        
+service_s3_read_abort/4.00 MiB
+                        time:   [961.69 µs 980.68 µs 999.50 µs]
+```
+
+On remote storage services with high latency:
+
+```rust
+service_s3_read_stat/4.00 MiB
+                        time:   [407.85 ms 409.61 ms 411.39 ms]
+
+service_s3_read_abort/4.00 MiB
+                        time:   [1.5282 s 1.5554 s 1.5828 s]
+
+```
+
 # Guide-level explanation
 
 There have been no changes to the API. The only modification is that the IO request has been deferred until the first `read` call, meaning no errors will be returned when calling `op.reader()`. For instance, users won't encounter a `file not found` error when invoking `op.reader()`.

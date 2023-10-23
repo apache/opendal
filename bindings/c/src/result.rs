@@ -17,29 +17,26 @@
 
 //! This is for better naming in C header file. If we use generics for Result type,
 //! it will no doubt work find. However, the generics will lead to naming like
-//! "opendal_result_opendal_operator_ptr", which is unacceptable. Therefore,
+//! "opendal_result_opendal_operator", which is unacceptable. Therefore,
 //! we are defining all Result types here
 
-use crate::error::opendal_error;
-use crate::types::opendal_blocking_lister;
-use crate::types::opendal_bytes;
-use crate::types::opendal_metadata;
-use crate::types::opendal_operator_ptr;
-use crate::types::opendal_reader;
+use super::*;
 
 /// \brief The result type returned by opendal_operator_new() operation.
 ///
-/// If the init logic is successful, the `operator_ptr` field will be set to a valid
+/// If the init logic is successful, the `op` field will be set to a valid
 /// pointer, and the `error` field will be set to null. If the init logic fails, the
-/// `operator_ptr` field will be set to null, and the `error` field will be set to a
+/// `op` field will be set to null, and the `error` field will be set to a
 /// valid pointer with error code and error message.
 ///
 /// @see opendal_operator_new()
-/// @see opendal_operator_ptr
+/// @see opendal_operator
 /// @see opendal_error
 #[repr(C)]
 pub struct opendal_result_operator_new {
-    pub operator_ptr: *mut opendal_operator_ptr,
+    /// The pointer for operator.
+    pub op: *mut opendal_operator,
+    /// The error pointer for error.
     pub error: *mut opendal_error,
 }
 
@@ -86,15 +83,28 @@ pub struct opendal_result_stat {
     pub error: *mut opendal_error,
 }
 
-/// \brief The result type returned by opendal_operator_blocking_list().
+/// \brief The result type returned by opendal_operator_list().
 ///
-/// The result type for opendal_operator_blocking_list(), the field `lister` contains the lister
+/// The result type for opendal_operator_list(), the field `lister` contains the lister
 /// of the path, which is an iterator of the objects under the path. the field `error` represents
 /// whether the stat operation is successful. If successful, the `error` field is null.
 #[repr(C)]
 pub struct opendal_result_list {
     /// The lister, used for further listing operations
-    pub lister: *mut opendal_blocking_lister,
+    pub lister: *mut opendal_lister,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
+/// \brief The result type returned by opendal_lister_next().
+/// The list entry is the list result of the list operation, the error field is the error code and error message.
+/// If the operation succeeds, the error should be NULL.
+///
+/// \note Please notice if the lister reaches the end, both the list_entry and error will be NULL.
+#[repr(C)]
+pub struct opendal_result_lister_next {
+    /// The next object name
+    pub entry: *mut opendal_entry,
     /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }
@@ -104,7 +114,20 @@ pub struct opendal_result_list {
 /// of the path, which is an iterator of the objects under the path. the field `code` represents
 /// whether the stat operation is successful.
 #[repr(C)]
-pub struct opendal_result_reader {
+pub struct opendal_result_operator_reader {
+    /// The pointer for opendal_reader
     pub reader: *mut opendal_reader,
+    /// The error, if ok, it is null
+    pub error: *mut opendal_error,
+}
+
+/// \brief The is the result type returned by opendal_reader_read().
+/// The result type contains a size field, which is the size of the data read,
+/// which is zero on error. The error field is the error code and error message.
+#[repr(C)]
+pub struct opendal_result_reader_read {
+    /// The read size if succeed.
+    pub size: usize,
+    /// The error, if ok, it is null
     pub error: *mut opendal_error,
 }

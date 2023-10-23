@@ -24,7 +24,7 @@ public struct OperatorError: Error {
 }
 
 public class Operator {
-    var nativeOp: UnsafePointer<opendal_operator_ptr>
+    var nativeOp: UnsafePointer<opendal_operator>
 
     deinit {
         opendal_operator_free(nativeOp)
@@ -54,14 +54,14 @@ public class Operator {
             )
         }
 
-        self.nativeOp = UnsafePointer(ret.operator_ptr)!
+        self.nativeOp = UnsafePointer(ret.op)!
     }
 
     public func blockingWrite(_ data: Data, to path: String) throws {
         let ret = data.withUnsafeBytes { dataPointer in
             let address = dataPointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
             let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count))
-            return opendal_operator_blocking_write(nativeOp, path, bytes)
+            return opendal_operator_write(nativeOp, path, bytes)
         }
 
         if let err = ret {
@@ -79,7 +79,7 @@ public class Operator {
     }
 
     public func blockingRead(_ path: String) throws -> Data {
-        let ret = opendal_operator_blocking_read(nativeOp, path)
+        let ret = opendal_operator_read(nativeOp, path)
         if let err = ret.error {
             defer {
                 opendal_error_free(err)

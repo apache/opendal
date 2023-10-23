@@ -45,6 +45,7 @@ jobs:
         with:
           need-rocksdb: true
           need-protoc: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-java@v3
         with:
@@ -147,6 +148,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup doxygen
         run: sudo apt-get install doxygen
@@ -225,9 +228,11 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        run: | 
+        run: |
           sudo apt-get install doxygen graphviz ninja-build
 
       - name: Build Cpp docs
@@ -252,6 +257,8 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml

@@ -26,13 +26,13 @@ int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
     opendal_result_operator_new result = opendal_operator_new("memory", 0);
-    assert(result.operator_ptr != NULL);
+    assert(result.op != NULL);
     assert(result.error == NULL);
 
-    opendal_operator_ptr* op = result.operator_ptr;
+    opendal_operator* op = result.op;
 
     /* The read is supposed to fail */
-    opendal_result_read r = opendal_operator_blocking_read(op, "/testpath");
+    opendal_result_read r = opendal_operator_read(op, "/testpath");
     assert(r.error != NULL);
     assert(r.error->code == OPENDAL_NOT_FOUND);
 

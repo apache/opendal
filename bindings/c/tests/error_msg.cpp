@@ -24,7 +24,7 @@ extern "C" {
 
 class OpendalErrorTest : public ::testing::Test {
 protected:
-    const opendal_operator_ptr* p;
+    const opendal_operator* p;
 
     // set up a brand new operator
     void SetUp() override
@@ -35,7 +35,7 @@ protected:
         opendal_result_operator_new result = opendal_operator_new("memory", options);
         EXPECT_TRUE(result.error == nullptr);
 
-        this->p = result.operator_ptr;
+        this->p = result.op;
         EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
@@ -49,7 +49,7 @@ TEST_F(OpendalErrorTest, ErrorReadTest)
 {
     // Initialize a operator for "memory" backend, with no options
     // The read is supposed to fail
-    opendal_result_read r = opendal_operator_blocking_read(this->p, "/testpath");
+    opendal_result_read r = opendal_operator_read(this->p, "/testpath");
     ASSERT_NE(r.error, nullptr);
     ASSERT_EQ(r.error->code, OPENDAL_NOT_FOUND);
 

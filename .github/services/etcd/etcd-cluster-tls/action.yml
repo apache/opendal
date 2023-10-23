@@ -21,6 +21,12 @@ description: 'Behavior test for etcd-cluster-tls'
 runs:
     using: "composite"
     steps:
+    - name: Copy Etcd Certificate Files
+      shell: bash
+      working-directory: fixtures
+      run: |
+        mkdir -p /tmp/etcd
+        cp -r `pwd`/etcd/* /tmp/etcd
     - name: Setup etcd cluster
       shell: bash
       working-directory: fixtures/etcd

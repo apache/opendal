@@ -285,25 +285,18 @@ impl kv::Adapter for Adapter {
 #[derive(Debug, Deserialize)]
 pub(crate) struct CfKvResponse {
     pub(crate) errors: Vec<CfKvError>,
-    // pub(crate) messages: Vec<CfKvMessage>,
-    // pub(crate) result: serde_json::Value,
-    // pub(crate) success: bool,
 }
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct CfKvScanResponse {
-    // errors: Vec<CfKvError>,
-    // messages: Vec<CfKvMessage>,
     result: Vec<CfKvScanResult>,
-    // success: bool,
+	// According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
     // result_info: Option<CfKvResultInfo>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CfKvScanResult {
-    // expiration: i64,
     name: String,
-    // metadata: serde_json::Value,
 }
 
 // #[derive(Debug, Deserialize)]
@@ -314,15 +307,8 @@ struct CfKvScanResult {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct CfKvError {
-    // pub(crate) message: String,
     pub(crate) code: i32,
 }
-
-// #[derive(Debug, Deserialize)]
-// pub(crate) struct CfKvMessage {
-//     pub(crate) message: String,
-//     pub(crate) code: i32,
-// }
 
 #[cfg(test)]
 mod test {
@@ -351,16 +337,8 @@ mod test {
 
         let response: CfKvScanResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
 
-        // assert_eq!(response.errors.len(), 0);
-        // assert_eq!(response.messages.len(), 0);
         assert_eq!(response.result.len(), 1);
-        // assert_eq!(response.result[0].expiration, 1577836800);
         assert_eq!(response.result[0].name, "My-Key");
-        // assert_eq!(
-        //     response.result[0].metadata,
-        //     serde_json::json!({"someMetadataKey": "someMetadataValue"})
-        // );
-        // assert!(response.success);
         // assert!(response.result_info.is_some());
         // if let Some(result_info) = response.result_info {
         //     assert_eq!(result_info.count, 1);
@@ -380,8 +358,5 @@ mod test {
         let response: CfKvResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
 
         assert_eq!(response.errors.len(), 0);
-        // assert_eq!(response.messages.len(), 0);
-        // assert_eq!(response.result, serde_json::json!({}));
-        // assert!(response.success);
     }
 }

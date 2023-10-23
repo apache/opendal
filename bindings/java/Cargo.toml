@@ -81,6 +81,7 @@ services-all = [
   "services-vercel-artifacts",
   "services-wasabi",
   "services-mongodb",
+  "services-sqlite",
 ]
 
 # Default services provided by opendal.
@@ -127,6 +128,7 @@ services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
 services-mysql = ["opendal/services-mysql"]
 services-mongodb = ["opendal/services-mongodb"]
+services-sqlite = ["opendal/services-sqlite"]
 
 [dependencies]
 anyhow = "1.0.71"

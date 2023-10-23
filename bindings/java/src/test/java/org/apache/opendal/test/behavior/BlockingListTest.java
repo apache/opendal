@@ -24,15 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.opendal.Capability;
 import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
-import org.apache.opendal.args.OpListArgs;
-import org.apache.opendal.args.OpListArgs.Metakey;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -71,119 +67,11 @@ public class BlockingListTest extends BehaviorTestBase {
     }
 
     @Test
-    public void testBlockingListDirWithMetakey() {
-        final String parent = UUID.randomUUID().toString();
-        final String path = String.format("%s/%s", parent, UUID.randomUUID());
-        final byte[] content = generateBytes();
-
-        blockingOp().write(path, content);
-
-        final OpListArgs args = new OpListArgs(parent + "/");
-        args.setMetakeys(
-                Metakey.MODE,
-                Metakey.CACHE_CONTROL,
-                Metakey.CONTENT_DISPOSITION,
-                Metakey.CONTENT_LENGTH,
-                Metakey.CONTENT_MD5,
-                Metakey.CONTENT_TYPE,
-                Metakey.ETAG,
-                Metakey.VERSION,
-                Metakey.LAST_MODIFIED);
-        final List<Entry> list = blockingOp().list(args);
-        boolean found = false;
-        for (Entry entry : list) {
-            if (entry.getPath().equals(path)) {
-                Metadata metadata = entry.getMetadata();
-                assertThat(metadata.getContentLength()).isEqualTo(content.length);
-                assertTrue(metadata.isFile());
-
-                // We don't care about the value, we just to check there is no panic.
-                metadata.getCacheControl();
-                metadata.getContentDisposition();
-                metadata.getContentMd5();
-                metadata.getContentType();
-                metadata.getEtag();
-                metadata.getVersion();
-                metadata.getLastModified();
-                found = true;
-            }
-        }
-
-        assertTrue(found);
-        blockingOp().delete(path);
-    }
-
-    /**
-     * List dir with metakey complete
-     */
-    public void testBlockingListDirWithMetakeyComplete() {
-        final String parent = UUID.randomUUID().toString();
-        final String path = String.format("%s/%s", parent, UUID.randomUUID());
-        final byte[] content = generateBytes();
-
-        blockingOp().write(path, content);
-
-        final OpListArgs args = new OpListArgs(parent + "/");
-        args.setMetakeys(Metakey.COMPLETE);
-        final List<Entry> list = blockingOp().list(args);
-        boolean found = false;
-        for (Entry entry : list) {
-            if (entry.getPath().equals(path)) {
-                Metadata metadata = entry.getMetadata();
-                assertThat(metadata.getContentLength()).isEqualTo(content.length);
-                assertTrue(metadata.isFile());
-
-                // We don't care about the value, we just to check there is no panic.
-                metadata.getCacheControl();
-                metadata.getContentDisposition();
-                metadata.getContentMd5();
-                metadata.getContentType();
-                metadata.getEtag();
-                metadata.getVersion();
-                metadata.getLastModified();
-                found = true;
-            }
-        }
-
-        assertTrue(found);
-        blockingOp().delete(path);
-    }
-
-    @Test
     public void testBlockingListNonExistDir() {
         final String dir = String.format("%s/", UUID.randomUUID());
 
         final List<Entry> list = blockingOp().list(dir);
         assertTrue(list.isEmpty());
-    }
-
-    @Test
-    public void testBlockingScan() {
-        final String parent = UUID.randomUUID().toString();
-
-        final String[] expected = new String[] {
-            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-        };
-
-        for (String path : expected) {
-            final byte[] content = generateBytes();
-            if (path.endsWith("/")) {
-                blockingOp().createDir(String.format("%s/%s", parent, path));
-            } else {
-                blockingOp().write(String.format("%s/%s", parent, path), content);
-            }
-        }
-
-        final OpListArgs args = new OpListArgs(parent + "/x/");
-        args.setDelimiter("");
-        final List<Entry> list = blockingOp().list(args);
-        final Set<String> paths = list.stream().map(Entry::getPath).collect(Collectors.toSet());
-
-        assertTrue(paths.contains(parent + "/x/y"));
-        assertTrue(paths.contains(parent + "/x/x/y"));
-        assertTrue(paths.contains(parent + "/x/x/x/y"));
-
-        blockingOp().removeAll(parent + "/");
     }
 
     /**

@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.opendal.args.OpListArgs;
 
 /**
  * Operator represents an underneath OpenDAL operator that
@@ -213,17 +212,7 @@ public class Operator extends NativeObject {
     }
 
     public CompletableFuture<List<Entry>> list(String path) {
-        return list(new OpListArgs(path));
-    }
-
-    public CompletableFuture<List<Entry>> list(OpListArgs args) {
-        final long requestid = list(
-                nativeHandle,
-                args.getPath(),
-                args.getLimit(),
-                args.getStartAfter(),
-                args.getDelimiter(),
-                args.getMetakeys());
+        final long requestid = list(nativeHandle, path);
         return AsyncRegistry.take(requestid);
     }
 
@@ -262,6 +251,5 @@ public class Operator extends NativeObject {
 
     private static native long removeAll(long nativeHandle, String path);
 
-    private static native long list(
-            long nativeHandle, String path, long limit, String startAfter, String delimiter, int... metakeys);
+    private static native long list(long nativeHandle, String path);
 }

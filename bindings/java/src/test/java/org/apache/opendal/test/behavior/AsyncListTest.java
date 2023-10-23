@@ -24,20 +24,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.opendal.Capability;
 import org.apache.opendal.Entry;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
-import org.apache.opendal.args.OpListArgs;
-import org.apache.opendal.args.OpListArgs.Metakey;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -70,85 +65,6 @@ class AsyncListTest extends BehaviorTestBase {
                 assertTrue(meta.isFile());
                 assertThat(meta.getContentLength()).isEqualTo(content.length);
 
-                found = true;
-            }
-        }
-        assertTrue(found);
-        op().delete(path).join();
-    }
-
-    /**
-     * List dir with metakey
-     */
-    @Test
-    public void testListDirWithMetakey() {
-        final String parent = UUID.randomUUID().toString();
-        final String path = String.format("%s/%s", parent, UUID.randomUUID());
-        final byte[] content = generateBytes();
-
-        op().write(path, content).join();
-
-        final OpListArgs args = new OpListArgs(parent + "/");
-        args.setMetakeys(
-                Metakey.MODE,
-                Metakey.CACHE_CONTROL,
-                Metakey.CONTENT_DISPOSITION,
-                Metakey.CONTENT_LENGTH,
-                Metakey.CONTENT_MD5,
-                Metakey.CONTENT_TYPE,
-                Metakey.ETAG,
-                Metakey.VERSION,
-                Metakey.LAST_MODIFIED);
-        final List<Entry> entries = op().list(args).join();
-        boolean found = false;
-        for (Entry entry : entries) {
-            if (entry.getPath().equals(path)) {
-                Metadata metadata = entry.getMetadata();
-                assertTrue(metadata.isFile());
-                assertThat(metadata.getContentLength()).isEqualTo(content.length);
-
-                metadata.getCacheControl();
-                metadata.getContentDisposition();
-                metadata.getContentMd5();
-                metadata.getContentType();
-                metadata.getEtag();
-                metadata.getVersion();
-                metadata.getLastModified();
-                found = true;
-            }
-        }
-        assertTrue(found);
-        op().delete(path).join();
-    }
-
-    /**
-     * List dir with metakey complete
-     */
-    @Test
-    public void testListDirWithMetakeyComplete() {
-        final String parent = UUID.randomUUID().toString();
-        final String path = String.format("%s/%s", parent, UUID.randomUUID());
-        final byte[] content = generateBytes();
-
-        op().write(path, content).join();
-
-        final OpListArgs args = new OpListArgs(parent + "/");
-        args.setMetakeys(Metakey.COMPLETE);
-        final List<Entry> entries = op().list(args).join();
-        boolean found = false;
-        for (Entry entry : entries) {
-            if (entry.getPath().equals(path)) {
-                Metadata metadata = entry.getMetadata();
-                assertTrue(metadata.isFile());
-                assertThat(metadata.getContentLength()).isEqualTo(content.length);
-
-                metadata.getCacheControl();
-                metadata.getContentDisposition();
-                metadata.getContentMd5();
-                metadata.getContentType();
-                metadata.getEtag();
-                metadata.getVersion();
-                metadata.getLastModified();
                 found = true;
             }
         }
@@ -261,78 +177,6 @@ class AsyncListTest extends BehaviorTestBase {
         }
 
         op().removeAll(dir).join();
-    }
-
-    /**
-     * List with start after should start listing after the specified key
-     */
-    @Test
-    public void testListWithStartAfter() {
-        if (!op().info.fullCapability.listWithStartAfter) {
-            return;
-        }
-        final String dir = UUID.randomUUID().toString() + "/";
-        op().createDir(dir).join();
-
-        final String[] given = new String[] {
-            String.format("%sfile-0", dir),
-            String.format("%sfile-1", dir),
-            String.format("%sfile-2", dir),
-            String.format("%sfile-3", dir),
-            String.format("%sfile-4", dir),
-            String.format("%sfile-5", dir),
-        };
-
-        for (String path : given) {
-            op().write(path, "content").join();
-        }
-
-        final OpListArgs args = new OpListArgs(dir);
-        args.setStartAfter(given[2]);
-        final List<Entry> entries = op().list(args).join();
-        final List<String> expected = entries.stream().map(Entry::getPath).collect(Collectors.toList());
-
-        Assertions.assertThat(expected).isEqualTo(Arrays.asList(given[3], given[4], given[5]));
-
-        op().removeAll(dir).join();
-    }
-
-    @Test
-    public void testScanRoot() {
-        final OpListArgs args = new OpListArgs("");
-        args.setDelimiter("");
-
-        final List<Entry> entries = op().list(args).join();
-        final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
-
-        assertTrue(!actual.contains("/"), "empty root shouldn't return itself");
-        assertTrue(!actual.contains(""), "empty root shouldn't return empty");
-    }
-
-    /**
-     * Walk top down should output as expected
-     */
-    @Test
-    public void testScan() {
-        final String parent = UUID.randomUUID().toString();
-        final String[] expected = new String[] {
-            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-        };
-        for (String path : expected) {
-            if (path.endsWith("/")) {
-                op().createDir(String.format("%s/%s", parent, path)).join();
-            } else {
-                op().write(String.format("%s/%s", parent, path), "test_scan").join();
-            }
-        }
-        final OpListArgs args = new OpListArgs(parent + "/x/");
-        args.setDelimiter("");
-        final List<Entry> entries = op().list(args).join();
-        final Set<String> actual = entries.stream().map(Entry::getPath).collect(Collectors.toSet());
-
-        assertThat(actual).contains(parent + "/x/y", parent + "/x/x/y", parent + "/x/x/x/y");
-
-        op().removeAll(parent + "/").join();
     }
 
     /**

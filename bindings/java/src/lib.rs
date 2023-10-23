@@ -22,12 +22,10 @@ use std::ffi::c_void;
 use crate::error::Error;
 use flagset::FlagSet;
 use jni::objects::JObject;
-use jni::objects::JPrimitiveArray;
 use jni::objects::JString;
 use jni::objects::{JMap, JValue};
 use jni::sys::jboolean;
 use jni::sys::jint;
-use jni::sys::jintArray;
 use jni::sys::jlong;
 use jni::sys::JNI_VERSION_1_8;
 use jni::JNIEnv;
@@ -340,14 +338,6 @@ fn string_to_jstring<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObjec
     )
 }
 
-fn jstring_to_option_string(env: &mut JNIEnv, s: &JString) -> Result<Option<String>> {
-    if s.is_null() {
-        Ok(None)
-    } else {
-        Ok(Some(jstring_to_string(env, s)?))
-    }
-}
-
 /// # Safety
 ///
 /// The caller must guarantee that the Object passed in is an instance
@@ -355,40 +345,4 @@ fn jstring_to_option_string(env: &mut JNIEnv, s: &JString) -> Result<Option<Stri
 fn jstring_to_string(env: &mut JNIEnv, s: &JString) -> Result<String> {
     let res = unsafe { env.get_string_unchecked(s)? };
     Ok(res.into())
-}
-
-fn metakey_to_flagset(env: &mut JNIEnv, metakeys: jintArray) -> Result<Option<FlagSet<Metakey>>> {
-    if metakeys.is_null() {
-        return Ok(None);
-    }
-    let metakeys = unsafe { JPrimitiveArray::from_raw(metakeys) };
-    let len = env.get_array_length(&metakeys)?;
-    let mut buf: Vec<jint> = vec![0; len as usize];
-    env.get_int_array_region(metakeys, 0, &mut buf)?;
-
-    let mut metakey: Option<FlagSet<Metakey>> = None;
-    for key in buf {
-        let m = match key {
-            0 => Metakey::Complete,
-            1 => Metakey::Mode,
-            2 => Metakey::CacheControl,
-            3 => Metakey::ContentDisposition,
-            4 => Metakey::ContentLength,
-            5 => Metakey::ContentMd5,
-            6 => Metakey::ContentRange,
-            7 => Metakey::ContentType,
-            8 => Metakey::Etag,
-            9 => Metakey::LastModified,
-            10 => Metakey::Version,
-            _ => Err(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
-                "Invalid metakey",
-            ))?,
-        };
-        metakey = match metakey {
-            None => Some(m.into()),
-            Some(metakey) => Some(metakey | m),
-        }
-    }
-    Ok(metakey)
 }

@@ -29,7 +29,6 @@ runs:
           shell: bash
           run: |
               cat << EOF >> $GITHUB_ENV
-              OPENDAL_TEST=postgresql
               OPENDAL_POSTGRESQL_CONNECTION_STRING=postgresql://user:password@localhost:5432/testdb
               OPENDAL_POSTGRESQL_TABLE=data
               OPENDAL_POSTGRESQL_KEY_FIELD=key

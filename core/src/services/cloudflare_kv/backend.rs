@@ -290,7 +290,7 @@ pub(crate) struct CfKvResponse {
 #[derive(Debug, Deserialize)]
 pub(crate) struct CfKvScanResponse {
     result: Vec<CfKvScanResult>,
-	// According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
+    // According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
     // result_info: Option<CfKvResultInfo>,
 }
 

@@ -23,4 +23,4 @@ services:
       - 8080:8080
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./data:/tmp/static
+      - ../data:/tmp/static

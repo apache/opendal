@@ -19,15 +19,8 @@ version: '3.8'
 services:
   caddy:
     image: caddy:latest
-    entrypoint: ["caddy"]
-    command:
-      - "file-server"
-      - "--root"
-      - "/tmp/static"
-      - "--listen"
-      - "0.0.0.0:8080"
-      - "--access-log"
     ports:
       - 8080:8080
     volumes:
-      - ./data:/tmp/static
+      - ../data:/tmp/static
+      - ./Caddyfile:/etc/caddy/Caddyfile

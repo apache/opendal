@@ -365,7 +365,7 @@ jobs:
         run: yarn build
 
       - name: Copy asf file
-        run:  cp .asf.yaml ./website/build/.asf.yaml
+        run: cp .asf.yaml ./website/build/.asf.yaml
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3.9.2

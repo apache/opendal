@@ -19,8 +19,8 @@ name: etcd-cluster-tls
 description: 'Behavior test for etcd-cluster-tls'
 
 runs:
-    using: "composite"
-    steps:
+  using: "composite"
+  steps:
     - name: Copy Etcd Certificate Files
       shell: bash
       working-directory: fixtures
@@ -34,12 +34,12 @@ runs:
     - name: Setup
       shell: bash
       run: |
-          cat << EOF >> $GITHUB_ENV
-          OPENDAL_ETCD_ENDPOINTS=https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792
-          OPENDAL_ETCD_ROOT=/tmp/opendal
-          OPENDAL_ETCD_USERNAME=root
-          OPENDAL_ETCD_PASSWORD=opendal
-          OPENDAL_ETCD_CA_PATH=/tmp/etcd/ca.pem
-          OPENDAL_ETCD_CERT_PATH=/tmp/etcd/client.pem
-          OPENDAL_ETCD_KEY_PATH=/tmp/etcd/client-key.pem
-          EOF
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_ETCD_ENDPOINTS=https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792
+        OPENDAL_ETCD_ROOT=/tmp/opendal
+        OPENDAL_ETCD_USERNAME=root
+        OPENDAL_ETCD_PASSWORD=opendal
+        OPENDAL_ETCD_CA_PATH=/tmp/etcd/ca.pem
+        OPENDAL_ETCD_CERT_PATH=/tmp/etcd/client.pem
+        OPENDAL_ETCD_KEY_PATH=/tmp/etcd/client-key.pem
+        EOF

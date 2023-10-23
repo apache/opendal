@@ -27,7 +27,7 @@ services:
       - POSTGRES_USER=user
       - POSTGRES_DB=testdb
     volumes:
-        - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "sh -c 'pg_isready -U user -d testdb'"]
       interval: 3s

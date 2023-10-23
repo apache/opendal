@@ -19,9 +19,9 @@ name: local_fs
 description: 'Behavior test for local fs'
 
 runs:
-    using: "composite"
-    steps:
-        - name: Setup
-          shell: bash
-          run: |
-              echo "OPENDAL_FS_ROOT=${{ runner.temp }}/" >> $GITHUB_ENV
+  using: "composite"
+  steps:
+    - name: Setup
+      shell: bash
+      run: |
+        echo "OPENDAL_FS_ROOT=${{ runner.temp }}/" >> $GITHUB_ENV

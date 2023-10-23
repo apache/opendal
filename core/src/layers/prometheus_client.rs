@@ -81,13 +81,15 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrometheusClientLayer {
     metrics: PrometheusClientMetrics,
 }
 
 impl PrometheusClientLayer {
-    /// create PrometheusClientLayer while registering itself to this registry.
+    /// Create PrometheusClientLayer while registering itself to this registry. Please keep in caution
+    /// that do NOT call this method multiple times with a same registry. If you want initialize multiple
+    /// [`PrometheusClientLayer`] with a single registry, you should use [`clone`] instead.
     pub fn new(registry: &mut Registry) -> Self {
         let metrics = PrometheusClientMetrics::register(registry);
         Self { metrics }

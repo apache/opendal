@@ -55,6 +55,6 @@ jobs:
       - name: Test Core
         uses: ./.github/actions/behavior_test_binding_java
         with:
-            setup: ${{ matrix.cases.setup }}
-            service: ${{ matrix.cases.service }}
-            feature: ${{ matrix.cases.feature }}
+          setup: ${{ matrix.cases.setup }}
+          service: ${{ matrix.cases.service }}
+          feature: ${{ matrix.cases.feature }}

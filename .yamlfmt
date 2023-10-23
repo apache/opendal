@@ -15,15 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-version: '3.1'
+# Configuration reference: https://github.com/google/yamlfmt/blob/main/docs/config-file.md
 
-services:
-
-  mongo:
-    image: mongo:latest
-    restart: always
-    ports:
-      - 27017:27017
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
+formatter:
+  retain_line_breaks: true
+  scan_folded_as_literal: true

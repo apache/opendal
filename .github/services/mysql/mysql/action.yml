@@ -19,18 +19,18 @@ name: mysql
 description: 'Behavior test for mysql'
 
 runs:
-    using: "composite"
-    steps:
-        -   name: Setup MySQL Server
-            shell: bash
-            working-directory: fixtures/mysql
-            run: docker-compose -f docker-compose.yml up -d
-        - name: Setup
-          shell: bash
-          run: |
-              cat << EOF >> $GITHUB_ENV
-              OPENDAL_MYSQL_CONNECTION_STRING=mysql://root:password@localhost:3306/testdb
-              OPENDAL_MYSQL_TABLE=data
-              OPENDAL_MYSQL_KEY_FIELD=key
-              OPENDAL_MYSQL_VALUE_FIELD=data
-              EOF
+  using: "composite"
+  steps:
+    - name: Setup MySQL Server
+      shell: bash
+      working-directory: fixtures/mysql
+      run: docker-compose -f docker-compose.yml up -d
+    - name: Setup
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_MYSQL_CONNECTION_STRING=mysql://root:password@localhost:3306/testdb
+        OPENDAL_MYSQL_TABLE=data
+        OPENDAL_MYSQL_KEY_FIELD=key
+        OPENDAL_MYSQL_VALUE_FIELD=data
+        EOF

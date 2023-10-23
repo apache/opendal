@@ -19,8 +19,8 @@ name: nginx
 description: 'Behavior test for http service in nginx'
 
 runs:
-    using: "composite"
-    steps:
+  using: "composite"
+  steps:
     - name: Setup etcd cluster
       shell: bash
       working-directory: fixtures/http
@@ -28,7 +28,7 @@ runs:
     - name: Setup
       shell: bash
       run: |
-          cat << EOF >> $GITHUB_ENV
-          OPENDAL_HTTP_ENDPOINT=http://127.0.0.1:8080
-          OPENDAL_DISABLE_RANDOM_ROOT=true
-          EOF
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_HTTP_ENDPOINT=http://127.0.0.1:8080
+        OPENDAL_DISABLE_RANDOM_ROOT=true
+        EOF

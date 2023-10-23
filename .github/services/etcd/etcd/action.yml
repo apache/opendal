@@ -31,3 +31,4 @@ runs:
           cat << EOF >> $GITHUB_ENV
           OPENDAL_ETCD_ENDPOINTS=http://127.0.0.1:2379
           OPENDAL_ETCD_ROOT=/tmp/opendal
+          EOF

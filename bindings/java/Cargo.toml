@@ -70,6 +70,7 @@ services-all = [
   "services-onedrive",
   "services-persy",
   "services-postgresql",
+  "services-mysql",
   "services-redb",
   "services-redis",
   "services-redis-rustls",
@@ -123,6 +124,7 @@ services-supabase = ["opendal/services-supabase"]
 services-tikv = ["opendal/services-tikv"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-wasabi = ["opendal/services-wasabi"]
+services-mysql = ["opendal/services-mysql"]
 
 [dependencies]
 anyhow = "1.0.71"

@@ -162,7 +162,6 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_python = True
             hint.binding_nodejs = True
             hint.services.add(match.group(1))
-
     return hint
 
 

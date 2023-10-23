@@ -6,7 +6,7 @@
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#   https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
@@ -31,14 +31,16 @@ services:
     - ./etcd1/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
     - ./etcd1/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
     environment:
+      ETCD_ROOT_PASSWORD: opendal
       ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_PEER_CLIENT_CERT_AUTH: "true"
       ETCD_NAME: etcd1
-      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
-      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd1:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: https://etcd1:2380
+      ETCD_LISTEN_PEER_URLS: https://0.0.0.0:2380
+      ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: https://etcd1:2379
       ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
-      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER: etcd1=https://etcd1:2380,etcd2=https://etcd2:2380,etcd3=https://etcd3:2380
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_MAX_REQUEST_BYTES: 10485760
       ETCD_TRUSTED_CA_FILE: /opt/bitnami/etcd/conf/ca.pem
@@ -58,17 +60,19 @@ services:
     - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
     - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
     - ./client.pem:/opt/bitnami/etcd/client.pem
-    - ./etcd1/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
-    - ./etcd1/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
+    - ./etcd2/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
+    - ./etcd2/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
     environment:
+      ETCD_ROOT_PASSWORD: opendal
       ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_PEER_CLIENT_CERT_AUTH: "true"
       ETCD_NAME: etcd2
-      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
-      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd2:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: https://etcd2:2380
+      ETCD_LISTEN_PEER_URLS: https://0.0.0.0:2380
+      ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: https://etcd2:2379
       ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
-      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER: etcd1=https://etcd1:2380,etcd2=https://etcd2:2380,etcd3=https://etcd3:2380
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_MAX_REQUEST_BYTES: 10485760
       ETCD_TRUSTED_CA_FILE: /opt/bitnami/etcd/conf/ca.pem
@@ -88,17 +92,19 @@ services:
     - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
     - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
     - ./client.pem:/opt/bitnami/etcd/client.pem
-    - ./etcd1/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
-    - ./etcd1/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
+    - ./etcd2/etcd.pem:/opt/bitnami/etcd/conf/peer.pem
+    - ./etcd2/etcd-key.pem:/opt/bitnami/etcd/conf/peer-key.pem
     environment:
       ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ROOT_PASSWORD: opendal
+      ETCD_PEER_CLIENT_CERT_AUTH: "true"
       ETCD_NAME: etcd3
-      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
-      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
-      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd3:2379
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: https://etcd3:2380
+      ETCD_LISTEN_PEER_URLS: https://0.0.0.0:2380
+      ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: https://etcd3:2379
       ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
-      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER: etcd1=https://etcd1:2380,etcd2=https://etcd2:2380,etcd3=https://etcd3:2380
       ETCD_INITIAL_CLUSTER_STATE: new
       ETCD_MAX_REQUEST_BYTES: 10485760
       ETCD_TRUSTED_CA_FILE: /opt/bitnami/etcd/conf/ca.pem

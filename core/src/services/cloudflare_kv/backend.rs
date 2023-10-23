@@ -283,47 +283,46 @@ impl kv::Adapter for Adapter {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CfKvResponse {
-    pub errors: Vec<CfKvError>,
-    pub messages: Vec<CfKvMessage>,
-    pub result: serde_json::Value,
-    pub success: bool,
+pub(crate) struct CfKvResponse {
+    pub(crate) errors: Vec<CfKvError>,
+    // pub(crate) messages: Vec<CfKvMessage>,
+    // pub(crate) result: serde_json::Value,
+    // pub(crate) success: bool,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CfKvScanResponse {
-    pub errors: Vec<CfKvError>,
-	#[allow(dead_code)]
-    messages: Vec<CfKvMessage>,
-    pub result: Vec<CfKvScanResult>,
-    pub success: bool,
-    pub result_info: Option<CfKvResultInfo>,
+pub(crate) struct CfKvScanResponse {
+    // errors: Vec<CfKvError>,
+    // messages: Vec<CfKvMessage>,
+    result: Vec<CfKvScanResult>,
+    // success: bool,
+    // result_info: Option<CfKvResultInfo>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CfKvScanResult {
-    pub expiration: i64,
-    pub name: String,
-    pub metadata: serde_json::Value,
+struct CfKvScanResult {
+    // expiration: i64,
+    name: String,
+    // metadata: serde_json::Value,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CfKvResultInfo {
-    pub count: i64,
-    pub cursor: String,
-}
+// #[derive(Debug, Deserialize)]
+// struct CfKvResultInfo {
+//     count: i64,
+//     cursor: String,
+// }
 
 #[derive(Debug, Deserialize)]
-pub struct CfKvError {
-    pub message: String,
-    pub code: i32,
+pub(crate) struct CfKvError {
+    // pub(crate) message: String,
+    pub(crate) code: i32,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CfKvMessage {
-    pub message: String,
-    pub code: i32,
-}
+// #[derive(Debug, Deserialize)]
+// pub(crate) struct CfKvMessage {
+//     pub(crate) message: String,
+//     pub(crate) code: i32,
+// }
 
 #[cfg(test)]
 mod test {
@@ -352,21 +351,21 @@ mod test {
 
         let response: CfKvScanResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
 
-        assert_eq!(response.errors.len(), 0);
-        assert_eq!(response.messages.len(), 0);
+        // assert_eq!(response.errors.len(), 0);
+        // assert_eq!(response.messages.len(), 0);
         assert_eq!(response.result.len(), 1);
-        assert_eq!(response.result[0].expiration, 1577836800);
+        // assert_eq!(response.result[0].expiration, 1577836800);
         assert_eq!(response.result[0].name, "My-Key");
-        assert_eq!(
-            response.result[0].metadata,
-            serde_json::json!({"someMetadataKey": "someMetadataValue"})
-        );
-        assert!(response.success);
-        assert!(response.result_info.is_some());
-        if let Some(result_info) = response.result_info {
-            assert_eq!(result_info.count, 1);
-            assert_eq!(result_info.cursor, "6Ck1la0VxJ0djhidm1MdX2FyDGxLKVeeHZZmORS_8XeSuhz9SjIJRaSa2lnsF01tQOHrfTGAP3R5X1Kv5iVUuMbNKhWNAXHOl6ePB0TUL8nw");
-        }
+        // assert_eq!(
+        //     response.result[0].metadata,
+        //     serde_json::json!({"someMetadataKey": "someMetadataValue"})
+        // );
+        // assert!(response.success);
+        // assert!(response.result_info.is_some());
+        // if let Some(result_info) = response.result_info {
+        //     assert_eq!(result_info.count, 1);
+        //     assert_eq!(result_info.cursor, "6Ck1la0VxJ0djhidm1MdX2FyDGxLKVeeHZZmORS_8XeSuhz9SjIJRaSa2lnsF01tQOHrfTGAP3R5X1Kv5iVUuMbNKhWNAXHOl6ePB0TUL8nw");
+        // }
     }
 
     #[test]
@@ -381,8 +380,8 @@ mod test {
         let response: CfKvResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
 
         assert_eq!(response.errors.len(), 0);
-        assert_eq!(response.messages.len(), 0);
-        assert_eq!(response.result, serde_json::json!({}));
-        assert!(response.success);
+        // assert_eq!(response.messages.len(), 0);
+        // assert_eq!(response.result, serde_json::json!({}));
+        // assert!(response.success);
     }
 }

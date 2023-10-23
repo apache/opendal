@@ -30,7 +30,7 @@ use super::backend::CfKvError;
 use super::backend::CfKvResponse;
 
 /// Parse error response into Error.
-pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+pub(crate) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 
@@ -66,7 +66,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     Ok(err)
 }
 
-pub fn parse_cfkv_error_code(errors: Vec<CfKvError>) -> Option<(ErrorKind, bool)> {
+pub(crate) fn parse_cfkv_error_code(errors: Vec<CfKvError>) -> Option<(ErrorKind, bool)> {
     if errors.is_empty() {
         return None;
     }

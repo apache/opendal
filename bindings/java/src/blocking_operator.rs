@@ -20,6 +20,8 @@ use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::sys::jobject;
+use jni::sys::jobjectArray;
+use jni::sys::jsize;
 use jni::sys::{jbyteArray, jlong};
 use jni::JNIEnv;
 
@@ -254,24 +256,27 @@ pub unsafe extern "system" fn Java_org_apache_opendal_BlockingOperator_list(
     _: JClass,
     op: *mut BlockingOperator,
     path: JString,
-) -> jobject {
+) -> jobjectArray {
     intern_list(&mut env, &mut *op, path).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobject> {
+fn intern_list(env: &mut JNIEnv, op: &mut BlockingOperator, path: JString) -> Result<jobjectArray> {
     let path = jstring_to_string(env, &path)?;
     let obs = op.list(&path)?;
 
-    let list = env.new_object("java/util/ArrayList", "()V", &[])?;
-    let jlist = env.get_list(&list)?;
+    let jarray = env.new_object_array(
+        obs.len() as jsize,
+        "org/apache/opendal/Entry",
+        JObject::null(),
+    )?;
 
-    for entry in obs {
-        let entry = make_entry(env, entry, Metakey::Mode.into())?;
-        jlist.add(env, &entry)?;
+    for (idx, entry) in obs.iter().enumerate() {
+        let entry = make_entry(env, entry.to_owned(), Metakey::Mode.into())?;
+        env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 
-    Ok(list.into_raw())
+    Ok(jarray.into_raw())
 }

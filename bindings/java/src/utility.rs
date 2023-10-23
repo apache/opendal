@@ -16,7 +16,7 @@
 // under the License.
 
 use jni::objects::{JClass, JObject};
-use jni::sys::jobject;
+use jni::sys::{jobjectArray, jsize};
 use jni::JNIEnv;
 use opendal::Scheme;
 
@@ -29,23 +29,21 @@ use crate::{string_to_jstring, Result};
 pub unsafe extern "system" fn Java_org_apache_opendal_OpenDAL_loadEnabledServices(
     mut env: JNIEnv,
     _: JClass,
-) -> jobject {
+) -> jobjectArray {
     intern_load_enabled_services(&mut env).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
 }
 
-fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobject> {
+fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
     let services = Scheme::enabled();
+    let res = env.new_object_array(services.len() as jsize, "java/lang/String", JObject::null())?;
 
-    let list = env.new_object("java/util/ArrayList", "()V", &[])?;
-    let jlist = env.get_list(&list)?;
-
-    for service in services {
+    for (idx, service) in services.iter().enumerate() {
         let srv = string_to_jstring(env, Some(&service.to_string()))?;
-        jlist.add(env, &srv)?;
+        env.set_object_array_element(&res, idx as jsize, srv)?;
     }
 
-    Ok(list.into_raw())
+    Ok(res.into_raw())
 }

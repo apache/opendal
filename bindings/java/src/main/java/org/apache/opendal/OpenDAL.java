@@ -19,10 +19,10 @@
 
 package org.apache.opendal;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import lombok.experimental.UtilityClass;
 
@@ -33,7 +33,7 @@ import lombok.experimental.UtilityClass;
 public class OpenDAL {
     static {
         NativeLibrary.loadLibrary();
-        final Set<String> enabledServices = new HashSet<>(loadEnabledServices());
+        final Set<String> enabledServices = new HashSet<>(Arrays.asList(loadEnabledServices()));
         ENABLED_SERVICES = Collections.unmodifiableSet(enabledServices);
     }
 
@@ -43,5 +43,5 @@ public class OpenDAL {
         return ENABLED_SERVICES;
     }
 
-    private static native List<String> loadEnabledServices();
+    private static native String[] loadEnabledServices();
 }

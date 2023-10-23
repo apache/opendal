@@ -21,6 +21,9 @@ package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -213,7 +216,16 @@ public class Operator extends NativeObject {
 
     public CompletableFuture<List<Entry>> list(String path) {
         final long requestid = list(nativeHandle, path);
-        return AsyncRegistry.take(requestid);
+        final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestid);
+        if (result != null) {
+            return result.thenApplyAsync(e -> {
+                if (e == null) {
+                    return Collections.emptyList();
+                }
+                return new ArrayList<>(Arrays.asList(e));
+            });
+        }
+        return null;
     }
 
     @Override

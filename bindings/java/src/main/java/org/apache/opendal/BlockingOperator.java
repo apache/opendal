@@ -20,6 +20,8 @@
 package org.apache.opendal;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -98,7 +100,7 @@ public class BlockingOperator extends NativeObject {
     }
 
     public List<Entry> list(String path) {
-        return list(nativeHandle, path);
+        return new ArrayList<>(Arrays.asList(list(nativeHandle, path)));
     }
 
     @Override
@@ -122,5 +124,5 @@ public class BlockingOperator extends NativeObject {
 
     private static native void removeAll(long nativeHandle, String path);
 
-    private static native List<Entry> list(long nativeHandle, String path);
+    private static native Entry[] list(long nativeHandle, String path);
 }

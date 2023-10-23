@@ -24,6 +24,7 @@ use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
 use jni::objects::JValueOwned;
+use jni::sys::jsize;
 use jni::sys::{jlong, jobject};
 use jni::JNIEnv;
 use opendal::layers::BlockingLayer;
@@ -498,15 +499,18 @@ async fn do_list<'local>(op: &mut Operator, path: String) -> Result<JObject<'loc
     let obs = op.list(&path).await?;
 
     let mut env = unsafe { get_current_env() };
-    let list = env.new_object("java/util/ArrayList", "()V", &[])?;
-    let jlist = env.get_list(&list)?;
+    let jarray = env.new_object_array(
+        obs.len() as jsize,
+        "org/apache/opendal/Entry",
+        JObject::null(),
+    )?;
 
-    for entry in obs {
-        let entry = make_entry(&mut env, entry, Metakey::Mode.into())?;
-        jlist.add(&mut env, &entry)?;
+    for (idx, entry) in obs.iter().enumerate() {
+        let entry = make_entry(&mut env, entry.to_owned(), Metakey::Mode.into())?;
+        env.set_object_array_element(&jarray, idx as jsize, entry)?;
     }
 
-    Ok(list)
+    Ok(jarray.into())
 }
 
 /// # Safety

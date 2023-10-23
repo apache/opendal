@@ -15,31 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-headerPath = "Apache-2.0-ASF.txt"
-
-excludes = [
-  # Examples are served as public domain content.
-  "examples",
-
-  # Well known generated files
-  "**/Cargo.lock",
-  "**/yarn.lock",
-
-  # Python binding related files
-  "**/venv/**",
-
-  # Website generated files
-  "website/build",
-  "website/.docusaurus",
-
-  # Documents
-  "**/*.md",
-  "**/*.mdx",
-
-  # Test files
-  "**/tests/data/**",
-  "**/fixtures/data/**",
-
-  # Third-party source files
-  "scripts/merge_local_staging.sh",
-]
+version: '3.8'
+services:
+  caddy:
+    image: caddy:latest
+    ports:
+      - 8080:8080
+    volumes:
+      - ../data:/tmp/static
+      - ./Caddyfile:/etc/caddy/Caddyfile

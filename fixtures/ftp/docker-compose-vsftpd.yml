@@ -30,3 +30,5 @@ services:
       - PASV_MAX_PORT=22000
     volumes:
       - vsftpd-data:/home/vsftpd
+volumes:
+  vsftpd-data:

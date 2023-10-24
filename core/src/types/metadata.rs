@@ -75,7 +75,7 @@ impl Metadata {
     }
 
     /// Get the bit from metadata.
-    pub(crate) fn bit(&self) -> FlagSet<Metakey> {
+    pub fn metakey(&self) -> FlagSet<Metakey> {
         self.bit
     }
 

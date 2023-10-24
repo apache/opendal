@@ -21,7 +21,7 @@ description: 'Behavior test for http service in caddy'
 runs:
   using: "composite"
   steps:
-    - name: Setup etcd cluster
+    - name: Setup http in caddy
       shell: bash
       working-directory: fixtures/http
       run: docker-compose -f docker-compose-caddy.yml up -d

@@ -16,7 +16,7 @@
 # under the License.
 
 name: etcd
-description: 'Behavior test for etcd stanlone'
+description: 'Behavior test for etcd standalone'
 
 runs:
   using: "composite"

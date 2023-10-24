@@ -15,20 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: nginx
-description: 'Behavior test for http service in nginx'
+name: gdrive
+description: 'Behavior test for Google Drive'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup http in nginx
-      shell: bash
-      working-directory: fixtures/http
-      run: docker-compose -f docker-compose-nginx.yml up -d
     - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_HTTP_ENDPOINT=http://127.0.0.1:8080
-        OPENDAL_DISABLE_RANDOM_ROOT=true
-        EOF
+      uses: 1password/load-secrets-action@v1
+      with:
+        export-env: true
+      env:
+        OPENDAL_GDRIVE_ROOT: op://services/gdrive/root
+        OPENDAL_GDRIVE_REFRESH_TOKEN: op://services/gdrive/refresh_token
+        OPENDAL_GDRIVE_CLIENT_ID: op://services/gdrive/client_id
+        OPENDAL_GDRIVE_CLIENT_SECRET: op://services/gdrive/client_secret

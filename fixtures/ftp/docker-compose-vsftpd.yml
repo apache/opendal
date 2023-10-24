@@ -20,8 +20,8 @@ services:
   ftp:
     image: fauria/vsftpd
     ports:
-      - 2121:21
-      - 20000-22000:20000-22000
+      - "2121:21"
+      - "20000-22000:20000-22000"
     environment:
       - FTP_USER=admin
       - FTP_PASS=admin

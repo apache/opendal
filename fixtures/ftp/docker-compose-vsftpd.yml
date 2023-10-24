@@ -23,10 +23,10 @@ services:
       - 2121:21
       - 20000-22000:20000-22000
     environment:
-      FTP_USER: admin
-      FTP_PASS: admin
-      PASV_ADDRESS: 127.0.0.1
-      PASV_MIN_PORT: 20000
-      PASV_MAX_PORT: 22000
+      - FTP_USER=admin
+      - FTP_PASS=admin
+      - PASV_ADDRESS=127.0.0.1
+      - PASV_MIN_PORT=20000
+      - PASV_MAX_PORT=22000
     volumes:
       - vsftpd-data:/home/vsftpd

@@ -27,7 +27,7 @@ import { run as SyncIOTestRun } from './sync.suite.mjs'
 
 export function runner(testName, scheme) {
     const config = loadConfigFromEnv(scheme)
-    const operator = scheme ? new Operator(scheme, { root: '/tmp', ...config }) : undefined
+    const operator = scheme ? new Operator(scheme, config) : undefined
 
     describe.skipIf(!operator)(testName, () => {
         AsyncIOTestRun(operator)

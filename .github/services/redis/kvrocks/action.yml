@@ -15,22 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: sqlite
-description: 'Behavior test for sqlite'
+name: kvrocks
+description: 'Behavior test for kvrocks'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup Sqlite
+    - name: Setup Kvrocks Server
       shell: bash
-      working-directory: fixtures/sqlite
-      run: mkdir -p /tmp/opendal && sqlite3 /tmp/opendal/test.db < data.sql
+      working-directory: fixtures/redis
+      run: docker-compose -f docker-compose-kvrocks.yml up -d
     - name: Setup
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_SQLITE_CONNECTION_STRING=file:///tmp/opendal/test.db
-        OPENDAL_SQLITE_TABLE=data
-        OPENDAL_SQLITE_KEY_FIELD=key
-        OPENDAL_SQLITE_VALUE_FIELD=data
+        OPENDAL_REDIS_ENDPOINT=tcp://127.0.0.1:6379
+        OPENDAL_REDIS_ROOT=/
+        OPENDAL_REDIS_DB=0
         EOF

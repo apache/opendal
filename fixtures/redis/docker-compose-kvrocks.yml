@@ -15,22 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: sqlite
-description: 'Behavior test for sqlite'
+version: '3.8'
 
-runs:
-  using: "composite"
-  steps:
-    - name: Setup Sqlite
-      shell: bash
-      working-directory: fixtures/sqlite
-      run: mkdir -p /tmp/opendal && sqlite3 /tmp/opendal/test.db < data.sql
-    - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_SQLITE_CONNECTION_STRING=file:///tmp/opendal/test.db
-        OPENDAL_SQLITE_TABLE=data
-        OPENDAL_SQLITE_KEY_FIELD=key
-        OPENDAL_SQLITE_VALUE_FIELD=data
-        EOF
+services:
+  redis:
+    image: apache/kvrocks:2.5.1
+    ports:
+      - '6379:6666'

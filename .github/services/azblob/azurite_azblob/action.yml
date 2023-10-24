@@ -15,22 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: sqlite
-description: 'Behavior test for sqlite'
+name: azurite_azblob
+description: 'Behavior test for azurite azblob'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup Sqlite
+    - name: Setup azurite azblob service
       shell: bash
-      working-directory: fixtures/sqlite
-      run: mkdir -p /tmp/opendal && sqlite3 /tmp/opendal/test.db < data.sql
+      working-directory: fixtures/azblob
+      run: docker-compose -f docker-compose-azurite.yml up -d
+    - name: Setup test bucket
+      shell: bash
+      run: |
+        az storage container create \
+            --name test \
+            --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
     - name: Setup
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_SQLITE_CONNECTION_STRING=file:///tmp/opendal/test.db
-        OPENDAL_SQLITE_TABLE=data
-        OPENDAL_SQLITE_KEY_FIELD=key
-        OPENDAL_SQLITE_VALUE_FIELD=data
+        RUST_BACKTRACE=full
+        RUST_LOG=debug
+        OPENDAL_AZBLOB_CONTAINER=test
+        OPENDAL_AZBLOB_ENDPOINT=http://127.0.0.1:10000/devstoreaccount1
+        OPENDAL_AZBLOB_ACCOUNT_NAME=devstoreaccount1
+        OPENDAL_AZBLOB_ACCOUNT_KEY=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
         EOF

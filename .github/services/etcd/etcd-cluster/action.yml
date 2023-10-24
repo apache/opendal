@@ -19,8 +19,8 @@ name: etcd-cluster
 description: 'Behavior test for etcd-cluster'
 
 runs:
-    using: "composite"
-    steps:
+  using: "composite"
+  steps:
     - name: Setup etcd cluster
       shell: bash
       working-directory: fixtures/etcd
@@ -28,7 +28,7 @@ runs:
     - name: Setup
       shell: bash
       run: |
-          cat << EOF >> $GITHUB_ENV
-          OPENDAL_ETCD_ENDPOINTS=http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792
-          OPENDAL_ETCD_ROOT=/tmp/opendal
-          EOF
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_ETCD_ENDPOINTS=http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792
+        OPENDAL_ETCD_ROOT=/tmp/opendal
+        EOF

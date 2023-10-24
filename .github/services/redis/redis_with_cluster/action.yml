@@ -19,17 +19,17 @@ name: redis_with_cluster
 description: 'Behavior test for redis with cluster'
 
 runs:
-    using: "composite"
-    steps:
-      - name: Setup Redis Cluster
-        shell: bash
-        working-directory: fixtures/redis
-        run: docker-compose -f docker-compose-redis-cluster.yml up -d
-      - name: Setup
-        shell: bash
-        run: |
-            cat << EOF >> $GITHUB_ENV
-            OPENDAL_REDIS_CLUSTER_ENDPOINTS=redis://127.0.0.1:6380/,redis://127.0.0.1:6381/,redis://127.0.0.1:6382/,redis://127.0.0.1:6383/,redis://127.0.0.1:6384/,redis://127.0.0.1:6385/
-            OPENDAL_REDIS_ROOT=/test/opendal
-            OPENDAL_REDIS_DB=0
-            EOF
+  using: "composite"
+  steps:
+    - name: Setup Redis Cluster
+      shell: bash
+      working-directory: fixtures/redis
+      run: docker-compose -f docker-compose-redis-cluster.yml up -d
+    - name: Setup
+      shell: bash
+      run: |
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_REDIS_CLUSTER_ENDPOINTS=redis://127.0.0.1:6380/,redis://127.0.0.1:6381/,redis://127.0.0.1:6382/,redis://127.0.0.1:6383/,redis://127.0.0.1:6384/,redis://127.0.0.1:6385/
+        OPENDAL_REDIS_ROOT=/test/opendal
+        OPENDAL_REDIS_DB=0
+        EOF

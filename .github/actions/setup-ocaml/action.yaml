@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Setup OCaml 
+name: Setup OCaml
 description: 'Prepare OCaml Build Environment'
 inputs:
   need-depext:
